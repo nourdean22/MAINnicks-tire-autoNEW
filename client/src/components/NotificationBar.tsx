@@ -1,38 +1,27 @@
 /*
  * NOTIFICATION BAR — Enterprise-Grade Auto-Rotating Announcement System
- * with Weather-Reactive Alert Override
+ * with Weather-Reactive Alert Override + Dynamic Database Messages
  *
- * When severe weather is detected in Cleveland via the Open-Meteo API,
- * the notification bar overrides its normal rotation with a weather-specific
- * alert that connects the weather condition to a relevant auto service.
- *
- * Strategies adapted from top SPY ETF companies:
- *
- * 1. URGENCY (Amazon) — Limited-time offers, countdown language
- * 2. SOCIAL PROOF (Apple) — Review count, trust signals, customer volume
- * 3. SCARCITY (Tesla) — Limited availability, appointment slots filling
- * 4. SEASONAL (Costco/Home Depot) — Weather-driven, seasonal maintenance
- * 5. AUTHORITY (Google) — Expertise signals, certifications, diagnostics
- * 6. LOSS AVERSION (Meta) — Cost of waiting, problem escalation warnings
- * 7. LOCAL IDENTITY (Starbucks) — Community connection, Cleveland pride
- * 8. VALUE ANCHOR (Walmart) — Price comparison, savings framing
+ * Priority order:
+ * 1. Weather alerts (when severe weather detected in Cleveland)
+ * 2. Dynamic messages from database (AI-generated, admin-managed)
+ * 3. Hardcoded strategy-based messages (fallback)
  *
  * Rotation logic:
  * - Weather alert takes priority when active (shown first, then rotates)
+ * - Dynamic DB messages shown next (seasonal/time-filtered)
+ * - Hardcoded messages fill the rest
  * - Messages rotate every 8 seconds with smooth animation
- * - Time-of-day awareness (morning/afternoon/evening messaging)
- * - Day-of-week awareness (weekday vs weekend messaging)
- * - Seasonal awareness (spring/summer/fall/winter)
  * - Dismissable with 24hr cookie memory
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { X, Phone, Star, Clock, AlertTriangle, Shield, MapPin, Zap, Snowflake, CloudRain, CloudLightning, Wind, Sun, Thermometer, Cloud } from "lucide-react";
+import { X, Phone, Star, Clock, AlertTriangle, Shield, MapPin, Zap, Snowflake, CloudRain, CloudLightning, Wind, Sun, Thermometer, Cloud, Wrench, Gauge } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 
 // ─── STRATEGY TYPES ────────────────────────────────────
-type Strategy = "urgency" | "social_proof" | "scarcity" | "seasonal" | "authority" | "loss_aversion" | "local_identity" | "value_anchor" | "weather";
+type Strategy = "urgency" | "social_proof" | "scarcity" | "seasonal" | "authority" | "loss_aversion" | "local_identity" | "value_anchor" | "weather" | "dynamic";
 
 interface Notification {
   id: string;
@@ -46,8 +35,8 @@ interface Notification {
   daysOfWeek?: number[]; // 0=Sun, 6=Sat
 }
 
-// ─── WEATHER ICON MAP ──────────────────────────────────
-const WEATHER_ICONS: Record<string, React.ReactNode> = {
+// ─── ICON MAP ────────────────────────────────────────────
+const ICON_MAP: Record<string, React.ReactNode> = {
   snowflake: <Snowflake className="w-4 h-4" />,
   cloud_rain: <CloudRain className="w-4 h-4" />,
   cloud_lightning: <CloudLightning className="w-4 h-4" />,
@@ -56,6 +45,14 @@ const WEATHER_ICONS: Record<string, React.ReactNode> = {
   thermometer: <Thermometer className="w-4 h-4" />,
   cloud: <Cloud className="w-4 h-4" />,
   alert_triangle: <AlertTriangle className="w-4 h-4" />,
+  wrench: <Wrench className="w-4 h-4" />,
+  shield: <Shield className="w-4 h-4" />,
+  gauge: <Gauge className="w-4 h-4" />,
+  phone: <Phone className="w-4 h-4" />,
+  star: <Star className="w-4 h-4" />,
+  clock: <Clock className="w-4 h-4" />,
+  zap: <Zap className="w-4 h-4" />,
+  map_pin: <MapPin className="w-4 h-4" />,
 };
 
 // ─── HELPER: GET CURRENT CONTEXT ───────────────────────
@@ -78,9 +75,9 @@ function getDayOfWeek(): number {
   return new Date().getDay();
 }
 
-// ─── NOTIFICATION DATABASE ─────────────────────────────
+// ─── HARDCODED NOTIFICATION DATABASE (FALLBACK) ────────
 const ALL_NOTIFICATIONS: Notification[] = [
-  // ── URGENCY (Amazon-style) ──
+  // ── URGENCY ──
   {
     id: "urg-1",
     strategy: "urgency",
@@ -106,10 +103,10 @@ const ALL_NOTIFICATIONS: Notification[] = [
     cta: "Call Now",
     ctaHref: "tel:2168620005",
     icon: <Clock className="w-4 h-4" />,
-    daysOfWeek: [4, 5], // Thu-Fri, remind about Saturday
+    daysOfWeek: [4, 5],
   },
 
-  // ── SOCIAL PROOF (Apple-style) ──
+  // ── SOCIAL PROOF ──
   {
     id: "sp-1",
     strategy: "social_proof",
@@ -122,35 +119,8 @@ const ALL_NOTIFICATIONS: Notification[] = [
     text: "\"First shop I felt I could trust\" — real Google review from a Cleveland driver",
     icon: <Star className="w-4 h-4" />,
   },
-  {
-    id: "sp-3",
-    strategy: "social_proof",
-    text: "Thousands of Cleveland drivers choose Nick's — read our 1,683+ reviews",
-    cta: "See Reviews",
-    ctaHref: "#reviews",
-    icon: <Star className="w-4 h-4" />,
-  },
 
-  // ── SCARCITY (Tesla-style) ──
-  {
-    id: "sc-1",
-    strategy: "scarcity",
-    text: "Limited appointment slots available this week — call to check availability",
-    cta: "Call Now",
-    ctaHref: "tel:2168620005",
-    icon: <Clock className="w-4 h-4" />,
-    daysOfWeek: [1, 2, 3],
-  },
-  {
-    id: "sc-2",
-    strategy: "scarcity",
-    text: "Used tire inventory changes daily — call to check what we have in your size",
-    cta: "Call Now",
-    ctaHref: "tel:2168620005",
-    icon: <Zap className="w-4 h-4" />,
-  },
-
-  // ── SEASONAL (Costco/Home Depot-style) ──
+  // ── SEASONAL ──
   {
     id: "sea-spring-1",
     strategy: "seasonal",
@@ -161,30 +131,12 @@ const ALL_NOTIFICATIONS: Notification[] = [
     seasons: ["spring"],
   },
   {
-    id: "sea-spring-2",
-    strategy: "seasonal",
-    text: "Post-winter inspection: check suspension, alignment, and tires before spring driving",
-    cta: "Call Now",
-    ctaHref: "tel:2168620005",
-    icon: <Shield className="w-4 h-4" />,
-    seasons: ["spring"],
-  },
-  {
     id: "sea-summer-1",
     strategy: "seasonal",
     text: "Hot pavement destroys underinflated tires — free tire pressure check, no appointment needed",
     cta: "Stop By",
     ctaHref: "#contact",
     icon: <AlertTriangle className="w-4 h-4" />,
-    seasons: ["summer"],
-  },
-  {
-    id: "sea-summer-2",
-    strategy: "seasonal",
-    text: "AC not blowing cold? We diagnose and repair automotive AC systems",
-    cta: "Call Now",
-    ctaHref: "tel:2168620005",
-    icon: <Zap className="w-4 h-4" />,
     seasons: ["summer"],
   },
   {
@@ -205,17 +157,8 @@ const ALL_NOTIFICATIONS: Notification[] = [
     icon: <AlertTriangle className="w-4 h-4" />,
     seasons: ["winter"],
   },
-  {
-    id: "sea-winter-2",
-    strategy: "seasonal",
-    text: "Snow tires, tire chains, and TPMS sensors — we have what Cleveland winters demand",
-    cta: "Call Now",
-    ctaHref: "tel:2168620005",
-    icon: <Zap className="w-4 h-4" />,
-    seasons: ["winter"],
-  },
 
-  // ── AUTHORITY (Google-style) ──
+  // ── AUTHORITY ──
   {
     id: "auth-1",
     strategy: "authority",
@@ -227,17 +170,11 @@ const ALL_NOTIFICATIONS: Notification[] = [
     strategy: "authority",
     text: "Ohio E-Check failures repaired — oxygen sensors, EVAP leaks, catalytic converters",
     cta: "Learn More",
-    ctaHref: "#services",
+    ctaHref: "/emissions",
     icon: <Zap className="w-4 h-4" />,
   },
-  {
-    id: "auth-3",
-    strategy: "authority",
-    text: "We show you the problem before we fix it — honest diagnostics, every time",
-    icon: <Shield className="w-4 h-4" />,
-  },
 
-  // ── LOSS AVERSION (Meta-style) ──
+  // ── LOSS AVERSION ──
   {
     id: "la-1",
     strategy: "loss_aversion",
@@ -254,32 +191,16 @@ const ALL_NOTIFICATIONS: Notification[] = [
     ctaHref: "tel:2168620005",
     icon: <AlertTriangle className="w-4 h-4" />,
   },
-  {
-    id: "la-3",
-    strategy: "loss_aversion",
-    text: "Driving on bald tires in Cleveland rain? One blowout costs more than four new tires",
-    cta: "Check Tires",
-    ctaHref: "tel:2168620005",
-    icon: <AlertTriangle className="w-4 h-4" />,
-  },
 
-  // ── LOCAL IDENTITY (Starbucks-style) ──
+  // ── LOCAL IDENTITY ──
   {
     id: "loc-1",
     strategy: "local_identity",
     text: "Locally owned. Cleveland proud. Serving Euclid and Northeast Ohio drivers every day.",
     icon: <MapPin className="w-4 h-4" />,
   },
-  {
-    id: "loc-2",
-    strategy: "local_identity",
-    text: "17625 Euclid Ave — your neighborhood tire and auto repair shop",
-    cta: "Get Directions",
-    ctaHref: "https://www.google.com/maps/dir//Nick's+Tire+And+Auto+Euclid,+17625+Euclid+Ave,+Cleveland,+OH+44112",
-    icon: <MapPin className="w-4 h-4" />,
-  },
 
-  // ── VALUE ANCHOR (Walmart-style) ──
+  // ── VALUE ANCHOR ──
   {
     id: "val-1",
     strategy: "value_anchor",
@@ -288,18 +209,10 @@ const ALL_NOTIFICATIONS: Notification[] = [
     ctaHref: "tel:2168620005",
     icon: <Zap className="w-4 h-4" />,
   },
-  {
-    id: "val-2",
-    strategy: "value_anchor",
-    text: "New and quality used tires at prices that make sense — not dealership markups",
-    cta: "Call for Pricing",
-    ctaHref: "tel:2168620005",
-    icon: <Zap className="w-4 h-4" />,
-  },
 ];
 
-// ─── FILTER + ROTATE LOGIC ─────────────────────────────
-function getActiveNotifications(): Notification[] {
+// ─── FILTER LOGIC ────────────────────────────────────────
+function getFilteredHardcodedNotifications(): Notification[] {
   const season = getCurrentSeason();
   const timeOfDay = getTimeOfDay();
   const dayOfWeek = getDayOfWeek();
@@ -323,9 +236,9 @@ const strategyStyles: Record<Strategy, string> = {
   local_identity: "bg-primary/90 border-primary/50",
   value_anchor: "bg-teal-900/90 border-teal-700/50",
   weather: "bg-sky-900/90 border-sky-700/50",
+  dynamic: "bg-indigo-900/90 border-indigo-700/50",
 };
 
-// Severity-specific weather bar colors
 const weatherSeverityStyles: Record<string, string> = {
   danger: "bg-red-900/95 border-red-600/60",
   warning: "bg-amber-900/95 border-amber-600/60",
@@ -339,17 +252,25 @@ export default function NotificationBar() {
 
   // Fetch weather data from the server
   const { data: weatherData } = trpc.weather.current.useQuery(undefined, {
-    staleTime: 15 * 60 * 1000, // 15 minutes
+    staleTime: 15 * 60 * 1000,
     refetchInterval: 15 * 60 * 1000,
     retry: 1,
   });
 
-  const baseNotifications = useMemo(() => getActiveNotifications(), []);
+  // Fetch dynamic notifications from the database
+  const { data: dynamicNotifs } = trpc.content.activeNotifications.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 10 * 60 * 1000,
+    retry: 1,
+  });
 
-  // Build the final notification list: weather alert first (if active), then regular
+  const baseNotifications = useMemo(() => getFilteredHardcodedNotifications(), []);
+
+  // Build the final notification list: weather → dynamic DB → hardcoded fallback
   const activeNotifications = useMemo(() => {
     const list: Notification[] = [];
 
+    // 1. Weather alert first (highest priority)
     if (weatherData?.alert?.active) {
       const alert = weatherData.alert;
       list.push({
@@ -358,13 +279,28 @@ export default function NotificationBar() {
         text: alert.message,
         cta: alert.cta,
         ctaHref: alert.ctaHref,
-        icon: WEATHER_ICONS[alert.icon] || <Cloud className="w-4 h-4" />,
+        icon: ICON_MAP[alert.icon] || <Cloud className="w-4 h-4" />,
       });
     }
 
+    // 2. Dynamic database messages
+    if (dynamicNotifs && dynamicNotifs.length > 0) {
+      for (const dn of dynamicNotifs) {
+        list.push({
+          id: `db-${dn.id}`,
+          strategy: "dynamic",
+          text: dn.message,
+          cta: dn.ctaText || undefined,
+          ctaHref: dn.ctaHref || undefined,
+          icon: ICON_MAP[dn.icon || "wrench"] || <Wrench className="w-4 h-4" />,
+        });
+      }
+    }
+
+    // 3. Hardcoded fallback messages
     list.push(...baseNotifications);
     return list;
-  }, [weatherData, baseNotifications]);
+  }, [weatherData, dynamicNotifs, baseNotifications]);
 
   // Check if dismissed in last 24 hours
   useEffect(() => {
@@ -397,7 +333,7 @@ export default function NotificationBar() {
 
   const current = activeNotifications[currentIndex % activeNotifications.length];
 
-  // Determine bar style: weather alerts use severity-specific colors
+  // Determine bar style
   const barStyle =
     current.strategy === "weather" && weatherData?.alert
       ? weatherSeverityStyles[weatherData.alert.severity] || strategyStyles.weather

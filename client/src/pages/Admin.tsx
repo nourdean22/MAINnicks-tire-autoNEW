@@ -180,6 +180,9 @@ export default function Admin() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Link href="/admin/content" className="flex items-center gap-2 bg-card border border-border/30 px-4 py-2 text-foreground/60 hover:text-primary hover:border-primary/30 transition-colors">
+              <span className="font-heading font-bold text-xs tracking-wider uppercase">Content Manager</span>
+            </Link>
             <span className="font-mono text-xs text-foreground/40">{user.name || user.email}</span>
             <button
               onClick={() => refetch()}

@@ -437,6 +437,56 @@ describe("reviews.google tRPC endpoint", () => {
   });
 });
 
+// ─── CONTENT GENERATOR TESTS ─────────────────────────
+
+import { getCurrentSeason, type Season } from "./content-generator";
+
+describe("content-generator", () => {
+  it("getCurrentSeason returns a valid season", () => {
+    const season = getCurrentSeason();
+    expect(["spring", "summer", "fall", "winter"]).toContain(season);
+  });
+
+  it("content.activeNotifications returns an array without error", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.content.activeNotifications();
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("content.publishedArticles returns an array without error", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.content.publishedArticles();
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("content.currentSeason returns a valid season object", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.content.currentSeason();
+    expect(result).toHaveProperty("season");
+    expect(["spring", "summer", "fall", "winter"]).toContain(result.season);
+  });
+
+  it("content.articleBySlug returns null for nonexistent slug", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.content.articleBySlug({ slug: "nonexistent-article-slug" });
+    expect(result).toBeNull();
+  });
+
+  it("contentAdmin endpoints require admin auth", async () => {
+    const ctx = createAuthContext(); // regular user, not admin
+    const caller = appRouter.createCaller(ctx);
+
+    // Regular user should be denied
+    await expect(caller.contentAdmin.allArticles()).rejects.toThrow();
+    await expect(caller.contentAdmin.allNotifications()).rejects.toThrow();
+    await expect(caller.contentAdmin.generationLog()).rejects.toThrow();
+  });
+});
+
 // ─── BOOKING VALIDATION TESTS ──────────────────────────
 
 describe("booking.create tRPC endpoint", () => {

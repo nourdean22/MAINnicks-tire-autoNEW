@@ -7,6 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import ServicePage from "./pages/ServicePage";
 import Admin from "./pages/Admin";
+import AdminContent from "./pages/AdminContent";
 import Blog from "./pages/Blog";
 import BlogPost from "./pages/BlogPost";
 
@@ -23,6 +24,7 @@ function Router() {
       <Route path={"/general-repair"} component={ServicePage} />
       {/* Admin dashboard */}
       <Route path={"/admin"} component={Admin} />
+      <Route path={"/admin/content"} component={AdminContent} />
       {/* Blog / Tips */}
       <Route path={"/blog"} component={Blog} />
       <Route path={"/blog/:slug"} component={BlogPost} />

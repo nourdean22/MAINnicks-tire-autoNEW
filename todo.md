@@ -23,3 +23,12 @@
 - [x] Admin dashboard for booking management (view, confirm, complete, cancel)
 - [x] Blog/tips section with SEO-optimized maintenance articles
 - [x] Google Business Profile integration for live review data
+
+## Phase 3 — Automated Content System
+- [x] Database tables for dynamic content (blog posts, tips, seasonal promos)
+- [x] AI content generation endpoint using built-in LLM (generates blog posts, tips, notification bar messages)
+- [x] Seasonal content rotation system (auto-detects season → rotates relevant tips/promos)
+- [x] Weather-aware promotional messaging (ties weather alerts to relevant service promos)
+- [x] Dynamic notification bar that pulls from database instead of hardcoded rotation
+- [x] Admin content management page (view, edit, approve/reject AI-generated content)
+- [x] Scheduled task to auto-generate fresh content weekly
