@@ -1,8 +1,13 @@
 /*
  * NOTIFICATION BAR — Enterprise-Grade Auto-Rotating Announcement System
- * 
+ * with Weather-Reactive Alert Override
+ *
+ * When severe weather is detected in Cleveland via the Open-Meteo API,
+ * the notification bar overrides its normal rotation with a weather-specific
+ * alert that connects the weather condition to a relevant auto service.
+ *
  * Strategies adapted from top SPY ETF companies:
- * 
+ *
  * 1. URGENCY (Amazon) — Limited-time offers, countdown language
  * 2. SOCIAL PROOF (Apple) — Review count, trust signals, customer volume
  * 3. SCARCITY (Tesla) — Limited availability, appointment slots filling
@@ -11,8 +16,9 @@
  * 6. LOSS AVERSION (Meta) — Cost of waiting, problem escalation warnings
  * 7. LOCAL IDENTITY (Starbucks) — Community connection, Cleveland pride
  * 8. VALUE ANCHOR (Walmart) — Price comparison, savings framing
- * 
+ *
  * Rotation logic:
+ * - Weather alert takes priority when active (shown first, then rotates)
  * - Messages rotate every 8 seconds with smooth animation
  * - Time-of-day awareness (morning/afternoon/evening messaging)
  * - Day-of-week awareness (weekday vs weekend messaging)
@@ -21,11 +27,12 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { X, Phone, Star, Clock, AlertTriangle, Shield, MapPin, Zap } from "lucide-react";
+import { X, Phone, Star, Clock, AlertTriangle, Shield, MapPin, Zap, Snowflake, CloudRain, CloudLightning, Wind, Sun, Thermometer, Cloud } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { trpc } from "@/lib/trpc";
 
 // ─── STRATEGY TYPES ────────────────────────────────────
-type Strategy = "urgency" | "social_proof" | "scarcity" | "seasonal" | "authority" | "loss_aversion" | "local_identity" | "value_anchor";
+type Strategy = "urgency" | "social_proof" | "scarcity" | "seasonal" | "authority" | "loss_aversion" | "local_identity" | "value_anchor" | "weather";
 
 interface Notification {
   id: string;
@@ -38,6 +45,18 @@ interface Notification {
   timeOfDay?: ("morning" | "afternoon" | "evening")[];
   daysOfWeek?: number[]; // 0=Sun, 6=Sat
 }
+
+// ─── WEATHER ICON MAP ──────────────────────────────────
+const WEATHER_ICONS: Record<string, React.ReactNode> = {
+  snowflake: <Snowflake className="w-4 h-4" />,
+  cloud_rain: <CloudRain className="w-4 h-4" />,
+  cloud_lightning: <CloudLightning className="w-4 h-4" />,
+  wind: <Wind className="w-4 h-4" />,
+  sun: <Sun className="w-4 h-4" />,
+  thermometer: <Thermometer className="w-4 h-4" />,
+  cloud: <Cloud className="w-4 h-4" />,
+  alert_triangle: <AlertTriangle className="w-4 h-4" />,
+};
 
 // ─── HELPER: GET CURRENT CONTEXT ───────────────────────
 function getCurrentSeason(): "spring" | "summer" | "fall" | "winter" {
@@ -303,6 +322,14 @@ const strategyStyles: Record<Strategy, string> = {
   loss_aversion: "bg-orange-900/90 border-orange-700/50",
   local_identity: "bg-primary/90 border-primary/50",
   value_anchor: "bg-teal-900/90 border-teal-700/50",
+  weather: "bg-sky-900/90 border-sky-700/50",
+};
+
+// Severity-specific weather bar colors
+const weatherSeverityStyles: Record<string, string> = {
+  danger: "bg-red-900/95 border-red-600/60",
+  warning: "bg-amber-900/95 border-amber-600/60",
+  info: "bg-sky-900/90 border-sky-700/50",
 };
 
 // ─── COMPONENT ─────────────────────────────────────────
@@ -310,7 +337,34 @@ export default function NotificationBar() {
   const [dismissed, setDismissed] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  const activeNotifications = useMemo(() => getActiveNotifications(), []);
+  // Fetch weather data from the server
+  const { data: weatherData } = trpc.weather.current.useQuery(undefined, {
+    staleTime: 15 * 60 * 1000, // 15 minutes
+    refetchInterval: 15 * 60 * 1000,
+    retry: 1,
+  });
+
+  const baseNotifications = useMemo(() => getActiveNotifications(), []);
+
+  // Build the final notification list: weather alert first (if active), then regular
+  const activeNotifications = useMemo(() => {
+    const list: Notification[] = [];
+
+    if (weatherData?.alert?.active) {
+      const alert = weatherData.alert;
+      list.push({
+        id: "weather-live",
+        strategy: "weather",
+        text: alert.message,
+        cta: alert.cta,
+        ctaHref: alert.ctaHref,
+        icon: WEATHER_ICONS[alert.icon] || <Cloud className="w-4 h-4" />,
+      });
+    }
+
+    list.push(...baseNotifications);
+    return list;
+  }, [weatherData, baseNotifications]);
 
   // Check if dismissed in last 24 hours
   useEffect(() => {
@@ -341,10 +395,16 @@ export default function NotificationBar() {
 
   if (dismissed || activeNotifications.length === 0) return null;
 
-  const current = activeNotifications[currentIndex];
+  const current = activeNotifications[currentIndex % activeNotifications.length];
+
+  // Determine bar style: weather alerts use severity-specific colors
+  const barStyle =
+    current.strategy === "weather" && weatherData?.alert
+      ? weatherSeverityStyles[weatherData.alert.severity] || strategyStyles.weather
+      : strategyStyles[current.strategy];
 
   return (
-    <div className={`fixed top-0 left-0 right-0 z-[60] border-b ${strategyStyles[current.strategy]} backdrop-blur-sm transition-colors duration-700`}>
+    <div className={`fixed top-0 left-0 right-0 z-[60] border-b ${barStyle} backdrop-blur-sm transition-colors duration-700`}>
       <div className="container relative flex items-center justify-center min-h-[40px] py-2">
         {/* Progress dots */}
         <div className="absolute left-4 hidden sm:flex items-center gap-1.5">
@@ -385,6 +445,14 @@ export default function NotificationBar() {
             )}
           </motion.div>
         </AnimatePresence>
+
+        {/* Weather badge for weather alerts */}
+        {current.strategy === "weather" && weatherData?.weather && (
+          <div className="absolute right-12 hidden lg:flex items-center gap-1.5 text-white/50 text-xs font-mono">
+            <Thermometer className="w-3 h-3" />
+            <span>{weatherData.weather.temperature_f}°F</span>
+          </div>
+        )}
 
         {/* Dismiss button */}
         <button

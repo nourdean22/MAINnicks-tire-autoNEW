@@ -1,0 +1,379 @@
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { appRouter } from "./routers";
+import type { TrpcContext } from "./_core/context";
+import { getWeatherAlert, type WeatherData } from "./weather";
+import { SERVICES, getServiceBySlug } from "../shared/services";
+
+// ─── HELPERS ───────────────────────────────────────────
+
+type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
+
+function createPublicContext(): TrpcContext {
+  return {
+    user: null,
+    req: {
+      protocol: "https",
+      headers: {},
+    } as TrpcContext["req"],
+    res: {
+      clearCookie: () => {},
+    } as TrpcContext["res"],
+  };
+}
+
+function createAuthContext(): TrpcContext {
+  const user: AuthenticatedUser = {
+    id: 1,
+    openId: "sample-user",
+    email: "sample@example.com",
+    name: "Sample User",
+    loginMethod: "manus",
+    role: "user",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    lastSignedIn: new Date(),
+  };
+
+  return {
+    user,
+    req: {
+      protocol: "https",
+      headers: {},
+    } as TrpcContext["req"],
+    res: {
+      clearCookie: () => {},
+    } as TrpcContext["res"],
+  };
+}
+
+// ─── WEATHER ALERT LOGIC TESTS ─────────────────────────
+
+describe("getWeatherAlert", () => {
+  it("returns danger alert for heavy snow", () => {
+    const weather: WeatherData = {
+      temperature_f: 28,
+      wind_speed_mph: 15,
+      weather_code: 75, // heavy snow
+      weather_condition: "heavy_snow",
+      is_day: true,
+      precipitation_mm: 5,
+    };
+    const alert = getWeatherAlert(weather);
+    expect(alert.active).toBe(true);
+    expect(alert.severity).toBe("danger");
+    expect(alert.message).toContain("Heavy snow");
+    expect(alert.message).toContain("28°F");
+    expect(alert.icon).toBe("snowflake");
+  });
+
+  it("returns danger alert for freezing rain", () => {
+    const weather: WeatherData = {
+      temperature_f: 30,
+      wind_speed_mph: 10,
+      weather_code: 67, // freezing rain heavy
+      weather_condition: "freezing_rain_heavy",
+      is_day: true,
+      precipitation_mm: 3,
+    };
+    const alert = getWeatherAlert(weather);
+    expect(alert.active).toBe(true);
+    expect(alert.severity).toBe("danger");
+    expect(alert.message).toContain("Freezing rain");
+    expect(alert.icon).toBe("alert_triangle");
+  });
+
+  it("returns danger alert for extreme cold", () => {
+    const weather: WeatherData = {
+      temperature_f: 5,
+      wind_speed_mph: 20,
+      weather_code: 0, // clear
+      weather_condition: "clear",
+      is_day: true,
+      precipitation_mm: 0,
+    };
+    const alert = getWeatherAlert(weather);
+    expect(alert.active).toBe(true);
+    expect(alert.severity).toBe("danger");
+    expect(alert.message).toContain("Extreme cold");
+    expect(alert.message).toContain("5°F");
+  });
+
+  it("returns warning alert for thunderstorm", () => {
+    const weather: WeatherData = {
+      temperature_f: 72,
+      wind_speed_mph: 25,
+      weather_code: 95, // thunderstorm
+      weather_condition: "thunderstorm",
+      is_day: true,
+      precipitation_mm: 10,
+    };
+    const alert = getWeatherAlert(weather);
+    expect(alert.active).toBe(true);
+    expect(alert.severity).toBe("warning");
+    expect(alert.message).toContain("Thunderstorm");
+  });
+
+  it("returns warning alert for heavy rain", () => {
+    const weather: WeatherData = {
+      temperature_f: 55,
+      wind_speed_mph: 12,
+      weather_code: 65, // heavy rain
+      weather_condition: "heavy_rain",
+      is_day: true,
+      precipitation_mm: 8,
+    };
+    const alert = getWeatherAlert(weather);
+    expect(alert.active).toBe(true);
+    expect(alert.severity).toBe("warning");
+    expect(alert.message).toContain("Heavy rain");
+  });
+
+  it("returns warning alert for high winds", () => {
+    const weather: WeatherData = {
+      temperature_f: 50,
+      wind_speed_mph: 45,
+      weather_code: 2, // partly cloudy
+      weather_condition: "partly_cloudy",
+      is_day: true,
+      precipitation_mm: 0,
+    };
+    const alert = getWeatherAlert(weather);
+    expect(alert.active).toBe(true);
+    expect(alert.severity).toBe("warning");
+    expect(alert.message).toContain("High winds");
+    expect(alert.message).toContain("45 mph");
+  });
+
+  it("returns info alert for light snow at above-freezing temp", () => {
+    const weather: WeatherData = {
+      temperature_f: 36,
+      wind_speed_mph: 8,
+      weather_code: 71, // light snow
+      weather_condition: "light_snow",
+      is_day: true,
+      precipitation_mm: 1,
+    };
+    const alert = getWeatherAlert(weather);
+    expect(alert.active).toBe(true);
+    expect(alert.severity).toBe("info");
+    expect(alert.message).toContain("Light snow");
+  });
+
+  it("returns warning for light snow at freezing temp (icy roads)", () => {
+    const weather: WeatherData = {
+      temperature_f: 32,
+      wind_speed_mph: 8,
+      weather_code: 71, // light snow
+      weather_condition: "light_snow",
+      is_day: true,
+      precipitation_mm: 1,
+    };
+    const alert = getWeatherAlert(weather);
+    expect(alert.active).toBe(true);
+    // At 32°F with precipitation, the icy roads warning takes priority
+    expect(alert.severity).toBe("warning");
+  });
+
+  it("returns info alert for fog", () => {
+    const weather: WeatherData = {
+      temperature_f: 45,
+      wind_speed_mph: 3,
+      weather_code: 45, // fog
+      weather_condition: "fog",
+      is_day: true,
+      precipitation_mm: 0,
+    };
+    const alert = getWeatherAlert(weather);
+    expect(alert.active).toBe(true);
+    expect(alert.severity).toBe("info");
+    expect(alert.message).toContain("Foggy");
+  });
+
+  it("returns info alert for hot day", () => {
+    const weather: WeatherData = {
+      temperature_f: 90,
+      wind_speed_mph: 5,
+      weather_code: 1, // mainly clear
+      weather_condition: "mainly_clear",
+      is_day: true,
+      precipitation_mm: 0,
+    };
+    const alert = getWeatherAlert(weather);
+    expect(alert.active).toBe(true);
+    expect(alert.severity).toBe("info");
+    expect(alert.message).toContain("90°F");
+  });
+
+  it("returns inactive alert for mild clear weather", () => {
+    const weather: WeatherData = {
+      temperature_f: 65,
+      wind_speed_mph: 8,
+      weather_code: 0, // clear
+      weather_condition: "clear",
+      is_day: true,
+      precipitation_mm: 0,
+    };
+    const alert = getWeatherAlert(weather);
+    expect(alert.active).toBe(false);
+  });
+
+  it("returns warning for icy precipitation near freezing", () => {
+    const weather: WeatherData = {
+      temperature_f: 31,
+      wind_speed_mph: 10,
+      weather_code: 61, // light rain
+      weather_condition: "light_rain",
+      is_day: true,
+      precipitation_mm: 2,
+    };
+    const alert = getWeatherAlert(weather);
+    expect(alert.active).toBe(true);
+    expect(alert.severity).toBe("warning");
+    expect(alert.message).toContain("icy roads");
+  });
+
+  it("always includes a CTA href for active alerts", () => {
+    const conditions: WeatherData[] = [
+      { temperature_f: 5, wind_speed_mph: 10, weather_code: 0, weather_condition: "clear", is_day: true, precipitation_mm: 0 },
+      { temperature_f: 28, wind_speed_mph: 15, weather_code: 75, weather_condition: "heavy_snow", is_day: true, precipitation_mm: 5 },
+      { temperature_f: 72, wind_speed_mph: 25, weather_code: 95, weather_condition: "thunderstorm", is_day: true, precipitation_mm: 10 },
+    ];
+
+    for (const weather of conditions) {
+      const alert = getWeatherAlert(weather);
+      if (alert.active) {
+        expect(alert.ctaHref).toBeTruthy();
+        expect(alert.cta).toBeTruthy();
+        expect(alert.message.length).toBeGreaterThan(10);
+      }
+    }
+  });
+});
+
+// ─── SERVICE DATA TESTS ────────────────────────────────
+
+describe("shared/services", () => {
+  it("has exactly 6 services", () => {
+    expect(SERVICES).toHaveLength(6);
+  });
+
+  it("each service has required fields", () => {
+    for (const service of SERVICES) {
+      expect(service.slug).toBeTruthy();
+      expect(service.title).toBeTruthy();
+      expect(service.metaTitle).toBeTruthy();
+      expect(service.metaDescription).toBeTruthy();
+      expect(service.heroHeadline).toBeTruthy();
+      expect(service.heroSubline).toBeTruthy();
+      expect(service.problems.length).toBeGreaterThanOrEqual(3);
+      expect(service.process.length).toBeGreaterThanOrEqual(4);
+      expect(service.whyUs.length).toBeGreaterThanOrEqual(5);
+      expect(service.keywords.length).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("all slugs are unique", () => {
+    const slugs = SERVICES.map((s) => s.slug);
+    expect(new Set(slugs).size).toBe(slugs.length);
+  });
+
+  it("getServiceBySlug returns correct service", () => {
+    const tires = getServiceBySlug("tires");
+    expect(tires).toBeDefined();
+    expect(tires!.title).toBe("TIRES");
+
+    const brakes = getServiceBySlug("brakes");
+    expect(brakes).toBeDefined();
+    expect(brakes!.title).toBe("BRAKES");
+  });
+
+  it("getServiceBySlug returns undefined for invalid slug", () => {
+    expect(getServiceBySlug("nonexistent")).toBeUndefined();
+  });
+
+  it("meta descriptions are under 160 characters", () => {
+    for (const service of SERVICES) {
+      expect(service.metaDescription.length).toBeLessThanOrEqual(160);
+    }
+  });
+
+  it("all service slugs match expected routes", () => {
+    const expectedSlugs = ["tires", "brakes", "diagnostics", "emissions", "oil-change", "general-repair"];
+    const actualSlugs = SERVICES.map((s) => s.slug);
+    expect(actualSlugs).toEqual(expectedSlugs);
+  });
+
+  it("each problem has both question and answer", () => {
+    for (const service of SERVICES) {
+      for (const problem of service.problems) {
+        expect(problem.question).toBeTruthy();
+        expect(problem.answer).toBeTruthy();
+        expect(problem.answer.length).toBeGreaterThan(50); // Substantial answers
+      }
+    }
+  });
+});
+
+// ─── WEATHER ENDPOINT TEST ─────────────────────────────
+
+describe("weather.current tRPC endpoint", () => {
+  it("returns weather data or null without error", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // This calls the actual Open-Meteo API
+    const result = await caller.weather.current();
+
+    // Should return an object with alert and weather keys
+    expect(result).toHaveProperty("alert");
+    expect(result).toHaveProperty("weather");
+
+    // If weather data was fetched, validate structure
+    if (result.weather) {
+      expect(typeof result.weather.temperature_f).toBe("number");
+      expect(typeof result.weather.wind_speed_mph).toBe("number");
+      expect(typeof result.weather.weather_code).toBe("number");
+    }
+
+    // If alert is active, validate structure
+    if (result.alert?.active) {
+      expect(result.alert.severity).toMatch(/^(info|warning|danger)$/);
+      expect(result.alert.message.length).toBeGreaterThan(0);
+      expect(result.alert.ctaHref).toBeTruthy();
+    }
+  });
+});
+
+// ─── BOOKING VALIDATION TESTS ──────────────────────────
+
+describe("booking.create tRPC endpoint", () => {
+  it("rejects booking with missing required fields", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.booking.create({
+        name: "",
+        phone: "2165551234",
+        service: "Tires",
+        vehicle: "2019 Honda Civic",
+        preferredTime: "morning",
+      } as any)
+    ).rejects.toThrow();
+  });
+
+  it("rejects booking with invalid phone format", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.booking.create({
+        name: "John Smith",
+        phone: "123", // too short
+        service: "Tires",
+        vehicle: "2019 Honda Civic",
+        preferredTime: "morning",
+      } as any)
+    ).rejects.toThrow();
+  });
+});

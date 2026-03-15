@@ -5,7 +5,9 @@
  */
 
 import { useState, useEffect, useRef } from "react";
+import { Link } from "wouter";
 import NotificationBar from "@/components/NotificationBar";
+import BookingForm from "@/components/BookingForm";
 import { Phone, MapPin, Clock, Star, ChevronRight, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Menu, X } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 
@@ -174,6 +176,7 @@ const services = [
   {
     num: "01",
     title: "TIRES",
+    slug: "/tires",
     desc: "New and used tires. Mounting, balancing, rotation, TPMS sensors, and flat repair. We carry all major brands at fair prices.",
     icon: <Gauge className="w-7 h-7" />,
     img: TIRES_IMG,
@@ -181,6 +184,7 @@ const services = [
   {
     num: "02",
     title: "BRAKES",
+    slug: "/brakes",
     desc: "Brake pads, rotors, calipers, brake lines, and ABS diagnostics. We show you the problem before we fix it. Every time.",
     icon: <Shield className="w-7 h-7" />,
     img: BRAKES_IMG,
@@ -188,6 +192,7 @@ const services = [
   {
     num: "03",
     title: "DIAGNOSTICS",
+    slug: "/diagnostics",
     desc: "Check engine light, OBD-II code reading, advanced computer diagnostics. We pinpoint the exact cause so you only pay for what you need.",
     icon: <Zap className="w-7 h-7" />,
     img: DIAG_IMG,
@@ -195,18 +200,21 @@ const services = [
   {
     num: "04",
     title: "EMISSIONS & E-CHECK",
+    slug: "/emissions",
     desc: "Failed Ohio E-Check? We diagnose and repair emissions problems — oxygen sensors, EVAP leaks, catalytic converters — and get you passing.",
     icon: <ThermometerSun className="w-7 h-7" />,
   },
   {
     num: "05",
     title: "OIL CHANGE",
+    slug: "/oil-change",
     desc: "Conventional and synthetic oil changes with filter replacement. Quick, affordable, done right.",
     icon: <Droplets className="w-7 h-7" />,
   },
   {
     num: "06",
     title: "GENERAL REPAIR",
+    slug: "/general-repair",
     desc: "Suspension, steering, exhaust, cooling systems, belts, hoses, and more. If it is broken, we fix it.",
     icon: <Wrench className="w-7 h-7" />,
   },
@@ -227,7 +235,7 @@ function Services() {
         <div className="mt-14 grid grid-cols-1 lg:grid-cols-2 gap-0">
           {services.map((s, i) => (
             <FadeIn key={s.num} delay={i * 0.08}>
-              <div className="group relative border border-border/50 p-8 lg:p-10 hover:bg-card/50 transition-colors overflow-hidden">
+              <Link href={s.slug} className="group relative block border border-border/50 p-8 lg:p-10 hover:bg-card/50 transition-colors overflow-hidden">
                 {s.img && (
                   <div className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-500">
                     <img src={s.img} alt="" className="w-full h-full object-cover" />
@@ -238,10 +246,11 @@ function Services() {
                     <span className="font-heading font-bold text-5xl lg:text-6xl text-border/60 leading-none">{s.num}</span>
                     <div className="text-primary">{s.icon}</div>
                   </div>
-                  <h3 className="font-heading font-bold text-2xl lg:text-3xl text-foreground tracking-wider mb-4">{s.title}</h3>
+                  <h3 className="font-heading font-bold text-2xl lg:text-3xl text-foreground tracking-wider mb-4 group-hover:text-primary transition-colors">{s.title}</h3>
                   <p className="text-foreground/70 leading-relaxed text-base">{s.desc}</p>
+                  <span className="inline-flex items-center gap-1 mt-4 font-heading text-sm text-primary tracking-wider uppercase opacity-0 group-hover:opacity-100 transition-opacity">Learn More <ChevronRight className="w-4 h-4" /></span>
                 </div>
-              </div>
+              </Link>
             </FadeIn>
           ))}
         </div>
@@ -515,20 +524,24 @@ function Contact() {
           </FadeIn>
 
           <FadeIn delay={0.2}>
-            <div className="w-full aspect-[4/3] bg-card border border-border/50 overflow-hidden">
-              <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2987.5!2d-81.5597624!3d41.5525118!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x8830ffda2d516449%3A0xcabdcc3204cd9c5!2sNick&#39;s%20Tire%20And%20Auto%20Euclid!5e0!3m2!1sen!2sus!4v1710000000000"
-                width="100%"
-                height="100%"
-                style={{ border: 0 }}
-                allowFullScreen
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                title="Nick's Tire & Auto location"
-              />
-            </div>
+            <BookingForm />
           </FadeIn>
         </div>
+
+        <FadeIn delay={0.3}>
+          <div className="mt-12 w-full aspect-[21/9] bg-card border border-border/50 overflow-hidden">
+            <iframe
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2987.5!2d-81.5597624!3d41.5525118!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x8830ffda2d516449%3A0xcabdcc3204cd9c5!2sNick&#39;s%20Tire%20And%20Auto%20Euclid!5e0!3m2!1sen!2sus!4v1710000000000"
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              title="Nick's Tire & Auto location"
+            />
+          </div>
+        </FadeIn>
       </div>
     </section>
   );

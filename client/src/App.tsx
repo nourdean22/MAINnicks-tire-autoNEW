@@ -5,12 +5,21 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
+import ServicePage from "./pages/ServicePage";
 
 function Router() {
   return (
     <Switch>
       <Route path={"/"} component={Home} />
+      {/* Individual service pages for SEO */}
+      <Route path={"/tires"} component={ServicePage} />
+      <Route path={"/brakes"} component={ServicePage} />
+      <Route path={"/diagnostics"} component={ServicePage} />
+      <Route path={"/emissions"} component={ServicePage} />
+      <Route path={"/oil-change"} component={ServicePage} />
+      <Route path={"/general-repair"} component={ServicePage} />
       <Route path={"/404"} component={NotFound} />
+      {/* Final fallback route */}
       <Route component={NotFound} />
     </Switch>
   );
