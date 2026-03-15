@@ -47,10 +47,6 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
   );
 }
 
-function CautionStripe() {
-  return <div className="caution-stripe h-2 w-full" />;
-}
-
 // ─── SERVICE NAVBAR ────────────────────────────────────
 function ServiceNavbar({ service }: { service: ServiceData }) {
   const [scrolled, setScrolled] = useState(false);
@@ -63,33 +59,33 @@ function ServiceNavbar({ service }: { service: ServiceData }) {
   }, []);
 
   return (
-    <nav className={`fixed ${scrolled ? "top-0" : "top-[40px]"} left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-nick-dark/95 backdrop-blur-md shadow-lg" : "bg-transparent"}`}>
+    <nav className={`fixed ${scrolled ? "top-0" : "top-[40px]"} left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-nick-dark/95 backdrop-blur-md shadow-lg shadow-nick-yellow/5" : "bg-transparent"}`}>
       <div className="container flex items-center justify-between h-16 lg:h-20">
         <Link href="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary flex items-center justify-center rounded-sm">
-            <span className="font-heading font-bold text-primary-foreground text-lg">N</span>
+          <div className="w-10 h-10 bg-nick-yellow flex items-center justify-center rounded-md">
+            <span className="font-heading font-bold text-nick-dark text-lg">N</span>
           </div>
           <div className="flex flex-col">
-            <span className="font-heading font-bold text-primary text-lg leading-tight tracking-wide">NICK'S TIRE & AUTO</span>
-            <span className="text-muted-foreground text-xs tracking-widest uppercase">Cleveland, Ohio</span>
+            <span className="font-heading font-bold text-nick-yellow text-lg leading-tight tracking-wide">NICK'S TIRE & AUTO</span>
+            <span className="text-nick-teal/70 text-xs tracking-widest uppercase">Cleveland, Ohio</span>
           </div>
         </Link>
 
         <div className="hidden lg:flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-1 font-heading text-sm tracking-widest uppercase text-foreground/60 hover:text-primary transition-colors">
+          <Link href="/" className="flex items-center gap-1 font-heading text-sm tracking-widest uppercase text-foreground/60 hover:text-nick-teal transition-colors">
             <ArrowLeft className="w-4 h-4" />
             Home
           </Link>
-          <a href="#problems" className="font-heading text-sm tracking-widest uppercase text-foreground/80 hover:text-primary transition-colors">
+          <a href="#problems" className="font-heading text-sm tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors">
             Common Problems
           </a>
-          <a href="#process" className="font-heading text-sm tracking-widest uppercase text-foreground/80 hover:text-primary transition-colors">
+          <a href="#process" className="font-heading text-sm tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors">
             Our Process
           </a>
-          <a href="#booking" className="font-heading text-sm tracking-widest uppercase text-foreground/80 hover:text-primary transition-colors">
+          <a href="#booking" className="font-heading text-sm tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors">
             Book Now
           </a>
-          <a href="tel:2168620005" className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 font-heading font-bold text-sm tracking-wider uppercase hover:bg-primary/90 transition-colors">
+          <a href="tel:2168620005" className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow">
             <Phone className="w-4 h-4" />
             (216) 862-0005
           </a>
@@ -101,22 +97,22 @@ function ServiceNavbar({ service }: { service: ServiceData }) {
       </div>
 
       {mobileOpen && (
-        <div className="lg:hidden bg-nick-dark/98 backdrop-blur-md border-t border-border">
+        <div className="lg:hidden bg-nick-dark/98 backdrop-blur-md border-t border-nick-yellow/20">
           <div className="container py-6 flex flex-col gap-4">
-            <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 font-heading text-lg tracking-widest uppercase text-foreground/60 hover:text-primary transition-colors py-2">
+            <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 font-heading text-lg tracking-widest uppercase text-foreground/60 hover:text-nick-teal transition-colors py-2">
               <ArrowLeft className="w-5 h-5" />
               Back to Home
             </Link>
-            <a href="#problems" onClick={() => setMobileOpen(false)} className="font-heading text-lg tracking-widest uppercase text-foreground/80 hover:text-primary transition-colors py-2">
+            <a href="#problems" onClick={() => setMobileOpen(false)} className="font-heading text-lg tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors py-2">
               Common Problems
             </a>
-            <a href="#process" onClick={() => setMobileOpen(false)} className="font-heading text-lg tracking-widest uppercase text-foreground/80 hover:text-primary transition-colors py-2">
+            <a href="#process" onClick={() => setMobileOpen(false)} className="font-heading text-lg tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors py-2">
               Our Process
             </a>
-            <a href="#booking" onClick={() => setMobileOpen(false)} className="font-heading text-lg tracking-widest uppercase text-foreground/80 hover:text-primary transition-colors py-2">
+            <a href="#booking" onClick={() => setMobileOpen(false)} className="font-heading text-lg tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors py-2">
               Book Now
             </a>
-            <a href="tel:2168620005" className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-3 font-heading font-bold text-sm tracking-wider uppercase mt-2">
+            <a href="tel:2168620005" className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-5 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase mt-2">
               <Phone className="w-4 h-4" />
               (216) 862-0005
             </a>
@@ -142,18 +138,18 @@ function ServiceHero({ service }: { service: ServiceData }) {
       <div className="relative container pb-16 pt-32 lg:pb-24">
         <FadeIn>
           <div className="flex items-center gap-3 mb-4">
-            <Link href="/" className="font-mono text-xs text-foreground/50 hover:text-primary transition-colors">
+            <Link href="/" className="font-mono text-xs text-foreground/50 hover:text-nick-teal transition-colors">
               Home
             </Link>
             <ChevronRight className="w-3 h-3 text-foreground/30" />
-            <span className="font-mono text-xs text-primary">{service.title}</span>
+            <span className="font-mono text-xs text-nick-yellow">{service.title}</span>
           </div>
         </FadeIn>
 
         <FadeIn delay={0.1}>
           <div className="flex items-center gap-4 mb-4">
-            <div className="text-primary">{icon}</div>
-            <span className="font-mono text-sm text-primary tracking-widest uppercase">Service {service.num}</span>
+            <div className="text-nick-teal">{icon}</div>
+            <span className="font-mono text-sm text-nick-teal tracking-widest uppercase">Service {service.num}</span>
           </div>
           <h1 className="font-heading font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.9] tracking-tight max-w-3xl">
             {service.heroHeadline}
@@ -168,11 +164,11 @@ function ServiceHero({ service }: { service: ServiceData }) {
 
         <FadeIn delay={0.3}>
           <div className="mt-8 flex flex-col sm:flex-row gap-4">
-            <a href="tel:2168620005" className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-heading font-bold text-lg tracking-wider uppercase hover:bg-primary/90 transition-colors">
+            <a href="tel:2168620005" className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow">
               <Phone className="w-5 h-5" />
               CALL NOW
             </a>
-            <a href="#booking" className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-heading font-bold text-lg tracking-wider uppercase hover:border-primary hover:text-primary transition-colors">
+            <a href="#booking" className="inline-flex items-center justify-center gap-2 border-2 border-nick-teal/50 text-nick-teal px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-teal/10 hover:border-nick-teal transition-colors">
               BOOK ONLINE
               <ChevronRight className="w-5 h-5" />
             </a>
@@ -189,12 +185,12 @@ function Problems({ service }: { service: ServiceData }) {
 
   return (
     <section id="problems" className="section-darker py-20 lg:py-28">
-      <CautionStripe />
+      <div className="h-1.5 w-full bg-gradient-to-r from-nick-yellow via-nick-orange to-nick-teal" />
       <div className="container pt-16">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
           <FadeIn>
             <div>
-              <span className="font-mono text-primary text-sm tracking-widest uppercase">Common Problems</span>
+              <span className="font-mono text-nick-teal text-sm tracking-widest uppercase">Common Problems</span>
               <h2 className="font-heading font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight leading-[1.05]">
                 WHAT DRIVERS<br />
                 <span className="text-gradient-yellow">ASK US</span>
@@ -205,7 +201,7 @@ function Problems({ service }: { service: ServiceData }) {
               <div className="mt-8 flex items-center gap-3 text-foreground/50">
                 <div className="flex gap-0.5">
                   {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-primary text-primary" />
+                    <Star key={i} className="w-4 h-4 fill-nick-yellow text-nick-yellow" />
                   ))}
                 </div>
                 <span className="font-mono text-xs">4.9 stars from 1,683+ reviews</span>
@@ -218,13 +214,13 @@ function Problems({ service }: { service: ServiceData }) {
               <FadeIn key={i} delay={i * 0.06}>
                 <button
                   onClick={() => setOpen(open === i ? null : i)}
-                  className="w-full text-left border-b border-border/30 py-6 group"
+                  className="w-full text-left border-b border-nick-teal/15 py-6 group"
                 >
                   <div className="flex items-center justify-between">
-                    <h3 className="font-heading font-bold text-lg lg:text-xl text-foreground tracking-wider group-hover:text-primary transition-colors">
+                    <h3 className="font-heading font-bold text-lg lg:text-xl text-foreground tracking-wider group-hover:text-nick-yellow transition-colors">
                       {p.question}
                     </h3>
-                    <ChevronDown className={`w-5 h-5 text-primary transition-transform duration-200 shrink-0 ml-4 ${open === i ? "rotate-180" : ""}`} />
+                    <ChevronDown className={`w-5 h-5 text-nick-teal transition-transform duration-200 shrink-0 ml-4 ${open === i ? "rotate-180" : ""}`} />
                   </div>
                   <AnimatePresence>
                     {open === i && (
@@ -254,23 +250,23 @@ function Process({ service }: { service: ServiceData }) {
     <section id="process" className="section-dark py-20 lg:py-28">
       <div className="container">
         <FadeIn>
-          <span className="font-mono text-primary text-sm tracking-widest uppercase">How We Work</span>
+          <span className="font-mono text-nick-orange text-sm tracking-widest uppercase">How We Work</span>
           <h2 className="font-heading font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
-            OUR {service.title} PROCESS
+            OUR <span className="text-gradient-yellow">{service.title}</span> PROCESS
           </h2>
           <p className="mt-4 text-foreground/60 text-lg max-w-2xl">
             Every repair follows a structured process. We diagnose first, explain what we find, and fix it right.
           </p>
         </FadeIn>
 
-        <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-0 lg:gap-0">
+        <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {service.process.map((step, i) => (
             <FadeIn key={i} delay={i * 0.08}>
-              <div className="relative border border-border/30 p-6 lg:p-8 h-full">
+              <div className="relative card-vibrant bg-card/80 rounded-lg p-6 lg:p-8 h-full">
                 <div className="flex items-center gap-3 mb-4">
-                  <span className="font-heading font-bold text-4xl text-primary/30">{String(i + 1).padStart(2, "0")}</span>
+                  <span className="font-heading font-bold text-4xl text-nick-yellow/30">{String(i + 1).padStart(2, "0")}</span>
                 </div>
-                <h3 className="font-heading font-bold text-lg text-foreground tracking-wider mb-3">{step.step}</h3>
+                <h3 className="font-heading font-bold text-lg text-nick-teal tracking-wider mb-3">{step.step}</h3>
                 <p className="text-foreground/60 text-sm leading-relaxed">{step.detail}</p>
               </div>
             </FadeIn>
@@ -285,12 +281,12 @@ function Process({ service }: { service: ServiceData }) {
 function WhyUs({ service }: { service: ServiceData }) {
   return (
     <section className="section-darker py-20 lg:py-28">
-      <CautionStripe />
+      <div className="h-1.5 w-full bg-gradient-to-r from-nick-teal via-nick-yellow to-nick-orange" />
       <div className="container pt-16">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
           <FadeIn>
             <div>
-              <span className="font-mono text-primary text-sm tracking-widest uppercase">Why Nick's</span>
+              <span className="font-mono text-nick-teal text-sm tracking-widest uppercase">Why Nick's</span>
               <h2 className="font-heading font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight leading-[1.05]">
                 {service.title} SERVICE<br />
                 <span className="text-gradient-yellow">YOU CAN TRUST</span>
@@ -304,9 +300,9 @@ function WhyUs({ service }: { service: ServiceData }) {
           <FadeIn delay={0.15}>
             <div className="space-y-4">
               {service.whyUs.map((item, i) => (
-                <div key={i} className="flex items-start gap-4 p-4 border border-border/30 hover:border-primary/30 transition-colors">
-                  <div className="w-8 h-8 bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="font-heading font-bold text-primary text-sm">{String(i + 1).padStart(2, "0")}</span>
+                <div key={i} className="flex items-start gap-4 p-4 card-vibrant bg-card/80 rounded-lg">
+                  <div className="w-8 h-8 bg-nick-yellow/10 flex items-center justify-center rounded-md shrink-0 mt-0.5">
+                    <span className="font-heading font-bold text-nick-yellow text-sm">{String(i + 1).padStart(2, "0")}</span>
                   </div>
                   <p className="text-foreground/80 leading-relaxed">{item}</p>
                 </div>
@@ -327,7 +323,7 @@ function BookingSection({ service }: { service: ServiceData }) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
           <FadeIn>
             <div>
-              <span className="font-mono text-primary text-sm tracking-widest uppercase">Get Started</span>
+              <span className="font-mono text-nick-orange text-sm tracking-widest uppercase">Get Started</span>
               <h2 className="font-heading font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight leading-[1.05]">
                 SCHEDULE YOUR<br />
                 <span className="text-gradient-yellow">{service.title}</span> SERVICE
@@ -338,22 +334,22 @@ function BookingSection({ service }: { service: ServiceData }) {
 
               <div className="mt-8 space-y-6">
                 <div className="flex items-start gap-3">
-                  <MapPin className="w-5 h-5 text-primary mt-1 shrink-0" />
+                  <MapPin className="w-5 h-5 text-nick-teal mt-1 shrink-0" />
                   <div>
                     <p className="font-mono text-foreground/80">17625 Euclid Ave</p>
                     <p className="font-mono text-foreground/80">Cleveland, OH 44112</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <Clock className="w-5 h-5 text-primary mt-1 shrink-0" />
+                  <Clock className="w-5 h-5 text-nick-teal mt-1 shrink-0" />
                   <div className="font-mono text-foreground/80 space-y-1">
                     <p>Monday – Saturday: 8:00 AM – 6:00 PM</p>
                     <p>Sunday: 9:00 AM – 4:00 PM</p>
                   </div>
                 </div>
                 <a href="tel:2168620005" className="flex items-center gap-3 group">
-                  <Phone className="w-5 h-5 text-primary shrink-0" />
-                  <span className="font-mono text-2xl text-foreground group-hover:text-primary transition-colors">(216) 862-0005</span>
+                  <Phone className="w-5 h-5 text-nick-yellow shrink-0" />
+                  <span className="font-mono text-2xl text-foreground group-hover:text-nick-yellow transition-colors">(216) 862-0005</span>
                 </a>
               </div>
             </div>
@@ -374,10 +370,10 @@ function OtherServices({ currentSlug }: { currentSlug: string }) {
 
   return (
     <section className="section-darker py-16 lg:py-20">
-      <CautionStripe />
+      <div className="h-1.5 w-full bg-gradient-to-r from-nick-yellow via-nick-teal to-nick-orange" />
       <div className="container pt-12">
         <FadeIn>
-          <span className="font-mono text-primary text-sm tracking-widest uppercase">More Services</span>
+          <span className="font-mono text-nick-teal text-sm tracking-widest uppercase">More Services</span>
           <h2 className="font-heading font-bold text-2xl lg:text-4xl text-foreground mt-3 tracking-tight">
             OTHER SERVICES WE OFFER
           </h2>
@@ -388,10 +384,10 @@ function OtherServices({ currentSlug }: { currentSlug: string }) {
             <FadeIn key={s.slug} delay={i * 0.06}>
               <Link
                 href={`/${s.slug}`}
-                className="block border border-border/30 p-6 hover:border-primary/50 hover:bg-card/30 transition-colors group"
+                className="block card-vibrant bg-card/80 rounded-lg p-6 group"
               >
-                <div className="text-primary mb-3">{SERVICE_ICONS[s.slug]}</div>
-                <h3 className="font-heading font-bold text-foreground tracking-wider text-sm group-hover:text-primary transition-colors">
+                <div className="text-nick-teal mb-3 group-hover:text-nick-yellow transition-colors">{SERVICE_ICONS[s.slug]}</div>
+                <h3 className="font-heading font-bold text-foreground tracking-wider text-sm group-hover:text-nick-yellow transition-colors">
                   {s.title}
                 </h3>
                 <p className="text-foreground/50 text-xs mt-2 leading-relaxed line-clamp-2">{s.shortDesc}</p>
@@ -407,16 +403,16 @@ function OtherServices({ currentSlug }: { currentSlug: string }) {
 // ─── FOOTER ────────────────────────────────────────────
 function ServiceFooter() {
   return (
-    <footer className="section-dark border-t border-border/30">
-      <CautionStripe />
+    <footer className="section-dark border-t border-nick-teal/10">
+      <div className="h-1.5 w-full bg-gradient-to-r from-nick-yellow via-nick-orange to-nick-teal" />
       <div className="container py-12">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
             <Link href="/" className="flex items-center gap-3 mb-4">
-              <div className="w-8 h-8 bg-primary flex items-center justify-center rounded-sm">
-                <span className="font-heading font-bold text-primary-foreground text-sm">N</span>
+              <div className="w-8 h-8 bg-nick-yellow flex items-center justify-center rounded-md">
+                <span className="font-heading font-bold text-nick-dark text-sm">N</span>
               </div>
-              <span className="font-heading font-bold text-primary tracking-wider">NICK'S TIRE & AUTO</span>
+              <span className="font-heading font-bold text-nick-yellow tracking-wider">NICK'S TIRE & AUTO</span>
             </Link>
             <p className="text-foreground/50 text-sm leading-relaxed">
               Honest auto repair and tire services for Cleveland, Euclid, and Northeast Ohio. Fair prices, real diagnostics, no surprises.
@@ -427,7 +423,7 @@ function ServiceFooter() {
             <h4 className="font-heading font-bold text-foreground tracking-wider text-sm uppercase mb-4">Services</h4>
             <div className="space-y-2 text-sm">
               {SERVICES.map((s) => (
-                <Link key={s.slug} href={`/${s.slug}`} className="block text-foreground/50 hover:text-primary transition-colors">
+                <Link key={s.slug} href={`/${s.slug}`} className="block text-foreground/50 hover:text-nick-yellow transition-colors">
                   {s.title === "EMISSIONS & E-CHECK" ? "Ohio E-Check & Emissions" : s.title.charAt(0) + s.title.slice(1).toLowerCase()}
                 </Link>
               ))}
@@ -447,11 +443,11 @@ function ServiceFooter() {
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-border/20 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="mt-12 pt-8 border-t border-nick-teal/10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-foreground/30 text-xs font-mono">
             &copy; {new Date().getFullYear()} NICK'S TIRE &amp; AUTO. ALL RIGHTS RESERVED.
           </p>
-          <a href="tel:2168620005" className="text-primary font-mono text-sm hover:text-primary/80 transition-colors">
+          <a href="tel:2168620005" className="text-nick-yellow font-mono text-sm hover:text-nick-gold transition-colors">
             (216) 862-0005
           </a>
         </div>
@@ -473,8 +469,8 @@ function MobileCTA() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-nick-dark/95 backdrop-blur-md border-t border-primary/30 p-3">
-      <a href="tel:2168620005" className="flex items-center justify-center gap-2 bg-primary text-primary-foreground w-full py-3.5 font-heading font-bold text-base tracking-wider uppercase">
+    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-nick-dark/95 backdrop-blur-md border-t border-nick-yellow/30 p-3">
+      <a href="tel:2168620005" className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark w-full py-3.5 rounded-md font-heading font-bold text-base tracking-wider uppercase glow-yellow">
         <Phone className="w-5 h-5" />
         CALL (216) 862-0005
       </a>
@@ -577,7 +573,7 @@ export default function ServicePage() {
         <div className="text-center">
           <h1 className="font-heading font-bold text-4xl text-foreground mb-4">SERVICE NOT FOUND</h1>
           <p className="text-foreground/60 mb-8">The service page you are looking for does not exist.</p>
-          <Link href="/" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-heading font-bold text-sm tracking-wider uppercase">
+          <Link href="/" className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase glow-yellow">
             <ArrowLeft className="w-4 h-4" />
             BACK TO HOME
           </Link>

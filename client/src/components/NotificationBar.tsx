@@ -227,22 +227,22 @@ function getFilteredHardcodedNotifications(): Notification[] {
 
 // ─── STRATEGY COLOR MAP ────────────────────────────────
 const strategyStyles: Record<Strategy, string> = {
-  urgency: "bg-red-900/90 border-red-700/50",
-  social_proof: "bg-primary/90 border-primary/50",
-  scarcity: "bg-amber-900/90 border-amber-700/50",
-  seasonal: "bg-emerald-900/90 border-emerald-700/50",
-  authority: "bg-blue-900/90 border-blue-700/50",
-  loss_aversion: "bg-orange-900/90 border-orange-700/50",
-  local_identity: "bg-primary/90 border-primary/50",
-  value_anchor: "bg-teal-900/90 border-teal-700/50",
-  weather: "bg-sky-900/90 border-sky-700/50",
-  dynamic: "bg-indigo-900/90 border-indigo-700/50",
+  urgency: "bg-red-800/95 border-red-500/40",
+  social_proof: "bg-nick-warm-dark border-nick-yellow/30",
+  scarcity: "bg-amber-800/95 border-amber-500/40",
+  seasonal: "bg-emerald-800/95 border-emerald-500/40",
+  authority: "bg-nick-warm-dark border-nick-teal/30",
+  loss_aversion: "bg-orange-800/95 border-orange-500/40",
+  local_identity: "bg-nick-warm-dark border-nick-yellow/30",
+  value_anchor: "bg-teal-800/95 border-teal-500/40",
+  weather: "bg-sky-800/95 border-sky-500/40",
+  dynamic: "bg-nick-warm-dark border-nick-cyan/30",
 };
 
 const weatherSeverityStyles: Record<string, string> = {
-  danger: "bg-red-900/95 border-red-600/60",
-  warning: "bg-amber-900/95 border-amber-600/60",
-  info: "bg-sky-900/90 border-sky-700/50",
+  danger: "bg-red-700/95 border-red-400/50",
+  warning: "bg-amber-700/95 border-amber-400/50",
+  info: "bg-sky-700/90 border-sky-400/40",
 };
 
 // ─── COMPONENT ─────────────────────────────────────────
@@ -374,7 +374,7 @@ export default function NotificationBar() {
             {current.cta && current.ctaHref && (
               <a
                 href={current.ctaHref}
-                className="shrink-0 ml-2 text-white font-heading font-bold text-xs tracking-widest uppercase border border-white/30 px-3 py-1 hover:bg-white/10 transition-colors hidden sm:inline-block"
+                className="shrink-0 ml-2 text-nick-dark font-heading font-bold text-xs tracking-widest uppercase bg-nick-yellow px-3 py-1 rounded hover:bg-nick-gold transition-colors hidden sm:inline-block"
               >
                 {current.cta}
               </a>

@@ -106,17 +106,17 @@ export default function LeadPopup() {
             initial={{ scale: 0.9, y: 20 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.9, y: 20 }}
-            className="relative bg-nick-dark border border-primary/30 w-full max-w-md z-10 overflow-hidden"
+            className="relative bg-card/95 backdrop-blur-md border border-nick-yellow/30 rounded-xl w-full max-w-md z-10 overflow-hidden shadow-2xl shadow-nick-yellow/10"
           >
-            {/* Yellow top bar */}
-            <div className="bg-primary px-6 py-3 flex items-center justify-between">
+            {/* Yellow top bar with gradient */}
+            <div className="bg-gradient-to-r from-nick-yellow via-nick-gold to-nick-orange px-6 py-3.5 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-primary-foreground" />
-                <span className="font-heading font-bold text-primary-foreground tracking-wider uppercase text-sm">
+                <AlertTriangle className="w-5 h-5 text-nick-dark" />
+                <span className="font-heading font-bold text-nick-dark tracking-wider uppercase text-sm">
                   Car Problem?
                 </span>
               </div>
-              <button onClick={dismiss} className="text-primary-foreground/70 hover:text-primary-foreground">
+              <button onClick={dismiss} className="text-nick-dark/60 hover:text-nick-dark transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -138,7 +138,7 @@ export default function LeadPopup() {
                       value={form.name}
                       onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                       required
-                      className="w-full bg-nick-charcoal border border-border/50 text-foreground px-4 py-3 text-sm font-mono placeholder:text-foreground/30 focus:border-primary focus:outline-none"
+                      className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-sm font-mono placeholder:text-foreground/30 focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                     />
                     <input
                       type="tel"
@@ -146,39 +146,39 @@ export default function LeadPopup() {
                       value={form.phone}
                       onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                       required
-                      className="w-full bg-nick-charcoal border border-border/50 text-foreground px-4 py-3 text-sm font-mono placeholder:text-foreground/30 focus:border-primary focus:outline-none"
+                      className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-sm font-mono placeholder:text-foreground/30 focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                     />
                     <input
                       type="text"
                       placeholder="Vehicle (year, make, model)"
                       value={form.vehicle}
                       onChange={e => setForm(f => ({ ...f, vehicle: e.target.value }))}
-                      className="w-full bg-nick-charcoal border border-border/50 text-foreground px-4 py-3 text-sm font-mono placeholder:text-foreground/30 focus:border-primary focus:outline-none"
+                      className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-sm font-mono placeholder:text-foreground/30 focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                     />
                     <textarea
                       placeholder="What's going on with your car?"
                       value={form.problem}
                       onChange={e => setForm(f => ({ ...f, problem: e.target.value }))}
                       rows={3}
-                      className="w-full bg-nick-charcoal border border-border/50 text-foreground px-4 py-3 text-sm font-mono placeholder:text-foreground/30 focus:border-primary focus:outline-none resize-none"
+                      className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-sm font-mono placeholder:text-foreground/30 focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all resize-none"
                     />
                     <button
                       type="submit"
                       disabled={submitLead.isPending}
-                      className="w-full bg-primary text-primary-foreground py-3.5 font-heading font-bold tracking-wider uppercase text-sm hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      className="w-full bg-nick-yellow text-nick-dark py-3.5 rounded-md font-heading font-bold tracking-wider uppercase text-sm hover:bg-nick-gold transition-colors glow-yellow disabled:opacity-50"
                     >
                       {submitLead.isPending ? "SUBMITTING..." : "GET A FREE ASSESSMENT"}
                     </button>
                   </form>
 
                   <div className="mt-4 flex items-center justify-center gap-2 text-foreground/40 text-xs">
-                    <Phone className="w-3 h-3" />
-                    <span className="font-mono">Or call directly: (216) 862-0005</span>
+                    <Phone className="w-3 h-3 text-nick-teal" />
+                    <span className="font-mono">Or call directly: <a href="tel:2168620005" className="text-nick-teal hover:text-nick-cyan transition-colors">(216) 862-0005</a></span>
                   </div>
                 </>
               ) : (
                 <div className="text-center py-6">
-                  <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                  <CheckCircle className="w-12 h-12 text-nick-teal mx-auto mb-4" />
                   <h3 className="font-heading font-bold text-2xl text-foreground tracking-tight">
                     We got your info.
                   </h3>
@@ -187,7 +187,7 @@ export default function LeadPopup() {
                   </p>
                   <button
                     onClick={dismiss}
-                    className="mt-6 bg-primary text-primary-foreground px-8 py-3 font-heading font-bold tracking-wider uppercase text-sm hover:bg-primary/90 transition-colors"
+                    className="mt-6 bg-nick-yellow text-nick-dark px-8 py-3 rounded-md font-heading font-bold tracking-wider uppercase text-sm hover:bg-nick-gold transition-colors glow-yellow"
                   >
                     CLOSE
                   </button>
