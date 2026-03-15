@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
+import NotificationBar from "@/components/NotificationBar";
 import { Phone, MapPin, Clock, Star, ChevronRight, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Menu, X } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 
@@ -52,7 +53,7 @@ function Navbar() {
   ];
 
   return (
-    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-nick-dark/95 backdrop-blur-md shadow-lg" : "bg-transparent"}`}>
+    <nav className={`fixed ${scrolled ? "top-0" : "top-[40px]"} left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-nick-dark/95 backdrop-blur-md shadow-lg" : "bg-transparent"}`}>
       <div className="container flex items-center justify-between h-16 lg:h-20">
         <a href="#" className="flex items-center gap-3">
           <div className="w-10 h-10 bg-primary flex items-center justify-center rounded-sm">
@@ -616,6 +617,7 @@ function Footer() {
 export default function Home() {
   return (
     <div className="min-h-screen flex flex-col">
+      <NotificationBar />
       <Navbar />
       <main>
         <Hero />
