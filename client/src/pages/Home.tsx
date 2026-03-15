@@ -723,6 +723,84 @@ function Footer() {
 }
 
 // ─── PAGE ──────────────────────────────────────────────
+// ─── LOCAL BUSINESS JSON-LD ─────────────────────────────
+function LocalBusinessSchema() {
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "AutoRepair",
+    "name": "Nick's Tire & Auto",
+    "alternateName": "Nick's Tire And Auto Euclid",
+    "image": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    "@id": "https://nickstire.org",
+    "url": "https://nickstire.org",
+    "telephone": "+1-216-862-0005",
+    "priceRange": "$$",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "17625 Euclid Ave",
+      "addressLocality": "Cleveland",
+      "addressRegion": "OH",
+      "postalCode": "44112",
+      "addressCountry": "US"
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": 41.5525118,
+      "longitude": -81.5571875
+    },
+    "openingHoursSpecification": [
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+        "opens": "08:00",
+        "closes": "18:00"
+      },
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": "Sunday",
+        "opens": "09:00",
+        "closes": "16:00"
+      }
+    ],
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.9",
+      "reviewCount": "1683",
+      "bestRating": "5"
+    },
+    "areaServed": [
+      { "@type": "City", "name": "Cleveland", "sameAs": "https://en.wikipedia.org/wiki/Cleveland" },
+      { "@type": "City", "name": "Euclid" },
+      { "@type": "City", "name": "East Cleveland" },
+      { "@type": "City", "name": "South Euclid" },
+      { "@type": "City", "name": "Richmond Heights" }
+    ],
+    "hasOfferCatalog": {
+      "@type": "OfferCatalog",
+      "name": "Auto Repair Services",
+      "itemListElement": [
+        { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Tire Sales & Installation" } },
+        { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Brake Repair" } },
+        { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Check Engine Light Diagnostics" } },
+        { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Ohio E-Check & Emissions Repair" } },
+        { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Oil Change" } },
+        { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Suspension & Steering Repair" } }
+      ]
+    },
+    "sameAs": [
+      "https://www.instagram.com/nicks_tire_euclid/",
+      "https://www.facebook.com/nickstireeuclid/"
+    ]
+  };
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+    />
+  );
+}
+
 export default function Home() {
   useEffect(() => {
     document.title = "Nick's Tire & Auto | Cleveland Auto Repair & Tire Shop";
@@ -730,6 +808,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <LocalBusinessSchema />
       <NotificationBar />
       <Navbar />
       <main>

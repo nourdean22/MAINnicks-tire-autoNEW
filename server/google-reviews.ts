@@ -1,18 +1,18 @@
 /**
  * Google Business Profile Integration
  * Fetches live review data from Google Places API via the Manus proxy.
+ * Uses text search as primary lookup (more reliable than Place ID through proxy).
  * Caches results for 1 hour to avoid excessive API calls.
  */
 
 import { makeRequest, type PlaceDetailsResult, type PlacesSearchResult } from "./_core/map";
 
-// Nick's Tire & Auto — known Place ID from Google Maps
-const NICKS_PLACE_ID = "ChIJSWRR_dof8IgRxZzNBDLNvco";
-
 // Cache configuration
 let cachedData: GoogleReviewData | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+let failCount = 0;
+const MAX_FAIL_BACKOFF = 5 * 60 * 1000; // After repeated failures, wait 5 min before retrying
 
 export interface GoogleReview {
   authorName: string;
@@ -38,7 +38,8 @@ export interface GoogleReviewData {
 
 /**
  * Fetch live review data from Google Places API.
- * First tries by known Place ID, falls back to text search.
+ * Primary: text search → get Place ID → fetch details.
+ * This is more reliable through the Manus proxy than direct Place ID lookup.
  */
 export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
   // Return cached data if fresh
@@ -46,47 +47,41 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
     return cachedData;
   }
 
+  // If we've been failing repeatedly, back off to avoid log spam
+  if (failCount >= 3 && cachedData && Date.now() - cacheTimestamp < MAX_FAIL_BACKOFF * failCount) {
+    return cachedData;
+  }
+
   try {
-    let placeId = NICKS_PLACE_ID;
-
-    // Try to get details by known Place ID
-    let details: PlaceDetailsResult;
-    try {
-      details = await makeRequest<PlaceDetailsResult>(
-        "/maps/api/place/details/json",
-        {
-          place_id: placeId,
-          fields: "name,rating,user_ratings_total,reviews,formatted_address,formatted_phone_number,website,opening_hours,geometry",
-        }
-      );
-    } catch {
-      // Fallback: search for the business
-      const search = await makeRequest<PlacesSearchResult>(
-        "/maps/api/place/textsearch/json",
-        {
-          query: "Nick's Tire And Auto Euclid Cleveland OH",
-        }
-      );
-
-      if (search.status !== "OK" || !search.results.length) {
-        console.warn("[GoogleReviews] Place not found in search");
-        return null;
+    // Step 1: Find the business via text search
+    const search = await makeRequest<PlacesSearchResult>(
+      "/maps/api/place/textsearch/json",
+      {
+        query: "Nick's Tire And Auto 17625 Euclid Ave Cleveland OH 44112",
       }
+    );
 
-      placeId = search.results[0].place_id;
-
-      details = await makeRequest<PlaceDetailsResult>(
-        "/maps/api/place/details/json",
-        {
-          place_id: placeId,
-          fields: "name,rating,user_ratings_total,reviews,formatted_address,formatted_phone_number,website,opening_hours,geometry",
-        }
-      );
+    if (search.status !== "OK" || !search.results?.length) {
+      console.warn("[GoogleReviews] Text search returned:", search.status);
+      failCount++;
+      return cachedData || null;
     }
 
+    const placeId = search.results[0].place_id;
+
+    // Step 2: Get full details using the discovered Place ID
+    const details = await makeRequest<PlaceDetailsResult>(
+      "/maps/api/place/details/json",
+      {
+        place_id: placeId,
+        fields: "name,rating,user_ratings_total,reviews,formatted_address,formatted_phone_number,website,opening_hours,geometry",
+      }
+    );
+
     if (details.status !== "OK" || !details.result) {
-      console.warn("[GoogleReviews] Place details request failed:", details.status);
-      return null;
+      console.warn("[GoogleReviews] Place details failed for ID", placeId, ":", details.status);
+      failCount++;
+      return cachedData || null;
     }
 
     const r = details.result;
@@ -111,13 +106,16 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
       lastUpdated: Date.now(),
     };
 
-    // Update cache
+    // Update cache and reset fail count
     cachedData = reviewData;
     cacheTimestamp = Date.now();
+    failCount = 0;
 
+    console.log("[GoogleReviews] Successfully fetched", reviewData.totalReviews, "reviews for", reviewData.name);
     return reviewData;
   } catch (error) {
     console.error("[GoogleReviews] Failed to fetch:", error);
+    failCount++;
     // Return cached data even if stale, or null
     return cachedData || null;
   }

@@ -766,3 +766,48 @@ describe("AI search", () => {
     }
   });
 });
+
+// ─── SITEMAP & ROBOTS.TXT ────────────────────────────────
+
+describe("sitemap.xml", () => {
+  it("returns valid XML with all public pages and blog posts", async () => {
+    const res = await fetch("http://localhost:3000/sitemap.xml");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("application/xml");
+    const xml = await res.text();
+    // Should contain urlset root element
+    expect(xml).toContain('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
+    // Should contain all public service pages
+    expect(xml).toContain("https://nickstire.org/");
+    expect(xml).toContain("https://nickstire.org/tires");
+    expect(xml).toContain("https://nickstire.org/brakes");
+    expect(xml).toContain("https://nickstire.org/diagnostics");
+    expect(xml).toContain("https://nickstire.org/emissions");
+    expect(xml).toContain("https://nickstire.org/oil-change");
+    expect(xml).toContain("https://nickstire.org/general-repair");
+    expect(xml).toContain("https://nickstire.org/blog");
+    // Should contain blog post URLs
+    expect(xml).toContain("https://nickstire.org/blog/5-signs-brakes-need-replacing");
+    expect(xml).toContain("https://nickstire.org/blog/check-engine-light-common-causes");
+    expect(xml).toContain("https://nickstire.org/blog/ohio-echeck-what-to-know");
+    expect(xml).toContain("https://nickstire.org/blog/when-to-replace-tires");
+    expect(xml).toContain("https://nickstire.org/blog/spring-car-maintenance-checklist");
+    expect(xml).toContain("https://nickstire.org/blog/synthetic-vs-conventional-oil");
+    // Should NOT contain admin pages
+    expect(xml).not.toContain("https://nickstire.org/admin");
+  });
+});
+
+describe("robots.txt", () => {
+  it("returns valid robots.txt that blocks admin and api", async () => {
+    const res = await fetch("http://localhost:3000/robots.txt");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/plain");
+    const text = await res.text();
+    expect(text).toContain("User-agent: *");
+    expect(text).toContain("Allow: /");
+    expect(text).toContain("Disallow: /admin");
+    expect(text).toContain("Disallow: /api/");
+    expect(text).toContain("Sitemap: https://nickstire.org/sitemap.xml");
+  });
+});

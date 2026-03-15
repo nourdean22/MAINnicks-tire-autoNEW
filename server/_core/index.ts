@@ -43,6 +43,43 @@ async function startServer() {
       createContext,
     })
   );
+  // Sitemap.xml
+  app.get("/sitemap.xml", (_req, res) => {
+    const baseUrl = "https://nickstire.org";
+    const now = new Date().toISOString();
+    const staticPages = [
+      "/",
+      "/tires",
+      "/brakes",
+      "/diagnostics",
+      "/emissions",
+      "/oil-change",
+      "/general-repair",
+      "/blog",
+    ];
+    const blogSlugs = [
+      "5-signs-brakes-need-replacing",
+      "check-engine-light-common-causes",
+      "ohio-echeck-what-to-know",
+      "when-to-replace-tires",
+      "spring-car-maintenance-checklist",
+      "synthetic-vs-conventional-oil",
+    ];
+    const urls = [
+      ...staticPages.map(p => `<url><loc>${baseUrl}${p}</loc><lastmod>${now}</lastmod></url>`),
+      ...blogSlugs.map(s => `<url><loc>${baseUrl}/blog/${s}</loc><lastmod>${now}</lastmod></url>`),
+    ];
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>`;
+    res.setHeader("Content-Type", "application/xml");
+    res.send(xml);
+  });
+
+  // Robots.txt
+  app.get("/robots.txt", (_req, res) => {
+    res.setHeader("Content-Type", "text/plain");
+    res.send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /admin/\nDisallow: /api/\n\nSitemap: https://nickstire.org/sitemap.xml`);
+  });
+
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
