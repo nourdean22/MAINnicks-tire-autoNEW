@@ -8,6 +8,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRoute, Link } from "wouter";
 import { SERVICES, type ServiceData } from "@shared/services";
 import NotificationBar from "@/components/NotificationBar";
+import SearchBar from "@/components/SearchBar";
 import BookingForm from "@/components/BookingForm";
 import { Phone, MapPin, Clock, Star, ChevronRight, ChevronDown, ArrowLeft, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Menu, X } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
@@ -72,6 +73,7 @@ function ServiceNavbar({ service }: { service: ServiceData }) {
         </Link>
 
         <div className="hidden lg:flex items-center gap-6">
+          <SearchBar />
           <Link href="/" className="flex items-center gap-1 font-heading text-sm tracking-widest uppercase text-foreground/60 hover:text-nick-teal transition-colors">
             <ArrowLeft className="w-4 h-4" />
             Home
@@ -91,9 +93,12 @@ function ServiceNavbar({ service }: { service: ServiceData }) {
           </a>
         </div>
 
-        <button onClick={() => setMobileOpen(!mobileOpen)} className="lg:hidden text-foreground p-2">
-          {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
+        <div className="lg:hidden flex items-center gap-1">
+          <SearchBar />
+          <button onClick={() => setMobileOpen(!mobileOpen)} className="text-foreground p-2">
+            {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
       </div>
 
       {mobileOpen && (

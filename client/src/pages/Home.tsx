@@ -11,6 +11,7 @@ import BookingForm from "@/components/BookingForm";
 import LeadPopup from "@/components/LeadPopup";
 import ChatWidget from "@/components/ChatWidget";
 import InstagramFeed from "@/components/InstagramFeed";
+import SearchBar from "@/components/SearchBar";
 import { Phone, MapPin, Clock, Star, ChevronRight, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Menu, X, BookOpen, ArrowRight } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { trpc } from "@/lib/trpc";
@@ -73,7 +74,8 @@ function Navbar() {
         </a>
 
         {/* Desktop nav */}
-        <div className="hidden lg:flex items-center gap-8">
+        <div className="hidden lg:flex items-center gap-6">
+          <SearchBar />
           {links.map((l) =>
             l.href.startsWith("/") ? (
               <Link key={l.href} href={l.href} className="font-heading text-sm tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors">
@@ -91,10 +93,13 @@ function Navbar() {
           </a>
         </div>
 
-        {/* Mobile hamburger */}
-        <button onClick={() => setMobileOpen(!mobileOpen)} className="lg:hidden text-foreground p-2">
-          {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
+        {/* Mobile search + hamburger */}
+        <div className="lg:hidden flex items-center gap-1">
+          <SearchBar />
+          <button onClick={() => setMobileOpen(!mobileOpen)} className="text-foreground p-2">
+            {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile menu */}

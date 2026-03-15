@@ -27,6 +27,7 @@ import {
   runContentGeneration,
   getCurrentSeason,
 } from "./content-generator";
+import { keywordSearch, aiSearch } from "./search";
 import { z } from "zod";
 import { eq, desc } from "drizzle-orm";
 import { leads, chatSessions } from "../drizzle/schema";
@@ -303,6 +304,23 @@ export const appRouter = router({
           reply,
           extractedInfo,
         };
+      }),
+  }),
+
+  // ─── SEARCH ───────────────────────────────────────────
+  search: router({
+    /** Instant keyword search — no AI, fast */
+    instant: publicProcedure
+      .input(z.object({ query: z.string().min(1).max(200) }))
+      .query(({ input }) => {
+        return { results: keywordSearch(input.query) };
+      }),
+
+    /** AI-powered natural language search */
+    ai: publicProcedure
+      .input(z.object({ query: z.string().min(2).max(500) }))
+      .mutation(async ({ input }) => {
+        return aiSearch(input.query);
       }),
   }),
 

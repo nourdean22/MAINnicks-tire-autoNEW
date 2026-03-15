@@ -672,3 +672,97 @@ describe("gemini AI lead scoring", () => {
     expect(result.score).toBeLessThanOrEqual(5);
   });
 });
+
+// ─── AI SEARCH TESTS ─────────────────────────────────
+
+import { keywordSearch, aiSearch } from "./search";
+
+describe("keyword search", () => {
+  it("returns results for 'tires'", () => {
+    const results = keywordSearch("tires");
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0].type).toBe("service");
+    expect(results[0].title.toLowerCase()).toContain("tire");
+    expect(results[0].url).toBe("/tires");
+  });
+
+  it("returns results for 'brakes'", () => {
+    const results = keywordSearch("brakes");
+    expect(results.length).toBeGreaterThan(0);
+    const serviceResult = results.find(r => r.type === "service");
+    expect(serviceResult).toBeDefined();
+    expect(serviceResult!.url).toBe("/brakes");
+  });
+
+  it("returns results for 'check engine light'", () => {
+    const results = keywordSearch("check engine light");
+    expect(results.length).toBeGreaterThan(0);
+    // Should match diagnostics service or FAQ
+    const hasRelevant = results.some(r =>
+      r.title.toLowerCase().includes("diagnostic") ||
+      r.title.toLowerCase().includes("check engine") ||
+      r.description.toLowerCase().includes("check engine")
+    );
+    expect(hasRelevant).toBe(true);
+  });
+
+  it("returns results for 'book appointment'", () => {
+    const results = keywordSearch("book appointment");
+    expect(results.length).toBeGreaterThan(0);
+    const bookingResult = results.find(r => r.url.includes("booking"));
+    expect(bookingResult).toBeDefined();
+  });
+
+  it("returns empty for very short queries", () => {
+    const results = keywordSearch("a");
+    expect(results).toEqual([]);
+  });
+
+  it("returns max 8 results", () => {
+    const results = keywordSearch("car repair service");
+    expect(results.length).toBeLessThanOrEqual(8);
+  });
+
+  it("results are sorted by relevance (descending)", () => {
+    const results = keywordSearch("oil change");
+    for (let i = 1; i < results.length; i++) {
+      expect(results[i - 1].relevance).toBeGreaterThanOrEqual(results[i].relevance);
+    }
+  });
+
+  it("deduplicates results by URL", () => {
+    const results = keywordSearch("tires");
+    const urls = results.map(r => r.url);
+    const uniqueUrls = new Set(urls);
+    expect(urls.length).toBe(uniqueUrls.size);
+  });
+
+  it("returns blog results for 'maintenance tips'", () => {
+    const results = keywordSearch("maintenance tips");
+    const hasBlog = results.some(r => r.type === "blog" || r.type === "page");
+    expect(hasBlog).toBe(true);
+  });
+
+  it("returns contact page for 'phone number'", () => {
+    const results = keywordSearch("phone");
+    const contactResult = results.find(r => r.url.includes("contact"));
+    expect(contactResult).toBeDefined();
+  });
+});
+
+describe("AI search", () => {
+  it("returns results and summary for a car problem description", { timeout: 30000 }, async () => {
+    const result = await aiSearch("my car is shaking when I brake");
+    expect(result).toHaveProperty("aiSummary");
+    expect(result).toHaveProperty("results");
+    expect(Array.isArray(result.results)).toBe(true);
+    expect(result.results.length).toBeGreaterThan(0);
+    // Each result should have required fields
+    for (const r of result.results) {
+      expect(r).toHaveProperty("type");
+      expect(r).toHaveProperty("title");
+      expect(r).toHaveProperty("url");
+      expect(r).toHaveProperty("relevance");
+    }
+  });
+});
