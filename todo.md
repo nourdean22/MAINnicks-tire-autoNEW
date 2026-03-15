@@ -50,3 +50,8 @@
 - [x] Add warm, fun, chill energy to the overall design
 - [x] Update CSS theme variables for brighter, more energetic look
 - [x] Update component styles across all pages for consistency
+
+## Phase 6 — SEO Fixes
+- [x] Add meta keywords to homepage
+- [x] Optimize page title to 30-60 characters
+- [x] Add alt text to all images missing it (3 of 11)

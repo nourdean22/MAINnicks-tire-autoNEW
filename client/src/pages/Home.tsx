@@ -264,7 +264,7 @@ function Services() {
               <Link href={s.slug} className="group card-vibrant relative block bg-card/80 p-8 rounded-lg overflow-hidden h-full">
                 {s.img && (
                   <div className="absolute inset-0 opacity-0 group-hover:opacity-15 transition-opacity duration-500">
-                    <img src={s.img} alt="" className="w-full h-full object-cover" />
+                    <img src={s.img} alt={`${s.title} service at Nick's Tire & Auto Cleveland`} className="w-full h-full object-cover" />
                   </div>
                 )}
                 <div className="relative">
@@ -719,6 +719,10 @@ function Footer() {
 
 // ─── PAGE ──────────────────────────────────────────────
 export default function Home() {
+  useEffect(() => {
+    document.title = "Nick's Tire & Auto | Cleveland Auto Repair & Tire Shop";
+  }, []);
+
   return (
     <div className="min-h-screen flex flex-col">
       <NotificationBar />
