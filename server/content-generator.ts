@@ -308,7 +308,7 @@ export async function saveGeneratedArticle(article: GeneratedArticle): Promise<n
       sectionsJson: JSON.stringify(article.sections),
       relatedServicesJson: JSON.stringify(article.relatedServices),
       tagsJson: JSON.stringify(article.tags),
-      status: "draft",
+      status: "published",
       generatedBy: "ai",
       publishDate: today,
     });
