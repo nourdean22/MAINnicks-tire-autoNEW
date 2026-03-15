@@ -344,6 +344,99 @@ describe("weather.current tRPC endpoint", () => {
   });
 });
 
+// ─── BLOG DATA TESTS ──────────────────────────────
+
+import { BLOG_ARTICLES, getArticleBySlug } from "../shared/blog";
+
+describe("shared/blog", () => {
+  it("has at least 5 articles", () => {
+    expect(BLOG_ARTICLES.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it("all slugs are unique", () => {
+    const slugs = BLOG_ARTICLES.map(a => a.slug);
+    expect(new Set(slugs).size).toBe(slugs.length);
+  });
+
+  it("each article has required fields", () => {
+    for (const article of BLOG_ARTICLES) {
+      expect(article.slug).toBeTruthy();
+      expect(article.title).toBeTruthy();
+      expect(article.metaTitle).toBeTruthy();
+      expect(article.metaDescription).toBeTruthy();
+      expect(article.category).toBeTruthy();
+      expect(article.publishDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(article.readTime).toBeTruthy();
+      expect(article.heroImage).toMatch(/^https:\/\//);
+      expect(article.excerpt.length).toBeGreaterThan(20);
+      expect(article.sections.length).toBeGreaterThanOrEqual(3);
+      expect(article.relatedServices.length).toBeGreaterThanOrEqual(1);
+      expect(article.tags.length).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("meta descriptions are under 160 characters", () => {
+    for (const article of BLOG_ARTICLES) {
+      expect(article.metaDescription.length).toBeLessThanOrEqual(160);
+    }
+  });
+
+  it("getArticleBySlug returns correct article", () => {
+    const article = getArticleBySlug("5-signs-brakes-need-replacing");
+    expect(article).toBeDefined();
+    expect(article!.category).toBe("Brake Repair");
+  });
+
+  it("getArticleBySlug returns undefined for invalid slug", () => {
+    expect(getArticleBySlug("nonexistent-article")).toBeUndefined();
+  });
+
+  it("each section has heading and substantial content", () => {
+    for (const article of BLOG_ARTICLES) {
+      for (const section of article.sections) {
+        expect(section.heading).toBeTruthy();
+        expect(section.content.length).toBeGreaterThan(50);
+      }
+    }
+  });
+
+  it("related services reference valid routes", () => {
+    const validRoutes = ["/tires", "/brakes", "/diagnostics", "/emissions", "/oil-change", "/general-repair"];
+    for (const article of BLOG_ARTICLES) {
+      for (const svc of article.relatedServices) {
+        expect(validRoutes).toContain(svc);
+      }
+    }
+  });
+});
+
+// ─── GOOGLE REVIEWS ENDPOINT TEST ──────────────────
+
+describe("reviews.google tRPC endpoint", () => {
+  it("returns review data or null without crashing", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+
+    // This calls the actual Google Places API via proxy
+    const result = await caller.reviews.google();
+
+    // Should return either valid data or null
+    if (result !== null) {
+      expect(typeof result.rating).toBe("number");
+      expect(result.rating).toBeGreaterThanOrEqual(1);
+      expect(result.rating).toBeLessThanOrEqual(5);
+      expect(typeof result.totalReviews).toBe("number");
+      expect(result.totalReviews).toBeGreaterThan(0);
+      expect(result.name).toBeTruthy();
+      expect(Array.isArray(result.reviews)).toBe(true);
+      if (result.reviews.length > 0) {
+        expect(result.reviews[0].authorName).toBeTruthy();
+        expect(typeof result.reviews[0].rating).toBe("number");
+      }
+    }
+  });
+});
+
 // ─── BOOKING VALIDATION TESTS ──────────────────────────
 
 describe("booking.create tRPC endpoint", () => {

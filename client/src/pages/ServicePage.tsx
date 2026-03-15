@@ -347,9 +347,8 @@ function BookingSection({ service }: { service: ServiceData }) {
                 <div className="flex items-start gap-3">
                   <Clock className="w-5 h-5 text-primary mt-1 shrink-0" />
                   <div className="font-mono text-foreground/80 space-y-1">
-                    <p>Monday – Friday: 9:00 AM – 6:00 PM</p>
-                    <p>Saturday: 9:00 AM – 5:00 PM</p>
-                    <p>Sunday: Closed</p>
+                    <p>Monday – Saturday: 8:00 AM – 6:00 PM</p>
+                    <p>Sunday: 9:00 AM – 4:00 PM</p>
                   </div>
                 </div>
                 <a href="tel:2168620005" className="flex items-center gap-3 group">

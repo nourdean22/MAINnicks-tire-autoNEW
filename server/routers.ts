@@ -1,10 +1,11 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, adminProcedure, router } from "./_core/trpc";
 import { createBooking, getBookings, updateBookingStatus } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { getWeather, getWeatherAlert } from "./weather";
+import { getGoogleReviews } from "./google-reviews";
 import { z } from "zod";
 
 export const appRouter = router({
@@ -24,6 +25,12 @@ export const appRouter = router({
       if (!weather) return { alert: null, weather: null };
       const alert = getWeatherAlert(weather);
       return { alert, weather };
+    }),
+  }),
+
+  reviews: router({
+    google: publicProcedure.query(async () => {
+      return getGoogleReviews();
     }),
   }),
 
@@ -62,11 +69,11 @@ export const appRouter = router({
         return result;
       }),
 
-    list: publicProcedure.query(async () => {
+    list: adminProcedure.query(async () => {
       return getBookings();
     }),
 
-    updateStatus: publicProcedure
+    updateStatus: adminProcedure
       .input(
         z.object({
           id: z.number(),

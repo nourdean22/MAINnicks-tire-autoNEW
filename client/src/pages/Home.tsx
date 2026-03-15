@@ -8,8 +8,9 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import NotificationBar from "@/components/NotificationBar";
 import BookingForm from "@/components/BookingForm";
-import { Phone, MapPin, Clock, Star, ChevronRight, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Menu, X } from "lucide-react";
+import { Phone, MapPin, Clock, Star, ChevronRight, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Menu, X, BookOpen } from "lucide-react";
 import { motion, useInView } from "framer-motion";
+import { trpc } from "@/lib/trpc";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 const TIRES_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp";
@@ -51,6 +52,7 @@ function Navbar() {
     { label: "Services", href: "#services" },
     { label: "About", href: "#about" },
     { label: "Reviews", href: "#reviews" },
+    { label: "Blog", href: "/blog" },
     { label: "Contact", href: "#contact" },
   ];
 
@@ -108,6 +110,13 @@ function Navbar() {
 
 // ─── HERO ──────────────────────────────────────────────
 function Hero() {
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, {
+    staleTime: 60 * 60 * 1000,
+    retry: 1,
+  });
+  const rating = googleData?.rating ?? 4.9;
+  const totalReviews = googleData?.totalReviews ?? 1683;
+
   return (
     <section className="relative min-h-[100svh] flex items-end overflow-hidden">
       {/* Background image */}
@@ -124,7 +133,7 @@ function Hero() {
                 <Star key={i} className="w-5 h-5 fill-primary text-primary" />
               ))}
             </div>
-            <span className="font-mono text-sm text-primary tracking-wider">4.9 STARS — 1,683+ REVIEWS</span>
+            <span className="font-mono text-sm text-primary tracking-wider">{rating.toFixed(1)} STARS — {totalReviews.toLocaleString()}+ REVIEWS</span>
           </div>
         </FadeIn>
 
@@ -162,7 +171,7 @@ function Hero() {
             </div>
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-primary" />
-              <span className="font-mono">Mon–Sat 9AM–6PM</span>
+              <span className="font-mono">Mon–Sat 8AM–6PM · Sun 9AM–4PM</span>
             </div>
           </div>
         </FadeIn>
@@ -312,8 +321,8 @@ function About() {
   );
 }
 
-// ─── REVIEWS ───────────────────────────────────────────
-const reviews = [
+// ─── REVIEWS (Live Google Business Profile Integration) ───────────────────────
+const FALLBACK_REVIEWS = [
   {
     name: "Nurse Summer",
     stars: 5,
@@ -347,23 +356,57 @@ const reviews = [
 ];
 
 function Reviews() {
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, {
+    staleTime: 60 * 60 * 1000, // 1 hour
+    retry: 1,
+  });
+
+  // Use live Google data if available, fallback to hardcoded
+  const rating = googleData?.rating ?? 4.9;
+  const totalReviews = googleData?.totalReviews ?? 1683;
+  const displayReviews = googleData?.reviews && googleData.reviews.length > 0
+    ? googleData.reviews.map(r => ({
+        name: r.authorName,
+        stars: r.rating,
+        text: r.text,
+        relativeTime: r.relativeTime,
+      }))
+    : FALLBACK_REVIEWS.map(r => ({ ...r, relativeTime: undefined }));
+
   return (
     <section id="reviews" className="section-darker py-20 lg:py-28">
       <CautionStripe />
       <div className="container pt-16">
         <FadeIn>
-          <span className="font-mono text-primary text-sm tracking-widest uppercase">Real Customers, Real Words</span>
-          <h2 className="font-heading font-bold text-4xl lg:text-6xl text-foreground mt-3 tracking-tight">
-            1,683+ REVIEWS
-          </h2>
+          <div className="flex items-center gap-4 mb-3">
+            <span className="font-mono text-primary text-sm tracking-widest uppercase">Real Customers, Real Words</span>
+            {googleData && (
+              <span className="px-2 py-0.5 bg-primary/10 border border-primary/30 font-mono text-xs text-primary tracking-wider">
+                LIVE FROM GOOGLE
+              </span>
+            )}
+          </div>
+          <div className="flex items-baseline gap-4">
+            <h2 className="font-heading font-bold text-4xl lg:text-6xl text-foreground tracking-tight">
+              {totalReviews.toLocaleString()}+ REVIEWS
+            </h2>
+            <div className="flex items-center gap-2">
+              <div className="flex gap-0.5">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className={`w-5 h-5 ${i < Math.round(rating) ? "fill-primary text-primary" : "text-foreground/20"}`} />
+                ))}
+              </div>
+              <span className="font-heading font-bold text-2xl text-primary">{rating.toFixed(1)}</span>
+            </div>
+          </div>
           <p className="mt-4 text-foreground/60 text-lg max-w-2xl">
             We do not write our own reviews. These are real words from real Cleveland drivers.
           </p>
         </FadeIn>
 
         <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {reviews.map((r, i) => (
-            <FadeIn key={r.name} delay={i * 0.08}>
+          {displayReviews.map((r, i) => (
+            <FadeIn key={r.name + i} delay={i * 0.08}>
               <div className="bg-card border border-border/50 p-8 h-full flex flex-col">
                 <div className="flex gap-0.5 mb-4">
                   {[...Array(r.stars)].map((_, j) => (
@@ -373,12 +416,31 @@ function Reviews() {
                 <p className="text-foreground/80 leading-relaxed flex-1 italic">"{r.text}"</p>
                 <div className="mt-6 pt-4 border-t border-border/30">
                   <span className="font-heading font-bold text-foreground tracking-wider text-sm uppercase">{r.name}</span>
-                  <span className="block text-muted-foreground text-xs font-mono mt-0.5">GOOGLE REVIEW</span>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-muted-foreground text-xs font-mono">GOOGLE REVIEW</span>
+                    {r.relativeTime && (
+                      <span className="text-muted-foreground text-xs font-mono">· {r.relativeTime}</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </FadeIn>
           ))}
         </div>
+
+        <FadeIn delay={0.5}>
+          <div className="mt-10 text-center">
+            <a
+              href="https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5597624,17z/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-heading font-bold text-sm tracking-wider uppercase hover:border-primary hover:text-primary transition-colors"
+            >
+              VIEW ALL REVIEWS ON GOOGLE
+              <ChevronRight className="w-4 h-4" />
+            </a>
+          </div>
+        </FadeIn>
       </div>
     </section>
   );
@@ -496,9 +558,8 @@ function Contact() {
                 <div className="flex items-start gap-3">
                   <Clock className="w-5 h-5 text-primary mt-1 shrink-0" />
                   <div className="font-mono text-foreground/80 space-y-1">
-                    <p>Monday – Friday: 9:00 AM – 6:00 PM</p>
-                    <p>Saturday: 9:00 AM – 5:00 PM</p>
-                    <p>Sunday: Closed</p>
+                    <p>Monday – Saturday: 8:00 AM – 6:00 PM</p>
+                    <p>Sunday: 9:00 AM – 4:00 PM</p>
                   </div>
                 </div>
               </div>

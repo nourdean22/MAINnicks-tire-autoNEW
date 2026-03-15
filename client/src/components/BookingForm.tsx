@@ -189,7 +189,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
           </label>
           <div className="flex flex-wrap gap-3">
             {[
-              { value: "morning", label: "Morning (9AM–12PM)" },
+              { value: "morning", label: "Morning (8AM–12PM)" },
               { value: "afternoon", label: "Afternoon (12PM–6PM)" },
               { value: "no-preference", label: "No Preference" },
             ].map((opt) => (

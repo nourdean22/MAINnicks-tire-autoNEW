@@ -17,3 +17,9 @@
 - [ ] Speed optimization (lazy loading, image optimization)
 - [ ] 404 page with brand styling
 - [ ] Accessibility improvements (ARIA labels, skip nav)
+
+## Phase 2 — New Features
+- [x] Fix business hours site-wide: Mon-Sat 8AM-6PM, Sunday 9AM-4PM
+- [x] Admin dashboard for booking management (view, confirm, complete, cancel)
+- [x] Blog/tips section with SEO-optimized maintenance articles
+- [x] Google Business Profile integration for live review data

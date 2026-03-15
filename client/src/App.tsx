@@ -6,6 +6,9 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import ServicePage from "./pages/ServicePage";
+import Admin from "./pages/Admin";
+import Blog from "./pages/Blog";
+import BlogPost from "./pages/BlogPost";
 
 function Router() {
   return (
@@ -18,6 +21,11 @@ function Router() {
       <Route path={"/emissions"} component={ServicePage} />
       <Route path={"/oil-change"} component={ServicePage} />
       <Route path={"/general-repair"} component={ServicePage} />
+      {/* Admin dashboard */}
+      <Route path={"/admin"} component={Admin} />
+      {/* Blog / Tips */}
+      <Route path={"/blog"} component={Blog} />
+      <Route path={"/blog/:slug"} component={BlogPost} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
