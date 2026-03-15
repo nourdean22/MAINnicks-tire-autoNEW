@@ -520,3 +520,155 @@ describe("booking.create tRPC endpoint", () => {
     ).rejects.toThrow();
   });
 });
+
+// ─── INSTAGRAM FEED TESTS ─────────────────────────────
+
+import { getInstagramPosts, getInstagramAccount } from "./instagram";
+
+describe("instagram feed", () => {
+  it("getInstagramPosts returns an array of posts", async () => {
+    const posts = await getInstagramPosts(6);
+    expect(Array.isArray(posts)).toBe(true);
+    // If cache exists, should have posts
+    if (posts.length > 0) {
+      expect(posts[0]).toHaveProperty("id");
+      expect(posts[0]).toHaveProperty("caption");
+      expect(posts[0]).toHaveProperty("link");
+      expect(posts[0]).toHaveProperty("likes");
+      expect(posts[0]).toHaveProperty("comments");
+      expect(posts[0]).toHaveProperty("type");
+    }
+  });
+
+  it("getInstagramPosts respects limit parameter", async () => {
+    const posts = await getInstagramPosts(3);
+    expect(posts.length).toBeLessThanOrEqual(3);
+  });
+
+  it("getInstagramAccount returns account info or null", async () => {
+    const account = await getInstagramAccount();
+    if (account) {
+      expect(account).toHaveProperty("username");
+      expect(account).toHaveProperty("followers");
+      expect(account).toHaveProperty("posts");
+      expect(typeof account.followers).toBe("number");
+    }
+  });
+
+  it("instagram.posts tRPC endpoint returns data without error", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.instagram.posts({ limit: 6 });
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("instagram.account tRPC endpoint returns data without error", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.instagram.account();
+    // Returns account or null
+    if (result) {
+      expect(result.username).toBeTruthy();
+    }
+  });
+});
+
+// ─── LEAD CAPTURE TESTS ───────────────────────────────
+
+describe("lead capture", () => {
+  it("lead.submit rejects missing name", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.lead.submit({
+        name: "",
+        phone: "2165551234",
+        source: "popup",
+      })
+    ).rejects.toThrow();
+  });
+
+  it("lead.submit rejects missing phone", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.lead.submit({
+        name: "John Smith",
+        phone: "123", // too short
+        source: "popup",
+      })
+    ).rejects.toThrow();
+  });
+
+  it("lead.list requires admin auth", async () => {
+    const ctx = createAuthContext(); // regular user, not admin
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.lead.list()).rejects.toThrow();
+  });
+
+  it("lead.sheetUrl requires admin auth", async () => {
+    const ctx = createAuthContext(); // regular user, not admin
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.lead.sheetUrl()).rejects.toThrow();
+  });
+});
+
+// ─── CHAT ASSISTANT TESTS ─────────────────────────────
+
+describe("chat assistant", () => {
+  it("chat.message rejects empty message", async () => {
+    const ctx = createPublicContext();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(
+      caller.chat.message({
+        message: "",
+      })
+    ).rejects.toThrow();
+  });
+});
+
+// ─── GOOGLE SHEETS SYNC TESTS ─────────────────────────
+
+import { isSheetConfigured, getSpreadsheetUrl } from "./sheets-sync";
+
+describe("google sheets sync", () => {
+  it("isSheetConfigured returns a boolean", () => {
+    const result = isSheetConfigured();
+    expect(typeof result).toBe("boolean");
+  });
+
+  it("getSpreadsheetUrl returns a string", () => {
+    const url = getSpreadsheetUrl();
+    expect(typeof url).toBe("string");
+    if (isSheetConfigured()) {
+      expect(url).toContain("docs.google.com/spreadsheets");
+    }
+  });
+});
+
+// ─── GEMINI AI TESTS ──────────────────────────────────
+
+import { scoreLead } from "./gemini";
+
+describe("gemini AI lead scoring", () => {
+  it("scoreLead returns a valid score structure", async () => {
+    const result = await scoreLead("My brakes are grinding and making loud noise", "2018 Toyota Camry");
+    expect(result).toHaveProperty("score");
+    expect(result).toHaveProperty("reason");
+    expect(result).toHaveProperty("recommendedService");
+    expect(result.score).toBeGreaterThanOrEqual(1);
+    expect(result.score).toBeLessThanOrEqual(5);
+    expect(typeof result.reason).toBe("string");
+    expect(typeof result.recommendedService).toBe("string");
+  });
+
+  it("scoreLead handles empty problem gracefully", async () => {
+    const result = await scoreLead("", undefined);
+    expect(result).toHaveProperty("score");
+    expect(result.score).toBeGreaterThanOrEqual(1);
+    expect(result.score).toBeLessThanOrEqual(5);
+  });
+});

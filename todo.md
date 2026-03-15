@@ -32,3 +32,15 @@
 - [x] Dynamic notification bar that pulls from database instead of hardcoded rotation
 - [x] Admin content management page (view, edit, approve/reject AI-generated content)
 - [x] Scheduled task to auto-generate fresh content weekly
+
+## Phase 4 — Enterprise Integration & Lead System
+- [x] Lead capture popup with smart exit-intent and scroll triggers
+- [x] Leads database table with contact info, source, and status tracking
+- [x] Google Sheets CRM integration (auto-sync leads with contacted/not-contacted status)
+- [x] Gemini AI integration for intelligent lead scoring and vehicle diagnosis chat
+- [x] AI-powered customer chat assistant on the website
+- [x] Instagram feed section on homepage (live from @nicks_tire_euclid)
+- [x] Instagram feed endpoint pulling real posts via MCP
+- [x] Smart appointment suggestions based on vehicle/season
+- [x] Enhanced admin dashboard with lead management and call tracking
+- [x] Automated Google Sheets sync for bookings + leads

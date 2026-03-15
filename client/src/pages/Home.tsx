@@ -8,6 +8,9 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import NotificationBar from "@/components/NotificationBar";
 import BookingForm from "@/components/BookingForm";
+import LeadPopup from "@/components/LeadPopup";
+import ChatWidget from "@/components/ChatWidget";
+import InstagramFeed from "@/components/InstagramFeed";
 import { Phone, MapPin, Clock, Star, ChevronRight, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Menu, X, BookOpen } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { trpc } from "@/lib/trpc";
@@ -699,10 +702,13 @@ export default function Home() {
         <About />
         <Reviews />
         <CommonProblems />
+        <InstagramFeed />
         <Contact />
       </main>
       <Footer />
       <MobileCTA />
+      <LeadPopup />
+      <ChatWidget />
     </div>
   );
 }

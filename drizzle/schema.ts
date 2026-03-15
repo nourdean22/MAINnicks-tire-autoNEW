@@ -40,6 +40,63 @@ export type Booking = typeof bookings.$inferSelect;
 export type InsertBooking = typeof bookings.$inferInsert;
 
 /**
+ * Lead capture — every popup submission, chat interaction, and form fill.
+ * Syncs to Google Sheets for CRM tracking.
+ */
+export const leads = mysqlTable("leads", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 30 }).notNull(),
+  email: varchar("email", { length: 320 }),
+  vehicle: varchar("vehicle", { length: 255 }),
+  problem: text("problem"),
+  /** Where the lead came from */
+  source: mysqlEnum("source", ["popup", "chat", "booking", "manual"]).default("popup").notNull(),
+  /** AI-assigned urgency score: 1 (low) to 5 (critical) */
+  urgencyScore: int("urgencyScore").default(3).notNull(),
+  /** AI-generated reason for the urgency score */
+  urgencyReason: text("urgencyReason"),
+  /** Recommended service based on AI analysis */
+  recommendedService: varchar("recommendedService", { length: 100 }),
+  /** Contact tracking */
+  contacted: int("contacted").default(0).notNull(),
+  contactedAt: timestamp("contactedAt"),
+  contactedBy: varchar("contactedBy", { length: 255 }),
+  contactNotes: text("contactNotes"),
+  /** Whether this lead was synced to Google Sheets */
+  sheetSynced: int("sheetSynced").default(0).notNull(),
+  sheetRow: int("sheetRow"),
+  status: mysqlEnum("status", ["new", "contacted", "booked", "closed", "lost"]).default("new").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Lead = typeof leads.$inferSelect;
+export type InsertLead = typeof leads.$inferInsert;
+
+/**
+ * AI chat conversations for the vehicle diagnosis assistant.
+ */
+export const chatSessions = mysqlTable("chat_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Link to lead if contact info was captured */
+  leadId: int("leadId"),
+  /** JSON array of messages: [{ role, content, timestamp }] */
+  messagesJson: text("messagesJson").notNull(),
+  /** AI-extracted vehicle info */
+  vehicleInfo: varchar("vehicleInfo", { length: 255 }),
+  /** AI-extracted problem summary */
+  problemSummary: text("problemSummary"),
+  /** Whether the chat converted to a lead */
+  converted: int("converted").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ChatSession = typeof chatSessions.$inferSelect;
+export type InsertChatSession = typeof chatSessions.$inferInsert;
+
+/**
  * AI-generated blog articles stored in the database.
  * These supplement the hardcoded articles in shared/blog.ts.
  */
