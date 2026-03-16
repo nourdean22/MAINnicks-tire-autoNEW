@@ -79,3 +79,13 @@
 ## Phase 11 — Bi-Weekly Automated Maintenance System
 - [x] Design automation playbook (content generation, health checks, error fixing)
 - [x] Schedule bi-weekly automated task
+
+## Phase 12 — Autonomous Instagram Content Automation
+- [x] Set up combined scheduled task: 2 daily posts (9AM, 4PM ET) + 3 daily stories (10AM, 1PM, 5PM ET)
+- [x] Auto-generate images, captions, and publish without approval
+- [x] Rotate content types: problem-solution, repair explanations, diagnostics, seasonal advice, trust signals
+
+## Phase 13 — Critical Bug Fixes
+- [x] Fix Google Sheets CRM sync shell escaping bug (bookings and leads not syncing)
+- [x] Backfill existing bookings and leads from database to Google Sheets
+- [x] Remove "Topic Not Suitable" bad article from database

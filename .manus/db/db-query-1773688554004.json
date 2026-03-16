@@ -1,0 +1,25 @@
+{
+  "query": "SELECT id, title, status FROM dynamic_articles;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute SELECT id, title, status FROM dynamic_articles;",
+  "rows": [
+    {
+      "id": "1",
+      "title": "Breathe Easier: Cabin Air Filter Replacement for Allergy Season in Cleveland",
+      "status": "published"
+    },
+    {
+      "id": "2",
+      "title": "Post-Winter Vehicle Inspection Checklist for Cleveland Drivers",
+      "status": "published"
+    },
+    {
+      "id": "30001",
+      "title": "Empowering Drivers: Auto Care for Everyone",
+      "status": "published"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tstatus\n1\tBreathe Easier: Cabin Air Filter Replacement for Allergy Season in Cleveland\tpublished\n2\tPost-Winter Vehicle Inspection Checklist for Cleveland Drivers\tpublished\n30001\tEmpowering Drivers: Auto Care for Everyone\tpublished\n",
+  "stderr": "",
+  "execution_time_ms": 62
+}

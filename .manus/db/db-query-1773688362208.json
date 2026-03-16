@@ -1,0 +1,19 @@
+{
+  "query": "SELECT COUNT(*) as lead_count FROM leads; SELECT COUNT(*) as booking_count FROM bookings;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute SELECT COUNT(*) as lead_count FROM leads; SELECT COUNT(*) as booking_count FROM bookings;",
+  "rows": [
+    {
+      "lead_count": "12"
+    },
+    {
+      "lead_count": "booking_count"
+    },
+    {
+      "lead_count": "6"
+    }
+  ],
+  "messages": [],
+  "stdout": "lead_count\n12\nbooking_count\n6\n",
+  "stderr": "",
+  "execution_time_ms": 66
+}

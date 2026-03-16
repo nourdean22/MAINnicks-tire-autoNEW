@@ -1,0 +1,8 @@
+{
+  "query": "SELECT name, phone, email, vehicle, problem, source, urgency_score, urgency_reason, recommended_service, created_at FROM leads ORDER BY created_at;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute SELECT name, phone, email, vehicle, problem, source, urgency_score, urgency_reason, recommended_service, created_at FROM leads ORDER BY created_at;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'urgency_score' in 'field list'"
+  ]
+}

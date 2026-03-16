@@ -1,0 +1,34 @@
+{
+  "query": "SELECT 'bookings' as type, COUNT(*) as cnt FROM bookings UNION ALL SELECT 'leads', COUNT(*) FROM leads UNION ALL SELECT 'dynamic_articles', COUNT(*) FROM dynamic_articles UNION ALL SELECT 'notifications', COUNT(*) FROM notification_messages UNION ALL SELECT 'chat_sessions', COUNT(*) FROM chat_sessions UNION ALL SELECT 'content_gen_log', COUNT(*) FROM content_generation_log;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute SELECT 'bookings' as type, COUNT(*) as cnt FROM bookings UNION ALL SELECT 'leads', COUNT(*) FROM leads UNION ALL SELECT 'dynamic_articles', COUNT(*) FROM dynamic_articles UNION ALL SELECT 'notifications', COUNT(*) FROM notification_messages UNION ALL SELECT 'chat_sessions', COUNT(*) FROM chat_sessions UNION ALL SELECT 'content_gen_log', COUNT(*) FROM content_generation_log;",
+  "rows": [
+    {
+      "type": "leads",
+      "cnt": "5"
+    },
+    {
+      "type": "chat_sessions",
+      "cnt": "4"
+    },
+    {
+      "type": "notifications",
+      "cnt": "6"
+    },
+    {
+      "type": "dynamic_articles",
+      "cnt": "5"
+    },
+    {
+      "type": "bookings",
+      "cnt": "5"
+    },
+    {
+      "type": "content_gen_log",
+      "cnt": "11"
+    }
+  ],
+  "messages": [],
+  "stdout": "type\tcnt\nleads\t5\nchat_sessions\t4\nnotifications\t6\ndynamic_articles\t5\nbookings\t5\ncontent_gen_log\t11\n",
+  "stderr": "",
+  "execution_time_ms": 78
+}

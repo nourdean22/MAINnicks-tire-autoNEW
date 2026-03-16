@@ -1,0 +1,30 @@
+{
+  "query": "SELECT 'bookings' as type, COUNT(*) as count FROM bookings UNION ALL SELECT 'leads' as type, COUNT(*) as count FROM leads UNION ALL SELECT 'dynamic_articles' as type, COUNT(*) as count FROM dynamic_articles UNION ALL SELECT 'notifications' as type, COUNT(*) as count FROM notification_messages UNION ALL SELECT 'chat_sessions' as type, COUNT(*) as count FROM chat_sessions;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute SELECT 'bookings' as type, COUNT(*) as count FROM bookings UNION ALL SELECT 'leads' as type, COUNT(*) as count FROM leads UNION ALL SELECT 'dynamic_articles' as type, COUNT(*) as count FROM dynamic_articles UNION ALL SELECT 'notifications' as type, COUNT(*) as count FROM notification_messages UNION ALL SELECT 'chat_sessions' as type, COUNT(*) as count FROM chat_sessions;",
+  "rows": [
+    {
+      "type": "bookings",
+      "count": "5"
+    },
+    {
+      "type": "notifications",
+      "count": "6"
+    },
+    {
+      "type": "leads",
+      "count": "5"
+    },
+    {
+      "type": "chat_sessions",
+      "count": "4"
+    },
+    {
+      "type": "dynamic_articles",
+      "count": "5"
+    }
+  ],
+  "messages": [],
+  "stdout": "type\tcount\nbookings\t5\nnotifications\t6\nleads\t5\nchat_sessions\t4\ndynamic_articles\t5\n",
+  "stderr": "",
+  "execution_time_ms": 146
+}
