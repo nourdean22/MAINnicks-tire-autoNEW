@@ -350,11 +350,17 @@ export default function Contact() {
                 <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4">Areas Served</h4>
                 <div className="space-y-2 text-sm text-foreground/50">
                   <p>Cleveland, OH</p>
-                  <p>Euclid, OH</p>
-                  <p>East Cleveland, OH</p>
-                  <p>South Euclid, OH</p>
-                  <p>Richmond Heights, OH</p>
+                  <Link href="/euclid-auto-repair" className="block hover:text-nick-yellow transition-colors">Euclid, OH</Link>
+                  <Link href="/east-cleveland-auto-repair" className="block hover:text-nick-yellow transition-colors">East Cleveland, OH</Link>
+                  <Link href="/lakewood-auto-repair" className="block hover:text-nick-yellow transition-colors">Lakewood, OH</Link>
+                  <Link href="/parma-auto-repair" className="block hover:text-nick-yellow transition-colors">Parma, OH</Link>
                   <p>Northeast Ohio</p>
+                </div>
+                <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4 mt-6">Resources</h4>
+                <div className="space-y-2 text-sm text-foreground/50">
+                  <Link href="/faq" className="block hover:text-nick-yellow transition-colors">FAQ</Link>
+                  <Link href="/blog" className="block hover:text-nick-yellow transition-colors">Auto Repair Blog</Link>
+                  <Link href="/about" className="block hover:text-nick-yellow transition-colors">About Us</Link>
                 </div>
               </div>
             </div>

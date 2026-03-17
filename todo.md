@@ -186,3 +186,44 @@
 - [x] Added 8 new FAQ questions: 4 problem-specific + 4 vehicle make-specific
 - [x] FAQ page now has 23 total questions across 9 categories with FAQPage schema
 - [x] All new SEO service, vehicle, and problem pages have their own FAQPage schema
+
+## Phase 20 — Comprehensive Site Overhaul (CRO + SEO + UX + Trust)
+### Domain
+- [x] Bind easy.nickstire.org to current project (confirmed active)
+### Homepage
+- [x] Bind domain easy.nickstire.org (confirmed bound alongside nickstire.org, www.nickstire.org)
+- [x] Strengthen hero copy: "CLEVELAND'S TRUSTED AUTO REPAIR SHOP" with trust stack
+- [x] Improve CTA: "(216) 862-0005 — FREE ESTIMATE" + "BOOK APPOINTMENT"
+- [x] Add trust proof: OPEN NOW badge, SAME-DAY SERVICE, WALK-INS WELCOME, 4.9 stars
+- [x] Improve scannability: Common Problems accordion links to dedicated pages
+- [x] Footer: city links, vehicle makes, common problems, FAQ, SEO service links
+### Core Service Pages (Tires, Brakes, Diagnostics, Emissions)
+- [x] Added turnaround badges ("Same-Day Service", "Most Repairs Same Day")
+- [x] Added pricing transparency notes ("Starting at $XX" per service)
+- [x] Added Warning Signs sections with service-specific symptoms
+- [x] Added urgency alerts for safety-critical services
+- [x] Added service-specific hero CTA text ("GET A BRAKE INSPECTION", etc.)
+- [x] Added warranty/guarantee language to all service pages
+- [x] Unique trust paragraphs per service page
+### Secondary Pages
+- [x] About page: footer updated with city links, resources, blog
+- [x] Contact page: footer updated with city links, resources
+- [x] FAQ: expanded to 23 questions across 9 categories with problem-specific and vehicle-specific items
+### Technical SEO & Performance
+- [x] Sitemap expanded to 47+ URLs (added 14 SEO pages: 6 service, 4 vehicle, 4 problem)
+- [x] All canonical URLs point to nickstire.org
+- [x] All schema URLs point to nickstire.org
+- [x] SkipToContent on all 12 page types
+- [x] ARIA labels on all interactive elements (54+ labels)
+- [x] Internal linking: every footer links to city pages, services, resources
+### Local SEO
+- [x] 4 city landing pages with unique local content and testimonials
+- [x] 4 vehicle make pages targeting "[make] repair cleveland"
+- [x] 4 problem pages targeting "[symptom]" searches
+- [x] 6 dedicated SEO service pages targeting long-tail keywords
+- [x] Neighborhood tags on city pages
+### Trust & CRO
+- [x] Review callouts: hero badge, About section, city pages
+- [x] Diagnostic framing: OBD-II expertise, "show you the problem before we fix it"
+- [x] Click-to-call tracking on all phone links
+- [x] Sticky mobile CTA bar on all pages

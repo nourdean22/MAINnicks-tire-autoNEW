@@ -14,6 +14,16 @@ export interface ServiceData {
   metaDescription: string;
   heroHeadline: string;
   heroSubline: string;
+  /** Service-specific CTA text for hero button (e.g., "SCHEDULE BRAKE INSPECTION") */
+  heroCTA?: string;
+  /** Turnaround time messaging (e.g., "Most brake jobs completed same day") */
+  turnaround?: string;
+  /** Pricing transparency note (e.g., "Free brake inspection · No diagnostic fee with repair") */
+  pricingNote?: string;
+  /** Urgency/safety note for critical services */
+  urgencyNote?: string;
+  /** Warning signs that indicate you need this service */
+  signs?: string[];
   problems: {
     question: string;
     answer: string;
@@ -36,6 +46,17 @@ export const SERVICES: ServiceData[] = [
     metaDescription: "Cleveland's trusted tire shop. New and used tires, mounting, balancing, rotation, TPMS sensors, and flat repair. Fair prices. Call (216) 862-0005.",
     heroHeadline: "CLEVELAND'S TIRE EXPERTS",
     heroSubline: "New tires, used tires, flat repair, TPMS sensors, mounting, and balancing. We carry all major brands at prices that make sense.",
+    heroCTA: "GET A TIRE QUOTE",
+    turnaround: "Most tire installations completed in under an hour. Walk-ins welcome.",
+    pricingNote: "Free tire pressure checks · Fair prices on all major brands · Quality used tires available",
+    signs: [
+      "Tread depth below 2/32 of an inch (the penny test)",
+      "Visible cracks, bulges, or blisters on the sidewall",
+      "Vibration through the steering wheel at highway speed",
+      "TPMS warning light on your dashboard",
+      "Uneven wear across the tread surface",
+      "Tires are more than 6 years old regardless of tread depth",
+    ],
     problems: [
       {
         question: "Tires wearing unevenly?",
@@ -81,6 +102,18 @@ export const SERVICES: ServiceData[] = [
     metaDescription: "Expert brake repair in Cleveland. Brake pads, rotors, calipers, brake lines, and ABS diagnostics. We show you the problem before we fix it. Call (216) 862-0005.",
     heroHeadline: "BRAKE REPAIR DONE RIGHT",
     heroSubline: "Squealing, grinding, or soft pedal? We diagnose the exact problem, show you the worn parts, and fix it at a fair price. No guesswork.",
+    heroCTA: "SCHEDULE BRAKE INSPECTION",
+    turnaround: "Most brake jobs completed same day. Drop off in the morning, drive home by afternoon.",
+    pricingNote: "Free brake inspection · We show you the problem before quoting · No surprise charges",
+    urgencyNote: "Grinding brakes get more expensive every mile. Metal-on-metal contact damages rotors and can compromise stopping distance.",
+    signs: [
+      "High-pitched squealing when you press the brake pedal",
+      "Grinding or scraping metal sound during braking",
+      "Brake pedal feels soft, spongy, or goes to the floor",
+      "Vehicle pulls to one side when braking",
+      "ABS warning light illuminated on the dashboard",
+      "Steering wheel vibration when braking at highway speed",
+    ],
     problems: [
       {
         question: "Brakes squealing?",
@@ -125,6 +158,17 @@ export const SERVICES: ServiceData[] = [
     metaDescription: "Check engine light on? Advanced OBD-II diagnostics in Cleveland. We pinpoint the exact cause so you only pay for what you need. Call (216) 862-0005.",
     heroHeadline: "ADVANCED DIAGNOSTICS",
     heroSubline: "Check engine light, warning lights, performance problems. We use advanced OBD-II scanners to find the exact cause — not guess at it.",
+    heroCTA: "SCHEDULE DIAGNOSTICS",
+    turnaround: "Most diagnostic scans completed within the hour. Complex issues may require extended testing.",
+    pricingNote: "Diagnostic fee applies toward repair · No charge for code reading · Written estimate before any work",
+    signs: [
+      "Check engine light or service engine soon light on",
+      "Multiple warning lights illuminated at once",
+      "Engine running rough, misfiring, or stalling",
+      "Sudden drop in fuel economy",
+      "Vehicle hesitating or lacking power during acceleration",
+      "Strange smells from the engine bay or exhaust",
+    ],
     problems: [
       {
         question: "Check engine light on?",
@@ -169,6 +213,18 @@ export const SERVICES: ServiceData[] = [
     metaDescription: "Failed Ohio E-Check? We diagnose and repair emissions problems in Cleveland. Oxygen sensors, EVAP leaks, catalytic converters. Call (216) 862-0005.",
     heroHeadline: "OHIO E-CHECK & EMISSIONS EXPERTS",
     heroSubline: "Failed your Ohio E-Check? We diagnose the exact emissions problem, repair it, and make sure all monitors complete so you pass inspection.",
+    heroCTA: "SCHEDULE E-CHECK REPAIR",
+    turnaround: "Most emissions repairs completed in 1–2 days. Drive cycle verification included.",
+    pricingNote: "Free E-Check report review · Honest assessment if repair cost exceeds vehicle value",
+    urgencyNote: "Ohio requires a passing E-Check for vehicle registration renewal. Driving with a failed E-Check can result in registration issues.",
+    signs: [
+      "Failed Ohio E-Check inspection report",
+      "Check engine light on with emissions-related code",
+      "Readiness monitors showing \"not ready\" status",
+      "Strong exhaust smell or visible smoke from tailpipe",
+      "Reduced fuel economy beyond normal variation",
+      "Vehicle registration renewal approaching with pending E-Check",
+    ],
     problems: [
       {
         question: "Failed Ohio E-Check?",
@@ -213,6 +269,17 @@ export const SERVICES: ServiceData[] = [
     metaDescription: "Quick, affordable oil changes in Cleveland. Conventional and full synthetic options with filter replacement. No appointment needed. Call (216) 862-0005.",
     heroHeadline: "OIL CHANGE SERVICE",
     heroSubline: "Conventional and synthetic oil changes with filter replacement. Quick service, fair prices, and we check your vehicle while it is here.",
+    heroCTA: "SCHEDULE OIL CHANGE",
+    turnaround: "Most oil changes done in under 30 minutes. No appointment needed.",
+    pricingNote: "Free multi-point inspection with every oil change · Correct oil weight per manufacturer spec",
+    signs: [
+      "Oil change reminder light or maintenance required indicator",
+      "Oil looks dark, gritty, or smells burnt on the dipstick",
+      "Engine running louder than normal",
+      "Over 5,000 miles since last synthetic oil change",
+      "Over 3,000 miles since last conventional oil change",
+      "Oil level low on the dipstick between changes",
+    ],
     problems: [
       {
         question: "When should I change my oil?",
@@ -258,6 +325,17 @@ export const SERVICES: ServiceData[] = [
     metaDescription: "Full-service auto repair in Cleveland. Suspension, steering, exhaust, cooling systems, belts, hoses, and more. Honest work at fair prices. Call (216) 862-0005.",
     heroHeadline: "FULL-SERVICE AUTO REPAIR",
     heroSubline: "Suspension, steering, exhaust, cooling systems, belts, hoses, electrical, and more. If it is broken, we diagnose it and fix it right.",
+    heroCTA: "DESCRIBE YOUR PROBLEM",
+    turnaround: "Most repairs completed same day or next day. We call you with updates.",
+    pricingNote: "Free estimates · Written quote before any work begins · No hidden fees",
+    signs: [
+      "Clunking, rattling, or knocking sounds over bumps",
+      "Vehicle pulling to one side while driving or braking",
+      "Exhaust louder than normal or visible smoke",
+      "Engine temperature gauge reading higher than usual",
+      "Fluid leaks under the vehicle (coolant, oil, transmission)",
+      "Steering feels loose, wanders, or vibrates",
+    ],
     problems: [
       {
         question: "Car pulling to one side?",

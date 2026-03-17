@@ -166,12 +166,30 @@ function ServiceHero({ service }: { service: ServiceData }) {
           <div className="mt-8 flex flex-col sm:flex-row gap-4">
             <a href="tel:2168620005" onClick={() => trackPhoneClick('service-hero-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow" aria-label="Call Nick's Tire and Auto at 216-862-0005">
               <Phone className="w-5 h-5" />
-              CALL NOW
+              {service.heroCTA || "CALL NOW"}
             </a>
             <a href="#booking" className="inline-flex items-center justify-center gap-2 border-2 border-nick-teal/50 text-nick-teal px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-teal/10 hover:border-nick-teal transition-colors">
               BOOK ONLINE
               <ChevronRight className="w-5 h-5" />
             </a>
+          </div>
+        </FadeIn>
+
+        {/* Turnaround + Pricing badges */}
+        <FadeIn delay={0.4}>
+          <div className="mt-8 flex flex-wrap gap-4 text-sm">
+            {service.turnaround && (
+              <div className="flex items-center gap-2 bg-nick-teal/10 border border-nick-teal/20 rounded-md px-4 py-2">
+                <Clock className="w-4 h-4 text-nick-teal shrink-0" />
+                <span className="text-foreground/80 font-mono text-xs">{service.turnaround}</span>
+              </div>
+            )}
+            {service.pricingNote && (
+              <div className="flex items-center gap-2 bg-nick-yellow/10 border border-nick-yellow/20 rounded-md px-4 py-2">
+                <Star className="w-4 h-4 text-nick-yellow shrink-0" />
+                <span className="text-foreground/80 font-mono text-xs">{service.pricingNote}</span>
+              </div>
+            )}
           </div>
         </FadeIn>
       </div>
@@ -244,6 +262,65 @@ function Problems({ service }: { service: ServiceData }) {
             ))}
           </div>
         </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── WARNING SIGNS ────────────────────────────────────
+function WarningSigns({ service }: { service: ServiceData }) {
+  if (!service.signs || service.signs.length === 0) return null;
+
+  return (
+    <section className="section-dark py-16 lg:py-20">
+      <div className="container">
+        <FadeIn>
+          <div className="max-w-4xl mx-auto">
+            <span className="font-mono text-nick-orange text-sm tracking-widest uppercase">Warning Signs</span>
+            <h2 className="font-heading font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight">
+              SIGNS YOU NEED <span className="text-gradient-yellow">{service.title}</span> SERVICE
+            </h2>
+            <p className="mt-4 text-foreground/60 text-lg">
+              If you notice any of these, do not wait. Bring your vehicle in for an inspection.
+            </p>
+
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {service.signs.map((sign, i) => (
+                <FadeIn key={i} delay={i * 0.05}>
+                  <div className="flex items-start gap-3 bg-card/60 border border-nick-teal/10 rounded-md p-4">
+                    <div className="w-6 h-6 bg-nick-yellow/15 flex items-center justify-center rounded-full shrink-0 mt-0.5">
+                      <span className="text-nick-yellow text-xs font-bold">{i + 1}</span>
+                    </div>
+                    <p className="text-foreground/80 text-sm leading-relaxed">{sign}</p>
+                  </div>
+                </FadeIn>
+              ))}
+            </div>
+
+            {service.urgencyNote && (
+              <FadeIn delay={0.3}>
+                <div className="mt-8 bg-nick-orange/10 border border-nick-orange/25 rounded-md p-5">
+                  <p className="text-foreground/90 text-sm leading-relaxed">
+                    <strong className="text-nick-orange">Important:</strong> {service.urgencyNote}
+                  </p>
+                </div>
+              </FadeIn>
+            )}
+
+            <FadeIn delay={0.35}>
+              <div className="mt-8 flex flex-col sm:flex-row gap-4">
+                <a href="tel:2168620005" onClick={() => trackPhoneClick('service-signs-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+                  <Phone className="w-4 h-4" />
+                  CALL (216) 862-0005
+                </a>
+                <a href="#booking" className="inline-flex items-center justify-center gap-2 border-2 border-nick-teal/40 text-nick-teal px-6 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-teal/10 transition-colors">
+                  SCHEDULE INSPECTION
+                  <ChevronRight className="w-4 h-4" />
+                </a>
+              </div>
+            </FadeIn>
+          </div>
+        </FadeIn>
       </div>
     </section>
   );
@@ -452,6 +529,13 @@ function ServiceFooter() {
               <Link href="/lakewood-auto-repair" className="block hover:text-nick-yellow transition-colors">Lakewood, OH</Link>
               <Link href="/parma-auto-repair" className="block hover:text-nick-yellow transition-colors">Parma, OH</Link>
             </div>
+            <h4 className="font-heading font-bold text-foreground tracking-wider text-sm uppercase mb-4 mt-6">We Repair</h4>
+            <div className="space-y-2 text-sm text-foreground/50">
+              <Link href="/toyota-repair-cleveland" className="block hover:text-nick-yellow transition-colors">Toyota</Link>
+              <Link href="/honda-repair-cleveland" className="block hover:text-nick-yellow transition-colors">Honda</Link>
+              <Link href="/ford-repair-cleveland" className="block hover:text-nick-yellow transition-colors">Ford</Link>
+              <Link href="/chevy-repair-cleveland" className="block hover:text-nick-yellow transition-colors">Chevrolet</Link>
+            </div>
             <h4 className="font-heading font-bold text-foreground tracking-wider text-sm uppercase mb-4 mt-6">Common Problems</h4>
             <div className="space-y-2 text-sm text-foreground/50">
               <Link href="/car-shaking-while-driving" className="block hover:text-nick-yellow transition-colors">Car Shaking</Link>
@@ -606,6 +690,7 @@ export default function ServicePage() {
       <main id="main-content">
         <ServiceHero service={service} />
         <Problems service={service} />
+        <WarningSigns service={service} />
         <Process service={service} />
         <WhyUs service={service} />
         <BookingSection service={service} />

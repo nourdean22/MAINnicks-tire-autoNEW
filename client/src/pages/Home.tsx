@@ -13,7 +13,7 @@ import ChatWidget from "@/components/ChatWidget";
 import InstagramFeed from "@/components/InstagramFeed";
 import SearchBar from "@/components/SearchBar";
 import { SEOHead, SkipToContent, trackPhoneClick } from "@/components/SEO";
-import { Phone, MapPin, Clock, Star, ChevronRight, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Menu, X, BookOpen, ArrowRight } from "lucide-react";
+import { Phone, MapPin, Clock, Star, ChevronRight, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Menu, X, BookOpen, ArrowRight, CheckCircle, Award, Users, Calendar } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 
@@ -73,6 +73,11 @@ function Navbar() {
             <span className="text-nick-teal text-xs tracking-widest uppercase font-medium">Cleveland, Ohio</span>
           </div>
         </a>
+        {/* Open Now indicator — desktop only */}
+        <div className="hidden lg:flex items-center gap-1.5 ml-4 px-3 py-1 bg-green-500/10 border border-green-500/30 rounded-full">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          <span className="font-mono text-xs text-green-400 tracking-wider">OPEN NOW</span>
+        </div>
 
         {/* Desktop nav */}
         <div className="hidden lg:flex items-center gap-6">
@@ -144,14 +149,25 @@ function Hero() {
 
       <div className="relative container pb-16 pt-32 lg:pb-24">
         <FadeIn>
-          <a href="https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5597624,17z/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-3 mb-6 hover:opacity-80 transition-opacity">
-            <div className="flex gap-0.5">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} className="w-5 h-5 fill-nick-yellow text-nick-yellow" />
-              ))}
-            </div>
-            <span className="font-mono text-sm text-nick-yellow tracking-wider">{rating.toFixed(1)} STARS — {totalReviews.toLocaleString()}+ GOOGLE REVIEWS</span>
-          </a>
+          <div className="flex flex-wrap items-center gap-3 mb-6">
+            <a href="https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5597624,17z/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <div className="flex gap-0.5">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className="w-5 h-5 fill-nick-yellow text-nick-yellow" />
+                ))}
+              </div>
+              <span className="font-mono text-sm text-nick-yellow tracking-wider">{rating.toFixed(1)} STARS — {totalReviews.toLocaleString()}+ REVIEWS</span>
+            </a>
+            <span className="hidden sm:inline-block w-px h-5 bg-foreground/20" />
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-nick-teal/10 border border-nick-teal/30 rounded-full">
+              <CheckCircle className="w-3.5 h-3.5 text-nick-teal" />
+              <span className="font-mono text-xs text-nick-teal tracking-wider">SAME-DAY SERVICE</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-nick-orange/10 border border-nick-orange/30 rounded-full">
+              <Calendar className="w-3.5 h-3.5 text-nick-orange" />
+              <span className="font-mono text-xs text-nick-orange tracking-wider">WALK-INS WELCOME</span>
+            </span>
+          </div>
         </FadeIn>
 
         <FadeIn delay={0.1}>
@@ -164,25 +180,25 @@ function Hero() {
 
         <FadeIn delay={0.2}>
           <p className="mt-6 text-lg sm:text-xl text-foreground/80 max-w-xl font-light leading-relaxed">
-            Honest diagnostics. Fair prices. Real repairs. Serving Cleveland, Euclid, and Northeast Ohio drivers since day one.
+            Tires, brakes, diagnostics, emissions, and full-service repair. We show you the problem before we fix it — no surprises, no upselling. Serving Cleveland, Euclid, and Northeast Ohio.
           </p>
         </FadeIn>
 
         <FadeIn delay={0.3}>
           <div className="mt-8 flex flex-col sm:flex-row gap-4">
-            <a href="tel:2168620005" onClick={() => trackPhoneClick('hero-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow" aria-label="Call Nick's Tire and Auto for a free quote at 216-862-0005">
+              <a href="tel:2168620005" onClick={() => trackPhoneClick('hero-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow" aria-label="Call Nick's Tire and Auto for a free estimate at 216-862-0005">
               <Phone className="w-5 h-5" />
-              CALL FOR A FREE QUOTE
+              (216) 862-0005 — FREE ESTIMATE
             </a>
-            <a href="#services" className="inline-flex items-center justify-center gap-2 border-2 border-nick-teal/50 text-nick-cyan px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:border-nick-teal hover:bg-nick-teal/10 transition-colors">
-              OUR SERVICES
+            <a href="#contact" className="inline-flex items-center justify-center gap-2 border-2 border-nick-teal/50 text-nick-cyan px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:border-nick-teal hover:bg-nick-teal/10 transition-colors">
+              BOOK APPOINTMENT
               <ChevronRight className="w-5 h-5" />
             </a>
           </div>
         </FadeIn>
 
         <FadeIn delay={0.4}>
-          <div className="mt-12 flex flex-wrap gap-6 text-sm text-foreground/60">
+          <div className="mt-10 flex flex-wrap gap-4 text-sm text-foreground/60">
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-nick-teal" />
               <span className="font-mono">17625 Euclid Ave, Cleveland, OH 44112</span>
@@ -191,6 +207,13 @@ function Hero() {
               <Clock className="w-4 h-4 text-nick-teal" />
               <span className="font-mono">Mon–Sat 8AM–6PM · Sun 9AM–4PM</span>
             </div>
+          </div>
+          {/* Trust proof strip */}
+          <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-xs text-foreground/50 font-mono tracking-wider">
+            <span className="flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5 text-nick-teal" />FREE ESTIMATES</span>
+            <span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5 text-nick-teal" />WARRANTY ON REPAIRS</span>
+            <span className="flex items-center gap-1.5"><Award className="w-3.5 h-3.5 text-nick-teal" />EXPERIENCED TECHNICIANS</span>
+            <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-nick-teal" />FAMILY OWNED</span>
           </div>
         </FadeIn>
       </div>
@@ -330,10 +353,10 @@ function About() {
               </p>
               <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {[
-                  { label: "Honest Diagnostics", detail: "We explain every code and every repair in plain language.", accent: "nick-yellow" },
-                  { label: "Fair Pricing", detail: "No hidden fees. No surprise charges. The price we quote is the price you pay.", accent: "nick-teal" },
-                  { label: "Experienced Team", detail: "Our technicians handle everything from basic maintenance to complex diagnostics.", accent: "nick-orange" },
-                  { label: "Cleveland Proud", detail: "Locally owned, serving Euclid and Northeast Ohio drivers every day.", accent: "nick-cyan" },
+                  { label: "Honest Diagnostics", detail: "We read the codes, test the components, and show you exactly what failed before recommending any repair.", accent: "nick-yellow" },
+                  { label: "Upfront Pricing", detail: "Written estimates before work begins. The price we quote is the price you pay — no hidden fees, no surprise charges.", accent: "nick-teal" },
+                  { label: "Same-Day Service", detail: "Most repairs completed the same day. Walk-ins welcome for tires, oil changes, and diagnostics.", accent: "nick-orange" },
+                  { label: "Warranty on Repairs", detail: "We stand behind our work. If something is not right after a repair, bring it back and we make it right.", accent: "nick-cyan" },
                 ].map((item) => (
                   <div key={item.label} className={`border-l-3 border-${item.accent} pl-4`}>
                     <h4 className="font-heading font-bold text-foreground tracking-wider text-sm uppercase">{item.label}</h4>
@@ -479,26 +502,36 @@ const problems = [
     question: "Check engine light on?",
     answer: "Many check engine lights are caused by oxygen sensors, EVAP leaks, or catalytic converter problems. Our technicians use advanced OBD-II diagnostics to pinpoint the exact cause — so you only pay for the repair you actually need.",
     icon: <Zap className="w-5 h-5" />,
+    link: "/check-engine-light-flashing",
+    linkText: "Learn more about check engine light diagnostics",
   },
   {
     question: "Failed Ohio E-Check?",
     answer: "Emissions failures are usually caused by faulty sensors, exhaust leaks, or incomplete drive cycles. We diagnose the root cause, make the repair, and ensure all monitors complete so your vehicle passes inspection.",
     icon: <ThermometerSun className="w-5 h-5" />,
+    link: "/emissions",
+    linkText: "See our E-Check repair process",
   },
   {
     question: "Brakes squealing or grinding?",
     answer: "Squealing usually means your brake pads are worn down to the wear indicator. Grinding means metal-on-metal contact with the rotor. Either way, do not wait — brake problems get more expensive the longer you drive on them.",
     icon: <Shield className="w-5 h-5" />,
+    link: "/brakes-grinding",
+    linkText: "Learn about brake warning signs",
   },
   {
     question: "Car shaking while driving?",
     answer: "Vibrations at highway speed usually point to unbalanced tires or worn suspension components. Shaking when braking typically means warped rotors. We diagnose the exact cause before recommending any repair.",
     icon: <Gauge className="w-5 h-5" />,
+    link: "/car-shaking-while-driving",
+    linkText: "Diagnose why your car is shaking",
   },
   {
     question: "AC blowing warm air?",
     answer: "Low refrigerant, a failing compressor, or a clogged condenser are the most common causes. We check the entire system, find the leak or failure, and get your AC working properly.",
     icon: <Droplets className="w-5 h-5" />,
+    link: "/ac-repair-cleveland",
+    linkText: "See our AC repair services",
   },
 ];
 
@@ -519,9 +552,9 @@ function CommonProblems() {
               <p className="mt-6 text-foreground/70 leading-relaxed text-lg">
                 If something does not feel right, it probably is not. Here are the most common problems Cleveland drivers bring to us — and how we fix them.
               </p>
-              <a href="tel:2168620005" className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase mt-8 hover:bg-nick-gold transition-colors glow-yellow">
+              <a href="tel:2168620005" onClick={() => trackPhoneClick('common-problems-cta')} className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase mt-8 hover:bg-nick-gold transition-colors glow-yellow" aria-label="Call Nick's Tire and Auto to describe your car problem">
                 <Phone className="w-4 h-4" />
-                DESCRIBE YOUR PROBLEM
+                CALL US — WE'LL DIAGNOSE IT
               </a>
             </div>
           </FadeIn>
@@ -545,13 +578,18 @@ function CommonProblems() {
                     <ChevronRight className={`w-5 h-5 text-nick-yellow shrink-0 transition-transform duration-200 ${open === i ? "rotate-90" : ""}`} />
                   </div>
                   {open === i && (
-                    <motion.p
+                    <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}
-                      className="mt-4 ml-8 text-foreground/70 leading-relaxed text-base"
+                      className="mt-4 ml-8"
                     >
-                      {p.answer}
-                    </motion.p>
+                      <p className="text-foreground/70 leading-relaxed text-base">{p.answer}</p>
+                      {p.link && (
+                        <Link href={p.link} className="inline-flex items-center gap-1.5 mt-3 font-mono text-sm text-nick-teal hover:text-nick-yellow transition-colors">
+                          {p.linkText} <ArrowRight className="w-3.5 h-3.5" />
+                        </Link>
+                      )}
+                    </motion.div>
                   )}
                 </button>
               </FadeIn>
@@ -704,17 +742,17 @@ function Footer() {
           <div>
             <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4">Vehicle Makes</h4>
             <div className="space-y-2 text-sm text-foreground/50">
-              <a href="/toyota-repair-cleveland" className="block hover:text-primary transition-colors">Toyota Repair</a>
-              <a href="/honda-repair-cleveland" className="block hover:text-primary transition-colors">Honda Repair</a>
-              <a href="/ford-repair-cleveland" className="block hover:text-primary transition-colors">Ford Repair</a>
-              <a href="/chevy-repair-cleveland" className="block hover:text-primary transition-colors">Chevy Repair</a>
+              <Link href="/toyota-repair-cleveland" className="block hover:text-nick-yellow transition-colors">Toyota Repair</Link>
+              <Link href="/honda-repair-cleveland" className="block hover:text-nick-yellow transition-colors">Honda Repair</Link>
+              <Link href="/ford-repair-cleveland" className="block hover:text-nick-yellow transition-colors">Ford Repair</Link>
+              <Link href="/chevy-repair-cleveland" className="block hover:text-nick-yellow transition-colors">Chevy Repair</Link>
             </div>
             <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4 mt-6">Common Problems</h4>
             <div className="space-y-2 text-sm text-foreground/50">
-              <a href="/car-shaking-while-driving" className="block hover:text-primary transition-colors">Car Shaking</a>
-              <a href="/brakes-grinding" className="block hover:text-primary transition-colors">Brakes Grinding</a>
-              <a href="/check-engine-light-flashing" className="block hover:text-primary transition-colors">Check Engine Light</a>
-              <a href="/car-overheating" className="block hover:text-primary transition-colors">Car Overheating</a>
+              <Link href="/car-shaking-while-driving" className="block hover:text-nick-yellow transition-colors">Car Shaking</Link>
+              <Link href="/brakes-grinding" className="block hover:text-nick-yellow transition-colors">Brakes Grinding</Link>
+              <Link href="/check-engine-light-flashing" className="block hover:text-nick-yellow transition-colors">Check Engine Light</Link>
+              <Link href="/car-overheating" className="block hover:text-nick-yellow transition-colors">Car Overheating</Link>
             </div>
           </div>
 
@@ -722,11 +760,18 @@ function Footer() {
             <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4">Areas Served</h4>
             <div className="space-y-2 text-sm text-foreground/50">
               <p>Cleveland, OH</p>
-              <a href="/euclid-auto-repair" className="block hover:text-primary transition-colors">Euclid, OH</a>
-              <a href="/east-cleveland-auto-repair" className="block hover:text-primary transition-colors">East Cleveland, OH</a>
-              <a href="/lakewood-auto-repair" className="block hover:text-primary transition-colors">Lakewood, OH</a>
-              <a href="/parma-auto-repair" className="block hover:text-primary transition-colors">Parma, OH</a>
+              <Link href="/euclid-auto-repair" className="block hover:text-nick-yellow transition-colors">Euclid, OH</Link>
+              <Link href="/east-cleveland-auto-repair" className="block hover:text-nick-yellow transition-colors">East Cleveland, OH</Link>
+              <Link href="/lakewood-auto-repair" className="block hover:text-nick-yellow transition-colors">Lakewood, OH</Link>
+              <Link href="/parma-auto-repair" className="block hover:text-nick-yellow transition-colors">Parma, OH</Link>
               <p>Northeast Ohio</p>
+            </div>
+            <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4 mt-6">Resources</h4>
+            <div className="space-y-2 text-sm text-foreground/50">
+              <Link href="/faq" className="block hover:text-nick-yellow transition-colors">FAQ</Link>
+              <Link href="/blog" className="block hover:text-nick-yellow transition-colors">Auto Repair Blog</Link>
+              <Link href="/about" className="block hover:text-nick-yellow transition-colors">About Us</Link>
+              <Link href="/contact" className="block hover:text-nick-yellow transition-colors">Contact</Link>
             </div>
           </div>
         </div>

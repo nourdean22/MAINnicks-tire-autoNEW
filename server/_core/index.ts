@@ -83,6 +83,23 @@ async function startServer() {
       // Seasonal landing pages
       { path: "/winter-car-care-cleveland", priority: "0.7", changefreq: "monthly" },
       { path: "/summer-car-care-cleveland", priority: "0.7", changefreq: "monthly" },
+      // Dedicated SEO service pages
+      { path: "/brake-repair-cleveland", priority: "0.8", changefreq: "monthly" },
+      { path: "/check-engine-light-cleveland", priority: "0.8", changefreq: "monthly" },
+      { path: "/tire-repair-cleveland", priority: "0.8", changefreq: "monthly" },
+      { path: "/suspension-repair-cleveland", priority: "0.8", changefreq: "monthly" },
+      { path: "/ac-repair-cleveland", priority: "0.8", changefreq: "monthly" },
+      { path: "/diagnostics-cleveland", priority: "0.8", changefreq: "monthly" },
+      // Vehicle make pages
+      { path: "/toyota-repair-cleveland", priority: "0.7", changefreq: "monthly" },
+      { path: "/honda-repair-cleveland", priority: "0.7", changefreq: "monthly" },
+      { path: "/ford-repair-cleveland", priority: "0.7", changefreq: "monthly" },
+      { path: "/chevy-repair-cleveland", priority: "0.7", changefreq: "monthly" },
+      // Problem-specific pages
+      { path: "/car-shaking-while-driving", priority: "0.7", changefreq: "monthly" },
+      { path: "/brakes-grinding", priority: "0.7", changefreq: "monthly" },
+      { path: "/check-engine-light-flashing", priority: "0.7", changefreq: "monthly" },
+      { path: "/car-overheating", priority: "0.7", changefreq: "monthly" },
     ];
 
     const hardcodedBlogSlugs = [
