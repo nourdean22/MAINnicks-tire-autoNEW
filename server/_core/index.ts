@@ -47,17 +47,22 @@ async function startServer() {
   // Sitemap.xml (dynamic — includes published AI articles from DB)
   app.get("/sitemap.xml", async (_req, res) => {
     const baseUrl = "https://nickstire.org";
-    const now = new Date().toISOString();
-    const staticPages = [
-      "/",
-      "/tires",
-      "/brakes",
-      "/diagnostics",
-      "/emissions",
-      "/oil-change",
-      "/general-repair",
-      "/blog",
+    const now = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format per sitemap spec
+
+    // Page definitions with SEO priority and change frequency
+    const pages: { path: string; priority: string; changefreq: string }[] = [
+      { path: "/", priority: "1.0", changefreq: "daily" },
+      { path: "/tires", priority: "0.9", changefreq: "weekly" },
+      { path: "/brakes", priority: "0.9", changefreq: "weekly" },
+      { path: "/diagnostics", priority: "0.9", changefreq: "weekly" },
+      { path: "/emissions", priority: "0.9", changefreq: "weekly" },
+      { path: "/oil-change", priority: "0.8", changefreq: "weekly" },
+      { path: "/general-repair", priority: "0.8", changefreq: "weekly" },
+      { path: "/about", priority: "0.7", changefreq: "monthly" },
+      { path: "/contact", priority: "0.8", changefreq: "monthly" },
+      { path: "/blog", priority: "0.7", changefreq: "daily" },
     ];
+
     const hardcodedBlogSlugs = [
       "5-signs-brakes-need-replacing",
       "check-engine-light-common-causes",
@@ -66,19 +71,28 @@ async function startServer() {
       "spring-car-maintenance-checklist",
       "synthetic-vs-conventional-oil",
     ];
+
     // Fetch published dynamic articles from DB
     let dynamicSlugs: string[] = [];
     try {
       const published = await getPublishedArticles();
       dynamicSlugs = published.map((a: any) => a.slug);
     } catch {}
-    const allBlogSlugs = [...hardcodedBlogSlugs, ...dynamicSlugs];
+
+    const allBlogSlugs = Array.from(new Set([...hardcodedBlogSlugs, ...dynamicSlugs]));
+
     const urls = [
-      ...staticPages.map(p => `<url><loc>${baseUrl}${p}</loc><lastmod>${now}</lastmod></url>`),
-      ...allBlogSlugs.map(s => `<url><loc>${baseUrl}/blog/${s}</loc><lastmod>${now}</lastmod></url>`),
+      ...pages.map(p =>
+        `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
+      ),
+      ...allBlogSlugs.map(s =>
+        `  <url>\n    <loc>${baseUrl}/blog/${s}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>`
+      ),
     ];
+
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>`;
     res.setHeader("Content-Type", "application/xml");
+    res.setHeader("Cache-Control", "public, max-age=3600"); // Cache for 1 hour
     res.send(xml);
   });
 

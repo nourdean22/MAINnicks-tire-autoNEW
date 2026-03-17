@@ -112,3 +112,9 @@
 - [x] Fix homepage primary CTA to "CALL FOR A FREE QUOTE"
 - [x] Add warranty/guarantee language to all service pages
 - [x] Fix schema URL from manus.space to nickstire.org
+
+## Phase 15 — Sitemap & Google Search Console
+- [x] Create sitemap.xml with all pages (homepage, services, about, contact, blog)
+- [x] Update robots.txt to reference sitemap
+- [x] Write tests for sitemap generation (13 tests passing)
+- [x] Provide Google Search Console submission instructions
