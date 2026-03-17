@@ -28,6 +28,7 @@ import {
   getCurrentSeason,
 } from "./content-generator";
 import { keywordSearch, aiSearch } from "./search";
+import { getDashboardStats, getSiteHealth } from "./admin-stats";
 import { z } from "zod";
 import { eq, desc } from "drizzle-orm";
 import { leads, chatSessions } from "../drizzle/schema";
@@ -339,6 +340,16 @@ export const appRouter = router({
     }),
     currentSeason: publicProcedure.query(() => {
       return { season: getCurrentSeason() };
+    }),
+  }),
+
+  // ─── ADMIN DASHBOARD ────────────────────────────────
+  adminDashboard: router({
+    stats: adminProcedure.query(async () => {
+      return getDashboardStats();
+    }),
+    siteHealth: adminProcedure.query(async () => {
+      return getSiteHealth();
     }),
   }),
 
