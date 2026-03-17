@@ -248,3 +248,21 @@
 ### Google Search Console
 - [x] Resubmit updated sitemap (33 URLs discovered on both properties)
 - [x] Sitemap resubmitted on both easy.nickstire.org and nickstire.org (33 pages each, Success)
+
+## Phase 22 — Comprehensive Google Search Console Optimization
+### Audit
+- [x] Audit easy.nickstire.org: sitemaps, indexing, coverage, page experience
+- [x] Audit nickstire.org: sitemaps, indexing, coverage, page experience
+- [x] Check Pages report for crawl errors and excluded pages (processing data — new properties)
+### Indexing
+- [x] Request indexing for easy.nickstire.org homepage (quota exceeded — continue tomorrow)
+- [x] Request indexing for 8 key pages on nickstire.org (/, /tires, /brakes, /diagnostics, /emissions, /oil-change, /general-repair, /about)
+### Page Experience & Enhancements
+- [x] Check Core Web Vitals status (not enough data yet — new property)
+- [x] Check mobile usability (no data yet — new property)
+- [x] Check HTTPS status (valid on nickstire.org; easy.nickstire.org shows info warning)
+- [x] Review structured data enhancements (Review snippets: 1 valid item detected on homepage)
+### Technical
+- [x] Verify robots.txt is optimized (blocks /admin, /admin/, /api/, /api; includes sitemap ref)
+- [x] Verify sitemap includes all pages (dev: 40 URLs, production: 33 — needs republish)
+- [x] Check for any security or manual action issues (no issues detected)

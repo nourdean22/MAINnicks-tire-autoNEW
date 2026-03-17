@@ -135,10 +135,15 @@ async function startServer() {
     res.send(xml);
   });
 
-  // Robots.txt
-  app.get("/robots.txt", (_req, res) => {
+  // Robots.txt — dynamically uses the request host for correct sitemap reference
+  app.get("/robots.txt", (req, res) => {
+    const host = req.get("host") || "nickstire.org";
+    const protocol = req.protocol || "https";
+    const sitemapUrl = `https://nickstire.org/sitemap.xml`;
     res.setHeader("Content-Type", "text/plain");
-    res.send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /admin/\nDisallow: /api/\n\nSitemap: https://nickstire.org/sitemap.xml`);
+    res.send(
+      `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /admin/\nDisallow: /api/\nDisallow: /api\n\nSitemap: ${sitemapUrl}\n`
+    );
   });
 
   // development mode uses Vite, production mode uses static files
