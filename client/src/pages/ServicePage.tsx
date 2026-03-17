@@ -10,6 +10,7 @@ import { SERVICES, type ServiceData } from "@shared/services";
 import NotificationBar from "@/components/NotificationBar";
 import SearchBar from "@/components/SearchBar";
 import BookingForm from "@/components/BookingForm";
+import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronRight, ChevronDown, ArrowLeft, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Menu, X } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 
@@ -87,7 +88,7 @@ function ServiceNavbar({ service }: { service: ServiceData }) {
           <a href="#booking" className="font-heading text-sm tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors">
             Book Now
           </a>
-          <a href="tel:2168620005" className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow">
+          <a href="tel:2168620005" onClick={() => trackPhoneClick('service-navbar-desktop')} className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow" aria-label="Call Nick's Tire and Auto at 216-862-0005">
             <Phone className="w-4 h-4" />
             (216) 862-0005
           </a>
@@ -117,7 +118,7 @@ function ServiceNavbar({ service }: { service: ServiceData }) {
             <a href="#booking" onClick={() => setMobileOpen(false)} className="font-heading text-lg tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors py-2">
               Book Now
             </a>
-            <a href="tel:2168620005" className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-5 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase mt-2">
+            <a href="tel:2168620005" onClick={() => trackPhoneClick('service-navbar-mobile')} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-5 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
               <Phone className="w-4 h-4" />
               (216) 862-0005
             </a>
@@ -136,19 +137,13 @@ function ServiceHero({ service }: { service: ServiceData }) {
   return (
     <section className="relative min-h-[60vh] lg:min-h-[70vh] flex items-end overflow-hidden">
       <div className="absolute inset-0">
-        <img src={heroImg} alt={`${service.title} service at Nick's Tire & Auto`} className="w-full h-full object-cover" />
+        <img src={heroImg} alt={`${service.title} service at Nick's Tire and Auto in Cleveland Ohio`} className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-nick-dark via-nick-dark/80 to-nick-dark/40" />
       </div>
 
       <div className="relative container pb-16 pt-32 lg:pb-24">
         <FadeIn>
-          <div className="flex items-center gap-3 mb-4">
-            <Link href="/" className="font-mono text-xs text-foreground/50 hover:text-nick-teal transition-colors">
-              Home
-            </Link>
-            <ChevronRight className="w-3 h-3 text-foreground/30" />
-            <span className="font-mono text-xs text-nick-yellow">{service.title}</span>
-          </div>
+          <Breadcrumbs items={[{ label: service.title }]} />
         </FadeIn>
 
         <FadeIn delay={0.1}>
@@ -169,7 +164,7 @@ function ServiceHero({ service }: { service: ServiceData }) {
 
         <FadeIn delay={0.3}>
           <div className="mt-8 flex flex-col sm:flex-row gap-4">
-            <a href="tel:2168620005" className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow">
+            <a href="tel:2168620005" onClick={() => trackPhoneClick('service-hero-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow" aria-label="Call Nick's Tire and Auto at 216-862-0005">
               <Phone className="w-5 h-5" />
               CALL NOW
             </a>
@@ -487,10 +482,13 @@ function MobileCTA() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-nick-dark/95 backdrop-blur-md border-t border-nick-yellow/30 p-3">
-      <a href="tel:2168620005" className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark w-full py-3.5 rounded-md font-heading font-bold text-base tracking-wider uppercase glow-yellow">
-        <Phone className="w-5 h-5" />
-        CALL (216) 862-0005
+    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-nick-dark/95 backdrop-blur-md border-t border-nick-yellow/30 p-3 flex gap-2">
+      <a href="tel:2168620005" onClick={() => trackPhoneClick('service-mobile-sticky')} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark flex-1 py-3.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase glow-yellow" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+        <Phone className="w-4 h-4" />
+        CALL NOW
+      </a>
+      <a href="#booking" className="flex items-center justify-center gap-2 border-2 border-nick-teal text-nick-teal flex-1 py-3.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase" aria-label="Book an appointment online">
+        BOOK ONLINE
       </a>
     </div>
   );
@@ -569,21 +567,7 @@ export default function ServicePage() {
     window.scrollTo(0, 0);
   }, [slug]);
 
-  // Update document title and meta
-  useEffect(() => {
-    if (service) {
-      document.title = service.metaTitle;
-      const metaDesc = document.querySelector('meta[name="description"]');
-      if (metaDesc) {
-        metaDesc.setAttribute("content", service.metaDescription);
-      } else {
-        const meta = document.createElement("meta");
-        meta.name = "description";
-        meta.content = service.metaDescription;
-        document.head.appendChild(meta);
-      }
-    }
-  }, [service]);
+  // SEOHead handles title, meta description, and canonical tag
 
   if (!service) {
     return (
@@ -602,10 +586,18 @@ export default function ServicePage() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      {service && (
+        <SEOHead
+          title={service.metaTitle}
+          description={service.metaDescription}
+          canonicalPath={`/${service.slug}`}
+        />
+      )}
       <ServiceSchema service={service} />
+      <SkipToContent />
       <NotificationBar />
       <ServiceNavbar service={service} />
-      <main>
+      <main id="main-content">
         <ServiceHero service={service} />
         <Problems service={service} />
         <Process service={service} />

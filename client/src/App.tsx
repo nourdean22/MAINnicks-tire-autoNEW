@@ -12,6 +12,9 @@ import Blog from "./pages/Blog";
 import BlogPost from "./pages/BlogPost";
 import Contact from "./pages/Contact";
 import About from "./pages/About";
+import CityPage from "./pages/CityPage";
+import FAQ from "./pages/FAQ";
+import SeasonalPage from "./pages/SeasonalPage";
 
 function Router() {
   return (
@@ -30,6 +33,16 @@ function Router() {
       {/* Admin dashboard */}
       <Route path={"/admin"} component={Admin} />
       <Route path={"/admin/content"} component={AdminContent} />
+      {/* City-specific landing pages for local SEO */}
+      <Route path={"/euclid-auto-repair"} component={CityPage} />
+      <Route path={"/lakewood-auto-repair"} component={CityPage} />
+      <Route path={"/parma-auto-repair"} component={CityPage} />
+      <Route path={"/east-cleveland-auto-repair"} component={CityPage} />
+      {/* Seasonal landing pages */}
+      <Route path={"/winter-car-care-cleveland"} component={SeasonalPage} />
+      <Route path={"/summer-car-care-cleveland"} component={SeasonalPage} />
+      {/* FAQ page */}
+      <Route path={"/faq"} component={FAQ} />
       {/* Blog / Tips */}
       <Route path={"/blog"} component={Blog} />
       <Route path={"/blog/:slug"} component={BlogPost} />

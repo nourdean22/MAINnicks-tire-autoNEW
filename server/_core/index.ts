@@ -34,6 +34,19 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  // Security headers
+  app.use((_req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("X-XSS-Protection", "1; mode=block");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)");
+    if (process.env.NODE_ENV === "production") {
+      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    }
+    next();
+  });
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // tRPC API
@@ -61,6 +74,15 @@ async function startServer() {
       { path: "/about", priority: "0.7", changefreq: "monthly" },
       { path: "/contact", priority: "0.8", changefreq: "monthly" },
       { path: "/blog", priority: "0.7", changefreq: "daily" },
+      { path: "/faq", priority: "0.7", changefreq: "monthly" },
+      // City-specific landing pages
+      { path: "/euclid-auto-repair", priority: "0.8", changefreq: "monthly" },
+      { path: "/lakewood-auto-repair", priority: "0.8", changefreq: "monthly" },
+      { path: "/parma-auto-repair", priority: "0.8", changefreq: "monthly" },
+      { path: "/east-cleveland-auto-repair", priority: "0.8", changefreq: "monthly" },
+      // Seasonal landing pages
+      { path: "/winter-car-care-cleveland", priority: "0.7", changefreq: "monthly" },
+      { path: "/summer-car-care-cleveland", priority: "0.7", changefreq: "monthly" },
     ];
 
     const hardcodedBlogSlugs = [

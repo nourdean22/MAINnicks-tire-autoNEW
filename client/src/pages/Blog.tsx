@@ -7,6 +7,7 @@ import { useRef } from "react";
 import { Link } from "wouter";
 import { BLOG_ARTICLES } from "@shared/blog";
 import NotificationBar from "@/components/NotificationBar";
+import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
 import { Phone, Clock, ChevronRight, ArrowRight, Menu, X, MapPin } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { useState, useEffect } from "react";
@@ -101,13 +102,14 @@ export default function Blog() {
     ? BLOG_ARTICLES
     : BLOG_ARTICLES.filter(a => a.category === activeCategory);
 
-  // Set page title
-  useEffect(() => {
-    document.title = "Auto Repair Tips & Maintenance Blog | Nick's Tire & Auto Cleveland";
-  }, []);
-
   return (
     <div className="min-h-screen flex flex-col bg-nick-dark">
+      <SEOHead
+        title="Auto Repair Tips & Maintenance Blog | Nick's Tire & Auto Cleveland"
+        description="Expert auto repair tips, maintenance guides, and car care advice from Nick's Tire & Auto in Cleveland. Learn about brakes, tires, diagnostics, emissions, and more."
+        canonicalPath="/blog"
+      />
+      <SkipToContent />
       <NotificationBar />
       <BlogNavbar />
 
@@ -115,13 +117,7 @@ export default function Blog() {
       <section className="pt-32 pb-16 lg:pt-40 lg:pb-20 section-darker">
         <div className="container">
           <FadeIn>
-            <div className="flex items-center gap-3 mb-4">
-              <Link href="/" className="font-mono text-xs text-foreground/50 hover:text-nick-teal transition-colors">
-                Home
-              </Link>
-              <ChevronRight className="w-3 h-3 text-foreground/30" />
-              <span className="font-mono text-xs text-nick-yellow">Blog & Tips</span>
-            </div>
+            <Breadcrumbs items={[{ label: "Blog & Tips" }]} />
           </FadeIn>
 
           <FadeIn delay={0.1}>

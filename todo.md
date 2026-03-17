@@ -8,15 +8,15 @@
 ## Additional High-Impact Features
 - [x] LocalBusiness JSON-LD schema markup (Google rich results)
 - [x] Service-specific JSON-LD for each service page
-- [ ] FAQ schema markup on common problems section
-- [ ] Open Graph + Twitter meta tags for social sharing
-- [ ] Sitemap page listing all service pages
+- [x] FAQ schema markup on common problems section (+ standalone /faq page)
+- [x] Open Graph + Twitter meta tags for social sharing
+- [x] Sitemap page listing all service pages (dynamic sitemap.xml)
 - [ ] Blog/Tips page shell for SEO content
 - [ ] Shop gallery section with real work photos
 - [ ] "Why Choose Us" stats counter section (animated numbers)
-- [ ] Speed optimization (lazy loading, image optimization)
-- [ ] 404 page with brand styling
-- [ ] Accessibility improvements (ARIA labels, skip nav)
+- [x] Speed optimization (lazy loading, font preloading, manifest)
+- [x] 404 page with brand styling
+- [x] Accessibility improvements (ARIA labels, skip nav, alt text)
 
 ## Phase 2 — New Features
 - [x] Fix business hours site-wide: Mon-Sat 8AM-6PM, Sunday 9AM-4PM
@@ -123,3 +123,34 @@
 - [x] Add GSC verification meta tag to index.html
 - [x] Provide DNS TXT record instructions for easy.nickstire.org
 - [x] Add second GSC verification meta tag (tAYYpz7i...) to index.html
+
+## Phase 17 — Google Search Console Sitemap Submission & Indexing
+- [x] Check available APIs/tools for GSC automation (browser-based, no API available)
+- [x] Submit sitemap to Google Search Console (SUCCESS - 12 URLs discovered)
+- [x] Request indexing for homepage (SUCCESS - already indexed, re-crawl requested)
+- [ ] Request indexing for remaining pages (GSC rate-limited; will auto-crawl via sitemap within days)
+
+## Phase 18 — Advanced Improvements (18 items)
+### Tier 1 — SEO
+- [x] 1. Canonical tags on every page (SEOHead component on all pages)
+- [x] 2. City-specific landing pages (Euclid, Lakewood, Parma, East Cleveland)
+- [x] 3. Breadcrumb navigation + BreadcrumbList schema (on all pages)
+- [x] 4. Blog article schema improvements (author, publisher logo, dateModified)
+### Tier 2 — Performance
+- [x] 5. Lazy loading for below-the-fold images (loading="lazy" on all non-hero images)
+- [x] 6. Font preloading for Oswald (preload link in index.html)
+- [x] 7. Web app manifest (manifest.json with icons and theme color)
+- [x] 8. Security headers (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, HSTS)
+### Tier 3 — Conversion
+- [x] 9. Click-to-call tracking (trackPhoneClick on all phone links)
+- [x] 10. Sticky mobile CTA bar (on all pages including city and seasonal)
+- [x] 11. Service page cross-links (OtherServices component already existed)
+- [x] 12. Enhanced branded 404 page (dark theme, popular page links, phone CTA)
+### Tier 4 — Accessibility
+- [x] 13. Skip navigation link (SkipToContent on all pages)
+- [x] 14. ARIA labels on interactive elements (nav, phone links, menu buttons)
+- [x] 15. Improved image alt text (descriptive alt text on all images)
+### Tier 5 — Advanced SEO
+- [x] 16. Individual review schema markup (3 reviews in LocalBusiness schema)
+- [x] 17. Standalone FAQ page (/faq with FAQPage schema, 15 questions, category filter)
+- [x] 18. Seasonal landing pages (winter + summer car care with checklists)

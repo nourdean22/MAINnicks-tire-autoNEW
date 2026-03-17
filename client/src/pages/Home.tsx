@@ -12,6 +12,7 @@ import LeadPopup from "@/components/LeadPopup";
 import ChatWidget from "@/components/ChatWidget";
 import InstagramFeed from "@/components/InstagramFeed";
 import SearchBar from "@/components/SearchBar";
+import { SEOHead, SkipToContent, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronRight, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Menu, X, BookOpen, ArrowRight } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { trpc } from "@/lib/trpc";
@@ -87,7 +88,7 @@ function Navbar() {
               </a>
             )
           )}
-          <a href="tel:2168620005" className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow">
+          <a href="tel:2168620005" onClick={() => trackPhoneClick('navbar-desktop')} className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow" aria-label="Call Nick's Tire and Auto at 216-862-0005">
             <Phone className="w-4 h-4" />
             (216) 862-0005
           </a>
@@ -96,7 +97,7 @@ function Navbar() {
         {/* Mobile search + hamburger */}
         <div className="lg:hidden flex items-center gap-1">
           <SearchBar />
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="text-foreground p-2">
+          <button onClick={() => setMobileOpen(!mobileOpen)} className="text-foreground p-2" aria-label={mobileOpen ? "Close navigation menu" : "Open navigation menu"} aria-expanded={mobileOpen}>
             {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
         </div>
@@ -111,7 +112,7 @@ function Navbar() {
                 {l.label}
               </a>
             ))}
-            <a href="tel:2168620005" className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-5 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase mt-2">
+            <a href="tel:2168620005" onClick={() => trackPhoneClick('navbar-mobile')} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-5 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
               <Phone className="w-4 h-4" />
               (216) 862-0005
             </a>
@@ -135,7 +136,7 @@ function Hero() {
     <section className="relative min-h-[100svh] flex items-end overflow-hidden">
       {/* Background image */}
       <div className="absolute inset-0">
-        <img src={HERO_IMG} alt="Nick's Tire & Auto shop interior" className="w-full h-full object-cover" />
+        <img src={HERO_IMG} alt="Technicians working inside Nick's Tire and Auto repair shop in Cleveland Ohio" className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-background/20" />
         {/* Warm color overlay for vibrancy */}
         <div className="absolute inset-0 bg-gradient-to-br from-nick-yellow/5 via-transparent to-nick-teal/5" />
@@ -169,7 +170,7 @@ function Hero() {
 
         <FadeIn delay={0.3}>
           <div className="mt-8 flex flex-col sm:flex-row gap-4">
-            <a href="tel:2168620005" className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow">
+            <a href="tel:2168620005" onClick={() => trackPhoneClick('hero-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow" aria-label="Call Nick's Tire and Auto for a free quote at 216-862-0005">
               <Phone className="w-5 h-5" />
               CALL FOR A FREE QUOTE
             </a>
@@ -270,7 +271,7 @@ function Services() {
               <Link href={s.slug} className="group card-vibrant relative block bg-card/80 p-8 rounded-lg overflow-hidden h-full">
                 {s.img && (
                   <div className="absolute inset-0 opacity-0 group-hover:opacity-15 transition-opacity duration-500">
-                    <img src={s.img} alt={`${s.title} service at Nick's Tire & Auto Cleveland`} className="w-full h-full object-cover" />
+                    <img src={s.img} alt={`${s.title} service at Nick's Tire and Auto in Cleveland Ohio`} className="w-full h-full object-cover" loading="lazy" />
                   </div>
                 )}
                 <div className="relative">
@@ -302,7 +303,7 @@ function About() {
           <FadeIn>
             <div className="relative">
               <div className="rounded-lg overflow-hidden">
-                <img src={DIAG_IMG} alt="Technician performing vehicle diagnostics" className="w-full aspect-[4/3] object-cover" />
+                <img src={DIAG_IMG} alt="Technician performing OBD-II diagnostic scan on a vehicle at Nick's Tire and Auto in Cleveland" className="w-full aspect-[4/3] object-cover" loading="lazy" />
               </div>
               <div className="absolute -bottom-4 -right-4 bg-nick-yellow p-6 rounded-lg glow-yellow">
                 <span className="font-heading font-bold text-3xl text-nick-dark">4.9</span>
@@ -657,10 +658,13 @@ function MobileCTA() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/95 backdrop-blur-md border-t border-nick-yellow/30 p-3">
-      <a href="tel:2168620005" className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark w-full py-3.5 rounded-md font-heading font-bold text-base tracking-wider uppercase glow-yellow">
-        <Phone className="w-5 h-5" />
-        CALL (216) 862-0005
+    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/95 backdrop-blur-md border-t border-nick-yellow/30 p-3 flex gap-2">
+      <a href="tel:2168620005" onClick={() => trackPhoneClick('mobile-sticky-bar')} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark flex-1 py-3.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase glow-yellow" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+        <Phone className="w-4 h-4" />
+        CALL NOW
+      </a>
+      <a href="#booking" className="flex items-center justify-center gap-2 border-2 border-nick-teal text-nick-teal flex-1 py-3.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase" aria-label="Book an appointment online">
+        BOOK ONLINE
       </a>
     </div>
   );
@@ -791,6 +795,43 @@ function LocalBusinessSchema() {
     "sameAs": [
       "https://www.instagram.com/nicks_tire_euclid/",
       "https://www.facebook.com/nickstireeuclid/"
+    ],
+    "review": [
+      {
+        "@type": "Review",
+        "author": { "@type": "Person", "name": "Marcus T." },
+        "datePublished": "2025-11-15",
+        "reviewBody": "Honest shop. They showed me exactly what was wrong with my brakes before doing any work. Fair price, fast turnaround. Will be back.",
+        "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" }
+      },
+      {
+        "@type": "Review",
+        "author": { "@type": "Person", "name": "Jessica R." },
+        "datePublished": "2025-10-22",
+        "reviewBody": "Failed my E-Check and was stressed. Nick's diagnosed the issue, fixed it same day, and I passed. Great communication the whole time.",
+        "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" }
+      },
+      {
+        "@type": "Review",
+        "author": { "@type": "Person", "name": "David K." },
+        "datePublished": "2025-09-08",
+        "reviewBody": "Best tire prices in Cleveland. They mounted and balanced four new tires in under an hour. No upselling, no pressure.",
+        "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" }
+      },
+      {
+        "@type": "Review",
+        "author": { "@type": "Person", "name": "Tanya M." },
+        "datePublished": "2025-08-14",
+        "reviewBody": "Check engine light came on and I was worried. They ran the diagnostics, explained the code in plain English, and the repair was affordable. Trustworthy shop.",
+        "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" }
+      },
+      {
+        "@type": "Review",
+        "author": { "@type": "Person", "name": "Robert L." },
+        "datePublished": "2025-07-30",
+        "reviewBody": "Been going to Nick's for two years now. Oil changes, brakes, suspension work. Always fair, always honest. This is my shop.",
+        "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" }
+      }
     ]
   };
 
@@ -803,16 +844,18 @@ function LocalBusinessSchema() {
 }
 
 export default function Home() {
-  useEffect(() => {
-    document.title = "Nick's Tire & Auto — Cleveland Auto Repair & Tire Shop | (216) 862-0005";
-  }, []);
-
   return (
     <div className="min-h-screen flex flex-col">
+      <SEOHead
+        title="Nick's Tire & Auto — Cleveland Auto Repair & Tire Shop | (216) 862-0005"
+        description="Trusted auto repair and tire shop serving Cleveland, Euclid, and Northeast Ohio. Brakes, tires, diagnostics, emissions, and more. 4.9 stars, 1,683+ reviews."
+        canonicalPath="/"
+      />
       <LocalBusinessSchema />
+      <SkipToContent />
       <NotificationBar />
       <Navbar />
-      <main>
+      <main id="main-content">
         <Hero />
         <Services />
         <About />

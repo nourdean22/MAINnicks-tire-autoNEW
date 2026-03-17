@@ -9,6 +9,7 @@ import { Link } from "wouter";
 import NotificationBar from "@/components/NotificationBar";
 import BookingForm from "@/components/BookingForm";
 import SearchBar from "@/components/SearchBar";
+import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, Menu, X, Mail, Navigation } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { trpc } from "@/lib/trpc";
@@ -167,27 +168,22 @@ function MobileCTA() {
 
 export default function Contact() {
   useEffect(() => {
-    document.title = "Contact Nick's Tire & Auto | Cleveland Auto Repair Shop | (216) 862-0005";
-    const metaDesc = document.querySelector('meta[name="description"]');
-    const content = "Contact Nick's Tire & Auto at (216) 862-0005. Located at 17625 Euclid Ave, Cleveland, OH 44112. Open Mon-Sat 8AM-6PM, Sun 9AM-4PM. Walk-ins welcome.";
-    if (metaDesc) {
-      metaDesc.setAttribute("content", content);
-    } else {
-      const meta = document.createElement("meta");
-      meta.name = "description";
-      meta.content = content;
-      document.head.appendChild(meta);
-    }
     window.scrollTo(0, 0);
   }, []);
 
   return (
     <div className="min-h-screen flex flex-col">
+      <SEOHead
+        title="Contact Nick's Tire & Auto | Cleveland Auto Repair Shop | (216) 862-0005"
+        description="Contact Nick's Tire & Auto at (216) 862-0005. Located at 17625 Euclid Ave, Cleveland, OH 44112. Open Mon-Sat 8AM-6PM, Sun 9AM-4PM. Walk-ins welcome."
+        canonicalPath="/contact"
+      />
       <ContactSchema />
+      <SkipToContent />
       <NotificationBar />
       <ContactNavbar />
 
-      <main>
+      <main id="main-content">
         {/* Hero */}
         <section className="relative pt-32 lg:pt-40 pb-16 lg:pb-20 section-dark">
           <div className="container">

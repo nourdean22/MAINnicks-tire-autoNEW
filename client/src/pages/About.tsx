@@ -7,6 +7,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import NotificationBar from "@/components/NotificationBar";
 import SearchBar from "@/components/SearchBar";
+import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, Menu, X, Shield, Wrench, Users, Award, CheckCircle } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { trpc } from "@/lib/trpc";
@@ -131,30 +132,25 @@ export default function About() {
   const totalReviews = googleData?.totalReviews ?? 1683;
 
   useEffect(() => {
-    document.title = "About Nick's Tire & Auto | Cleveland's Trusted Auto Repair Shop Since Day One";
-    const metaDesc = document.querySelector('meta[name="description"]');
-    const content = "Learn about Nick's Tire & Auto, Cleveland's trusted independent auto repair shop. Honest diagnostics, fair pricing, and experienced technicians serving Euclid Ave and Northeast Ohio.";
-    if (metaDesc) {
-      metaDesc.setAttribute("content", content);
-    } else {
-      const meta = document.createElement("meta");
-      meta.name = "description";
-      meta.content = content;
-      document.head.appendChild(meta);
-    }
     window.scrollTo(0, 0);
   }, []);
 
   return (
     <div className="min-h-screen flex flex-col">
+      <SEOHead
+        title="About Nick's Tire & Auto | Cleveland's Trusted Auto Repair Shop Since Day One"
+        description="Learn about Nick's Tire & Auto, Cleveland's trusted independent auto repair shop. Honest diagnostics, fair pricing, and experienced technicians serving Euclid Ave and Northeast Ohio."
+        canonicalPath="/about"
+      />
+      <SkipToContent />
       <NotificationBar />
       <AboutNavbar />
 
-      <main>
+      <main id="main-content">
         {/* Hero */}
         <section className="relative pt-32 lg:pt-40 pb-20 lg:pb-28 overflow-hidden">
           <div className="absolute inset-0">
-            <img src={HERO_IMG} alt="Inside Nick's Tire & Auto shop in Cleveland" className="w-full h-full object-cover" />
+            <img src={HERO_IMG} alt="Inside Nick's Tire and Auto repair shop serving Cleveland and Euclid Ohio" className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-r from-background via-background/85 to-background/50" />
           </div>
           <div className="relative container">
@@ -207,7 +203,7 @@ export default function About() {
 
               <FadeIn delay={0.15}>
                 <div className="relative rounded-lg overflow-hidden">
-                  <img src={DIAG_IMG} alt="Technician performing vehicle diagnostics at Nick's Tire & Auto" className="w-full aspect-[4/3] object-cover" />
+                  <img src={DIAG_IMG} alt="Certified technician performing OBD-II vehicle diagnostics at Nick's Tire and Auto in Cleveland" className="w-full aspect-[4/3] object-cover" loading="lazy" />
                   <div className="absolute -bottom-4 -right-4 bg-nick-yellow p-6 rounded-lg glow-yellow">
                     <span className="font-heading font-bold text-3xl text-nick-dark">{rating.toFixed(1)}</span>
                     <div className="flex gap-0.5 mt-1">

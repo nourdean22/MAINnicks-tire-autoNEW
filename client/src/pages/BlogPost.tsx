@@ -7,6 +7,7 @@ import { useRef, useEffect } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { getArticleBySlug, BLOG_ARTICLES } from "@shared/blog";
 import NotificationBar from "@/components/NotificationBar";
+import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
 import { Phone, Clock, ChevronRight, ArrowLeft, ArrowRight, Tag, Menu, X, MapPin } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { useState } from "react";
@@ -112,19 +113,6 @@ export default function BlogPost() {
     );
   }
 
-  // Set page title and meta
-  useEffect(() => {
-    document.title = article.metaTitle;
-    // Update meta description
-    let metaDesc = document.querySelector('meta[name="description"]');
-    if (!metaDesc) {
-      metaDesc = document.createElement("meta");
-      metaDesc.setAttribute("name", "description");
-      document.head.appendChild(metaDesc);
-    }
-    metaDesc.setAttribute("content", article.metaDescription);
-  }, [article]);
-
   // Get related articles (same category, different slug)
   const related = BLOG_ARTICLES.filter(a => a.slug !== article.slug && a.category === article.category).slice(0, 2);
   // If not enough same-category, fill with others
@@ -140,14 +128,20 @@ export default function BlogPost() {
     description: article.metaDescription,
     image: article.heroImage,
     datePublished: article.publishDate,
+    dateModified: article.publishDate,
     author: {
       "@type": "Organization",
       name: "Nick's Tire & Auto",
-      url: "https://nickstire-fqyrztyc.manus.space",
+      url: "https://nickstire.org",
     },
     publisher: {
       "@type": "Organization",
       name: "Nick's Tire & Auto",
+      url: "https://nickstire.org",
+      logo: {
+        "@type": "ImageObject",
+        url: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+      },
       address: {
         "@type": "PostalAddress",
         streetAddress: "17625 Euclid Ave",
@@ -160,6 +154,13 @@ export default function BlogPost() {
 
   return (
     <div className="min-h-screen flex flex-col bg-nick-dark">
+      <SEOHead
+        title={article.metaTitle}
+        description={article.metaDescription}
+        canonicalPath={`/blog/${article.slug}`}
+        ogImage={article.heroImage}
+      />
+      <SkipToContent />
       <NotificationBar />
       <PostNavbar />
 
