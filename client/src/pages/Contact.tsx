@@ -135,6 +135,20 @@ function ContactSchema() {
         closes: "16:00",
       },
     ],
+    hasMap: "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
+    sameAs: [
+      "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
+      "https://www.instagram.com/nicks_tire_euclid/",
+      "https://www.facebook.com/nickstireeuclid/",
+    ],
+    aggregateRating: {
+      "@type": "AggregateRating",
+      ratingValue: "4.9",
+      reviewCount: "1683",
+      bestRating: "5",
+    },
+    image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    priceRange: "$$",
   };
 
   return (
@@ -275,6 +289,45 @@ export default function Contact() {
                     <p className="text-foreground/60 text-sm leading-relaxed">
                       Cleveland, Euclid, East Cleveland, South Euclid, Richmond Heights, Lyndhurst, Wickliffe, Willoughby, and surrounding Northeast Ohio communities. If you can drive to us, we can help.
                     </p>
+                  </div>
+
+                  {/* Google Business Profile */}
+                  <div className="card-vibrant bg-card/80 rounded-lg p-6">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 bg-nick-yellow/10 flex items-center justify-center rounded-md">
+                        <Star className="w-5 h-5 text-nick-yellow" />
+                      </div>
+                      <h3 className="font-heading font-bold text-foreground tracking-wider text-sm uppercase">Google Reviews</h3>
+                    </div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="flex gap-0.5">
+                        {[...Array(5)].map((_, i) => (
+                          <Star key={i} className="w-5 h-5 fill-nick-yellow text-nick-yellow" />
+                        ))}
+                      </div>
+                      <span className="font-mono text-nick-yellow text-lg font-bold">4.9</span>
+                      <span className="text-foreground/50 text-sm">from 1,683+ reviews</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <a
+                        href="https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-nick-teal/10 border border-nick-teal/30 rounded-md text-nick-teal hover:bg-nick-teal/20 transition-colors text-sm font-medium"
+                      >
+                        <MapPin className="w-4 h-4" />
+                        View on Google Maps
+                      </a>
+                      <a
+                        href="https://search.google.com/local/writereview?placeid=ChIJSWRRLdr_MEiRBZ3NBATPvQo"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-nick-yellow/10 border border-nick-yellow/30 rounded-md text-nick-yellow hover:bg-nick-yellow/20 transition-colors text-sm font-medium"
+                      >
+                        <Star className="w-4 h-4" />
+                        Leave a Review
+                      </a>
+                    </div>
                   </div>
                 </div>
               </FadeIn>

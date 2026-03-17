@@ -604,6 +604,12 @@ function ServiceSchema({ service }: { service: ServiceData }) {
       },
       telephone: "+1-216-862-0005",
       url: "https://nickstire.org",
+      hasMap: "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
+      sameAs: [
+        "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
+        "https://www.instagram.com/nicks_tire_euclid/",
+        "https://www.facebook.com/nickstireeuclid/",
+      ],
       aggregateRating: {
         "@type": "AggregateRating",
         ratingValue: "4.9",

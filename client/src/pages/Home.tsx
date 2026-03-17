@@ -725,6 +725,45 @@ function Footer() {
             <p className="text-foreground/50 text-sm leading-relaxed">
               Honest auto repair and tire services for Cleveland, Euclid, and Northeast Ohio. Fair prices, real diagnostics, no surprises.
             </p>
+            {/* Google Business Profile + Social Links */}
+            <div className="mt-4 flex flex-col gap-2">
+              <a
+                href="https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm text-foreground/50 hover:text-nick-yellow transition-colors"
+              >
+                <MapPin className="w-4 h-4 text-nick-teal" />
+                Find Us on Google Maps
+              </a>
+              <a
+                href="https://search.google.com/local/writereview?placeid=ChIJSWRRLdr_MEiRBZ3NBATPvQo"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm text-foreground/50 hover:text-nick-yellow transition-colors"
+              >
+                <Star className="w-4 h-4 text-nick-yellow" />
+                Leave Us a Google Review
+              </a>
+              <a
+                href="https://www.instagram.com/nicks_tire_euclid/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm text-foreground/50 hover:text-nick-yellow transition-colors"
+              >
+                <svg className="w-4 h-4 text-nick-orange" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+                Follow Us on Instagram
+              </a>
+              <a
+                href="https://www.facebook.com/nickstireeuclid/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm text-foreground/50 hover:text-nick-yellow transition-colors"
+              >
+                <svg className="w-4 h-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+                Follow Us on Facebook
+              </a>
+            </div>
           </div>
 
           <div>
@@ -855,9 +894,11 @@ function LocalBusinessSchema() {
       ]
     },
     "sameAs": [
+      "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
       "https://www.instagram.com/nicks_tire_euclid/",
       "https://www.facebook.com/nickstireeuclid/"
     ],
+    "hasMap": "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
     "review": [
       {
         "@type": "Review",

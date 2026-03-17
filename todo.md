@@ -266,3 +266,12 @@
 - [x] Verify robots.txt is optimized (blocks /admin, /admin/, /api/, /api; includes sitemap ref)
 - [x] Verify sitemap includes all pages (dev: 40 URLs, production: 33 — needs republish)
 - [x] Check for any security or manual action issues (no issues detected)
+
+## Phase 23 — Google Business Profile Link Integration
+- [x] Find Nick's Tire & Auto Google Business Profile URL (Nick's Tire And Auto Euclid, 4.9★, 1683 reviews)
+- [x] Add GBP link to LocalBusiness structured data (JSON-LD) on all pages (Home, ServicePage, CityPage, VehicleMakePage, SEOServicePage, BlogPost)
+- [x] Add GBP "Leave a Review" link in footer (homepage footer with review link)
+- [x] Add GBP link on Contact page (review card + directions link + schema)
+- [x] Add GBP map embed or link on About page (via shared const GBP_EMBED_URL)
+- [x] Update sameAs property in schema.org markup with GBP URL (+ Instagram + Facebook on all page schemas)
+- [x] Verify all changes compile and render correctly (8 GBP tests passing, TypeScript clean)

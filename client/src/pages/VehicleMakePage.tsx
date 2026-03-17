@@ -349,6 +349,13 @@ export default function VehicleMakePage() {
         "telephone": "+1-216-862-0005",
         "address": { "@type": "PostalAddress", "streetAddress": "17625 Euclid Ave", "addressLocality": "Cleveland", "addressRegion": "OH", "postalCode": "44112" },
         "url": `https://nickstire.org/${page.slug}`,
+        "hasMap": "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
+        "sameAs": [
+          "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
+          "https://www.instagram.com/nicks_tire_euclid/",
+          "https://www.facebook.com/nickstireeuclid/"
+        ],
+        "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.9", "reviewCount": "1683", "bestRating": "5" },
         "areaServed": { "@type": "City", "name": "Cleveland" }
       })}} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
