@@ -176,7 +176,7 @@ Return your response as JSON matching this exact schema.`,
             relatedServices: {
               type: "array",
               items: { type: "string" },
-              description: "Array of related service routes like /tires, /brakes, /diagnostics, /emissions, /oil-change, /general-repair",
+              description: "Array of related service routes. Include both main service pages (/tires, /brakes, /diagnostics, /emissions, /oil-change, /general-repair) AND relevant SEO pages (/brake-repair-cleveland, /check-engine-light-cleveland, /tire-repair-cleveland, /suspension-repair-cleveland, /ac-repair-cleveland, /diagnostics-cleveland, /toyota-repair-cleveland, /honda-repair-cleveland, /ford-repair-cleveland, /chevy-repair-cleveland, /car-shaking-while-driving, /brakes-grinding, /check-engine-light-flashing, /car-overheating). Pick 2-4 most relevant.",
             },
             tags: {
               type: "array",

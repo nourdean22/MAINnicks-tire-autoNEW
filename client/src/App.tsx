@@ -15,6 +15,9 @@ import About from "./pages/About";
 import CityPage from "./pages/CityPage";
 import FAQ from "./pages/FAQ";
 import SeasonalPage from "./pages/SeasonalPage";
+import SEOServicePage from "./pages/SEOServicePage";
+import VehicleMakePage from "./pages/VehicleMakePage";
+import ProblemPage from "./pages/ProblemPage";
 
 function Router() {
   return (
@@ -41,6 +44,23 @@ function Router() {
       {/* Seasonal landing pages */}
       <Route path={"/winter-car-care-cleveland"} component={SeasonalPage} />
       <Route path={"/summer-car-care-cleveland"} component={SeasonalPage} />
+      {/* Dedicated SEO service pages (long-tail keywords) */}
+      <Route path={"/brake-repair-cleveland"} component={SEOServicePage} />
+      <Route path={"/check-engine-light-cleveland"} component={SEOServicePage} />
+      <Route path={"/tire-repair-cleveland"} component={SEOServicePage} />
+      <Route path={"/suspension-repair-cleveland"} component={SEOServicePage} />
+      <Route path={"/ac-repair-cleveland"} component={SEOServicePage} />
+      <Route path={"/diagnostics-cleveland"} component={SEOServicePage} />
+      {/* Vehicle make pages */}
+      <Route path={"/toyota-repair-cleveland"} component={VehicleMakePage} />
+      <Route path={"/honda-repair-cleveland"} component={VehicleMakePage} />
+      <Route path={"/ford-repair-cleveland"} component={VehicleMakePage} />
+      <Route path={"/chevy-repair-cleveland"} component={VehicleMakePage} />
+      {/* Problem-specific pages */}
+      <Route path={"/car-shaking-while-driving"} component={ProblemPage} />
+      <Route path={"/brakes-grinding"} component={ProblemPage} />
+      <Route path={"/check-engine-light-flashing"} component={ProblemPage} />
+      <Route path={"/car-overheating"} component={ProblemPage} />
       {/* FAQ page */}
       <Route path={"/faq"} component={FAQ} />
       {/* Blog / Tips */}

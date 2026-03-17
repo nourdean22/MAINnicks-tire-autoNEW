@@ -702,13 +702,30 @@ function Footer() {
           </div>
 
           <div>
+            <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4">Vehicle Makes</h4>
+            <div className="space-y-2 text-sm text-foreground/50">
+              <a href="/toyota-repair-cleveland" className="block hover:text-primary transition-colors">Toyota Repair</a>
+              <a href="/honda-repair-cleveland" className="block hover:text-primary transition-colors">Honda Repair</a>
+              <a href="/ford-repair-cleveland" className="block hover:text-primary transition-colors">Ford Repair</a>
+              <a href="/chevy-repair-cleveland" className="block hover:text-primary transition-colors">Chevy Repair</a>
+            </div>
+            <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4 mt-6">Common Problems</h4>
+            <div className="space-y-2 text-sm text-foreground/50">
+              <a href="/car-shaking-while-driving" className="block hover:text-primary transition-colors">Car Shaking</a>
+              <a href="/brakes-grinding" className="block hover:text-primary transition-colors">Brakes Grinding</a>
+              <a href="/check-engine-light-flashing" className="block hover:text-primary transition-colors">Check Engine Light</a>
+              <a href="/car-overheating" className="block hover:text-primary transition-colors">Car Overheating</a>
+            </div>
+          </div>
+
+          <div>
             <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4">Areas Served</h4>
             <div className="space-y-2 text-sm text-foreground/50">
               <p>Cleveland, OH</p>
-              <p>Euclid, OH</p>
-              <p>East Cleveland, OH</p>
-              <p>South Euclid, OH</p>
-              <p>Richmond Heights, OH</p>
+              <a href="/euclid-auto-repair" className="block hover:text-primary transition-colors">Euclid, OH</a>
+              <a href="/east-cleveland-auto-repair" className="block hover:text-primary transition-colors">East Cleveland, OH</a>
+              <a href="/lakewood-auto-repair" className="block hover:text-primary transition-colors">Lakewood, OH</a>
+              <a href="/parma-auto-repair" className="block hover:text-primary transition-colors">Parma, OH</a>
               <p>Northeast Ohio</p>
             </div>
           </div>

@@ -154,3 +154,35 @@
 - [x] 16. Individual review schema markup (3 reviews in LocalBusiness schema)
 - [x] 17. Standalone FAQ page (/faq with FAQPage schema, 15 questions, category filter)
 - [x] 18. Seasonal landing pages (winter + summer car care with checklists)
+
+## Phase 19 — SEO Expansion (Corrected Audit Gaps)
+### Gap 1: Dedicated SEO Service Pages
+- [x] /brake-repair-cleveland (unique content, FAQPage schema, symptom list)
+- [x] /check-engine-light-cleveland (unique content, FAQPage schema, symptom list)
+- [x] /tire-repair-cleveland (unique content, FAQPage schema, symptom list)
+- [x] /suspension-repair-cleveland (unique content, FAQPage schema, symptom list)
+- [x] /ac-repair-cleveland (unique content, FAQPage schema, symptom list)
+- [x] /diagnostics-cleveland (unique content, FAQPage schema, symptom list)
+### Gap 2: Vehicle Make Pages
+- [x] /toyota-repair-cleveland (model-specific content, common issues, FAQPage schema)
+- [x] /honda-repair-cleveland (model-specific content, common issues, FAQPage schema)
+- [x] /ford-repair-cleveland (model-specific content, common issues, FAQPage schema)
+- [x] /chevy-repair-cleveland (model-specific content, common issues, FAQPage schema)
+### Gap 3: Problem-Specific Pages
+- [x] /car-shaking-while-driving (diagnostic flowchart, causes, solutions)
+- [x] /brakes-grinding (urgency messaging, safety warnings, repair process)
+- [x] /check-engine-light-flashing (flashing vs steady, OBD-II codes, solutions)
+- [x] /car-overheating (emergency steps, causes, cooling system repair)
+### Gap 4: Enhanced Internal Linking
+- [x] Footer links to city pages, vehicle makes, and common problems (Home + ServicePage)
+- [x] Service → diagnostic page links via OtherServices component
+- [x] Cross-link new pages from existing footers
+- [x] Blog content generator updated to reference new SEO pages
+### Gap 5: Blog Authority Expansion
+- [x] Updated LLM prompt to include all 14 new SEO page routes in relatedServices
+### Gap 6: More Repair Imagery
+- [x] All new pages use existing CDN imagery (hero images, diagnostic images)
+### Gap 7: Expanded FAQ Schema
+- [x] Added 8 new FAQ questions: 4 problem-specific + 4 vehicle make-specific
+- [x] FAQ page now has 23 total questions across 9 categories with FAQPage schema
+- [x] All new SEO service, vehicle, and problem pages have their own FAQPage schema

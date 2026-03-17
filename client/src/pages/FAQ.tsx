@@ -116,6 +116,48 @@ const FAQ_DATA: FAQItem[] = [
     question: "Do you offer any warranty on repairs?",
     answer: "Yes. We stand behind our work with a warranty on parts and labor. The specific warranty terms depend on the type of repair and parts used. Ask your service advisor for details on the warranty coverage for your specific repair."
   },
+  // Problem-specific questions
+  {
+    category: "Common Problems",
+    question: "My car is shaking while driving. What could be wrong?",
+    answer: "Car shaking can be caused by unbalanced tires, worn brake rotors, bad wheel bearings, worn CV joints, or engine misfires. The cause depends on when the shaking occurs — at highway speeds, during braking, or at idle. We diagnose the exact cause so you only pay for what needs to be fixed. Visit our car shaking while driving page for more details."
+  },
+  {
+    category: "Common Problems",
+    question: "My brakes are making a grinding noise. Is it safe to drive?",
+    answer: "Grinding brakes usually mean the brake pads are completely worn through and the metal backing plate is grinding against the rotor. This is a safety issue. Continued driving can damage the rotors and calipers, increasing the repair cost significantly. We recommend getting this checked immediately. Learn more on our brakes grinding page."
+  },
+  {
+    category: "Common Problems",
+    question: "My check engine light is flashing. What should I do?",
+    answer: "A flashing check engine light indicates an active engine misfire that can damage your catalytic converter. You should reduce speed, avoid hard acceleration, and get to a shop as soon as possible. A steady check engine light is less urgent but should still be diagnosed promptly. See our check engine light flashing page for more information."
+  },
+  {
+    category: "Common Problems",
+    question: "My car is overheating. What causes this?",
+    answer: "Common causes include a failing thermostat, coolant leak, bad water pump, clogged radiator, or a blown head gasket. If your temperature gauge is in the red, pull over safely and turn off the engine. Do not open the radiator cap when hot. Call us and we will help you figure out the next step. Read more on our car overheating page."
+  },
+  // Vehicle-specific questions
+  {
+    category: "Vehicle Makes",
+    question: "Do you work on Toyota vehicles?",
+    answer: "Yes. We service all Toyota models including Camry, Corolla, RAV4, Highlander, Tacoma, and Tundra. We are experienced with common Toyota issues like water pump failures on V6 engines, brake actuator problems on certain Prius models, and suspension wear on Tacomas. Visit our Toyota repair Cleveland page for details."
+  },
+  {
+    category: "Vehicle Makes",
+    question: "Do you service Honda cars?",
+    answer: "Yes. We work on all Honda models including Civic, Accord, CR-V, Pilot, and Odyssey. We are familiar with common Honda issues like VTC actuator noise on newer engines, AC compressor failures, and transmission concerns on certain model years. See our Honda repair Cleveland page for more information."
+  },
+  {
+    category: "Vehicle Makes",
+    question: "Can you repair Ford trucks and cars?",
+    answer: "Yes. We service all Ford vehicles including F-150, Explorer, Escape, Focus, and Fusion. We handle common Ford issues like cam phaser problems on 5.4L and 3.5L EcoBoost engines, transmission shudder on certain models, and blend door actuator failures. Check our Ford repair Cleveland page for details."
+  },
+  {
+    category: "Vehicle Makes",
+    question: "Do you work on Chevy and GM vehicles?",
+    answer: "Yes. We service all Chevrolet and GM models including Silverado, Equinox, Malibu, Cruze, Traverse, and Tahoe. We are experienced with common GM issues like AFM lifter failures, transmission problems on 8-speed automatics, and electrical gremlins. Visit our Chevy repair Cleveland page for more information."
+  },
 ];
 
 const CATEGORIES = ["All", ...Array.from(new Set(FAQ_DATA.map(f => f.category)))];

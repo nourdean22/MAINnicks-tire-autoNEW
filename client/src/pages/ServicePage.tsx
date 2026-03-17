@@ -447,11 +447,17 @@ function ServiceFooter() {
             <h4 className="font-heading font-bold text-foreground tracking-wider text-sm uppercase mb-4">Areas Served</h4>
             <div className="space-y-2 text-sm text-foreground/50">
               <p>Cleveland, OH</p>
-              <p>Euclid, OH</p>
-              <p>East Cleveland, OH</p>
-              <p>South Euclid, OH</p>
-              <p>Richmond Heights, OH</p>
-              <p>Northeast Ohio</p>
+              <Link href="/euclid-auto-repair" className="block hover:text-nick-yellow transition-colors">Euclid, OH</Link>
+              <Link href="/east-cleveland-auto-repair" className="block hover:text-nick-yellow transition-colors">East Cleveland, OH</Link>
+              <Link href="/lakewood-auto-repair" className="block hover:text-nick-yellow transition-colors">Lakewood, OH</Link>
+              <Link href="/parma-auto-repair" className="block hover:text-nick-yellow transition-colors">Parma, OH</Link>
+            </div>
+            <h4 className="font-heading font-bold text-foreground tracking-wider text-sm uppercase mb-4 mt-6">Common Problems</h4>
+            <div className="space-y-2 text-sm text-foreground/50">
+              <Link href="/car-shaking-while-driving" className="block hover:text-nick-yellow transition-colors">Car Shaking</Link>
+              <Link href="/brakes-grinding" className="block hover:text-nick-yellow transition-colors">Brakes Grinding</Link>
+              <Link href="/check-engine-light-flashing" className="block hover:text-nick-yellow transition-colors">Check Engine Light</Link>
+              <Link href="/car-overheating" className="block hover:text-nick-yellow transition-colors">Car Overheating</Link>
             </div>
           </div>
         </div>
