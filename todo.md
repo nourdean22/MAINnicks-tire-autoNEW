@@ -118,3 +118,7 @@
 - [x] Update robots.txt to reference sitemap
 - [x] Write tests for sitemap generation (13 tests passing)
 - [x] Provide Google Search Console submission instructions
+
+## Phase 16 — Google Search Console Verification
+- [x] Add GSC verification meta tag to index.html
+- [x] Provide DNS TXT record instructions for easy.nickstire.org
