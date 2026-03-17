@@ -122,3 +122,4 @@
 ## Phase 16 — Google Search Console Verification
 - [x] Add GSC verification meta tag to index.html
 - [x] Provide DNS TXT record instructions for easy.nickstire.org
+- [x] Add second GSC verification meta tag (tAYYpz7i...) to index.html
