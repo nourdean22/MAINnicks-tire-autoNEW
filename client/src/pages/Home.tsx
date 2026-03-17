@@ -54,10 +54,10 @@ function Navbar() {
 
   const links = [
     { label: "Services", href: "#services" },
-    { label: "About", href: "#about" },
+    { label: "About", href: "/about" },
     { label: "Reviews", href: "#reviews" },
     { label: "Blog", href: "/blog" },
-    { label: "Contact", href: "#contact" },
+    { label: "Contact", href: "/contact" },
   ];
 
   return (
@@ -143,20 +143,21 @@ function Hero() {
 
       <div className="relative container pb-16 pt-32 lg:pb-24">
         <FadeIn>
-          <div className="flex items-center gap-3 mb-6">
+          <a href="https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5597624,17z/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-3 mb-6 hover:opacity-80 transition-opacity">
             <div className="flex gap-0.5">
               {[...Array(5)].map((_, i) => (
                 <Star key={i} className="w-5 h-5 fill-nick-yellow text-nick-yellow" />
               ))}
             </div>
-            <span className="font-mono text-sm text-nick-yellow tracking-wider">{rating.toFixed(1)} STARS — {totalReviews.toLocaleString()}+ REVIEWS</span>
-          </div>
+            <span className="font-mono text-sm text-nick-yellow tracking-wider">{rating.toFixed(1)} STARS — {totalReviews.toLocaleString()}+ GOOGLE REVIEWS</span>
+          </a>
         </FadeIn>
 
         <FadeIn delay={0.1}>
           <h1 className="font-heading font-bold text-5xl sm:text-6xl lg:text-8xl text-foreground leading-[0.9] tracking-tight max-w-4xl">
             CLEVELAND'S<br />
-            <span className="text-gradient-yellow">TRUSTED</span> SHOP
+            <span className="text-gradient-yellow">TRUSTED</span> AUTO<br />
+            REPAIR SHOP
           </h1>
         </FadeIn>
 
@@ -170,7 +171,7 @@ function Hero() {
           <div className="mt-8 flex flex-col sm:flex-row gap-4">
             <a href="tel:2168620005" className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow">
               <Phone className="w-5 h-5" />
-              CALL NOW
+              CALL FOR A FREE QUOTE
             </a>
             <a href="#services" className="inline-flex items-center justify-center gap-2 border-2 border-nick-teal/50 text-nick-cyan px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:border-nick-teal hover:bg-nick-teal/10 transition-colors">
               OUR SERVICES
@@ -803,7 +804,7 @@ function LocalBusinessSchema() {
 
 export default function Home() {
   useEffect(() => {
-    document.title = "Nick's Tire & Auto | Cleveland Auto Repair & Tire Shop";
+    document.title = "Nick's Tire & Auto — Cleveland Auto Repair & Tire Shop | (216) 862-0005";
   }, []);
 
   return (

@@ -10,6 +10,8 @@ import Admin from "./pages/Admin";
 import AdminContent from "./pages/AdminContent";
 import Blog from "./pages/Blog";
 import BlogPost from "./pages/BlogPost";
+import Contact from "./pages/Contact";
+import About from "./pages/About";
 
 function Router() {
   return (
@@ -22,6 +24,9 @@ function Router() {
       <Route path={"/emissions"} component={ServicePage} />
       <Route path={"/oil-change"} component={ServicePage} />
       <Route path={"/general-repair"} component={ServicePage} />
+      {/* Standalone pages */}
+      <Route path={"/contact"} component={Contact} />
+      <Route path={"/about"} component={About} />
       {/* Admin dashboard */}
       <Route path={"/admin"} component={Admin} />
       <Route path={"/admin/content"} component={AdminContent} />

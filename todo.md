@@ -89,3 +89,26 @@
 - [x] Fix Google Sheets CRM sync shell escaping bug (bookings and leads not syncing)
 - [x] Backfill existing bookings and leads from database to Google Sheets
 - [x] Remove "Topic Not Suitable" bad article from database
+
+## Phase 14 — SEO Audit Fixes (from external audit report)
+- [x] CRITICAL: Fix wrong phone number on /brakes (verified correct: 216-862-0005 throughout)
+- [x] CRITICAL: Fix broken CTAs on /emissions (verified working: CALL NOW + BOOK ONLINE)
+- [x] Homepage: Reduce keywords from 12 to 7 focused
+- [x] Homepage: Rewrite title tag to include location + service + phone
+- [x] Homepage: Meta description already exists in index.html
+- [x] Homepage: Fix H1 to "CLEVELAND'S TRUSTED AUTO REPAIR SHOP"
+- [x] Service page title tags already unique and non-cannibalized
+- [x] Meta descriptions already on all service pages
+- [x] Create /contact page (address, phone, hours, map, form)
+- [x] Create /about page (business story, team, philosophy, warranty)
+- [x] Navigation menu links to /about and /contact standalone pages
+- [x] Internal links from homepage service cards to /tires, /brakes, etc.
+- [x] FAQPage schema markup already on all service pages
+- [x] Fix Emissions H1 to "OHIO E-CHECK & EMISSIONS EXPERTS"
+- [x] Tires H1 already tire-specific: "CLEVELAND'S TIRE EXPERTS"
+- [x] Make trust paragraphs unique per service page (6 unique versions)
+- [x] Replace overused phrase "If something does not feel right" with unique per-service text
+- [x] Link 1683+ Reviews to Google Business Profile
+- [x] Fix homepage primary CTA to "CALL FOR A FREE QUOTE"
+- [x] Add warranty/guarantee language to all service pages
+- [x] Fix schema URL from manus.space to nickstire.org

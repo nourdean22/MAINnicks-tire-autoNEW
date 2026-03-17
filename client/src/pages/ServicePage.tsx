@@ -201,7 +201,12 @@ function Problems({ service }: { service: ServiceData }) {
                 <span className="text-gradient-yellow">ASK US</span>
               </h2>
               <p className="mt-6 text-foreground/70 leading-relaxed text-lg">
-                These are the most common {service.title.toLowerCase()} problems Cleveland drivers bring to us. If something does not feel right with your vehicle, it probably is not.
+                {service.slug === "tires" && "These are the tire problems Cleveland drivers bring to us most often. Catching tire issues early saves money and keeps you safe on the road."}
+                {service.slug === "brakes" && "Brake problems are one of the most common — and most urgent — reasons drivers visit our shop. Here are the signs Cleveland drivers ask us about most."}
+                {service.slug === "diagnostics" && "Warning lights and performance issues can mean dozens of different things. These are the diagnostic questions we answer every day in our Cleveland shop."}
+                {service.slug === "emissions" && "Ohio E-Check failures are stressful, but most emissions problems have straightforward solutions. Here is what Cleveland drivers ask us most."}
+                {service.slug === "oil-change" && "Oil changes are the most important routine maintenance for your engine. Here are the questions Cleveland drivers ask us about oil service."}
+                {service.slug === "general-repair" && "From strange noises to overheating, these are the general repair concerns Cleveland drivers bring to us most often."}
               </p>
               <div className="mt-8 flex items-center gap-3 text-foreground/50">
                 <div className="flex gap-0.5">
@@ -296,8 +301,16 @@ function WhyUs({ service }: { service: ServiceData }) {
                 {service.title} SERVICE<br />
                 <span className="text-gradient-yellow">YOU CAN TRUST</span>
               </h2>
-              <p className="mt-6 text-foreground/70 leading-relaxed text-lg">
-                We do not just fix cars. We explain what is wrong, show you the problem, and let you decide. That is how we have earned 1,683+ five-star reviews from Cleveland drivers.
+              <p className="mt-4 text-foreground/70 leading-relaxed text-base bg-nick-yellow/5 border border-nick-yellow/20 rounded-md px-4 py-3">
+                <strong className="text-nick-yellow">Our Guarantee:</strong> We stand behind every repair with a warranty on parts and labor. If something is not right, we make it right.
+              </p>
+              <p className="mt-4 text-foreground/70 leading-relaxed text-lg">
+                {service.slug === "tires" && "We carry all major tire brands at fair prices, and our technicians help you find the right tire for your vehicle and budget. No pressure, no upselling — just honest recommendations from a shop Cleveland drivers trust."}
+                {service.slug === "brakes" && "We show you the worn brake components before any work begins. You see the problem, understand the repair, and approve the price. That transparency is why Cleveland drivers trust us with their brake work."}
+                {service.slug === "diagnostics" && "We test before we replace. Our advanced OBD-II scanners and live data analysis pinpoint the exact failed component so you only pay for what you actually need. That approach has earned us the trust of Cleveland drivers."}
+                {service.slug === "emissions" && "We specialize in Ohio E-Check failures and know the exact drive cycles to get your monitors to complete. We fix the root cause — not just clear codes — so you pass inspection the first time back."}
+                {service.slug === "oil-change" && "We use the correct oil weight per your manufacturer specification and quality filters. Every oil change includes a free multi-point inspection so we can catch small problems before they become expensive ones."}
+                {service.slug === "general-repair" && "From suspension and steering to exhaust and cooling systems, we diagnose the root cause and explain every repair in plain language. Written estimates before any work begins — no surprises on the bill."}
               </p>
             </div>
           </FadeIn>
@@ -502,7 +515,7 @@ function ServiceSchema({ service }: { service: ServiceData }) {
         addressCountry: "US",
       },
       telephone: "+1-216-862-0005",
-      url: "https://nickstire-fqyrztyc.manus.space",
+      url: "https://nickstire.org",
       aggregateRating: {
         "@type": "AggregateRating",
         ratingValue: "4.9",

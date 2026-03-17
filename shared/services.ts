@@ -167,7 +167,7 @@ export const SERVICES: ServiceData[] = [
     shortDesc: "Failed Ohio E-Check? We diagnose and repair emissions problems — oxygen sensors, EVAP leaks, catalytic converters — and get you passing.",
     metaTitle: "Ohio E-Check Repair Cleveland | Emissions Repair | Nick's Tire & Auto",
     metaDescription: "Failed Ohio E-Check? We diagnose and repair emissions problems in Cleveland. Oxygen sensors, EVAP leaks, catalytic converters. Call (216) 862-0005.",
-    heroHeadline: "E-CHECK & EMISSIONS REPAIR",
+    heroHeadline: "OHIO E-CHECK & EMISSIONS EXPERTS",
     heroSubline: "Failed your Ohio E-Check? We diagnose the exact emissions problem, repair it, and make sure all monitors complete so you pass inspection.",
     problems: [
       {
