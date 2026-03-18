@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Block admin and auth pages from indexing
+Disallow: /admin
+Disallow: /admin/
+Disallow: /my-garage
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://nickstire.org/sitemap.xml

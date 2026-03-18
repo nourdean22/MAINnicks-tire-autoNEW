@@ -368,3 +368,9 @@
 - [ ] Push notification opt-in for specials and service reminders
 - [ ] QR code generator for in-shop marketing materials (links to reviews, specials, booking)
 (Sprint 4C deferred — requires additional infrastructure)
+
+## Full Site Audit & Redesign (March 18, 2026)
+- [ ] Complete full site audit of every page and feature
+- [ ] Create Tesla-style redesign presentation (modern, minimal, fewer options)
+- [ ] Google Search Console: submit sitemap, verify indexing, optimize all settings
+- [ ] Fill out every possible GSC detail for maximum SEO success

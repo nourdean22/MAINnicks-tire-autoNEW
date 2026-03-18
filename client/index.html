@@ -36,11 +36,104 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://nickstire.org/" />
+
+    <!-- Geo Tags for Local SEO -->
+    <meta name="geo.region" content="US-OH" />
+    <meta name="geo.placename" content="Cleveland" />
+    <meta name="geo.position" content="41.5827;-81.5233" />
+    <meta name="ICBM" content="41.5827, -81.5233" />
+
     <!-- Web App Manifest -->
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#F5A623" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <!-- Structured Data: LocalBusiness + AutoRepair -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": ["AutoRepair", "TireShop"],
+      "name": "Nick's Tire & Auto",
+      "alternateName": "Nicks Tire and Auto",
+      "description": "Trusted auto repair and tire shop serving Cleveland, Euclid, and Northeast Ohio. Specializing in brakes, tires, diagnostics, emissions, oil changes, and general repair.",
+      "url": "https://nickstire.org",
+      "telephone": "+1-216-862-0005",
+      "email": "info@nickstire.org",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "17625 Euclid Ave",
+        "addressLocality": "Cleveland",
+        "addressRegion": "OH",
+        "postalCode": "44112",
+        "addressCountry": "US"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 41.5827,
+        "longitude": -81.5233
+      },
+      "openingHoursSpecification": [
+        {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+          "opens": "09:00",
+          "closes": "18:00"
+        }
+      ],
+      "priceRange": "$$",
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.9",
+        "reviewCount": "1685",
+        "bestRating": "5",
+        "worstRating": "1"
+      },
+      "areaServed": [
+        { "@type": "City", "name": "Cleveland", "sameAs": "https://en.wikipedia.org/wiki/Cleveland" },
+        { "@type": "City", "name": "Euclid" },
+        { "@type": "City", "name": "Lakewood" },
+        { "@type": "City", "name": "Parma" },
+        { "@type": "City", "name": "East Cleveland" }
+      ],
+      "hasOfferCatalog": {
+        "@type": "OfferCatalog",
+        "name": "Auto Repair Services",
+        "itemListElement": [
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Tire Sales & Service", "description": "New and used tires, mounting, balancing, rotation, TPMS sensors, flat repair" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Brake Repair", "description": "Brake pads, rotors, calipers, brake lines, ABS diagnostics" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Engine Diagnostics", "description": "Check engine light, OBD-II code reading, advanced computer diagnostics" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Ohio E-Check & Emissions Repair", "description": "Emissions diagnostics and repair, oxygen sensors, EVAP leaks, catalytic converters" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Oil Change", "description": "Conventional and synthetic oil changes with filter replacement" } },
+          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Suspension & Steering Repair", "description": "Suspension, steering, exhaust, cooling systems, belts, hoses" } }
+        ]
+      },
+      "sameAs": [
+        "https://www.google.com/maps/place/Nick's+Tire+%26+Auto/@41.5827,-81.5233",
+        "https://www.instagram.com/nickstireandauto/"
+      ],
+      "image": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/og-share-image-b6xtjfHGwFJnz4MtsoFkCp.png",
+      "paymentAccepted": ["Cash", "Credit Card", "Debit Card"],
+      "currenciesAccepted": "USD"
+    }
+    </script>
+
+    <!-- Structured Data: WebSite with SearchAction -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Nick's Tire & Auto",
+      "url": "https://nickstire.org",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://nickstire.org/?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
 
     <!-- Fonts (preload critical heading font) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
