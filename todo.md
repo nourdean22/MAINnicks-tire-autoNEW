@@ -301,3 +301,70 @@
 - [x] Featured/highlighted top reviews
 - [x] Prominent "Leave a Review" CTA linking to GBP
 - [x] Add to navigation and sitemap
+
+## Sprint 2 — Customer Engagement & Retention Engine
+
+### 2A: Coupon & Special Offers System
+- [x] Create /specials page with active deals and seasonal promotions
+- [x] Database table for coupons/offers (title, description, discount, expiry, terms)
+- [x] Admin panel section to create/edit/expire coupons
+- [x] Coupon display cards with expiry countdown timers
+- [x] "Show this coupon" mobile-friendly display for in-shop use
+- [x] Auto-expire past-due coupons
+- [x] Add /specials to navigation and sitemap
+
+### 2B: Customer Loyalty / Visit Tracker
+- [x] "My Garage" section where returning visitors can save their vehicle info
+- [x] Service history timeline (past bookings displayed)
+- [x] Recommended maintenance schedule based on vehicle mileage
+- [x] "Due for service" reminders based on last visit + mileage intervals
+- [x] Personalized greeting for returning visitors
+
+### 2C: Engagement Features
+- [x] "Tip of the Day" rotating automotive tips on homepage (via Car Care Guide)
+- [x] Social proof ticker: "John from Euclid just booked a brake inspection" (anonymized) — in NotificationBar
+- [ ] Email capture with lead magnet: "Free Winter Car Care Checklist" PDF download
+- [x] Referral program page: "Refer a friend, both get $25 off" at /refer
+
+## Sprint 3 — Business Mastery & Operations Dashboard
+
+### 3A: Advanced Admin Analytics
+- [x] Revenue tracking dashboard (bookings by service type, weekly/monthly trends)
+- [x] Customer acquisition funnel visualization (visits → leads → bookings → completed)
+- [x] Top services breakdown chart (which services get booked most)
+- [ ] Geographic heatmap of where customers come from (by city/zip)
+- [x] Conversion rate tracking (page views → booking submissions)
+
+### 3B: Automated Customer Communication
+- [x] Booking status change notifications (confirmed, in-progress, completed) — via admin queue
+- [ ] Post-service follow-up message ("How was your visit?")
+- [ ] Review request automation (send review link after completed service)
+- [ ] Seasonal maintenance reminders based on last service date
+
+### 3C: Business Intelligence
+- [ ] Weekly business summary report (auto-generated, emailed to owner)
+- [ ] Competitor monitoring alerts (track local competitor reviews/ratings)
+- [x] Customer satisfaction score tracking from review sentiment (via reviews page)
+- [x] Peak hours analysis from booking data (via admin analytics)
+
+## Sprint 4 — Trend-Setting & Market Domination
+
+### 4A: Video & Rich Media Content
+- [ ] "Shop Tour" virtual walkthrough section on About page
+- [ ] Before/After repair gallery with slider comparison
+- [ ] Technician spotlight profiles with photos and specialties
+- [ ] Video testimonial embed section on Reviews page
+(Sprint 4A deferred — requires real shop photos/videos)
+
+### 4B: Community & Local Authority
+- [x] "Cleveland Car Care Guide" resource hub at /car-care-guide (seasonal guides, mileage milestones, warning signs)
+- [ ] Local events calendar (car shows, community events Nick's sponsors)
+- [ ] Partnership/sponsor badges section (local business cross-promotion)
+- [x] "Ask a Mechanic" public Q&A forum page at /ask with admin answer management
+
+### 4C: Cutting-Edge Features
+- [ ] AI-powered chat upgrade: voice input support for symptom description
+- [ ] Progressive Web App (PWA) install prompt for mobile users
+- [ ] Push notification opt-in for specials and service reminders
+- [ ] QR code generator for in-shop marketing materials (links to reviews, specials, booking)
+(Sprint 4C deferred — requires additional infrastructure)

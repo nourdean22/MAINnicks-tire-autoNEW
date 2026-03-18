@@ -20,6 +20,11 @@ import VehicleMakePage from "./pages/VehicleMakePage";
 import ProblemPage from "./pages/ProblemPage";
 import ReviewsPage from "./pages/ReviewsPage";
 import DiagnosePage from "./pages/DiagnosePage";
+import SpecialsPage from "./pages/SpecialsPage";
+import MyGaragePage from "./pages/MyGaragePage";
+import ReferralPage from "./pages/ReferralPage";
+import AskMechanicPage from "./pages/AskMechanicPage";
+import CarCareGuidePage from "./pages/CarCareGuidePage";
 
 function Router() {
   return (
@@ -67,6 +72,16 @@ function Router() {
       <Route path={"/reviews"} component={ReviewsPage} />
       {/* Diagnostic tool */}
       <Route path={"/diagnose"} component={DiagnosePage} />
+      {/* Specials & Coupons */}
+      <Route path={"/specials"} component={SpecialsPage} />
+      {/* My Garage */}
+      <Route path={"/my-garage"} component={MyGaragePage} />
+      {/* Referral Program */}
+      <Route path={"/refer"} component={ReferralPage} />
+      {/* Ask a Mechanic */}
+      <Route path={"/ask"} component={AskMechanicPage} />
+      {/* Car Care Guide */}
+      <Route path={"/car-care-guide"} component={CarCareGuidePage} />
       {/* FAQ page */}
       <Route path={"/faq"} component={FAQ} />
       {/* Blog / Tips */}

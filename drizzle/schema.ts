@@ -174,3 +174,161 @@ export const contentGenerationLog = mysqlTable("content_generation_log", {
 });
 
 export type ContentGenerationLog = typeof contentGenerationLog.$inferSelect;
+
+/**
+ * Coupons & Special Offers
+ */
+export const coupons = mysqlTable("coupons", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  discountType: mysqlEnum("discountType", ["dollar", "percent", "free"]).default("dollar").notNull(),
+  discountValue: int("discountValue").default(0).notNull(),
+  code: varchar("code", { length: 50 }),
+  /** Which services this applies to (comma-separated or 'all') */
+  applicableServices: varchar("applicableServices", { length: 500 }).default("all").notNull(),
+  terms: text("terms"),
+  /** Max number of redemptions (0 = unlimited) */
+  maxRedemptions: int("maxRedemptions").default(0).notNull(),
+  currentRedemptions: int("currentRedemptions").default(0).notNull(),
+  isActive: int("isActive").default(1).notNull(),
+  isFeatured: int("isFeatured").default(0).notNull(),
+  startsAt: timestamp("startsAt").defaultNow().notNull(),
+  expiresAt: timestamp("expiresAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Coupon = typeof coupons.$inferSelect;
+export type InsertCoupon = typeof coupons.$inferInsert;
+
+/**
+ * Customer saved vehicles ("My Garage")
+ */
+export const customerVehicles = mysqlTable("customer_vehicles", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  year: varchar("year", { length: 10 }).notNull(),
+  make: varchar("make", { length: 50 }).notNull(),
+  model: varchar("model", { length: 50 }).notNull(),
+  mileage: int("mileage"),
+  nickname: varchar("nickname", { length: 100 }),
+  vin: varchar("vin", { length: 20 }),
+  lastServiceDate: timestamp("lastServiceDate"),
+  lastServiceMileage: int("lastServiceMileage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CustomerVehicle = typeof customerVehicles.$inferSelect;
+export type InsertCustomerVehicle = typeof customerVehicles.$inferInsert;
+
+/**
+ * Service history records
+ */
+export const serviceHistory = mysqlTable("service_history", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId"),
+  vehicleId: int("vehicleId"),
+  bookingId: int("bookingId"),
+  serviceType: varchar("serviceType", { length: 100 }).notNull(),
+  description: text("description"),
+  mileageAtService: int("mileageAtService"),
+  cost: int("cost"),
+  technicianNotes: text("technicianNotes"),
+  completedAt: timestamp("completedAt").defaultNow().notNull(),
+  nextServiceDue: timestamp("nextServiceDue"),
+  nextServiceMileage: int("nextServiceMileage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ServiceHistoryRecord = typeof serviceHistory.$inferSelect;
+export type InsertServiceHistory = typeof serviceHistory.$inferInsert;
+
+/**
+ * Referral program tracking
+ */
+export const referrals = mysqlTable("referrals", {
+  id: int("id").autoincrement().primaryKey(),
+  referrerName: varchar("referrerName", { length: 255 }).notNull(),
+  referrerPhone: varchar("referrerPhone", { length: 30 }).notNull(),
+  referrerEmail: varchar("referrerEmail", { length: 320 }),
+  refereeName: varchar("refereeName", { length: 255 }).notNull(),
+  refereePhone: varchar("refereePhone", { length: 30 }).notNull(),
+  refereeEmail: varchar("refereeEmail", { length: 320 }),
+  status: mysqlEnum("status", ["pending", "visited", "redeemed", "expired"]).default("pending").notNull(),
+  referrerRewardRedeemed: int("referrerRewardRedeemed").default(0).notNull(),
+  refereeRewardRedeemed: int("refereeRewardRedeemed").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Referral = typeof referrals.$inferSelect;
+export type InsertReferral = typeof referrals.$inferInsert;
+
+/**
+ * Ask a Mechanic Q&A
+ */
+export const mechanicQA = mysqlTable("mechanic_qa", {
+  id: int("id").autoincrement().primaryKey(),
+  questionerName: varchar("questionerName", { length: 255 }).notNull(),
+  questionerEmail: varchar("questionerEmail", { length: 320 }),
+  question: text("question").notNull(),
+  vehicleInfo: varchar("vehicleInfo", { length: 255 }),
+  answer: text("answer"),
+  answeredBy: varchar("answeredBy", { length: 255 }),
+  isPublished: int("isPublished").default(0).notNull(),
+  isFeatured: int("isFeatured").default(0).notNull(),
+  category: varchar("category", { length: 100 }),
+  upvotes: int("upvotes").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MechanicQA = typeof mechanicQA.$inferSelect;
+export type InsertMechanicQA = typeof mechanicQA.$inferInsert;
+
+/**
+ * Business analytics snapshots (daily aggregated metrics)
+ */
+export const analyticsSnapshots = mysqlTable("analytics_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  date: varchar("date", { length: 10 }).notNull(),
+  totalBookings: int("totalBookings").default(0).notNull(),
+  completedBookings: int("completedBookings").default(0).notNull(),
+  newLeads: int("newLeads").default(0).notNull(),
+  convertedLeads: int("convertedLeads").default(0).notNull(),
+  pageViews: int("pageViews").default(0).notNull(),
+  uniqueVisitors: int("uniqueVisitors").default(0).notNull(),
+  topService: varchar("topService", { length: 100 }),
+  /** JSON: { "tires": 5, "brakes": 3, ... } */
+  serviceBreakdownJson: text("serviceBreakdownJson"),
+  /** JSON: { "Cleveland": 10, "Euclid": 5, ... } */
+  geoBreakdownJson: text("geoBreakdownJson"),
+  avgReviewRating: int("avgReviewRating"),
+  newReviewCount: int("newReviewCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AnalyticsSnapshot = typeof analyticsSnapshots.$inferSelect;
+export type InsertAnalyticsSnapshot = typeof analyticsSnapshots.$inferInsert;
+
+/**
+ * Notification queue for customer communications
+ */
+export const customerNotifications = mysqlTable("customer_notifications", {
+  id: int("id").autoincrement().primaryKey(),
+  bookingId: int("bookingId"),
+  recipientName: varchar("recipientName", { length: 255 }).notNull(),
+  recipientPhone: varchar("recipientPhone", { length: 30 }),
+  recipientEmail: varchar("recipientEmail", { length: 320 }),
+  notificationType: mysqlEnum("notificationType", ["booking_confirmed", "booking_inprogress", "booking_completed", "follow_up", "review_request", "maintenance_reminder", "special_offer"]).notNull(),
+  subject: varchar("subject", { length: 255 }),
+  message: text("message").notNull(),
+  status: mysqlEnum("status", ["pending", "sent", "failed"]).default("pending").notNull(),
+  sentAt: timestamp("sentAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CustomerNotification = typeof customerNotifications.$inferSelect;
+export type InsertCustomerNotification = typeof customerNotifications.$inferInsert;

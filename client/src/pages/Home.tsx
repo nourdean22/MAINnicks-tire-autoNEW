@@ -57,7 +57,8 @@ function Navbar() {
     { label: "Services", href: "#services" },
     { label: "About", href: "/about" },
     { label: "Reviews", href: "/reviews" },
-    { label: "Blog", href: "/blog" },
+    { label: "Specials", href: "/specials" },
+    { label: "Diagnose", href: "/diagnose" },
     { label: "Contact", href: "/contact" },
   ];
 

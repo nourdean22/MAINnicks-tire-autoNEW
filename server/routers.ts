@@ -1,8 +1,18 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, adminProcedure, router } from "./_core/trpc";
-import { createBooking, getBookings, updateBookingStatus, updateBookingNotes, updateBookingPriority } from "./db";
+import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_core/trpc";
+import {
+  createBooking, getBookings, updateBookingStatus, updateBookingNotes, updateBookingPriority,
+  createCoupon, getActiveCoupons, getAllCoupons, updateCoupon, deleteCoupon,
+  getCustomerVehicles, addCustomerVehicle, updateCustomerVehicle, deleteCustomerVehicle,
+  getServiceHistoryForUser, addServiceRecord,
+  createReferral, getReferrals, updateReferralStatus,
+  createQuestion, getPublishedQuestions, getAllQuestions, answerQuestion,
+  saveAnalyticsSnapshot, getAnalyticsSnapshots,
+  createCustomerNotification, getPendingNotifications, markNotificationSent,
+  getBookingServiceBreakdown,
+} from "./db";
 import { storagePut } from "./storage";
 import { notifyOwner } from "./_core/notification";
 import { getWeather, getWeatherAlert } from "./weather";
@@ -32,8 +42,8 @@ import { keywordSearch, aiSearch } from "./search";
 import { getDashboardStats, getSiteHealth } from "./admin-stats";
 import { runDiagnosis } from "./diagnose";
 import { z } from "zod";
-import { eq, desc } from "drizzle-orm";
-import { leads, chatSessions } from "../drizzle/schema";
+import { eq, desc, sql } from "drizzle-orm";
+import { leads, chatSessions, bookings } from "../drizzle/schema";
 
 // Lazy db import
 async function db() {
@@ -475,6 +485,210 @@ export const appRouter = router({
       )
       .mutation(async ({ input }) => {
         return runDiagnosis(input);
+      }),
+  }),
+
+  // ─── COUPONS & SPECIALS ───────────────────────────
+  coupons: router({
+    active: publicProcedure.query(async () => {
+      return getActiveCoupons();
+    }),
+    all: adminProcedure.query(async () => {
+      return getAllCoupons();
+    }),
+    create: adminProcedure
+      .input(z.object({
+        title: z.string().min(1),
+        description: z.string().min(1),
+        discountType: z.enum(["dollar", "percent", "free"]),
+        discountValue: z.number().min(0),
+        code: z.string().optional(),
+        applicableServices: z.string().default("all"),
+        terms: z.string().optional(),
+        maxRedemptions: z.number().default(0),
+        isFeatured: z.number().default(0),
+        expiresAt: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return createCoupon({
+          ...input,
+          expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined,
+        });
+      }),
+    update: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        discountType: z.enum(["dollar", "percent", "free"]).optional(),
+        discountValue: z.number().optional(),
+        code: z.string().optional(),
+        applicableServices: z.string().optional(),
+        terms: z.string().optional(),
+        isActive: z.number().optional(),
+        isFeatured: z.number().optional(),
+        expiresAt: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, expiresAt, ...rest } = input;
+        return updateCoupon(id, {
+          ...rest,
+          ...(expiresAt !== undefined ? { expiresAt: expiresAt ? new Date(expiresAt) : null } : {}),
+        });
+      }),
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return deleteCoupon(input.id);
+      }),
+  }),
+
+  // ─── MY GARAGE (CUSTOMER VEHICLES) ─────────────────
+  garage: router({
+    vehicles: protectedProcedure.query(async ({ ctx }) => {
+      return getCustomerVehicles(ctx.user.id);
+    }),
+    addVehicle: protectedProcedure
+      .input(z.object({
+        year: z.string().min(4),
+        make: z.string().min(1),
+        model: z.string().min(1),
+        mileage: z.number().optional(),
+        nickname: z.string().optional(),
+        vin: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return addCustomerVehicle({ ...input, userId: ctx.user.id });
+      }),
+    updateVehicle: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        year: z.string().optional(),
+        make: z.string().optional(),
+        model: z.string().optional(),
+        mileage: z.number().optional(),
+        nickname: z.string().optional(),
+        vin: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        return updateCustomerVehicle(id, ctx.user.id, data);
+      }),
+    deleteVehicle: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return deleteCustomerVehicle(input.id, ctx.user.id);
+      }),
+    serviceHistory: protectedProcedure.query(async ({ ctx }) => {
+      return getServiceHistoryForUser(ctx.user.id);
+    }),
+  }),
+
+  // ─── REFERRAL PROGRAM ────────────────────────────
+  referrals: router({
+    submit: publicProcedure
+      .input(z.object({
+        referrerName: z.string().min(1),
+        referrerPhone: z.string().min(7),
+        referrerEmail: z.string().email().optional(),
+        refereeName: z.string().min(1),
+        refereePhone: z.string().min(7),
+        refereeEmail: z.string().email().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return createReferral(input);
+      }),
+    all: adminProcedure.query(async () => {
+      return getReferrals();
+    }),
+    updateStatus: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(["pending", "visited", "redeemed", "expired"]),
+      }))
+      .mutation(async ({ input }) => {
+        return updateReferralStatus(input.id, input.status);
+      }),
+  }),
+
+  // ─── ASK A MECHANIC Q&A ──────────────────────────
+  qa: router({
+    published: publicProcedure.query(async () => {
+      return getPublishedQuestions();
+    }),
+    ask: publicProcedure
+      .input(z.object({
+        questionerName: z.string().min(1),
+        questionerEmail: z.string().email().optional(),
+        question: z.string().min(10),
+        vehicleInfo: z.string().optional(),
+        category: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return createQuestion(input);
+      }),
+    all: adminProcedure.query(async () => {
+      return getAllQuestions();
+    }),
+    answer: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        answer: z.string().min(1),
+        answeredBy: z.string().default("Nick's Tire & Auto"),
+      }))
+      .mutation(async ({ input }) => {
+        return answerQuestion(input.id, input.answer, input.answeredBy);
+      }),
+  }),
+
+  // ─── BUSINESS ANALYTICS ──────────────────────────
+  analytics: router({
+    snapshots: adminProcedure
+      .input(z.object({ days: z.number().default(30) }).optional())
+      .query(async ({ input }) => {
+        return getAnalyticsSnapshots(input?.days ?? 30);
+      }),
+    serviceBreakdown: adminProcedure.query(async () => {
+      return getBookingServiceBreakdown();
+    }),
+    funnel: adminProcedure.query(async () => {
+      const d = await db();
+      if (!d) return { bookings: 0, leads: 0, completed: 0, converted: 0 };
+      const [bookingCount] = await d.select({ count: sql<number>`count(*)` }).from(bookings);
+      const [leadCount] = await d.select({ count: sql<number>`count(*)` }).from(leads);
+      const [completedCount] = await d.select({ count: sql<number>`count(*)` }).from(bookings).where(eq(bookings.status, "completed"));
+      const [convertedCount] = await d.select({ count: sql<number>`count(*)` }).from(leads).where(eq(leads.status, "booked"));
+      return {
+        bookings: bookingCount?.count ?? 0,
+        leads: leadCount?.count ?? 0,
+        completed: completedCount?.count ?? 0,
+        converted: convertedCount?.count ?? 0,
+      };
+    }),
+  }),
+
+  // ─── CUSTOMER NOTIFICATIONS ──────────────────────
+  customerNotifications: router({
+    pending: adminProcedure.query(async () => {
+      return getPendingNotifications();
+    }),
+    send: adminProcedure
+      .input(z.object({
+        bookingId: z.number().optional(),
+        recipientName: z.string().min(1),
+        recipientPhone: z.string().optional(),
+        recipientEmail: z.string().email().optional(),
+        notificationType: z.enum(["booking_confirmed", "booking_inprogress", "booking_completed", "follow_up", "review_request", "maintenance_reminder", "special_offer"]),
+        subject: z.string().optional(),
+        message: z.string().min(1),
+      }))
+      .mutation(async ({ input }) => {
+        return createCustomerNotification(input);
+      }),
+    markSent: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return markNotificationSent(input.id);
       }),
   }),
 });
