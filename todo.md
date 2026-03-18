@@ -275,3 +275,29 @@
 - [x] Add GBP map embed or link on About page (via shared const GBP_EMBED_URL)
 - [x] Update sameAs property in schema.org markup with GBP URL (+ Instagram + Facebook on all page schemas)
 - [x] Verify all changes compile and render correctly (8 GBP tests passing, TypeScript clean)
+
+## Sprint 1 — Core Revenue Upgrades
+
+### 1A: Booking System UI Overhaul
+- [x] Redesign booking form as multi-step wizard (vehicle info → service → contact → confirmation)
+- [x] Add vehicle year/make/model dropdowns
+- [x] Add photo upload option for customers to show the problem
+- [x] Keep first-come-first-serve model — no time slots
+- [x] Confirmation message: "Request received. We'll reach out when your vehicle is next in line."
+- [x] Admin side: sortable queue, drag-to-reorder jobs, priority indicators
+- [x] Admin side: profit/priority tags on bookings
+- [x] Mobile-responsive booking form
+
+### 1B: What's Wrong With My Car Diagnostic Tool
+- [x] Interactive symptom checker page at /diagnose
+- [x] Customer picks symptoms (shaking, noise, light on, smell, etc.)
+- [x] AI generates plain-language explanation of likely causes
+- [x] Ends with "Come in for a free diagnostic inspection" + phone CTA + book online
+- [x] Add to navigation and sitemap
+
+### 1C: Live Reviews Showcase Page
+- [x] Dedicated /reviews page pulling Google reviews
+- [x] Filter by star rating
+- [x] Featured/highlighted top reviews
+- [x] Prominent "Leave a Review" CTA linking to GBP
+- [x] Add to navigation and sitemap

@@ -18,6 +18,8 @@ import SeasonalPage from "./pages/SeasonalPage";
 import SEOServicePage from "./pages/SEOServicePage";
 import VehicleMakePage from "./pages/VehicleMakePage";
 import ProblemPage from "./pages/ProblemPage";
+import ReviewsPage from "./pages/ReviewsPage";
+import DiagnosePage from "./pages/DiagnosePage";
 
 function Router() {
   return (
@@ -61,6 +63,10 @@ function Router() {
       <Route path={"/brakes-grinding"} component={ProblemPage} />
       <Route path={"/check-engine-light-flashing"} component={ProblemPage} />
       <Route path={"/car-overheating"} component={ProblemPage} />
+      {/* Reviews page */}
+      <Route path={"/reviews"} component={ReviewsPage} />
+      {/* Diagnostic tool */}
+      <Route path={"/diagnose"} component={DiagnosePage} />
       {/* FAQ page */}
       <Route path={"/faq"} component={FAQ} />
       {/* Blog / Tips */}

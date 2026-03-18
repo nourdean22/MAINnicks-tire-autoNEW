@@ -110,3 +110,17 @@ export async function updateBookingStatus(id: number, status: "new" | "confirmed
   await db.update(bookings).set({ status }).where(eq(bookings.id, id));
   return { success: true };
 }
+
+export async function updateBookingNotes(id: number, notes: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(bookings).set({ adminNotes: notes }).where(eq(bookings.id, id));
+  return { success: true };
+}
+
+export async function updateBookingPriority(id: number, priority: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(bookings).set({ priority }).where(eq(bookings.id, id));
+  return { success: true };
+}

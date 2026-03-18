@@ -2,7 +2,8 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, adminProcedure, router } from "./_core/trpc";
-import { createBooking, getBookings, updateBookingStatus } from "./db";
+import { createBooking, getBookings, updateBookingStatus, updateBookingNotes, updateBookingPriority } from "./db";
+import { storagePut } from "./storage";
 import { notifyOwner } from "./_core/notification";
 import { getWeather, getWeatherAlert } from "./weather";
 import { getGoogleReviews } from "./google-reviews";
@@ -29,6 +30,7 @@ import {
 } from "./content-generator";
 import { keywordSearch, aiSearch } from "./search";
 import { getDashboardStats, getSiteHealth } from "./admin-stats";
+import { runDiagnosis } from "./diagnose";
 import { z } from "zod";
 import { eq, desc } from "drizzle-orm";
 import { leads, chatSessions } from "../drizzle/schema";
@@ -88,21 +90,33 @@ export const appRouter = router({
           email: z.string().email().optional().or(z.literal("")),
           service: z.string().min(1, "Service is required"),
           vehicle: z.string().optional(),
+          vehicleYear: z.string().optional(),
+          vehicleMake: z.string().optional(),
+          vehicleModel: z.string().optional(),
           preferredDate: z.string().optional(),
           preferredTime: z.enum(["morning", "afternoon", "no-preference"]).default("no-preference"),
           message: z.string().optional(),
+          photoUrls: z.array(z.string()).optional(),
         })
       )
       .mutation(async ({ input }) => {
+        const vehicleStr = input.vehicleYear && input.vehicleMake
+          ? `${input.vehicleYear} ${input.vehicleMake} ${input.vehicleModel || ""}`.trim()
+          : input.vehicle || null;
+
         const result = await createBooking({
           name: input.name,
           phone: input.phone,
           email: input.email || null,
           service: input.service,
-          vehicle: input.vehicle || null,
+          vehicle: vehicleStr,
+          vehicleYear: input.vehicleYear || null,
+          vehicleMake: input.vehicleMake || null,
+          vehicleModel: input.vehicleModel || null,
           preferredDate: input.preferredDate || null,
           preferredTime: input.preferredTime,
           message: input.message || null,
+          photoUrls: input.photoUrls?.length ? JSON.stringify(input.photoUrls) : null,
         });
 
         // Sync to Google Sheets
@@ -111,19 +125,35 @@ export const appRouter = router({
           phone: input.phone,
           email: input.email,
           service: input.service,
-          vehicle: input.vehicle,
+          vehicle: vehicleStr || input.vehicle,
           preferredDate: input.preferredDate,
           preferredTime: input.preferredTime,
           message: input.message,
         }).catch(err => console.error("[Sheets] Booking sync failed:", err));
 
         // Notify shop owner
+        const photoNote = input.photoUrls?.length ? `\nPhotos: ${input.photoUrls.length} attached` : "";
         await notifyOwner({
           title: `New Booking: ${input.service}`,
-          content: `Name: ${input.name}\nPhone: ${input.phone}\nService: ${input.service}\nVehicle: ${input.vehicle || "Not specified"}\nPreferred Date: ${input.preferredDate || "Flexible"}\nPreferred Time: ${input.preferredTime}\nMessage: ${input.message || "None"}`,
+          content: `Name: ${input.name}\nPhone: ${input.phone}\nService: ${input.service}\nVehicle: ${vehicleStr || "Not specified"}\nPreferred Date: ${input.preferredDate || "Flexible"}\nPreferred Time: ${input.preferredTime}\nMessage: ${input.message || "None"}${photoNote}`,
         }).catch(() => {});
 
         return result;
+      }),
+
+    /** Upload a photo for a booking request */
+    uploadPhoto: publicProcedure
+      .input(z.object({
+        base64: z.string(),
+        filename: z.string(),
+        mimeType: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const buffer = Buffer.from(input.base64, "base64");
+        const suffix = Math.random().toString(36).substring(2, 8);
+        const key = `booking-photos/${Date.now()}-${suffix}-${input.filename}`;
+        const { url } = await storagePut(key, buffer, input.mimeType);
+        return { url };
       }),
 
     list: adminProcedure.query(async () => {
@@ -139,6 +169,18 @@ export const appRouter = router({
       )
       .mutation(async ({ input }) => {
         return updateBookingStatus(input.id, input.status);
+      }),
+
+    updateNotes: adminProcedure
+      .input(z.object({ id: z.number(), notes: z.string() }))
+      .mutation(async ({ input }) => {
+        return updateBookingNotes(input.id, input.notes);
+      }),
+
+    updatePriority: adminProcedure
+      .input(z.object({ id: z.number(), priority: z.number() }))
+      .mutation(async ({ input }) => {
+        return updateBookingPriority(input.id, input.priority);
       }),
   }),
 
@@ -415,6 +457,24 @@ export const appRouter = router({
         const article = await generateArticle(input.topic);
         const id = await saveGeneratedArticle(article);
         return { article, id };
+      }),
+  }),
+
+  // ─── VEHICLE DIAGNOSTIC TOOL ─────────────────────────
+  diagnose: router({
+    analyze: publicProcedure
+      .input(
+        z.object({
+          vehicleYear: z.string().optional(),
+          vehicleMake: z.string().optional(),
+          vehicleModel: z.string().optional(),
+          mileage: z.string().optional(),
+          symptoms: z.array(z.string()).min(1),
+          additionalInfo: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return runDiagnosis(input);
       }),
   }),
 });

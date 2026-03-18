@@ -28,9 +28,19 @@ export const bookings = mysqlTable("bookings", {
   email: varchar("email", { length: 320 }),
   service: varchar("service", { length: 100 }).notNull(),
   vehicle: varchar("vehicle", { length: 255 }),
+  /** Structured vehicle fields */
+  vehicleYear: varchar("vehicleYear", { length: 10 }),
+  vehicleMake: varchar("vehicleMake", { length: 50 }),
+  vehicleModel: varchar("vehicleModel", { length: 50 }),
   preferredDate: varchar("preferredDate", { length: 30 }),
   preferredTime: mysqlEnum("preferredTime", ["morning", "afternoon", "no-preference"]).default("no-preference").notNull(),
   message: text("message"),
+  /** JSON array of photo URLs uploaded by customer */
+  photoUrls: text("photoUrls"),
+  /** Admin-only notes for internal tracking */
+  adminNotes: text("adminNotes"),
+  /** Admin priority ordering (lower = higher priority) */
+  priority: int("priority").default(0).notNull(),
   status: mysqlEnum("status", ["new", "confirmed", "completed", "cancelled"]).default("new").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

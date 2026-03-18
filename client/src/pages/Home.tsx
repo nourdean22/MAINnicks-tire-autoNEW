@@ -56,7 +56,7 @@ function Navbar() {
   const links = [
     { label: "Services", href: "#services" },
     { label: "About", href: "/about" },
-    { label: "Reviews", href: "#reviews" },
+    { label: "Reviews", href: "/reviews" },
     { label: "Blog", href: "/blog" },
     { label: "Contact", href: "/contact" },
   ];
