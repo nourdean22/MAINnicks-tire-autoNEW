@@ -388,3 +388,17 @@
 - [ ] Redesign Admin dashboard (kept functional layout, updated colors)
 - [x] Full visual QA across all pages
 - [x] Run all tests and verify zero errors
+## Google Search Console — Full Configuration (March 18, 2026)
+- [ ] URL inspection and request indexing for all new Sprint 2-4 pages
+- [ ] Verify sitemap status shows 44 URLs discovered
+- [ ] Check Pages/Coverage report for any indexing issues
+- [ ] Review Mobile Usability report
+- [ ] Review Enhancements: structured data, breadcrumbs, sitelinks, review snippets
+- [ ] Check Core Web Vitals report
+- [ ] Configure Settings: international targeting, crawl rate, associations
+- [ ] Review Links report (internal and external)
+- [ ] Check Security & Manual Actions (should be clean)
+- [ ] Verify all rich results are detected (LocalBusiness, AutoRepair, reviews)
+
+## SEO Fixes (March 18, 2026)
+- [x] Fix homepage title — trim from 71 chars to 47 chars: "Nick's Tire & Auto | Cleveland Auto Repair Shop"

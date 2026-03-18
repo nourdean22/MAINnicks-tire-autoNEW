@@ -652,7 +652,7 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col">
       <SEOHead
-        title="Nick's Tire & Auto — Cleveland Auto Repair & Tire Shop | (216) 862-0005"
+        title="Nick's Tire & Auto | Cleveland Auto Repair Shop"
         description="Trusted auto repair and tire shop serving Cleveland, Euclid, and Northeast Ohio. Brakes, tires, diagnostics, emissions, and more. 4.9 stars, 1,683+ reviews."
         canonicalPath="/"
       />
