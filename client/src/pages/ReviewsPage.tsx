@@ -4,11 +4,9 @@
  * and prominent "Leave a Review" CTA linking to GBP.
  */
 
+import PageLayout from "@/components/PageLayout";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "wouter";
-import NotificationBar from "@/components/NotificationBar";
-import SearchBar from "@/components/SearchBar";
-import ChatWidget from "@/components/ChatWidget";
 import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Star, Menu, X, ExternalLink, Filter, MessageSquare, ThumbsUp, Quote, ChevronDown } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
@@ -34,95 +32,10 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
 }
 
 // ─── NAVBAR ────────────────────────────────────────────
-function ReviewsNavbar() {
-  const [scrolled, setScrolled] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const links = [
-    { label: "Services", href: "/#services" },
-    { label: "About", href: "/about" },
-    { label: "Reviews", href: "/reviews" },
-    { label: "Blog", href: "/blog" },
-    { label: "Contact", href: "/contact" },
-  ];
-
-  return (
-    <nav className={`fixed ${scrolled ? "top-0" : "top-[40px]"} left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-background/95 backdrop-blur-md shadow-lg shadow-nick-yellow/5" : "bg-transparent"}`}>
-      <div className="container flex items-center justify-between h-16 lg:h-20">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-nick-yellow flex items-center justify-center rounded-md glow-yellow">
-            <span className="font-heading font-bold text-nick-dark text-lg">N</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-heading font-bold text-nick-yellow text-lg leading-tight tracking-wide">NICK'S TIRE & AUTO</span>
-            <span className="text-nick-teal text-xs tracking-widest uppercase font-medium">Cleveland, Ohio</span>
-          </div>
-        </Link>
-
-        <div className="hidden lg:flex items-center gap-6">
-          <SearchBar />
-          {links.map((l) => (
-            <Link key={l.href} href={l.href} className={`font-heading text-sm tracking-widest uppercase transition-colors ${l.href === "/reviews" ? "text-nick-yellow" : "text-foreground/80 hover:text-nick-yellow"}`}>
-              {l.label}
-            </Link>
-          ))}
-          <a href="tel:2168620005" onClick={() => trackPhoneClick("reviews-nav")} className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow" aria-label="Call Nick's Tire and Auto at 216-862-0005">
-            <Phone className="w-4 h-4" />
-            (216) 862-0005
-          </a>
-        </div>
-
-        <div className="lg:hidden flex items-center gap-1">
-          <SearchBar />
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="text-foreground p-2" aria-label="Toggle menu">
-            {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
-        </div>
-      </div>
-
-      {mobileOpen && (
-        <div className="lg:hidden bg-background/98 backdrop-blur-md border-t border-nick-yellow/20">
-          <div className="container py-6 flex flex-col gap-4">
-            {links.map((l) => (
-              <Link key={l.href} href={l.href} onClick={() => setMobileOpen(false)} className="font-heading text-lg tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors py-2">
-                {l.label}
-              </Link>
-            ))}
-            <a href="tel:2168620005" className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-5 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase mt-2">
-              <Phone className="w-4 h-4" />
-              (216) 862-0005
-            </a>
-          </div>
-        </div>
-      )}
-    </nav>
-  );
-}
 
 // ─── MOBILE CTA ────────────────────────────────────────
-function MobileCTA() {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setVisible(window.scrollY > 400);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-  if (!visible) return null;
-  return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/95 backdrop-blur-md border-t border-nick-yellow/30 p-3">
-      <a href="tel:2168620005" onClick={() => trackPhoneClick("reviews-mobile-cta")} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark w-full py-3.5 rounded-md font-heading font-bold text-base tracking-wider uppercase glow-yellow" aria-label="Call Nick's Tire and Auto">
-        <Phone className="w-5 h-5" />
-        CALL (216) 862-0005
-      </a>
-    </div>
-  );
-}
+
 
 // ─── STAR RATING DISPLAY ───────────────────────────────
 function StarRating({ rating, size = "md" }: { rating: number; size?: "sm" | "md" | "lg" }) {
@@ -145,7 +58,7 @@ function ReviewCard({ review, featured = false }: { review: { authorName: string
   const isLong = review.text.length > 200;
 
   return (
-    <div className={`${featured ? "col-span-1 lg:col-span-2 bg-gradient-to-br from-nick-yellow/5 via-card/80 to-nick-teal/5 border-nick-yellow/20" : "bg-card/80 border-border/30"} border rounded-lg p-6 lg:p-8 relative group`}>
+    <div className={`${featured ? "col-span-1 lg:col-span-2 bg-gradient-to-br from-nick-yellow/5 via-card/80 to-nick-blue/30 border-nick-yellow/20" : "bg-card/80 border-border/30"} border rounded-lg p-6 lg:p-8 relative group`}>
       {featured && (
         <div className="absolute top-4 right-4 bg-nick-yellow/10 border border-nick-yellow/30 rounded-full px-3 py-1">
           <span className="font-mono text-[10px] text-nick-yellow tracking-wider uppercase">Featured</span>
@@ -154,12 +67,12 @@ function ReviewCard({ review, featured = false }: { review: { authorName: string
 
       <div className="flex items-start gap-4 mb-4">
         <div className="w-10 h-10 rounded-full bg-nick-yellow/10 flex items-center justify-center shrink-0">
-          <span className="font-heading font-bold text-nick-yellow text-sm">
+          <span className="font-semibold font-bold text-nick-yellow text-sm">
             {review.authorName.charAt(0).toUpperCase()}
           </span>
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-heading font-bold text-foreground tracking-wider text-sm truncate">
+          <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm truncate">
             {review.authorName.toUpperCase()}
           </h3>
           <div className="flex items-center gap-2 mt-1">
@@ -177,7 +90,7 @@ function ReviewCard({ review, featured = false }: { review: { authorName: string
         {isLong && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className="mt-2 pl-6 font-mono text-xs text-nick-teal hover:text-nick-yellow transition-colors flex items-center gap-1"
+            className="mt-2 pl-6 font-mono text-xs text-nick-blue-light hover:text-nick-yellow transition-colors flex items-center gap-1"
           >
             {expanded ? "Show less" : "Read more"}
             <ChevronDown className={`w-3 h-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -272,8 +185,8 @@ export default function ReviewsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <SkipToContent />
+    <PageLayout activeHref="/reviews" showChat={true}>
+      
       <SEOHead
         title="Customer Reviews — Nick's Tire & Auto | Cleveland Auto Repair"
         description="Read real Google reviews from Cleveland drivers. Nick's Tire & Auto is rated 4.9 stars with 1,685+ reviews. Honest diagnostics, fair prices, and trusted auto repair."
@@ -284,8 +197,8 @@ export default function ReviewsPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(reviewSchema) }}
       />
 
-      <NotificationBar />
-      <ReviewsNavbar />
+      
+      
 
       <main id="main-content">
         {/* Hero Section */}
@@ -303,8 +216,8 @@ export default function ReviewsPage() {
             <FadeIn delay={0.1}>
               <div className="mt-6 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
                 <div>
-                  <span className="font-mono text-nick-teal text-sm tracking-widest uppercase">Real Customers, Real Words</span>
-                  <h1 className="font-heading font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.95] tracking-tight mt-2">
+                  <span className="font-mono text-nick-blue-light text-sm tracking-wide">Real Customers, Real Words</span>
+                  <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.95] tracking-tight mt-2">
                     WHAT <span className="text-gradient-yellow">CLEVELAND</span><br />
                     DRIVERS SAY
                   </h1>
@@ -315,7 +228,7 @@ export default function ReviewsPage() {
 
                 {/* Rating Summary Card */}
                 <div className="bg-card/80 border border-nick-yellow/20 rounded-lg p-6 lg:p-8 text-center shrink-0">
-                  <div className="font-heading font-bold text-6xl text-nick-yellow leading-none">
+                  <div className="font-semibold font-bold text-6xl text-nick-yellow leading-none">
                     {reviewData?.rating || "4.9"}
                   </div>
                   <div className="flex justify-center mt-2">
@@ -328,7 +241,7 @@ export default function ReviewsPage() {
                     href={GBP_PLACE_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 mt-3 font-mono text-xs text-nick-teal hover:text-nick-yellow transition-colors"
+                    className="inline-flex items-center gap-1.5 mt-3 font-mono text-xs text-nick-blue-light hover:text-nick-yellow transition-colors"
                   >
                     <img src="https://www.google.com/favicon.ico" alt="Google" className="w-3.5 h-3.5" loading="lazy" />
                     View on Google
@@ -342,7 +255,7 @@ export default function ReviewsPage() {
 
         {/* Leave a Review CTA Banner */}
         <section className="section-darker">
-          <div className="h-1.5 w-full bg-gradient-to-r from-nick-yellow via-nick-orange to-nick-teal" />
+          
           <div className="container py-8">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-4">
@@ -350,7 +263,7 @@ export default function ReviewsPage() {
                   <MessageSquare className="w-6 h-6 text-nick-yellow" />
                 </div>
                 <div>
-                  <h2 className="font-heading font-bold text-foreground tracking-wider text-lg">
+                  <h2 className="font-semibold font-bold text-foreground tracking-wider text-lg">
                     HAD A GREAT EXPERIENCE?
                   </h2>
                   <p className="text-foreground/50 text-sm">
@@ -362,7 +275,7 @@ export default function ReviewsPage() {
                 href={GBP_REVIEW_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow shrink-0"
+                className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors shrink-0"
               >
                 <Star className="w-5 h-5" />
                 LEAVE A REVIEW
@@ -379,8 +292,8 @@ export default function ReviewsPage() {
               <div className="flex flex-col lg:flex-row gap-8 items-start">
                 {/* Rating Distribution Bars */}
                 <div className="w-full lg:w-80 bg-card/60 border border-border/30 rounded-lg p-6 shrink-0">
-                  <h3 className="font-heading font-bold text-foreground tracking-wider text-sm uppercase mb-4 flex items-center gap-2">
-                    <Filter className="w-4 h-4 text-nick-teal" />
+                  <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase mb-4 flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-nick-blue-light" />
                     Rating Breakdown
                   </h3>
                   {[5, 4, 3, 2, 1].map((stars) => {
@@ -411,7 +324,7 @@ export default function ReviewsPage() {
                   {starFilter && (
                     <button
                       onClick={() => setStarFilter(null)}
-                      className="w-full mt-3 py-2 border border-nick-teal/30 rounded-md font-mono text-xs text-nick-teal hover:bg-nick-teal/10 transition-colors tracking-wider uppercase"
+                      className="w-full mt-3 py-2 border border-nick-blue/30 rounded-md font-mono text-xs text-nick-blue-light hover:bg-nick-blue/10 transition-colors tracking-wider uppercase"
                     >
                       Clear Filter
                     </button>
@@ -483,12 +396,12 @@ export default function ReviewsPage() {
                       {filtered.length === 0 && !isLoading && (
                         <div className="col-span-2 text-center py-12">
                           <Star className="w-12 h-12 text-border/30 mx-auto mb-4" />
-                          <p className="font-heading text-foreground/40 tracking-wider">
+                          <p className="font-semibold text-foreground/40 tracking-wider">
                             No {starFilter}-star reviews to show
                           </p>
                           <button
                             onClick={() => setStarFilter(null)}
-                            className="mt-3 font-mono text-xs text-nick-teal hover:text-nick-yellow transition-colors"
+                            className="mt-3 font-mono text-xs text-nick-blue-light hover:text-nick-yellow transition-colors"
                           >
                             Show all reviews
                           </button>
@@ -517,7 +430,7 @@ export default function ReviewsPage() {
                     <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-nick-yellow/10 flex items-center justify-center text-nick-yellow">
                       {stat.icon}
                     </div>
-                    <div className="font-heading font-bold text-3xl lg:text-4xl text-foreground">{stat.value}</div>
+                    <div className="font-semibold font-bold text-3xl lg:text-4xl text-foreground">{stat.value}</div>
                     <p className="font-mono text-xs text-foreground/50 tracking-wider uppercase mt-1">{stat.label}</p>
                   </div>
                 ))}
@@ -528,10 +441,10 @@ export default function ReviewsPage() {
 
         {/* Bottom CTA */}
         <section className="section-dark py-20 lg:py-28">
-          <div className="h-1.5 w-full bg-gradient-to-r from-nick-yellow via-nick-orange to-nick-teal" />
+          
           <div className="container pt-16 text-center">
             <FadeIn>
-              <h2 className="font-heading font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
+              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
                 READY TO <span className="text-gradient-yellow">EXPERIENCE IT</span>?
               </h2>
               <p className="mt-4 text-foreground/60 text-lg max-w-xl mx-auto">
@@ -541,7 +454,7 @@ export default function ReviewsPage() {
                 <a
                   href="tel:2168620005"
                   onClick={() => trackPhoneClick("reviews-bottom-cta")}
-                  className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow"
+                  className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors"
                 >
                   <Phone className="w-5 h-5" />
                   CALL (216) 862-0005
@@ -550,7 +463,7 @@ export default function ReviewsPage() {
                   href={GBP_REVIEW_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 border-2 border-nick-teal/50 text-nick-teal px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-teal/10 hover:border-nick-teal transition-colors"
+                  className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-blue/10 hover:border-nick-blue transition-colors"
                 >
                   <Star className="w-5 h-5" />
                   LEAVE A REVIEW
@@ -561,77 +474,11 @@ export default function ReviewsPage() {
         </section>
 
         {/* Footer */}
-        <footer className="section-dark border-t border-nick-yellow/10">
-          <div className="h-1.5 w-full bg-gradient-to-r from-nick-yellow via-nick-orange to-nick-teal" />
-          <div className="container py-12">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div>
-                <Link href="/" className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-nick-yellow flex items-center justify-center rounded-md">
-                    <span className="font-heading font-bold text-nick-dark text-sm">N</span>
-                  </div>
-                  <span className="font-heading font-bold text-nick-yellow tracking-wider">NICK'S TIRE & AUTO</span>
-                </Link>
-                <p className="text-foreground/50 text-sm leading-relaxed">
-                  Honest auto repair and tire services for Cleveland, Euclid, and Northeast Ohio. Fair prices, real diagnostics, no surprises.
-                </p>
-                <div className="flex flex-col gap-2 mt-4 text-sm text-foreground/50">
-                  <a href={GBP_PLACE_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-nick-yellow transition-colors">
-                    <MapPin className="w-4 h-4 text-nick-teal" />
-                    Find Us on Google Maps
-                  </a>
-                  <a href={GBP_REVIEW_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-nick-yellow transition-colors">
-                    <Star className="w-4 h-4 text-nick-teal" />
-                    Leave Us a Google Review
-                  </a>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4">Services</h4>
-                <div className="space-y-2 text-sm text-foreground/50">
-                  <p><Link href="/tires" className="hover:text-nick-yellow transition-colors">Tires &amp; Tire Repair</Link></p>
-                  <p><Link href="/brakes" className="hover:text-nick-yellow transition-colors">Brake Repair</Link></p>
-                  <p><Link href="/diagnostics" className="hover:text-nick-yellow transition-colors">Check Engine Light Diagnostics</Link></p>
-                  <p><Link href="/emissions" className="hover:text-nick-yellow transition-colors">Ohio E-Check &amp; Emissions Repair</Link></p>
-                  <p><Link href="/oil-change" className="hover:text-nick-yellow transition-colors">Oil Changes</Link></p>
-                  <p><Link href="/general-repair" className="hover:text-nick-yellow transition-colors">Suspension &amp; Steering</Link></p>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4">Areas Served</h4>
-                <div className="space-y-2 text-sm text-foreground/50">
-                  <p>Cleveland, OH</p>
-                  <Link href="/euclid-auto-repair" className="block hover:text-nick-yellow transition-colors">Euclid, OH</Link>
-                  <Link href="/east-cleveland-auto-repair" className="block hover:text-nick-yellow transition-colors">East Cleveland, OH</Link>
-                  <Link href="/lakewood-auto-repair" className="block hover:text-nick-yellow transition-colors">Lakewood, OH</Link>
-                  <Link href="/parma-auto-repair" className="block hover:text-nick-yellow transition-colors">Parma, OH</Link>
-                  <p>Northeast Ohio</p>
-                </div>
-                <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4 mt-6">Resources</h4>
-                <div className="space-y-2 text-sm text-foreground/50">
-                  <Link href="/faq" className="block hover:text-nick-yellow transition-colors">FAQ</Link>
-                  <Link href="/blog" className="block hover:text-nick-yellow transition-colors">Auto Repair Blog</Link>
-                  <Link href="/contact" className="block hover:text-nick-yellow transition-colors">Contact</Link>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-12 pt-8 border-t border-nick-yellow/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <p className="text-foreground/30 text-xs font-mono">
-                &copy; {new Date().getFullYear()} NICK'S TIRE &amp; AUTO. ALL RIGHTS RESERVED.
-              </p>
-              <a href="tel:2168620005" className="text-nick-yellow font-mono text-sm hover:text-nick-gold transition-colors">
-                (216) 862-0005
-              </a>
-            </div>
-          </div>
-        </footer>
+        
       </main>
 
-      <MobileCTA />
-      <ChatWidget />
-    </div>
+      
+      
+    </PageLayout>
   );
 }

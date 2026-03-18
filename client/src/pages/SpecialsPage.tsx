@@ -3,10 +3,9 @@
  * Shows active promotions with countdown timers and mobile-friendly "show this coupon" display.
  */
 
+import PageLayout from "@/components/PageLayout";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "wouter";
-import NotificationBar from "@/components/NotificationBar";
-import SearchBar from "@/components/SearchBar";
 import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Menu, X, Tag, Timer, Gift, Percent, ChevronRight, Copy, Check, Scissors } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
@@ -19,96 +18,6 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
     <motion.div ref={ref} initial={{ opacity: 0, y: 30 }} animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }} transition={{ duration: 0.5, delay, ease: "easeOut" }} className={className}>
       {children}
     </motion.div>
-  );
-}
-
-function SpecialsNavbar() {
-  const [scrolled, setScrolled] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const links = [
-    { label: "Services", href: "/#services" },
-    { label: "About", href: "/about" },
-    { label: "Reviews", href: "/reviews" },
-    { label: "Specials", href: "/specials" },
-    { label: "Blog", href: "/blog" },
-    { label: "Contact", href: "/contact" },
-  ];
-
-  return (
-    <nav className={`fixed ${scrolled ? "top-0" : "top-[40px]"} left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-background/95 backdrop-blur-md shadow-lg shadow-nick-yellow/5" : "bg-transparent"}`}>
-      <div className="container flex items-center justify-between h-16 lg:h-20">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-nick-yellow flex items-center justify-center rounded-md glow-yellow">
-            <span className="font-heading font-bold text-nick-dark text-lg">N</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-heading font-bold text-nick-yellow text-lg leading-tight tracking-wide">NICK'S TIRE & AUTO</span>
-            <span className="text-nick-teal text-xs tracking-widest uppercase font-medium">Cleveland, Ohio</span>
-          </div>
-        </Link>
-
-        <div className="hidden lg:flex items-center gap-6">
-          <SearchBar />
-          {links.map((l) => (
-            <Link key={l.href} href={l.href} className={`font-heading text-sm tracking-widest uppercase transition-colors ${l.href === "/specials" ? "text-nick-yellow" : "text-foreground/80 hover:text-nick-yellow"}`}>
-              {l.label}
-            </Link>
-          ))}
-          <a href="tel:2168620005" className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow">
-            <Phone className="w-4 h-4" />
-            (216) 862-0005
-          </a>
-        </div>
-
-        <div className="lg:hidden flex items-center gap-1">
-          <SearchBar />
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="text-foreground p-2">
-            {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
-        </div>
-      </div>
-
-      {mobileOpen && (
-        <div className="lg:hidden bg-background/98 backdrop-blur-md border-t border-nick-yellow/20">
-          <div className="container py-6 flex flex-col gap-4">
-            {links.map((l) => (
-              <Link key={l.href} href={l.href} onClick={() => setMobileOpen(false)} className="font-heading text-lg tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors py-2">
-                {l.label}
-              </Link>
-            ))}
-            <a href="tel:2168620005" className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-5 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase mt-2">
-              <Phone className="w-4 h-4" />
-              (216) 862-0005
-            </a>
-          </div>
-        </div>
-      )}
-    </nav>
-  );
-}
-
-function MobileCTA() {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setVisible(window.scrollY > 400);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-  if (!visible) return null;
-  return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/95 backdrop-blur-md border-t border-nick-yellow/30 p-3">
-      <a href="tel:2168620005" className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark w-full py-3.5 rounded-md font-heading font-bold text-base tracking-wider uppercase glow-yellow">
-        <Phone className="w-5 h-5" />
-        CALL (216) 862-0005
-      </a>
-    </div>
   );
 }
 
@@ -145,13 +54,13 @@ function CountdownTimer({ expiresAt }: { expiresAt: string | Date | null }) {
   if (expired) return <span className="font-mono text-red-400 text-xs tracking-wider">EXPIRED</span>;
 
   return (
-    <div className="flex items-center gap-1.5 text-nick-teal">
+    <div className="flex items-center gap-1.5 text-nick-blue-light">
       <Timer className="w-3.5 h-3.5" />
       <div className="flex gap-1 font-mono text-xs tracking-wider">
-        {timeLeft.days > 0 && <span className="bg-nick-teal/10 px-1.5 py-0.5 rounded">{timeLeft.days}d</span>}
-        <span className="bg-nick-teal/10 px-1.5 py-0.5 rounded">{String(timeLeft.hours).padStart(2, "0")}h</span>
-        <span className="bg-nick-teal/10 px-1.5 py-0.5 rounded">{String(timeLeft.minutes).padStart(2, "0")}m</span>
-        <span className="bg-nick-teal/10 px-1.5 py-0.5 rounded">{String(timeLeft.seconds).padStart(2, "0")}s</span>
+        {timeLeft.days > 0 && <span className="bg-nick-blue/10 px-1.5 py-0.5 rounded">{timeLeft.days}d</span>}
+        <span className="bg-nick-blue/10 px-1.5 py-0.5 rounded">{String(timeLeft.hours).padStart(2, "0")}h</span>
+        <span className="bg-nick-blue/10 px-1.5 py-0.5 rounded">{String(timeLeft.minutes).padStart(2, "0")}m</span>
+        <span className="bg-nick-blue/10 px-1.5 py-0.5 rounded">{String(timeLeft.seconds).padStart(2, "0")}s</span>
       </div>
     </div>
   );
@@ -179,7 +88,7 @@ function CouponCard({ coupon }: { coupon: any }) {
   return (
     <div className={`relative border ${coupon.isFeatured ? "border-nick-yellow/50" : "border-nick-yellow/15"} bg-nick-dark/50 overflow-hidden`}>
       {coupon.isFeatured && (
-        <div className="absolute top-0 right-0 bg-nick-yellow text-nick-dark px-3 py-1 font-heading font-bold text-xs tracking-wider">
+        <div className="absolute top-0 right-0 bg-nick-yellow text-nick-dark px-3 py-1 font-semibold font-bold text-xs tracking-wider">
           FEATURED
         </div>
       )}
@@ -188,10 +97,10 @@ function CouponCard({ coupon }: { coupon: any }) {
       <div className="p-6 lg:p-8">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
-            <div className="font-heading font-bold text-nick-yellow text-3xl lg:text-4xl tracking-tight">
+            <div className="font-semibold font-bold text-nick-yellow text-3xl lg:text-4xl tracking-tight">
               {discountDisplay}
             </div>
-            <h3 className="font-heading font-bold text-foreground text-lg lg:text-xl tracking-wider mt-2 uppercase">
+            <h3 className="font-semibold font-bold text-foreground text-lg lg:text-xl tracking-wider mt-2 uppercase">
               {coupon.title}
             </h3>
           </div>
@@ -203,7 +112,7 @@ function CouponCard({ coupon }: { coupon: any }) {
         <p className="text-foreground/70 leading-relaxed mb-4">{coupon.description}</p>
 
         {coupon.applicableServices !== "all" && (
-          <p className="text-nick-teal text-sm font-mono mb-3">
+          <p className="text-nick-blue-light text-sm font-mono mb-3">
             Applies to: {coupon.applicableServices}
           </p>
         )}
@@ -231,7 +140,7 @@ function CouponCard({ coupon }: { coupon: any }) {
           )}
           <button
             onClick={() => setShowCoupon(true)}
-            className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-6 py-2.5 font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors"
+            className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-6 py-2.5 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors"
           >
             SHOW THIS COUPON
             <ChevronRight className="w-4 h-4" />
@@ -251,14 +160,14 @@ function CouponCard({ coupon }: { coupon: any }) {
           >
             <div className="max-w-md w-full">
               <div className="w-16 h-16 bg-nick-yellow mx-auto flex items-center justify-center rounded-md mb-6">
-                <span className="font-heading font-bold text-nick-dark text-2xl">N</span>
+                <span className="font-semibold font-bold text-nick-dark text-2xl">N</span>
               </div>
-              <h2 className="font-heading font-bold text-nick-dark text-2xl tracking-wider mb-2">NICK'S TIRE & AUTO</h2>
-              <div className="caution-stripe h-2 w-full my-4" />
-              <div className="font-heading font-bold text-nick-dark text-5xl tracking-tight my-6">
+              <h2 className="font-semibold font-bold text-nick-dark text-2xl tracking-wider mb-2">NICK'S TIRE & AUTO</h2>
+              <div className="hidden" />
+              <div className="font-semibold font-bold text-nick-dark text-5xl tracking-tight my-6">
                 {discountDisplay}
               </div>
-              <h3 className="font-heading font-bold text-nick-dark text-xl tracking-wider uppercase mb-3">
+              <h3 className="font-semibold font-bold text-nick-dark text-xl tracking-wider uppercase mb-3">
                 {coupon.title}
               </h3>
               <p className="text-gray-600 mb-4">{coupon.description}</p>
@@ -351,17 +260,17 @@ export default function SpecialsPage() {
   const regularCoupons = allCoupons.filter((c: any) => !c.isFeatured);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <PageLayout>
       <SEOHead
         title="Specials & Coupons | Nick's Tire & Auto — Cleveland Auto Repair Deals"
         description="Save on auto repair at Nick's Tire & Auto in Cleveland. Current specials on brakes, oil changes, diagnostics, tires, and more. Print or show coupons on your phone."
         canonicalPath="/specials"
       />
-      <SkipToContent />
-      <NotificationBar />
-      <SpecialsNavbar />
+      
+      
+      
 
-      <main id="main-content">
+
         {/* Hero */}
         <section className="relative pt-32 lg:pt-40 pb-16 lg:pb-20 bg-background">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--nick-yellow-alpha)_0%,_transparent_60%)] opacity-20" />
@@ -370,9 +279,9 @@ export default function SpecialsPage() {
             <FadeIn>
               <div className="flex items-center gap-3 mb-4">
                 <Tag className="w-6 h-6 text-nick-yellow" />
-                <span className="font-mono text-nick-teal text-sm tracking-widest uppercase">Current Offers</span>
+                <span className="font-mono text-nick-blue-light text-sm tracking-wide">Current Offers</span>
               </div>
-              <h1 className="font-heading font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
+              <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
                 SPECIALS &<br />
                 <span className="text-gradient-yellow">COUPONS</span>
               </h1>
@@ -388,7 +297,7 @@ export default function SpecialsPage() {
           <section className="py-12 lg:py-16 bg-background">
             <div className="container">
               <FadeIn>
-                <span className="font-mono text-nick-yellow text-sm tracking-widest uppercase">Featured Deal</span>
+                <span className="font-mono text-nick-yellow text-sm tracking-wide">Featured Deal</span>
               </FadeIn>
               <div className="mt-6 grid grid-cols-1 gap-6">
                 {featuredCoupons.map((c: any) => (
@@ -403,11 +312,11 @@ export default function SpecialsPage() {
 
         {/* All Specials Grid */}
         <section className="py-12 lg:py-16 section-darker">
-          <div className="caution-stripe h-2 w-full" />
+          <div className="hidden" />
           <div className="container pt-12">
             <FadeIn>
-              <span className="font-mono text-nick-teal text-sm tracking-widest uppercase">All Current Specials</span>
-              <h2 className="font-heading font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+              <span className="font-mono text-nick-blue-light text-sm tracking-wide">All Current Specials</span>
+              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
                 SAVE ON YOUR NEXT REPAIR
               </h2>
             </FadeIn>
@@ -439,7 +348,7 @@ export default function SpecialsPage() {
         <section className="py-16 lg:py-20 bg-background">
           <div className="container">
             <FadeIn>
-              <h2 className="font-heading font-bold text-3xl lg:text-4xl text-foreground tracking-tight text-center">
+              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground tracking-tight text-center">
                 HOW TO <span className="text-gradient-yellow">REDEEM</span>
               </h2>
             </FadeIn>
@@ -451,8 +360,8 @@ export default function SpecialsPage() {
               ].map((step, i) => (
                 <FadeIn key={step.num} delay={i * 0.1}>
                   <div className="text-center">
-                    <span className="font-heading font-bold text-5xl text-nick-yellow/20">{step.num}</span>
-                    <h3 className="font-heading font-bold text-foreground text-lg tracking-wider uppercase mt-2">{step.title}</h3>
+                    <span className="font-semibold font-bold text-5xl text-nick-yellow/20">{step.num}</span>
+                    <h3 className="font-semibold font-bold text-foreground text-lg tracking-wider uppercase mt-2">{step.title}</h3>
                     <p className="text-foreground/60 mt-2 leading-relaxed">{step.desc}</p>
                   </div>
                 </FadeIn>
@@ -465,7 +374,7 @@ export default function SpecialsPage() {
         <section className="py-16 lg:py-20 section-darker">
           <div className="container text-center">
             <FadeIn>
-              <h2 className="font-heading font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
+              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
                 READY TO <span className="text-gradient-yellow">SAVE</span>?
               </h2>
               <p className="mt-4 text-foreground/70 text-lg max-w-xl mx-auto">
@@ -475,14 +384,14 @@ export default function SpecialsPage() {
                 <a
                   href="tel:2168620005"
                   onClick={() => trackPhoneClick("specials_cta")}
-                  className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow"
+                  className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors"
                 >
                   <Phone className="w-5 h-5" />
                   CALL NOW
                 </a>
                 <Link
                   href="/contact"
-                  className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-heading font-bold text-lg tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors"
+                  className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors"
                 >
                   BOOK ONLINE
                   <ChevronRight className="w-5 h-5" />
@@ -493,67 +402,10 @@ export default function SpecialsPage() {
         </section>
 
         {/* Footer */}
-        <footer className="bg-background border-t border-nick-yellow/10 py-12 lg:py-16">
-          <div className="container">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
-              <div>
-                <Link href="/" className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-nick-yellow flex items-center justify-center rounded-md">
-                    <span className="font-heading font-bold text-nick-dark text-sm">N</span>
-                  </div>
-                  <span className="font-heading font-bold text-nick-yellow tracking-wider">NICK'S TIRE & AUTO</span>
-                </Link>
-                <p className="text-foreground/50 text-sm leading-relaxed">
-                  Honest auto repair and tire services for Cleveland, Euclid, and Northeast Ohio.
-                </p>
-              </div>
-              <div>
-                <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4">Services</h4>
-                <div className="space-y-2 text-sm text-foreground/50">
-                  <p><Link href="/tires" className="hover:text-nick-yellow transition-colors">Tires & Tire Repair</Link></p>
-                  <p><Link href="/brakes" className="hover:text-nick-yellow transition-colors">Brake Repair</Link></p>
-                  <p><Link href="/diagnostics" className="hover:text-nick-yellow transition-colors">Check Engine Light</Link></p>
-                  <p><Link href="/emissions" className="hover:text-nick-yellow transition-colors">Ohio E-Check</Link></p>
-                  <p><Link href="/oil-change" className="hover:text-nick-yellow transition-colors">Oil Changes</Link></p>
-                </div>
-              </div>
-              <div>
-                <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4">Quick Links</h4>
-                <div className="space-y-2 text-sm text-foreground/50">
-                  <p><Link href="/specials" className="hover:text-nick-yellow transition-colors">Specials & Coupons</Link></p>
-                  <p><Link href="/reviews" className="hover:text-nick-yellow transition-colors">Customer Reviews</Link></p>
-                  <p><Link href="/diagnose" className="hover:text-nick-yellow transition-colors">Diagnose My Car</Link></p>
-                  <p><Link href="/blog" className="hover:text-nick-yellow transition-colors">Auto Repair Blog</Link></p>
-                  <p><Link href="/contact" className="hover:text-nick-yellow transition-colors">Contact Us</Link></p>
-                </div>
-              </div>
-              <div>
-                <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4">Contact</h4>
-                <div className="space-y-3 text-sm text-foreground/50">
-                  <div className="flex items-start gap-2">
-                    <MapPin className="w-4 h-4 text-nick-yellow mt-0.5 shrink-0" />
-                    <span>17625 Euclid Ave<br />Cleveland, OH 44112</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-nick-yellow shrink-0" />
-                    <a href="tel:2168620005" className="hover:text-nick-yellow transition-colors">(216) 862-0005</a>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-nick-yellow shrink-0" />
-                    <span>Mon–Sat 9AM–6PM</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="mt-12 pt-8 border-t border-nick-yellow/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <p className="text-foreground/30 text-xs font-mono">&copy; {new Date().getFullYear()} NICK'S TIRE & AUTO. ALL RIGHTS RESERVED.</p>
-              <a href="tel:2168620005" className="text-nick-yellow font-mono text-sm hover:text-nick-gold transition-colors">(216) 862-0005</a>
-            </div>
-          </div>
-        </footer>
-      </main>
+        
 
-      <MobileCTA />
-    </div>
+
+      
+    </PageLayout>
   );
 }

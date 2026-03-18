@@ -4,11 +4,10 @@
  * and structured data for local SEO.
  */
 
+import PageLayout from "@/components/PageLayout";
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import NotificationBar from "@/components/NotificationBar";
 import BookingForm from "@/components/BookingForm";
-import SearchBar from "@/components/SearchBar";
 import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, Menu, X, Mail, Navigation } from "lucide-react";
 import { motion, useInView } from "framer-motion";
@@ -27,77 +26,6 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
     >
       {children}
     </motion.div>
-  );
-}
-
-function ContactNavbar() {
-  const [scrolled, setScrolled] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const links = [
-    { label: "Services", href: "/#services" },
-    { label: "About", href: "/about" },
-    { label: "Reviews", href: "/#reviews" },
-    { label: "Blog", href: "/blog" },
-    { label: "Contact", href: "/contact" },
-  ];
-
-  return (
-    <nav className={`fixed ${scrolled ? "top-0" : "top-[40px]"} left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-background/95 backdrop-blur-md shadow-lg shadow-nick-yellow/5" : "bg-transparent"}`}>
-      <div className="container flex items-center justify-between h-16 lg:h-20">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-nick-yellow flex items-center justify-center rounded-md glow-yellow">
-            <span className="font-heading font-bold text-nick-dark text-lg">N</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-heading font-bold text-nick-yellow text-lg leading-tight tracking-wide">NICK'S TIRE & AUTO</span>
-            <span className="text-nick-teal text-xs tracking-widest uppercase font-medium">Cleveland, Ohio</span>
-          </div>
-        </Link>
-
-        <div className="hidden lg:flex items-center gap-6">
-          <SearchBar />
-          {links.map((l) => (
-            <Link key={l.href} href={l.href} className={`font-heading text-sm tracking-widest uppercase transition-colors ${l.href === "/contact" ? "text-nick-yellow" : "text-foreground/80 hover:text-nick-yellow"}`}>
-              {l.label}
-            </Link>
-          ))}
-          <a href="tel:2168620005" className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow">
-            <Phone className="w-4 h-4" />
-            (216) 862-0005
-          </a>
-        </div>
-
-        <div className="lg:hidden flex items-center gap-1">
-          <SearchBar />
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="text-foreground p-2">
-            {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
-        </div>
-      </div>
-
-      {mobileOpen && (
-        <div className="lg:hidden bg-background/98 backdrop-blur-md border-t border-nick-yellow/20">
-          <div className="container py-6 flex flex-col gap-4">
-            {links.map((l) => (
-              <Link key={l.href} href={l.href} onClick={() => setMobileOpen(false)} className="font-heading text-lg tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors py-2">
-                {l.label}
-              </Link>
-            ))}
-            <a href="tel:2168620005" className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-5 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase mt-2">
-              <Phone className="w-4 h-4" />
-              (216) 862-0005
-            </a>
-          </div>
-        </div>
-      )}
-    </nav>
   );
 }
 
@@ -159,51 +87,30 @@ function ContactSchema() {
   );
 }
 
-function MobileCTA() {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setVisible(window.scrollY > 400);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  if (!visible) return null;
-
-  return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/95 backdrop-blur-md border-t border-nick-yellow/30 p-3">
-      <a href="tel:2168620005" className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark w-full py-3.5 rounded-md font-heading font-bold text-base tracking-wider uppercase glow-yellow">
-        <Phone className="w-5 h-5" />
-        CALL (216) 862-0005
-      </a>
-    </div>
-  );
-}
-
 export default function Contact() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <PageLayout>
       <SEOHead
         title="Contact Nick's Tire & Auto | Cleveland Auto Repair Shop | (216) 862-0005"
         description="Contact Nick's Tire & Auto at (216) 862-0005. Located at 17625 Euclid Ave, Cleveland, OH 44112. Open Mon-Sat 8AM-6PM, Sun 9AM-4PM. Walk-ins welcome."
         canonicalPath="/contact"
       />
       <ContactSchema />
-      <SkipToContent />
-      <NotificationBar />
-      <ContactNavbar />
+      
+      
+      
 
-      <main id="main-content">
+
         {/* Hero */}
         <section className="relative pt-32 lg:pt-40 pb-16 lg:pb-20 section-dark">
           <div className="container">
             <FadeIn>
-              <span className="font-mono text-nick-teal text-sm tracking-widest uppercase">Get In Touch</span>
-              <h1 className="font-heading font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground mt-3 tracking-tight leading-[0.95]">
+              <span className="font-mono text-nick-blue-light text-sm tracking-wide">Get In Touch</span>
+              <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground mt-3 tracking-tight leading-[0.95]">
                 CONTACT OUR<br />
                 <span className="text-gradient-yellow">CLEVELAND</span> SHOP
               </h1>
@@ -214,7 +121,7 @@ export default function Contact() {
           </div>
         </section>
 
-        <div className="h-1.5 w-full bg-gradient-to-r from-nick-yellow via-nick-teal to-nick-orange" />
+        
 
         {/* Contact Info + Booking Form */}
         <section className="section-darker py-16 lg:py-24">
@@ -223,7 +130,7 @@ export default function Contact() {
               <FadeIn>
                 <div className="space-y-8">
                   <div>
-                    <h2 className="font-heading font-bold text-2xl lg:text-3xl text-foreground tracking-wider mb-6">
+                    <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-wider mb-6">
                       SHOP <span className="text-nick-yellow">INFORMATION</span>
                     </h2>
                   </div>
@@ -234,7 +141,7 @@ export default function Contact() {
                       <div className="w-10 h-10 bg-nick-yellow/10 flex items-center justify-center rounded-md">
                         <Phone className="w-5 h-5 text-nick-yellow" />
                       </div>
-                      <h3 className="font-heading font-bold text-foreground tracking-wider text-sm uppercase">Phone</h3>
+                      <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase">Phone</h3>
                     </div>
                     <a href="tel:2168620005" className="font-mono text-2xl text-foreground hover:text-nick-yellow transition-colors">
                       (216) 862-0005
@@ -245,10 +152,10 @@ export default function Contact() {
                   {/* Address */}
                   <div className="card-vibrant bg-card/80 rounded-lg p-6">
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 bg-nick-teal/10 flex items-center justify-center rounded-md">
-                        <MapPin className="w-5 h-5 text-nick-teal" />
+                      <div className="w-10 h-10 bg-nick-blue/10 flex items-center justify-center rounded-md">
+                        <MapPin className="w-5 h-5 text-nick-blue-light" />
                       </div>
-                      <h3 className="font-heading font-bold text-foreground tracking-wider text-sm uppercase">Address</h3>
+                      <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase">Address</h3>
                     </div>
                     <p className="font-mono text-foreground/80 text-lg">17625 Euclid Ave</p>
                     <p className="font-mono text-foreground/80 text-lg">Cleveland, OH 44112</p>
@@ -256,7 +163,7 @@ export default function Contact() {
                       href="https://www.google.com/maps/dir//Nick's+Tire+And+Auto+Euclid,+17625+Euclid+Ave,+Cleveland,+OH+44112"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 mt-3 text-nick-teal hover:text-nick-cyan transition-colors text-sm font-medium"
+                      className="inline-flex items-center gap-2 mt-3 text-nick-blue-light hover:text-nick-blue-light transition-colors text-sm font-medium"
                     >
                       <Navigation className="w-4 h-4" />
                       Get Directions
@@ -266,10 +173,10 @@ export default function Contact() {
                   {/* Hours */}
                   <div className="card-vibrant bg-card/80 rounded-lg p-6">
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 bg-nick-orange/10 flex items-center justify-center rounded-md">
-                        <Clock className="w-5 h-5 text-nick-orange" />
+                      <div className="w-10 h-10 bg-nick-yellow/10 flex items-center justify-center rounded-md">
+                        <Clock className="w-5 h-5 text-nick-yellow" />
                       </div>
-                      <h3 className="font-heading font-bold text-foreground tracking-wider text-sm uppercase">Hours</h3>
+                      <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase">Hours</h3>
                     </div>
                     <div className="font-mono text-foreground/80 space-y-1">
                       <div className="flex justify-between">
@@ -285,7 +192,7 @@ export default function Contact() {
 
                   {/* Areas Served */}
                   <div className="card-vibrant bg-card/80 rounded-lg p-6">
-                    <h3 className="font-heading font-bold text-foreground tracking-wider text-sm uppercase mb-3">Areas We Serve</h3>
+                    <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase mb-3">Areas We Serve</h3>
                     <p className="text-foreground/60 text-sm leading-relaxed">
                       Cleveland, Euclid, East Cleveland, South Euclid, Richmond Heights, Lyndhurst, Wickliffe, Willoughby, and surrounding Northeast Ohio communities. If you can drive to us, we can help.
                     </p>
@@ -297,7 +204,7 @@ export default function Contact() {
                       <div className="w-10 h-10 bg-nick-yellow/10 flex items-center justify-center rounded-md">
                         <Star className="w-5 h-5 text-nick-yellow" />
                       </div>
-                      <h3 className="font-heading font-bold text-foreground tracking-wider text-sm uppercase">Google Reviews</h3>
+                      <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase">Google Reviews</h3>
                     </div>
                     <div className="flex items-center gap-2 mb-3">
                       <div className="flex gap-0.5">
@@ -313,7 +220,7 @@ export default function Contact() {
                         href="https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-nick-teal/10 border border-nick-teal/30 rounded-md text-nick-teal hover:bg-nick-teal/20 transition-colors text-sm font-medium"
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-nick-blue/10 border border-nick-blue/30 rounded-md text-nick-blue-light hover:bg-nick-blue/20 transition-colors text-sm font-medium"
                       >
                         <MapPin className="w-4 h-4" />
                         View on Google Maps
@@ -334,7 +241,7 @@ export default function Contact() {
 
               <FadeIn delay={0.15}>
                 <div>
-                  <h2 className="font-heading font-bold text-2xl lg:text-3xl text-foreground tracking-wider mb-6">
+                  <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-wider mb-6">
                     REQUEST AN <span className="text-nick-yellow">APPOINTMENT</span>
                   </h2>
                   <p className="text-foreground/60 mb-6 leading-relaxed">
@@ -351,7 +258,7 @@ export default function Contact() {
         <section className="section-dark py-16 lg:py-20">
           <div className="container">
             <FadeIn>
-              <h2 className="font-heading font-bold text-2xl lg:text-3xl text-foreground tracking-wider mb-8">
+              <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-wider mb-8">
                 FIND US ON <span className="text-nick-yellow">EUCLID AVE</span>
               </h2>
               <div className="w-full aspect-[21/9] bg-card rounded-lg border border-border/50 overflow-hidden">
@@ -371,66 +278,10 @@ export default function Contact() {
         </section>
 
         {/* Footer */}
-        <footer className="section-dark border-t border-nick-yellow/10">
-          <div className="h-1.5 w-full bg-gradient-to-r from-nick-yellow via-nick-orange to-nick-teal" />
-          <div className="container py-12">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div>
-                <Link href="/" className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-nick-yellow flex items-center justify-center rounded-md">
-                    <span className="font-heading font-bold text-nick-dark text-sm">N</span>
-                  </div>
-                  <span className="font-heading font-bold text-nick-yellow tracking-wider">NICK'S TIRE & AUTO</span>
-                </Link>
-                <p className="text-foreground/50 text-sm leading-relaxed">
-                  Honest auto repair and tire services for Cleveland, Euclid, and Northeast Ohio. Fair prices, real diagnostics, no surprises.
-                </p>
-              </div>
+        
 
-              <div>
-                <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4">Services</h4>
-                <div className="space-y-2 text-sm text-foreground/50">
-                  <p><Link href="/tires" className="hover:text-nick-yellow transition-colors">Tires &amp; Tire Repair</Link></p>
-                  <p><Link href="/brakes" className="hover:text-nick-yellow transition-colors">Brake Repair</Link></p>
-                  <p><Link href="/diagnostics" className="hover:text-nick-yellow transition-colors">Check Engine Light Diagnostics</Link></p>
-                  <p><Link href="/emissions" className="hover:text-nick-yellow transition-colors">Ohio E-Check &amp; Emissions Repair</Link></p>
-                  <p><Link href="/oil-change" className="hover:text-nick-yellow transition-colors">Oil Changes</Link></p>
-                  <p><Link href="/general-repair" className="hover:text-nick-yellow transition-colors">Suspension &amp; Steering</Link></p>
-                </div>
-              </div>
 
-              <div>
-                <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4">Areas Served</h4>
-                <div className="space-y-2 text-sm text-foreground/50">
-                  <p>Cleveland, OH</p>
-                  <Link href="/euclid-auto-repair" className="block hover:text-nick-yellow transition-colors">Euclid, OH</Link>
-                  <Link href="/east-cleveland-auto-repair" className="block hover:text-nick-yellow transition-colors">East Cleveland, OH</Link>
-                  <Link href="/lakewood-auto-repair" className="block hover:text-nick-yellow transition-colors">Lakewood, OH</Link>
-                  <Link href="/parma-auto-repair" className="block hover:text-nick-yellow transition-colors">Parma, OH</Link>
-                  <p>Northeast Ohio</p>
-                </div>
-                <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4 mt-6">Resources</h4>
-                <div className="space-y-2 text-sm text-foreground/50">
-                  <Link href="/faq" className="block hover:text-nick-yellow transition-colors">FAQ</Link>
-                  <Link href="/blog" className="block hover:text-nick-yellow transition-colors">Auto Repair Blog</Link>
-                  <Link href="/about" className="block hover:text-nick-yellow transition-colors">About Us</Link>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-12 pt-8 border-t border-nick-yellow/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <p className="text-foreground/30 text-xs font-mono">
-                &copy; {new Date().getFullYear()} NICK'S TIRE &amp; AUTO. ALL RIGHTS RESERVED.
-              </p>
-              <a href="tel:2168620005" className="text-nick-yellow font-mono text-sm hover:text-nick-gold transition-colors">
-                (216) 862-0005
-              </a>
-            </div>
-          </div>
-        </footer>
-      </main>
-
-      <MobileCTA />
-    </div>
+      
+    </PageLayout>
   );
 }

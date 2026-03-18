@@ -3,11 +3,11 @@
  * Targets queries like "winter tires Cleveland" and "summer AC repair Cleveland"
  */
 
+import PageLayout from "@/components/PageLayout";
 import { useEffect, useRef, useState } from "react";
 import { useRoute, Link } from "wouter";
 import { SEASONAL_PAGES, type SeasonalData } from "@shared/seasonal";
 import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
-import NotificationBar from "@/components/NotificationBar";
 import BookingForm from "@/components/BookingForm";
 import { Phone, MapPin, ChevronRight, ArrowLeft, Snowflake, Sun, CheckCircle, AlertTriangle, Wrench, Menu, X } from "lucide-react";
 import { motion, useInView } from "framer-motion";
@@ -44,25 +44,25 @@ function SeasonalNavbar({ season }: { season: string }) {
   const SeasonIcon = season === "Winter" ? Snowflake : Sun;
 
   return (
-    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-background/95 backdrop-blur-md shadow-lg" : "bg-transparent"}`} aria-label="Seasonal page navigation">
+    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-nick-dark/90 backdrop-blur-md shadow-lg" : "bg-transparent"}`} aria-label="Seasonal page navigation">
       <div className="container flex items-center justify-between h-16 lg:h-20">
         <Link href="/" className="flex items-center gap-3">
           <div className="w-10 h-10 bg-nick-yellow flex items-center justify-center rounded-sm">
-            <span className="font-heading font-bold text-nick-dark text-lg">N</span>
+            <span className="font-semibold font-bold text-nick-dark text-lg">N</span>
           </div>
           <div className="flex flex-col">
-            <span className="font-heading font-bold text-nick-yellow text-lg leading-tight tracking-wide">NICK'S TIRE & AUTO</span>
-            <span className="text-muted-foreground text-xs tracking-widest uppercase flex items-center gap-1">
+            <span className="font-semibold font-bold text-nick-yellow text-lg leading-tight tracking-wide">NICK'S TIRE & AUTO</span>
+            <span className="text-muted-foreground text-xs tracking-wide flex items-center gap-1">
               <SeasonIcon className="w-3 h-3" /> {season} Car Care
             </span>
           </div>
         </Link>
 
         <div className="hidden lg:flex items-center gap-6">
-          <a href="#checklist" className="font-heading text-sm tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors">Checklist</a>
-          <a href="#problems" className="font-heading text-sm tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors">Common Problems</a>
-          <a href="#booking" className="font-heading text-sm tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors">Book Now</a>
-          <a href="tel:2168620005" onClick={() => trackPhoneClick('seasonal-navbar-desktop')} className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+          <a href="#checklist" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors">Checklist</a>
+          <a href="#problems" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors">Common Problems</a>
+          <a href="#booking" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors">Book Now</a>
+          <a href="tel:2168620005" onClick={() => trackPhoneClick('seasonal-navbar-desktop')} className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
             <Phone className="w-4 h-4" />
             (216) 862-0005
           </a>
@@ -74,16 +74,16 @@ function SeasonalNavbar({ season }: { season: string }) {
       </div>
 
       {mobileOpen && (
-        <div className="lg:hidden bg-background/98 backdrop-blur-md border-t border-nick-yellow/20">
+        <div className="lg:hidden bg-nick-dark/98 backdrop-blur-md border-t border-nick-yellow/20">
           <div className="container py-6 flex flex-col gap-4">
-            <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 font-heading text-lg tracking-widest uppercase text-foreground/60 hover:text-nick-teal transition-colors py-2">
+            <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 font-semibold text-lg tracking-wide text-foreground/60 hover:text-nick-blue-light transition-colors py-2">
               <ArrowLeft className="w-5 h-5" />
               Back to Home
             </Link>
-            <a href="#checklist" onClick={() => setMobileOpen(false)} className="font-heading text-lg tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors py-2">Checklist</a>
-            <a href="#problems" onClick={() => setMobileOpen(false)} className="font-heading text-lg tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors py-2">Common Problems</a>
-            <a href="#booking" onClick={() => setMobileOpen(false)} className="font-heading text-lg tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors py-2">Book Now</a>
-            <a href="tel:2168620005" onClick={() => trackPhoneClick('seasonal-navbar-mobile')} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-5 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+            <a href="#checklist" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors py-2">Checklist</a>
+            <a href="#problems" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors py-2">Common Problems</a>
+            <a href="#booking" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors py-2">Book Now</a>
+            <a href="tel:2168620005" onClick={() => trackPhoneClick('seasonal-navbar-mobile')} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
               <Phone className="w-4 h-4" />
               (216) 862-0005
             </a>
@@ -108,8 +108,8 @@ export default function SeasonalPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <h1 className="font-heading font-bold text-4xl text-foreground mb-4">PAGE NOT FOUND</h1>
-          <Link href="/" className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase glow-yellow">
+          <h1 className="font-semibold font-bold text-4xl text-foreground mb-4">PAGE NOT FOUND</h1>
+          <Link href="/" className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wider uppercase">
             <ArrowLeft className="w-4 h-4" />
             BACK TO HOME
           </Link>
@@ -121,17 +121,17 @@ export default function SeasonalPage() {
   const SeasonIcon = page.season === "Winter" ? Snowflake : Sun;
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <PageLayout>
       <SEOHead
         title={page.metaTitle}
         description={page.metaDescription}
         canonicalPath={`/${page.slug}`}
       />
-      <SkipToContent />
-      <NotificationBar />
+      
+      
       <SeasonalNavbar season={page.season} />
 
-      <main id="main-content">
+
         {/* Hero */}
         <section className="relative min-h-[55vh] lg:min-h-[65vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
@@ -147,9 +147,9 @@ export default function SeasonalPage() {
             <FadeIn delay={0.1}>
               <div className="flex items-center gap-2 mt-4 mb-4">
                 <SeasonIcon className="w-5 h-5 text-nick-yellow" />
-                <span className="font-mono text-nick-yellow text-sm tracking-widest uppercase">SEASONAL SERVICE</span>
+                <span className="font-mono text-nick-yellow text-sm tracking-wide">SEASONAL SERVICE</span>
               </div>
-              <h1 className="font-heading font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.9] tracking-tight max-w-3xl whitespace-pre-line">
+              <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.9] tracking-tight max-w-3xl whitespace-pre-line">
                 {page.heroHeadline}
               </h1>
             </FadeIn>
@@ -162,11 +162,11 @@ export default function SeasonalPage() {
 
             <FadeIn delay={0.3}>
               <div className="mt-8 flex flex-col sm:flex-row gap-4">
-                <a href="tel:2168620005" onClick={() => trackPhoneClick('seasonal-hero-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+                <a href="tel:2168620005" onClick={() => trackPhoneClick('seasonal-hero-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
                   <Phone className="w-5 h-5" />
                   SCHEDULE {page.season.toUpperCase()} SERVICE
                 </a>
-                <a href="#checklist" className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors">
+                <a href="#checklist" className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors">
                   VIEW CHECKLIST
                   <ChevronRight className="w-5 h-5" />
                 </a>
@@ -190,8 +190,8 @@ export default function SeasonalPage() {
         <section id="checklist" className="py-16 lg:py-24 section-darker">
           <div className="container">
             <FadeIn>
-              <span className="font-mono text-nick-teal text-sm tracking-widest uppercase">{page.season} Preparation</span>
-              <h2 className="font-heading font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+              <span className="font-mono text-nick-blue-light text-sm tracking-wide">{page.season} Preparation</span>
+              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
                 {page.season.toUpperCase()} VEHICLE CHECKLIST
               </h2>
             </FadeIn>
@@ -201,8 +201,8 @@ export default function SeasonalPage() {
                 <FadeIn key={i} delay={i * 0.06}>
                   <div className="bg-card/30 border border-border/50 rounded-lg p-6 h-full">
                     <div className="flex items-start gap-3 mb-3">
-                      <CheckCircle className="w-5 h-5 text-nick-teal flex-shrink-0 mt-0.5" />
-                      <h3 className="font-heading font-bold text-foreground tracking-wider text-sm uppercase">{item.title}</h3>
+                      <CheckCircle className="w-5 h-5 text-nick-blue-light flex-shrink-0 mt-0.5" />
+                      <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase">{item.title}</h3>
                     </div>
                     <p className="text-foreground/60 text-sm leading-relaxed pl-8">{item.description}</p>
                   </div>
@@ -216,8 +216,8 @@ export default function SeasonalPage() {
         <section id="problems" className="py-16 lg:py-24 section-dark">
           <div className="container">
             <FadeIn>
-              <span className="font-mono text-nick-teal text-sm tracking-widest uppercase">Diagnostics</span>
-              <h2 className="font-heading font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+              <span className="font-mono text-nick-blue-light text-sm tracking-wide">Diagnostics</span>
+              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
                 COMMON {page.season.toUpperCase()} PROBLEMS
               </h2>
             </FadeIn>
@@ -229,15 +229,15 @@ export default function SeasonalPage() {
                     <div className="p-6 lg:p-8">
                       <div className="flex items-start gap-3 mb-4">
                         <AlertTriangle className="w-5 h-5 text-nick-yellow flex-shrink-0 mt-0.5" />
-                        <h3 className="font-heading font-bold text-xl text-foreground tracking-wider">{cp.problem}</h3>
+                        <h3 className="font-semibold font-bold text-xl text-foreground tracking-wider">{cp.problem}</h3>
                       </div>
                       <div className="pl-8 space-y-4">
                         <div>
-                          <span className="font-heading text-xs tracking-widest uppercase text-foreground/40">WHY IT HAPPENS</span>
+                          <span className="font-semibold text-xs tracking-wide text-foreground/40">WHY IT HAPPENS</span>
                           <p className="text-foreground/70 leading-relaxed mt-1">{cp.explanation}</p>
                         </div>
                         <div>
-                          <span className="font-heading text-xs tracking-widest uppercase text-nick-teal flex items-center gap-1">
+                          <span className="font-semibold text-xs tracking-wide text-nick-blue-light flex items-center gap-1">
                             <Wrench className="w-3 h-3" /> HOW WE FIX IT
                           </span>
                           <p className="text-foreground/70 leading-relaxed mt-1">{cp.solution}</p>
@@ -256,8 +256,8 @@ export default function SeasonalPage() {
           <div className="container max-w-3xl">
             <FadeIn>
               <div className="text-center mb-10">
-                <span className="font-mono text-nick-teal text-sm tracking-widest uppercase">Schedule Service</span>
-                <h2 className="font-heading font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight">
+                <span className="font-mono text-nick-blue-light text-sm tracking-wide">Schedule Service</span>
+                <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight">
                   BOOK YOUR {page.season.toUpperCase()} SERVICE
                 </h2>
                 <p className="mt-4 text-foreground/60 max-w-lg mx-auto">
@@ -274,7 +274,7 @@ export default function SeasonalPage() {
         {/* Other seasonal pages */}
         <section className="py-12 lg:py-16 section-dark border-t border-border/50">
           <div className="container">
-            <h3 className="font-heading font-bold text-lg text-foreground/60 tracking-wider mb-6">MORE SEASONAL GUIDES</h3>
+            <h3 className="font-semibold font-bold text-lg text-foreground/60 tracking-wider mb-6">MORE SEASONAL GUIDES</h3>
             <div className="flex flex-wrap gap-3">
               {SEASONAL_PAGES.filter(s => s.slug !== page.slug).map((s) => (
                 <Link key={s.slug} href={`/${s.slug}`} className="px-4 py-2 bg-card/50 border border-border/50 rounded-md text-sm text-foreground/70 hover:text-nick-yellow hover:border-nick-yellow/30 transition-colors flex items-center gap-2">
@@ -288,40 +288,21 @@ export default function SeasonalPage() {
             </div>
           </div>
         </section>
-      </main>
+
 
       {/* Footer */}
-      <footer className="bg-nick-dark border-t border-border/50 py-12 mt-auto">
-        <div className="container">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="text-center md:text-left">
-              <span className="font-heading font-bold text-nick-yellow text-lg tracking-wide">NICK'S TIRE & AUTO</span>
-              <p className="text-foreground/50 text-sm mt-1 font-mono">17625 Euclid Ave, Cleveland, OH 44112</p>
-            </div>
-            <div className="flex items-center gap-6">
-              <a href="tel:2168620005" onClick={() => trackPhoneClick('seasonal-footer')} className="text-nick-yellow font-mono text-sm hover:text-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto">
-                (216) 862-0005
-              </a>
-              <span className="text-foreground/30">|</span>
-              <span className="text-foreground/50 font-mono text-sm">Mon–Sat 8AM–6PM</span>
-            </div>
-          </div>
-          <div className="mt-8 text-center text-foreground/30 text-xs font-mono">
-            &copy; {new Date().getFullYear()} Nick's Tire & Auto. All rights reserved.
-          </div>
-        </div>
-      </footer>
+      
 
       {/* Mobile Sticky CTA */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/95 backdrop-blur-md border-t border-nick-yellow/30 p-3 flex gap-2">
-        <a href="tel:2168620005" onClick={() => trackPhoneClick('seasonal-mobile-sticky')} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark flex-1 py-3.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase glow-yellow" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+      <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-nick-dark/90 backdrop-blur-md border-t border-nick-yellow/30 p-3 flex gap-2">
+        <a href="tel:2168620005" onClick={() => trackPhoneClick('seasonal-mobile-sticky')} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wider uppercase" aria-label="Call Nick's Tire and Auto at 216-862-0005">
           <Phone className="w-4 h-4" />
           CALL NOW
         </a>
-        <a href="#booking" className="flex items-center justify-center gap-2 border-2 border-nick-teal text-nick-teal flex-1 py-3.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase" aria-label="Book an appointment online">
+        <a href="#booking" className="flex items-center justify-center gap-2 border-2 border-nick-blue text-nick-blue-light flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wider uppercase" aria-label="Book an appointment online">
           BOOK ONLINE
         </a>
       </div>
-    </div>
+    </PageLayout>
   );
 }

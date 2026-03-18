@@ -40,65 +40,63 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-sans: 'Source Sans 3', system-ui, sans-serif;
-  --font-heading: 'Oswald', system-ui, sans-serif;
+  /* ─── TESLA-STYLE TYPOGRAPHY ─── */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-heading: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'Roboto Mono', monospace;
-  /* ─── VIBRANT SHOP COLORS ─── */
-  --color-nick-yellow: oklch(0.92 0.19 92);
-  --color-nick-gold: oklch(0.82 0.18 80);
-  --color-nick-orange: oklch(0.72 0.20 55);
-  --color-nick-teal: oklch(0.72 0.12 195);
-  --color-nick-cyan: oklch(0.82 0.10 200);
-  --color-nick-charcoal: oklch(0.22 0.01 260);
-  --color-nick-dark: oklch(0.17 0.01 260);
-  --color-nick-steel: oklch(0.40 0.015 260);
-  --color-nick-light: oklch(0.97 0.005 90);
-  --color-nick-warm-dark: oklch(0.19 0.015 70);
-  --color-nick-warm-mid: oklch(0.26 0.02 70);
+  /* ─── BRAND ACCENT COLORS ─── */
+  --color-nick-yellow: oklch(0.85 0.16 85);
+  --color-nick-gold: oklch(0.78 0.14 75);
+  --color-nick-blue: oklch(0.45 0.10 250);
+  --color-nick-blue-light: oklch(0.55 0.12 250);
+  --color-nick-dark: oklch(0.10 0.005 260);
+  --color-nick-charcoal: oklch(0.14 0.005 260);
+  --color-nick-steel: oklch(0.35 0.01 260);
+  --color-nick-light: oklch(0.97 0.003 260);
 }
 
 :root {
-  --radius: 0.375rem;
-  /* Warmer, slightly lighter dark backgrounds */
-  --background: oklch(0.17 0.012 65);
-  --foreground: oklch(0.97 0.005 90);
-  /* Cards with warm undertone */
-  --card: oklch(0.22 0.015 65);
-  --card-foreground: oklch(0.97 0.005 90);
-  --popover: oklch(0.22 0.015 65);
-  --popover-foreground: oklch(0.97 0.005 90);
-  /* Brighter, more vivid yellow primary */
-  --primary: oklch(0.92 0.19 92);
-  --primary-foreground: oklch(0.15 0.01 65);
-  /* Warmer secondary */
-  --secondary: oklch(0.28 0.02 65);
-  --secondary-foreground: oklch(0.90 0.005 90);
-  --muted: oklch(0.28 0.015 65);
-  --muted-foreground: oklch(0.70 0.015 80);
-  /* Teal accent for variety */
-  --accent: oklch(0.72 0.12 195);
-  --accent-foreground: oklch(0.98 0.005 90);
+  --radius: 0.5rem;
+  /* Near-black background — Tesla dark */
+  --background: oklch(0.10 0.005 260);
+  --foreground: oklch(0.97 0.003 260);
+  /* Cards — barely visible lift */
+  --card: oklch(0.13 0.005 260);
+  --card-foreground: oklch(0.97 0.003 260);
+  --popover: oklch(0.13 0.005 260);
+  --popover-foreground: oklch(0.97 0.003 260);
+  /* Primary — warm yellow accent */
+  --primary: oklch(0.85 0.16 85);
+  --primary-foreground: oklch(0.10 0.005 260);
+  /* Secondary — subtle dark */
+  --secondary: oklch(0.18 0.005 260);
+  --secondary-foreground: oklch(0.90 0.003 260);
+  --muted: oklch(0.18 0.005 260);
+  --muted-foreground: oklch(0.55 0.01 260);
+  /* Accent — deep blue */
+  --accent: oklch(0.45 0.10 250);
+  --accent-foreground: oklch(0.97 0.003 260);
   --destructive: oklch(0.60 0.24 27);
   --destructive-foreground: oklch(0.985 0 0);
-  /* Warmer borders */
-  --border: oklch(0.33 0.02 70);
-  --input: oklch(0.33 0.02 70);
-  --ring: oklch(0.92 0.19 92);
-  /* Vibrant chart colors */
-  --chart-1: oklch(0.92 0.19 92);
-  --chart-2: oklch(0.72 0.20 55);
-  --chart-3: oklch(0.72 0.12 195);
-  --chart-4: oklch(0.65 0.15 150);
-  --chart-5: oklch(0.75 0.14 30);
+  /* Borders — barely there */
+  --border: oklch(0.20 0.005 260);
+  --input: oklch(0.20 0.005 260);
+  --ring: oklch(0.85 0.16 85);
+  /* Chart colors */
+  --chart-1: oklch(0.85 0.16 85);
+  --chart-2: oklch(0.45 0.10 250);
+  --chart-3: oklch(0.65 0.12 195);
+  --chart-4: oklch(0.60 0.15 150);
+  --chart-5: oklch(0.70 0.14 30);
   /* Sidebar */
-  --sidebar: oklch(0.19 0.015 65);
-  --sidebar-foreground: oklch(0.97 0.005 90);
-  --sidebar-accent: oklch(0.28 0.02 65);
-  --sidebar-accent-foreground: oklch(0.97 0.005 90);
-  --sidebar-border: oklch(0.33 0.02 70);
-  --sidebar-ring: oklch(0.92 0.19 92);
-  --sidebar-primary: oklch(0.92 0.19 92);
-  --sidebar-primary-foreground: oklch(0.15 0.01 65);
+  --sidebar: oklch(0.08 0.005 260);
+  --sidebar-foreground: oklch(0.97 0.003 260);
+  --sidebar-accent: oklch(0.15 0.005 260);
+  --sidebar-accent-foreground: oklch(0.97 0.003 260);
+  --sidebar-border: oklch(0.20 0.005 260);
+  --sidebar-ring: oklch(0.85 0.16 85);
+  --sidebar-primary: oklch(0.85 0.16 85);
+  --sidebar-primary-foreground: oklch(0.10 0.005 260);
 }
 
 @layer base {
@@ -123,6 +121,8 @@
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
+    font-weight: 600;
+    letter-spacing: -0.02em;
   }
 }
 
@@ -131,8 +131,8 @@
     width: 100%;
     margin-left: auto;
     margin-right: auto;
-    padding-left: 1rem;
-    padding-right: 1rem;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
   }
 
   .flex {
@@ -142,85 +142,64 @@
 
   @media (min-width: 640px) {
     .container {
-      padding-left: 1.5rem;
-      padding-right: 1.5rem;
+      padding-left: 2rem;
+      padding-right: 2rem;
     }
   }
 
   @media (min-width: 1024px) {
     .container {
-      padding-left: 2rem;
-      padding-right: 2rem;
-      max-width: 1280px;
+      padding-left: 3rem;
+      padding-right: 3rem;
+      max-width: 1400px;
     }
   }
 
-  /* ─── VIBRANT CAUTION STRIPE ─── */
-  .caution-stripe {
-    background: repeating-linear-gradient(
-      -45deg,
-      oklch(0.92 0.19 92),
-      oklch(0.92 0.19 92) 12px,
-      oklch(0.72 0.20 55) 12px,
-      oklch(0.72 0.20 55) 24px
-    );
-  }
-
-  /* ─── SECTION BACKGROUNDS WITH WARM GRADIENTS ─── */
+  /* ─── SECTION BACKGROUNDS ─── */
   .section-dark {
-    background: linear-gradient(
-      180deg,
-      oklch(0.17 0.012 65) 0%,
-      oklch(0.19 0.015 70) 100%
-    );
+    background: oklch(0.10 0.005 260);
   }
 
   .section-darker {
-    background: linear-gradient(
-      180deg,
-      oklch(0.14 0.012 60) 0%,
-      oklch(0.16 0.015 65) 100%
-    );
+    background: oklch(0.08 0.005 260);
   }
 
-  /* ─── VIBRANT TEXT GRADIENT ─── */
+  .section-elevated {
+    background: oklch(0.13 0.005 260);
+  }
+
+  /* ─── TEXT ACCENT ─── */
   .text-gradient-yellow {
-    background: linear-gradient(135deg, oklch(0.92 0.19 92), oklch(0.82 0.18 80), oklch(0.72 0.20 55));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: oklch(0.85 0.16 85);
   }
 
-  /* ─── TEAL ACCENT GRADIENT ─── */
   .text-gradient-teal {
-    background: linear-gradient(135deg, oklch(0.72 0.12 195), oklch(0.82 0.10 200));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: oklch(0.55 0.12 250);
   }
 
-  /* ─── GLOW EFFECTS ─── */
+  /* ─── LEGACY COMPAT (used by existing pages) ─── */
+  .caution-stripe {
+    display: none;
+  }
+
+  .accent-bar {
+    display: none;
+  }
+
   .glow-yellow {
-    box-shadow: 0 0 20px oklch(0.92 0.19 92 / 0.15), 0 0 40px oklch(0.92 0.19 92 / 0.05);
+    /* removed — Tesla style has no glows */
   }
 
   .glow-teal {
-    box-shadow: 0 0 20px oklch(0.72 0.12 195 / 0.15), 0 0 40px oklch(0.72 0.12 195 / 0.05);
+    /* removed */
   }
 
-  /* ─── VIBRANT CARD HOVER ─── */
   .card-vibrant {
-    transition: all 0.3s ease;
-    border: 1px solid oklch(0.33 0.02 70);
+    transition: all 0.2s ease;
+    border: 1px solid oklch(0.20 0.005 260);
   }
   .card-vibrant:hover {
-    border-color: oklch(0.92 0.19 92 / 0.4);
-    box-shadow: 0 4px 24px oklch(0.92 0.19 92 / 0.08), 0 0 0 1px oklch(0.92 0.19 92 / 0.1);
-    transform: translateY(-2px);
-  }
-
-  /* ─── ACCENT BAR ─── */
-  .accent-bar {
-    background: linear-gradient(90deg, oklch(0.92 0.19 92), oklch(0.72 0.20 55), oklch(0.72 0.12 195));
+    border-color: oklch(0.30 0.01 260);
+    background: oklch(0.14 0.005 260);
   }
 }

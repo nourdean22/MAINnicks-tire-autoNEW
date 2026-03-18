@@ -3,10 +3,10 @@
  * Lists all maintenance articles with category filtering
  */
 
+import PageLayout from "@/components/PageLayout";
 import { useRef } from "react";
 import { Link } from "wouter";
 import { BLOG_ARTICLES } from "@shared/blog";
-import NotificationBar from "@/components/NotificationBar";
 import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
 import { Phone, Clock, ChevronRight, ArrowRight, Menu, X, MapPin } from "lucide-react";
 import { motion, useInView } from "framer-motion";
@@ -28,70 +28,6 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
   );
 }
 
-function BlogNavbar() {
-  const [scrolled, setScrolled] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  return (
-    <nav className={`fixed ${scrolled ? "top-0" : "top-[40px]"} left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-nick-dark/95 backdrop-blur-md shadow-lg shadow-nick-yellow/5" : "bg-nick-dark/80 backdrop-blur-sm"}`}>
-      <div className="container flex items-center justify-between h-16 lg:h-20">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-nick-yellow flex items-center justify-center rounded-md">
-            <span className="font-heading font-bold text-nick-dark text-lg">N</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-heading font-bold text-nick-yellow text-lg leading-tight tracking-wide">NICK'S TIRE & AUTO</span>
-            <span className="text-nick-teal/70 text-xs tracking-widest uppercase">Cleveland, Ohio</span>
-          </div>
-        </Link>
-
-        <div className="hidden lg:flex items-center gap-6">
-          <Link href="/" className="font-heading text-sm tracking-widest uppercase text-foreground/60 hover:text-nick-teal transition-colors">
-            Home
-          </Link>
-          <Link href="/#services" className="font-heading text-sm tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors">
-            Services
-          </Link>
-          <span className="font-heading text-sm tracking-widest uppercase text-nick-yellow">
-            Blog
-          </span>
-          <a href="tel:2168620005" className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow">
-            <Phone className="w-4 h-4" />
-            (216) 862-0005
-          </a>
-        </div>
-
-        <button onClick={() => setMobileOpen(!mobileOpen)} className="lg:hidden text-foreground p-2">
-          {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
-      </div>
-
-      {mobileOpen && (
-        <div className="lg:hidden bg-nick-dark/98 backdrop-blur-md border-t border-nick-yellow/20">
-          <div className="container py-6 flex flex-col gap-4">
-            <Link href="/" onClick={() => setMobileOpen(false)} className="font-heading text-lg tracking-widest uppercase text-foreground/80 hover:text-nick-teal transition-colors py-2">
-              Home
-            </Link>
-            <Link href="/#services" onClick={() => setMobileOpen(false)} className="font-heading text-lg tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors py-2">
-              Services
-            </Link>
-            <a href="tel:2168620005" className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-5 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase mt-2">
-              <Phone className="w-4 h-4" />
-              (216) 862-0005
-            </a>
-          </div>
-        </div>
-      )}
-    </nav>
-  );
-}
-
 // Get unique categories
 const categories = ["All", ...Array.from(new Set(BLOG_ARTICLES.map(a => a.category)))];
 
@@ -103,15 +39,15 @@ export default function Blog() {
     : BLOG_ARTICLES.filter(a => a.category === activeCategory);
 
   return (
-    <div className="min-h-screen flex flex-col bg-nick-dark">
+    <PageLayout activeHref="/blog" showChat={true}>
       <SEOHead
         title="Auto Repair Tips & Maintenance Blog | Nick's Tire & Auto Cleveland"
         description="Expert auto repair tips, maintenance guides, and car care advice from Nick's Tire & Auto in Cleveland. Learn about brakes, tires, diagnostics, emissions, and more."
         canonicalPath="/blog"
       />
-      <SkipToContent />
-      <NotificationBar />
-      <BlogNavbar />
+      
+      
+      
 
       {/* Hero */}
       <section className="pt-32 pb-16 lg:pt-40 lg:pb-20 section-darker">
@@ -121,8 +57,8 @@ export default function Blog() {
           </FadeIn>
 
           <FadeIn delay={0.1}>
-            <span className="font-mono text-nick-teal text-sm tracking-widest uppercase">Mechanic Tips & Advice</span>
-            <h1 className="font-heading font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground mt-3 tracking-tight leading-[0.9]">
+            <span className="font-mono text-nick-blue-light text-sm tracking-wide">Mechanic Tips & Advice</span>
+            <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground mt-3 tracking-tight leading-[0.9]">
               AUTO REPAIR<br />
               <span className="text-gradient-yellow">TIPS & BLOG</span>
             </h1>
@@ -137,7 +73,7 @@ export default function Blog() {
       </section>
 
       {/* Category Filter */}
-      <section className="section-dark border-b border-nick-teal/10 sticky top-16 lg:top-20 z-40 backdrop-blur-md bg-nick-dark/95">
+      <section className="section-dark border-b border-nick-blue/10 sticky top-16 lg:top-20 z-40 backdrop-blur-md bg-nick-dark/95">
         <div className="container py-4">
           <div className="flex gap-2 overflow-x-auto no-scrollbar">
             {categories.map(cat => (
@@ -147,7 +83,7 @@ export default function Blog() {
                 className={`px-4 py-2 font-mono text-xs tracking-wider uppercase whitespace-nowrap rounded-md transition-colors ${
                   activeCategory === cat
                     ? "bg-nick-yellow text-nick-dark font-bold"
-                    : "bg-card/80 border border-nick-teal/15 text-foreground/60 hover:text-nick-yellow hover:border-nick-yellow/30"
+                    : "bg-card/80 border border-nick-blue/15 text-foreground/60 hover:text-nick-yellow hover:border-nick-yellow/30"
                 }`}
               >
                 {cat}
@@ -173,20 +109,20 @@ export default function Blog() {
                   </div>
                   <div className="p-6">
                     <div className="flex items-center gap-3 mb-3">
-                      <span className="font-mono text-xs text-nick-teal tracking-wider uppercase">{article.category}</span>
+                      <span className="font-mono text-xs text-nick-blue-light tracking-wider uppercase">{article.category}</span>
                       <span className="text-foreground/20">|</span>
                       <span className="font-mono text-xs text-foreground/40 flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         {article.readTime}
                       </span>
                     </div>
-                    <h2 className="font-heading font-bold text-xl text-foreground tracking-wider group-hover:text-nick-yellow transition-colors mb-3 leading-tight">
+                    <h2 className="font-semibold font-bold text-xl text-foreground tracking-wider group-hover:text-nick-yellow transition-colors mb-3 leading-tight">
                       {article.title}
                     </h2>
                     <p className="text-foreground/60 text-sm leading-relaxed line-clamp-3">
                       {article.excerpt}
                     </p>
-                    <div className="mt-4 flex items-center gap-2 text-nick-yellow font-heading font-bold text-xs tracking-wider uppercase">
+                    <div className="mt-4 flex items-center gap-2 text-nick-yellow font-semibold font-bold text-xs tracking-wider uppercase">
                       READ MORE
                       <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </div>
@@ -199,22 +135,22 @@ export default function Blog() {
       </section>
 
       {/* Footer CTA */}
-      <section className="section-darker py-16 border-t border-nick-teal/10">
-        <div className="h-1.5 w-full bg-gradient-to-r from-nick-yellow via-nick-orange to-nick-teal" />
+      <section className="section-darker py-16 border-t border-nick-blue/10">
+        
         <div className="container text-center pt-12">
           <FadeIn>
-            <h2 className="font-heading font-bold text-3xl lg:text-4xl text-foreground tracking-tight mb-4">
+            <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground tracking-tight mb-4">
               NEED A REPAIR?
             </h2>
             <p className="text-foreground/60 text-lg mb-8 max-w-xl mx-auto">
               If something does not feel right with your vehicle, bring it in. We will diagnose the problem and explain your options.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <a href="tel:2168620005" className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow">
+              <a href="tel:2168620005" className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors">
                 <Phone className="w-5 h-5" />
                 CALL NOW
               </a>
-              <Link href="/#contact" className="inline-flex items-center justify-center gap-2 border-2 border-nick-teal/50 text-nick-teal px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-teal/10 hover:border-nick-teal transition-colors">
+              <Link href="/#contact" className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
                 BOOK ONLINE
               </Link>
             </div>
@@ -223,20 +159,7 @@ export default function Blog() {
       </section>
 
       {/* Mini Footer */}
-      <footer className="section-dark border-t border-nick-teal/10 py-8">
-        <div className="container flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-nick-yellow flex items-center justify-center rounded-md">
-              <span className="font-heading font-bold text-nick-dark text-sm">N</span>
-            </div>
-            <span className="font-heading font-bold text-nick-yellow tracking-wider text-sm">NICK'S TIRE & AUTO</span>
-          </div>
-          <div className="flex items-center gap-4 text-foreground/40 text-xs font-mono">
-            <span className="flex items-center gap-1"><MapPin className="w-3 h-3" /> 17625 Euclid Ave, Cleveland, OH</span>
-            <a href="tel:2168620005" className="hover:text-nick-yellow transition-colors">(216) 862-0005</a>
-          </div>
-        </div>
-      </footer>
-    </div>
+      
+    </PageLayout>
   );
 }

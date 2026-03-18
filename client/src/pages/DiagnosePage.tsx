@@ -4,11 +4,9 @@
  * Guides users through symptom selection, provides AI analysis, and converts to leads.
  */
 
+import PageLayout from "@/components/PageLayout";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "wouter";
-import NotificationBar from "@/components/NotificationBar";
-import SearchBar from "@/components/SearchBar";
-import ChatWidget from "@/components/ChatWidget";
 import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
 import { trpc } from "@/lib/trpc";
 import {
@@ -147,97 +145,6 @@ const MAKES = [
 ];
 
 // ─── NAVIGATION ────────────────────────────────────────
-function DiagnoseNavbar() {
-  const [scrolled, setScrolled] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const links = [
-    { label: "Services", href: "/#services" },
-    { label: "About", href: "/about" },
-    { label: "Reviews", href: "/reviews" },
-    { label: "Blog", href: "/blog" },
-    { label: "Contact", href: "/contact" },
-  ];
-
-  return (
-    <nav className={`fixed ${scrolled ? "top-0" : "top-[40px]"} left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-background/95 backdrop-blur-md shadow-lg shadow-nick-yellow/5" : "bg-transparent"}`}>
-      <div className="container flex items-center justify-between h-16 lg:h-20">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-nick-yellow flex items-center justify-center rounded-md glow-yellow">
-            <span className="font-heading font-bold text-nick-dark text-lg">N</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-heading font-bold text-nick-yellow text-lg leading-tight tracking-wide">NICK'S TIRE & AUTO</span>
-            <span className="text-nick-teal text-xs tracking-widest uppercase font-medium">Cleveland, Ohio</span>
-          </div>
-        </Link>
-
-        <div className="hidden lg:flex items-center gap-6">
-          <SearchBar />
-          {links.map((l) => (
-            <Link key={l.href} href={l.href} className="font-heading text-sm tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors">
-              {l.label}
-            </Link>
-          ))}
-          <a href="tel:2168620005" onClick={() => trackPhoneClick("diagnose-nav")} className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow">
-            <Phone className="w-4 h-4" />
-            (216) 862-0005
-          </a>
-        </div>
-
-        <div className="lg:hidden flex items-center gap-1">
-          <SearchBar />
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="text-foreground p-2">
-            {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
-        </div>
-      </div>
-
-      {mobileOpen && (
-        <div className="lg:hidden bg-background/98 backdrop-blur-md border-t border-nick-yellow/20">
-          <div className="container py-6 flex flex-col gap-4">
-            {links.map((l) => (
-              <Link key={l.href} href={l.href} onClick={() => setMobileOpen(false)} className="font-heading text-lg tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors py-2">
-                {l.label}
-              </Link>
-            ))}
-            <a href="tel:2168620005" className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-5 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase mt-2 glow-yellow">
-              <Phone className="w-4 h-4" />
-              (216) 862-0005
-            </a>
-          </div>
-        </div>
-      )}
-    </nav>
-  );
-}
-
-function MobileCTA() {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setVisible(window.scrollY > 400);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  if (!visible) return null;
-
-  return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/95 backdrop-blur-md border-t border-nick-yellow/30 p-3">
-      <a href="tel:2168620005" className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark w-full py-3.5 rounded-md font-heading font-bold text-base tracking-wider uppercase glow-yellow">
-        <Phone className="w-5 h-5" />
-        CALL (216) 862-0005
-      </a>
-    </div>
-  );
-}
 
 // ─── STEP COMPONENTS ───────────────────────────────────
 
@@ -246,7 +153,7 @@ function StepIndicator({ currentStep, totalSteps }: { currentStep: number; total
     <div className="flex items-center gap-2 mb-8">
       {Array.from({ length: totalSteps }, (_, i) => (
         <div key={i} className="flex items-center gap-2">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-heading font-bold text-sm transition-all ${
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold font-bold text-sm transition-all ${
             i < currentStep
               ? "bg-nick-yellow text-nick-dark"
               : i === currentStep
@@ -272,7 +179,7 @@ function VehicleStep({ vehicle, setVehicle, onNext }: {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="font-heading font-bold text-2xl text-foreground tracking-wider mb-2">
+        <h3 className="font-semibold font-bold text-2xl text-foreground tracking-wider mb-2">
           TELL US ABOUT YOUR VEHICLE
         </h3>
         <p className="text-foreground/60 text-sm">
@@ -328,7 +235,7 @@ function VehicleStep({ vehicle, setVehicle, onNext }: {
       <div className="flex justify-end">
         <button
           onClick={onNext}
-          className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow"
+          className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors"
         >
           NEXT: SELECT SYMPTOMS
           <ChevronRight className="w-4 h-4" />
@@ -349,7 +256,7 @@ function SymptomsStep({ selectedSymptoms, toggleSymptom, onNext, onBack }: {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="font-heading font-bold text-2xl text-foreground tracking-wider mb-2">
+        <h3 className="font-semibold font-bold text-2xl text-foreground tracking-wider mb-2">
           WHAT SYMPTOMS ARE YOU EXPERIENCING?
         </h3>
         <p className="text-foreground/60 text-sm">
@@ -371,7 +278,7 @@ function SymptomsStep({ selectedSymptoms, toggleSymptom, onNext, onBack }: {
             >
               <div className="flex items-center gap-3">
                 <span className={cat.color}>{cat.icon}</span>
-                <span className="font-heading font-bold text-foreground tracking-wider text-sm">{cat.label}</span>
+                <span className="font-semibold font-bold text-foreground tracking-wider text-sm">{cat.label}</span>
                 {cat.symptoms.filter(s => selectedSymptoms.includes(s.id)).length > 0 && (
                   <span className="bg-nick-yellow/20 text-nick-yellow px-2 py-0.5 font-mono text-[10px] tracking-wider rounded">
                     {cat.symptoms.filter(s => selectedSymptoms.includes(s.id)).length} SELECTED
@@ -430,7 +337,7 @@ function SymptomsStep({ selectedSymptoms, toggleSymptom, onNext, onBack }: {
       <div className="flex justify-between">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 border border-border/30 text-foreground/60 px-5 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:text-foreground transition-colors"
+          className="flex items-center gap-2 border border-border/30 text-foreground/60 px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:text-foreground transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
           BACK
@@ -438,7 +345,7 @@ function SymptomsStep({ selectedSymptoms, toggleSymptom, onNext, onBack }: {
         <button
           onClick={onNext}
           disabled={selectedSymptoms.length === 0}
-          className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           NEXT: ADD DETAILS
           <ChevronRight className="w-4 h-4" />
@@ -458,7 +365,7 @@ function DetailsStep({ additionalInfo, setAdditionalInfo, onAnalyze, onBack, isA
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="font-heading font-bold text-2xl text-foreground tracking-wider mb-2">
+        <h3 className="font-semibold font-bold text-2xl text-foreground tracking-wider mb-2">
           ANYTHING ELSE WE SHOULD KNOW?
         </h3>
         <p className="text-foreground/60 text-sm">
@@ -477,7 +384,7 @@ function DetailsStep({ additionalInfo, setAdditionalInfo, onAnalyze, onBack, isA
       <div className="flex justify-between">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 border border-border/30 text-foreground/60 px-5 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:text-foreground transition-colors"
+          className="flex items-center gap-2 border border-border/30 text-foreground/60 px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:text-foreground transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
           BACK
@@ -485,7 +392,7 @@ function DetailsStep({ additionalInfo, setAdditionalInfo, onAnalyze, onBack, isA
         <button
           onClick={onAnalyze}
           disabled={isAnalyzing}
-          className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow disabled:opacity-70"
+          className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors disabled:opacity-70"
         >
           {isAnalyzing ? (
             <>
@@ -540,7 +447,7 @@ function ResultsStep({ result, vehicle, onReset, onBook }: {
           {(result.urgency === "high" || result.urgency === "critical") && (
             <AlertTriangle className={`w-5 h-5 ${uc.color}`} />
           )}
-          <span className={`font-heading font-bold text-sm tracking-wider ${uc.color}`}>{uc.label}</span>
+          <span className={`font-semibold font-bold text-sm tracking-wider ${uc.color}`}>{uc.label}</span>
         </div>
         <div className="flex items-center gap-2 mb-2">
           <div className="flex-1 h-2 bg-background/50 rounded-full overflow-hidden">
@@ -555,7 +462,7 @@ function ResultsStep({ result, vehicle, onReset, onBook }: {
 
       {/* Diagnosis Title */}
       <div>
-        <h3 className="font-heading font-bold text-2xl text-foreground tracking-wider mb-2">
+        <h3 className="font-semibold font-bold text-2xl text-foreground tracking-wider mb-2">
           {result.title}
         </h3>
         {vehicleStr && (
@@ -569,17 +476,17 @@ function ResultsStep({ result, vehicle, onReset, onBook }: {
 
       {/* Likely Causes */}
       <div>
-        <h4 className="font-heading font-bold text-sm text-nick-teal tracking-wider uppercase mb-4">
+        <h4 className="font-semibold font-bold text-sm text-nick-blue-light tracking-wider uppercase mb-4">
           MOST LIKELY CAUSES
         </h4>
         <div className="space-y-3">
           {result.likelyCauses.map((cause, i) => (
             <div key={i} className="bg-card/50 border border-border/20 rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
-                <h5 className="font-heading font-bold text-foreground tracking-wider text-sm">{cause.cause}</h5>
+                <h5 className="font-semibold font-bold text-foreground tracking-wider text-sm">{cause.cause}</h5>
                 <span className={`font-mono text-[10px] tracking-wider px-2 py-0.5 rounded ${
                   cause.likelihood === "High" ? "bg-nick-yellow/20 text-nick-yellow" :
-                  cause.likelihood === "Medium" ? "bg-nick-teal/20 text-nick-teal" :
+                  cause.likelihood === "Medium" ? "bg-nick-blue/20 text-nick-blue-light" :
                   "bg-foreground/10 text-foreground/50"
                 }`}>
                   {cause.likelihood.toUpperCase()} LIKELIHOOD
@@ -598,21 +505,21 @@ function ResultsStep({ result, vehicle, onReset, onBook }: {
             <Wrench className="w-4 h-4 text-nick-yellow" />
             <span className="font-mono text-xs text-foreground/50 tracking-wider uppercase">Recommended Service</span>
           </div>
-          <p className="font-heading font-bold text-foreground tracking-wider">{result.recommendedService}</p>
+          <p className="font-semibold font-bold text-foreground tracking-wider">{result.recommendedService}</p>
         </div>
-        <div className="bg-card/50 border border-nick-teal/20 rounded-lg p-5">
+        <div className="bg-card/50 border border-nick-blue/20 rounded-lg p-5">
           <div className="flex items-center gap-2 mb-2">
-            <CircleDot className="w-4 h-4 text-nick-teal" />
+            <CircleDot className="w-4 h-4 text-nick-blue-light" />
             <span className="font-mono text-xs text-foreground/50 tracking-wider uppercase">Estimated Cost Range</span>
           </div>
-          <p className="font-heading font-bold text-foreground tracking-wider">{result.estimatedCostRange}</p>
+          <p className="font-semibold font-bold text-foreground tracking-wider">{result.estimatedCostRange}</p>
           <p className="font-mono text-[10px] text-foreground/40 mt-1">*Actual cost determined after in-person diagnosis</p>
         </div>
       </div>
 
       {/* Next Steps */}
       <div>
-        <h4 className="font-heading font-bold text-sm text-nick-teal tracking-wider uppercase mb-3">
+        <h4 className="font-semibold font-bold text-sm text-nick-blue-light tracking-wider uppercase mb-3">
           RECOMMENDED NEXT STEPS
         </h4>
         <ol className="space-y-2">
@@ -640,14 +547,14 @@ function ResultsStep({ result, vehicle, onReset, onBook }: {
         <a
           href="tel:2168620005"
           onClick={() => trackPhoneClick("diagnose-results")}
-          className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-base tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow flex-1"
+          className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-base tracking-wider uppercase hover:bg-nick-gold transition-colors flex-1"
         >
           <Phone className="w-5 h-5" />
           CALL (216) 862-0005
         </a>
         <Link
           href="/contact"
-          className="flex items-center justify-center gap-2 border-2 border-nick-teal/50 text-nick-teal px-8 py-4 rounded-md font-heading font-bold text-base tracking-wider uppercase hover:bg-nick-teal/10 hover:border-nick-teal transition-colors flex-1"
+          className="flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-base tracking-wider uppercase hover:bg-nick-blue/10 hover:border-nick-blue transition-colors flex-1"
         >
           BOOK APPOINTMENT
           <ArrowRight className="w-5 h-5" />
@@ -747,16 +654,16 @@ export default function DiagnosePage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <PageLayout activeHref="/diagnose" showChat={true}>
       <SEOHead
         title="What's Wrong With My Car? — Free Diagnostic Tool | Nick's Tire & Auto"
         description="Describe your car's symptoms and get a free preliminary diagnosis from Nick's Tire & Auto in Cleveland. AI-powered symptom checker helps identify potential issues before you visit."
         canonicalPath="/diagnose"
       />
-      <SkipToContent />
+      
 
-      <NotificationBar />
-      <DiagnoseNavbar />
+      
+      
 
       <main id="main-content">
         {/* Hero */}
@@ -776,9 +683,9 @@ export default function DiagnosePage() {
                 <div className="w-12 h-12 bg-nick-yellow/20 rounded-lg flex items-center justify-center">
                   <Activity className="w-6 h-6 text-nick-yellow" />
                 </div>
-                <span className="font-mono text-nick-teal text-xs tracking-widest uppercase">Free Diagnostic Tool</span>
+                <span className="font-mono text-nick-blue-light text-xs tracking-wide">Free Diagnostic Tool</span>
               </div>
-              <h1 className="font-heading font-bold text-4xl lg:text-6xl text-foreground tracking-tight leading-[0.95]">
+              <h1 className="font-semibold font-bold text-4xl lg:text-6xl text-foreground tracking-tight leading-[0.95]">
                 WHAT'S WRONG WITH<br />
                 <span className="text-gradient-yellow">MY CAR</span>?
               </h1>
@@ -827,7 +734,7 @@ export default function DiagnosePage() {
         <section className="section-dark py-16">
           <div className="container max-w-3xl text-center">
             <FadeIn>
-              <h2 className="font-heading font-bold text-2xl text-foreground tracking-wider mb-4">
+              <h2 className="font-semibold font-bold text-2xl text-foreground tracking-wider mb-4">
                 WHY USE THIS <span className="text-gradient-yellow">TOOL</span>?
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-8">
@@ -835,21 +742,21 @@ export default function DiagnosePage() {
                   <div className="w-12 h-12 bg-nick-yellow/10 rounded-lg flex items-center justify-center mx-auto mb-3">
                     <Shield className="w-6 h-6 text-nick-yellow" />
                   </div>
-                  <h3 className="font-heading font-bold text-foreground tracking-wider text-sm mb-2">UNDERSTAND FIRST</h3>
+                  <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm mb-2">UNDERSTAND FIRST</h3>
                   <p className="text-foreground/50 text-sm">Know what might be wrong before you visit any shop. No surprises.</p>
                 </div>
                 <div className="text-center">
-                  <div className="w-12 h-12 bg-nick-teal/10 rounded-lg flex items-center justify-center mx-auto mb-3">
-                    <Zap className="w-6 h-6 text-nick-teal" />
+                  <div className="w-12 h-12 bg-nick-blue/10 rounded-lg flex items-center justify-center mx-auto mb-3">
+                    <Zap className="w-6 h-6 text-nick-blue-light" />
                   </div>
-                  <h3 className="font-heading font-bold text-foreground tracking-wider text-sm mb-2">FAST & FREE</h3>
+                  <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm mb-2">FAST & FREE</h3>
                   <p className="text-foreground/50 text-sm">Get a preliminary assessment in under 60 seconds. No cost, no obligation.</p>
                 </div>
                 <div className="text-center">
-                  <div className="w-12 h-12 bg-nick-orange/10 rounded-lg flex items-center justify-center mx-auto mb-3">
-                    <Wrench className="w-6 h-6 text-nick-orange" />
+                  <div className="w-12 h-12 bg-nick-yellow/10 rounded-lg flex items-center justify-center mx-auto mb-3">
+                    <Wrench className="w-6 h-6 text-nick-yellow" />
                   </div>
-                  <h3 className="font-heading font-bold text-foreground tracking-wider text-sm mb-2">EXPERT BACKED</h3>
+                  <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm mb-2">EXPERT BACKED</h3>
                   <p className="text-foreground/50 text-sm">Built on real diagnostic knowledge from professional auto technicians.</p>
                 </div>
               </div>
@@ -859,21 +766,21 @@ export default function DiagnosePage() {
 
         {/* CTA */}
         <section className="section-dark py-16">
-          <div className="h-1.5 w-full bg-gradient-to-r from-nick-yellow via-nick-orange to-nick-teal" />
+          
           <div className="container pt-12 text-center">
             <FadeIn>
-              <h2 className="font-heading font-bold text-3xl lg:text-4xl text-foreground tracking-tight">
+              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground tracking-tight">
                 PREFER TO <span className="text-gradient-yellow">TALK</span>?
               </h2>
               <p className="mt-4 text-foreground/60 text-lg max-w-xl mx-auto">
                 Our technicians are happy to discuss your vehicle's symptoms over the phone. Call us for a free consultation.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="tel:2168620005" onClick={() => trackPhoneClick("diagnose-cta")} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow">
+                <a href="tel:2168620005" onClick={() => trackPhoneClick("diagnose-cta")} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors">
                   <Phone className="w-5 h-5" />
                   CALL (216) 862-0005
                 </a>
-                <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-nick-teal/50 text-nick-teal px-8 py-4 rounded-md font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-teal/10 hover:border-nick-teal transition-colors">
+                <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
                   BOOK ONLINE
                 </Link>
               </div>
@@ -882,67 +789,11 @@ export default function DiagnosePage() {
         </section>
 
         {/* Footer */}
-        <footer className="section-dark border-t border-nick-yellow/10">
-          <div className="h-1.5 w-full bg-gradient-to-r from-nick-yellow via-nick-orange to-nick-teal" />
-          <div className="container py-12">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div>
-                <Link href="/" className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-nick-yellow flex items-center justify-center rounded-md">
-                    <span className="font-heading font-bold text-nick-dark text-sm">N</span>
-                  </div>
-                  <span className="font-heading font-bold text-nick-yellow tracking-wider">NICK'S TIRE & AUTO</span>
-                </Link>
-                <p className="text-foreground/50 text-sm leading-relaxed">
-                  Honest auto repair and tire services for Cleveland, Euclid, and Northeast Ohio. Fair prices, real diagnostics, no surprises.
-                </p>
-              </div>
-
-              <div>
-                <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4">Services</h4>
-                <div className="space-y-2 text-sm text-foreground/50">
-                  <p><Link href="/tires" className="hover:text-nick-yellow transition-colors">Tires &amp; Tire Repair</Link></p>
-                  <p><Link href="/brakes" className="hover:text-nick-yellow transition-colors">Brake Repair</Link></p>
-                  <p><Link href="/diagnostics" className="hover:text-nick-yellow transition-colors">Check Engine Light Diagnostics</Link></p>
-                  <p><Link href="/emissions" className="hover:text-nick-yellow transition-colors">Ohio E-Check &amp; Emissions Repair</Link></p>
-                  <p><Link href="/oil-change" className="hover:text-nick-yellow transition-colors">Oil Changes</Link></p>
-                  <p><Link href="/general-repair" className="hover:text-nick-yellow transition-colors">Suspension &amp; Steering</Link></p>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4">Areas Served</h4>
-                <div className="space-y-2 text-sm text-foreground/50">
-                  <p>Cleveland, OH</p>
-                  <Link href="/euclid-auto-repair" className="block hover:text-nick-yellow transition-colors">Euclid, OH</Link>
-                  <Link href="/east-cleveland-auto-repair" className="block hover:text-nick-yellow transition-colors">East Cleveland, OH</Link>
-                  <Link href="/lakewood-auto-repair" className="block hover:text-nick-yellow transition-colors">Lakewood, OH</Link>
-                  <Link href="/parma-auto-repair" className="block hover:text-nick-yellow transition-colors">Parma, OH</Link>
-                  <p>Northeast Ohio</p>
-                </div>
-                <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4 mt-6">Resources</h4>
-                <div className="space-y-2 text-sm text-foreground/50">
-                  <Link href="/faq" className="block hover:text-nick-yellow transition-colors">FAQ</Link>
-                  <Link href="/blog" className="block hover:text-nick-yellow transition-colors">Auto Repair Blog</Link>
-                  <Link href="/contact" className="block hover:text-nick-yellow transition-colors">Contact</Link>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-12 pt-8 border-t border-nick-yellow/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <p className="text-foreground/30 text-xs font-mono">
-                &copy; {new Date().getFullYear()} NICK'S TIRE &amp; AUTO. ALL RIGHTS RESERVED.
-              </p>
-              <a href="tel:2168620005" className="text-nick-yellow font-mono text-sm hover:text-nick-gold transition-colors">
-                (216) 862-0005
-              </a>
-            </div>
-          </div>
-        </footer>
+        
       </main>
 
-      <ChatWidget />
-      <MobileCTA />
-    </div>
+      
+      
+    </PageLayout>
   );
 }

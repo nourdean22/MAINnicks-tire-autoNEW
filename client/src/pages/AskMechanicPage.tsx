@@ -3,10 +3,9 @@
  * Customers ask questions, Nick's team answers publicly. Builds authority and SEO.
  */
 
+import PageLayout from "@/components/PageLayout";
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import NotificationBar from "@/components/NotificationBar";
-import SearchBar from "@/components/SearchBar";
 import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Menu, X, MessageCircle, ChevronRight, CheckCircle, HelpCircle, ThumbsUp, Search } from "lucide-react";
 import { motion, useInView } from "framer-motion";
@@ -19,52 +18,6 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
     <motion.div ref={ref} initial={{ opacity: 0, y: 30 }} animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }} transition={{ duration: 0.5, delay, ease: "easeOut" }} className={className}>
       {children}
     </motion.div>
-  );
-}
-
-function AskNavbar() {
-  const [scrolled, setScrolled] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-  const links = [
-    { label: "Services", href: "/#services" },
-    { label: "About", href: "/about" },
-    { label: "Reviews", href: "/reviews" },
-    { label: "Specials", href: "/specials" },
-    { label: "Contact", href: "/contact" },
-  ];
-  return (
-    <nav className={`fixed ${scrolled ? "top-0" : "top-[40px]"} left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-background/95 backdrop-blur-md shadow-lg shadow-nick-yellow/5" : "bg-transparent"}`}>
-      <div className="container flex items-center justify-between h-16 lg:h-20">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-nick-yellow flex items-center justify-center rounded-md glow-yellow"><span className="font-heading font-bold text-nick-dark text-lg">N</span></div>
-          <div className="flex flex-col">
-            <span className="font-heading font-bold text-nick-yellow text-lg leading-tight tracking-wide">NICK'S TIRE & AUTO</span>
-            <span className="text-nick-teal text-xs tracking-widest uppercase font-medium">Cleveland, Ohio</span>
-          </div>
-        </Link>
-        <div className="hidden lg:flex items-center gap-6">
-          <SearchBar />
-          {links.map((l) => (<Link key={l.href} href={l.href} className="font-heading text-sm tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors">{l.label}</Link>))}
-          <a href="tel:2168620005" className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow"><Phone className="w-4 h-4" />(216) 862-0005</a>
-        </div>
-        <div className="lg:hidden flex items-center gap-1">
-          <SearchBar />
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="text-foreground p-2">{mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}</button>
-        </div>
-      </div>
-      {mobileOpen && (
-        <div className="lg:hidden bg-background/98 backdrop-blur-md border-t border-nick-yellow/20">
-          <div className="container py-6 flex flex-col gap-4">
-            {links.map((l) => (<Link key={l.href} href={l.href} onClick={() => setMobileOpen(false)} className="font-heading text-lg tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors py-2">{l.label}</Link>))}
-          </div>
-        </div>
-      )}
-    </nav>
   );
 }
 
@@ -102,17 +55,17 @@ export default function AskMechanicPage() {
   });
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <PageLayout>
       <SEOHead
         title="Ask a Mechanic | Free Auto Repair Q&A — Nick's Tire & Auto Cleveland"
         description="Got a car question? Ask our mechanics for free. Browse answered questions about brakes, engine problems, tires, and more at Nick's Tire & Auto in Cleveland."
         canonicalPath="/ask"
       />
-      <SkipToContent />
-      <NotificationBar />
-      <AskNavbar />
+      
+      
+      
 
-      <main id="main-content">
+
         {/* Hero */}
         <section className="relative pt-32 lg:pt-40 pb-12 lg:pb-16 bg-background">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--nick-yellow-alpha)_0%,_transparent_60%)] opacity-20" />
@@ -121,9 +74,9 @@ export default function AskMechanicPage() {
             <FadeIn>
               <div className="flex items-center gap-3 mb-4">
                 <MessageCircle className="w-6 h-6 text-nick-yellow" />
-                <span className="font-mono text-nick-teal text-sm tracking-widest uppercase">Free Expert Advice</span>
+                <span className="font-mono text-nick-blue-light text-sm tracking-wide">Free Expert Advice</span>
               </div>
-              <h1 className="font-heading font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
+              <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
                 ASK A<br />
                 <span className="text-gradient-yellow">MECHANIC</span>
               </h1>
@@ -132,7 +85,7 @@ export default function AskMechanicPage() {
               </p>
               <button
                 onClick={() => setShowForm(true)}
-                className="mt-6 inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-3 font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors"
+                className="mt-6 inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-3 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors"
               >
                 ASK YOUR QUESTION
                 <ChevronRight className="w-4 h-4" />
@@ -147,7 +100,7 @@ export default function AskMechanicPage() {
             <div className="container max-w-2xl">
               <FadeIn>
                 <div className="border border-nick-yellow/30 bg-nick-dark/50 p-6 lg:p-8">
-                  <h2 className="font-heading font-bold text-xl text-foreground tracking-wider mb-6">SUBMIT YOUR QUESTION</h2>
+                  <h2 className="font-semibold font-bold text-xl text-foreground tracking-wider mb-6">SUBMIT YOUR QUESTION</h2>
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
@@ -177,10 +130,10 @@ export default function AskMechanicPage() {
                       <textarea required rows={4} value={form.question} onChange={(e) => setForm({ ...form, question: e.target.value })} placeholder="Describe your car problem or question in detail..." className="w-full bg-background border border-nick-yellow/20 text-foreground px-3 py-2.5 focus:border-nick-yellow outline-none placeholder:text-foreground/30 resize-none" />
                     </div>
                     <div className="flex gap-3">
-                      <button type="submit" disabled={submitQuestion.isPending} className="bg-nick-yellow text-nick-dark px-6 py-2.5 font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors disabled:opacity-50">
+                      <button type="submit" disabled={submitQuestion.isPending} className="bg-nick-yellow text-nick-dark px-6 py-2.5 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors disabled:opacity-50">
                         {submitQuestion.isPending ? "SUBMITTING..." : "SUBMIT QUESTION"}
                       </button>
-                      <button type="button" onClick={() => setShowForm(false)} className="border border-foreground/30 text-foreground px-6 py-2.5 font-heading font-bold text-sm tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors">
+                      <button type="button" onClick={() => setShowForm(false)} className="border border-foreground/30 text-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors">
                         CANCEL
                       </button>
                     </div>
@@ -196,9 +149,9 @@ export default function AskMechanicPage() {
             <div className="container max-w-2xl text-center">
               <FadeIn>
                 <CheckCircle className="w-12 h-12 text-nick-yellow mx-auto mb-4" />
-                <h2 className="font-heading font-bold text-2xl text-foreground tracking-wider mb-3">QUESTION SUBMITTED</h2>
+                <h2 className="font-semibold font-bold text-2xl text-foreground tracking-wider mb-3">QUESTION SUBMITTED</h2>
                 <p className="text-foreground/60 mb-6">Our team will review and answer your question. Check back soon.</p>
-                <button onClick={() => { setSubmitted(false); setShowForm(false); setForm({ questionerName: "", questionerEmail: "", question: "", vehicleInfo: "", category: "" }); }} className="bg-nick-yellow text-nick-dark px-6 py-2.5 font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors">
+                <button onClick={() => { setSubmitted(false); setShowForm(false); setForm({ questionerName: "", questionerEmail: "", question: "", vehicleInfo: "", category: "" }); }} className="bg-nick-yellow text-nick-dark px-6 py-2.5 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors">
                   ASK ANOTHER QUESTION
                 </button>
               </FadeIn>
@@ -208,10 +161,10 @@ export default function AskMechanicPage() {
 
         {/* Q&A List */}
         <section className="py-12 lg:py-16 section-darker">
-          <div className="caution-stripe h-2 w-full" />
+          <div className="hidden" />
           <div className="container pt-12">
             <FadeIn>
-              <h2 className="font-heading font-bold text-3xl lg:text-4xl text-foreground tracking-tight mb-6">
+              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground tracking-tight mb-6">
                 ANSWERED <span className="text-gradient-yellow">QUESTIONS</span>
               </h2>
             </FadeIn>
@@ -262,17 +215,17 @@ export default function AskMechanicPage() {
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-heading font-bold text-foreground text-sm tracking-wider">{q.questionerName}</span>
-                            {q.vehicleInfo && <span className="text-nick-teal text-xs font-mono">• {q.vehicleInfo}</span>}
+                            <span className="font-semibold font-bold text-foreground text-sm tracking-wider">{q.questionerName}</span>
+                            {q.vehicleInfo && <span className="text-nick-blue-light text-xs font-mono">• {q.vehicleInfo}</span>}
                             {q.category && <span className="text-foreground/30 text-xs font-mono bg-foreground/5 px-1.5 py-0.5 rounded">{q.category}</span>}
                           </div>
                           <p className="text-foreground/80 leading-relaxed">{q.question}</p>
                         </div>
                       </div>
                       {q.answer && (
-                        <div className="mt-4 ml-14 pl-4 border-l-2 border-nick-teal/30">
+                        <div className="mt-4 ml-14 pl-4 border-l-2 border-nick-blue/30">
                           <div className="flex items-center gap-2 mb-2">
-                            <span className="font-heading font-bold text-nick-teal text-xs tracking-widest uppercase">{q.answeredBy || "Nick's Tire & Auto"}</span>
+                            <span className="font-semibold font-bold text-nick-blue-light text-xs tracking-wide">{q.answeredBy || "Nick's Tire & Auto"}</span>
                           </div>
                           <p className="text-foreground/70 leading-relaxed text-sm">{q.answer}</p>
                         </div>
@@ -284,11 +237,11 @@ export default function AskMechanicPage() {
             ) : (
               <div className="text-center py-16">
                 <MessageCircle className="w-12 h-12 text-nick-yellow/20 mx-auto mb-4" />
-                <h3 className="font-heading font-bold text-foreground/60 text-lg tracking-wider mb-2">
+                <h3 className="font-semibold font-bold text-foreground/60 text-lg tracking-wider mb-2">
                   {searchQuery || filterCategory !== "All" ? "NO MATCHING QUESTIONS" : "NO QUESTIONS YET"}
                 </h3>
                 <p className="text-foreground/40 text-sm mb-6">Be the first to ask a question.</p>
-                <button onClick={() => setShowForm(true)} className="bg-nick-yellow text-nick-dark px-6 py-2.5 font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors">
+                <button onClick={() => setShowForm(true)} className="bg-nick-yellow text-nick-dark px-6 py-2.5 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors">
                   ASK A QUESTION
                 </button>
               </div>
@@ -297,19 +250,8 @@ export default function AskMechanicPage() {
         </section>
 
         {/* Footer */}
-        <footer className="bg-background border-t border-nick-yellow/10 py-12">
-          <div className="container">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <Link href="/" className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-nick-yellow flex items-center justify-center rounded-md"><span className="font-heading font-bold text-nick-dark text-sm">N</span></div>
-                <span className="font-heading font-bold text-nick-yellow tracking-wider">NICK'S TIRE & AUTO</span>
-              </Link>
-              <p className="text-foreground/30 text-xs font-mono">&copy; {new Date().getFullYear()} NICK'S TIRE & AUTO</p>
-              <a href="tel:2168620005" className="text-nick-yellow font-mono text-sm">(216) 862-0005</a>
-            </div>
-          </div>
-        </footer>
-      </main>
-    </div>
+        
+
+    </PageLayout>
   );
 }

@@ -3,10 +3,9 @@
  * Educational content that builds trust and SEO authority.
  */
 
+import PageLayout from "@/components/PageLayout";
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import NotificationBar from "@/components/NotificationBar";
-import SearchBar from "@/components/SearchBar";
 import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Menu, X, BookOpen, ChevronRight, Snowflake, Sun, Leaf, Droplets, Wrench, AlertTriangle, CheckCircle, Gauge } from "lucide-react";
 import { motion, useInView } from "framer-motion";
@@ -18,70 +17,6 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
     <motion.div ref={ref} initial={{ opacity: 0, y: 30 }} animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }} transition={{ duration: 0.5, delay, ease: "easeOut" }} className={className}>
       {children}
     </motion.div>
-  );
-}
-
-function GuideNavbar() {
-  const [scrolled, setScrolled] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-  const links = [
-    { label: "Services", href: "/#services" },
-    { label: "About", href: "/about" },
-    { label: "Reviews", href: "/reviews" },
-    { label: "Specials", href: "/specials" },
-    { label: "Contact", href: "/contact" },
-  ];
-  return (
-    <nav className={`fixed ${scrolled ? "top-0" : "top-[40px]"} left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-background/95 backdrop-blur-md shadow-lg shadow-nick-yellow/5" : "bg-transparent"}`}>
-      <div className="container flex items-center justify-between h-16 lg:h-20">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-nick-yellow flex items-center justify-center rounded-md glow-yellow"><span className="font-heading font-bold text-nick-dark text-lg">N</span></div>
-          <div className="flex flex-col">
-            <span className="font-heading font-bold text-nick-yellow text-lg leading-tight tracking-wide">NICK'S TIRE & AUTO</span>
-            <span className="text-nick-teal text-xs tracking-widest uppercase font-medium">Cleveland, Ohio</span>
-          </div>
-        </Link>
-        <div className="hidden lg:flex items-center gap-6">
-          <SearchBar />
-          {links.map((l) => (<Link key={l.href} href={l.href} className="font-heading text-sm tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors">{l.label}</Link>))}
-          <a href="tel:2168620005" className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow"><Phone className="w-4 h-4" />(216) 862-0005</a>
-        </div>
-        <div className="lg:hidden flex items-center gap-1">
-          <SearchBar />
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="text-foreground p-2">{mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}</button>
-        </div>
-      </div>
-      {mobileOpen && (
-        <div className="lg:hidden bg-background/98 backdrop-blur-md border-t border-nick-yellow/20">
-          <div className="container py-6 flex flex-col gap-4">
-            {links.map((l) => (<Link key={l.href} href={l.href} onClick={() => setMobileOpen(false)} className="font-heading text-lg tracking-widest uppercase text-foreground/80 hover:text-nick-yellow transition-colors py-2">{l.label}</Link>))}
-          </div>
-        </div>
-      )}
-    </nav>
-  );
-}
-
-function MobileCTA() {
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setVisible(window.scrollY > 400);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-  if (!visible) return null;
-  return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/95 backdrop-blur-md border-t border-nick-yellow/30 p-3">
-      <a href="tel:2168620005" className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark w-full py-3.5 rounded-md font-heading font-bold text-base tracking-wider uppercase glow-yellow">
-        <Phone className="w-5 h-5" />
-        CALL (216) 862-0005
-      </a>
-    </div>
   );
 }
 
@@ -181,17 +116,17 @@ export default function CarCareGuidePage() {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <PageLayout>
       <SEOHead
         title="Car Care Guide — Seasonal Maintenance Tips | Nick's Tire & Auto Cleveland"
         description="Complete car care guide from Nick's Tire & Auto in Cleveland. Seasonal maintenance tips, mileage milestones, and warning signs every driver should know."
         canonicalPath="/car-care-guide"
       />
-      <SkipToContent />
-      <NotificationBar />
-      <GuideNavbar />
+      
+      
+      
 
-      <main id="main-content">
+
         {/* Hero */}
         <section className="relative pt-32 lg:pt-40 pb-16 lg:pb-20 bg-background">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--nick-yellow-alpha)_0%,_transparent_60%)] opacity-20" />
@@ -200,9 +135,9 @@ export default function CarCareGuidePage() {
             <FadeIn>
               <div className="flex items-center gap-3 mb-4">
                 <BookOpen className="w-6 h-6 text-nick-yellow" />
-                <span className="font-mono text-nick-teal text-sm tracking-widest uppercase">Maintenance Education</span>
+                <span className="font-mono text-nick-blue-light text-sm tracking-wide">Maintenance Education</span>
               </div>
-              <h1 className="font-heading font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
+              <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
                 CAR CARE<br />
                 <span className="text-gradient-yellow">GUIDE</span>
               </h1>
@@ -215,10 +150,10 @@ export default function CarCareGuidePage() {
 
         {/* Seasonal Guides */}
         <section className="py-12 lg:py-16 section-darker">
-          <div className="caution-stripe h-2 w-full" />
+          <div className="hidden" />
           <div className="container pt-12">
             <FadeIn>
-              <h2 className="font-heading font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
+              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
                 SEASONAL <span className="text-gradient-yellow">MAINTENANCE</span>
               </h2>
               <p className="mt-3 text-foreground/60 max-w-2xl">
@@ -232,7 +167,7 @@ export default function CarCareGuidePage() {
                 <button
                   key={guide.season}
                   onClick={() => setActiveSeason(i)}
-                  className={`flex items-center gap-2 px-5 py-2.5 font-heading font-bold text-sm tracking-wider uppercase transition-colors ${
+                  className={`flex items-center gap-2 px-5 py-2.5 font-semibold font-bold text-sm tracking-wider uppercase transition-colors ${
                     activeSeason === i
                       ? "bg-nick-yellow text-nick-dark"
                       : "border border-nick-yellow/20 text-foreground/60 hover:border-nick-yellow/50"
@@ -253,7 +188,7 @@ export default function CarCareGuidePage() {
                       {SEASONAL_GUIDES[activeSeason].icon}
                     </div>
                     <div>
-                      <h3 className="font-heading font-bold text-foreground text-2xl lg:text-3xl tracking-wider">{SEASONAL_GUIDES[activeSeason].title}</h3>
+                      <h3 className="font-semibold font-bold text-foreground text-2xl lg:text-3xl tracking-wider">{SEASONAL_GUIDES[activeSeason].title}</h3>
                       <p className="text-foreground/50 text-sm font-mono">{SEASONAL_GUIDES[activeSeason].subtitle}</p>
                     </div>
                   </div>
@@ -265,7 +200,7 @@ export default function CarCareGuidePage() {
                           <CheckCircle className="w-4 h-4 text-nick-yellow" />
                         </div>
                         <div>
-                          <h4 className="font-heading font-bold text-foreground text-base tracking-wider uppercase">{tip.title}</h4>
+                          <h4 className="font-semibold font-bold text-foreground text-base tracking-wider uppercase">{tip.title}</h4>
                           <p className="text-foreground/70 leading-relaxed mt-1">{tip.desc}</p>
                         </div>
                       </div>
@@ -276,7 +211,7 @@ export default function CarCareGuidePage() {
                     <a
                       href="tel:2168620005"
                       onClick={() => trackPhoneClick("car_care_guide_seasonal")}
-                      className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors"
+                      className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors"
                     >
                       <Phone className="w-4 h-4" />
                       SCHEDULE {SEASONAL_GUIDES[activeSeason].season.toUpperCase()} SERVICE
@@ -292,7 +227,7 @@ export default function CarCareGuidePage() {
         <section className="py-12 lg:py-16 bg-background">
           <div className="container">
             <FadeIn>
-              <h2 className="font-heading font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
+              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
                 MILEAGE <span className="text-gradient-yellow">MILESTONES</span>
               </h2>
               <p className="mt-3 text-foreground/60 max-w-2xl">
@@ -305,10 +240,10 @@ export default function CarCareGuidePage() {
                 <FadeIn key={item.service} delay={i * 0.05}>
                   <div className="border border-nick-yellow/15 bg-nick-dark/30 p-6 h-full">
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="text-nick-teal">{item.icon}</div>
+                      <div className="text-nick-blue-light">{item.icon}</div>
                       <span className="font-mono text-nick-yellow text-sm tracking-wider">{item.miles} MI</span>
                     </div>
-                    <h3 className="font-heading font-bold text-foreground text-lg tracking-wider uppercase mb-2">{item.service}</h3>
+                    <h3 className="font-semibold font-bold text-foreground text-lg tracking-wider uppercase mb-2">{item.service}</h3>
                     <p className="text-foreground/60 text-sm leading-relaxed">{item.desc}</p>
                   </div>
                 </FadeIn>
@@ -321,7 +256,7 @@ export default function CarCareGuidePage() {
         <section className="py-12 lg:py-16 section-darker">
           <div className="container">
             <FadeIn>
-              <h2 className="font-heading font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
+              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
                 WARNING <span className="text-gradient-yellow">SIGNS</span>
               </h2>
               <p className="mt-3 text-foreground/60 max-w-2xl">
@@ -337,10 +272,10 @@ export default function CarCareGuidePage() {
                       <AlertTriangle className="w-5 h-5 text-nick-yellow" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-heading font-bold text-foreground text-base tracking-wider uppercase">{item.sign}</h3>
+                      <h3 className="font-semibold font-bold text-foreground text-base tracking-wider uppercase">{item.sign}</h3>
                       <p className="text-foreground/60 text-sm mt-1 leading-relaxed">{item.action}</p>
                     </div>
-                    <Link href={item.link} className="shrink-0 inline-flex items-center gap-1 text-nick-yellow text-sm font-heading font-bold tracking-wider uppercase hover:text-nick-gold transition-colors">
+                    <Link href={item.link} className="shrink-0 inline-flex items-center gap-1 text-nick-yellow text-sm font-semibold font-bold tracking-wider uppercase hover:text-nick-gold transition-colors">
                       LEARN MORE
                       <ChevronRight className="w-4 h-4" />
                     </Link>
@@ -355,7 +290,7 @@ export default function CarCareGuidePage() {
         <section className="py-16 lg:py-20 bg-background">
           <div className="container text-center">
             <FadeIn>
-              <h2 className="font-heading font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
+              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
                 QUESTIONS ABOUT YOUR <span className="text-gradient-yellow">VEHICLE</span>?
               </h2>
               <p className="mt-4 text-foreground/70 text-lg max-w-xl mx-auto">
@@ -365,14 +300,14 @@ export default function CarCareGuidePage() {
                 <a
                   href="tel:2168620005"
                   onClick={() => trackPhoneClick("car_care_guide_cta")}
-                  className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 font-heading font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow"
+                  className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors"
                 >
                   <Phone className="w-5 h-5" />
                   CALL NOW
                 </a>
                 <Link
                   href="/diagnose"
-                  className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-heading font-bold text-lg tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors"
+                  className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors"
                 >
                   DIAGNOSE MY CAR
                   <ChevronRight className="w-5 h-5" />
@@ -383,65 +318,10 @@ export default function CarCareGuidePage() {
         </section>
 
         {/* Footer */}
-        <footer className="bg-background border-t border-nick-yellow/10 py-12 lg:py-16">
-          <div className="container">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
-              <div>
-                <Link href="/" className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-nick-yellow flex items-center justify-center rounded-md">
-                    <span className="font-heading font-bold text-nick-dark text-sm">N</span>
-                  </div>
-                  <span className="font-heading font-bold text-nick-yellow tracking-wider">NICK'S TIRE & AUTO</span>
-                </Link>
-                <p className="text-foreground/50 text-sm leading-relaxed">
-                  Honest auto repair and tire services for Cleveland, Euclid, and Northeast Ohio.
-                </p>
-              </div>
-              <div>
-                <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4">Services</h4>
-                <div className="space-y-2 text-sm text-foreground/50">
-                  <p><Link href="/tires" className="hover:text-nick-yellow transition-colors">Tires & Tire Repair</Link></p>
-                  <p><Link href="/brakes" className="hover:text-nick-yellow transition-colors">Brake Repair</Link></p>
-                  <p><Link href="/diagnostics" className="hover:text-nick-yellow transition-colors">Check Engine Light</Link></p>
-                  <p><Link href="/emissions" className="hover:text-nick-yellow transition-colors">Ohio E-Check</Link></p>
-                </div>
-              </div>
-              <div>
-                <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4">Resources</h4>
-                <div className="space-y-2 text-sm text-foreground/50">
-                  <p><Link href="/car-care-guide" className="hover:text-nick-yellow transition-colors">Car Care Guide</Link></p>
-                  <p><Link href="/diagnose" className="hover:text-nick-yellow transition-colors">Diagnose My Car</Link></p>
-                  <p><Link href="/ask" className="hover:text-nick-yellow transition-colors">Ask a Mechanic</Link></p>
-                  <p><Link href="/blog" className="hover:text-nick-yellow transition-colors">Auto Repair Blog</Link></p>
-                </div>
-              </div>
-              <div>
-                <h4 className="font-heading font-bold text-nick-teal tracking-wider text-sm uppercase mb-4">Contact</h4>
-                <div className="space-y-3 text-sm text-foreground/50">
-                  <div className="flex items-start gap-2">
-                    <MapPin className="w-4 h-4 text-nick-yellow mt-0.5 shrink-0" />
-                    <span>17625 Euclid Ave<br />Cleveland, OH 44112</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-nick-yellow shrink-0" />
-                    <a href="tel:2168620005" className="hover:text-nick-yellow transition-colors">(216) 862-0005</a>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-nick-yellow shrink-0" />
-                    <span>Mon–Sat 9AM–6PM</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="mt-12 pt-8 border-t border-nick-yellow/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <p className="text-foreground/30 text-xs font-mono">&copy; {new Date().getFullYear()} NICK'S TIRE & AUTO. ALL RIGHTS RESERVED.</p>
-              <a href="tel:2168620005" className="text-nick-yellow font-mono text-sm hover:text-nick-gold transition-colors">(216) 862-0005</a>
-            </div>
-          </div>
-        </footer>
-      </main>
+        
 
-      <MobileCTA />
-    </div>
+
+      
+    </PageLayout>
   );
 }
