@@ -12,6 +12,14 @@ import {
   saveAnalyticsSnapshot, getAnalyticsSnapshots,
   createCustomerNotification, getPendingNotifications, markNotificationSent,
   getBookingServiceBreakdown,
+  // New Phase 25 imports
+  createCallbackRequest, getCallbackRequests, updateCallbackStatus,
+  updateBookingStage, getBookingByPhone, getBookingByRef,
+  getServicePricingByCategory, getAllServicePricing, upsertServicePricing, seedDefaultPricing,
+  createInspection, getInspection, getInspectionByToken, getInspections, addInspectionItem, updateInspectionItem, deleteInspectionItem, publishInspection,
+  getLoyaltyRewards, createLoyaltyReward, updateLoyaltyReward,
+  getLoyaltyTransactions, awardPoints, redeemReward,
+  getUserLoyaltySummary,
 } from "./db";
 import { storagePut } from "./storage";
 import { notifyOwner } from "./_core/notification";
@@ -42,13 +50,21 @@ import { keywordSearch, aiSearch } from "./search";
 import { getDashboardStats, getSiteHealth } from "./admin-stats";
 import { runDiagnosis } from "./diagnose";
 import { z } from "zod";
-import { eq, desc, sql } from "drizzle-orm";
-import { leads, chatSessions, bookings } from "../drizzle/schema";
+import { eq, desc, sql, and, lte, gte } from "drizzle-orm";
+import { leads, chatSessions, bookings, callbackRequests, customerNotifications } from "../drizzle/schema";
 
 // Lazy db import
 async function db() {
   const { getDb } = await import("./db");
   return getDb();
+}
+
+// Generate a short reference code for bookings
+function generateRefCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "NT-";
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
 }
 
 export const appRouter = router({
@@ -107,6 +123,7 @@ export const appRouter = router({
           preferredTime: z.enum(["morning", "afternoon", "no-preference"]).default("no-preference"),
           message: z.string().optional(),
           photoUrls: z.array(z.string()).optional(),
+          urgency: z.enum(["emergency", "this-week", "whenever"]).default("whenever"),
         })
       )
       .mutation(async ({ input }) => {
@@ -114,6 +131,7 @@ export const appRouter = router({
           ? `${input.vehicleYear} ${input.vehicleMake} ${input.vehicleModel || ""}`.trim()
           : input.vehicle || null;
 
+        const refCode = generateRefCode();
         const result = await createBooking({
           name: input.name,
           phone: input.phone,
@@ -127,6 +145,9 @@ export const appRouter = router({
           preferredTime: input.preferredTime,
           message: input.message || null,
           photoUrls: input.photoUrls?.length ? JSON.stringify(input.photoUrls) : null,
+          urgency: input.urgency,
+          referenceCode: refCode,
+          priority: input.urgency === "emergency" ? 1 : input.urgency === "this-week" ? 5 : 10,
         });
 
         // Sync to Google Sheets
@@ -141,14 +162,15 @@ export const appRouter = router({
           message: input.message,
         }).catch(err => console.error("[Sheets] Booking sync failed:", err));
 
-        // Notify shop owner
+        // Notify shop owner — urgent bookings get special treatment
+        const urgencyLabel = input.urgency === "emergency" ? "🔴 EMERGENCY" : input.urgency === "this-week" ? "🟡 This Week" : "Routine";
         const photoNote = input.photoUrls?.length ? `\nPhotos: ${input.photoUrls.length} attached` : "";
         await notifyOwner({
-          title: `New Booking: ${input.service}`,
-          content: `Name: ${input.name}\nPhone: ${input.phone}\nService: ${input.service}\nVehicle: ${vehicleStr || "Not specified"}\nPreferred Date: ${input.preferredDate || "Flexible"}\nPreferred Time: ${input.preferredTime}\nMessage: ${input.message || "None"}${photoNote}`,
+          title: `${urgencyLabel} Booking: ${input.service}`,
+          content: `Name: ${input.name}\nPhone: ${input.phone}\nService: ${input.service}\nVehicle: ${vehicleStr || "Not specified"}\nUrgency: ${urgencyLabel}\nRef: ${refCode}\nPreferred Date: ${input.preferredDate || "Flexible"}\nPreferred Time: ${input.preferredTime}\nMessage: ${input.message || "None"}${photoNote}`,
         }).catch(() => {});
 
-        return result;
+        return { ...result, referenceCode: refCode };
       }),
 
     /** Upload a photo for a booking request */
@@ -192,6 +214,119 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         return updateBookingPriority(input.id, input.priority);
       }),
+
+    /** Update job stage for status tracker */
+    updateStage: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        stage: z.enum(["received", "inspecting", "waiting-parts", "in-progress", "quality-check", "ready"]),
+      }))
+      .mutation(async ({ input }) => {
+        const result = await updateBookingStage(input.id, input.stage);
+        // Auto-queue a status update notification
+        const d = await db();
+        if (d) {
+          const [booking] = await d.select().from(bookings).where(eq(bookings.id, input.id)).limit(1);
+          if (booking) {
+            const stageLabels: Record<string, string> = {
+              "received": "received and is in our queue",
+              "inspecting": "being inspected by our technicians",
+              "waiting-parts": "waiting for parts to arrive",
+              "in-progress": "actively being repaired",
+              "quality-check": "going through our quality check",
+              "ready": "ready for pickup",
+            };
+            await createCustomerNotification({
+              bookingId: input.id,
+              recipientName: booking.name,
+              recipientPhone: booking.phone,
+              recipientEmail: booking.email,
+              notificationType: "status_update",
+              subject: `Vehicle Status Update — ${input.stage === "ready" ? "Ready for Pickup!" : "In Progress"}`,
+              message: `Hi ${booking.name.split(" ")[0]}, your vehicle is ${stageLabels[input.stage] || "being worked on"}. ${input.stage === "ready" ? "You can pick it up anytime during business hours. Call (216) 862-0005 if you have questions." : "We'll keep you updated. Ref: " + (booking.referenceCode || "")}`,
+            });
+          }
+        }
+        return result;
+      }),
+
+    /** Public: check booking status by phone */
+    statusByPhone: publicProcedure
+      .input(z.object({ phone: z.string().min(7) }))
+      .query(async ({ input }) => {
+        return getBookingByPhone(input.phone);
+      }),
+
+    /** Public: check booking status by reference code */
+    statusByRef: publicProcedure
+      .input(z.object({ ref: z.string().min(3) }))
+      .query(async ({ input }) => {
+        return getBookingByRef(input.ref);
+      }),
+  }),
+
+  // ─── CALLBACK REQUESTS ────────────────────────────────
+  callback: router({
+    submit: publicProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        phone: z.string().min(7),
+        context: z.string().optional(),
+        sourcePage: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const result = await createCallbackRequest({
+          name: input.name,
+          phone: input.phone,
+          context: input.context || null,
+          sourcePage: input.sourcePage || null,
+        });
+
+        // Also create a lead for CRM tracking
+        const d = await db();
+        if (d) {
+          await d.insert(leads).values({
+            name: input.name,
+            phone: input.phone,
+            source: "callback",
+            problem: input.context || "Callback request from " + (input.sourcePage || "website"),
+            urgencyScore: 4,
+            urgencyReason: "Customer requested immediate callback",
+          }).catch(() => {});
+        }
+
+        // Notify owner immediately
+        await notifyOwner({
+          title: `Callback Request: ${input.name}`,
+          content: `Phone: ${input.phone}\nPage: ${input.sourcePage || "Unknown"}\nContext: ${input.context || "None"}\n\nPlease call back ASAP.`,
+        }).catch(() => {});
+
+        // Sync to sheets
+        syncLeadToSheet({
+          name: input.name,
+          phone: input.phone,
+          source: "callback",
+          problem: "Callback request",
+          urgencyScore: 4,
+          urgencyReason: "Customer requested callback",
+        }).catch(() => {});
+
+        return result;
+      }),
+
+    list: adminProcedure.query(async () => {
+      return getCallbackRequests();
+    }),
+
+    updateStatus: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(["new", "called", "no-answer", "completed"]),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return updateCallbackStatus(input.id, input.status, input.notes);
+      }),
   }),
 
   // ─── LEAD CAPTURE ─────────────────────────────────────
@@ -205,7 +340,11 @@ export const appRouter = router({
           email: z.string().email().optional().or(z.literal("")),
           vehicle: z.string().optional(),
           problem: z.string().optional(),
-          source: z.enum(["popup", "chat", "booking", "manual"]).default("popup"),
+          source: z.enum(["popup", "chat", "booking", "manual", "callback", "fleet"]).default("popup"),
+          // Fleet-specific fields
+          companyName: z.string().optional(),
+          fleetSize: z.number().optional(),
+          vehicleTypes: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
@@ -216,6 +355,12 @@ export const appRouter = router({
         let scoring = { score: 3, reason: "Manual review recommended", recommendedService: "General Repair" };
         if (input.problem) {
           scoring = await scoreLead(input.problem, input.vehicle);
+        }
+        // Fleet leads are always high priority
+        if (input.source === "fleet") {
+          scoring.score = 5;
+          scoring.reason = "Fleet/commercial account inquiry";
+          scoring.recommendedService = "Fleet Services";
         }
 
         // Insert into database
@@ -229,6 +374,9 @@ export const appRouter = router({
           urgencyScore: scoring.score,
           urgencyReason: scoring.reason,
           recommendedService: scoring.recommendedService,
+          companyName: input.companyName || null,
+          fleetSize: input.fleetSize || null,
+          vehicleTypes: input.vehicleTypes || null,
         });
 
         // Sync to Google Sheets (fire and forget)
@@ -246,9 +394,10 @@ export const appRouter = router({
 
         // Notify owner for high-urgency leads
         if (scoring.score >= 4) {
+          const fleetInfo = input.source === "fleet" ? `\nCompany: ${input.companyName || "N/A"}\nFleet Size: ${input.fleetSize || "N/A"}\nVehicle Types: ${input.vehicleTypes || "N/A"}` : "";
           notifyOwner({
             title: `URGENT Lead (${scoring.score}/5): ${input.name}`,
-            content: `Phone: ${input.phone}\nVehicle: ${input.vehicle || "Not specified"}\nProblem: ${input.problem || "Not specified"}\nUrgency: ${scoring.reason}\nRecommended: ${scoring.recommendedService}`,
+            content: `Phone: ${input.phone}\nVehicle: ${input.vehicle || "Not specified"}\nProblem: ${input.problem || "Not specified"}\nUrgency: ${scoring.reason}\nRecommended: ${scoring.recommendedService}${fleetInfo}`,
           }).catch(() => {});
         }
 
@@ -362,14 +511,11 @@ export const appRouter = router({
 
   // ─── SEARCH ───────────────────────────────────────────
   search: router({
-    /** Instant keyword search — no AI, fast */
     instant: publicProcedure
       .input(z.object({ query: z.string().min(1).max(200) }))
       .query(({ input }) => {
         return { results: keywordSearch(input.query) };
       }),
-
-    /** AI-powered natural language search */
     ai: publicProcedure
       .input(z.object({ query: z.string().min(2).max(500) }))
       .mutation(async ({ input }) => {
@@ -678,7 +824,7 @@ export const appRouter = router({
         recipientName: z.string().min(1),
         recipientPhone: z.string().optional(),
         recipientEmail: z.string().email().optional(),
-        notificationType: z.enum(["booking_confirmed", "booking_inprogress", "booking_completed", "follow_up", "review_request", "maintenance_reminder", "special_offer"]),
+        notificationType: z.enum(["booking_confirmed", "booking_inprogress", "booking_completed", "follow_up", "review_request", "maintenance_reminder", "special_offer", "status_update"]),
         subject: z.string().optional(),
         message: z.string().min(1),
       }))
@@ -689,6 +835,304 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return markNotificationSent(input.id);
+      }),
+  }),
+
+  // ─── PRICE ESTIMATOR ────────────────────────────
+  pricing: router({
+    estimate: publicProcedure
+      .input(z.object({
+        serviceType: z.string().min(1),
+        vehicleCategory: z.enum(["compact", "midsize", "full-size", "truck-suv"]),
+      }))
+      .query(async ({ input }) => {
+        return getServicePricingByCategory(input.serviceType, input.vehicleCategory);
+      }),
+    allServices: publicProcedure.query(async () => {
+      return getAllServicePricing();
+    }),
+    /** Admin: update pricing */
+    upsert: adminProcedure
+      .input(z.object({
+        serviceType: z.string(),
+        serviceLabel: z.string(),
+        vehicleCategory: z.enum(["compact", "midsize", "full-size", "truck-suv"]),
+        lowEstimate: z.number(),
+        highEstimate: z.number(),
+        typicalHours: z.string().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return upsertServicePricing(input);
+      }),
+    /** Admin: seed default pricing data */
+    seedDefaults: adminProcedure.mutation(async () => {
+      return seedDefaultPricing();
+    }),
+  }),
+
+  // ─── VEHICLE INSPECTIONS ────────────────────────
+  inspection: router({
+    /** Public: view inspection by share token */
+    byToken: publicProcedure
+      .input(z.object({ token: z.string() }))
+      .query(async ({ input }) => {
+        return getInspectionByToken(input.token);
+      }),
+
+    /** Admin: list all inspections */
+    list: adminProcedure.query(async () => {
+      return getInspections();
+    }),
+
+    /** Admin: get single inspection with items */
+    get: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return getInspection(input.id);
+      }),
+
+    /** Admin: create inspection */
+    create: adminProcedure
+      .input(z.object({
+        bookingId: z.number().optional(),
+        customerName: z.string().min(1),
+        customerPhone: z.string().optional(),
+        customerEmail: z.string().optional(),
+        vehicleInfo: z.string().min(1),
+        vehicleYear: z.string().optional(),
+        vehicleMake: z.string().optional(),
+        vehicleModel: z.string().optional(),
+        mileage: z.number().optional(),
+        technicianName: z.string().min(1),
+        overallCondition: z.enum(["good", "fair", "needs-attention"]).default("fair"),
+        summaryNotes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return createInspection(input);
+      }),
+
+    /** Admin: add item to inspection */
+    addItem: adminProcedure
+      .input(z.object({
+        inspectionId: z.number(),
+        component: z.string().min(1),
+        category: z.enum(["brakes", "tires", "engine", "suspension", "electrical", "fluids", "body", "other"]),
+        condition: z.enum(["green", "yellow", "red"]),
+        notes: z.string().optional(),
+        photoUrl: z.string().optional(),
+        recommendedAction: z.string().optional(),
+        estimatedCost: z.number().optional(),
+        sortOrder: z.number().default(0),
+      }))
+      .mutation(async ({ input }) => {
+        return addInspectionItem(input);
+      }),
+
+    /** Admin: update inspection item */
+    updateItem: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        component: z.string().optional(),
+        category: z.enum(["brakes", "tires", "engine", "suspension", "electrical", "fluids", "body", "other"]).optional(),
+        condition: z.enum(["green", "yellow", "red"]).optional(),
+        notes: z.string().optional(),
+        photoUrl: z.string().optional(),
+        recommendedAction: z.string().optional(),
+        estimatedCost: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        return updateInspectionItem(id, data);
+      }),
+
+    /** Admin: delete inspection item */
+    deleteItem: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return deleteInspectionItem(input.id);
+      }),
+
+    /** Admin: publish inspection (makes it viewable via share link) */
+    publish: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        return publishInspection(input.id);
+      }),
+
+    /** Admin: upload inspection photo */
+    uploadPhoto: adminProcedure
+      .input(z.object({
+        base64: z.string(),
+        filename: z.string(),
+        mimeType: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const buffer = Buffer.from(input.base64, "base64");
+        const suffix = Math.random().toString(36).substring(2, 8);
+        const key = `inspection-photos/${Date.now()}-${suffix}-${input.filename}`;
+        const { url } = await storagePut(key, buffer, input.mimeType);
+        return { url };
+      }),
+  }),
+
+  // ─── FOLLOW-UPS & WEEKLY REPORT ─────────────────
+  followUps: router({
+    /** Admin: manually trigger follow-up processing */
+    run: adminProcedure.mutation(async () => {
+      const { runFollowUps } = await import("./follow-ups");
+      return runFollowUps();
+    }),
+  }),
+
+  weeklyReport: router({
+    /** Admin: generate weekly intelligence report */
+    generate: adminProcedure.mutation(async () => {
+      const d = await db();
+      if (!d) return { error: "Database not available" };
+
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      // Bookings this week
+      const weekBookings = await d.select().from(bookings)
+        .where(gte(bookings.createdAt, weekAgo))
+        .orderBy(desc(bookings.createdAt));
+
+      // Leads this week
+      const weekLeads = await d.select().from(leads)
+        .where(gte(leads.createdAt, weekAgo))
+        .orderBy(desc(leads.createdAt));
+
+      // Callbacks this week
+      const weekCallbacks = await d.select().from(callbackRequests)
+        .where(gte(callbackRequests.createdAt, weekAgo))
+        .orderBy(desc(callbackRequests.createdAt));
+
+      // Notifications this week
+      const weekNotifs = await d.select().from(customerNotifications)
+        .where(gte(customerNotifications.createdAt, weekAgo));
+
+      // Service breakdown
+      const serviceBreakdown: Record<string, number> = {};
+      weekBookings.forEach(b => {
+        serviceBreakdown[b.service] = (serviceBreakdown[b.service] || 0) + 1;
+      });
+
+      // Urgency breakdown
+      const urgencyBreakdown: Record<string, number> = {};
+      weekBookings.forEach(b => {
+        const u = b.urgency || "whenever";
+        urgencyBreakdown[u] = (urgencyBreakdown[u] || 0) + 1;
+      });
+
+      const report = {
+        period: { start: weekAgo.toISOString(), end: now.toISOString() },
+        bookings: {
+          total: weekBookings.length,
+          completed: weekBookings.filter(b => b.status === "completed").length,
+          cancelled: weekBookings.filter(b => b.status === "cancelled").length,
+          emergency: weekBookings.filter(b => b.urgency === "emergency").length,
+          serviceBreakdown,
+          urgencyBreakdown,
+        },
+        leads: {
+          total: weekLeads.length,
+          highUrgency: weekLeads.filter(l => l.urgencyScore >= 4).length,
+          converted: weekLeads.filter(l => l.status === "booked").length,
+          sources: weekLeads.reduce((acc, l) => { acc[l.source] = (acc[l.source] || 0) + 1; return acc; }, {} as Record<string, number>),
+        },
+        callbacks: {
+          total: weekCallbacks.length,
+          completed: weekCallbacks.filter(c => c.status === "completed").length,
+          pending: weekCallbacks.filter(c => c.status === "new").length,
+        },
+        notifications: {
+          sent: weekNotifs.filter(n => n.status === "sent").length,
+          pending: weekNotifs.filter(n => n.status === "pending").length,
+        },
+      };
+
+      // Send to owner
+      const topServices = Object.entries(serviceBreakdown)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 5)
+        .map(([s, c]) => `  ${s}: ${c}`)
+        .join("\n");
+
+      await notifyOwner({
+        title: `Weekly Report: ${weekBookings.length} bookings, ${weekLeads.length} leads`,
+        content: `NICK'S TIRE & AUTO — WEEKLY INTELLIGENCE REPORT\n${"-".repeat(50)}\nPeriod: ${weekAgo.toLocaleDateString()} — ${now.toLocaleDateString()}\n\nBOOKINGS: ${report.bookings.total} total\n  Completed: ${report.bookings.completed}\n  Emergency: ${report.bookings.emergency}\n  Cancelled: ${report.bookings.cancelled}\n\nTop Services:\n${topServices || "  No bookings this week"}\n\nLEADS: ${report.leads.total} total\n  High Urgency: ${report.leads.highUrgency}\n  Converted to Booking: ${report.leads.converted}\n\nCALLBACKS: ${report.callbacks.total} total\n  Completed: ${report.callbacks.completed}\n  Still Pending: ${report.callbacks.pending}\n\nFOLLOW-UPS SENT: ${report.notifications.sent}\nFOLLOW-UPS PENDING: ${report.notifications.pending}`,
+      }).catch(() => {});
+
+      return report;
+    }),
+  }),
+
+  // ─── LOYALTY PROGRAM ────────────────────────────
+  loyalty: router({
+    /** Public: get available rewards */
+    rewards: publicProcedure.query(async () => {
+      return getLoyaltyRewards();
+    }),
+
+    /** Protected: get user's loyalty summary */
+    summary: protectedProcedure.query(async ({ ctx }) => {
+      return getUserLoyaltySummary(ctx.user.id);
+    }),
+
+    /** Protected: get user's transaction history */
+    transactions: protectedProcedure
+      .input(z.object({ limit: z.number().default(20) }).optional())
+      .query(async ({ ctx, input }) => {
+        return getLoyaltyTransactions(ctx.user.id, input?.limit ?? 20);
+      }),
+
+    /** Protected: redeem a reward */
+    redeem: protectedProcedure
+      .input(z.object({ rewardId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return redeemReward(ctx.user.id, input.rewardId);
+      }),
+
+    /** Admin: award points to a user */
+    awardPoints: adminProcedure
+      .input(z.object({
+        userId: z.number(),
+        points: z.number().min(1),
+        description: z.string(),
+        serviceHistoryId: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        return awardPoints(input.userId, input.points, input.description, input.serviceHistoryId);
+      }),
+
+    /** Admin: manage rewards */
+    createReward: adminProcedure
+      .input(z.object({
+        title: z.string().min(1),
+        description: z.string().min(1),
+        pointsCost: z.number().min(1),
+        rewardValue: z.number().min(1),
+        rewardType: z.enum(["dollar-off", "percent-off", "free-service"]).default("dollar-off"),
+        applicableService: z.string().default("all"),
+      }))
+      .mutation(async ({ input }) => {
+        return createLoyaltyReward(input);
+      }),
+
+    updateReward: adminProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        pointsCost: z.number().optional(),
+        rewardValue: z.number().optional(),
+        isActive: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        return updateLoyaltyReward(id, data);
       }),
   }),
 });

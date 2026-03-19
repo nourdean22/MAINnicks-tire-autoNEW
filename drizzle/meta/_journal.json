@@ -43,6 +43,13 @@
       "when": 1773853917763,
       "tag": "0005_light_spyke",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1773940678968,
+      "tag": "0006_harsh_jack_flag",
+      "breakpoints": true
     }
   ]
 }

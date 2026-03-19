@@ -10,6 +10,11 @@ export const users = mysqlTable("users", {
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  /** Loyalty points balance */
+  loyaltyPoints: int("loyaltyPoints").default(0).notNull(),
+  loyaltyTier: mysqlEnum("loyaltyTier", ["bronze", "silver", "gold", "platinum"]).default("bronze").notNull(),
+  totalVisits: int("totalVisits").default(0).notNull(),
+  totalSpent: int("totalSpent").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -41,7 +46,17 @@ export const bookings = mysqlTable("bookings", {
   adminNotes: text("adminNotes"),
   /** Admin priority ordering (lower = higher priority) */
   priority: int("priority").default(0).notNull(),
+  /** Urgency level from booking form */
+  urgency: mysqlEnum("urgency", ["emergency", "this-week", "whenever"]).default("whenever").notNull(),
+  /** Job stage for status tracker */
+  stage: mysqlEnum("stage", ["received", "inspecting", "waiting-parts", "in-progress", "quality-check", "ready"]).default("received").notNull(),
+  stageUpdatedAt: timestamp("stageUpdatedAt").defaultNow().notNull(),
+  /** Reference code for customer status lookup */
+  referenceCode: varchar("referenceCode", { length: 20 }),
   status: mysqlEnum("status", ["new", "confirmed", "completed", "cancelled"]).default("new").notNull(),
+  /** Follow-up tracking */
+  followUp24hSent: int("followUp24hSent").default(0).notNull(),
+  followUp7dSent: int("followUp7dSent").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -61,7 +76,7 @@ export const leads = mysqlTable("leads", {
   vehicle: varchar("vehicle", { length: 255 }),
   problem: text("problem"),
   /** Where the lead came from */
-  source: mysqlEnum("source", ["popup", "chat", "booking", "manual"]).default("popup").notNull(),
+  source: mysqlEnum("source", ["popup", "chat", "booking", "manual", "callback", "fleet"]).default("popup").notNull(),
   /** AI-assigned urgency score: 1 (low) to 5 (critical) */
   urgencyScore: int("urgencyScore").default(3).notNull(),
   /** AI-generated reason for the urgency score */
@@ -76,6 +91,10 @@ export const leads = mysqlTable("leads", {
   /** Whether this lead was synced to Google Sheets */
   sheetSynced: int("sheetSynced").default(0).notNull(),
   sheetRow: int("sheetRow"),
+  /** Fleet-specific fields */
+  companyName: varchar("companyName", { length: 255 }),
+  fleetSize: int("fleetSize"),
+  vehicleTypes: text("vehicleTypes"),
   status: mysqlEnum("status", ["new", "contacted", "booked", "closed", "lost"]).default("new").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -108,7 +127,6 @@ export type InsertChatSession = typeof chatSessions.$inferInsert;
 
 /**
  * AI-generated blog articles stored in the database.
- * These supplement the hardcoded articles in shared/blog.ts.
  */
 export const dynamicArticles = mysqlTable("dynamic_articles", {
   id: int("id").autoincrement().primaryKey(),
@@ -138,7 +156,6 @@ export type InsertDynamicArticle = typeof dynamicArticles.$inferInsert;
 
 /**
  * Dynamic notification bar messages.
- * Rotates through active messages; weather alerts still override.
  */
 export const notificationMessages = mysqlTable("notification_messages", {
   id: int("id").autoincrement().primaryKey(),
@@ -146,7 +163,6 @@ export const notificationMessages = mysqlTable("notification_messages", {
   ctaText: varchar("ctaText", { length: 100 }),
   ctaHref: varchar("ctaHref", { length: 500 }),
   icon: varchar("icon", { length: 50 }).default("wrench"),
-  /** Seasonal targeting: spring, summer, fall, winter, or all */
   season: mysqlEnum("season", ["spring", "summer", "fall", "winter", "all"]).default("all").notNull(),
   isActive: int("isActive").default(1).notNull(),
   priority: int("priority").default(0).notNull(),
@@ -161,7 +177,7 @@ export type NotificationMessage = typeof notificationMessages.$inferSelect;
 export type InsertNotificationMessage = typeof notificationMessages.$inferInsert;
 
 /**
- * Content generation log — tracks what was generated and when.
+ * Content generation log.
  */
 export const contentGenerationLog = mysqlTable("content_generation_log", {
   id: int("id").autoincrement().primaryKey(),
@@ -185,10 +201,8 @@ export const coupons = mysqlTable("coupons", {
   discountType: mysqlEnum("discountType", ["dollar", "percent", "free"]).default("dollar").notNull(),
   discountValue: int("discountValue").default(0).notNull(),
   code: varchar("code", { length: 50 }),
-  /** Which services this applies to (comma-separated or 'all') */
   applicableServices: varchar("applicableServices", { length: 500 }).default("all").notNull(),
   terms: text("terms"),
-  /** Max number of redemptions (0 = unlimited) */
   maxRedemptions: int("maxRedemptions").default(0).notNull(),
   currentRedemptions: int("currentRedemptions").default(0).notNull(),
   isActive: int("isActive").default(1).notNull(),
@@ -236,6 +250,8 @@ export const serviceHistory = mysqlTable("service_history", {
   mileageAtService: int("mileageAtService"),
   cost: int("cost"),
   technicianNotes: text("technicianNotes"),
+  /** Points earned for this service */
+  pointsEarned: int("pointsEarned").default(0).notNull(),
   completedAt: timestamp("completedAt").defaultNow().notNull(),
   nextServiceDue: timestamp("nextServiceDue"),
   nextServiceMileage: int("nextServiceMileage"),
@@ -322,7 +338,7 @@ export const customerNotifications = mysqlTable("customer_notifications", {
   recipientName: varchar("recipientName", { length: 255 }).notNull(),
   recipientPhone: varchar("recipientPhone", { length: 30 }),
   recipientEmail: varchar("recipientEmail", { length: 320 }),
-  notificationType: mysqlEnum("notificationType", ["booking_confirmed", "booking_inprogress", "booking_completed", "follow_up", "review_request", "maintenance_reminder", "special_offer"]).notNull(),
+  notificationType: mysqlEnum("notificationType", ["booking_confirmed", "booking_inprogress", "booking_completed", "follow_up", "review_request", "maintenance_reminder", "special_offer", "status_update"]).notNull(),
   subject: varchar("subject", { length: 255 }),
   message: text("message").notNull(),
   status: mysqlEnum("status", ["pending", "sent", "failed"]).default("pending").notNull(),
@@ -332,3 +348,146 @@ export const customerNotifications = mysqlTable("customer_notifications", {
 
 export type CustomerNotification = typeof customerNotifications.$inferSelect;
 export type InsertCustomerNotification = typeof customerNotifications.$inferInsert;
+
+/**
+ * Service pricing for the Instant Price Estimator
+ */
+export const servicePricing = mysqlTable("service_pricing", {
+  id: int("id").autoincrement().primaryKey(),
+  serviceType: varchar("serviceType", { length: 100 }).notNull(),
+  serviceLabel: varchar("serviceLabel", { length: 255 }).notNull(),
+  /** Vehicle size category */
+  vehicleCategory: mysqlEnum("vehicleCategory", ["compact", "midsize", "full-size", "truck-suv"]).notNull(),
+  lowEstimate: int("lowEstimate").notNull(),
+  highEstimate: int("highEstimate").notNull(),
+  /** Typical time in hours */
+  typicalHours: varchar("typicalHours", { length: 20 }),
+  notes: text("notes"),
+  isActive: int("isActive").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ServicePricing = typeof servicePricing.$inferSelect;
+export type InsertServicePricing = typeof servicePricing.$inferInsert;
+
+/**
+ * Digital Vehicle Inspection Reports
+ */
+export const vehicleInspections = mysqlTable("vehicle_inspections", {
+  id: int("id").autoincrement().primaryKey(),
+  bookingId: int("bookingId"),
+  /** Customer info for sharing */
+  customerName: varchar("customerName", { length: 255 }).notNull(),
+  customerPhone: varchar("customerPhone", { length: 30 }),
+  customerEmail: varchar("customerEmail", { length: 320 }),
+  vehicleInfo: varchar("vehicleInfo", { length: 255 }).notNull(),
+  vehicleYear: varchar("vehicleYear", { length: 10 }),
+  vehicleMake: varchar("vehicleMake", { length: 50 }),
+  vehicleModel: varchar("vehicleModel", { length: 50 }),
+  mileage: int("mileage"),
+  technicianName: varchar("technicianName", { length: 255 }).notNull(),
+  /** Overall vehicle condition */
+  overallCondition: mysqlEnum("overallCondition", ["good", "fair", "needs-attention"]).default("fair").notNull(),
+  summaryNotes: text("summaryNotes"),
+  /** Public share token for customer access */
+  shareToken: varchar("shareToken", { length: 64 }).notNull().unique(),
+  isPublished: int("isPublished").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type VehicleInspection = typeof vehicleInspections.$inferSelect;
+export type InsertVehicleInspection = typeof vehicleInspections.$inferInsert;
+
+/**
+ * Individual line items within a vehicle inspection
+ */
+export const inspectionItems = mysqlTable("inspection_items", {
+  id: int("id").autoincrement().primaryKey(),
+  inspectionId: int("inspectionId").notNull(),
+  /** Component being inspected */
+  component: varchar("component", { length: 255 }).notNull(),
+  /** Category grouping */
+  category: mysqlEnum("category", ["brakes", "tires", "engine", "suspension", "electrical", "fluids", "body", "other"]).notNull(),
+  /** Condition rating */
+  condition: mysqlEnum("condition", ["green", "yellow", "red"]).notNull(),
+  notes: text("notes"),
+  /** Photo evidence URL */
+  photoUrl: varchar("photoUrl", { length: 1000 }),
+  /** Recommended action */
+  recommendedAction: text("recommendedAction"),
+  /** Estimated repair cost */
+  estimatedCost: int("estimatedCost"),
+  /** Sort order within inspection */
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type InspectionItem = typeof inspectionItems.$inferSelect;
+export type InsertInspectionItem = typeof inspectionItems.$inferInsert;
+
+/**
+ * Loyalty rewards definitions
+ */
+export const loyaltyRewards = mysqlTable("loyalty_rewards", {
+  id: int("id").autoincrement().primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  /** Points required to redeem */
+  pointsCost: int("pointsCost").notNull(),
+  /** Discount value in dollars */
+  rewardValue: int("rewardValue").notNull(),
+  rewardType: mysqlEnum("rewardType", ["dollar-off", "percent-off", "free-service"]).default("dollar-off").notNull(),
+  /** Which service this applies to (or 'all') */
+  applicableService: varchar("applicableService", { length: 100 }).default("all").notNull(),
+  isActive: int("isActive").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type LoyaltyReward = typeof loyaltyRewards.$inferSelect;
+export type InsertLoyaltyReward = typeof loyaltyRewards.$inferInsert;
+
+/**
+ * Loyalty point transactions (earn/redeem history)
+ */
+export const loyaltyTransactions = mysqlTable("loyalty_transactions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  type: mysqlEnum("type", ["earn", "redeem", "bonus", "adjustment"]).notNull(),
+  points: int("points").notNull(),
+  /** Positive for earn, negative for redeem */
+  balanceAfter: int("balanceAfter").notNull(),
+  description: varchar("description", { length: 500 }).notNull(),
+  /** Link to service history if earned from service */
+  serviceHistoryId: int("serviceHistoryId"),
+  /** Link to reward if redeemed */
+  rewardId: int("rewardId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type LoyaltyTransaction = typeof loyaltyTransactions.$inferSelect;
+export type InsertLoyaltyTransaction = typeof loyaltyTransactions.$inferInsert;
+
+/**
+ * Callback requests — lightweight "call me back" form
+ */
+export const callbackRequests = mysqlTable("callback_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 30 }).notNull(),
+  /** Optional context about what they need */
+  context: text("context"),
+  /** Page they were on when requesting */
+  sourcePage: varchar("sourcePage", { length: 255 }),
+  status: mysqlEnum("status", ["new", "called", "no-answer", "completed"]).default("new").notNull(),
+  calledAt: timestamp("calledAt"),
+  calledBy: varchar("calledBy", { length: 255 }),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CallbackRequest = typeof callbackRequests.$inferSelect;
+export type InsertCallbackRequest = typeof callbackRequests.$inferInsert;

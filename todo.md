@@ -425,3 +425,22 @@
 - [ ] Build referral program upgrade (text-to-refer system)
 - [ ] Plan email/SMS service reminder system
 - [ ] Create community partnership outreach plan
+
+## Phase 25 — Website Upgrade Plan (10 Upgrades)
+
+### Tier 1: Revenue Conversion
+- [x] Upgrade 1: Instant Price Estimator (/pricing page with vehicle + service → price range)
+- [x] Upgrade 2: Service Status Tracker (/status page + admin Job Board with stage progression)
+- [x] Upgrade 3a: Booking Urgency Routing (Emergency/This Week/Whenever selector)
+- [x] Upgrade 3b: Callback Request Button (floating "Call Me Back" on every page, name + phone only)
+
+### Tier 2: Retention & Repeat Business
+- [x] Upgrade 4: Automated Post-Service Follow-Ups (24hr thank-you, 7-day review request, mileage reminders)
+- [ ] Upgrade 5: Customer SMS/Text Channel (Twilio integration — requires Twilio account setup)
+- [x] Upgrade 6: Loyalty Points Program (1 point/$1, milestones, integrated into My Garage)
+
+### Tier 3: Competitive Edge
+- [x] Upgrade 7: Digital Vehicle Inspection Reports (/inspection/:token with photos, green/yellow/red ratings)
+- [x] Upgrade 8: Fleet & Commercial Accounts Page (/fleet with quote form)
+- [x] Upgrade 9: Financing Options Page (/financing with Synchrony + Sunbit info)
+- [x] Upgrade 10: Weekly Owner Intelligence Report (automated Monday summary via notifyOwner)

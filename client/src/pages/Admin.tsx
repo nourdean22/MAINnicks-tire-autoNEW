@@ -18,7 +18,8 @@ import {
   Globe, TrendingUp, Activity, Bell, Wrench, Gauge,
   ChevronRight, Star, Eye, BarChart3, Hash, Sparkles,
   ArrowUpRight, ArrowDownRight, CircleDot, MapPin,
-  Newspaper, PieChart, Menu, X
+  Newspaper, PieChart, Menu, X, ClipboardList, Trophy,
+  Gift, Send, Camera
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
@@ -26,7 +27,7 @@ import {
 } from "recharts";
 
 // ─── TYPES ──────────────────────────────────────────────
-type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals";
+type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups";
 type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 type LeadStatus = "new" | "contacted" | "booked" | "closed" | "lost";
 
@@ -64,6 +65,10 @@ const NAV_ITEMS: { id: AdminSection; label: string; icon: React.ReactNode; badge
   { id: "coupons", label: "Coupons", icon: <Zap className="w-5 h-5" /> },
   { id: "qa", label: "Q&A", icon: <MessageSquare className="w-5 h-5" /> },
   { id: "referrals", label: "Referrals", icon: <Users className="w-5 h-5" /> },
+  { id: "jobs", label: "Job Board", icon: <ClipboardList className="w-5 h-5" /> },
+  { id: "inspections", label: "Inspections", icon: <Camera className="w-5 h-5" /> },
+  { id: "loyalty", label: "Loyalty", icon: <Trophy className="w-5 h-5" /> },
+  { id: "followups", label: "Follow-Ups", icon: <Send className="w-5 h-5" /> },
 ];
 
 // ─── HELPER COMPONENTS ──────────────────────────────────
@@ -1656,6 +1661,315 @@ function ReferralsSection() {
   );
 }
 
+// ─── JOB BOARD SECTION ──────────────────────────────────
+function JobBoardSection() {
+  const { data: bookingsData, isLoading } = trpc.booking.list.useQuery();
+  const jobs = bookingsData ?? [];
+  const utils = trpc.useUtils();
+
+  const updateStage = trpc.booking.updateStage.useMutation({
+    onSuccess: () => { utils.booking.list.invalidate(); toast.success("Stage updated"); },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const statusColors: Record<string, string> = {
+    received: "text-blue-400 bg-blue-500/10",
+    inspecting: "text-purple-400 bg-purple-500/10",
+    "waiting-parts": "text-amber-400 bg-amber-500/10",
+    "in-progress": "text-primary bg-primary/10",
+    "quality-check": "text-cyan-400 bg-cyan-500/10",
+    ready: "text-emerald-400 bg-emerald-500/10",
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="font-heading font-bold text-xl text-foreground tracking-wider">JOB BOARD</h2>
+        <p className="font-mono text-xs text-foreground/40">Jobs are created from bookings. Update stages here.</p>
+      </div>
+
+
+
+      {isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+      ) : (jobs ?? []).length === 0 ? (
+        <div className="text-center py-12 text-foreground/40">
+          <ClipboardList className="w-8 h-8 mx-auto mb-3 opacity-30" />
+          <p className="font-mono text-sm">No active jobs. Create one to start tracking.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {jobs.map((job: any) => (
+            <div key={job.id} className="bg-card border border-border/30 p-4">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-1">
+                    <span className="font-heading font-bold text-foreground text-sm">{job.name}</span>
+                    <span className="font-mono text-xs text-foreground/40">{job.phone}</span>
+                    {job.referenceCode && <span className="font-mono text-[10px] text-nick-teal">#{job.referenceCode}</span>}
+                  </div>
+                  <p className="font-mono text-xs text-foreground/50">{job.vehicle || "No vehicle"} — {job.service}</p>
+                  {job.notes && <p className="font-mono text-xs text-foreground/30 mt-1">{job.notes}</p>}
+                  <p className="font-mono text-[10px] text-foreground/20 mt-1">
+                    {new Date(job.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <select
+                  value={job.stage || "received"}
+                  onChange={(e) => updateStage.mutate({ id: job.id, stage: e.target.value as any })}
+                  className={`px-2 py-1 text-xs font-mono border-0 ${statusColors[job.stage || "received"] || "text-foreground/50"}`}
+                >
+                  <option value="received">RECEIVED</option>
+                  <option value="inspecting">INSPECTING</option>
+                  <option value="waiting-parts">WAITING PARTS</option>
+                  <option value="in-progress">IN PROGRESS</option>
+                  <option value="quality-check">QUALITY CHECK</option>
+                  <option value="ready">READY</option>
+                </select>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── INSPECTIONS SECTION ────────────────────────────────
+function InspectionsSection() {
+  const { data: inspections, isLoading } = trpc.inspection.list.useQuery();
+  const utils = trpc.useUtils();
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ customerName: "", customerPhone: "", vehicleInfo: "", mileage: "", technicianName: "" });
+
+  const createInspection = trpc.inspection.create.useMutation({
+    onSuccess: () => { utils.inspection.list.invalidate(); setShowForm(false); setForm({ customerName: "", customerPhone: "", vehicleInfo: "", mileage: "", technicianName: "" }); toast.success("Inspection created"); },
+    onError: (err: any) => toast.error(err.message),
+  });
+  const publishInspection = trpc.inspection.publish.useMutation({
+    onSuccess: () => { utils.inspection.list.invalidate(); toast.success("Inspection published — share link is ready"); },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="font-heading font-bold text-xl text-foreground tracking-wider">VEHICLE INSPECTIONS</h2>
+        <button onClick={() => setShowForm(!showForm)} className="px-4 py-2 bg-primary text-primary-foreground font-heading font-bold text-xs tracking-wider uppercase">
+          {showForm ? "CANCEL" : "+ NEW INSPECTION"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="bg-card border border-border/30 p-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <input placeholder="Customer Name" value={form.customerName} onChange={e => setForm(f => ({ ...f, customerName: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
+            <input placeholder="Phone" value={form.customerPhone} onChange={e => setForm(f => ({ ...f, customerPhone: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
+            <input placeholder="Vehicle (Year Make Model)" value={form.vehicleInfo} onChange={e => setForm(f => ({ ...f, vehicleInfo: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
+            <input placeholder="Mileage" value={form.mileage} onChange={e => setForm(f => ({ ...f, mileage: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
+            <input placeholder="Technician Name" value={form.technicianName} onChange={e => setForm(f => ({ ...f, technicianName: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
+          </div>
+          <button onClick={() => createInspection.mutate({ customerName: form.customerName, customerPhone: form.customerPhone, vehicleInfo: form.vehicleInfo, mileage: parseInt(form.mileage) || 0, technicianName: form.technicianName || "Technician" })} disabled={createInspection.isPending || !form.customerName} className="px-4 py-2 bg-primary text-primary-foreground font-heading font-bold text-xs tracking-wider uppercase disabled:opacity-50">
+            {createInspection.isPending ? "CREATING..." : "CREATE INSPECTION"}
+          </button>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+      ) : (inspections ?? []).length === 0 ? (
+        <div className="text-center py-12 text-foreground/40">
+          <Camera className="w-8 h-8 mx-auto mb-3 opacity-30" />
+          <p className="font-mono text-sm">No inspections yet.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {(inspections ?? []).map((insp: any) => (
+            <div key={insp.id} className="bg-card border border-border/30 p-4">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-1">
+                    <span className="font-heading font-bold text-foreground text-sm">{insp.customerName}</span>
+                    <span className="font-mono text-xs text-foreground/40">{insp.vehicleInfo}</span>
+                  </div>
+                  <p className="font-mono text-xs text-foreground/50">{insp.mileage?.toLocaleString()} mi • {new Date(insp.createdAt).toLocaleDateString()}</p>
+                  {insp.isPublished === 1 && insp.shareToken && (
+                    <p className="font-mono text-xs text-nick-teal mt-1">
+                      Share: {window.location.origin}/inspection/{insp.shareToken}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {insp.isPublished !== 1 && (
+                    <button onClick={() => publishInspection.mutate({ id: insp.id })} className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 font-mono text-xs border border-emerald-500/30">
+                      PUBLISH
+                    </button>
+                  )}
+                  <span className={`px-2 py-1 text-xs font-mono ${insp.isPublished === 1 ? "text-emerald-400 bg-emerald-500/10" : "text-amber-400 bg-amber-500/10"}`}>
+                    {insp.isPublished === 1 ? "PUBLISHED" : "DRAFT"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── LOYALTY ADMIN SECTION ──────────────────────────────
+function LoyaltyAdminSection() {
+  const [phone, setPhone] = useState("");
+  const [points, setPoints] = useState("");
+  const [desc, setDesc] = useState("");
+
+  const awardPoints = trpc.loyalty.awardPoints.useMutation({
+    onSuccess: () => { setPhone(""); setPoints(""); setDesc(""); toast.success("Points awarded"); },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const { data: rewards, isLoading: rewardsLoading } = trpc.loyalty.rewards.useQuery();
+  const utils = trpc.useUtils();
+  const [rewardForm, setRewardForm] = useState({ title: "", description: "", pointsCost: "", discountValue: "" });
+  const [showRewardForm, setShowRewardForm] = useState(false);
+
+  const createReward = trpc.loyalty.createReward.useMutation({
+    onSuccess: () => { utils.loyalty.rewards.invalidate(); setShowRewardForm(false); setRewardForm({ title: "", description: "", pointsCost: "", discountValue: "" }); toast.success("Reward created"); },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  return (
+    <div className="space-y-8">
+      <h2 className="font-heading font-bold text-xl text-foreground tracking-wider">LOYALTY PROGRAM</h2>
+
+      {/* Award Points */}
+      <div className="bg-card border border-border/30 p-5">
+        <h3 className="font-heading font-bold text-sm text-foreground tracking-wider mb-4">AWARD POINTS</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <input placeholder="Customer Phone" value={phone} onChange={e => setPhone(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
+          <input placeholder="Points" type="number" value={points} onChange={e => setPoints(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
+          <input placeholder="Description" value={desc} onChange={e => setDesc(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
+          <button onClick={() => awardPoints.mutate({ userId: 0, points: parseInt(points) || 0, description: desc || "Manual award" })} disabled={awardPoints.isPending || !phone || !points} className="px-4 py-2 bg-primary text-primary-foreground font-heading font-bold text-xs tracking-wider uppercase disabled:opacity-50">
+            {awardPoints.isPending ? "AWARDING..." : "AWARD"}
+          </button>
+        </div>
+      </div>
+
+      {/* Manage Rewards */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-heading font-bold text-sm text-foreground tracking-wider">REWARD CATALOG</h3>
+          <button onClick={() => setShowRewardForm(!showRewardForm)} className="px-3 py-1.5 bg-primary text-primary-foreground font-heading font-bold text-xs tracking-wider uppercase">
+            {showRewardForm ? "CANCEL" : "+ ADD REWARD"}
+          </button>
+        </div>
+
+        {showRewardForm && (
+          <div className="bg-card border border-border/30 p-5 space-y-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <input placeholder="Reward Title" value={rewardForm.title} onChange={e => setRewardForm(f => ({ ...f, title: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
+              <input placeholder="Description" value={rewardForm.description} onChange={e => setRewardForm(f => ({ ...f, description: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
+              <input placeholder="Points Cost" type="number" value={rewardForm.pointsCost} onChange={e => setRewardForm(f => ({ ...f, pointsCost: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
+              <input placeholder="Discount Value ($)" type="number" value={rewardForm.discountValue} onChange={e => setRewardForm(f => ({ ...f, discountValue: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
+            </div>
+            <button onClick={() => createReward.mutate({ title: rewardForm.title, description: rewardForm.description, pointsCost: parseInt(rewardForm.pointsCost) || 0, rewardValue: parseInt(rewardForm.discountValue) || 0 })} disabled={createReward.isPending || !rewardForm.title || !rewardForm.pointsCost} className="px-4 py-2 bg-primary text-primary-foreground font-heading font-bold text-xs tracking-wider uppercase disabled:opacity-50">
+              {createReward.isPending ? "CREATING..." : "CREATE REWARD"}
+            </button>
+          </div>
+        )}
+
+        {rewardsLoading ? (
+          <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+        ) : (rewards ?? []).length === 0 ? (
+          <div className="text-center py-8 text-foreground/40">
+            <Gift className="w-8 h-8 mx-auto mb-3 opacity-30" />
+            <p className="font-mono text-sm">No rewards configured. Add one to start the loyalty program.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {(rewards ?? []).map((r: any) => (
+              <div key={r.id} className="bg-card border border-border/30 p-4 flex items-center justify-between">
+                <div>
+                  <span className="font-heading font-bold text-foreground text-sm">{r.title}</span>
+                  <p className="font-mono text-xs text-foreground/40">{r.description}</p>
+                </div>
+                <div className="text-right">
+                  <span className="font-heading font-bold text-primary text-sm">{r.pointsCost} pts</span>
+                  <p className="font-mono text-xs text-foreground/40">${r.discountValue} off</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── FOLLOW-UPS SECTION ─────────────────────────────────
+function FollowUpsSection() {
+  const utils = trpc.useUtils();
+
+  const runFollowUps = trpc.followUps.run.useMutation({
+    onSuccess: (data) => { toast.success(`Processed ${data.total} follow-ups`); },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  // Follow-ups don't have a pending query or markSent yet — show run button only
+  const isLoading = false;
+  const followups: any[] = [];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="font-heading font-bold text-xl text-foreground tracking-wider">FOLLOW-UP MANAGER</h2>
+        <button onClick={() => runFollowUps.mutate()} disabled={runFollowUps.isPending} className="px-4 py-2 bg-primary text-primary-foreground font-heading font-bold text-xs tracking-wider uppercase disabled:opacity-50">
+          {runFollowUps.isPending ? "PROCESSING..." : "RUN FOLLOW-UPS"}
+        </button>
+      </div>
+
+      <p className="font-mono text-xs text-foreground/40">
+        Follow-ups are generated automatically when bookings are completed. Click "Run Follow-Ups" to process pending items.
+      </p>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+      ) : (followups ?? []).length === 0 ? (
+        <div className="text-center py-12 text-foreground/40">
+          <Send className="w-8 h-8 mx-auto mb-3 opacity-30" />
+          <p className="font-mono text-sm">No pending follow-ups. They are generated when bookings are completed.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {(followups ?? []).map((fu: any) => (
+            <div key={fu.id} className="bg-card border border-border/30 p-4">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-1">
+                    <span className="font-heading font-bold text-foreground text-sm">{fu.customerName || "Customer"}</span>
+                    <span className={`px-2 py-0.5 text-[10px] font-mono ${
+                      fu.type === "thank-you" ? "text-blue-400 bg-blue-500/10" :
+                      fu.type === "review-request" ? "text-primary bg-primary/10" :
+                      "text-emerald-400 bg-emerald-500/10"
+                    }`}>{fu.type.toUpperCase()}</span>
+                  </div>
+                  <p className="font-mono text-xs text-foreground/40">
+                    Scheduled: {new Date(fu.scheduledAt).toLocaleDateString()} • {fu.channel}
+                  </p>
+                </div>
+                <span className="px-3 py-1.5 bg-foreground/5 text-foreground/40 font-mono text-xs">
+                  PENDING
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── MAIN ADMIN COMPONENT ───────────────────────────────
 export default function Admin() {
   const { user, loading: authLoading } = useAuth();
@@ -1722,6 +2036,10 @@ export default function Admin() {
     coupons: "Coupon Management",
     qa: "Q&A Management",
     referrals: "Referral Tracking",
+    jobs: "Job Board",
+    inspections: "Vehicle Inspections",
+    loyalty: "Loyalty Program",
+    followups: "Follow-Up Manager",
   };
 
   return (
@@ -1831,6 +2149,10 @@ export default function Admin() {
           {section === "coupons" && <CouponsSection />}
           {section === "qa" && <QASection />}
           {section === "referrals" && <ReferralsSection />}
+          {section === "jobs" && <JobBoardSection />}
+          {section === "inspections" && <InspectionsSection />}
+          {section === "loyalty" && <LoyaltyAdminSection />}
+          {section === "followups" && <FollowUpsSection />}
         </div>
       </main>
     </div>

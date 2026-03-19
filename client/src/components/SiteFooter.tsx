@@ -49,6 +49,11 @@ export default function SiteFooter() {
               <Link href="/blog" className="block hover:text-foreground transition-colors">Blog</Link>
               <Link href="/faq" className="block hover:text-foreground transition-colors">FAQ</Link>
               <Link href="/car-care-guide" className="block hover:text-foreground transition-colors">Car Care Guide</Link>
+              <Link href="/pricing" className="block hover:text-foreground transition-colors">Price Estimator</Link>
+              <Link href="/status" className="block hover:text-foreground transition-colors">Check Repair Status</Link>
+              <Link href="/rewards" className="block hover:text-foreground transition-colors">Rewards Program</Link>
+              <Link href="/fleet" className="block hover:text-foreground transition-colors">Fleet Accounts</Link>
+              <Link href="/financing" className="block hover:text-foreground transition-colors">Financing</Link>
             </div>
           </div>
 

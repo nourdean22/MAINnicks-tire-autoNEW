@@ -7,6 +7,7 @@ import SiteNavbar from "@/components/SiteNavbar";
 import SiteFooter from "@/components/SiteFooter";
 import SiteMobileCTA from "@/components/SiteMobileCTA";
 import ChatWidget from "@/components/ChatWidget";
+import CallbackModal from "@/components/CallbackModal";
 import { SkipToContent } from "@/components/SEO";
 
 interface PageLayoutProps {
@@ -29,6 +30,7 @@ export default function PageLayout({ children, activeHref, showChat = false }: P
       </main>
       <SiteFooter />
       <SiteMobileCTA />
+      <CallbackModal />
       {showChat && <ChatWidget />}
     </div>
   );

@@ -26,6 +26,12 @@ import ReferralPage from "./pages/ReferralPage";
 import AskMechanicPage from "./pages/AskMechanicPage";
 import CarCareGuidePage from "./pages/CarCareGuidePage";
 import ReviewPage from "./pages/ReviewPage";
+import StatusTracker from "./pages/StatusTracker";
+import PriceEstimator from "./pages/PriceEstimator";
+import InspectionReport from "./pages/InspectionReport";
+import Fleet from "./pages/Fleet";
+import Financing from "./pages/Financing";
+import Loyalty from "./pages/Loyalty";
 
 function Router() {
   return (
@@ -85,6 +91,18 @@ function Router() {
       <Route path={"/car-care-guide"} component={CarCareGuidePage} />
       {/* Review Generation */}
       <Route path={"/review"} component={ReviewPage} />
+      {/* Status Tracker */}
+      <Route path={"/status"} component={StatusTracker} />
+      {/* Price Estimator */}
+      <Route path={"/pricing"} component={PriceEstimator} />
+      {/* Digital Inspection Reports */}
+      <Route path={"/inspection/:token"} component={InspectionReport} />
+      {/* Fleet & Commercial */}
+      <Route path={"/fleet"} component={Fleet} />
+      {/* Financing */}
+      <Route path={"/financing"} component={Financing} />
+      {/* Loyalty Rewards */}
+      <Route path={"/rewards"} component={Loyalty} />
       {/* FAQ page */}
       <Route path={"/faq"} component={FAQ} />
       {/* Blog / Tips */}

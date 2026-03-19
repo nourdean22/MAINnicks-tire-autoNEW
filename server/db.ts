@@ -330,3 +330,397 @@ export async function getBookingServiceBreakdown() {
     count: sql<number>`count(*)`.as("count"),
   }).from(bookings).groupBy(bookings.service).orderBy(sql`count(*) desc`);
 }
+
+// ─── CALLBACK REQUEST QUERIES ────────────────────────
+
+import {
+  callbackRequests, InsertCallbackRequest,
+  servicePricing, InsertServicePricing,
+  vehicleInspections, InsertVehicleInspection,
+  inspectionItems, InsertInspectionItem,
+  loyaltyRewards, InsertLoyaltyReward,
+  loyaltyTransactions, InsertLoyaltyTransaction,
+  leads,
+} from "../drizzle/schema";
+
+export async function createCallbackRequest(data: InsertCallbackRequest) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(callbackRequests).values(data);
+  return { success: true, id: Number(result[0].insertId) };
+}
+
+export async function getCallbackRequests() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(callbackRequests).orderBy(desc(callbackRequests.createdAt));
+}
+
+export async function updateCallbackStatus(id: number, status: "new" | "called" | "no-answer" | "completed", notes?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const setObj: Record<string, unknown> = { status };
+  if (status === "called" || status === "no-answer" || status === "completed") {
+    setObj.calledAt = new Date();
+  }
+  if (notes !== undefined) setObj.notes = notes;
+  await db.update(callbackRequests).set(setObj).where(eq(callbackRequests.id, id));
+  return { success: true };
+}
+
+// ─── BOOKING STAGE (STATUS TRACKER) ─────────────────
+
+export async function updateBookingStage(id: number, stage: "received" | "inspecting" | "waiting-parts" | "in-progress" | "quality-check" | "ready") {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(bookings).set({ stage, stageUpdatedAt: new Date() }).where(eq(bookings.id, id));
+  return { success: true };
+}
+
+export async function getBookingByPhone(phone: string) {
+  const db = await getDb();
+  if (!db) return [];
+  // Normalize phone — strip non-digits
+  const digits = phone.replace(/\D/g, "");
+  const last10 = digits.slice(-10);
+  return db.select({
+    id: bookings.id,
+    name: bookings.name,
+    service: bookings.service,
+    vehicle: bookings.vehicle,
+    stage: bookings.stage,
+    stageUpdatedAt: bookings.stageUpdatedAt,
+    status: bookings.status,
+    referenceCode: bookings.referenceCode,
+    createdAt: bookings.createdAt,
+  }).from(bookings)
+    .where(and(
+      sql`REPLACE(REPLACE(REPLACE(REPLACE(${bookings.phone}, '-', ''), '(', ''), ')', ''), ' ', '') LIKE ${'%' + last10}`,
+      sql`${bookings.status} NOT IN ('cancelled')`,
+    ))
+    .orderBy(desc(bookings.createdAt))
+    .limit(5);
+}
+
+export async function getBookingByRef(ref: string) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    id: bookings.id,
+    name: bookings.name,
+    service: bookings.service,
+    vehicle: bookings.vehicle,
+    stage: bookings.stage,
+    stageUpdatedAt: bookings.stageUpdatedAt,
+    status: bookings.status,
+    referenceCode: bookings.referenceCode,
+    createdAt: bookings.createdAt,
+  }).from(bookings)
+    .where(eq(bookings.referenceCode, ref.toUpperCase()))
+    .limit(1);
+}
+
+// ─── SERVICE PRICING (PRICE ESTIMATOR) ──────────────
+
+export async function getServicePricingByCategory(serviceType: string, vehicleCategory: "compact" | "midsize" | "full-size" | "truck-suv") {
+  const db = await getDb();
+  if (!db) return null;
+  const results = await db.select().from(servicePricing)
+    .where(and(
+      eq(servicePricing.serviceType, serviceType),
+      eq(servicePricing.vehicleCategory, vehicleCategory),
+      eq(servicePricing.isActive, 1),
+    ))
+    .limit(1);
+  return results.length > 0 ? results[0] : null;
+}
+
+export async function getAllServicePricing() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(servicePricing)
+    .where(eq(servicePricing.isActive, 1))
+    .orderBy(servicePricing.serviceType, servicePricing.vehicleCategory);
+}
+
+export async function upsertServicePricing(data: InsertServicePricing) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Check if exists
+  const existing = await db.select().from(servicePricing)
+    .where(and(
+      eq(servicePricing.serviceType, data.serviceType),
+      eq(servicePricing.vehicleCategory, data.vehicleCategory),
+    ))
+    .limit(1);
+  if (existing.length > 0) {
+    await db.update(servicePricing).set({
+      serviceLabel: data.serviceLabel,
+      lowEstimate: data.lowEstimate,
+      highEstimate: data.highEstimate,
+      typicalHours: data.typicalHours,
+      notes: data.notes,
+    }).where(eq(servicePricing.id, existing[0].id));
+    return { success: true, id: existing[0].id };
+  } else {
+    const result = await db.insert(servicePricing).values(data);
+    return { success: true, id: Number(result[0].insertId) };
+  }
+}
+
+export async function seedDefaultPricing() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const defaults: InsertServicePricing[] = [
+    // Oil Change
+    { serviceType: "oil-change", serviceLabel: "Oil Change (Conventional)", vehicleCategory: "compact", lowEstimate: 35, highEstimate: 50, typicalHours: "0.5" },
+    { serviceType: "oil-change", serviceLabel: "Oil Change (Conventional)", vehicleCategory: "midsize", lowEstimate: 40, highEstimate: 55, typicalHours: "0.5" },
+    { serviceType: "oil-change", serviceLabel: "Oil Change (Conventional)", vehicleCategory: "full-size", lowEstimate: 45, highEstimate: 65, typicalHours: "0.5" },
+    { serviceType: "oil-change", serviceLabel: "Oil Change (Conventional)", vehicleCategory: "truck-suv", lowEstimate: 50, highEstimate: 75, typicalHours: "0.5-1" },
+    { serviceType: "oil-change-synthetic", serviceLabel: "Oil Change (Full Synthetic)", vehicleCategory: "compact", lowEstimate: 65, highEstimate: 85, typicalHours: "0.5" },
+    { serviceType: "oil-change-synthetic", serviceLabel: "Oil Change (Full Synthetic)", vehicleCategory: "midsize", lowEstimate: 70, highEstimate: 95, typicalHours: "0.5" },
+    { serviceType: "oil-change-synthetic", serviceLabel: "Oil Change (Full Synthetic)", vehicleCategory: "full-size", lowEstimate: 75, highEstimate: 105, typicalHours: "0.5" },
+    { serviceType: "oil-change-synthetic", serviceLabel: "Oil Change (Full Synthetic)", vehicleCategory: "truck-suv", lowEstimate: 85, highEstimate: 120, typicalHours: "0.5-1" },
+    // Brake Pads
+    { serviceType: "brake-pads-front", serviceLabel: "Front Brake Pads", vehicleCategory: "compact", lowEstimate: 150, highEstimate: 250, typicalHours: "1-2" },
+    { serviceType: "brake-pads-front", serviceLabel: "Front Brake Pads", vehicleCategory: "midsize", lowEstimate: 175, highEstimate: 300, typicalHours: "1-2" },
+    { serviceType: "brake-pads-front", serviceLabel: "Front Brake Pads", vehicleCategory: "full-size", lowEstimate: 200, highEstimate: 350, typicalHours: "1-2" },
+    { serviceType: "brake-pads-front", serviceLabel: "Front Brake Pads", vehicleCategory: "truck-suv", lowEstimate: 225, highEstimate: 400, typicalHours: "1.5-2.5" },
+    // Brake Pads + Rotors
+    { serviceType: "brake-pads-rotors", serviceLabel: "Brake Pads + Rotors (Per Axle)", vehicleCategory: "compact", lowEstimate: 300, highEstimate: 450, typicalHours: "2-3" },
+    { serviceType: "brake-pads-rotors", serviceLabel: "Brake Pads + Rotors (Per Axle)", vehicleCategory: "midsize", lowEstimate: 350, highEstimate: 550, typicalHours: "2-3" },
+    { serviceType: "brake-pads-rotors", serviceLabel: "Brake Pads + Rotors (Per Axle)", vehicleCategory: "full-size", lowEstimate: 400, highEstimate: 650, typicalHours: "2-3" },
+    { serviceType: "brake-pads-rotors", serviceLabel: "Brake Pads + Rotors (Per Axle)", vehicleCategory: "truck-suv", lowEstimate: 450, highEstimate: 750, typicalHours: "2.5-4" },
+    // Tire Services
+    { serviceType: "tire-mount-balance", serviceLabel: "Tire Mount & Balance (Per Tire)", vehicleCategory: "compact", lowEstimate: 20, highEstimate: 35, typicalHours: "0.5" },
+    { serviceType: "tire-mount-balance", serviceLabel: "Tire Mount & Balance (Per Tire)", vehicleCategory: "midsize", lowEstimate: 25, highEstimate: 40, typicalHours: "0.5" },
+    { serviceType: "tire-mount-balance", serviceLabel: "Tire Mount & Balance (Per Tire)", vehicleCategory: "full-size", lowEstimate: 25, highEstimate: 45, typicalHours: "0.5" },
+    { serviceType: "tire-mount-balance", serviceLabel: "Tire Mount & Balance (Per Tire)", vehicleCategory: "truck-suv", lowEstimate: 30, highEstimate: 50, typicalHours: "0.5-1" },
+    { serviceType: "tire-rotation", serviceLabel: "Tire Rotation", vehicleCategory: "compact", lowEstimate: 25, highEstimate: 40, typicalHours: "0.5" },
+    { serviceType: "tire-rotation", serviceLabel: "Tire Rotation", vehicleCategory: "midsize", lowEstimate: 25, highEstimate: 40, typicalHours: "0.5" },
+    { serviceType: "tire-rotation", serviceLabel: "Tire Rotation", vehicleCategory: "full-size", lowEstimate: 30, highEstimate: 45, typicalHours: "0.5" },
+    { serviceType: "tire-rotation", serviceLabel: "Tire Rotation", vehicleCategory: "truck-suv", lowEstimate: 35, highEstimate: 50, typicalHours: "0.5" },
+    { serviceType: "flat-repair", serviceLabel: "Flat Tire Repair", vehicleCategory: "compact", lowEstimate: 15, highEstimate: 30, typicalHours: "0.5" },
+    { serviceType: "flat-repair", serviceLabel: "Flat Tire Repair", vehicleCategory: "midsize", lowEstimate: 15, highEstimate: 30, typicalHours: "0.5" },
+    { serviceType: "flat-repair", serviceLabel: "Flat Tire Repair", vehicleCategory: "full-size", lowEstimate: 20, highEstimate: 35, typicalHours: "0.5" },
+    { serviceType: "flat-repair", serviceLabel: "Flat Tire Repair", vehicleCategory: "truck-suv", lowEstimate: 25, highEstimate: 40, typicalHours: "0.5" },
+    // Diagnostics
+    { serviceType: "check-engine-diag", serviceLabel: "Check Engine Light Diagnostics", vehicleCategory: "compact", lowEstimate: 75, highEstimate: 125, typicalHours: "1", notes: "Includes OBD-II scan and initial diagnosis. Repair costs are separate." },
+    { serviceType: "check-engine-diag", serviceLabel: "Check Engine Light Diagnostics", vehicleCategory: "midsize", lowEstimate: 75, highEstimate: 125, typicalHours: "1" },
+    { serviceType: "check-engine-diag", serviceLabel: "Check Engine Light Diagnostics", vehicleCategory: "full-size", lowEstimate: 85, highEstimate: 150, typicalHours: "1-1.5" },
+    { serviceType: "check-engine-diag", serviceLabel: "Check Engine Light Diagnostics", vehicleCategory: "truck-suv", lowEstimate: 85, highEstimate: 150, typicalHours: "1-1.5" },
+    // Emissions / E-Check
+    { serviceType: "emissions-repair", serviceLabel: "Emissions / E-Check Repair", vehicleCategory: "compact", lowEstimate: 150, highEstimate: 500, typicalHours: "1-4", notes: "Wide range depends on cause: O2 sensor, EVAP leak, or catalytic converter." },
+    { serviceType: "emissions-repair", serviceLabel: "Emissions / E-Check Repair", vehicleCategory: "midsize", lowEstimate: 175, highEstimate: 600, typicalHours: "1-4" },
+    { serviceType: "emissions-repair", serviceLabel: "Emissions / E-Check Repair", vehicleCategory: "full-size", lowEstimate: 200, highEstimate: 700, typicalHours: "1-5" },
+    { serviceType: "emissions-repair", serviceLabel: "Emissions / E-Check Repair", vehicleCategory: "truck-suv", lowEstimate: 225, highEstimate: 800, typicalHours: "1-5" },
+    // AC Repair
+    { serviceType: "ac-recharge", serviceLabel: "AC Recharge", vehicleCategory: "compact", lowEstimate: 100, highEstimate: 175, typicalHours: "0.5-1" },
+    { serviceType: "ac-recharge", serviceLabel: "AC Recharge", vehicleCategory: "midsize", lowEstimate: 100, highEstimate: 175, typicalHours: "0.5-1" },
+    { serviceType: "ac-recharge", serviceLabel: "AC Recharge", vehicleCategory: "full-size", lowEstimate: 125, highEstimate: 200, typicalHours: "0.5-1" },
+    { serviceType: "ac-recharge", serviceLabel: "AC Recharge", vehicleCategory: "truck-suv", lowEstimate: 125, highEstimate: 225, typicalHours: "0.5-1" },
+    // Suspension
+    { serviceType: "struts-pair", serviceLabel: "Struts Replacement (Pair)", vehicleCategory: "compact", lowEstimate: 400, highEstimate: 700, typicalHours: "2-4" },
+    { serviceType: "struts-pair", serviceLabel: "Struts Replacement (Pair)", vehicleCategory: "midsize", lowEstimate: 450, highEstimate: 800, typicalHours: "2-4" },
+    { serviceType: "struts-pair", serviceLabel: "Struts Replacement (Pair)", vehicleCategory: "full-size", lowEstimate: 500, highEstimate: 900, typicalHours: "3-5" },
+    { serviceType: "struts-pair", serviceLabel: "Struts Replacement (Pair)", vehicleCategory: "truck-suv", lowEstimate: 550, highEstimate: 1000, typicalHours: "3-5" },
+    // Alignment
+    { serviceType: "alignment", serviceLabel: "Wheel Alignment", vehicleCategory: "compact", lowEstimate: 75, highEstimate: 100, typicalHours: "1" },
+    { serviceType: "alignment", serviceLabel: "Wheel Alignment", vehicleCategory: "midsize", lowEstimate: 75, highEstimate: 100, typicalHours: "1" },
+    { serviceType: "alignment", serviceLabel: "Wheel Alignment", vehicleCategory: "full-size", lowEstimate: 85, highEstimate: 120, typicalHours: "1" },
+    { serviceType: "alignment", serviceLabel: "Wheel Alignment", vehicleCategory: "truck-suv", lowEstimate: 95, highEstimate: 130, typicalHours: "1-1.5" },
+  ];
+
+  for (const item of defaults) {
+    await upsertServicePricing(item);
+  }
+  return { success: true, count: defaults.length };
+}
+
+// ─── VEHICLE INSPECTION QUERIES ─────────────────────
+
+function generateShareToken(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let token = "";
+  for (let i = 0; i < 32; i++) token += chars[Math.floor(Math.random() * chars.length)];
+  return token;
+}
+
+export async function createInspection(data: Omit<InsertVehicleInspection, "shareToken">) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const shareToken = generateShareToken();
+  const result = await db.insert(vehicleInspections).values({ ...data, shareToken });
+  return { success: true, id: Number(result[0].insertId), shareToken };
+}
+
+export async function getInspection(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [inspection] = await db.select().from(vehicleInspections).where(eq(vehicleInspections.id, id)).limit(1);
+  if (!inspection) return null;
+  const items = await db.select().from(inspectionItems)
+    .where(eq(inspectionItems.inspectionId, id))
+    .orderBy(inspectionItems.sortOrder);
+  return { ...inspection, items };
+}
+
+export async function getInspectionByToken(token: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const [inspection] = await db.select().from(vehicleInspections)
+    .where(and(eq(vehicleInspections.shareToken, token), eq(vehicleInspections.isPublished, 1)))
+    .limit(1);
+  if (!inspection) return null;
+  const items = await db.select().from(inspectionItems)
+    .where(eq(inspectionItems.inspectionId, inspection.id))
+    .orderBy(inspectionItems.sortOrder);
+  return { ...inspection, items };
+}
+
+export async function getInspections() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(vehicleInspections).orderBy(desc(vehicleInspections.createdAt));
+}
+
+export async function addInspectionItem(data: InsertInspectionItem) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(inspectionItems).values(data);
+  return { success: true, id: Number(result[0].insertId) };
+}
+
+export async function updateInspectionItem(id: number, data: Partial<InsertInspectionItem>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(inspectionItems).set(data).where(eq(inspectionItems.id, id));
+  return { success: true };
+}
+
+export async function deleteInspectionItem(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(inspectionItems).where(eq(inspectionItems.id, id));
+  return { success: true };
+}
+
+export async function publishInspection(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(vehicleInspections).set({ isPublished: 1 }).where(eq(vehicleInspections.id, id));
+  return { success: true };
+}
+
+// ─── LOYALTY PROGRAM QUERIES ────────────────────────
+
+export async function getLoyaltyRewards() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(loyaltyRewards)
+    .where(eq(loyaltyRewards.isActive, 1))
+    .orderBy(loyaltyRewards.pointsCost);
+}
+
+export async function createLoyaltyReward(data: InsertLoyaltyReward) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(loyaltyRewards).values(data);
+  return { success: true, id: Number(result[0].insertId) };
+}
+
+export async function updateLoyaltyReward(id: number, data: Partial<InsertLoyaltyReward>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(loyaltyRewards).set(data).where(eq(loyaltyRewards.id, id));
+  return { success: true };
+}
+
+export async function getLoyaltyTransactions(userId: number, limit: number = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(loyaltyTransactions)
+    .where(eq(loyaltyTransactions.userId, userId))
+    .orderBy(desc(loyaltyTransactions.createdAt))
+    .limit(limit);
+}
+
+export async function awardPoints(userId: number, points: number, description: string, serviceHistoryId?: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Get current balance
+  const [user] = await db.select({ loyaltyPoints: users.loyaltyPoints }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!user) throw new Error("User not found");
+  const newBalance = user.loyaltyPoints + points;
+  // Update user balance
+  await db.update(users).set({ loyaltyPoints: newBalance }).where(eq(users.id, userId));
+  // Log transaction
+  await db.insert(loyaltyTransactions).values({
+    userId,
+    type: "earn",
+    points,
+    balanceAfter: newBalance,
+    description,
+    serviceHistoryId: serviceHistoryId || null,
+  });
+  // Check tier upgrade
+  await updateLoyaltyTier(userId);
+  return { success: true, newBalance };
+}
+
+export async function redeemReward(userId: number, rewardId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Get reward
+  const [reward] = await db.select().from(loyaltyRewards).where(eq(loyaltyRewards.id, rewardId)).limit(1);
+  if (!reward) throw new Error("Reward not found");
+  if (!reward.isActive) throw new Error("Reward is no longer available");
+  // Get user balance
+  const [user] = await db.select({ loyaltyPoints: users.loyaltyPoints }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!user) throw new Error("User not found");
+  if (user.loyaltyPoints < reward.pointsCost) throw new Error("Not enough points");
+  const newBalance = user.loyaltyPoints - reward.pointsCost;
+  // Update user balance
+  await db.update(users).set({ loyaltyPoints: newBalance }).where(eq(users.id, userId));
+  // Log transaction
+  await db.insert(loyaltyTransactions).values({
+    userId,
+    type: "redeem",
+    points: -reward.pointsCost,
+    balanceAfter: newBalance,
+    description: `Redeemed: ${reward.title}`,
+    rewardId,
+  });
+  return { success: true, newBalance, reward };
+}
+
+export async function getUserLoyaltySummary(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const [user] = await db.select({
+    loyaltyPoints: users.loyaltyPoints,
+    loyaltyTier: users.loyaltyTier,
+    totalVisits: users.totalVisits,
+    totalSpent: users.totalSpent,
+  }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!user) return null;
+  // Get recent transactions
+  const recentTx = await db.select().from(loyaltyTransactions)
+    .where(eq(loyaltyTransactions.userId, userId))
+    .orderBy(desc(loyaltyTransactions.createdAt))
+    .limit(5);
+  return { ...user, recentTransactions: recentTx };
+}
+
+async function updateLoyaltyTier(userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  const [user] = await db.select({ totalSpent: users.totalSpent, totalVisits: users.totalVisits }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!user) return;
+  let tier: "bronze" | "silver" | "gold" | "platinum" = "bronze";
+  if (user.totalSpent >= 5000 || user.totalVisits >= 20) tier = "platinum";
+  else if (user.totalSpent >= 2000 || user.totalVisits >= 10) tier = "gold";
+  else if (user.totalSpent >= 500 || user.totalVisits >= 3) tier = "silver";
+  await db.update(users).set({ loyaltyTier: tier }).where(eq(users.id, userId));
+}

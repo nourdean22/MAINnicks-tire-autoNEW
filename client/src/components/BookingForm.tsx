@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import {
   Phone, Calendar, Clock, Car, Wrench, CheckCircle, AlertCircle,
-  Loader2, Camera, X, ChevronRight, ChevronLeft, User, Mail, MessageSquare,
+  Loader2, Camera, X, ChevronRight, ChevronLeft, User, Mail, MessageSquare, AlertTriangle, Zap,
 } from "lucide-react";
 
 const SERVICES = [
@@ -52,6 +52,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
     preferredDate: "",
     preferredTime: "no-preference" as "morning" | "afternoon" | "no-preference",
     message: "",
+    urgency: "whenever" as "emergency" | "this-week" | "whenever",
   });
 
   const mutation = trpc.booking.create.useMutation({
@@ -115,7 +116,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
       (window as any).fbq("track", "Schedule", { content_name: "booking_form", content_category: formData.service });
     }
     const photoUrls = photos.filter((p) => p.url).map((p) => p.url!);
-    mutation.mutate({ ...formData, photoUrls });
+    mutation.mutate({ ...formData, photoUrls, urgency: formData.urgency });
   };
 
   const canGoNext = (s: Step): boolean => {
@@ -136,7 +137,12 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
         </h3>
         <p className="text-foreground/70 leading-relaxed max-w-md mx-auto">
           We got your request for <span className="text-nick-yellow font-semibold">{formData.service}</span>.
-          Our team operates first-come, first-served. We will reach out to{" "}
+          {formData.urgency === "emergency" ? (
+            <span className="block mt-2 text-red-400 font-semibold">Emergency flagged — we will prioritize your vehicle.</span>
+          ) : (
+            <span className="block mt-1">Our team operates first-come, first-served.</span>
+          )}
+          We will reach out to{" "}
           <span className="text-nick-yellow font-mono">{formData.phone}</span> when
           we are ready for your vehicle.
         </p>
@@ -224,6 +230,37 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                 >
                   <Wrench className="w-4 h-4 shrink-0" />
                   {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Urgency Routing */}
+          <div>
+            <label className="font-mono text-xs text-nick-teal/80 tracking-wider uppercase block mb-2">
+              How urgent is this?
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              {[
+                { value: "emergency", label: "Emergency", desc: "Unsafe to drive", icon: <AlertTriangle className="w-4 h-4" />, color: "border-red-500 bg-red-500/10 text-red-400 ring-red-500/30" },
+                { value: "this-week", label: "This Week", desc: "Need it soon", icon: <Zap className="w-4 h-4" />, color: "border-nick-yellow bg-nick-yellow/10 text-nick-yellow ring-nick-yellow/30" },
+                { value: "whenever", label: "Whenever", desc: "Not urgent", icon: <Clock className="w-4 h-4" />, color: "border-nick-teal bg-nick-teal/10 text-nick-teal ring-nick-teal/30" },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => update("urgency", opt.value)}
+                  className={`flex items-center gap-3 px-4 py-3 border rounded-md font-mono text-sm text-left transition-all ${
+                    formData.urgency === opt.value
+                      ? opt.color + " ring-1"
+                      : "border-border/50 text-foreground/70 hover:border-foreground/30"
+                  }`}
+                >
+                  {opt.icon}
+                  <div>
+                    <div className="font-semibold">{opt.label}</div>
+                    <div className="text-xs opacity-60">{opt.desc}</div>
+                  </div>
                 </button>
               ))}
             </div>
