@@ -49,6 +49,7 @@ import {
 import { keywordSearch, aiSearch } from "./search";
 import { getDashboardStats, getSiteHealth } from "./admin-stats";
 import { runDiagnosis } from "./diagnose";
+import { sendSms, bookingConfirmationSms, statusUpdateSms, callbackConfirmationSms } from "./sms";
 import { z } from "zod";
 import { eq, desc, sql, and, lte, gte } from "drizzle-orm";
 import { leads, chatSessions, bookings, callbackRequests, customerNotifications } from "../drizzle/schema";
@@ -170,6 +171,11 @@ export const appRouter = router({
           content: `Name: ${input.name}\nPhone: ${input.phone}\nService: ${input.service}\nVehicle: ${vehicleStr || "Not specified"}\nUrgency: ${urgencyLabel}\nRef: ${refCode}\nPreferred Date: ${input.preferredDate || "Flexible"}\nPreferred Time: ${input.preferredTime}\nMessage: ${input.message || "None"}${photoNote}`,
         }).catch(() => {});
 
+        // Send SMS booking confirmation to customer
+        sendSms(input.phone, bookingConfirmationSms(input.name, input.service, refCode)).catch(err =>
+          console.error("[SMS] Booking confirmation failed:", err)
+        );
+
         return { ...result, referenceCode: refCode };
       }),
 
@@ -245,6 +251,13 @@ export const appRouter = router({
               subject: `Vehicle Status Update — ${input.stage === "ready" ? "Ready for Pickup!" : "In Progress"}`,
               message: `Hi ${booking.name.split(" ")[0]}, your vehicle is ${stageLabels[input.stage] || "being worked on"}. ${input.stage === "ready" ? "You can pick it up anytime during business hours. Call (216) 862-0005 if you have questions." : "We'll keep you updated. Ref: " + (booking.referenceCode || "")}`,
             });
+
+            // Send SMS status update to customer
+            if (booking.phone) {
+              sendSms(booking.phone, statusUpdateSms(booking.name, input.stage, booking.referenceCode || undefined)).catch(err =>
+                console.error("[SMS] Status update failed:", err)
+              );
+            }
           }
         }
         return result;
@@ -300,6 +313,11 @@ export const appRouter = router({
           title: `Callback Request: ${input.name}`,
           content: `Phone: ${input.phone}\nPage: ${input.sourcePage || "Unknown"}\nContext: ${input.context || "None"}\n\nPlease call back ASAP.`,
         }).catch(() => {});
+
+        // Send SMS confirmation to customer that callback was received
+        sendSms(input.phone, callbackConfirmationSms(input.name)).catch(err =>
+          console.error("[SMS] Callback confirmation failed:", err)
+        );
 
         // Sync to sheets
         syncLeadToSheet({
@@ -1134,6 +1152,36 @@ export const appRouter = router({
         const { id, ...data } = input;
         return updateLoyaltyReward(id, data);
       }),
+  }),
+
+  // ─── SMS ADMIN ────────────────────────────────────────
+  sms: router({
+    /** Admin: send a test SMS to verify Twilio is working */
+    sendTest: adminProcedure
+      .input(z.object({ phone: z.string().min(7) }))
+      .mutation(async ({ input }) => {
+        const result = await sendSms(input.phone, "This is a test message from Nick's Tire & Auto. If you received this, SMS notifications are working correctly. — Nick's Team");
+        return result;
+      }),
+
+    /** Admin: send a manual SMS to any number */
+    sendManual: adminProcedure
+      .input(z.object({
+        phone: z.string().min(7),
+        message: z.string().min(1).max(1600),
+      }))
+      .mutation(async ({ input }) => {
+        return sendSms(input.phone, input.message);
+      }),
+
+    /** Admin: get Twilio configuration status */
+    status: adminProcedure.query(() => {
+      const configured = !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER);
+      return {
+        configured,
+        fromNumber: configured ? process.env.TWILIO_PHONE_NUMBER : null,
+      };
+    }),
   }),
 });
 

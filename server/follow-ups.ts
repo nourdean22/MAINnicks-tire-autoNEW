@@ -10,8 +10,9 @@
  */
 import { eq, and, lte, sql, desc } from "drizzle-orm";
 import { bookings, customerNotifications } from "../drizzle/schema";
-import { createCustomerNotification } from "./db";
+import { createCustomerNotification, markNotificationSent } from "./db";
 import { notifyOwner } from "./_core/notification";
+import { sendSms, thankYouSms, reviewRequestSms } from "./sms";
 
 async function getDb() {
   const { getDb: _getDb } = await import("./db");
@@ -44,7 +45,7 @@ export async function process24hFollowUps() {
     const firstName = booking.name.split(" ")[0];
     const message = `Hi ${firstName}, thank you for choosing Nick's Tire & Auto for your ${booking.service.toLowerCase()}. We appreciate your business and hope everything is running smoothly. If you have any questions about the work we did, don't hesitate to call us at (216) 862-0005. — Nick's Tire & Auto`;
 
-    await createCustomerNotification({
+    const notification = await createCustomerNotification({
       bookingId: booking.id,
       recipientName: booking.name,
       recipientPhone: booking.phone,
@@ -53,6 +54,14 @@ export async function process24hFollowUps() {
       subject: `Thank you for visiting Nick's Tire & Auto`,
       message,
     });
+
+    // Send SMS thank-you
+    if (booking.phone) {
+      const smsResult = await sendSms(booking.phone, thankYouSms(booking.name, booking.service)).catch(() => ({ success: false }));
+      if (smsResult.success && notification.id) {
+        await markNotificationSent(notification.id).catch(() => {});
+      }
+    }
 
     await db.update(bookings).set({ followUp24hSent: 1 }).where(eq(bookings.id, booking.id));
     processed++;
@@ -84,7 +93,7 @@ export async function process7dReviewRequests() {
     const firstName = booking.name.split(" ")[0];
     const message = `Hi ${firstName}, it's been about a week since your visit to Nick's Tire & Auto. We hope your ${booking.service.toLowerCase()} is holding up great. If you have a moment, a Google review helps other Cleveland drivers find honest auto repair: ${GBP_REVIEW_URL}\n\nThank you for your trust. — Nick's Tire & Auto`;
 
-    await createCustomerNotification({
+    const notification = await createCustomerNotification({
       bookingId: booking.id,
       recipientName: booking.name,
       recipientPhone: booking.phone,
@@ -93,6 +102,14 @@ export async function process7dReviewRequests() {
       subject: `How was your experience at Nick's Tire & Auto?`,
       message,
     });
+
+    // Send SMS review request
+    if (booking.phone) {
+      const smsResult = await sendSms(booking.phone, reviewRequestSms(booking.name)).catch(() => ({ success: false }));
+      if (smsResult.success && notification.id) {
+        await markNotificationSent(notification.id).catch(() => {});
+      }
+    }
 
     await db.update(bookings).set({ followUp7dSent: 1 }).where(eq(bookings.id, booking.id));
     processed++;

@@ -444,3 +444,12 @@
 - [x] Upgrade 8: Fleet & Commercial Accounts Page (/fleet with quote form)
 - [x] Upgrade 9: Financing Options Page (/financing with Synchrony + Sunbit info)
 - [x] Upgrade 10: Weekly Owner Intelligence Report (automated Monday summary via notifyOwner)
+
+## Phase 26 — Twilio SMS Integration
+- [x] Configure Twilio environment secrets (Account SID, Auth Token, Phone Number)
+- [x] Build Twilio SMS server module (sendSMS helper)
+- [x] Wire SMS into status update notifications (when admin updates job stage)
+- [x] Wire SMS into automated follow-ups (24hr thank-you, 7-day review request)
+- [x] Wire SMS into callback request confirmations
+- [x] Add admin SMS settings/log panel
+- [x] Write tests for SMS module (18 tests passing)
