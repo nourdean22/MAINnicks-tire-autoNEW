@@ -241,7 +241,7 @@ export async function getSiteHealth(): Promise<SiteHealthInfo> {
 
   return {
     domains: ["nickstire.org", "www.nickstire.org", "easy.nickstire.org", "nickstire.manus.space"],
-    sitemapPageCount: 50, // 50 URLs in sitemap as of March 2026
+    sitemapPageCount: 68, // 68 URLs in sitemap as of March 2026
     totalBlogPosts: 6 + dynamicBlogPosts, // 6 hardcoded + dynamic
     hardcodedBlogPosts: 6,
     dynamicBlogPosts,

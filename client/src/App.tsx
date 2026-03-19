@@ -32,11 +32,14 @@ import InspectionReport from "./pages/InspectionReport";
 import Fleet from "./pages/Fleet";
 import Financing from "./pages/Financing";
 import Loyalty from "./pages/Loyalty";
+import ServicesOverview from "./pages/ServicesOverview";
 
 function Router() {
   return (
     <Switch>
       <Route path={"/"} component={Home} />
+      {/* Services overview page */}
+      <Route path={"/services"} component={ServicesOverview} />
       {/* Individual service pages for SEO */}
       <Route path={"/tires"} component={ServicePage} />
       <Route path={"/brakes"} component={ServicePage} />
@@ -55,6 +58,12 @@ function Router() {
       <Route path={"/lakewood-auto-repair"} component={CityPage} />
       <Route path={"/parma-auto-repair"} component={CityPage} />
       <Route path={"/east-cleveland-auto-repair"} component={CityPage} />
+      <Route path={"/shaker-heights-auto-repair"} component={CityPage} />
+      <Route path={"/cleveland-heights-auto-repair"} component={CityPage} />
+      <Route path={"/mentor-auto-repair"} component={CityPage} />
+      <Route path={"/strongsville-auto-repair"} component={CityPage} />
+      <Route path={"/south-euclid-auto-repair"} component={CityPage} />
+      <Route path={"/garfield-heights-auto-repair"} component={CityPage} />
       {/* Seasonal landing pages */}
       <Route path={"/winter-car-care-cleveland"} component={SeasonalPage} />
       <Route path={"/summer-car-care-cleveland"} component={SeasonalPage} />
@@ -70,11 +79,23 @@ function Router() {
       <Route path={"/honda-repair-cleveland"} component={VehicleMakePage} />
       <Route path={"/ford-repair-cleveland"} component={VehicleMakePage} />
       <Route path={"/chevy-repair-cleveland"} component={VehicleMakePage} />
+      <Route path={"/nissan-repair-cleveland"} component={VehicleMakePage} />
+      <Route path={"/hyundai-repair-cleveland"} component={VehicleMakePage} />
+      <Route path={"/kia-repair-cleveland"} component={VehicleMakePage} />
+      <Route path={"/jeep-repair-cleveland"} component={VehicleMakePage} />
+      <Route path={"/bmw-repair-cleveland"} component={VehicleMakePage} />
+      <Route path={"/dodge-ram-repair-cleveland"} component={VehicleMakePage} />
       {/* Problem-specific pages */}
       <Route path={"/car-shaking-while-driving"} component={ProblemPage} />
       <Route path={"/brakes-grinding"} component={ProblemPage} />
       <Route path={"/check-engine-light-flashing"} component={ProblemPage} />
       <Route path={"/car-overheating"} component={ProblemPage} />
+      <Route path={"/car-wont-start"} component={ProblemPage} />
+      <Route path={"/steering-wheel-shaking"} component={ProblemPage} />
+      <Route path={"/car-pulling-to-one-side"} component={ProblemPage} />
+      <Route path={"/transmission-slipping"} component={ProblemPage} />
+      <Route path={"/ac-not-blowing-cold"} component={ProblemPage} />
+      <Route path={"/battery-keeps-dying"} component={ProblemPage} />
       {/* Reviews page */}
       <Route path={"/reviews"} component={ReviewsPage} />
       {/* Diagnostic tool */}

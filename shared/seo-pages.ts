@@ -463,10 +463,147 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
       { question: "Can you work on Chevy trucks with the 6.6L Duramax?", answer: "Yes. We service Duramax diesel engines including oil changes, fuel filter replacement, DEF system service, turbo diagnostics, and emissions system repair." }
     ],
     relatedPages: ["tires", "brakes", "diagnostics", "check-engine-light-cleveland"]
+  },
+  {
+    slug: "nissan-repair-cleveland",
+    make: "Nissan",
+    metaTitle: "Nissan Repair Cleveland OH | Altima, Rogue, Sentra | Nick's Tire & Auto",
+    metaDescription: "Nissan repair in Cleveland. Altima, Rogue, Sentra, Pathfinder, Maxima service and repair. Expert CVT transmission service. Call (216) 862-0005.",
+    heroHeadline: "NISSAN REPAIR\nIN CLEVELAND",
+    heroSubline: "Nissan vehicles are reliable and efficient, but they have specific maintenance needs that require experienced technicians. We know Nissan engineering and service them right.",
+    intro: "Nissan is one of the most popular brands on Cleveland roads, and we service them daily at Nick's Tire & Auto. We work on Altima, Rogue, Sentra, Pathfinder, Maxima, Murano, Frontier, Titan, Versa, and Kicks models. Our technicians understand Nissan's CVT transmissions, VQ and QR engine families, and the specific maintenance intervals these vehicles require.",
+    commonIssues: [
+      { model: "Altima", years: "2013-2019", issue: "CVT Transmission Shudder/Failure", description: "Nissan's CVT (Continuously Variable Transmission) in the Altima is known for developing shudder, hesitation, and eventual failure. Early symptoms include a whining noise and jerky acceleration. We diagnose CVT problems and can perform fluid exchange or recommend rebuild/replacement depending on severity." },
+      { model: "Rogue", years: "2014-2020", issue: "CVT Overheating", description: "The Rogue's CVT can overheat during stop-and-go driving or towing, triggering a transmission temperature warning. Regular CVT fluid changes with Nissan NS-3 fluid help prevent this. We service CVTs at the recommended intervals." },
+      { model: "Sentra", years: "2013-2019", issue: "Catalytic Converter Failure", description: "The Sentra's catalytic converter can fail prematurely, causing a check engine light with P0420 code. We verify the converter is the actual problem (not an oxygen sensor) before recommending replacement." },
+      { model: "Pathfinder", years: "2013-2019", issue: "Coolant Leak from Radiator", description: "The Pathfinder can develop coolant leaks from the radiator or transmission cooler lines. In severe cases, coolant can mix with transmission fluid through the integrated cooler. We inspect for cross-contamination during any coolant leak repair." },
+      { model: "Maxima", years: "2016-2023", issue: "Brake Rotor Warping", description: "The Maxima's heavier weight and performance-oriented braking can lead to premature rotor warping, especially with city driving. We replace rotors with quality aftermarket parts and use proper torque specifications on lug nuts to prevent recurrence." }
+    ],
+    services: ["CVT transmission fluid exchange with NS-3 fluid", "Brake and ABS service", "Engine diagnostics and repair", "Oil changes with Nissan-spec oil", "Catalytic converter diagnosis and replacement", "Cooling system service", "Suspension and steering repair", "Nissan-specific diagnostic scanning"],
+    faqs: [
+      { question: "How often should Nissan CVT fluid be changed?", answer: "We recommend CVT fluid exchange every 30,000-60,000 miles depending on driving conditions. Nissan originally said their CVT was sealed for life, but experience has shown regular fluid changes significantly extend CVT life. We use genuine Nissan NS-3 CVT fluid." },
+      { question: "Is the Nissan CVT transmission reliable?", answer: "With proper maintenance, Nissan CVTs can last well over 100,000 miles. The key is regular fluid changes and addressing any shudder or hesitation early. Ignoring early symptoms leads to expensive repairs." },
+      { question: "Do you work on Nissan trucks?", answer: "Yes. We service Frontier and Titan trucks including oil changes, brake service, suspension work, and engine diagnostics. The Titan's Endurance V8 is a reliable engine that responds well to regular maintenance." }
+    ],
+    relatedPages: ["tires", "brakes", "diagnostics", "check-engine-light-cleveland"]
+  },
+  {
+    slug: "hyundai-repair-cleveland",
+    make: "Hyundai",
+    metaTitle: "Hyundai Repair Cleveland OH | Elantra, Tucson, Sonata | Nick's Tire & Auto",
+    metaDescription: "Hyundai repair in Cleveland. Elantra, Tucson, Sonata, Santa Fe, Kona service and repair. Engine recall specialists. Call (216) 862-0005.",
+    heroHeadline: "HYUNDAI REPAIR\nIN CLEVELAND",
+    heroSubline: "Hyundai vehicles offer excellent value, but certain model years have known issues that require experienced diagnosis. We know these vehicles and fix them right.",
+    intro: "Hyundai has become one of the fastest-growing brands in the Cleveland area, and we see them frequently at Nick's Tire & Auto. We service Elantra, Tucson, Sonata, Santa Fe, Kona, Venue, Palisade, and Accent models. Our technicians stay current on Hyundai's technical service bulletins and recall information to ensure your vehicle gets the right repair.",
+    commonIssues: [
+      { model: "Sonata", years: "2011-2019", issue: "Theta II Engine Bearing Failure", description: "Certain Hyundai Theta II engines (2.0T and 2.4L) are subject to connecting rod bearing failure due to manufacturing debris. This can cause engine seizure. Hyundai extended warranty coverage for affected vehicles. We diagnose engine noise and can determine if your vehicle qualifies for warranty coverage." },
+      { model: "Tucson", years: "2016-2021", issue: "Engine Knock and Oil Consumption", description: "Some Tucson models with the 2.0L engine develop excessive oil consumption and engine knock. Regular oil level checks are critical. We monitor oil consumption rates and diagnose knock causes to determine if internal engine repair is needed." },
+      { model: "Elantra", years: "2017-2022", issue: "Dual Clutch Transmission Hesitation", description: "The Elantra's 7-speed DCT can exhibit hesitation and jerky shifts at low speeds. A software update from Hyundai can improve shift quality. We perform the update and test drive to verify improvement." },
+      { model: "Santa Fe", years: "2013-2019", issue: "Steering Coupler Noise", description: "A clunking or popping noise when turning the steering wheel is common in the Santa Fe. The intermediate steering shaft coupler wears and develops play. We replace the coupler to eliminate the noise." },
+      { model: "Kona", years: "2018-2023", issue: "Turbo Oil Leak", description: "The 1.6T Kona can develop oil leaks from the turbocharger oil feed and return lines. We inspect turbo connections and replace seals or lines as needed to prevent oil loss and potential turbo damage." }
+    ],
+    services: ["Engine diagnostics and recall verification", "Oil change with Hyundai-spec oil", "Brake and ABS service", "DCT and automatic transmission service", "Steering and suspension repair", "Cooling system service", "Turbocharger inspection and repair", "Hyundai-specific diagnostic scanning"],
+    faqs: [
+      { question: "Is my Hyundai covered by the engine recall?", answer: "Many 2011-2019 Hyundai models with Theta II engines are covered by extended warranty for engine bearing failure. We can check your VIN to determine if your vehicle is affected and help you navigate the warranty process." },
+      { question: "How often should I change oil in my Hyundai?", answer: "Hyundai recommends oil changes every 7,500 miles with synthetic oil for most models. However, for Theta II engines with known oil consumption issues, we recommend checking oil level monthly and changing every 5,000 miles." },
+      { question: "Do you use genuine Hyundai parts?", answer: "We use quality OEM-equivalent parts that meet or exceed Hyundai specifications. For warranty-related repairs, we can use genuine Hyundai parts when required. We discuss parts options with you before any repair." }
+    ],
+    relatedPages: ["tires", "brakes", "diagnostics", "check-engine-light-cleveland"]
+  },
+  {
+    slug: "kia-repair-cleveland",
+    make: "Kia",
+    metaTitle: "Kia Repair Cleveland OH | Forte, Sportage, Sorento | Nick's Tire & Auto",
+    metaDescription: "Kia repair in Cleveland. Forte, Sportage, Sorento, Telluride, Soul service and repair. Engine and transmission specialists. Call (216) 862-0005.",
+    heroHeadline: "KIA REPAIR\nIN CLEVELAND",
+    heroSubline: "Kia vehicles have improved dramatically in quality, but certain model years share known issues with their Hyundai counterparts. We diagnose and repair them all.",
+    intro: "Kia's popularity has surged in Cleveland, and we service a growing number of Forte, Sportage, Sorento, Telluride, Soul, Seltos, and Optima/K5 models. Kia shares many platforms and engines with Hyundai, so our experience with both brands gives us deep knowledge of their common issues and maintenance requirements.",
+    commonIssues: [
+      { model: "Optima/K5", years: "2011-2019", issue: "Theta II Engine Bearing Failure", description: "Like the Hyundai Sonata, certain Kia Optima models with Theta II engines are subject to connecting rod bearing failure. Kia has extended warranty coverage for affected vehicles. We diagnose engine noise and help determine warranty eligibility." },
+      { model: "Sportage", years: "2011-2019", issue: "Engine Knock (2.4L)", description: "The 2.4L GDI engine in the Sportage can develop knock from carbon buildup on intake valves (a common GDI issue) or from the same bearing problems as the Theta II. We perform carbon cleaning and diagnose knock causes accurately." },
+      { model: "Forte", years: "2014-2019", issue: "Steering Column Noise", description: "A clicking or clunking noise from the steering column is common in the Forte. The intermediate shaft coupling wears and needs replacement. This is a straightforward repair that eliminates the annoying noise." },
+      { model: "Sorento", years: "2016-2021", issue: "Timing Chain Rattle", description: "The 2.4L and 3.3L engines in the Sorento can develop timing chain rattle on cold starts. This indicates chain stretch and should be addressed before it causes engine damage. We replace timing chains, guides, and tensioners as a complete job." },
+      { model: "Soul", years: "2014-2019", issue: "Catalytic Converter Theft", description: "The Kia Soul is a frequent target for catalytic converter theft due to its ground clearance and converter accessibility. We replace stolen converters and can install protective shields to deter future theft." }
+    ],
+    services: ["Engine diagnostics and recall verification", "Oil change with manufacturer-spec oil", "Brake and ABS service", "Transmission service (automatic and DCT)", "Timing chain replacement", "GDI carbon cleaning", "Catalytic converter replacement", "Kia-specific diagnostic scanning"],
+    faqs: [
+      { question: "Is my Kia affected by the engine recall?", answer: "Many 2011-2019 Kia models with Theta II engines are covered. We check your VIN against the recall database and can help you understand your coverage options. Even if the recall has been performed, we monitor for ongoing issues." },
+      { question: "What is GDI carbon buildup?", answer: "Gasoline Direct Injection engines spray fuel directly into the cylinder instead of onto the intake valves. Without fuel washing over the valves, carbon deposits build up and can cause rough idle, misfires, and reduced power. We perform intake valve cleaning to restore performance." },
+      { question: "Can you install a catalytic converter shield?", answer: "Yes. We install aftermarket catalytic converter shields and protective plates to deter theft. This is especially popular for Kia Soul and Sportage owners in the Cleveland area." }
+    ],
+    relatedPages: ["tires", "brakes", "diagnostics", "check-engine-light-cleveland"]
+  },
+  {
+    slug: "jeep-repair-cleveland",
+    make: "Jeep",
+    metaTitle: "Jeep Repair Cleveland OH | Wrangler, Cherokee, Grand Cherokee | Nick's Tire & Auto",
+    metaDescription: "Jeep repair in Cleveland. Wrangler, Cherokee, Grand Cherokee, Compass, Renegade service and repair. 4WD specialists. Call (216) 862-0005.",
+    heroHeadline: "JEEP REPAIR\nIN CLEVELAND",
+    heroSubline: "Jeep vehicles are built for adventure, but Cleveland's roads and weather create unique maintenance demands. We keep your Jeep running strong in every season.",
+    intro: "Jeep is one of the most iconic brands on Cleveland roads, from daily-driver Cherokees to trail-ready Wranglers. We service all Jeep models including Wrangler, Grand Cherokee, Cherokee, Compass, Renegade, and Gladiator. Our technicians understand Jeep's 4WD systems, the Pentastar V6, and the specific maintenance these vehicles require for Cleveland driving.",
+    commonIssues: [
+      { model: "Grand Cherokee", years: "2011-2021", issue: "Hemi Tick (5.7L)", description: "The 5.7L Hemi in the Grand Cherokee can develop a ticking noise from exhaust manifold bolts that break due to heat cycling. We remove broken bolts and replace exhaust manifold gaskets to eliminate the tick." },
+      { model: "Wrangler", years: "2012-2018", issue: "Death Wobble", description: "The Wrangler's solid front axle can develop a violent steering oscillation known as death wobble, usually triggered by a bump at highway speed. Common causes include worn track bar bushings, ball joints, or steering stabilizer. We diagnose and correct the specific worn component." },
+      { model: "Cherokee", years: "2014-2019", issue: "9-Speed Transmission Issues", description: "The ZF 9-speed automatic in the Cherokee can exhibit harsh shifts, hesitation, and hunting between gears. Software updates from Chrysler have improved shift quality. We perform the latest calibration and verify proper operation." },
+      { model: "Compass", years: "2017-2022", issue: "Oil Consumption (2.4L)", description: "The 2.4L Tigershark engine in the Compass can consume oil between changes. Regular oil level monitoring is important. We check consumption rates and can perform internal repairs if consumption is excessive." },
+      { model: "Wrangler", years: "2018-2023", issue: "eTorque Mild Hybrid Issues", description: "The eTorque system on newer Wranglers can develop issues with the belt-driven starter-generator, causing rough idle or stalling. We diagnose eTorque system faults and repair or replace components as needed." }
+    ],
+    services: ["4WD system service and repair", "Transfer case fluid exchange", "Differential service (front and rear)", "Brake service for heavy Jeep vehicles", "Suspension lift and leveling kit installation", "Exhaust manifold bolt repair", "Engine diagnostics and repair", "Jeep-specific diagnostic scanning"],
+    faqs: [
+      { question: "What is Jeep death wobble?", answer: "Death wobble is a violent steering oscillation that occurs at highway speed, usually triggered by hitting a bump. It is caused by worn steering or suspension components. The most common culprits are the track bar bushing, ball joints, and tie rod ends. We diagnose the specific worn part and replace it." },
+      { question: "How often should I service my Jeep's 4WD system?", answer: "We recommend transfer case and differential fluid changes every 30,000-50,000 miles. If you drive in severe conditions (off-road, towing, or frequent 4WD use), service more frequently. Clean fluid prevents expensive drivetrain repairs." },
+      { question: "Can you work on lifted Jeeps?", answer: "Yes. We service lifted Jeeps including alignment (with adjustable components), brake upgrades, and suspension maintenance. We also install leveling kits and moderate lift kits." }
+    ],
+    relatedPages: ["tires", "brakes", "suspension-repair-cleveland", "diagnostics"]
+  },
+  {
+    slug: "bmw-repair-cleveland",
+    make: "BMW",
+    metaTitle: "BMW Repair Cleveland OH | 3 Series, X3, X5, 5 Series | Nick's Tire & Auto",
+    metaDescription: "BMW repair in Cleveland. 3 Series, X3, X5, 5 Series service and repair. Dealership-quality work at independent shop prices. Call (216) 862-0005.",
+    heroHeadline: "BMW REPAIR\nIN CLEVELAND",
+    heroSubline: "BMW engineering is sophisticated, and maintenance costs at the dealer reflect that. We provide the same quality diagnosis and repair at significantly lower prices.",
+    intro: "BMW owners in Cleveland often look for an alternative to dealership pricing without sacrificing quality. Nick's Tire & Auto provides expert BMW service for 3 Series, 5 Series, X1, X3, X5, and other models. Our technicians use professional-grade diagnostic equipment that reads BMW-specific codes and accesses all vehicle modules, giving us the same diagnostic capability as the dealer.",
+    commonIssues: [
+      { model: "3 Series (F30)", years: "2012-2018", issue: "N20 Timing Chain Failure", description: "The N20 4-cylinder turbo engine can develop timing chain stretch and guide failure, causing a rattling noise on startup. If not addressed, the chain can skip and cause catastrophic engine damage. We replace the chain, guides, and tensioner as a preventive measure." },
+      { model: "X3", years: "2011-2017", issue: "Oil Filter Housing Gasket Leak", description: "The oil filter housing gasket on the N20 and N55 engines is a common leak point. Oil drips onto the serpentine belt and can cause belt slip or smoke. We replace the gasket and clean affected components." },
+      { model: "X5", years: "2007-2019", issue: "Coolant Leak from Expansion Tank", description: "BMW's plastic coolant expansion tanks become brittle with age and crack, causing coolant loss. We replace with updated parts and pressure test the entire cooling system to ensure no other leaks exist." },
+      { model: "5 Series", years: "2011-2017", issue: "VANOS Solenoid Failure", description: "The Variable Valve Timing (VANOS) solenoids can fail or become clogged with oil sludge, causing rough idle, reduced power, and check engine lights. We clean or replace VANOS solenoids and verify proper timing." },
+      { model: "All Models", years: "2010-2023", issue: "Brake Sensor and Pad Wear", description: "BMW uses electronic brake wear sensors that trigger a dashboard warning when pads are thin. We replace pads, rotors, and sensors together for a complete brake service. BMW brakes wear faster than average due to vehicle weight and performance." }
+    ],
+    services: ["BMW-specific diagnostic scanning", "Oil service with BMW LL-01 approved oil", "Brake service with sensor replacement", "Cooling system repair and expansion tank replacement", "Timing chain service (N20, N55)", "VANOS and Valvetronic repair", "Suspension repair including electronic dampers", "Transmission fluid service (ZF 8-speed)"],
+    faqs: [
+      { question: "Is it cheaper to repair a BMW at an independent shop?", answer: "Significantly. Independent shops like ours typically charge 30-50% less than BMW dealers for the same repair using equivalent quality parts. We have the same diagnostic equipment and technical knowledge without the dealer overhead." },
+      { question: "Do you use BMW-approved oil?", answer: "Yes. We use BMW LL-01 approved synthetic oil for all BMW oil services. Using the correct oil specification is critical for BMW engines, especially turbocharged models." },
+      { question: "Will independent shop service void my BMW warranty?", answer: "No. Federal law (Magnuson-Moss Warranty Act) protects your right to have your vehicle serviced at any qualified shop without voiding the manufacturer warranty, as long as the correct parts and fluids are used." }
+    ],
+    relatedPages: ["tires", "brakes", "diagnostics", "check-engine-light-cleveland"]
+  },
+  {
+    slug: "dodge-ram-repair-cleveland",
+    make: "Dodge/Ram",
+    metaTitle: "Dodge & Ram Repair Cleveland OH | Ram 1500, Charger, Durango | Nick's Tire & Auto",
+    metaDescription: "Dodge and Ram repair in Cleveland. Ram 1500, Charger, Durango, Challenger, Grand Caravan service and repair. Hemi specialists. Call (216) 862-0005.",
+    heroHeadline: "DODGE & RAM REPAIR\nIN CLEVELAND",
+    heroSubline: "Dodge and Ram vehicles are powerful and popular in Cleveland. From Hemi V8s to Pentastar V6s, we know these engines and keep them running strong.",
+    intro: "Dodge and Ram vehicles are everywhere in Cleveland, from Ram 1500 work trucks to Charger daily drivers. We service all Dodge and Ram models including Ram 1500/2500/3500, Charger, Challenger, Durango, Grand Caravan, and Journey. Our technicians are experienced with the Hemi V8, Pentastar V6, and the ZF 8-speed transmission that powers most of the current lineup.",
+    commonIssues: [
+      { model: "Ram 1500", years: "2009-2021", issue: "Hemi Tick (Exhaust Manifold Bolts)", description: "The 5.7L Hemi is known for developing a ticking noise caused by broken exhaust manifold bolts. Heat cycling causes the bolts to fatigue and snap. We extract broken bolts and replace exhaust manifold gaskets to eliminate the tick." },
+      { model: "Charger/Challenger", years: "2011-2023", issue: "Hemi MDS Lifter Failure", description: "The Multi-Displacement System (MDS) uses special lifters to deactivate cylinders for fuel economy. These lifters can collapse, causing a misfire and ticking noise. We replace failed lifters and can disable MDS if desired." },
+      { model: "Durango", years: "2011-2021", issue: "Water Pump Failure (3.6L)", description: "The 3.6L Pentastar V6 in the Durango has an internal water pump driven by the timing chain. When it fails, coolant can mix with engine oil. We replace the water pump and verify no coolant contamination occurred." },
+      { model: "Grand Caravan", years: "2011-2020", issue: "Transmission Solenoid Pack", description: "The 62TE transmission in the Grand Caravan can develop shifting problems from a failing solenoid pack. Symptoms include harsh shifts, delayed engagement, and limp mode. We replace the solenoid pack without a full transmission rebuild." },
+      { model: "Ram 2500/3500", years: "2007-2023", issue: "Cummins DEF System Issues", description: "The 6.7L Cummins diesel uses a DEF (Diesel Exhaust Fluid) system that can develop sensor failures, injector clogs, and heater problems. We diagnose DEF system codes and repair the specific failed component." }
+    ],
+    services: ["Hemi engine service and repair", "Exhaust manifold bolt extraction", "MDS lifter replacement", "ZF 8-speed transmission service", "4WD transfer case and differential service", "Brake service for heavy trucks", "Cummins diesel maintenance", "Dodge/Ram-specific diagnostic scanning"],
+    faqs: [
+      { question: "What causes the Hemi tick?", answer: "The Hemi tick is almost always caused by broken exhaust manifold bolts. The cast iron manifold expands and contracts with heat, fatiguing the bolts over time until they break. The exhaust leak creates the ticking sound. We extract the broken bolts and install new gaskets." },
+      { question: "How often should I change the oil in my Hemi?", answer: "We recommend every 5,000-6,000 miles with full synthetic 5W-20 oil. The Hemi's MDS system and tight tolerances benefit from fresh oil. We also recommend checking oil level between changes as some Hemis consume a small amount." },
+      { question: "Do you work on Cummins diesel trucks?", answer: "Yes. We service 6.7L Cummins engines including oil changes with diesel-spec oil, fuel filter replacement, DEF system repair, turbo diagnostics, and emissions system service." }
+    ],
+    relatedPages: ["tires", "brakes", "diagnostics", "check-engine-light-cleveland"]
   }
 ];
-
-// ─── PROBLEM-SPECIFIC PAGES ──────────────────────────
+// ─── PROBLEM-SPECIFIC PAGESS ──────────────────────────
 export interface ProblemPage {
   slug: string;
   metaTitle: string;
@@ -581,6 +718,150 @@ export const PROBLEM_PAGES: ProblemPage[] = [
       { question: "How much does it cost to fix an overheating car?", answer: "It depends entirely on the cause. A thermostat replacement might be $200. A water pump could be $500. A head gasket repair can be $1,500 or more. We diagnose the specific cause and provide an exact quote before any work begins." }
     ],
     relatedPages: ["diagnostics-cleveland", "check-engine-light-cleveland", "summer-car-care-cleveland", "ac-repair-cleveland"]
+  },
+  {
+    slug: "car-wont-start",
+    metaTitle: "Car Won't Start? | Causes & Repair | Nick's Tire & Auto Cleveland",
+    metaDescription: "Car won't start? Common causes include dead battery, bad starter, fuel pump failure, and ignition problems. Expert diagnosis in Cleveland. Call (216) 862-0005.",
+    heroHeadline: "CAR WON'T\nSTART?",
+    heroSubline: "A car that will not start can be caused by electrical, fuel, or mechanical problems. The symptoms you notice — clicking, cranking, or complete silence — tell us where to look first.",
+    problemDescription: "A no-start condition is one of the most frustrating problems a driver can face. The good news is that the symptoms provide strong clues about the cause. If you hear a rapid clicking sound, the battery is likely too weak to engage the starter. If the engine cranks but will not fire, the problem is usually fuel delivery or ignition. Complete silence when you turn the key points to a dead battery, corroded connections, or a failed starter solenoid.",
+    possibleCauses: [
+      { cause: "Dead or Weak Battery", likelihood: "Common", explanation: "The battery is the most common cause of a no-start. Cleveland's cold winters are especially hard on batteries. We test battery voltage, cold cranking amps, and charging system output to determine if the battery needs replacement or if the alternator is not charging properly.", typicalCost: "$150 to $300 for battery replacement" },
+      { cause: "Corroded Battery Terminals", likelihood: "Common", explanation: "Corrosion on battery terminals prevents proper electrical contact. This can cause intermittent starting problems that get worse over time. We clean terminals and apply protective coating, or replace cables if corrosion has damaged the wire.", typicalCost: "$50 to $150 for cleaning or cable replacement" },
+      { cause: "Failed Starter Motor", likelihood: "Moderate", explanation: "The starter motor physically cranks the engine. When it fails, you may hear a single click or grinding noise when turning the key. Starters can fail gradually or suddenly. We test starter draw and operation before recommending replacement.", typicalCost: "$300 to $600 depending on the vehicle" },
+      { cause: "Fuel Pump Failure", likelihood: "Moderate", explanation: "If the engine cranks normally but will not start, the fuel pump may have failed. You should hear a brief hum from the fuel tank when you turn the key to the ON position. No hum often means no fuel delivery. We test fuel pressure at the rail to confirm.", typicalCost: "$400 to $900 including labor" },
+      { cause: "Ignition Switch or Key Problem", likelihood: "Less Common", explanation: "A worn ignition switch or a key with a weak transponder chip can prevent starting. The security light on the dashboard may flash. We diagnose ignition circuit problems and can often reprogram keys.", typicalCost: "$200 to $500 depending on the issue" },
+      { cause: "Failed Alternator", likelihood: "Less Common", explanation: "A failed alternator does not directly prevent starting, but it will drain the battery over time. If your battery keeps dying after being charged or replaced, the alternator is likely not charging. We test alternator output and diode condition.", typicalCost: "$350 to $700 for alternator replacement" }
+    ],
+    diagnosticProcess: "We start by testing battery voltage and condition. If the battery is good, we test the starter circuit including the solenoid, relay, and wiring. If the engine cranks but will not start, we check fuel pressure, spark, and injector pulse. We also scan for stored codes that may indicate a security system lockout or sensor failure.",
+    whenToStop: "If your car will not start, do not keep cranking the engine for extended periods — this can drain the battery further and overheat the starter. Try a few times, then stop. If you smell fuel, stop immediately as you may be flooding the engine. If you see smoke from under the hood, do not attempt to start the vehicle.",
+    faqs: [
+      { question: "Why does my car click but not start?", answer: "Rapid clicking usually means the battery has enough power to engage the starter solenoid but not enough to turn the engine. A single loud click often means the starter motor itself has failed. Either way, we can diagnose it quickly." },
+      { question: "How long do car batteries last in Cleveland?", answer: "In Cleveland's climate, most car batteries last 3 to 5 years. Cold temperatures reduce battery capacity, and hot summers accelerate internal degradation. We recommend testing your battery every fall before winter." },
+      { question: "Can you jump start my car and test the battery?", answer: "Yes. If you can get your vehicle to our shop, we will test the battery, alternator, and starter for free to determine why it is not starting reliably." }
+    ],
+    relatedPages: ["diagnostics-cleveland", "check-engine-light-cleveland", "brake-repair-cleveland"]
+  },
+  {
+    slug: "steering-wheel-shaking",
+    metaTitle: "Steering Wheel Shaking? | Causes & Repair | Nick's Tire & Auto Cleveland",
+    metaDescription: "Steering wheel vibrating or shaking? Causes include tire balance, warped rotors, worn suspension, and alignment problems. Diagnosis in Cleveland. Call (216) 862-0005.",
+    heroHeadline: "STEERING WHEEL\nSHAKING?",
+    heroSubline: "A shaking steering wheel is not just annoying — it is a warning sign. The speed at which it shakes and whether it happens during braking tells us exactly where to look.",
+    problemDescription: "Steering wheel vibration is a symptom that drivers notice immediately because they feel it through their hands. The pattern of the vibration provides critical diagnostic information. Shaking at highway speeds (55-70 mph) that goes away at lower speeds usually points to tire balance or tire condition. Shaking only when braking indicates warped brake rotors. Constant vibration at all speeds suggests a bent wheel, damaged tire, or worn suspension component.",
+    possibleCauses: [
+      { cause: "Tire Balance", likelihood: "Common", explanation: "Unbalanced tires are the most common cause of steering wheel vibration at highway speeds. Wheel weights can fall off, and tires wear unevenly over time. We balance all four wheels using a precision spin balancer and inspect tires for uneven wear patterns.", typicalCost: "$60 to $100 for four-wheel balance" },
+      { cause: "Warped Brake Rotors", likelihood: "Common", explanation: "If the steering wheel shakes only when braking, the brake rotors likely have thickness variation (commonly called warping). This happens from heat buildup during aggressive braking or from lug nuts torqued unevenly. We measure rotor runout and thickness variation with a dial indicator.", typicalCost: "$200 to $500 for rotor resurfacing or replacement" },
+      { cause: "Worn Tie Rod Ends", likelihood: "Moderate", explanation: "Tie rod ends connect the steering rack to the wheels. When they wear, they develop play that allows the wheel to vibrate. We check tie rod ends by lifting the vehicle and checking for movement at the wheel.", typicalCost: "$200 to $400 per side including alignment" },
+      { cause: "Bent Wheel", likelihood: "Moderate", explanation: "Hitting a pothole hard enough can bend a wheel rim. A bent wheel causes vibration that cannot be corrected by balancing. We spin each wheel on the balancer to check for lateral and radial runout. Cleveland's pothole-heavy roads make this a common issue.", typicalCost: "$150 to $400 for wheel repair or replacement" },
+      { cause: "Worn Wheel Bearing", likelihood: "Less Common", explanation: "A failing wheel bearing can cause vibration along with a humming or growling noise that changes with speed. We check bearing play by rocking the wheel and listening for roughness when spinning it by hand.", typicalCost: "$300 to $600 per wheel" },
+      { cause: "Worn Ball Joints", likelihood: "Less Common", explanation: "Ball joints connect the control arms to the steering knuckles. When they wear, they allow excessive movement that creates vibration and wandering. Severely worn ball joints are a safety hazard.", typicalCost: "$250 to $500 per side" }
+    ],
+    diagnosticProcess: "We start with a road test to characterize the vibration — when it occurs, at what speed, and whether braking changes it. Then we inspect tires for wear patterns and damage, balance all four wheels, measure brake rotor runout, and check all steering and suspension components for wear. This systematic approach identifies the exact cause.",
+    whenToStop: "If the steering wheel shakes violently or the vehicle feels unstable, reduce speed and drive to a shop as soon as possible. Severe vibration can indicate a tire about to fail or a suspension component that is dangerously worn. Do not ignore vibration that gets progressively worse.",
+    faqs: [
+      { question: "Why does my steering wheel shake at 60 mph but not at 30?", answer: "Speed-dependent vibration is almost always related to tire balance or tire condition. At lower speeds, the imbalance is not significant enough to feel. At highway speed, even a small imbalance creates noticeable vibration." },
+      { question: "Can potholes cause steering wheel vibration?", answer: "Absolutely. Cleveland's roads are tough on vehicles. A hard pothole hit can bend a wheel, knock off a wheel weight, damage a tire internally, or wear a suspension component. We see pothole damage regularly." },
+      { question: "How much does it cost to fix steering wheel vibration?", answer: "It depends on the cause. A simple tire balance is around $80. Brake rotor replacement might be $300-500. Suspension repairs vary. We diagnose the specific cause and quote the exact repair before starting work." }
+    ],
+    relatedPages: ["suspension-repair-cleveland", "tire-repair-cleveland", "brake-repair-cleveland", "car-shaking-while-driving"]
+  },
+  {
+    slug: "car-pulling-to-one-side",
+    metaTitle: "Car Pulling to One Side? | Causes & Repair | Nick's Tire & Auto Cleveland",
+    metaDescription: "Car pulling left or right while driving? Causes include alignment, tire pressure, brake drag, and suspension wear. Expert diagnosis in Cleveland. Call (216) 862-0005.",
+    heroHeadline: "CAR PULLING\nTO ONE SIDE?",
+    heroSubline: "If your vehicle drifts left or right when you let go of the steering wheel, something is causing uneven forces on your tires. We identify and correct the cause.",
+    problemDescription: "A vehicle that pulls to one side is not just inconvenient — it causes uneven tire wear and can indicate a safety issue. The pull can be constant, intermittent, or only during braking. Each pattern has different causes. A constant pull usually relates to alignment or tire pressure. Pulling only during braking indicates a brake problem. A pull that appeared suddenly after hitting a pothole suggests bent suspension components.",
+    possibleCauses: [
+      { cause: "Wheel Alignment", likelihood: "Common", explanation: "Misaligned wheels are the most common cause of pulling. If the camber, caster, or toe angles are different side to side, the vehicle will pull toward the side with more positive camber or less caster. We perform a four-wheel alignment check and adjust all angles to factory specifications.", typicalCost: "$80 to $150 for a four-wheel alignment" },
+      { cause: "Uneven Tire Pressure", likelihood: "Common", explanation: "A tire with lower pressure than the opposite side creates more rolling resistance, causing the vehicle to pull toward that side. We check and adjust all tire pressures to the manufacturer's specification. If a tire keeps losing pressure, we inspect for leaks.", typicalCost: "Free pressure check; $20-40 for leak repair" },
+      { cause: "Brake Caliper Sticking", likelihood: "Moderate", explanation: "A brake caliper that does not fully release creates drag on one side, pulling the vehicle in that direction. You may also notice the vehicle pulling more during braking. We check caliper slide pins, piston movement, and brake hose condition.", typicalCost: "$200 to $400 for caliper service or replacement" },
+      { cause: "Uneven Tire Wear", likelihood: "Moderate", explanation: "Tires with different tread depths or wear patterns on the same axle can cause pulling. This is why regular tire rotation is important. We measure tread depth on all tires and recommend rotation or replacement as needed.", typicalCost: "$40 for rotation; varies for replacement" },
+      { cause: "Bent Control Arm or Strut", likelihood: "Less Common", explanation: "A hard pothole impact can bend a control arm or strut, changing the alignment angles beyond what a standard alignment can correct. We inspect suspension components for damage and replace bent parts before aligning.", typicalCost: "$300 to $700 per side plus alignment" },
+      { cause: "Worn Suspension Bushings", likelihood: "Less Common", explanation: "Control arm bushings and strut mounts wear over time, allowing the alignment to shift. This causes gradual pulling that gets worse. We inspect all bushings for cracking, splitting, and excessive play.", typicalCost: "$200 to $500 depending on the bushing location" }
+    ],
+    diagnosticProcess: "We start by checking tire pressures and inspecting tires for uneven wear. Then we perform a four-wheel alignment check to measure all angles. We inspect brake components for drag and check suspension parts for damage or wear. If the vehicle pulls only during braking, we focus on the brake system. This systematic approach ensures we find the root cause.",
+    whenToStop: "If the pull is mild and consistent, you can safely drive to a shop. If the vehicle pulls sharply or suddenly, especially during braking, reduce speed and have it inspected immediately. A sudden pull during braking can indicate a brake hose failure, which is a safety emergency.",
+    faqs: [
+      { question: "Can tire pressure cause my car to pull?", answer: "Yes. Even a 5 PSI difference between the left and right tires can cause noticeable pulling. Always check tire pressures first — it is the simplest and cheapest fix." },
+      { question: "How often should I get an alignment?", answer: "We recommend checking alignment annually or after hitting a significant pothole. In Cleveland, where road conditions are rough, many drivers need alignment more frequently." },
+      { question: "Why does my car pull only when braking?", answer: "Pulling during braking usually means one brake caliper is applying more force than the other. This can be caused by a sticking caliper, a collapsed brake hose, or uneven pad wear. We inspect the entire brake system to find the cause." }
+    ],
+    relatedPages: ["suspension-repair-cleveland", "tire-repair-cleveland", "brake-repair-cleveland"]
+  },
+  {
+    slug: "transmission-slipping",
+    metaTitle: "Transmission Slipping? | Causes & Repair | Nick's Tire & Auto Cleveland",
+    metaDescription: "Transmission slipping, jerking, or not shifting properly? Expert transmission diagnosis in Cleveland. Honest assessment before any repair. Call (216) 862-0005.",
+    heroHeadline: "TRANSMISSION\nSLIPPING?",
+    heroSubline: "Transmission problems are stressful because the repair can be expensive. We diagnose the exact issue first and give you honest options — sometimes it is a simple fix.",
+    problemDescription: "Transmission slipping means the engine revs higher than normal without a corresponding increase in vehicle speed. It feels like the transmission is momentarily losing its grip. Other symptoms include delayed engagement when shifting from park to drive, harsh or jerky shifts, and the transmission refusing to shift into higher gears. These symptoms can indicate problems ranging from low fluid to internal mechanical failure.",
+    possibleCauses: [
+      { cause: "Low or Degraded Transmission Fluid", likelihood: "Common", explanation: "Transmission fluid lubricates, cools, and creates the hydraulic pressure needed for shifting. Low fluid from a leak or degraded fluid from age can cause slipping. We check fluid level and condition — dark, burnt-smelling fluid indicates it needs service.", typicalCost: "$150 to $300 for fluid exchange" },
+      { cause: "Transmission Fluid Leak", likelihood: "Common", explanation: "Leaks from the pan gasket, cooler lines, axle seals, or torque converter seal reduce fluid level and cause slipping. We identify the leak source, repair it, and refill with the correct fluid specification.", typicalCost: "$150 to $500 depending on leak location" },
+      { cause: "Worn Clutch Packs (Automatic)", likelihood: "Moderate", explanation: "Automatic transmissions use clutch packs to engage different gears. Over time, the friction material wears thin and the clutches slip. This is an internal repair that requires transmission removal.", typicalCost: "$1,500 to $3,500 for rebuild" },
+      { cause: "Solenoid Failure", likelihood: "Moderate", explanation: "Shift solenoids control fluid flow to engage different gears. A failed solenoid can cause slipping, harsh shifts, or failure to shift into certain gears. We scan for transmission codes and test solenoid operation electrically.", typicalCost: "$300 to $800 depending on the solenoid and location" },
+      { cause: "Torque Converter Problem", likelihood: "Less Common", explanation: "The torque converter transfers engine power to the transmission. Internal wear can cause shuddering, slipping, or overheating. Torque converter replacement requires transmission removal.", typicalCost: "$800 to $1,500 including labor" },
+      { cause: "Software/TCM Issue", likelihood: "Less Common", explanation: "Modern transmissions are computer-controlled. A faulty transmission control module or outdated software can cause shifting problems. We scan for codes and can reprogram the TCM when applicable.", typicalCost: "$200 to $600 for reprogramming or module replacement" }
+    ],
+    diagnosticProcess: "We start by checking transmission fluid level and condition. Then we scan for stored transmission codes. We perform a road test to characterize the slipping — which gears, under what conditions, and how severe. We check line pressure with a gauge if needed. This tells us whether the problem is electrical (solenoids, sensors) or mechanical (clutch packs, bands) before recommending repair.",
+    whenToStop: "If the transmission is slipping badly, avoid heavy acceleration and highway driving. Continued driving with a slipping transmission generates excessive heat that causes further damage. If the transmission starts making grinding or whining noises, stop driving and have it towed.",
+    faqs: [
+      { question: "Is it safe to drive with a slipping transmission?", answer: "Mild slipping at low speeds is usually safe for short distances to reach a shop. However, continued driving accelerates wear and increases repair costs. Avoid highway driving and heavy loads until the problem is diagnosed." },
+      { question: "How much does a transmission rebuild cost?", answer: "A transmission rebuild typically costs $1,500 to $3,500 depending on the vehicle and the extent of internal damage. We always diagnose the specific problem first — sometimes a fluid service, solenoid replacement, or software update can fix the issue without a full rebuild." },
+      { question: "Should I just replace the transmission?", answer: "Not necessarily. We diagnose the exact cause first. Many transmission problems are caused by external issues like leaks, solenoids, or software that cost far less to fix than a rebuild. We give you honest options and let you decide." }
+    ],
+    relatedPages: ["diagnostics-cleveland", "check-engine-light-cleveland"]
+  },
+  {
+    slug: "ac-not-blowing-cold",
+    metaTitle: "AC Not Blowing Cold? | Causes & Repair | Nick's Tire & Auto Cleveland",
+    metaDescription: "Car AC not blowing cold air? Causes include low refrigerant, compressor failure, and electrical problems. AC diagnosis and repair in Cleveland. Call (216) 862-0005.",
+    heroHeadline: "AC NOT\nBLOWING COLD?",
+    heroSubline: "When your AC stops cooling, Cleveland summers become miserable. We diagnose the exact cause — from simple refrigerant recharge to compressor replacement — and fix it right.",
+    problemDescription: "Your vehicle's air conditioning system is a sealed loop that circulates refrigerant through a compressor, condenser, and evaporator. When any component in this loop fails or refrigerant leaks out, the system cannot cool the air. The most common symptom is air that blows but is not cold, or air that starts cold and gradually warms up. Some AC problems are inexpensive to fix while others require major component replacement.",
+    possibleCauses: [
+      { cause: "Low Refrigerant", likelihood: "Common", explanation: "The most common cause of weak AC is low refrigerant from a slow leak. AC systems are sealed and should not lose refrigerant over time. If the level is low, there is a leak somewhere. We check the charge level, add UV dye if needed, and locate the leak before simply recharging.", typicalCost: "$150 to $300 for leak detection and recharge" },
+      { cause: "Compressor Failure", likelihood: "Moderate", explanation: "The compressor is the heart of the AC system. When it fails, it may make grinding noises, not engage at all, or cycle on and off rapidly. We test compressor clutch engagement, internal pressure, and listen for abnormal sounds.", typicalCost: "$500 to $1,200 for compressor replacement" },
+      { cause: "Condenser or Evaporator Leak", likelihood: "Moderate", explanation: "The condenser sits in front of the radiator and is exposed to road debris. The evaporator is inside the dashboard. Either can develop leaks from corrosion or damage. Condenser replacement is straightforward; evaporator replacement requires dashboard removal.", typicalCost: "$300-600 for condenser; $800-1,500 for evaporator" },
+      { cause: "Electrical Problem", likelihood: "Moderate", explanation: "The AC system relies on pressure switches, temperature sensors, relays, and the compressor clutch circuit. A failed relay or sensor can prevent the compressor from engaging even though the mechanical components are fine. We test the entire electrical circuit.", typicalCost: "$100 to $300 for sensor or relay replacement" },
+      { cause: "Clogged Expansion Valve or Orifice Tube", likelihood: "Less Common", explanation: "The expansion valve or orifice tube meters refrigerant flow into the evaporator. When clogged with debris, it restricts flow and reduces cooling. We check for proper pressure differential across the valve.", typicalCost: "$200 to $400 for replacement" },
+      { cause: "Blend Door Actuator", likelihood: "Less Common", explanation: "Sometimes the AC system is working fine but the blend door that directs air through the heater core or evaporator is stuck. This mixes hot air with cold, making it seem like the AC is not working. We check blend door operation and actuator function.", typicalCost: "$200 to $500 depending on location" }
+    ],
+    diagnosticProcess: "We start by checking if the compressor engages when AC is turned on. Then we measure high-side and low-side pressures to evaluate system charge and component function. We check for leaks using electronic detection and UV dye. We verify electrical circuits including the pressure switch, relay, and clutch coil. This systematic approach identifies the exact failure point.",
+    whenToStop: "If the AC compressor is making loud grinding or screeching noises, turn off the AC immediately. A seized compressor can break the serpentine belt, which also drives the alternator, power steering, and water pump. Running the AC with a known leak is wasteful but not dangerous.",
+    faqs: [
+      { question: "Can I just recharge my AC myself?", answer: "DIY recharge kits add refrigerant but do not fix the underlying leak. They also cannot measure the exact charge level, and overcharging can damage the compressor. We recommend professional diagnosis to find and fix the leak, then charge to the exact specification." },
+      { question: "Why does my AC work sometimes but not others?", answer: "Intermittent AC problems often indicate a refrigerant level that is borderline — just enough to work when cool but not when hot. It can also indicate an electrical issue like a failing pressure switch or loose connection. We diagnose intermittent problems by monitoring the system under different conditions." },
+      { question: "How much does AC repair cost?", answer: "It ranges widely. A simple recharge after leak repair might be $200-300. Compressor replacement can be $800-1,200. We always diagnose first and give you the exact cost before starting work." }
+    ],
+    relatedPages: ["ac-repair-cleveland", "diagnostics-cleveland", "check-engine-light-cleveland"]
+  },
+  {
+    slug: "battery-keeps-dying",
+    metaTitle: "Car Battery Keeps Dying? | Causes & Repair | Nick's Tire & Auto Cleveland",
+    metaDescription: "Car battery keeps dying or going dead? Causes include bad alternator, parasitic drain, and old battery. Expert electrical diagnosis in Cleveland. Call (216) 862-0005.",
+    heroHeadline: "BATTERY KEEPS\nDYING?",
+    heroSubline: "If your battery keeps going dead, something is either draining it or not charging it. We test the entire electrical system to find the exact cause.",
+    problemDescription: "A battery that repeatedly dies is one of the most frustrating vehicle problems because it leaves you stranded. The cause is always one of three things: the battery itself is failing, the charging system is not keeping it charged, or something is draining it when the vehicle is off (parasitic drain). Each requires different testing to diagnose. Simply replacing the battery without finding the root cause often leads to the same problem with the new battery.",
+    possibleCauses: [
+      { cause: "Failing Battery", likelihood: "Common", explanation: "Car batteries have a finite lifespan, typically 3-5 years in Cleveland's climate. A battery can test fine when warm but fail in cold weather because its capacity has degraded. We load test batteries to measure actual capacity under stress, not just resting voltage.", typicalCost: "$150 to $300 for battery replacement" },
+      { cause: "Failed Alternator", likelihood: "Common", explanation: "The alternator charges the battery while the engine is running. If the alternator fails, the battery slowly drains and eventually dies. Signs include dimming headlights, a battery warning light, and electrical accessories losing power. We test alternator output and diode condition.", typicalCost: "$350 to $700 for alternator replacement" },
+      { cause: "Parasitic Drain", likelihood: "Moderate", explanation: "A parasitic drain is something drawing power from the battery when the vehicle is off. Common culprits include aftermarket accessories, a stuck relay, a malfunctioning module that does not go to sleep, or a trunk or glove box light staying on. We perform a current draw test to measure the drain, then systematically pull fuses to identify the circuit.", typicalCost: "$100 to $400 depending on the cause" },
+      { cause: "Corroded or Loose Connections", likelihood: "Moderate", explanation: "Corroded battery terminals or loose cable connections prevent proper charging and can cause intermittent starting problems. We clean all connections, check cable condition, and ensure tight, corrosion-free contact.", typicalCost: "$50 to $150 for cleaning or cable replacement" },
+      { cause: "Short Trips Only", likelihood: "Less Common", explanation: "If you only drive short distances, the alternator may not have enough time to fully recharge the battery after starting. This gradually depletes the battery over days or weeks. A battery maintainer or occasional longer drives can help.", typicalCost: "$30-50 for a battery maintainer" },
+      { cause: "Faulty Voltage Regulator", likelihood: "Less Common", explanation: "The voltage regulator controls how much the alternator charges. If it fails, the alternator may overcharge (damaging the battery) or undercharge (not keeping it full). On most modern vehicles, the regulator is built into the alternator.", typicalCost: "$350 to $700 if built into alternator" }
+    ],
+    diagnosticProcess: "We perform a complete electrical system test: battery load test, alternator output test, voltage drop test on cables and connections, and parasitic draw test with the vehicle off. This covers all possible causes in one visit. We also check the battery age and history to determine if it is simply at end of life.",
+    whenToStop: "If your battery keeps dying, you can usually jump start and drive to a shop safely. However, if the battery warning light is on while driving, the alternator may have failed and the vehicle is running on battery power alone. Drive directly to a shop — you have limited time before the battery dies completely.",
+    faqs: [
+      { question: "Why does my new battery keep dying?", answer: "If a new battery keeps dying, the problem is not the battery. Either the alternator is not charging it, or something is draining it when the vehicle is off. We test the charging system and measure parasitic draw to find the real cause." },
+      { question: "What is a parasitic drain?", answer: "A parasitic drain is an electrical component drawing power from the battery when the vehicle is off. Normal drain is about 50 milliamps for computer memory. Anything over 75-100 milliamps will eventually kill the battery. We measure the draw and trace it to the specific circuit." },
+      { question: "How do I know if it is the battery or alternator?", answer: "If the vehicle starts fine after a jump but dies again within a day or two, the alternator is likely not charging. If the battery is over 4 years old and struggles in cold weather, the battery itself is probably failing. We test both to give you a definitive answer." }
+    ],
+    relatedPages: ["diagnostics-cleveland", "car-wont-start", "check-engine-light-cleveland"]
   }
 ];
 

@@ -478,3 +478,43 @@
 - [x] Add nickstire.manus.space to domains list in admin health
 ### Testing
 - [x] All 168 tests passing (11 test files, 0 failures)
+
+## Phase 28 — SEO Expansion & Google Search Console (March 19, 2026)
+### New City Landing Pages
+- [x] Shaker Heights auto repair page
+- [x] Cleveland Heights auto repair page
+- [x] Mentor auto repair page
+- [x] Strongsville auto repair page
+- [x] South Euclid auto repair page
+- [x] Garfield Heights auto repair page
+### New Problem/Symptom Pages (Long-Tail SEO)
+- [x] "Car won't start" symptom page
+- [x] "Steering wheel shaking" symptom page
+- [x] "Car pulling to one side" symptom page
+- [x] "Transmission slipping" symptom page
+- [x] "AC not blowing cold" symptom page
+- [x] "Battery keeps dying" symptom page
+### New Vehicle Make Pages
+- [x] Nissan repair Cleveland page
+- [x] Hyundai repair Cleveland page
+- [x] Kia repair Cleveland page
+- [x] Jeep repair Cleveland page
+- [x] BMW repair Cleveland page
+- [x] Dodge/Ram repair Cleveland page
+### Route Registration & Sitemap
+- [x] Register all new routes in App.tsx
+- [x] Update sitemap.xml with all new pages (68 URLs)
+- [x] Update sitemap test assertions (10 city pages)
+- [x] Run all tests — 168 passing, 0 failures
+### Google Search Console
+- [x] Submit updated sitemap (Success, Mar 19 2026)
+- [x] Request indexing for homepage (added to priority crawl queue)
+- [x] Review GSC settings (verified, no changes needed)
+- [x] Check Coverage/Pages report (1 indexed, 11 not indexed — soft 404 on old deploy, fix ready)
+- [x] Review Mobile Usability (no data yet — new property)
+- [x] Review Enhancements (no enhancements detected yet — new property)
+- [x] Check Core Web Vitals (no data yet — new property)
+- [x] Review Links report (processing data — new property)
+- [x] Verify Security & Manual Actions clean (no issues)
+- [x] Created /services overview page to fix soft 404 issue
+- [x] Updated dynamic sitemap in server to include all 68+ pages

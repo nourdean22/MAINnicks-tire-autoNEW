@@ -15,8 +15,8 @@ import { SERVICES } from "@shared/services";
 
 // ─── CITY PAGES ───────────────────────────────────────
 describe("City-specific landing pages", () => {
-  it("should have 4 city pages defined", () => {
-    expect(CITIES).toHaveLength(4);
+  it("should have 10 city pages defined", () => {
+    expect(CITIES).toHaveLength(10);
   });
 
   it("each city should have all required fields", () => {

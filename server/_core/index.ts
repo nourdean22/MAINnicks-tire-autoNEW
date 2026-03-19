@@ -100,6 +100,39 @@ async function startServer() {
       { path: "/brakes-grinding", priority: "0.7", changefreq: "monthly" },
       { path: "/check-engine-light-flashing", priority: "0.7", changefreq: "monthly" },
       { path: "/car-overheating", priority: "0.7", changefreq: "monthly" },
+      // Services overview
+      { path: "/services", priority: "0.9", changefreq: "weekly" },
+      // New city landing pages
+      { path: "/shaker-heights-auto-repair", priority: "0.8", changefreq: "monthly" },
+      { path: "/cleveland-heights-auto-repair", priority: "0.8", changefreq: "monthly" },
+      { path: "/mentor-auto-repair", priority: "0.8", changefreq: "monthly" },
+      { path: "/strongsville-auto-repair", priority: "0.8", changefreq: "monthly" },
+      { path: "/south-euclid-auto-repair", priority: "0.8", changefreq: "monthly" },
+      { path: "/garfield-heights-auto-repair", priority: "0.8", changefreq: "monthly" },
+      // New vehicle make pages
+      { path: "/nissan-repair-cleveland", priority: "0.7", changefreq: "monthly" },
+      { path: "/hyundai-repair-cleveland", priority: "0.7", changefreq: "monthly" },
+      { path: "/kia-repair-cleveland", priority: "0.7", changefreq: "monthly" },
+      { path: "/jeep-repair-cleveland", priority: "0.7", changefreq: "monthly" },
+      { path: "/bmw-repair-cleveland", priority: "0.7", changefreq: "monthly" },
+      { path: "/dodge-ram-repair-cleveland", priority: "0.7", changefreq: "monthly" },
+      // New problem pages
+      { path: "/car-wont-start", priority: "0.7", changefreq: "monthly" },
+      { path: "/steering-wheel-shaking", priority: "0.7", changefreq: "monthly" },
+      { path: "/car-pulling-to-one-side", priority: "0.7", changefreq: "monthly" },
+      { path: "/transmission-slipping", priority: "0.7", changefreq: "monthly" },
+      { path: "/ac-not-blowing-cold", priority: "0.7", changefreq: "monthly" },
+      { path: "/battery-keeps-dying", priority: "0.7", changefreq: "monthly" },
+      // Utility pages
+      { path: "/reviews", priority: "0.7", changefreq: "weekly" },
+      { path: "/diagnose", priority: "0.7", changefreq: "monthly" },
+      { path: "/specials", priority: "0.7", changefreq: "weekly" },
+      { path: "/pricing", priority: "0.7", changefreq: "monthly" },
+      { path: "/fleet", priority: "0.7", changefreq: "monthly" },
+      { path: "/financing", priority: "0.7", changefreq: "monthly" },
+      { path: "/rewards", priority: "0.6", changefreq: "monthly" },
+      { path: "/car-care-guide", priority: "0.6", changefreq: "monthly" },
+      { path: "/refer", priority: "0.5", changefreq: "monthly" },
     ];
 
     const hardcodedBlogSlugs = [
