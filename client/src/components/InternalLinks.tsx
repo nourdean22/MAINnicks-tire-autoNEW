@@ -5,6 +5,7 @@
  */
 import { Link } from "wouter";
 import { ChevronRight } from "lucide-react";
+import { BUSINESS } from "@shared/business";
 
 interface LinkItem {
   href: string;
@@ -22,7 +23,7 @@ const ALL_LINKS: LinkItem[] = [
   { href: "/diagnose", label: "Diagnose My Car", desc: "AI-powered symptom analysis" },
   { href: "/pricing", label: "Price Estimator", desc: "Get an instant repair cost estimate" },
   { href: "/specials", label: "Specials & Coupons", desc: "Current deals and discounts" },
-  { href: "/reviews", label: "Customer Reviews", desc: "4.9 stars from 1,685+ reviews" },
+  { href: "/reviews", label: "Customer Reviews", desc: `4.9 stars from ${BUSINESS.reviews.countDisplay} reviews` },
   { href: "/blog", label: "Repair Tips Blog", desc: "Expert car care advice" },
   { href: "/faq", label: "FAQ", desc: "Common auto repair questions answered" },
   { href: "/contact", label: "Contact & Booking", desc: "Schedule your appointment today" },

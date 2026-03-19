@@ -9,6 +9,9 @@ import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { MessageCircle, ChevronRight, CheckCircle, HelpCircle, Search } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { trpc } from "@/lib/trpc";
+import InternalLinks from "@/components/InternalLinks";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
+import { QueryError } from "@/components/QueryState";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -29,7 +32,7 @@ export default function AskMechanicPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [form, setForm] = useState({ questionerName: "", questionerEmail: "", question: "", vehicleInfo: "", category: "" });
 
-  const { data: questions, isLoading } = trpc.qa.published.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
+  const { data: questions, isLoading , isError, error } = trpc.qa.published.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
 
   const submitQuestion = trpc.qa.ask.useMutation({
     onSuccess: () => setSubmitted(true),
@@ -67,6 +70,7 @@ export default function AskMechanicPage() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--nick-yellow-alpha)_0%,_transparent_60%)] opacity-20" />
           <div className="relative container">
             <Breadcrumbs items={[{ label: "Ask a Mechanic" }]} />
+      <LocalBusinessSchema />
             <FadeIn>
               <div className="flex items-center gap-3 mb-4">
                 <MessageCircle className="w-6 h-6 text-nick-yellow" />
@@ -190,7 +194,9 @@ export default function AskMechanicPage() {
               </div>
             </div>
 
-            {isLoading ? (
+            {isError ? (
+              <QueryError message="Failed to load data. Please try again." onRetry={() => window.location.reload()} />
+            ) : isLoading ? (
               <div className="space-y-4">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="border border-nick-yellow/10 bg-nick-dark/30 p-6 animate-pulse">
@@ -248,6 +254,8 @@ export default function AskMechanicPage() {
         {/* Footer */}
         
 
-    </PageLayout>
+    
+      <InternalLinks />
+</PageLayout>
   );
 }

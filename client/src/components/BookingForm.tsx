@@ -4,6 +4,7 @@ import {
   Phone, Calendar, Clock, Car, Wrench, CheckCircle, AlertCircle,
   Loader2, Camera, X, ChevronRight, ChevronLeft, User, Mail, MessageSquare, AlertTriangle, Zap,
 } from "lucide-react";
+import { BUSINESS } from "@shared/business";
 
 const SERVICES = [
   "Tires — New, Used, Repair",
@@ -150,11 +151,11 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
           Need immediate help? Call us directly.
         </p>
         <a
-          href="tel:2168620005"
+          href={BUSINESS.phone.href}
           className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase mt-6 hover:bg-nick-gold transition-colors glow-yellow"
         >
           <Phone className="w-4 h-4" />
-          CALL (216) 862-0005
+          CALL {BUSINESS.phone.display}
         </a>
       </div>
     );
@@ -552,7 +553,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
           </div>
 
           <p className="text-foreground/40 text-xs font-mono text-center">
-            First come, first served. Walk-ins also welcome. Mon–Sat 9AM–6PM.
+            First come, first served. Walk-ins also welcome. {BUSINESS.hours.display}.
           </p>
         </div>
       )}

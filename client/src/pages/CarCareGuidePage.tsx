@@ -9,6 +9,9 @@ import { Link } from "wouter";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { Phone, BookOpen, ChevronRight, Snowflake, Sun, Leaf, Droplets, Wrench, AlertTriangle, CheckCircle, Gauge } from "lucide-react";
 import { motion, useInView } from "framer-motion";
+import { BUSINESS } from "@shared/business";
+import InternalLinks from "@/components/InternalLinks";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -129,6 +132,7 @@ export default function CarCareGuidePage() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--nick-yellow-alpha)_0%,_transparent_60%)] opacity-20" />
           <div className="relative container">
             <Breadcrumbs items={[{ label: "Car Care Guide" }]} />
+      <LocalBusinessSchema />
             <FadeIn>
               <div className="flex items-center gap-3 mb-4">
                 <BookOpen className="w-6 h-6 text-nick-yellow" />
@@ -206,7 +210,7 @@ export default function CarCareGuidePage() {
 
                   <div className="mt-8 pt-6 border-t border-nick-yellow/10">
                     <a
-                      href="tel:2168620005"
+                      href={BUSINESS.phone.href}
                       onClick={() => trackPhoneClick("car_care_guide_seasonal")}
                       className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors"
                     >
@@ -295,7 +299,7 @@ export default function CarCareGuidePage() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <a
-                  href="tel:2168620005"
+                  href={BUSINESS.phone.href}
                   onClick={() => trackPhoneClick("car_care_guide_cta")}
                   className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors"
                 >
@@ -317,6 +321,8 @@ export default function CarCareGuidePage() {
         {/* Footer */}
         
 
-    </PageLayout>
+    
+      <InternalLinks />
+</PageLayout>
   );
 }

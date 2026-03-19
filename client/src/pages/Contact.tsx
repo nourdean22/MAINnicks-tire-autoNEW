@@ -8,9 +8,10 @@ import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import { useEffect, useRef } from "react";
 import BookingForm from "@/components/BookingForm";
-import { SEOHead } from "@/components/SEO";
+import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, Navigation } from "lucide-react";
 import { motion, useInView } from "framer-motion";
+import { BUSINESS } from "@shared/business";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -33,11 +34,11 @@ function ContactSchema() {
     "@context": "https://schema.org",
     "@type": "AutoRepair",
     name: "Nick's Tire & Auto",
-    telephone: "+1-216-862-0005",
+    telephone: `+1-${BUSINESS.phone.dashed}`,
     url: "https://nickstire.org/contact",
     address: {
       "@type": "PostalAddress",
-      streetAddress: "17625 Euclid Ave",
+      streetAddress: BUSINESS.address.street,
       addressLocality: "Cleveland",
       addressRegion: "OH",
       postalCode: "44112",
@@ -94,10 +95,11 @@ export default function Contact() {
   return (
     <PageLayout>
       <SEOHead
-        title="Contact Nick's Tire & Auto | Cleveland Auto Repair Shop | (216) 862-0005"
-        description="Contact Nick's Tire & Auto at (216) 862-0005. Located at 17625 Euclid Ave, Cleveland, OH 44112. Open Mon–Sat 9AM–6PM. Walk-ins welcome."
+        title={`Contact Nick's Tire & Auto | Cleveland Auto Repair Shop | ${BUSINESS.phone.display}`}
+        description={`Contact Nick's Tire & Auto at ${BUSINESS.phone.display}. Located at ${BUSINESS.address.full}. Open ${BUSINESS.hours.display}. Walk-ins welcome.`}
         canonicalPath="/contact"
       />
+      <Breadcrumbs items={[{ label: "Contact", href: "/contact" }]} />
       <ContactSchema />
       
       
@@ -138,8 +140,8 @@ export default function Contact() {
                       </div>
                       <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase">Phone</h3>
                     </div>
-                    <a href="tel:2168620005" className="font-mono text-2xl text-foreground hover:text-nick-yellow transition-colors">
-                      (216) 862-0005
+                    <a href={BUSINESS.phone.href} className="font-mono text-2xl text-foreground hover:text-nick-yellow transition-colors">
+                      {BUSINESS.phone.display}
                     </a>
                     <p className="text-foreground/50 text-sm mt-2">Call for appointments, quotes, or questions. Walk-ins always welcome.</p>
                   </div>
@@ -152,10 +154,10 @@ export default function Contact() {
                       </div>
                       <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase">Address</h3>
                     </div>
-                    <p className="font-mono text-foreground/80 text-lg">17625 Euclid Ave</p>
+                    <p className="font-mono text-foreground/80 text-lg">{BUSINESS.address.street}</p>
                     <p className="font-mono text-foreground/80 text-lg">Cleveland, OH 44112</p>
                     <a
-                      href="https://www.google.com/maps/dir//Nick's+Tire+And+Auto+Euclid,+17625+Euclid+Ave,+Cleveland,+OH+44112"
+                      href={BUSINESS.urls.googleMapsDirectionsNamed}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 mt-3 text-nick-blue-light hover:text-nick-blue-light transition-colors text-sm font-medium"
@@ -208,7 +210,7 @@ export default function Contact() {
                         ))}
                       </div>
                       <span className="font-mono text-nick-yellow text-lg font-bold">4.9</span>
-                      <span className="text-foreground/50 text-sm">from 1,685+ reviews</span>
+                      <span className="text-foreground/50 text-sm">from {BUSINESS.reviews.countDisplay} reviews</span>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3">
                       <a

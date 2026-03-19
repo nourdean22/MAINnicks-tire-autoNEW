@@ -8,6 +8,7 @@ import PageLayout from "@/components/PageLayout";
 import InternalLinks from "@/components/InternalLinks";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { Phone, ChevronRight, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Star, MapPin } from "lucide-react";
+import { BUSINESS } from "@shared/business";
 
 const SERVICES_LIST = [
   {
@@ -59,7 +60,7 @@ export default function ServicesOverview() {
     <PageLayout>
       <SEOHead
         title="Auto Repair Services | Nick's Tire & Auto Cleveland"
-        description="Complete auto repair services in Cleveland, Ohio. Tires, brakes, diagnostics, emissions, oil changes, and general repair. Honest diagnostics, fair prices. Call (216) 862-0005."
+        description={`Complete auto repair services in Cleveland, Ohio. Tires, brakes, diagnostics, emissions, oil changes, and general repair. Honest diagnostics, fair prices. Call ${BUSINESS.phone.display}.`}
         canonicalPath="/services"
       />
       <Breadcrumbs items={[{ label: "Services", href: "/services" }]} />
@@ -79,12 +80,12 @@ export default function ServicesOverview() {
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
               <a
-                href="tel:2168620005"
+                href={BUSINESS.phone.href}
                 onClick={() => trackPhoneClick("services-hero")}
                 className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-full font-bold text-lg hover:bg-nick-yellow/90 transition-colors"
               >
                 <Phone className="w-5 h-5" />
-                (216) 862-0005
+                {BUSINESS.phone.display}
               </a>
               <Link href="/contact" className="inline-flex items-center gap-2 border border-foreground/30 text-foreground px-8 py-4 rounded-full font-medium hover:bg-foreground/5 transition-colors">
                 Schedule Online
@@ -150,7 +151,7 @@ export default function ServicesOverview() {
                   ))}
                 </div>
                 <span className="font-heading font-bold text-2xl text-foreground">4.9 Stars</span>
-                <p className="text-foreground/60 text-sm mt-1">1,685+ Google Reviews</p>
+                <p className="text-foreground/60 text-sm mt-1">{BUSINESS.reviews.countDisplay} Google Reviews</p>
               </div>
               <div className="text-center">
                 <MapPin className="w-8 h-8 text-nick-yellow mx-auto mb-2" />
@@ -178,12 +179,12 @@ export default function ServicesOverview() {
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
             <a
-              href="tel:2168620005"
+              href={BUSINESS.phone.href}
               onClick={() => trackPhoneClick("services-cta")}
               className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-full font-bold text-lg hover:bg-nick-yellow/90 transition-colors"
             >
               <Phone className="w-5 h-5" />
-              Call (216) 862-0005
+              Call {BUSINESS.phone.display}
             </a>
             <Link href="/contact" className="inline-flex items-center gap-2 border border-foreground/30 text-foreground px-8 py-4 rounded-full font-medium hover:bg-foreground/5 transition-colors">
               Get Directions
@@ -191,7 +192,7 @@ export default function ServicesOverview() {
             </Link>
           </div>
           <p className="mt-6 text-foreground/50 text-sm font-mono">
-            17625 Euclid Ave, Cleveland, OH 44112 — Mon–Sat 9AM–6PM
+            {BUSINESS.address.full} — {BUSINESS.hours.display}
           </p>
         </div>
       </section>
@@ -208,10 +209,10 @@ export default function ServicesOverview() {
             name: "Nick's Tire & Auto",
             description: "Complete auto repair services in Cleveland, Ohio. Tires, brakes, diagnostics, emissions, oil changes, and general repair.",
             url: "https://nickstire.org/services",
-            telephone: "+1-216-862-0005",
+            telephone: `+1-${BUSINESS.phone.dashed}`,
             address: {
               "@type": "PostalAddress",
-              streetAddress: "17625 Euclid Ave",
+              streetAddress: BUSINESS.address.street,
               addressLocality: "Cleveland",
               addressRegion: "OH",
               postalCode: "44112",

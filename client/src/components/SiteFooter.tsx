@@ -4,6 +4,7 @@
  */
 import { Link } from "wouter";
 import { Star } from "lucide-react";
+import { BUSINESS } from "@shared/business";
 
 export default function SiteFooter() {
   return (
@@ -73,8 +74,8 @@ export default function SiteFooter() {
           <p className="text-foreground/20 text-xs">
             &copy; {new Date().getFullYear()} Nick's Tire & Auto. All rights reserved.
           </p>
-          <a href="tel:2168620005" className="text-foreground/30 text-sm hover:text-foreground/50 transition-colors">
-            (216) 862-0005
+          <a href={BUSINESS.phone.href} className="text-foreground/30 text-sm hover:text-foreground/50 transition-colors">
+            {BUSINESS.phone.display}
           </a>
         </div>
       </div>

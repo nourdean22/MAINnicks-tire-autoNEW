@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { PhoneCall, X, Check, Loader2 } from "lucide-react";
+import { BUSINESS } from "@shared/business";
 
 export default function CallbackModal() {
   const [open, setOpen] = useState(false);
@@ -66,7 +67,7 @@ export default function CallbackModal() {
                 </div>
                 <h3 className="text-lg font-semibold text-foreground">We'll call you back</h3>
                 <p className="text-foreground/50 text-sm mt-2">
-                  Expect a call from (216) 862-0005 shortly.
+                  Expect a call from {BUSINESS.phone.display} shortly.
                 </p>
               </div>
             ) : (
@@ -111,7 +112,7 @@ export default function CallbackModal() {
 
                 {mutation.isError && (
                   <p className="text-red-400 text-xs mt-2 text-center">
-                    Something went wrong. Please call us directly at (216) 862-0005.
+                    Something went wrong. Please call us directly at {BUSINESS.phone.display}.
                   </p>
                 )}
               </>

@@ -6,6 +6,7 @@
 import { Link } from "wouter";
 import { SEOHead } from "@/components/SEO";
 import { Phone, ArrowLeft, Wrench } from "lucide-react";
+import { BUSINESS } from "@shared/business";
 
 export default function NotFound() {
   return (
@@ -46,12 +47,12 @@ export default function NotFound() {
               BACK TO HOME
             </Link>
             <a
-              href="tel:2168620005"
+              href={BUSINESS.phone.href}
               className="inline-flex items-center justify-center gap-2 border-2 border-nick-teal/50 text-nick-teal px-8 py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-teal/10 hover:border-nick-teal transition-colors"
-              aria-label="Call Nick's Tire and Auto at 216-862-0005"
+              aria-label={`Call Nick's Tire and Auto at ${BUSINESS.phone.dashed}`}
             >
               <Phone className="w-4 h-4" />
-              CALL (216) 862-0005
+              CALL {BUSINESS.phone.display}
             </a>
           </div>
 

@@ -7,6 +7,8 @@ import {
   CheckCircle, AlertTriangle, XCircle, Car, Wrench, Phone, Calendar,
   User, Gauge, Shield, Droplets, Cog, CircuitBoard, Truck,
 } from "lucide-react";
+import { BUSINESS } from "@shared/business";
+import { QueryError } from "@/components/QueryState";
 
 const CONDITION_CONFIG = {
   green: { label: "Good", color: "text-nick-teal", bg: "bg-nick-teal/20", border: "border-nick-teal/30", icon: <CheckCircle className="w-5 h-5" /> },
@@ -35,7 +37,7 @@ export default function InspectionReport() {
   const [, params] = useRoute("/inspection/:token");
   const token = params?.token || "";
 
-  const { data: inspection, isLoading } = trpc.inspection.byToken.useQuery(
+  const { data: inspection, isLoading , isError, error } = trpc.inspection.byToken.useQuery(
     { token },
     { enabled: !!token }
   );
@@ -64,6 +66,15 @@ export default function InspectionReport() {
     );
   }
 
+  if (isError) {
+    return (
+      <QueryError
+        message="Failed to load data. Please try again."
+        onRetry={() => window.location.reload()}
+      />
+    );
+  }
+
   if (!inspection) {
     return (
       <PageLayout>
@@ -75,8 +86,8 @@ export default function InspectionReport() {
             <p className="text-foreground/60 max-w-md mx-auto mb-6">
               This inspection report does not exist or has not been published yet. If you received a link, please contact us.
             </p>
-            <a href="tel:2168620005" className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase">
-              <Phone className="w-4 h-4" /> CALL (216) 862-0005
+            <a href={BUSINESS.phone.href} className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase">
+              <Phone className="w-4 h-4" /> CALL {BUSINESS.phone.display}
             </a>
           </div>
         </section>
@@ -231,7 +242,7 @@ export default function InspectionReport() {
               BOOK RECOMMENDED REPAIRS
             </a>
             <a
-              href="tel:2168620005"
+              href={BUSINESS.phone.href}
               className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors"
             >
               <Phone className="w-4 h-4" />
@@ -240,7 +251,7 @@ export default function InspectionReport() {
           </div>
 
           <p className="text-center text-foreground/40 font-mono text-xs mt-6">
-            Nick's Tire & Auto — 17625 Euclid Ave, Cleveland, OH 44112 — (216) 862-0005
+            {`${BUSINESS.name} — ${BUSINESS.address.full} — ${BUSINESS.phone.display}`}
           </p>
         </div>
       </section>

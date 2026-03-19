@@ -8,6 +8,7 @@ import { useState, useRef, useEffect } from "react";
 import { MessageCircle, X, Send, Wrench, Phone } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
+import { BUSINESS } from "@shared/business";
 
 interface Message {
   role: "user" | "assistant";
@@ -225,7 +226,7 @@ export default function ChatWidget() {
             {/* Call CTA */}
             <div className="border-t border-nick-teal/10 px-3 py-2 flex items-center justify-center gap-2 text-foreground/30 text-xs shrink-0">
               <Phone className="w-3 h-3 text-nick-teal/50" />
-              <span className="font-mono">Or call: <a href="tel:2168620005" className="text-nick-teal hover:text-nick-cyan transition-colors">(216) 862-0005</a></span>
+              <span className="font-mono">Or call: <a href={BUSINESS.phone.href} className="text-nick-teal hover:text-nick-cyan transition-colors">{BUSINESS.phone.display}</a></span>
             </div>
           </motion.div>
         )}

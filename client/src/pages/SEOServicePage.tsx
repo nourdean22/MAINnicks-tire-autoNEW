@@ -6,6 +6,8 @@ import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { getSEOServiceBySlug } from "@shared/seo-pages";
+import { BUSINESS } from "@shared/business";
+import InternalLinks from "@/components/InternalLinks";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -75,7 +77,7 @@ export default function SEOServicePage() {
             </FadeIn>
             <FadeIn delay={0.2}>
               <div className="mt-8 flex flex-col sm:flex-row gap-4">
-                <a href="tel:2168620005" onClick={() => trackPhoneClick(`seo-${page.slug}-hero`)} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:bg-primary/90 transition-colors">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`seo-${page.slug}-hero`)} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:bg-primary/90 transition-colors">
                   <Phone className="w-5 h-5" />CALL FOR A FREE QUOTE
                 </a>
                 <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:border-primary hover:text-primary transition-colors">
@@ -178,8 +180,8 @@ export default function SEOServicePage() {
                 Call us or schedule online. We will diagnose the problem, explain your options, and give you an honest quote.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="tel:2168620005" onClick={() => trackPhoneClick(`seo-${page.slug}-bottom-cta`)} className="inline-flex items-center justify-center gap-2 bg-nick-dark text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-dark/90 transition-colors">
-                  <Phone className="w-5 h-5" />(216) 862-0005
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`seo-${page.slug}-bottom-cta`)} className="inline-flex items-center justify-center gap-2 bg-nick-dark text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-dark/90 transition-colors">
+                  <Phone className="w-5 h-5" />{BUSINESS.phone.display}
                 </a>
                 <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-primary-foreground text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:bg-primary-foreground/10 transition-colors">
                   SCHEDULE ONLINE
@@ -195,7 +197,7 @@ export default function SEOServicePage() {
         {/* Sticky Mobile CTA */}
         <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-nick-dark/95 backdrop-blur-md border-t border-border p-3">
           <div className="flex gap-2">
-            <a href="tel:2168620005" onClick={() => trackPhoneClick(`seo-${page.slug}-sticky`)} aria-label="Call Nick's Tire and Auto" className="flex-1 flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3 font-semibold font-bold text-sm tracking-wider uppercase">
+            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`seo-${page.slug}-sticky`)} aria-label="Call Nick's Tire and Auto" className="flex-1 flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3 font-semibold font-bold text-sm tracking-wider uppercase">
               <Phone className="w-4 h-4" />CALL NOW
             </a>
             <Link href="/contact" className="flex-1 flex items-center justify-center gap-2 border border-primary text-primary py-3 font-semibold font-bold text-sm tracking-wider uppercase">
@@ -213,10 +215,10 @@ export default function SEOServicePage() {
         "provider": {
           "@type": "LocalBusiness",
           "name": "Nick's Tire & Auto",
-          "telephone": "+1-216-862-0005",
+          "telephone": "+1-" + BUSINESS.phone.dashed,
           "address": {
             "@type": "PostalAddress",
-            "streetAddress": "17625 Euclid Ave",
+            "streetAddress": BUSINESS.address.street,
             "addressLocality": "Cleveland",
             "addressRegion": "OH",
             "postalCode": "44112"
@@ -246,6 +248,8 @@ export default function SEOServicePage() {
           }
         }))
       })}} />
-    </PageLayout>
+    
+      <InternalLinks />
+</PageLayout>
   );
 }

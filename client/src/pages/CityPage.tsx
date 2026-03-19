@@ -13,6 +13,8 @@ import BookingForm from "@/components/BookingForm";
 import { Phone, MapPin, Star, ChevronRight, ArrowLeft, Navigation, CheckCircle, Menu, X } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { useState } from "react";
+import { BUSINESS } from "@shared/business";
+import InternalLinks from "@/components/InternalLinks";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
@@ -60,9 +62,9 @@ function CityNavbar({ city }: { city: CityData }) {
           <a href="#services" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors">Services</a>
           <a href="#about" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors">About</a>
           <a href="#booking" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors">Book Now</a>
-          <a href="tel:2168620005" onClick={() => trackPhoneClick('city-navbar-desktop')} className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+          <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('city-navbar-desktop')} className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
             <Phone className="w-4 h-4" />
-            (216) 862-0005
+            {BUSINESS.phone.display}
           </a>
         </div>
 
@@ -81,9 +83,9 @@ function CityNavbar({ city }: { city: CityData }) {
             <a href="#services" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors py-2">Services</a>
             <a href="#about" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors py-2">About</a>
             <a href="#booking" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors py-2">Book Now</a>
-            <a href="tel:2168620005" onClick={() => trackPhoneClick('city-navbar-mobile')} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('city-navbar-mobile')} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
               <Phone className="w-4 h-4" />
-              (216) 862-0005
+              {BUSINESS.phone.display}
             </a>
           </div>
         </div>
@@ -100,10 +102,10 @@ function CitySchema({ city }: { city: CityData }) {
     name: `Nick's Tire & Auto — Serving ${city.name}`,
     description: city.metaDescription,
     url: `https://nickstire.org/${city.slug}`,
-    telephone: "+1-216-862-0005",
+    telephone: `+1-${BUSINESS.phone.dashed}`,
     address: {
       "@type": "PostalAddress",
-      streetAddress: "17625 Euclid Ave",
+      streetAddress: BUSINESS.address.street,
       addressLocality: "Cleveland",
       addressRegion: "OH",
       postalCode: "44112",
@@ -194,7 +196,7 @@ export default function CityPage() {
                     <Star key={i} className="w-4 h-4 fill-nick-yellow text-nick-yellow" />
                   ))}
                 </div>
-                <span className="font-mono text-sm text-nick-yellow tracking-wider">4.9 STARS — 1,685+ REVIEWS</span>
+                <span className="font-mono text-sm text-nick-yellow tracking-wider">4.9 STARS — {BUSINESS.reviews.countDisplay} REVIEWS</span>
               </div>
               <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.9] tracking-tight max-w-3xl whitespace-pre-line">
                 {city.heroHeadline}
@@ -209,7 +211,7 @@ export default function CityPage() {
 
             <FadeIn delay={0.3}>
               <div className="mt-8 flex flex-col sm:flex-row gap-4">
-                <a href="tel:2168620005" onClick={() => trackPhoneClick('city-hero-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('city-hero-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
                   <Phone className="w-5 h-5" />
                   CALL FOR A FREE QUOTE
                 </a>
@@ -228,7 +230,7 @@ export default function CityPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-nick-yellow" />
-                  <span className="font-mono">17625 Euclid Ave, Cleveland, OH 44112</span>
+                  <span className="font-mono">{BUSINESS.address.full}</span>
                 </div>
               </div>
             </FadeIn>
@@ -344,7 +346,7 @@ export default function CityPage() {
                   BOOK YOUR APPOINTMENT
                 </h2>
                 <p className="mt-4 text-foreground/60 max-w-lg mx-auto">
-                  {city.name} residents — schedule your service online or call us directly at (216) 862-0005.
+                  {city.name} residents — schedule your service online or call us directly at {BUSINESS.phone.display}.
                 </p>
               </div>
             </FadeIn>
@@ -377,7 +379,7 @@ export default function CityPage() {
 
       {/* Mobile Sticky CTA */}
       <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-nick-dark/90 backdrop-blur-md border-t border-nick-yellow/30 p-3 flex gap-2">
-        <a href="tel:2168620005" onClick={() => trackPhoneClick('city-mobile-sticky')} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wider uppercase" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+        <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('city-mobile-sticky')} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wider uppercase" aria-label="Call Nick's Tire and Auto at 216-862-0005">
           <Phone className="w-4 h-4" />
           CALL NOW
         </a>
@@ -385,6 +387,8 @@ export default function CityPage() {
           BOOK ONLINE
         </a>
       </div>
-    </PageLayout>
+    
+      <InternalLinks />
+</PageLayout>
   );
 }

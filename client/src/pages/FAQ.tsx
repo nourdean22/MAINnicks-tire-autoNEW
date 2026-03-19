@@ -10,6 +10,7 @@ import { Link } from "wouter";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { Phone, ChevronDown } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
+import { BUSINESS } from "@shared/business";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -38,7 +39,7 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: "General",
     question: "Where is Nick's Tire & Auto located?",
-    answer: "We are located at 17625 Euclid Ave, Cleveland, OH 44112. We serve Cleveland, Euclid, Lakewood, Parma, East Cleveland, and surrounding Northeast Ohio communities."
+    answer: `We are located at ${BUSINESS.address.full}. We serve Cleveland, Euclid, Lakewood, Parma, East Cleveland, and surrounding Northeast Ohio communities.`
   },
   {
     category: "General",
@@ -48,7 +49,7 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: "General",
     question: "Do I need an appointment?",
-    answer: "Walk-ins are always welcome. However, scheduling an appointment ensures we can get you in faster and have the right parts ready. You can book online through our website or call us at (216) 862-0005."
+    answer: `Walk-ins are always welcome. However, scheduling an appointment ensures we can get you in faster and have the right parts ready. You can book online through our website or call us at ${BUSINESS.phone.display}.`
   },
   {
     category: "General",
@@ -64,7 +65,7 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: "Diagnostics",
     question: "How much does a diagnostic scan cost?",
-    answer: "Our diagnostic service is competitively priced and includes a full scan of your vehicle's computer system, code interpretation, and a clear explanation of what the codes mean and what repairs are needed. Call us at (216) 862-0005 for current pricing."
+    answer: `Our diagnostic service is competitively priced and includes a full scan of your vehicle's computer system, code interpretation, and a clear explanation of what the codes mean and what repairs are needed. Call us at ${BUSINESS.phone.display} for current pricing.`
   },
   // Emissions
   {
@@ -300,9 +301,9 @@ export default function FAQ() {
                   Our team is happy to help. Give us a call or stop by the shop.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <a href="tel:2168620005" onClick={() => trackPhoneClick('faq-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+                  <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('faq-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
                     <Phone className="w-4 h-4" />
-                    CALL (216) 862-0005
+                    CALL {BUSINESS.phone.display}
                   </a>
                   <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
                     VISIT CONTACT PAGE

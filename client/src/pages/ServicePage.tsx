@@ -13,6 +13,7 @@ import BookingForm from "@/components/BookingForm";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronRight, ChevronDown, ArrowLeft, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Menu, X } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
+import { BUSINESS } from "@shared/business";
 
 // CDN images
 const HERO_IMAGES: Record<string, string> = {
@@ -88,9 +89,9 @@ function ServiceNavbar({ service: _service }: { service: ServiceData }) {
           <a href="#booking" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors">
             Book Now
           </a>
-          <a href="tel:2168620005" onClick={() => trackPhoneClick('service-navbar-desktop')} className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+          <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('service-navbar-desktop')} className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
             <Phone className="w-4 h-4" />
-            (216) 862-0005
+            {BUSINESS.phone.display}
           </a>
         </div>
 
@@ -118,9 +119,9 @@ function ServiceNavbar({ service: _service }: { service: ServiceData }) {
             <a href="#booking" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors py-2">
               Book Now
             </a>
-            <a href="tel:2168620005" onClick={() => trackPhoneClick('service-navbar-mobile')} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('service-navbar-mobile')} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
               <Phone className="w-4 h-4" />
-              (216) 862-0005
+              {BUSINESS.phone.display}
             </a>
           </div>
         </div>
@@ -164,7 +165,7 @@ function ServiceHero({ service }: { service: ServiceData }) {
 
         <FadeIn delay={0.3}>
           <div className="mt-8 flex flex-col sm:flex-row gap-4">
-            <a href="tel:2168620005" onClick={() => trackPhoneClick('service-hero-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('service-hero-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
               <Phone className="w-5 h-5" />
               {service.heroCTA || "CALL NOW"}
             </a>
@@ -227,7 +228,7 @@ function Problems({ service }: { service: ServiceData }) {
                     <Star key={i} className="w-4 h-4 fill-nick-yellow text-nick-yellow" />
                   ))}
                 </div>
-                <span className="font-mono text-xs">4.9 stars from 1,685+ reviews</span>
+                <span className="font-mono text-xs">4.9 stars from ${BUSINESS.reviews.countDisplay} reviews</span>
               </div>
             </div>
           </FadeIn>
@@ -309,9 +310,9 @@ function WarningSigns({ service }: { service: ServiceData }) {
 
             <FadeIn delay={0.35}>
               <div className="mt-8 flex flex-col sm:flex-row gap-4">
-                <a href="tel:2168620005" onClick={() => trackPhoneClick('service-signs-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('service-signs-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
                   <Phone className="w-4 h-4" />
-                  CALL (216) 862-0005
+                  CALL {BUSINESS.phone.display}
                 </a>
                 <a href="#booking" className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/40 text-nick-blue-light px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-blue/10 transition-colors">
                   SCHEDULE INSPECTION
@@ -462,7 +463,7 @@ function BookingSection({ service }: { service: ServiceData }) {
                 <div className="flex items-start gap-3">
                   <MapPin className="w-5 h-5 text-nick-blue-light mt-1 shrink-0" />
                   <div>
-                    <p className="font-mono text-foreground/80">17625 Euclid Ave</p>
+                    <p className="font-mono text-foreground/80">{BUSINESS.address.street}</p>
                     <p className="font-mono text-foreground/80">Cleveland, OH 44112</p>
                   </div>
                 </div>
@@ -473,9 +474,9 @@ function BookingSection({ service }: { service: ServiceData }) {
                     <p>Sunday: 9:00 AM – 4:00 PM</p>
                   </div>
                 </div>
-                <a href="tel:2168620005" className="flex items-center gap-3 group">
+                <a href={BUSINESS.phone.href} className="flex items-center gap-3 group">
                   <Phone className="w-5 h-5 text-nick-yellow shrink-0" />
-                  <span className="font-mono text-2xl text-foreground group-hover:text-nick-yellow transition-colors">(216) 862-0005</span>
+                  <span className="font-mono text-2xl text-foreground group-hover:text-nick-yellow transition-colors">{BUSINESS.phone.display}</span>
                 </a>
               </div>
             </div>
@@ -544,13 +545,13 @@ function ServiceSchema({ service }: { service: ServiceData }) {
       name: "Nick's Tire & Auto",
       address: {
         "@type": "PostalAddress",
-        streetAddress: "17625 Euclid Ave",
+        streetAddress: BUSINESS.address.street,
         addressLocality: "Cleveland",
         addressRegion: "OH",
         postalCode: "44112",
         addressCountry: "US",
       },
-      telephone: "+1-216-862-0005",
+      telephone: `+1-${BUSINESS.phone.dashed}`,
       url: "https://nickstire.org",
       hasMap: "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
       sameAs: [

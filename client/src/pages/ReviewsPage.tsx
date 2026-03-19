@@ -12,6 +12,8 @@ import { Phone, MapPin, Star, ExternalLink, Filter, MessageSquare, ThumbsUp, Quo
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { GBP_REVIEW_URL, GBP_PLACE_URL } from "@shared/const";
+import { BUSINESS } from "@shared/business";
+import { QueryError } from "@/components/QueryState";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
@@ -113,7 +115,7 @@ function ReviewCard({ review, featured = false }: { review: { authorName: string
 
 // ─── MAIN PAGE ─────────────────────────────────────────
 export default function ReviewsPage() {
-  const { data: reviewData, isLoading } = trpc.reviews.google.useQuery();
+  const { data: reviewData, isLoading , isError, error } = trpc.reviews.google.useQuery();
   const [starFilter, setStarFilter] = useState<number | null>(null);
 
   // Separate featured reviews (5-star, longest text) from the rest
@@ -161,13 +163,13 @@ export default function ReviewsPage() {
     image: HERO_IMG,
     address: {
       "@type": "PostalAddress",
-      streetAddress: "17625 Euclid Ave",
+      streetAddress: BUSINESS.address.street,
       addressLocality: "Cleveland",
       addressRegion: "OH",
       postalCode: "44112",
       addressCountry: "US",
     },
-    telephone: "+1-216-862-0005",
+    telephone: `+1-${BUSINESS.phone.dashed}`,
     url: "https://nickstire.org",
     aggregateRating: {
       "@type": "AggregateRating",
@@ -189,7 +191,7 @@ export default function ReviewsPage() {
       
       <SEOHead
         title="Customer Reviews — Nick's Tire & Auto | Cleveland Auto Repair"
-        description="Read real Google reviews from Cleveland drivers. Nick's Tire & Auto is rated 4.9 stars with 1,685+ reviews. Honest diagnostics, fair prices, and trusted auto repair."
+        description={`Read real Google reviews from Cleveland drivers. Nick's Tire & Auto is rated 4.9 stars with ${BUSINESS.reviews.countDisplay} reviews. Honest diagnostics, fair prices, and trusted auto repair.`}
         canonicalPath="/reviews"
       />
       <script
@@ -342,7 +344,9 @@ export default function ReviewsPage() {
                     </div>
                   )}
 
-                  {isLoading ? (
+                  {isError ? (
+              <QueryError message="Failed to load data. Please try again." onRetry={() => window.location.reload()} />
+            ) : isLoading ? (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                       {[1, 2, 3, 4].map((i) => (
                         <div key={i} className="bg-card/40 border border-border/20 rounded-lg p-8 animate-pulse">
@@ -450,12 +454,12 @@ export default function ReviewsPage() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <a
-                  href="tel:2168620005"
+                  href={BUSINESS.phone.href}
                   onClick={() => trackPhoneClick("reviews-bottom-cta")}
                   className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors"
                 >
                   <Phone className="w-5 h-5" />
-                  CALL (216) 862-0005
+                  CALL {BUSINESS.phone.display}
                 </a>
                 <a
                   href={GBP_REVIEW_URL}

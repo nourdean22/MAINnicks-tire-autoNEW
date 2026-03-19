@@ -1,11 +1,14 @@
 import { useState } from "react";
 import PageLayout from "@/components/PageLayout";
 import InternalLinks from "@/components/InternalLinks";
-import { SEOHead } from "@/components/SEO";
+import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { trpc } from "@/lib/trpc";
 import {
   DollarSign, Car, Wrench, Clock, Phone, AlertCircle, ChevronRight, Info,
 } from "lucide-react";
+import { BUSINESS } from "@shared/business";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
+import { QueryError } from "@/components/QueryState";
 
 const SERVICE_OPTIONS = [
   { value: "oil-change", label: "Oil Change (Conventional)" },
@@ -61,6 +64,8 @@ export default function PriceEstimator() {
         description="Get a ballpark estimate for common auto repairs. Oil changes, brakes, tires, diagnostics, and more. Honest pricing from Cleveland's trusted shop."
         canonicalPath="/pricing"
       />
+      <Breadcrumbs items={[{ label: "Price Estimator", href: "/pricing" }]} />
+      <LocalBusinessSchema />
 
       {/* Hero */}
       <section className="section-dark pt-28 pb-16 lg:pt-36 lg:pb-20">
@@ -220,7 +225,7 @@ export default function PriceEstimator() {
                       BOOK THIS SERVICE
                     </a>
                     <a
-                      href="tel:2168620005"
+                      href={BUSINESS.phone.href}
                       className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors"
                     >
                       <Phone className="w-4 h-4" />
@@ -245,11 +250,11 @@ export default function PriceEstimator() {
                     We do not have pricing data for this combination yet. Call us for a personalized quote.
                   </p>
                   <a
-                    href="tel:2168620005"
+                    href={BUSINESS.phone.href}
                     className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase"
                   >
                     <Phone className="w-4 h-4" />
-                    CALL (216) 862-0005
+                    CALL {BUSINESS.phone.display}
                   </a>
                   <div className="mt-4">
                     <button onClick={reset} className="text-nick-teal font-mono text-sm hover:underline">

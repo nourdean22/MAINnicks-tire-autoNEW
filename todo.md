@@ -548,3 +548,46 @@
 - [x] All pages follow consistent SEOHead + PageLayout + InternalLinks pattern
 - [x] SEO data centralized in shared/cities.ts, shared/seo-pages.ts, shared/business.ts
 - [x] Foundation lockdown test suite added (16 tests, 184 total passing)
+
+## Phase 30 — The 10 Internal Upgrades
+
+### Upgrade #1: Wire BUSINESS constants into all files
+- [x] Replace hardcoded phone in all 33 client files
+- [x] Replace hardcoded address in all 13 files
+- [x] Replace hardcoded review count in all 11 files
+- [x] Replace hardcoded hours in all files
+- [x] Verify zero hardcoded business data remains
+
+### Upgrade #2: Code split all pages with React.lazy
+- [x] Convert all page imports in App.tsx to React.lazy
+- [x] Add Suspense wrapper with loading skeleton
+- [x] Verify all routes still work
+
+### Upgrade #3: Add InternalLinks to all 19 missing pages
+- [x] Add InternalLinks to all 14 pages missing them
+
+### Upgrade #4: Add Breadcrumbs to all 12 missing pages
+- [x] Add Breadcrumbs to all pages missing them
+
+### Upgrade #5: Add Schema.org to all 20 missing pages
+- [x] Add LocalBusinessSchema component to all public pages missing it
+
+### Upgrade #6: Split routers.ts into feature modules
+- [x] Create server/routers/ directory with 8 feature files (booking, callback, lead, chat, content, admin, public, services)
+- [x] Update main routers.ts as 76-line aggregator (down from 1,188 lines)
+
+### Upgrade #7: Split Admin.tsx into section components
+- [x] Create client/src/pages/admin/ directory with 14 section files + shared utilities
+- [x] Update Admin.tsx as 221-line thin shell (down from 2,292 lines)
+
+### Upgrade #8: Add error/loading states to all pages
+- [x] Created QueryState component (QueryLoading, QueryError, QueryEmpty)
+- [x] Added error handling to all pages with trpc queries
+
+### Upgrade #9: Write tests for untested server modules
+- [x] Added 17 new tests (callback, booking status, coupons, QA, pricing, referrals, loyalty, inspection, auth guards)
+- [x] Total: 201 tests passing (up from 184)
+
+### Upgrade #10: Global error boundary with recovery
+- [x] Enhanced ErrorBoundary with Nick's branding, retry logic (3 attempts), multiple recovery options
+- [x] Added collapsible technical details, contact fallback, branded styling

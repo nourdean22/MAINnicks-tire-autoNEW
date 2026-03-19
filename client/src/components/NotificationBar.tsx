@@ -19,6 +19,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { X, Phone, Star, Clock, AlertTriangle, Shield, MapPin, Zap, Snowflake, CloudRain, CloudLightning, Wind, Sun, Thermometer, Cloud, Wrench, Gauge } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
+import { BUSINESS } from "@shared/business";
 
 // ─── STRATEGY TYPES ────────────────────────────────────
 type Strategy = "urgency" | "social_proof" | "scarcity" | "seasonal" | "authority" | "loss_aversion" | "local_identity" | "value_anchor" | "weather" | "dynamic";
@@ -83,7 +84,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     strategy: "urgency",
     text: "Same-day brake inspections available — call before 2 PM to get in today",
     cta: "Call Now",
-    ctaHref: "tel:2168620005",
+    ctaHref: BUSINESS.phone.href,
     icon: <Clock className="w-4 h-4" />,
     timeOfDay: ["morning"],
     daysOfWeek: [1, 2, 3, 4, 5],
@@ -93,7 +94,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     strategy: "urgency",
     text: "Check engine light on? Do not wait — small problems become expensive ones fast",
     cta: "Call Now",
-    ctaHref: "tel:2168620005",
+    ctaHref: BUSINESS.phone.href,
     icon: <AlertTriangle className="w-4 h-4" />,
   },
   {
@@ -101,7 +102,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     strategy: "urgency",
     text: "Saturday appointments fill up fast — call now to reserve your spot",
     cta: "Call Now",
-    ctaHref: "tel:2168620005",
+    ctaHref: BUSINESS.phone.href,
     icon: <Clock className="w-4 h-4" />,
     daysOfWeek: [4, 5],
   },
@@ -110,7 +111,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
   {
     id: "sp-1",
     strategy: "social_proof",
-    text: "4.9 stars from 1,685+ Google reviews — Cleveland drivers trust Nick's",
+    text: `4.9 stars from ${BUSINESS.reviews.countDisplay} Google reviews — Cleveland drivers trust Nick's`,
     icon: <Star className="w-4 h-4" />,
   },
   {
@@ -126,7 +127,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     strategy: "seasonal",
     text: "Spring is here — potholes, salt damage, and worn tires from winter need attention now",
     cta: "Schedule Inspection",
-    ctaHref: "tel:2168620005",
+    ctaHref: BUSINESS.phone.href,
     icon: <AlertTriangle className="w-4 h-4" />,
     seasons: ["spring"],
   },
@@ -144,7 +145,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     strategy: "seasonal",
     text: "Winter is coming — get your tires, brakes, and battery checked before the first freeze",
     cta: "Schedule Now",
-    ctaHref: "tel:2168620005",
+    ctaHref: BUSINESS.phone.href,
     icon: <Shield className="w-4 h-4" />,
     seasons: ["fall"],
   },
@@ -153,7 +154,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     strategy: "seasonal",
     text: "Cleveland winter driving is brutal — make sure your tires have enough tread to stop safely",
     cta: "Free Check",
-    ctaHref: "tel:2168620005",
+    ctaHref: BUSINESS.phone.href,
     icon: <AlertTriangle className="w-4 h-4" />,
     seasons: ["winter"],
   },
@@ -180,7 +181,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     strategy: "loss_aversion",
     text: "Ignoring that check engine light? A $200 repair today can prevent a $2,000 repair next month",
     cta: "Call Now",
-    ctaHref: "tel:2168620005",
+    ctaHref: BUSINESS.phone.href,
     icon: <AlertTriangle className="w-4 h-4" />,
   },
   {
@@ -188,7 +189,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     strategy: "loss_aversion",
     text: "Worn brake pads cost $150 to replace — worn rotors cost $500+. Do not wait.",
     cta: "Call Now",
-    ctaHref: "tel:2168620005",
+    ctaHref: BUSINESS.phone.href,
     icon: <AlertTriangle className="w-4 h-4" />,
   },
 
@@ -206,7 +207,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
     strategy: "value_anchor",
     text: "Dealership diagnostic fee: $150+. Our diagnostic: find the real problem at a fair price.",
     cta: "Call Now",
-    ctaHref: "tel:2168620005",
+    ctaHref: BUSINESS.phone.href,
     icon: <Zap className="w-4 h-4" />,
   },
 ];

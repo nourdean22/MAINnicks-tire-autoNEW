@@ -11,6 +11,9 @@ import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import BookingForm from "@/components/BookingForm";
 import { Phone, ChevronRight, ArrowLeft, Snowflake, Sun, CheckCircle, AlertTriangle, Wrench, Menu, X } from "lucide-react";
 import { motion, useInView } from "framer-motion";
+import { BUSINESS } from "@shared/business";
+import InternalLinks from "@/components/InternalLinks";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
@@ -62,9 +65,9 @@ function SeasonalNavbar({ season }: { season: string }) {
           <a href="#checklist" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors">Checklist</a>
           <a href="#problems" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors">Common Problems</a>
           <a href="#booking" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors">Book Now</a>
-          <a href="tel:2168620005" onClick={() => trackPhoneClick('seasonal-navbar-desktop')} className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+          <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-navbar-desktop')} className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
             <Phone className="w-4 h-4" />
-            (216) 862-0005
+            {BUSINESS.phone.display}
           </a>
         </div>
 
@@ -83,9 +86,9 @@ function SeasonalNavbar({ season }: { season: string }) {
             <a href="#checklist" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors py-2">Checklist</a>
             <a href="#problems" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors py-2">Common Problems</a>
             <a href="#booking" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-nick-yellow transition-colors py-2">Book Now</a>
-            <a href="tel:2168620005" onClick={() => trackPhoneClick('seasonal-navbar-mobile')} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-navbar-mobile')} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
               <Phone className="w-4 h-4" />
-              (216) 862-0005
+              {BUSINESS.phone.display}
             </a>
           </div>
         </div>
@@ -142,6 +145,7 @@ export default function SeasonalPage() {
           <div className="relative container pb-16 pt-32 lg:pb-24">
             <FadeIn>
               <Breadcrumbs items={[{ label: `${page.season} Car Care` }]} />
+      <LocalBusinessSchema />
             </FadeIn>
 
             <FadeIn delay={0.1}>
@@ -162,7 +166,7 @@ export default function SeasonalPage() {
 
             <FadeIn delay={0.3}>
               <div className="mt-8 flex flex-col sm:flex-row gap-4">
-                <a href="tel:2168620005" onClick={() => trackPhoneClick('seasonal-hero-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-hero-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
                   <Phone className="w-5 h-5" />
                   SCHEDULE {page.season.toUpperCase()} SERVICE
                 </a>
@@ -295,7 +299,7 @@ export default function SeasonalPage() {
 
       {/* Mobile Sticky CTA */}
       <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-nick-dark/90 backdrop-blur-md border-t border-nick-yellow/30 p-3 flex gap-2">
-        <a href="tel:2168620005" onClick={() => trackPhoneClick('seasonal-mobile-sticky')} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wider uppercase" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+        <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-mobile-sticky')} className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wider uppercase" aria-label="Call Nick's Tire and Auto at 216-862-0005">
           <Phone className="w-4 h-4" />
           CALL NOW
         </a>
@@ -303,6 +307,8 @@ export default function SeasonalPage() {
           BOOK ONLINE
         </a>
       </div>
-    </PageLayout>
+    
+      <InternalLinks />
+</PageLayout>
   );
 }

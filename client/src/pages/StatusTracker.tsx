@@ -1,11 +1,14 @@
 import { useState } from "react";
 import PageLayout from "@/components/PageLayout";
-import { SEOHead } from "@/components/SEO";
+import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { trpc } from "@/lib/trpc";
 import {
   Search, Phone, Hash, Clock, CheckCircle, Wrench, AlertTriangle,
   Package, Eye, Truck,
 } from "lucide-react";
+import { BUSINESS } from "@shared/business";
+import InternalLinks from "@/components/InternalLinks";
+import { QueryError } from "@/components/QueryState";
 
 const STAGES = [
   { key: "received", label: "Received", icon: <Package className="w-5 h-5" />, desc: "Your vehicle is in our queue" },
@@ -62,6 +65,7 @@ export default function StatusTracker() {
         description="Track your vehicle repair progress in real time. Enter your phone number or reference code to see where your car is in the repair process."
         canonicalPath="/status"
       />
+      <Breadcrumbs items={[{ label: "Service Status", href: "/status" }]} />
 
       {/* Hero */}
       <section className="section-dark pt-28 pb-16 lg:pt-36 lg:pb-20">
@@ -140,7 +144,7 @@ export default function StatusTracker() {
                 <p className="text-foreground/60 max-w-md mx-auto">
                   We could not find any active bookings matching that {searchType === "phone" ? "phone number" : "reference code"}.
                   If you recently booked, it may take a few minutes to appear. You can also call us at{" "}
-                  <a href="tel:2168620005" className="text-nick-yellow hover:underline">(216) 862-0005</a>.
+                  <a href={BUSINESS.phone.href} className="text-nick-yellow hover:underline">{BUSINESS.phone.display}</a>.
                 </p>
               </div>
             ) : (
@@ -234,7 +238,7 @@ export default function StatusTracker() {
                       {isReady && (
                         <div className="mt-4 text-center">
                           <a
-                            href="tel:2168620005"
+                            href={BUSINESS.phone.href}
                             className="inline-flex items-center gap-2 bg-nick-teal text-white px-6 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-teal/90 transition-colors"
                           >
                             <Phone className="w-4 h-4" />
@@ -256,8 +260,8 @@ export default function StatusTracker() {
         <div className="container max-w-3xl">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             {[
-              { icon: <Phone className="w-6 h-6" />, title: "Questions?", desc: "Call us at (216) 862-0005 for any questions about your repair." },
-              { icon: <Clock className="w-6 h-6" />, title: "Hours", desc: "Mon–Sat 9AM–6PM. Updates posted during business hours." },
+              { icon: <Phone className="w-6 h-6" />, title: "Questions?", desc: "Call us at ${BUSINESS.phone.display} for any questions about your repair." },
+              { icon: <Clock className="w-6 h-6" />, title: "Hours", desc: `${BUSINESS.hours.display}. Updates posted during business hours.` },
               { icon: <Wrench className="w-6 h-6" />, title: "Walk-Ins Welcome", desc: "No appointment needed. First come, first served." },
             ].map((item) => (
               <div key={item.title} className="text-center">
@@ -271,6 +275,8 @@ export default function StatusTracker() {
           </div>
         </div>
       </section>
-    </PageLayout>
+    
+      <InternalLinks />
+</PageLayout>
   );
 }

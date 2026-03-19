@@ -65,6 +65,7 @@ export const BUSINESS = {
     website: "https://nickstire.org",
     googleMaps: "https://maps.google.com/?q=17625+Euclid+Ave+Cleveland+OH+44112",
     googleMapsDirections: "https://www.google.com/maps/dir/?api=1&destination=17625+Euclid+Ave+Cleveland+OH+44112",
+    googleMapsDirectionsNamed: "https://www.google.com/maps/dir//Nick's+Tire+And+Auto+Euclid,+17625+Euclid+Ave,+Cleveland,+OH+44112",
     googleBusiness: "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid",
   },
 

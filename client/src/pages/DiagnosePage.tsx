@@ -17,6 +17,8 @@ import {
   Volume2, Wind, CircleDot, Activity, RotateCcw
 } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
+import { BUSINESS } from "@shared/business";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp";
 
@@ -546,12 +548,12 @@ function ResultsStep({ result, vehicle, onReset, onBook: _onBook }: {
       {/* CTAs */}
       <div className="flex flex-col sm:flex-row gap-4">
         <a
-          href="tel:2168620005"
+          href={BUSINESS.phone.href}
           onClick={() => trackPhoneClick("diagnose-results")}
           className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-base tracking-wider uppercase hover:bg-nick-gold transition-colors flex-1"
         >
           <Phone className="w-5 h-5" />
-          CALL (216) 862-0005
+          CALL {BUSINESS.phone.display}
         </a>
         <Link
           href="/contact"
@@ -635,7 +637,7 @@ export default function DiagnosePage() {
         estimatedCostRange: "Call for estimate",
         safetyNote: "If you are experiencing any safety-related symptoms (brake issues, steering problems, warning lights), we recommend having the vehicle inspected as soon as possible.",
         nextSteps: [
-          "Call (216) 862-0005 to schedule a diagnostic appointment",
+          `Call ${BUSINESS.phone.display} to schedule a diagnostic appointment`,
           "Our technicians will use professional equipment to identify the exact cause",
           "We will explain the findings and provide a repair estimate before any work begins",
         ],
@@ -675,6 +677,7 @@ export default function DiagnosePage() {
             <Breadcrumbs items={[
               { label: "What's Wrong With My Car?" },
             ]} />
+      <LocalBusinessSchema />
 
             <FadeIn>
               <div className="flex items-center gap-3 mb-4">
@@ -774,9 +777,9 @@ export default function DiagnosePage() {
                 Our technicians are happy to discuss your vehicle's symptoms over the phone. Call us for a free consultation.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="tel:2168620005" onClick={() => trackPhoneClick("diagnose-cta")} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("diagnose-cta")} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors">
                   <Phone className="w-5 h-5" />
-                  CALL (216) 862-0005
+                  CALL {BUSINESS.phone.display}
                 </a>
                 <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
                   BOOK ONLINE

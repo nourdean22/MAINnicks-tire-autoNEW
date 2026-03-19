@@ -12,6 +12,8 @@ import { getLoginUrl } from "@/const";
 import { Car, Plus, Trash2, Wrench, Calendar, AlertTriangle, ChevronRight, Gauge } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { trpc } from "@/lib/trpc";
+import InternalLinks from "@/components/InternalLinks";
+import { QueryError } from "@/components/QueryState";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -175,11 +177,11 @@ export default function MyGaragePage() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [showAddForm, setShowAddForm] = useState(false);
 
-  const { data: vehicles, isLoading } = trpc.garage.vehicles.useQuery(undefined, {
+  const { data: vehicles, isLoading , isError, error } = trpc.garage.vehicles.useQuery(undefined, {
     enabled: isAuthenticated,
   });
 
-  const { data: serviceHistory } = trpc.garage.serviceHistory.useQuery(undefined, {
+  const { data: serviceHistory , isError: historyError } = trpc.garage.serviceHistory.useQuery(undefined, {
     enabled: isAuthenticated,
   });
 
@@ -271,7 +273,9 @@ export default function MyGaragePage() {
                 )}
 
                 {/* Vehicles Grid */}
-                {isLoading ? (
+                {isError ? (
+              <QueryError message="Failed to load data. Please try again." onRetry={() => window.location.reload()} />
+            ) : isLoading ? (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {[1, 2].map((i) => (
                       <div key={i} className="border border-nick-yellow/10 bg-nick-dark/30 p-6 animate-pulse">
@@ -341,6 +345,8 @@ export default function MyGaragePage() {
         {/* Footer */}
         
 
-    </PageLayout>
+    
+      <InternalLinks />
+</PageLayout>
   );
 }

@@ -1,13 +1,15 @@
 import { useState } from "react";
 import PageLayout from "@/components/PageLayout";
 import InternalLinks from "@/components/InternalLinks";
-import { SEOHead } from "@/components/SEO";
+import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { trpc } from "@/lib/trpc";
 import {
   Truck, Phone, CheckCircle, Clock, DollarSign, FileText,
   Wrench, Shield, ChevronRight, Building2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { BUSINESS } from "@shared/business";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 const FLEET_SERVICES = [
   { icon: <Wrench className="w-6 h-6" />, title: "Preventive Maintenance", desc: "Scheduled oil changes, tire rotations, brake inspections, and fluid services to keep your fleet running." },
@@ -49,7 +51,7 @@ export default function Fleet() {
       toast.success("Request received! We'll contact you within 1 business day.");
     },
     onError: () => {
-      toast.error("Something went wrong. Please call us at (216) 862-0005.");
+      toast.error("Something went wrong. Please call us at ${BUSINESS.phone.display}.");
     },
   });
 
@@ -74,6 +76,8 @@ export default function Fleet() {
         description="Fleet maintenance and commercial vehicle service in Cleveland. Priority scheduling, volume pricing, net-30 billing, and detailed reporting for businesses."
         canonicalPath="/fleet"
       />
+      <Breadcrumbs items={[{ label: "Fleet & Commercial", href: "/fleet" }]} />
+      <LocalBusinessSchema />
 
       {/* Hero */}
       <section className="section-dark pt-28 pb-16 lg:pt-36 lg:pb-20">
@@ -91,9 +95,9 @@ export default function Fleet() {
                 REQUEST FLEET ACCOUNT
                 <ChevronRight className="w-4 h-4" />
               </a>
-              <a href="tel:2168620005" className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors">
+              <a href={BUSINESS.phone.href} className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors">
                 <Phone className="w-4 h-4" />
-                CALL (216) 862-0005
+                CALL {BUSINESS.phone.display}
               </a>
             </div>
           </div>
@@ -157,7 +161,7 @@ export default function Fleet() {
               <CheckCircle className="w-16 h-16 text-nick-teal mx-auto mb-4" />
               <h3 className="font-heading font-bold text-2xl text-foreground mb-2">Request Received</h3>
               <p className="text-foreground/60 max-w-md mx-auto">
-                We will review your fleet information and contact you within 1 business day to discuss your account. For immediate assistance, call <a href="tel:2168620005" className="text-nick-yellow hover:underline">(216) 862-0005</a>.
+                We will review your fleet information and contact you within 1 business day to discuss your account. For immediate assistance, call <a href={BUSINESS.phone.href} className="text-nick-yellow hover:underline">{BUSINESS.phone.display}</a>.
               </p>
             </div>
           ) : (

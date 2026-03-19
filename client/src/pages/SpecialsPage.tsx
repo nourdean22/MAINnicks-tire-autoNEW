@@ -10,6 +10,10 @@ import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { Phone, Tag, Timer, Gift, Percent, ChevronRight, Copy, Check, Scissors } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
+import { BUSINESS } from "@shared/business";
+import InternalLinks from "@/components/InternalLinks";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
+import { QueryError } from "@/components/QueryState";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -239,7 +243,7 @@ const SEASONAL_SPECIALS = [
 ];
 
 export default function SpecialsPage() {
-  const { data: dbCoupons, isLoading } = trpc.coupons.active.useQuery(undefined, {
+  const { data: dbCoupons, isLoading , isError, error } = trpc.coupons.active.useQuery(undefined, {
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -273,6 +277,7 @@ export default function SpecialsPage() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--nick-yellow-alpha)_0%,_transparent_60%)] opacity-20" />
           <div className="relative container">
             <Breadcrumbs items={[{ label: "Specials & Coupons" }]} />
+      <LocalBusinessSchema />
             <FadeIn>
               <div className="flex items-center gap-3 mb-4">
                 <Tag className="w-6 h-6 text-nick-yellow" />
@@ -318,7 +323,9 @@ export default function SpecialsPage() {
               </h2>
             </FadeIn>
 
-            {isLoading ? (
+            {isError ? (
+              <QueryError message="Failed to load data. Please try again." onRetry={() => window.location.reload()} />
+            ) : isLoading ? (
               <div className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {[1, 2, 3, 4].map((i) => (
                   <div key={i} className="border border-nick-yellow/10 bg-nick-dark/30 p-8 animate-pulse">
@@ -379,7 +386,7 @@ export default function SpecialsPage() {
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <a
-                  href="tel:2168620005"
+                  href={BUSINESS.phone.href}
                   onClick={() => trackPhoneClick("specials_cta")}
                   className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors"
                 >
@@ -401,6 +408,8 @@ export default function SpecialsPage() {
         {/* Footer */}
         
 
-    </PageLayout>
+    
+      <InternalLinks />
+</PageLayout>
   );
 }

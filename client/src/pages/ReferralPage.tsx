@@ -10,6 +10,8 @@ import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { Users, Gift, CheckCircle, Heart } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { trpc } from "@/lib/trpc";
+import InternalLinks from "@/components/InternalLinks";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -57,6 +59,7 @@ export default function ReferralPage() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--nick-yellow-alpha)_0%,_transparent_60%)] opacity-20" />
           <div className="relative container">
             <Breadcrumbs items={[{ label: "Refer a Friend" }]} />
+      <LocalBusinessSchema />
             <FadeIn>
               <div className="flex items-center gap-3 mb-4">
                 <Heart className="w-6 h-6 text-nick-yellow" />
@@ -182,6 +185,8 @@ export default function ReferralPage() {
         {/* Footer */}
         
 
-    </PageLayout>
+    
+      <InternalLinks />
+</PageLayout>
   );
 }

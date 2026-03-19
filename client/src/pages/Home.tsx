@@ -16,6 +16,7 @@ import { SEOHead, SkipToContent, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronDown, Menu, X, ArrowRight } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { trpc } from "@/lib/trpc";
+import { BUSINESS } from "@shared/business";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
@@ -87,8 +88,8 @@ function Navbar() {
           <Link href="/diagnose" className="text-sm font-medium text-nick-yellow hover:text-nick-gold transition-colors">
             Diagnose My Car
           </Link>
-          <a href="tel:2168620005" onClick={() => trackPhoneClick('navbar')} className="text-sm font-medium bg-foreground text-background px-5 py-2 rounded-full hover:bg-foreground/90 transition-colors" aria-label="Call Nick's Tire and Auto">
-            (216) 862-0005
+          <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('navbar')} className="text-sm font-medium bg-foreground text-background px-5 py-2 rounded-full hover:bg-foreground/90 transition-colors" aria-label="Call Nick's Tire and Auto">
+            {BUSINESS.phone.display}
           </a>
         </div>
 
@@ -115,9 +116,9 @@ function Navbar() {
               Diagnose My Car
             </Link>
             <div className="pt-6 border-t border-border">
-              <a href="tel:2168620005" onClick={() => trackPhoneClick('navbar-mobile')} className="inline-flex items-center gap-2 text-lg text-foreground/60" aria-label="Call Nick's Tire and Auto">
+              <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('navbar-mobile')} className="inline-flex items-center gap-2 text-lg text-foreground/60" aria-label="Call Nick's Tire and Auto">
                 <Phone className="w-4 h-4" />
-                (216) 862-0005
+                {BUSINESS.phone.display}
               </a>
             </div>
           </div>
@@ -162,7 +163,7 @@ function Hero() {
 
         <FadeIn delay={0.25}>
           <div className="mt-8 flex flex-col sm:flex-row gap-3">
-            <a href="tel:2168620005" onClick={() => trackPhoneClick('hero')} className="inline-flex items-center justify-center gap-2 bg-foreground text-background px-8 py-3.5 rounded-full font-medium text-base hover:bg-foreground/90 transition-colors" aria-label="Call for free estimate">
+            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('hero')} className="inline-flex items-center justify-center gap-2 bg-foreground text-background px-8 py-3.5 rounded-full font-medium text-base hover:bg-foreground/90 transition-colors" aria-label="Call for free estimate">
               Call for Free Estimate
             </a>
             <a href="#services" className="inline-flex items-center justify-center gap-2 border border-foreground/30 text-foreground px-8 py-3.5 rounded-full font-medium text-base hover:bg-foreground/5 transition-colors">
@@ -282,7 +283,7 @@ function Services() {
                 <Link href={s.slug} className="inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/90 transition-colors">
                   Learn More
                 </Link>
-                <a href="tel:2168620005" onClick={() => trackPhoneClick(`service-${s.slug}`)} className="inline-flex items-center gap-2 border border-foreground/30 text-foreground px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/5 transition-colors">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`service-${s.slug}`)} className="inline-flex items-center gap-2 border border-foreground/30 text-foreground px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/5 transition-colors">
                   Call Now
                 </a>
               </div>
@@ -441,7 +442,7 @@ function Contact() {
                   <div className="flex items-start gap-3">
                     <MapPin className="w-4 h-4 text-nick-yellow mt-1 shrink-0" />
                     <div className="text-foreground/70">
-                      <p>17625 Euclid Ave</p>
+                      <p>{BUSINESS.address.street}</p>
                       <p>Cleveland, OH 44112</p>
                     </div>
                   </div>
@@ -460,14 +461,14 @@ function Contact() {
 
                 <div>
                   <h3 className="text-xs font-semibold text-foreground/30 uppercase tracking-widest mb-3">Phone</h3>
-                  <a href="tel:2168620005" onClick={() => trackPhoneClick('contact')} className="flex items-center gap-3 group">
+                  <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('contact')} className="flex items-center gap-3 group">
                     <Phone className="w-4 h-4 text-nick-yellow shrink-0" />
-                    <span className="text-2xl font-semibold text-foreground group-hover:text-nick-yellow transition-colors tracking-tight">(216) 862-0005</span>
+                    <span className="text-2xl font-semibold text-foreground group-hover:text-nick-yellow transition-colors tracking-tight">{BUSINESS.phone.display}</span>
                   </a>
                 </div>
 
                 <a
-                  href="https://www.google.com/maps/dir//Nick's+Tire+And+Auto+Euclid,+17625+Euclid+Ave,+Cleveland,+OH+44112"
+                  href={BUSINESS.urls.googleMapsDirectionsNamed}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/90 transition-colors"
@@ -517,7 +518,7 @@ function MobileCTA() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-nick-dark/95 backdrop-blur-xl border-t border-border p-3 flex gap-2">
-      <a href="tel:2168620005" onClick={() => trackPhoneClick('mobile-sticky')} className="flex items-center justify-center gap-2 bg-foreground text-background flex-1 py-3 rounded-full font-medium text-sm" aria-label="Call now">
+      <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('mobile-sticky')} className="flex items-center justify-center gap-2 bg-foreground text-background flex-1 py-3 rounded-full font-medium text-sm" aria-label="Call now">
         <Phone className="w-4 h-4" />
         Call Now
       </a>
@@ -596,8 +597,8 @@ function Footer() {
           <p className="text-foreground/20 text-xs">
             &copy; {new Date().getFullYear()} Nick's Tire & Auto. All rights reserved.
           </p>
-          <a href="tel:2168620005" className="text-foreground/30 text-sm hover:text-foreground/50 transition-colors">
-            (216) 862-0005
+          <a href={BUSINESS.phone.href} className="text-foreground/30 text-sm hover:text-foreground/50 transition-colors">
+            {BUSINESS.phone.display}
           </a>
         </div>
       </div>
@@ -615,11 +616,11 @@ function LocalBusinessSchema() {
     "image": HERO_IMG,
     "@id": "https://nickstire.org",
     "url": "https://nickstire.org",
-    "telephone": "+1-216-862-0005",
+    "telephone": "+1-" + BUSINESS.phone.dashed,
     "priceRange": "$$",
     "address": {
       "@type": "PostalAddress",
-      "streetAddress": "17625 Euclid Ave",
+      "streetAddress": BUSINESS.address.street,
       "addressLocality": "Cleveland",
       "addressRegion": "OH",
       "postalCode": "44112",
@@ -655,7 +656,7 @@ export default function Home() {
     <div className="min-h-screen flex flex-col">
       <SEOHead
         title="Nick's Tire & Auto | Cleveland Auto Repair Shop"
-        description="Trusted auto repair and tire shop serving Cleveland, Euclid, and Northeast Ohio. Brakes, tires, diagnostics, emissions, and more. 4.9 stars, 1,685+ reviews."
+        description={`Trusted auto repair and tire shop serving Cleveland, Euclid, and Northeast Ohio. Brakes, tires, diagnostics, emissions, and more. 4.9 stars, ${BUSINESS.reviews.countDisplay} reviews.`}
         canonicalPath="/"
       />
       <LocalBusinessSchema />

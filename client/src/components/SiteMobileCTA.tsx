@@ -4,6 +4,7 @@
  */
 import { Phone, Navigation, Calendar } from "lucide-react";
 import { trackPhoneClick } from "@/components/SEO";
+import { BUSINESS } from "@shared/business";
 
 export default function SiteMobileCTA() {
   return (
@@ -11,16 +12,16 @@ export default function SiteMobileCTA() {
       <div className="bg-nick-dark/95 backdrop-blur-md border-t border-border/30">
         <div className="grid grid-cols-3 divide-x divide-border/20">
           <a
-            href="tel:2168620005"
+            href={BUSINESS.phone.href}
             onClick={() => trackPhoneClick("mobile-cta")}
             className="flex flex-col items-center justify-center py-3 gap-1 text-nick-yellow active:bg-nick-yellow/10 transition-colors"
-            aria-label="Call Nick's Tire and Auto at 216-862-0005"
+            aria-label={`Call Nick's Tire and Auto at ${BUSINESS.phone.dashed}`}
           >
             <Phone className="w-5 h-5" />
             <span className="text-[10px] font-semibold uppercase tracking-wider">Call</span>
           </a>
           <a
-            href="https://www.google.com/maps/dir/?api=1&destination=17625+Euclid+Ave+Cleveland+OH+44112"
+            href={BUSINESS.urls.googleMapsDirections}
             target="_blank"
             rel="noopener noreferrer"
             className="flex flex-col items-center justify-center py-3 gap-1 text-foreground/70 active:bg-foreground/5 transition-colors"

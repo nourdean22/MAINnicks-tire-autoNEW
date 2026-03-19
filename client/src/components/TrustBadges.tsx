@@ -3,14 +3,15 @@
  * Shows key trust signals in a compact horizontal strip.
  */
 import { Shield, Star, Clock, Award, Users, MapPin } from "lucide-react";
+import { BUSINESS } from "@shared/business";
 
 const BADGES = [
-  { icon: Star, label: "4.9 Stars", detail: "1,685+ Reviews" },
+  { icon: Star, label: "4.9 Stars", detail: `${BUSINESS.reviews.countDisplay} Reviews` },
   { icon: Shield, label: "Licensed & Insured", detail: "Ohio Certified" },
   { icon: Clock, label: "Same-Day Service", detail: "Walk-ins Welcome" },
   { icon: Award, label: "ASE Standards", detail: "Expert Technicians" },
   { icon: Users, label: "Family Owned", detail: "Cleveland Local" },
-  { icon: MapPin, label: "Easy Access", detail: "17625 Euclid Ave" },
+  { icon: MapPin, label: "Easy Access", detail: BUSINESS.address.street },
 ];
 
 export default function TrustBadges() {

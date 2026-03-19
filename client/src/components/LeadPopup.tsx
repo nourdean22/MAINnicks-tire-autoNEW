@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from "react";
 import { X, Phone, AlertTriangle, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
+import { BUSINESS } from "@shared/business";
 
 const STORAGE_KEY = "nicks_lead_popup_dismissed";
 const DELAY_MS = 20000; // 20 seconds
@@ -177,7 +178,7 @@ export default function LeadPopup() {
 
                   <div className="mt-4 flex items-center justify-center gap-2 text-foreground/40 text-xs">
                     <Phone className="w-3 h-3 text-nick-teal" />
-                    <span className="font-mono">Or call directly: <a href="tel:2168620005" className="text-nick-teal hover:text-nick-cyan transition-colors">(216) 862-0005</a></span>
+                    <span className="font-mono">Or call directly: <a href={BUSINESS.phone.href} className="text-nick-teal hover:text-nick-cyan transition-colors">{BUSINESS.phone.display}</a></span>
                   </div>
                 </>
               ) : (

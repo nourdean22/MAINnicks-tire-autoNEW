@@ -12,6 +12,8 @@ import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { Phone, Clock, ArrowRight } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { useState } from "react";
+import { BUSINESS } from "@shared/business";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -53,6 +55,7 @@ export default function Blog() {
         <div className="container">
           <FadeIn>
             <Breadcrumbs items={[{ label: "Blog & Tips" }]} />
+      <LocalBusinessSchema />
           </FadeIn>
 
           <FadeIn delay={0.1}>
@@ -145,7 +148,7 @@ export default function Blog() {
               If something does not feel right with your vehicle, bring it in. We will diagnose the problem and explain your options.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <a href="tel:2168620005" className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors">
+              <a href={BUSINESS.phone.href} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors">
                 <Phone className="w-5 h-5" />
                 CALL NOW
               </a>

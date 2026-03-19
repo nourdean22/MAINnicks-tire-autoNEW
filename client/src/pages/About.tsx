@@ -10,6 +10,8 @@ import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { Phone, Star, ArrowRight } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { trpc } from "@/lib/trpc";
+import { BUSINESS } from "@shared/business";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 const DIAG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp";
@@ -45,6 +47,7 @@ export default function About() {
         </div>
         <div className="relative container pb-16 pt-32">
           <Breadcrumbs items={[{ label: "About" }]} />
+      <LocalBusinessSchema />
           <FadeIn>
             <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold text-foreground tracking-tight leading-[0.95] mt-4">
               About <span className="text-nick-yellow">Nick's</span>
@@ -150,9 +153,9 @@ export default function About() {
             <h2 className="text-3xl lg:text-5xl font-bold text-foreground tracking-tight">Ready to get started?</h2>
             <p className="mt-4 text-foreground/40 text-lg max-w-md mx-auto">Call us, book online, or just stop by. Walk-ins welcome.</p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-              <a href="tel:2168620005" onClick={() => trackPhoneClick("about-cta")} className="inline-flex items-center justify-center gap-2 bg-foreground text-background px-8 py-3.5 rounded-full font-medium hover:bg-foreground/90 transition-colors">
+              <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("about-cta")} className="inline-flex items-center justify-center gap-2 bg-foreground text-background px-8 py-3.5 rounded-full font-medium hover:bg-foreground/90 transition-colors">
                 <Phone className="w-4 h-4" />
-                Call (216) 862-0005
+                Call {BUSINESS.phone.display}
               </a>
               <Link href="/contact" className="inline-flex items-center justify-center gap-2 border border-foreground/30 text-foreground px-8 py-3.5 rounded-full font-medium hover:bg-foreground/5 transition-colors">
                 Book Online

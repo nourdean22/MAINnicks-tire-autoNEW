@@ -1,5 +1,5 @@
 import PageLayout from "@/components/PageLayout";
-import { SEOHead } from "@/components/SEO";
+import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { getLoginUrl } from "@/const";
@@ -8,6 +8,8 @@ import {
   Star, Gift, Trophy, ArrowRight,
   Zap, DollarSign, Clock, Shield,
 } from "lucide-react";
+import InternalLinks from "@/components/InternalLinks";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 const HOW_IT_WORKS = [
   { num: "01", icon: <Star className="w-6 h-6" />, title: "Earn Points", desc: "Earn 1 point per dollar spent on any service. Bonus points on select services." },
@@ -141,6 +143,8 @@ export default function Loyalty() {
         description="Earn points on every service at Nick's Tire & Auto. Redeem for discounts on future repairs. Cleveland's most rewarding auto shop."
         canonicalPath="/rewards"
       />
+      <Breadcrumbs items={[{ label: "Rewards", href: "/rewards" }]} />
+      <LocalBusinessSchema />
 
       {/* Hero */}
       <section className="section-dark pt-28 pb-16 lg:pt-36 lg:pb-20">
@@ -226,6 +230,8 @@ export default function Loyalty() {
           </div>
         </div>
       </section>
-    </PageLayout>
+    
+      <InternalLinks />
+</PageLayout>
   );
 }

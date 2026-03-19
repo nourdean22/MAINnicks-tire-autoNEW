@@ -1,10 +1,12 @@
 import PageLayout from "@/components/PageLayout";
-import { SEOHead } from "@/components/SEO";
+import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import InternalLinks from "@/components/InternalLinks";
 import {
   DollarSign, Phone, CheckCircle, CreditCard,
   ChevronRight, AlertCircle, Calculator,
 } from "lucide-react";
+import { BUSINESS } from "@shared/business";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 const FINANCING_OPTIONS = [
   {
@@ -50,6 +52,8 @@ export default function Financing() {
         description="Affordable auto repair financing in Cleveland. No-interest payment plans, buy now pay later options, and multiple payment methods. Don't delay repairs because of cost."
         canonicalPath="/financing"
       />
+      <Breadcrumbs items={[{ label: "Financing", href: "/financing" }]} />
+      <LocalBusinessSchema />
 
       {/* Hero */}
       <section className="section-dark pt-28 pb-16 lg:pt-36 lg:pb-20">
@@ -172,11 +176,11 @@ export default function Financing() {
 
           <div className="mt-8 text-center">
             <a
-              href="tel:2168620005"
+              href={BUSINESS.phone.href}
               className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors"
             >
               <Phone className="w-4 h-4" />
-              CALL TO DISCUSS OPTIONS — (216) 862-0005
+              CALL TO DISCUSS OPTIONS — {BUSINESS.phone.display}
             </a>
           </div>
         </div>

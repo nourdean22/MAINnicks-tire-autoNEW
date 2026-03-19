@@ -7,6 +7,7 @@ import { Link } from "wouter";
 import { trackPhoneClick } from "@/components/SEO";
 import { Phone, Menu, X } from "lucide-react";
 import { motion } from "framer-motion";
+import { BUSINESS } from "@shared/business";
 
 const NAV_LINKS = [
   { label: "Services", href: "/#services" },
@@ -50,12 +51,12 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
             Diagnose My Car
           </Link>
           <a
-            href="tel:2168620005"
+            href={BUSINESS.phone.href}
             onClick={() => trackPhoneClick("navbar")}
             className="text-sm font-medium bg-foreground text-background px-5 py-2 rounded-full hover:bg-foreground/90 transition-colors"
             aria-label="Call Nick's Tire and Auto"
           >
-            (216) 862-0005
+            {BUSINESS.phone.display}
           </a>
         </div>
 
@@ -76,9 +77,9 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
               Diagnose My Car
             </Link>
             <div className="pt-6 border-t border-border">
-              <a href="tel:2168620005" onClick={() => trackPhoneClick("navbar-mobile")} className="inline-flex items-center gap-2 text-lg text-foreground/60" aria-label="Call Nick's Tire and Auto">
+              <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("navbar-mobile")} className="inline-flex items-center gap-2 text-lg text-foreground/60" aria-label="Call Nick's Tire and Auto">
                 <Phone className="w-4 h-4" />
-                (216) 862-0005
+                {BUSINESS.phone.display}
               </a>
             </div>
           </div>

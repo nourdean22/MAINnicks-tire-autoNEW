@@ -7,9 +7,11 @@ import PageLayout from "@/components/PageLayout";
 import { useRef, useEffect } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { getArticleBySlug, BLOG_ARTICLES } from "@shared/blog";
-import { SEOHead } from "@/components/SEO";
+import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { Phone, Clock, ChevronRight, ArrowLeft, ArrowRight, Tag } from "lucide-react";
 import { motion, useInView } from "framer-motion";
+import { BUSINESS } from "@shared/business";
+import InternalLinks from "@/components/InternalLinks";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -84,7 +86,7 @@ export default function BlogPost() {
       },
       address: {
         "@type": "PostalAddress",
-        streetAddress: "17625 Euclid Ave",
+        streetAddress: BUSINESS.address.street,
         addressLocality: "Cleveland",
         addressRegion: "OH",
         postalCode: "44112",
@@ -105,6 +107,7 @@ export default function BlogPost() {
         canonicalPath={`/blog/${article.slug}`}
         ogImage={article.heroImage}
       />
+      <Breadcrumbs items={[{ label: "Blog", href: "/blog" }, { label: "Article" }]} />
       
       
       {/* JSON-LD */}
@@ -219,9 +222,9 @@ export default function BlogPost() {
                   Our technicians are ready to help. Call or book online for an appointment.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <a href="tel:2168620005" className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-primary/90 transition-colors">
+                  <a href={BUSINESS.phone.href} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-primary/90 transition-colors">
                     <Phone className="w-4 h-4" />
-                    CALL (216) 862-0005
+                    CALL {BUSINESS.phone.display}
                   </a>
                   <Link href="/#contact" className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-sm tracking-wider uppercase hover:border-primary hover:text-primary transition-colors">
                     BOOK ONLINE
@@ -286,6 +289,8 @@ export default function BlogPost() {
 
       {/* Mini Footer */}
       
-    </PageLayout>
+    
+      <InternalLinks />
+</PageLayout>
   );
 }

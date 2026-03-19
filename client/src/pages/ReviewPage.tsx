@@ -10,6 +10,9 @@ import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { Star, ExternalLink, Phone, MapPin, Printer, CheckCircle, ThumbsUp } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
+import { BUSINESS } from "@shared/business";
+import InternalLinks from "@/components/InternalLinks";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -68,7 +71,7 @@ export default function ReviewPage() {
                 <Star key={i} className="w-8 h-8 fill-yellow-500 text-yellow-500" />
               ))}
             </div>
-            <p className="text-2xl font-bold text-gray-900 mb-1">4.9 Stars — 1,685+ Reviews</p>
+            <p className="text-2xl font-bold text-gray-900 mb-1">{`4.9 Stars — ${BUSINESS.reviews.countDisplay} Reviews`}</p>
           </div>
           <div className="border-2 border-gray-300 rounded-lg p-6 mb-6 inline-block">
             <QRCodeSVG
@@ -83,8 +86,8 @@ export default function ReviewPage() {
           <div>
             <p className="text-xl font-bold text-gray-900 mb-2">SCAN TO LEAVE A REVIEW</p>
             <p className="text-gray-600">Your feedback helps us serve Cleveland drivers better.</p>
-            <p className="text-gray-500 text-sm mt-4">17625 Euclid Ave, Cleveland, OH 44112</p>
-            <p className="text-gray-500 text-sm">(216) 862-0005</p>
+            <p className="text-gray-500 text-sm mt-4">{BUSINESS.address.full}</p>
+            <p className="text-gray-500 text-sm">{BUSINESS.phone.display}</p>
           </div>
         </div>
       </div>
@@ -102,6 +105,7 @@ export default function ReviewPage() {
         { label: "Home", href: "/" },
         { label: "Leave a Review" },
       ]} />
+      <LocalBusinessSchema />
 
       {/* Hero Section */}
       <section className="relative bg-nick-dark pt-28 pb-16 lg:pt-36 lg:pb-24">
@@ -243,7 +247,7 @@ export default function ReviewPage() {
               ))}
             </div>
             <p className="font-heading font-bold text-5xl lg:text-6xl text-foreground mb-2">4.9</p>
-            <p className="font-mono text-primary text-lg tracking-wider mb-4">1,685+ GOOGLE REVIEWS</p>
+            <p className="font-mono text-primary text-lg tracking-wider mb-4">{BUSINESS.reviews.countDisplay} GOOGLE REVIEWS</p>
             <p className="text-foreground/60 text-lg max-w-xl mx-auto mb-8">
               Cleveland drivers have spoken. Join them in sharing your experience.
             </p>
@@ -273,22 +277,24 @@ export default function ReviewPage() {
               If something was not right with your visit, we want to hear about it directly. Call us and we will make it right. Our reputation is built on doing right by every customer.
             </p>
             <a
-              href="tel:2168620005"
+              href={BUSINESS.phone.href}
               onClick={() => trackPhoneClick("review_page_concern")}
               className="inline-flex items-center justify-center gap-2 border-2 border-primary text-primary px-8 py-4 font-heading font-bold text-lg tracking-wider uppercase hover:bg-primary hover:text-primary-foreground transition-colors"
             >
               <Phone className="w-5 h-5" />
-              (216) 862-0005
+              {BUSINESS.phone.display}
             </a>
             <div className="mt-8 flex flex-wrap justify-center gap-6 text-sm text-foreground/50">
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-primary" />
-                <span className="font-mono">17625 Euclid Ave, Cleveland, OH 44112</span>
+                <span className="font-mono">{BUSINESS.address.full}</span>
               </div>
             </div>
           </FadeIn>
         </div>
       </section>
-    </PageLayout>
+    
+      <InternalLinks />
+</PageLayout>
   );
 }
