@@ -2,7 +2,7 @@ import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser, users, bookings, InsertBooking,
-  coupons, InsertCoupon, Coupon,
+  coupons, InsertCoupon,
   customerVehicles, InsertCustomerVehicle,
   serviceHistory, InsertServiceHistory,
   referrals, InsertReferral,
@@ -339,8 +339,7 @@ import {
   vehicleInspections, InsertVehicleInspection,
   inspectionItems, InsertInspectionItem,
   loyaltyRewards, InsertLoyaltyReward,
-  loyaltyTransactions, InsertLoyaltyTransaction,
-  leads,
+  loyaltyTransactions,
 } from "../drizzle/schema";
 
 export async function createCallbackRequest(data: InsertCallbackRequest) {

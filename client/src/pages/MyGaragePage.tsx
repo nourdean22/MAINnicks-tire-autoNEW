@@ -6,10 +6,10 @@
 import PageLayout from "@/components/PageLayout";
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
+import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
-import { Phone, MapPin, Clock, Menu, X, Car, Plus, Trash2, Edit2, Wrench, Calendar, AlertTriangle, ChevronRight, Gauge } from "lucide-react";
+import { Car, Plus, Trash2, Wrench, Calendar, AlertTriangle, ChevronRight, Gauge } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 
@@ -196,9 +196,6 @@ export default function MyGaragePage() {
       />
       
       
-      
-
-
         {/* Hero */}
         <section className="relative pt-32 lg:pt-40 pb-12 lg:pb-16 bg-background">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--nick-yellow-alpha)_0%,_transparent_60%)] opacity-20" />

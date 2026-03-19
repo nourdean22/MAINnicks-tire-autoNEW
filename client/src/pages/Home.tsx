@@ -6,19 +6,19 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import NotificationBar from "@/components/NotificationBar";
 import BookingForm from "@/components/BookingForm";
 import LeadPopup from "@/components/LeadPopup";
 import ChatWidget from "@/components/ChatWidget";
+import NotificationBar from "@/components/NotificationBar";
 import ComparisonTable from "@/components/ComparisonTable";
 import InternalLinks from "@/components/InternalLinks";
 import { SEOHead, SkipToContent, trackPhoneClick } from "@/components/SEO";
-import { Phone, MapPin, Clock, Star, ChevronRight, ChevronDown, Menu, X, ArrowRight } from "lucide-react";
+import { Phone, MapPin, Clock, Star, ChevronDown, Menu, X, ArrowRight } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
-const DARK_SHOP = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/dark-shop-2_ab669a95.jpg";
+
 const MECHANIC_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/mechanic-night_af6b9eca.jpg";
 const TIRES_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp";
 const DIAG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp";
@@ -268,7 +268,7 @@ function Services() {
   return (
     <section id="services">
       {/* Featured services — large image tiles */}
-      {services.map((s, i) => (
+      {services.map((s, _i) => (
         <div key={s.slug} className="relative min-h-[80vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
             <img src={s.img} alt={`${s.title} service at Nick's Tire and Auto`} className="w-full h-full object-cover" loading="lazy" />
@@ -344,7 +344,7 @@ function WhyUs() {
                   { title: "Honest Diagnostics", text: "We read the codes, test the components, and show you exactly what failed." },
                   { title: "Upfront Pricing", text: "Written estimates before work begins. No hidden fees, no surprise charges." },
                   { title: "Warranty on Repairs", text: "We stand behind our work. If something isn't right, we make it right." },
-                ].map((item, i) => (
+                ].map((item, _i) => (
                   <div key={item.title} className="flex gap-4">
                     <div className="w-px bg-nick-yellow shrink-0 mt-1" style={{ minHeight: '2.5rem' }} />
                     <div>
@@ -655,11 +655,12 @@ export default function Home() {
     <div className="min-h-screen flex flex-col">
       <SEOHead
         title="Nick's Tire & Auto | Cleveland Auto Repair Shop"
-        description="Trusted auto repair and tire shop serving Cleveland, Euclid, and Northeast Ohio. Brakes, tires, diagnostics, emissions, and more. 4.9 stars, 1,683+ reviews."
+        description="Trusted auto repair and tire shop serving Cleveland, Euclid, and Northeast Ohio. Brakes, tires, diagnostics, emissions, and more. 4.9 stars, 1,685+ reviews."
         canonicalPath="/"
       />
       <LocalBusinessSchema />
       <SkipToContent />
+      <NotificationBar />
       <Navbar />
       <main id="main-content">
         <Hero />

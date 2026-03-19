@@ -8,10 +8,10 @@ import PageLayout from "@/components/PageLayout";
 import { useRef } from "react";
 import { Link } from "wouter";
 import { BLOG_ARTICLES } from "@shared/blog";
-import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
-import { Phone, Clock, ChevronRight, ArrowRight, Menu, X, MapPin } from "lucide-react";
+import { SEOHead, Breadcrumbs } from "@/components/SEO";
+import { Phone, Clock, ArrowRight } from "lucide-react";
 import { motion, useInView } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -48,8 +48,6 @@ export default function Blog() {
       />
       
       
-      
-
       {/* Hero */}
       <section className="pt-32 pb-16 lg:pt-40 lg:pb-20 section-darker">
         <div className="container">

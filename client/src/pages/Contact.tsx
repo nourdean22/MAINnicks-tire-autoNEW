@@ -6,13 +6,11 @@
 
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
-import { useState, useEffect, useRef } from "react";
-import { Link } from "wouter";
+import { useEffect, useRef } from "react";
 import BookingForm from "@/components/BookingForm";
-import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
-import { Phone, MapPin, Clock, Star, Menu, X, Mail, Navigation } from "lucide-react";
+import { SEOHead } from "@/components/SEO";
+import { Phone, MapPin, Clock, Star, Navigation } from "lucide-react";
 import { motion, useInView } from "framer-motion";
-import { trpc } from "@/lib/trpc";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -97,15 +95,12 @@ export default function Contact() {
     <PageLayout>
       <SEOHead
         title="Contact Nick's Tire & Auto | Cleveland Auto Repair Shop | (216) 862-0005"
-        description="Contact Nick's Tire & Auto at (216) 862-0005. Located at 17625 Euclid Ave, Cleveland, OH 44112. Open Mon-Sat 8AM-6PM, Sun 9AM-4PM. Walk-ins welcome."
+        description="Contact Nick's Tire & Auto at (216) 862-0005. Located at 17625 Euclid Ave, Cleveland, OH 44112. Open Mon–Sat 9AM–6PM. Walk-ins welcome."
         canonicalPath="/contact"
       />
       <ContactSchema />
       
       
-      
-
-
         {/* Hero */}
         <section className="relative pt-32 lg:pt-40 pb-16 lg:pb-20 section-dark">
           <div className="container">
@@ -123,7 +118,6 @@ export default function Contact() {
         </section>
 
         
-
         {/* Contact Info + Booking Form */}
         <section className="section-darker py-16 lg:py-24">
           <div className="container">
@@ -214,7 +208,7 @@ export default function Contact() {
                         ))}
                       </div>
                       <span className="font-mono text-nick-yellow text-lg font-bold">4.9</span>
-                      <span className="text-foreground/50 text-sm">from 1,683+ reviews</span>
+                      <span className="text-foreground/50 text-sm">from 1,685+ reviews</span>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3">
                       <a
@@ -281,8 +275,6 @@ export default function Contact() {
         {/* Footer */}
         
 
-
-      
       <InternalLinks title="Our Services" />
     </PageLayout>
   );

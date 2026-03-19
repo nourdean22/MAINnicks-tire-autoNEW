@@ -7,10 +7,9 @@ import PageLayout from "@/components/PageLayout";
 import { useRef, useEffect } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { getArticleBySlug, BLOG_ARTICLES } from "@shared/blog";
-import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
-import { Phone, Clock, ChevronRight, ArrowLeft, ArrowRight, Tag, Menu, X, MapPin } from "lucide-react";
+import { SEOHead } from "@/components/SEO";
+import { Phone, Clock, ChevronRight, ArrowLeft, ArrowRight, Tag } from "lucide-react";
 import { motion, useInView } from "framer-motion";
-import { useState } from "react";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -30,7 +29,7 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
 
 export default function BlogPost() {
   const [, params] = useRoute("/blog/:slug");
-  const [, setLocation] = useLocation();
+  const [, _setLocation] = useLocation();
   const slug = params?.slug || "";
   const article = getArticleBySlug(slug);
 
@@ -108,8 +107,6 @@ export default function BlogPost() {
       />
       
       
-      
-
       {/* JSON-LD */}
       <script
         type="application/ld+json"

@@ -1,11 +1,11 @@
 import PageLayout from "@/components/PageLayout";
 import { useParams } from "wouter";
 import { Link } from "wouter";
-import { Phone, MapPin, Clock, ChevronRight, AlertTriangle, CheckCircle2, Menu, X, Star } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { Phone, ChevronRight, AlertTriangle } from "lucide-react";
+import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
-import { SEOHead, SkipToContent, Breadcrumbs } from "@/components/SEO";
-import { getSEOServiceBySlug, type SEOServicePage as SEOServicePageType } from "@shared/seo-pages";
+import { SEOHead, Breadcrumbs } from "@/components/SEO";
+import { getSEOServiceBySlug } from "@shared/seo-pages";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -53,8 +53,6 @@ export default function SEOServicePage() {
       />
       
       
-
-
         {/* Hero */}
         <section className="relative pt-28 pb-16 lg:pt-36 lg:pb-24 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-b from-nick-dark via-nick-dark/95 to-nick-dark" />

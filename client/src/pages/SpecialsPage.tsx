@@ -6,8 +6,8 @@
 import PageLayout from "@/components/PageLayout";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "wouter";
-import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
-import { Phone, MapPin, Clock, Menu, X, Tag, Timer, Gift, Percent, ChevronRight, Copy, Check, Scissors } from "lucide-react";
+import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
+import { Phone, Tag, Timer, Gift, Percent, ChevronRight, Copy, Check, Scissors } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 
@@ -268,9 +268,6 @@ export default function SpecialsPage() {
       />
       
       
-      
-
-
         {/* Hero */}
         <section className="relative pt-32 lg:pt-40 pb-16 lg:pb-20 bg-background">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--nick-yellow-alpha)_0%,_transparent_60%)] opacity-20" />
@@ -404,8 +401,6 @@ export default function SpecialsPage() {
         {/* Footer */}
         
 
-
-      
     </PageLayout>
   );
 }

@@ -1,11 +1,11 @@
 import PageLayout from "@/components/PageLayout";
 import { useParams } from "wouter";
 import { Link } from "wouter";
-import { Phone, MapPin, Clock, ChevronRight, AlertTriangle, AlertOctagon, Menu, X } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { Phone, ChevronRight, AlertOctagon } from "lucide-react";
+import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
-import { SEOHead, SkipToContent, Breadcrumbs } from "@/components/SEO";
-import { getProblemBySlug, type ProblemPage as ProblemPageType } from "@shared/seo-pages";
+import { SEOHead, Breadcrumbs } from "@/components/SEO";
+import { getProblemBySlug } from "@shared/seo-pages";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -65,8 +65,6 @@ export default function ProblemPage() {
       />
       
       
-
-
         {/* Hero */}
         <section className="relative pt-28 pb-16 lg:pt-36 lg:pb-24">
           <div className="absolute inset-0 bg-gradient-to-b from-nick-dark via-nick-dark/95 to-nick-dark" />

@@ -4,7 +4,7 @@ import InternalLinks from "@/components/InternalLinks";
 import { SEOHead } from "@/components/SEO";
 import { trpc } from "@/lib/trpc";
 import {
-  Truck, Phone, CheckCircle, Users, Clock, DollarSign, FileText,
+  Truck, Phone, CheckCircle, Clock, DollarSign, FileText,
   Wrench, Shield, ChevronRight, Building2,
 } from "lucide-react";
 import { toast } from "sonner";

@@ -6,8 +6,8 @@
 import PageLayout from "@/components/PageLayout";
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
-import { Phone, MapPin, Clock, Menu, X, BookOpen, ChevronRight, Snowflake, Sun, Leaf, Droplets, Wrench, AlertTriangle, CheckCircle, Gauge } from "lucide-react";
+import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
+import { Phone, BookOpen, ChevronRight, Snowflake, Sun, Leaf, Droplets, Wrench, AlertTriangle, CheckCircle, Gauge } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
@@ -124,9 +124,6 @@ export default function CarCareGuidePage() {
       />
       
       
-      
-
-
         {/* Hero */}
         <section className="relative pt-32 lg:pt-40 pb-16 lg:pb-20 bg-background">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--nick-yellow-alpha)_0%,_transparent_60%)] opacity-20" />
@@ -320,8 +317,6 @@ export default function CarCareGuidePage() {
         {/* Footer */}
         
 
-
-      
     </PageLayout>
   );
 }

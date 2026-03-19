@@ -102,7 +102,6 @@ export function getWeatherAlert(weather: WeatherData): WeatherAlert {
   const temp = weather.temperature_f;
   const wind = weather.wind_speed_mph;
   const code = weather.weather_code;
-  const condition = weather.weather_condition;
 
   // ─── DANGER LEVEL: Severe conditions ─────────────────
   // Heavy snow

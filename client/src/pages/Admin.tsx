@@ -512,7 +512,6 @@ function PrioritySelector({ bookingId, currentPriority }: { bookingId: number; c
     { value: 2, label: "Urgent", color: "text-red-400", bg: "bg-red-500/10 border-red-500/30" },
   ];
 
-  const current = priorities.find(p => p.value === currentPriority) || priorities[0];
 
   return (
     <div className="flex items-center gap-1.5">
@@ -1335,7 +1334,7 @@ function SiteHealthSection() {
                   ))}
                 </div>
                 <p className="font-heading font-bold text-4xl text-foreground">{reviews.rating || "4.9"}</p>
-                <p className="font-mono text-sm text-foreground/50 mt-1">{reviews.totalReviews || "1,683"}+ reviews</p>
+                <p className="font-mono text-sm text-foreground/50 mt-1">{reviews.totalReviews || "1,685"}+ reviews</p>
               </div>
               {reviews.reviews && reviews.reviews.length > 0 && (
                 <div className="space-y-3">
@@ -1910,8 +1909,6 @@ function LoyaltyAdminSection() {
 
 // ─── FOLLOW-UPS SECTION ─────────────────────────────────
 function FollowUpsSection() {
-  const utils = trpc.useUtils();
-
   const runFollowUps = trpc.followUps.run.useMutation({
     onSuccess: (data) => { toast.success(`Processed ${data.total} follow-ups`); },
     onError: (err: any) => toast.error(err.message),

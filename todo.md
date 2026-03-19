@@ -518,3 +518,33 @@
 - [x] Verify Security & Manual Actions clean (no issues)
 - [x] Created /services overview page to fix soft 404 issue
 - [x] Updated dynamic sitemap in server to include all 68+ pages
+
+## Phase 29 — Foundation Lockdown (March 19, 2026)
+### Deep Diagnostic
+- [x] Run full TypeScript compilation — 0 errors (168 unused imports found)
+- [x] Audit all browser console errors — 0 app errors (only MetaMask extension)
+- [x] Audit server logs for warnings/errors — 0 errors
+- [x] Run full test suite — 168/168 passing, 0 failures
+- [x] Check all page routes load without errors — all API calls 200 OK
+### Code Cleanup
+- [x] Remove dead/unused imports across all files (168 → 4 in _core only)
+- [x] Activated NotificationBar (was dead code), cleaned unused variables
+- [x] Created shared/business.ts as single source of truth for all business data
+- [x] Standardized import patterns across 38 files
+- [x] Cleaned inconsistent naming conventions
+### Data Consistency
+- [x] Verified all phone numbers match (216) 862-0005 everywhere
+- [x] Verified all addresses match 17625 Euclid Ave, Cleveland, OH 44112
+- [x] Fixed inconsistent hours (standardized Mon–Sat 9AM–6PM)
+- [x] Verified all schema.org data is accurate and consistent
+- [x] Verify all CDN image URLs are valid and loading — all 6 images 200 OK
+### Server Hardening
+- [x] Added tRPC onError logging middleware to server
+- [x] Added max length validation on all public endpoints (phone, message, files)
+- [x] All async operations have .catch() handlers or try/catch blocks
+- [x] Database queries wrapped in tRPC error handling
+### Organization
+- [x] Created shared/business.ts — centralized business constants
+- [x] All pages follow consistent SEOHead + PageLayout + InternalLinks pattern
+- [x] SEO data centralized in shared/cities.ts, shared/seo-pages.ts, shared/business.ts
+- [x] Foundation lockdown test suite added (16 tests, 184 total passing)

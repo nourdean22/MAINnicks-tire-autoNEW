@@ -6,15 +6,15 @@
 
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useRef } from "react";
 import { Link } from "wouter";
-import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
+import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { trpc } from "@/lib/trpc";
 import {
-  Phone, MapPin, Clock, Star, Menu, X, ChevronRight, ChevronLeft,
-  AlertTriangle, Gauge, ThermometerSun, Ear, Eye, Zap, Droplets,
+  Phone, ChevronRight, ChevronLeft,
+  AlertTriangle, Gauge, ThermometerSun, Eye, Zap,
   Shield, Wrench, Car, CheckCircle, ArrowRight, Loader2,
-  Volume2, Wind, Flame, CircleDot, Activity, RotateCcw
+  Volume2, Wind, CircleDot, Activity, RotateCcw
 } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 
@@ -424,7 +424,7 @@ type DiagnosisResult = {
   nextSteps: string[];
 };
 
-function ResultsStep({ result, vehicle, onReset, onBook }: {
+function ResultsStep({ result, vehicle, onReset, onBook: _onBook }: {
   result: DiagnosisResult;
   vehicle: { year: string; make: string; model: string; mileage: string };
   onReset: () => void;
@@ -663,9 +663,6 @@ export default function DiagnosePage() {
       />
       
 
-      
-      
-
       <main id="main-content">
         {/* Hero */}
         <section className="relative pt-32 pb-12 overflow-hidden">
@@ -793,7 +790,6 @@ export default function DiagnosePage() {
         
       </main>
 
-      
       
       <InternalLinks title="Related Services" />
     </PageLayout>

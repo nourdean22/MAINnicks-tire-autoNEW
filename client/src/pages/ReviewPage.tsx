@@ -7,7 +7,7 @@
 import PageLayout from "@/components/PageLayout";
 import { useEffect, useRef, useState } from "react";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
-import { Star, ExternalLink, Phone, MapPin, QrCode, Printer, CheckCircle, ThumbsUp } from "lucide-react";
+import { Star, ExternalLink, Phone, MapPin, Printer, CheckCircle, ThumbsUp } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -23,7 +23,7 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
 
 // Nick's Tire & Auto Google Business Profile review link
 const GOOGLE_REVIEW_URL = "https://search.google.com/local/writereview?placeid=ChIJO7C_qEPvMIgRwSCJPHiGjhE";
-const GOOGLE_MAPS_URL = "https://www.google.com/maps/place/Nick's+Tire+%26+Auto/@41.5827,-81.5233";
+
 
 export default function ReviewPage() {
   const [showPrintView, setShowPrintView] = useState(false);

@@ -7,8 +7,8 @@ import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
-import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
-import { Phone, MapPin, Clock, ChevronDown, ArrowLeft, Menu, X } from "lucide-react";
+import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
+import { Phone, ChevronDown } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
@@ -241,9 +241,6 @@ export default function FAQ() {
       <FAQSchema />
       
       
-      
-
-
         {/* Hero */}
         <section className="pt-32 pb-12 lg:pt-40 lg:pb-16 section-dark">
           <div className="container">

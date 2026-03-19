@@ -8,8 +8,8 @@
  * 
  * Uses the customerNotifications table for tracking.
  */
-import { eq, and, lte, sql, desc } from "drizzle-orm";
-import { bookings, customerNotifications } from "../drizzle/schema";
+import { eq, and, lte } from "drizzle-orm";
+import { bookings } from "../drizzle/schema";
 import { createCustomerNotification, markNotificationSent } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { sendSms, thankYouSms, reviewRequestSms } from "./sms";
@@ -29,7 +29,6 @@ export async function process24hFollowUps() {
   if (!db) return { processed: 0 };
 
   // Find completed bookings from ~24 hours ago that haven't had a 24h follow-up
-  const cutoffStart = new Date(Date.now() - 48 * 60 * 60 * 1000); // 48h ago
   const cutoffEnd = new Date(Date.now() - 20 * 60 * 60 * 1000);   // 20h ago (buffer)
 
   const eligibleBookings = await db.select().from(bookings)

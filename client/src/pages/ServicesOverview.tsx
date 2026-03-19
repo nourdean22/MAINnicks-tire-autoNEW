@@ -150,7 +150,7 @@ export default function ServicesOverview() {
                   ))}
                 </div>
                 <span className="font-heading font-bold text-2xl text-foreground">4.9 Stars</span>
-                <p className="text-foreground/60 text-sm mt-1">1,683+ Google Reviews</p>
+                <p className="text-foreground/60 text-sm mt-1">1,685+ Google Reviews</p>
               </div>
               <div className="text-center">
                 <MapPin className="w-8 h-8 text-nick-yellow mx-auto mb-2" />

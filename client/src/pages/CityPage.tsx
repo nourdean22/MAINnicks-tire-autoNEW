@@ -8,9 +8,9 @@ import { useEffect, useRef } from "react";
 import { useRoute, Link } from "wouter";
 import { CITIES, type CityData } from "@shared/cities";
 import { SERVICES } from "@shared/services";
-import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
+import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import BookingForm from "@/components/BookingForm";
-import { Phone, MapPin, Clock, Star, ChevronRight, ArrowLeft, Navigation, Shield, Wrench, CheckCircle, Menu, X } from "lucide-react";
+import { Phone, MapPin, Star, ChevronRight, ArrowLeft, Navigation, CheckCircle, Menu, X } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { useState } from "react";
 
@@ -194,7 +194,7 @@ export default function CityPage() {
                     <Star key={i} className="w-4 h-4 fill-nick-yellow text-nick-yellow" />
                   ))}
                 </div>
-                <span className="font-mono text-sm text-nick-yellow tracking-wider">4.9 STARS — 1,683+ REVIEWS</span>
+                <span className="font-mono text-sm text-nick-yellow tracking-wider">4.9 STARS — 1,685+ REVIEWS</span>
               </div>
               <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.9] tracking-tight max-w-3xl whitespace-pre-line">
                 {city.heroHeadline}

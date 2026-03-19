@@ -6,10 +6,10 @@
 import PageLayout from "@/components/PageLayout";
 import { useEffect, useRef, useState } from "react";
 import { useRoute, Link } from "wouter";
-import { SEASONAL_PAGES, type SeasonalData } from "@shared/seasonal";
-import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
+import { SEASONAL_PAGES } from "@shared/seasonal";
+import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import BookingForm from "@/components/BookingForm";
-import { Phone, MapPin, ChevronRight, ArrowLeft, Snowflake, Sun, CheckCircle, AlertTriangle, Wrench, Menu, X } from "lucide-react";
+import { Phone, ChevronRight, ArrowLeft, Snowflake, Sun, CheckCircle, AlertTriangle, Wrench, Menu, X } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";

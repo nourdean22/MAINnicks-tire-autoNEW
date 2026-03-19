@@ -6,10 +6,9 @@
 
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
-import { useState, useEffect, useRef, useMemo } from "react";
-import { Link } from "wouter";
-import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
-import { Phone, MapPin, Star, Menu, X, ExternalLink, Filter, MessageSquare, ThumbsUp, Quote, ChevronDown } from "lucide-react";
+import { useState, useRef, useMemo } from "react";
+import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
+import { Phone, MapPin, Star, ExternalLink, Filter, MessageSquare, ThumbsUp, Quote, ChevronDown } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { GBP_REVIEW_URL, GBP_PLACE_URL } from "@shared/const";
@@ -199,8 +198,6 @@ export default function ReviewsPage() {
       />
 
       
-      
-
       <main id="main-content">
         {/* Hero Section */}
         <section className="relative min-h-[50vh] flex items-end overflow-hidden">
@@ -426,7 +423,7 @@ export default function ReviewsPage() {
                   { value: `${((reviewData?.totalReviews || 1685) / 1000).toFixed(1)}K+`, label: "Total Reviews", icon: <MessageSquare className="w-6 h-6" /> },
                   { value: "Same Day", label: "Most Repairs", icon: <ThumbsUp className="w-6 h-6" /> },
                   { value: "Since '18", label: "Serving Cleveland", icon: <MapPin className="w-6 h-6" /> },
-                ].map((stat, i) => (
+                ].map((stat, _i) => (
                   <div key={stat.label} className="text-center">
                     <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-nick-yellow/10 flex items-center justify-center text-nick-yellow">
                       {stat.icon}
@@ -478,7 +475,6 @@ export default function ReviewsPage() {
         
       </main>
 
-      
       
       <InternalLinks title="Explore Our Services" />
     </PageLayout>

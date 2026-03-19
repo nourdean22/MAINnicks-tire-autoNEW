@@ -2,7 +2,7 @@ import PageLayout from "@/components/PageLayout";
 import { SEOHead } from "@/components/SEO";
 import InternalLinks from "@/components/InternalLinks";
 import {
-  DollarSign, Phone, CheckCircle, CreditCard, Clock, Shield,
+  DollarSign, Phone, CheckCircle, CreditCard,
   ChevronRight, AlertCircle, Calculator,
 } from "lucide-react";
 

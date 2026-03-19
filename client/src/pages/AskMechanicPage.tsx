@@ -5,9 +5,8 @@
 
 import PageLayout from "@/components/PageLayout";
 import { useState, useEffect, useRef } from "react";
-import { Link } from "wouter";
-import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
-import { Phone, MapPin, Clock, Menu, X, MessageCircle, ChevronRight, CheckCircle, HelpCircle, ThumbsUp, Search } from "lucide-react";
+import { SEOHead, Breadcrumbs } from "@/components/SEO";
+import { MessageCircle, ChevronRight, CheckCircle, HelpCircle, Search } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 
@@ -63,9 +62,6 @@ export default function AskMechanicPage() {
       />
       
       
-      
-
-
         {/* Hero */}
         <section className="relative pt-32 lg:pt-40 pb-12 lg:pb-16 bg-background">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--nick-yellow-alpha)_0%,_transparent_60%)] opacity-20" />

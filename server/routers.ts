@@ -6,10 +6,10 @@ import {
   createBooking, getBookings, updateBookingStatus, updateBookingNotes, updateBookingPriority,
   createCoupon, getActiveCoupons, getAllCoupons, updateCoupon, deleteCoupon,
   getCustomerVehicles, addCustomerVehicle, updateCustomerVehicle, deleteCustomerVehicle,
-  getServiceHistoryForUser, addServiceRecord,
+  getServiceHistoryForUser,
   createReferral, getReferrals, updateReferralStatus,
   createQuestion, getPublishedQuestions, getAllQuestions, answerQuestion,
-  saveAnalyticsSnapshot, getAnalyticsSnapshots,
+  getAnalyticsSnapshots,
   createCustomerNotification, getPendingNotifications, markNotificationSent,
   getBookingServiceBreakdown,
   // New Phase 25 imports
@@ -30,9 +30,9 @@ import { syncLeadToSheet, syncBookingToSheet, getSpreadsheetUrl, isSheetConfigur
 import { getInstagramPosts, getInstagramAccount } from "./instagram";
 import {
   generateArticle,
-  generateNotifications,
+
   saveGeneratedArticle,
-  saveGeneratedNotifications,
+
   getPublishedArticles,
   getAllDynamicArticles,
   getDynamicArticleBySlug,
@@ -51,7 +51,7 @@ import { getDashboardStats, getSiteHealth } from "./admin-stats";
 import { runDiagnosis } from "./diagnose";
 import { sendSms, bookingConfirmationSms, statusUpdateSms, callbackConfirmationSms } from "./sms";
 import { z } from "zod";
-import { eq, desc, sql, and, lte, gte } from "drizzle-orm";
+import { eq, desc, sql, gte } from "drizzle-orm";
 import { leads, chatSessions, bookings, callbackRequests, customerNotifications } from "../drizzle/schema";
 
 // Lazy db import
@@ -113,7 +113,7 @@ export const appRouter = router({
       .input(
         z.object({
           name: z.string().min(1, "Name is required"),
-          phone: z.string().min(7, "Phone number is required"),
+          phone: z.string().min(7, "Phone number is required").max(20, "Phone number too long"),
           email: z.string().email().optional().or(z.literal("")),
           service: z.string().min(1, "Service is required"),
           vehicle: z.string().optional(),
@@ -122,7 +122,7 @@ export const appRouter = router({
           vehicleModel: z.string().optional(),
           preferredDate: z.string().optional(),
           preferredTime: z.enum(["morning", "afternoon", "no-preference"]).default("no-preference"),
-          message: z.string().optional(),
+          message: z.string().max(2000, "Message too long").optional(),
           photoUrls: z.array(z.string()).optional(),
           urgency: z.enum(["emergency", "this-week", "whenever"]).default("whenever"),
         })
@@ -182,9 +182,9 @@ export const appRouter = router({
     /** Upload a photo for a booking request */
     uploadPhoto: publicProcedure
       .input(z.object({
-        base64: z.string(),
-        filename: z.string(),
-        mimeType: z.string(),
+        base64: z.string().max(10_000_000, "File too large (max 7.5MB)"),
+        filename: z.string().max(255),
+        mimeType: z.string().max(100),
       }))
       .mutation(async ({ input }) => {
         const buffer = Buffer.from(input.base64, "base64");
@@ -265,7 +265,7 @@ export const appRouter = router({
 
     /** Public: check booking status by phone */
     statusByPhone: publicProcedure
-      .input(z.object({ phone: z.string().min(7) }))
+      .input(z.object({ phone: z.string().min(7).max(20) }))
       .query(async ({ input }) => {
         return getBookingByPhone(input.phone);
       }),
@@ -283,7 +283,7 @@ export const appRouter = router({
     submit: publicProcedure
       .input(z.object({
         name: z.string().min(1),
-        phone: z.string().min(7),
+        phone: z.string().min(7).max(20),
         context: z.string().optional(),
         sourcePage: z.string().optional(),
       }))
@@ -354,7 +354,7 @@ export const appRouter = router({
       .input(
         z.object({
           name: z.string().min(1),
-          phone: z.string().min(7),
+          phone: z.string().min(7).max(20),
           email: z.string().email().optional().or(z.literal("")),
           vehicle: z.string().optional(),
           problem: z.string().optional(),
@@ -615,7 +615,7 @@ export const appRouter = router({
     }),
     generateContent: adminProcedure
       .input(z.object({ topic: z.string().optional() }).optional())
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input: _input }) => {
         const result = await runContentGeneration();
         if (result.article) {
           await notifyOwner({
@@ -981,9 +981,9 @@ export const appRouter = router({
     /** Admin: upload inspection photo */
     uploadPhoto: adminProcedure
       .input(z.object({
-        base64: z.string(),
-        filename: z.string(),
-        mimeType: z.string(),
+        base64: z.string().max(10_000_000, "File too large (max 7.5MB)"),
+        filename: z.string().max(255),
+        mimeType: z.string().max(100),
       }))
       .mutation(async ({ input }) => {
         const buffer = Buffer.from(input.base64, "base64");
@@ -1158,7 +1158,7 @@ export const appRouter = router({
   sms: router({
     /** Admin: send a test SMS to verify Twilio is working */
     sendTest: adminProcedure
-      .input(z.object({ phone: z.string().min(7) }))
+      .input(z.object({ phone: z.string().min(7).max(20) }))
       .mutation(async ({ input }) => {
         const result = await sendSms(input.phone, "This is a test message from Nick's Tire & Auto. If you received this, SMS notifications are working correctly. — Nick's Team");
         return result;
@@ -1167,7 +1167,7 @@ export const appRouter = router({
     /** Admin: send a manual SMS to any number */
     sendManual: adminProcedure
       .input(z.object({
-        phone: z.string().min(7),
+        phone: z.string().min(7).max(20),
         message: z.string().min(1).max(1600),
       }))
       .mutation(async ({ input }) => {

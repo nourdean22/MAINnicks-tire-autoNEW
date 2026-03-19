@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import PageLayout from "@/components/PageLayout";
 import InternalLinks from "@/components/InternalLinks";
 import { SEOHead } from "@/components/SEO";

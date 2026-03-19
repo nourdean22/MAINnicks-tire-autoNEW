@@ -5,7 +5,7 @@
  */
 
 import { useRef } from "react";
-import { Instagram, Heart, MessageCircle, ExternalLink, Play } from "lucide-react";
+import { Instagram, Heart, MessageCircle, Play } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 

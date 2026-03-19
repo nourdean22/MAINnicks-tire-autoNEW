@@ -1,10 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead } from "@/components/SEO";
 import { trpc } from "@/lib/trpc";
 import {
   Search, Phone, Hash, Clock, CheckCircle, Wrench, AlertTriangle,
-  Package, Eye, Truck, ArrowRight,
+  Package, Eye, Truck,
 } from "lucide-react";
 
 const STAGES = [

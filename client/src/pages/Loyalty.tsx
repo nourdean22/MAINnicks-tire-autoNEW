@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead } from "@/components/SEO";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -6,8 +5,8 @@ import { trpc } from "@/lib/trpc";
 import { getLoginUrl } from "@/const";
 import { toast } from "sonner";
 import {
-  Star, Gift, Trophy, ArrowRight, Phone, CheckCircle,
-  Zap, DollarSign, Clock, Shield, ChevronRight,
+  Star, Gift, Trophy, ArrowRight,
+  Zap, DollarSign, Clock, Shield,
 } from "lucide-react";
 
 const HOW_IT_WORKS = [

@@ -10,7 +10,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRoute, Link } from "wouter";
 import { SERVICES, type ServiceData } from "@shared/services";
 import BookingForm from "@/components/BookingForm";
-import { SEOHead, Breadcrumbs, SkipToContent, trackPhoneClick } from "@/components/SEO";
+import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronRight, ChevronDown, ArrowLeft, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Menu, X } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 
@@ -50,7 +50,7 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
 }
 
 // ─── SERVICE NAVBAR ────────────────────────────────────
-function ServiceNavbar({ service }: { service: ServiceData }) {
+function ServiceNavbar({ service: _service }: { service: ServiceData }) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -227,7 +227,7 @@ function Problems({ service }: { service: ServiceData }) {
                     <Star key={i} className="w-4 h-4 fill-nick-yellow text-nick-yellow" />
                   ))}
                 </div>
-                <span className="font-mono text-xs">4.9 stars from 1,683+ reviews</span>
+                <span className="font-mono text-xs">4.9 stars from 1,685+ reviews</span>
               </div>
             </div>
           </FadeIn>
@@ -663,7 +663,6 @@ export default function ServicePage() {
         <BookingSection service={service} />
         <OtherServices currentSlug={service.slug} />
 
-      
       
       <InternalLinks title="Related Services" />
     </PageLayout>

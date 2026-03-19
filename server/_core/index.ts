@@ -55,6 +55,9 @@ async function startServer() {
     createExpressMiddleware({
       router: appRouter,
       createContext,
+      onError: ({ path, error }) => {
+        console.error(`[tRPC Error] ${path ?? "unknown"}: ${error.message}`);
+      },
     })
   );
   // Sitemap.xml (dynamic — includes published AI articles from DB)

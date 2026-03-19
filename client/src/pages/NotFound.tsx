@@ -5,7 +5,7 @@
 
 import { Link } from "wouter";
 import { SEOHead } from "@/components/SEO";
-import { Phone, ArrowLeft, Wrench, Search } from "lucide-react";
+import { Phone, ArrowLeft, Wrench } from "lucide-react";
 
 export default function NotFound() {
   return (

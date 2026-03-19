@@ -1,11 +1,11 @@
 import PageLayout from "@/components/PageLayout";
 import { useParams } from "wouter";
 import { Link } from "wouter";
-import { Phone, MapPin, Clock, ChevronRight, Wrench, AlertTriangle, Menu, X } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { Phone, ChevronRight, Wrench, AlertTriangle } from "lucide-react";
+import { useRef } from "react";
 import { motion, useInView } from "framer-motion";
-import { SEOHead, SkipToContent, Breadcrumbs } from "@/components/SEO";
-import { getVehicleMakeBySlug, type VehicleMakePage as VehicleMakePageType } from "@shared/seo-pages";
+import { SEOHead, Breadcrumbs } from "@/components/SEO";
+import { getVehicleMakeBySlug } from "@shared/seo-pages";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -52,8 +52,6 @@ export default function VehicleMakePage() {
       />
       
       
-
-
         {/* Hero */}
         <section className="relative pt-28 pb-16 lg:pt-36 lg:pb-24">
           <div className="absolute inset-0 bg-gradient-to-b from-nick-dark via-nick-dark/95 to-nick-dark" />

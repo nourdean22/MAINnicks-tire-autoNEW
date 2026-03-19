@@ -5,7 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { useRoute } from "wouter";
 import {
   CheckCircle, AlertTriangle, XCircle, Car, Wrench, Phone, Calendar,
-  User, Gauge, Shield, Zap, Droplets, Cog, CircuitBoard, Truck,
+  User, Gauge, Shield, Droplets, Cog, CircuitBoard, Truck,
 } from "lucide-react";
 
 const CONDITION_CONFIG = {

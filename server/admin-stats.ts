@@ -5,7 +5,7 @@
 
 import { getDb } from "./db";
 import { bookings, leads, chatSessions, dynamicArticles, notificationMessages, contentGenerationLog, users } from "../drizzle/schema";
-import { eq, desc, sql, and, gte, count } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 
 export interface DashboardStats {
   bookings: {

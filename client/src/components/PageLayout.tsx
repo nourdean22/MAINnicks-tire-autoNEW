@@ -8,6 +8,7 @@ import SiteFooter from "@/components/SiteFooter";
 import SiteMobileCTA from "@/components/SiteMobileCTA";
 import ChatWidget from "@/components/ChatWidget";
 import CallbackModal from "@/components/CallbackModal";
+import NotificationBar from "@/components/NotificationBar";
 import { SkipToContent } from "@/components/SEO";
 
 interface PageLayoutProps {
@@ -24,6 +25,7 @@ export default function PageLayout({ children, activeHref, showChat = false }: P
   return (
     <div className="min-h-screen flex flex-col">
       <SkipToContent />
+      <NotificationBar />
       <SiteNavbar activeHref={activeHref} />
       <main id="main-content" className="flex-1">
         {children}
