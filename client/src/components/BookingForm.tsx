@@ -110,6 +110,10 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.phone || !formData.service) return;
+    // Meta Pixel: Track booking form submission as a Schedule conversion
+    if (typeof window !== "undefined" && (window as any).fbq) {
+      (window as any).fbq("track", "Schedule", { content_name: "booking_form", content_category: formData.service });
+    }
     const photoUrls = photos.filter((p) => p.url).map((p) => p.url!);
     mutation.mutate({ ...formData, photoUrls });
   };

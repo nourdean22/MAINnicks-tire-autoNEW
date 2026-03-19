@@ -402,3 +402,25 @@
 
 ## SEO Fixes (March 18, 2026)
 - [x] Fix homepage title — trim from 71 chars to 47 chars: "Nick's Tire & Auto | Cleveland Auto Repair Shop"
+- [ ] Audit all page titles — ensure every page is 30-60 characters
+- [ ] Audit all meta descriptions — ensure every page is 120-160 characters
+- [ ] Fix any titles/descriptions that are out of range
+
+## Phase 24 — Recognition & Growth Upgrades (March 2026)
+### Immediate Wins (Week 1)
+- [x] Install Meta Pixel on website (retargeting + conversion tracking)
+- [x] Install Google Analytics 4 (GA4) on website (G-B1LJ1P43G8)
+- [x] Build review generation page at /review with QR code
+- [ ] Turn on all Meta Business Suite automations (instant reply, FAQ, away messages)
+### Growth Engine (Week 2-3)
+- [ ] Add AEO-optimized Q&A content to service pages
+- [ ] Optimize Google Business Profile (posts, services, products, photos)
+- [ ] Submit to top 20 local citation directories
+- [ ] Create Instagram Reels content strategy and 30-day calendar
+### Authority Building (Week 3-6)
+- [ ] Guide Google Local Service Ads (LSA) setup
+- [ ] Guide Google Ads search campaign setup
+### Retention & Referral (Month 2-3)
+- [ ] Build referral program upgrade (text-to-refer system)
+- [ ] Plan email/SMS service reminder system
+- [ ] Create community partnership outreach plan

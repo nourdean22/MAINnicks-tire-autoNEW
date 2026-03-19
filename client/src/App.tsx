@@ -25,6 +25,7 @@ import MyGaragePage from "./pages/MyGaragePage";
 import ReferralPage from "./pages/ReferralPage";
 import AskMechanicPage from "./pages/AskMechanicPage";
 import CarCareGuidePage from "./pages/CarCareGuidePage";
+import ReviewPage from "./pages/ReviewPage";
 
 function Router() {
   return (
@@ -82,6 +83,8 @@ function Router() {
       <Route path={"/ask"} component={AskMechanicPage} />
       {/* Car Care Guide */}
       <Route path={"/car-care-guide"} component={CarCareGuidePage} />
+      {/* Review Generation */}
+      <Route path={"/review"} component={ReviewPage} />
       {/* FAQ page */}
       <Route path={"/faq"} component={FAQ} />
       {/* Blog / Tips */}

@@ -159,6 +159,10 @@ export function trackPhoneClick(source: string) {
   if (typeof window !== "undefined" && (window as any).umami) {
     (window as any).umami.track("phone_click", { source });
   }
+  // Meta Pixel: Track phone call as a Lead conversion event
+  if (typeof window !== "undefined" && (window as any).fbq) {
+    (window as any).fbq("track", "Lead", { content_name: "phone_call", content_category: source });
+  }
   // Also fire a custom DOM event for any other tracking
   window.dispatchEvent(new CustomEvent("nick_phone_click", { detail: { source } }));
 }

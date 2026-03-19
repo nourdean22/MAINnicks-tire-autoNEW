@@ -80,6 +80,10 @@ export default function LeadPopup() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.phone.trim()) return;
+    // Meta Pixel: Track lead popup submission as a Lead conversion
+    if (typeof window !== "undefined" && (window as any).fbq) {
+      (window as any).fbq("track", "Lead", { content_name: "lead_popup", content_category: "popup" });
+    }
     submitLead.mutate({
       name: form.name.trim(),
       phone: form.phone.trim(),
