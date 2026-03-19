@@ -4,6 +4,7 @@
  * Guides users through symptom selection, provides AI analysis, and converts to leads.
  */
 
+import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "wouter";
@@ -794,6 +795,7 @@ export default function DiagnosePage() {
 
       
       
+      <InternalLinks title="Related Services" />
     </PageLayout>
   );
 }

@@ -4,6 +4,7 @@
  * and prominent "Leave a Review" CTA linking to GBP.
  */
 
+import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "wouter";
@@ -479,6 +480,7 @@ export default function ReviewsPage() {
 
       
       
+      <InternalLinks title="Explore Our Services" />
     </PageLayout>
   );
 }

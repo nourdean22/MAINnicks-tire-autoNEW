@@ -3,6 +3,7 @@
  * Lists all maintenance articles with category filtering
  */
 
+import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import { useRef } from "react";
 import { Link } from "wouter";
@@ -160,6 +161,7 @@ export default function Blog() {
 
       {/* Mini Footer */}
       
+      <InternalLinks title="Our Services" />
     </PageLayout>
   );
 }

@@ -3,6 +3,7 @@
  * Aggregates common questions across all services with FAQPage schema
  */
 
+import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
@@ -318,6 +319,7 @@ export default function FAQ() {
 
       {/* Footer */}
       
+      <InternalLinks title="Related Pages" />
     </PageLayout>
   );
 }

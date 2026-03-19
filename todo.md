@@ -453,3 +453,28 @@
 - [x] Wire SMS into callback request confirmations
 - [x] Add admin SMS settings/log panel
 - [x] Write tests for SMS module (18 tests passing)
+
+## Phase 27 — Comprehensive Website Upgrades (March 19, 2026)
+### SEO & Internal Linking
+- [x] Create InternalLinks component (cross-page SEO linking, 18 link targets, deterministic rotation)
+- [x] Integrate InternalLinks into 10 pages (ServicePage, About, Contact, FAQ, Financing, Fleet, Reviews, Diagnose, Blog, PriceEstimator)
+- [x] Add InternalLinks to Home page
+- [x] Update sitemap.xml from 44 to 50 URLs with lastmod dates on all entries
+### Conversion Optimization
+- [x] Create ComparisonTable component (Nick's vs Dealership vs Chain comparison)
+- [x] Integrate ComparisonTable into Home page (between Reviews and Contact sections)
+- [x] Create TrustBadges component (6 trust signals: stars, licensed, same-day, ASE, family-owned, location)
+### Mobile & Accessibility
+- [x] Enhance SiteMobileCTA with 3-button layout (Call, Directions, Book)
+- [x] Add Google Maps directions link to mobile CTA
+- [x] Add viewport-fit=cover for notch device support
+- [x] Add safe-area CSS for mobile bottom bar
+- [x] Change maximum-scale from 1 to 5 for accessibility (pinch-to-zoom)
+### Performance
+- [x] Add font-display: swap CSS optimization
+- [x] Add lazy-loaded image fade-in transitions
+### Admin Dashboard
+- [x] Update sitemapPageCount from 32 to 50 in admin stats
+- [x] Add nickstire.manus.space to domains list in admin health
+### Testing
+- [x] All 168 tests passing (11 test files, 0 failures)

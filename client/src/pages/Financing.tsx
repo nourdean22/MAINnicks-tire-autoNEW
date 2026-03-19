@@ -1,5 +1,6 @@
 import PageLayout from "@/components/PageLayout";
 import { SEOHead } from "@/components/SEO";
+import InternalLinks from "@/components/InternalLinks";
 import {
   DollarSign, Phone, CheckCircle, CreditCard, Clock, Shield,
   ChevronRight, AlertCircle, Calculator,
@@ -180,6 +181,7 @@ export default function Financing() {
           </div>
         </div>
       </section>
+      <InternalLinks title="Related Services" />
     </PageLayout>
   );
 }

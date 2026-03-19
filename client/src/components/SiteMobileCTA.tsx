@@ -1,31 +1,44 @@
 /**
- * Shared Mobile CTA — sticky bottom bar on mobile.
- * Call + Book buttons, appears after scrolling.
+ * SiteMobileCTA — Enhanced sticky mobile CTA bar.
+ * Shows phone, directions, and booking on mobile devices.
  */
-import { useState, useEffect } from "react";
+import { Phone, Navigation, Calendar } from "lucide-react";
 import { trackPhoneClick } from "@/components/SEO";
-import { Phone } from "lucide-react";
 
 export default function SiteMobileCTA() {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setVisible(window.scrollY > 600);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  if (!visible) return null;
-
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-nick-dark/95 backdrop-blur-xl border-t border-border p-3 flex gap-2">
-      <a href="tel:2168620005" onClick={() => trackPhoneClick("mobile-sticky")} className="flex items-center justify-center gap-2 bg-foreground text-background flex-1 py-3 rounded-full font-medium text-sm" aria-label="Call now">
-        <Phone className="w-4 h-4" />
-        Call Now
-      </a>
-      <a href="/contact" className="flex items-center justify-center gap-2 border border-foreground/30 text-foreground flex-1 py-3 rounded-full font-medium text-sm" aria-label="Book online">
-        Book Online
-      </a>
+    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden safe-area-bottom">
+      <div className="bg-nick-dark/95 backdrop-blur-md border-t border-border/30">
+        <div className="grid grid-cols-3 divide-x divide-border/20">
+          <a
+            href="tel:2168620005"
+            onClick={() => trackPhoneClick("mobile-cta")}
+            className="flex flex-col items-center justify-center py-3 gap-1 text-nick-yellow active:bg-nick-yellow/10 transition-colors"
+            aria-label="Call Nick's Tire and Auto at 216-862-0005"
+          >
+            <Phone className="w-5 h-5" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Call</span>
+          </a>
+          <a
+            href="https://www.google.com/maps/dir/?api=1&destination=17625+Euclid+Ave+Cleveland+OH+44112"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex flex-col items-center justify-center py-3 gap-1 text-foreground/70 active:bg-foreground/5 transition-colors"
+            aria-label="Get directions to Nick's Tire and Auto"
+          >
+            <Navigation className="w-5 h-5" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Directions</span>
+          </a>
+          <a
+            href="/contact"
+            className="flex flex-col items-center justify-center py-3 gap-1 text-foreground/70 active:bg-foreground/5 transition-colors"
+            aria-label="Book an appointment at Nick's Tire and Auto"
+          >
+            <Calendar className="w-5 h-5" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Book</span>
+          </a>
+        </div>
+      </div>
     </div>
   );
 }

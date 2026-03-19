@@ -1,5 +1,6 @@
 import { useState } from "react";
 import PageLayout from "@/components/PageLayout";
+import InternalLinks from "@/components/InternalLinks";
 import { SEOHead } from "@/components/SEO";
 import { trpc } from "@/lib/trpc";
 import {
@@ -209,6 +210,7 @@ export default function Fleet() {
           )}
         </div>
       </section>
+      <InternalLinks title="Our Services" />
     </PageLayout>
   );
 }

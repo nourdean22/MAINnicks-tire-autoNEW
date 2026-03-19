@@ -4,6 +4,7 @@
  * and structured data for local SEO.
  */
 
+import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
@@ -282,6 +283,7 @@ export default function Contact() {
 
 
       
+      <InternalLinks title="Our Services" />
     </PageLayout>
   );
 }

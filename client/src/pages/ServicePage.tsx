@@ -4,6 +4,7 @@
  * Problem Hook → Simple Explanation → Diagnostic Authority → Solution → Local Trust → CTA
  */
 
+import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import { useState, useEffect, useRef } from "react";
 import { useRoute, Link } from "wouter";
@@ -664,6 +665,7 @@ export default function ServicePage() {
 
       
       
+      <InternalLinks title="Related Services" />
     </PageLayout>
   );
 }

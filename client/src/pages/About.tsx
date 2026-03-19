@@ -2,6 +2,7 @@
  * /about — Tesla-style About page.
  * Clean, minimal, photography-driven.
  */
+import InternalLinks from "@/components/InternalLinks";
 import { useRef } from "react";
 import { Link } from "wouter";
 import PageLayout from "@/components/PageLayout";
@@ -160,6 +161,7 @@ export default function About() {
           </FadeIn>
         </div>
       </section>
+      <InternalLinks title="Explore Our Services" />
     </PageLayout>
   );
 }

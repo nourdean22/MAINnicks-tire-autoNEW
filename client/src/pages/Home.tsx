@@ -10,6 +10,8 @@ import NotificationBar from "@/components/NotificationBar";
 import BookingForm from "@/components/BookingForm";
 import LeadPopup from "@/components/LeadPopup";
 import ChatWidget from "@/components/ChatWidget";
+import ComparisonTable from "@/components/ComparisonTable";
+import InternalLinks from "@/components/InternalLinks";
 import { SEOHead, SkipToContent, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronRight, ChevronDown, Menu, X, ArrowRight } from "lucide-react";
 import { motion, useInView } from "framer-motion";
@@ -665,7 +667,9 @@ export default function Home() {
         <Services />
         <WhyUs />
         <Reviews />
+        <ComparisonTable />
         <Contact />
+        <InternalLinks title="Explore More" />
       </main>
       <Footer />
       <MobileCTA />

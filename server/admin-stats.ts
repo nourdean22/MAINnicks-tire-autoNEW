@@ -240,8 +240,8 @@ export async function getSiteHealth(): Promise<SiteHealthInfo> {
   const { isSheetConfigured, getSpreadsheetUrl } = await import("./sheets-sync");
 
   return {
-    domains: ["nickstire.org", "www.nickstire.org", "easy.nickstire.org"],
-    sitemapPageCount: 32, // static pages
+    domains: ["nickstire.org", "www.nickstire.org", "easy.nickstire.org", "nickstire.manus.space"],
+    sitemapPageCount: 50, // 50 URLs in sitemap as of March 2026
     totalBlogPosts: 6 + dynamicBlogPosts, // 6 hardcoded + dynamic
     hardcodedBlogPosts: 6,
     dynamicBlogPosts,

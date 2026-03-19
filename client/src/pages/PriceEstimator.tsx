@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import PageLayout from "@/components/PageLayout";
+import InternalLinks from "@/components/InternalLinks";
 import { SEOHead } from "@/components/SEO";
 import { trpc } from "@/lib/trpc";
 import {
@@ -282,6 +283,7 @@ export default function PriceEstimator() {
           </div>
         </div>
       </section>
+      <InternalLinks title="Related Services" />
     </PageLayout>
   );
 }

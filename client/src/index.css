@@ -203,3 +203,19 @@
     background: oklch(0.14 0.005 260);
   }
 }
+
+/* Safe area for mobile notch devices */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Performance: lazy-loaded images fade in */
+img[loading="lazy"] {
+  opacity: 1;
+  transition: opacity 0.3s ease-in;
+}
+
+/* Font display optimization */
+@font-face {
+  font-display: swap;
+}
