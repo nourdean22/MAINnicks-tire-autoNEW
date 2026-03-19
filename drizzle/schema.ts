@@ -491,3 +491,62 @@ export const callbackRequests = mysqlTable("callback_requests", {
 
 export type CallbackRequest = typeof callbackRequests.$inferSelect;
 export type InsertCallbackRequest = typeof callbackRequests.$inferInsert;
+
+// ─── REVIEW REQUESTS ─────────────────────────────────
+/**
+ * Tracks automated Google review request SMS messages sent to customers
+ * after service completion. Includes click tracking and duplicate prevention.
+ */
+export const reviewRequests = mysqlTable("review_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Link to the completed booking */
+  bookingId: int("bookingId").notNull(),
+  /** Customer name from booking */
+  customerName: varchar("customerName", { length: 255 }).notNull(),
+  /** Customer phone (normalized) */
+  phone: varchar("phone", { length: 30 }).notNull(),
+  /** Service performed (for personalization) */
+  service: varchar("service", { length: 100 }),
+  /** Current status of the review request */
+  status: mysqlEnum("status", ["pending", "sent", "clicked", "failed", "skipped"]).default("pending").notNull(),
+  /** When the SMS should be sent (booking completion + delay) */
+  scheduledAt: timestamp("scheduledAt").notNull(),
+  /** When the SMS was actually sent */
+  sentAt: timestamp("sentAt"),
+  /** When the customer clicked the review link */
+  clickedAt: timestamp("clickedAt"),
+  /** Unique tracking token for click tracking */
+  trackingToken: varchar("trackingToken", { length: 64 }).notNull(),
+  /** Error message if sending failed */
+  errorMessage: text("errorMessage"),
+  /** Twilio message SID for reference */
+  twilioSid: varchar("twilioSid", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ReviewRequest = typeof reviewRequests.$inferSelect;
+export type InsertReviewRequest = typeof reviewRequests.$inferInsert;
+
+// ─── REVIEW SETTINGS ─────────────────────────────────
+/**
+ * Global settings for the automated review request system.
+ * Single-row table (id=1) for configuration.
+ */
+export const reviewSettings = mysqlTable("review_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Whether the system is enabled */
+  enabled: int("enabled").default(1).notNull(),
+  /** Delay in minutes after completion before sending (default 120 = 2 hours) */
+  delayMinutes: int("delayMinutes").default(120).notNull(),
+  /** Maximum review requests to send per day */
+  maxPerDay: int("maxPerDay").default(20).notNull(),
+  /** Minimum days between requests to the same phone number */
+  cooldownDays: int("cooldownDays").default(30).notNull(),
+  /** Custom message template (uses {firstName}, {service}, {reviewUrl} placeholders) */
+  messageTemplate: text("messageTemplate"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ReviewSettings = typeof reviewSettings.$inferSelect;
+export type InsertReviewSettings = typeof reviewSettings.$inferInsert;

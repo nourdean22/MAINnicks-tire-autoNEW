@@ -19,3 +19,4 @@ export {
   loyaltyRouter,
   smsRouter,
 } from "./services";
+export { reviewRequestsRouter } from "./reviewRequests";

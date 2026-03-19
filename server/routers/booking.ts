@@ -11,6 +11,7 @@ import { storagePut } from "../storage";
 import { notifyOwner } from "../_core/notification";
 import { syncBookingToSheet } from "../sheets-sync";
 import { sendSms, bookingConfirmationSms, statusUpdateSms } from "../sms";
+import { scheduleReviewRequest } from "./reviewRequests";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { bookings } from "../../drizzle/schema";
@@ -116,7 +117,25 @@ export const bookingRouter = router({
   updateStatus: adminProcedure
     .input(z.object({ id: z.number(), status: z.enum(["new", "confirmed", "completed", "cancelled"]) }))
     .mutation(async ({ input }) => {
-      return updateBookingStatus(input.id, input.status);
+      const result = await updateBookingStatus(input.id, input.status);
+
+      // Auto-schedule Google review request when booking is completed
+      if (input.status === "completed") {
+        const d = await db();
+        if (d) {
+          const [booking] = await d.select().from(bookings).where(eq(bookings.id, input.id)).limit(1);
+          if (booking && booking.phone) {
+            scheduleReviewRequest(booking.id, booking.name, booking.phone, booking.service)
+              .then(r => {
+                if (r.scheduled) console.log(`[ReviewRequest] Auto-scheduled for booking #${booking.id}`);
+                else console.log(`[ReviewRequest] Skipped for booking #${booking.id}: ${r.reason}`);
+              })
+              .catch(err => console.error(`[ReviewRequest] Error scheduling for booking #${booking.id}:`, err));
+          }
+        }
+      }
+
+      return result;
     }),
 
   updateNotes: adminProcedure

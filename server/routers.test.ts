@@ -237,3 +237,190 @@ describe("protected route access control", () => {
     await expect(caller.adminDashboard.stats()).rejects.toThrow();
   });
 });
+
+// ─── REVIEW REQUESTS ──────────────────────────────────
+
+describe("reviewRequests", () => {
+  // Admin-only: list
+  describe("reviewRequests.list", () => {
+    it("rejects unauthenticated users", async () => {
+      const caller = appRouter.createCaller(createPublicContext());
+      await expect(caller.reviewRequests.list()).rejects.toThrow();
+    });
+
+    it("rejects non-admin users", async () => {
+      const caller = appRouter.createCaller(createAuthContext("user"));
+      await expect(caller.reviewRequests.list()).rejects.toThrow();
+    });
+
+    it("returns list for admin users", async () => {
+      const caller = appRouter.createCaller(createAuthContext("admin"));
+      const result = await caller.reviewRequests.list({ limit: 10 });
+      expect(Array.isArray(result)).toBe(true);
+    });
+  });
+
+  // Admin-only: stats
+  describe("reviewRequests.stats", () => {
+    it("rejects unauthenticated users", async () => {
+      const caller = appRouter.createCaller(createPublicContext());
+      await expect(caller.reviewRequests.stats()).rejects.toThrow();
+    });
+
+    it("returns stats object for admin", async () => {
+      const caller = appRouter.createCaller(createAuthContext("admin"));
+      const result = await caller.reviewRequests.stats();
+      expect(result).toHaveProperty("total");
+      expect(result).toHaveProperty("sent");
+      expect(result).toHaveProperty("clicked");
+      expect(result).toHaveProperty("failed");
+      expect(result).toHaveProperty("pending");
+      expect(result).toHaveProperty("clickRate");
+      expect(typeof result.total).toBe("number");
+      expect(typeof result.clickRate).toBe("number");
+    });
+  });
+
+  // Admin-only: getSettings
+  describe("reviewRequests.getSettings", () => {
+    it("rejects non-admin users", async () => {
+      const caller = appRouter.createCaller(createAuthContext("user"));
+      await expect(caller.reviewRequests.getSettings()).rejects.toThrow();
+    });
+
+    it("returns settings with defaults for admin", async () => {
+      const caller = appRouter.createCaller(createAuthContext("admin"));
+      const result = await caller.reviewRequests.getSettings();
+      expect(result).toHaveProperty("enabled");
+      expect(result).toHaveProperty("delayMinutes");
+      expect(result).toHaveProperty("maxPerDay");
+      expect(result).toHaveProperty("cooldownDays");
+    });
+  });
+
+  // Admin-only: updateSettings
+  describe("reviewRequests.updateSettings", () => {
+    it("rejects unauthenticated users", async () => {
+      const caller = appRouter.createCaller(createPublicContext());
+      await expect(caller.reviewRequests.updateSettings({ enabled: 0 })).rejects.toThrow();
+    });
+
+    it("updates settings for admin", async () => {
+      const caller = appRouter.createCaller(createAuthContext("admin"));
+      const result = await caller.reviewRequests.updateSettings({ delayMinutes: 60, maxPerDay: 10 });
+      expect(result).toHaveProperty("success", true);
+    });
+
+    it("validates input constraints", async () => {
+      const caller = appRouter.createCaller(createAuthContext("admin"));
+      // maxPerDay must be >= 1
+      await expect(caller.reviewRequests.updateSettings({ maxPerDay: 0 })).rejects.toThrow();
+      // cooldownDays must be >= 1
+      await expect(caller.reviewRequests.updateSettings({ cooldownDays: 0 })).rejects.toThrow();
+    });
+  });
+
+  // Admin-only: processQueue
+  describe("reviewRequests.processQueue", () => {
+    it("rejects non-admin users", async () => {
+      const caller = appRouter.createCaller(createAuthContext("user"));
+      await expect(caller.reviewRequests.processQueue()).rejects.toThrow();
+    });
+
+    it("processes queue for admin", async () => {
+      const caller = appRouter.createCaller(createAuthContext("admin"));
+      const result = await caller.reviewRequests.processQueue();
+      expect(result).toHaveProperty("processed");
+      expect(result).toHaveProperty("sent");
+      expect(result).toHaveProperty("failed");
+    });
+  });
+
+  // Admin-only: backfillPreview
+  describe("reviewRequests.backfillPreview", () => {
+    it("rejects unauthenticated users", async () => {
+      const caller = appRouter.createCaller(createPublicContext());
+      await expect(caller.reviewRequests.backfillPreview()).rejects.toThrow();
+    });
+
+    it("returns preview for admin", async () => {
+      const caller = appRouter.createCaller(createAuthContext("admin"));
+      const result = await caller.reviewRequests.backfillPreview();
+      expect(result).toHaveProperty("count");
+      expect(result).toHaveProperty("bookings");
+      expect(typeof result.count).toBe("number");
+      expect(Array.isArray(result.bookings)).toBe(true);
+    });
+  });
+
+  // Admin-only: backfillExecute
+  describe("reviewRequests.backfillExecute", () => {
+    it("rejects non-admin users", async () => {
+      const caller = appRouter.createCaller(createAuthContext("user"));
+      await expect(caller.reviewRequests.backfillExecute()).rejects.toThrow();
+    });
+
+    it("executes backfill for admin", async () => {
+      const caller = appRouter.createCaller(createAuthContext("admin"));
+      const result = await caller.reviewRequests.backfillExecute();
+      expect(result).toHaveProperty("scheduled");
+      expect(result).toHaveProperty("skipped");
+      expect(result).toHaveProperty("total");
+    });
+  });
+
+  // Public: trackClick
+  describe("reviewRequests.trackClick", () => {
+    it("handles invalid token gracefully", async () => {
+      const caller = appRouter.createCaller(createPublicContext());
+      const result = await caller.reviewRequests.trackClick({ token: "nonexistent-token" });
+      expect(result).toHaveProperty("redirectUrl");
+      expect(result.redirectUrl).toContain("google.com/local/writereview");
+    });
+
+    it("validates token length", async () => {
+      const caller = appRouter.createCaller(createPublicContext());
+      const longToken = "a".repeat(65);
+      await expect(caller.reviewRequests.trackClick({ token: longToken })).rejects.toThrow();
+    });
+  });
+
+  // Admin-only: resend
+  describe("reviewRequests.resend", () => {
+    it("rejects non-admin users", async () => {
+      const caller = appRouter.createCaller(createAuthContext("user"));
+      await expect(caller.reviewRequests.resend({ id: 1 })).rejects.toThrow();
+    });
+
+    it("throws for non-existent request", async () => {
+      const caller = appRouter.createCaller(createAuthContext("admin"));
+      await expect(caller.reviewRequests.resend({ id: 999999 })).rejects.toThrow();
+    });
+  });
+});
+
+// ─── SCHEDULE REVIEW REQUEST (unit function) ──────────
+
+describe("scheduleReviewRequest", () => {
+  it("is exported and callable", async () => {
+    const { scheduleReviewRequest } = await import("./routers/reviewRequests");
+    expect(typeof scheduleReviewRequest).toBe("function");
+  });
+
+  it("rejects invalid phone numbers", async () => {
+    const { scheduleReviewRequest } = await import("./routers/reviewRequests");
+    const result = await scheduleReviewRequest(1, "Test User", "123", "Oil Change");
+    expect(result.scheduled).toBe(false);
+    expect(result.reason).toContain("Invalid phone");
+  });
+
+  it("schedules for valid input", async () => {
+    const { scheduleReviewRequest } = await import("./routers/reviewRequests");
+    const result = await scheduleReviewRequest(99999, "Test User", "2165551234", "Brake Repair");
+    // Should either schedule or skip due to cooldown — both are valid
+    expect(result).toHaveProperty("scheduled");
+    if (!result.scheduled) {
+      expect(result).toHaveProperty("reason");
+    }
+  });
+});

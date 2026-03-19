@@ -340,6 +340,8 @@ import {
   inspectionItems, InsertInspectionItem,
   loyaltyRewards, InsertLoyaltyReward,
   loyaltyTransactions,
+  reviewRequests, InsertReviewRequest,
+  reviewSettings,
 } from "../drizzle/schema";
 
 export async function createCallbackRequest(data: InsertCallbackRequest) {
@@ -722,4 +724,223 @@ async function updateLoyaltyTier(userId: number) {
   else if (user.totalSpent >= 2000 || user.totalVisits >= 10) tier = "gold";
   else if (user.totalSpent >= 500 || user.totalVisits >= 3) tier = "silver";
   await db.update(users).set({ loyaltyTier: tier }).where(eq(users.id, userId));
+}
+
+
+// ─── REVIEW REQUEST QUERIES ──────────────────────────
+
+import { ne, isNull, lt, count as drizzleCount } from "drizzle-orm";
+
+/**
+ * Create a new review request record (pending state).
+ */
+export async function createReviewRequest(data: InsertReviewRequest) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(reviewRequests).values(data);
+  return { success: true, id: Number(result[0].insertId) };
+}
+
+/**
+ * Get all review requests, newest first.
+ */
+export async function getReviewRequests(limit = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(reviewRequests)
+    .orderBy(desc(reviewRequests.createdAt))
+    .limit(limit);
+}
+
+/**
+ * Get review requests that are pending and past their scheduled time.
+ */
+export async function getPendingReviewRequests() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(reviewRequests)
+    .where(and(
+      eq(reviewRequests.status, "pending"),
+      lte(reviewRequests.scheduledAt, new Date()),
+    ))
+    .orderBy(reviewRequests.scheduledAt)
+    .limit(50);
+}
+
+/**
+ * Mark a review request as sent.
+ */
+export async function markReviewRequestSent(id: number, twilioSid?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(reviewRequests).set({
+    status: "sent",
+    sentAt: new Date(),
+    twilioSid: twilioSid || null,
+  }).where(eq(reviewRequests.id, id));
+  return { success: true };
+}
+
+/**
+ * Mark a review request as failed.
+ */
+export async function markReviewRequestFailed(id: number, errorMessage: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(reviewRequests).set({
+    status: "failed",
+    errorMessage,
+  }).where(eq(reviewRequests.id, id));
+  return { success: true };
+}
+
+/**
+ * Mark a review request as clicked (customer opened the review link).
+ */
+export async function markReviewRequestClicked(token: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [existing] = await db.select().from(reviewRequests)
+    .where(eq(reviewRequests.trackingToken, token))
+    .limit(1);
+  if (!existing) return { success: false, error: "Token not found" };
+  // Only update if not already clicked
+  if (!existing.clickedAt) {
+    await db.update(reviewRequests).set({ status: "clicked", clickedAt: new Date() })
+      .where(eq(reviewRequests.id, existing.id));
+  }
+  return { success: true };
+}
+
+/**
+ * Check if a phone number has been sent a review request within the cooldown period.
+ * Returns true if the phone is on cooldown (should NOT send).
+ */
+export async function isPhoneOnReviewCooldown(phone: string, cooldownDays: number) {
+  const db = await getDb();
+  if (!db) return true; // Fail safe: don't send if DB is down
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - cooldownDays);
+  const results = await db.select({ id: reviewRequests.id }).from(reviewRequests)
+    .where(and(
+      eq(reviewRequests.phone, phone),
+      ne(reviewRequests.status, "failed"),
+      gte(reviewRequests.createdAt, cutoff),
+    ))
+    .limit(1);
+  return results.length > 0;
+}
+
+/**
+ * Count how many review requests were sent today.
+ */
+export async function getReviewRequestsSentToday() {
+  const db = await getDb();
+  if (!db) return 0;
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const [result] = await db.select({
+    count: sql<number>`count(*)`,
+  }).from(reviewRequests)
+    .where(and(
+      eq(reviewRequests.status, "sent"),
+      gte(reviewRequests.sentAt, todayStart),
+    ));
+  return result?.count ?? 0;
+}
+
+/**
+ * Get review request stats for the admin dashboard.
+ */
+export async function getReviewRequestStats() {
+  const db = await getDb();
+  if (!db) return { total: 0, sent: 0, clicked: 0, failed: 0, pending: 0, clickRate: 0 };
+  const [total] = await db.select({ count: sql<number>`count(*)` }).from(reviewRequests);
+  const [sent] = await db.select({ count: sql<number>`count(*)` }).from(reviewRequests).where(eq(reviewRequests.status, "sent"));
+  const [clicked] = await db.select({ count: sql<number>`count(*)` }).from(reviewRequests).where(eq(reviewRequests.status, "clicked"));
+  const [failed] = await db.select({ count: sql<number>`count(*)` }).from(reviewRequests).where(eq(reviewRequests.status, "failed"));
+  const [pending] = await db.select({ count: sql<number>`count(*)` }).from(reviewRequests).where(eq(reviewRequests.status, "pending"));
+  const sentCount = (sent?.count ?? 0) + (clicked?.count ?? 0);
+  const clickedCount = clicked?.count ?? 0;
+  return {
+    total: total?.count ?? 0,
+    sent: sentCount,
+    clicked: clickedCount,
+    failed: failed?.count ?? 0,
+    pending: pending?.count ?? 0,
+    clickRate: sentCount > 0 ? Math.round((clickedCount / sentCount) * 100) : 0,
+  };
+}
+
+// ─── REVIEW SETTINGS QUERIES ─────────────────────────
+
+/**
+ * Get review settings (single-row, id=1). Creates defaults if not exists.
+ */
+export async function getReviewSettings() {
+  const db = await getDb();
+  if (!db) return { id: 1, enabled: 1, delayMinutes: 120, maxPerDay: 20, cooldownDays: 30, messageTemplate: null, updatedAt: new Date() };
+  const [existing] = await db.select().from(reviewSettings).limit(1);
+  if (existing) return existing;
+  // Create defaults
+  await db.insert(reviewSettings).values({ enabled: 1, delayMinutes: 120, maxPerDay: 20, cooldownDays: 30 });
+  const [created] = await db.select().from(reviewSettings).limit(1);
+  return created || { id: 1, enabled: 1, delayMinutes: 120, maxPerDay: 20, cooldownDays: 30, messageTemplate: null, updatedAt: new Date() };
+}
+
+/**
+ * Update review settings.
+ */
+export async function updateReviewSettings(data: { enabled?: number; delayMinutes?: number; maxPerDay?: number; cooldownDays?: number; messageTemplate?: string | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Ensure row exists
+  await getReviewSettings();
+  const [row] = await db.select({ id: reviewSettings.id }).from(reviewSettings).limit(1);
+  if (row) {
+    await db.update(reviewSettings).set(data).where(eq(reviewSettings.id, row.id));
+  }
+  return { success: true };
+}
+
+/**
+ * Get completed bookings from the past year that have NOT had a review request sent.
+ * Used for the backfill blast feature.
+ */
+export async function getCompletedBookingsWithoutReview(lookbackDays = 365) {
+  const db = await getDb();
+  if (!db) return [];
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - lookbackDays);
+  // Get all completed bookings from the past year
+  const completedBookings = await db.select({
+    id: bookings.id,
+    name: bookings.name,
+    phone: bookings.phone,
+    service: bookings.service,
+    vehicle: bookings.vehicle,
+    createdAt: bookings.createdAt,
+  }).from(bookings)
+    .where(and(
+      eq(bookings.status, "completed"),
+      gte(bookings.createdAt, cutoff),
+    ))
+    .orderBy(desc(bookings.createdAt));
+
+  // Get all phones that already have a non-failed review request
+  const existingPhones = await db.select({ phone: reviewRequests.phone }).from(reviewRequests)
+    .where(ne(reviewRequests.status, "failed"));
+  const phoneSet = new Set(existingPhones.map(r => r.phone));
+
+  // Filter out bookings whose phone already has a review request
+  // Also deduplicate by phone (only keep most recent booking per phone)
+  const seenPhones = new Set<string>();
+  const eligible: typeof completedBookings = [];
+  for (const b of completedBookings) {
+    const normalized = b.phone.replace(/\D/g, "").slice(-10);
+    if (phoneSet.has(normalized) || seenPhones.has(normalized)) continue;
+    seenPhones.add(normalized);
+    eligible.push(b);
+  }
+  return eligible;
 }

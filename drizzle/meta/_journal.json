@@ -50,6 +50,13 @@
       "when": 1773940678968,
       "tag": "0006_harsh_jack_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1773961811615,
+      "tag": "0007_awesome_vanisher",
+      "breakpoints": true
     }
   ]
 }

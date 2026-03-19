@@ -29,6 +29,7 @@ import {
   inspectionRouter,
   loyaltyRouter,
   smsRouter,
+  reviewRequestsRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -71,6 +72,7 @@ export const appRouter = router({
   followUps: followUpsRouter,
   weeklyReport: weeklyReportRouter,
   sms: smsRouter,
+  reviewRequests: reviewRequestsRouter,
 });
 
 export type AppRouter = typeof appRouter;

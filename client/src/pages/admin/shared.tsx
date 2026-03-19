@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms";
+export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "closed" | "lost";
 
@@ -53,6 +53,7 @@ export const NAV_ITEMS: { id: AdminSection; label: string; icon: React.ReactNode
   { id: "loyalty", label: "Loyalty", icon: <Trophy className="w-4 h-4" /> },
   { id: "followups", label: "Follow-Ups", icon: <Send className="w-4 h-4" /> },
   { id: "sms", label: "SMS", icon: <Phone className="w-4 h-4" /> },
+  { id: "reviewRequests", label: "Reviews", icon: <Star className="w-4 h-4" /> },
 ];
 
 export const SECTION_TITLES: Record<AdminSection, string> = {
@@ -70,6 +71,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   loyalty: "Loyalty Program",
   followups: "Follow-Up Manager",
   sms: "SMS Messaging",
+  reviewRequests: "Review Requests",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────

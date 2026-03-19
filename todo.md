@@ -591,3 +591,35 @@
 ### Upgrade #10: Global error boundary with recovery
 - [x] Enhanced ErrorBoundary with Nick's branding, retry logic (3 attempts), multiple recovery options
 - [x] Added collapsible technical details, contact fallback, branded styling
+
+## Phase 31 — Automated Google Review Request SMS System
+### Database
+- [x] reviewRequests table (id, bookingId, customerName, phone, service, status, scheduledAt, sentAt, clickedAt, trackingToken, twilioSid, errorMessage, createdAt)
+- [x] reviewSettings table (id, enabled, delayMinutes, maxPerDay, cooldownDays, messageTemplate, updatedAt)
+- [x] Migrations pushed
+### Server Logic
+- [x] Review request SMS sender using Twilio with personalized messages
+- [x] Custom message template support with {firstName}, {service}, {reviewUrl} placeholders
+- [x] Duplicate prevention via phone cooldown check (configurable days)
+- [x] Click tracking via unique token + /api/review-click/:token redirect endpoint
+- [x] Auto-trigger wired into booking.updateStatus when status = "completed"
+- [x] Configurable delay (default 120 min), daily cap (default 20), cooldown (default 30 days)
+- [x] Periodic queue processor (every 5 minutes) sends pending requests
+- [x] scheduleReviewRequest() + processReviewRequestQueue() exported functions
+### Admin UI
+- [x] Review Requests section in admin dashboard (list, stats, resend failed)
+- [x] Settings panel (enable/disable toggle, delay, daily cap, cooldown, custom template)
+- [x] Stats dashboard (total, sent, clicked, failed, pending, click rate)
+- [x] Manual "Process Queue" button
+### Backfill Blast
+- [x] Backfill preview showing eligible customers from past year
+- [x] Execute button to schedule staggered review requests (2 min apart)
+- [x] Skip customers already contacted within cooldown period
+- [x] Deduplication by phone number
+### Tests (23 new tests, 224 total passing)
+- [x] Review request list, stats, settings CRUD (admin-only)
+- [x] Input validation (maxPerDay >= 1, cooldownDays >= 1, token <= 64 chars)
+- [x] Queue processing, backfill preview/execute
+- [x] Click tracking (public endpoint)
+- [x] scheduleReviewRequest unit tests (invalid phone, valid input)
+- [x] Auth guards on all admin endpoints

@@ -8,6 +8,8 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { getPublishedArticles } from "../content-generator";
+import { markReviewRequestClicked } from "../db";
+import { processReviewRequestQueue } from "../routers/reviewRequests";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -181,6 +183,37 @@ async function startServer() {
       `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /admin/\nDisallow: /api/\nDisallow: /api\n\nSitemap: ${sitemapUrl}\n`
     );
   });
+
+  // ─── Review click tracking redirect ───────────────────
+  // When a customer clicks the review link in their SMS, this endpoint:
+  // 1. Records the click in the database
+  // 2. Redirects them to the actual Google review page
+  const GOOGLE_REVIEW_URL = "https://search.google.com/local/writereview?placeid=ChIJSWRRLdr_MEiRBZ3NBATPvQo";
+  app.get("/api/review-click/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+      if (token && token.length <= 64) {
+        await markReviewRequestClicked(token);
+      }
+    } catch (err) {
+      console.error("[ReviewClick] Error tracking click:", err);
+    }
+    // Always redirect to Google review page, even if tracking fails
+    res.redirect(302, GOOGLE_REVIEW_URL);
+  });
+
+  // ─── Periodic review request queue processor ──────────
+  // Checks every 5 minutes for pending review requests that are past their scheduled time
+  setInterval(async () => {
+    try {
+      const result = await processReviewRequestQueue();
+      if (result.processed > 0) {
+        console.log(`[ReviewRequest] Queue processed: ${result.sent} sent, ${result.failed} failed`);
+      }
+    } catch (err) {
+      console.error("[ReviewRequest] Queue processing error:", err);
+    }
+  }, 5 * 60 * 1000); // Every 5 minutes
 
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
