@@ -34,6 +34,11 @@ export interface ServiceData {
   }[];
   whyUs: string[];
   keywords: string[];
+  /** AEO-optimized quick answers for Google AI Overviews and featured snippets */
+  quickAnswers?: {
+    question: string;
+    answer: string;
+  }[];
 }
 
 export const SERVICES: ServiceData[] = [
@@ -92,6 +97,24 @@ export const SERVICES: ServiceData[] = [
       "No appointment needed for tire pressure checks",
     ],
     keywords: ["tire shop Cleveland", "tires Cleveland OH", "used tires Cleveland", "tire repair Cleveland", "TPMS sensor replacement", "tire balancing Cleveland", "flat tire repair"],
+    quickAnswers: [
+      {
+        question: "How much does it cost to replace tires in Cleveland?",
+        answer: "Tire replacement cost in Cleveland ranges from $80 to $250 per tire depending on size, brand, and type. At Nick's Tire & Auto, we carry new and quality used tires to fit every budget. Installation includes mounting, balancing, and a new valve stem. Call (216) 862-0005 for a quote specific to your vehicle."
+      },
+      {
+        question: "How often should I rotate my tires?",
+        answer: "Tires should be rotated every 5,000 to 7,500 miles, or approximately every other oil change. Regular rotation ensures even tread wear across all four tires, which extends tire life and maintains safe handling. Cleveland's pothole-heavy roads make rotation especially important to catch uneven wear early."
+      },
+      {
+        question: "Can I drive on a tire with low tread?",
+        answer: "Driving on tires with tread depth below 2/32 of an inch is unsafe and illegal in Ohio. Low tread significantly reduces grip in rain and snow, increasing stopping distance by up to 80 percent on wet roads. Use the penny test: insert a penny head-first into the tread. If you can see all of Lincoln's head, the tire needs replacement."
+      },
+      {
+        question: "What causes tires to wear unevenly?",
+        answer: "Uneven tire wear is caused by misalignment, worn suspension components, improper tire pressure, or lack of rotation. Inner-edge wear indicates a camber problem. Outer-edge wear suggests toe misalignment. Center wear means overinflation. A qualified technician can diagnose the root cause by reading the wear pattern."
+      }
+    ],
   },
   {
     slug: "brakes",
@@ -148,6 +171,24 @@ export const SERVICES: ServiceData[] = [
       "Experienced technicians who specialize in brake systems",
     ],
     keywords: ["brake repair Cleveland", "brake pads Cleveland", "rotor replacement Cleveland OH", "ABS diagnostics", "brake service Cleveland", "squealing brakes repair"],
+    quickAnswers: [
+      {
+        question: "How much does brake repair cost in Cleveland?",
+        answer: "Brake pad replacement in Cleveland typically costs between $150 and $350 per axle. If rotors need resurfacing or replacement, the total can range from $300 to $600 per axle. At Nick's Tire & Auto, we provide a free brake inspection and written estimate before any work begins. Call (216) 862-0005."
+      },
+      {
+        question: "How do I know if my brakes need replacing?",
+        answer: "Common signs your brakes need service include squealing or grinding noises when stopping, a pulsating brake pedal, the vehicle pulling to one side during braking, or a longer stopping distance than normal. A dashboard brake warning light is an immediate signal to have your brakes inspected by a qualified technician."
+      },
+      {
+        question: "How long do brake pads last?",
+        answer: "Brake pads typically last between 30,000 and 70,000 miles depending on driving habits, vehicle weight, and pad material. City driving with frequent stops wears pads faster than highway driving. Cleveland drivers who navigate stop-and-go traffic daily should have brakes inspected every 15,000 miles."
+      },
+      {
+        question: "Is it safe to drive with squealing brakes?",
+        answer: "Squealing brakes are a warning sign that should not be ignored. A high-pitched squeal usually means the brake pad wear indicators are contacting the rotor, indicating the pads are nearly worn through. Continued driving can damage the rotors and calipers, increasing repair cost significantly. Have your brakes inspected as soon as possible."
+      }
+    ],
   },
   {
     slug: "diagnostics",
@@ -203,6 +244,24 @@ export const SERVICES: ServiceData[] = [
       "Fair diagnostic fees that apply toward the repair",
     ],
     keywords: ["check engine light Cleveland", "OBD-II diagnostics Cleveland", "car diagnostics Cleveland OH", "engine light repair", "auto diagnostics Cleveland", "vehicle computer diagnostics"],
+    quickAnswers: [
+      {
+        question: "Why is my check engine light on?",
+        answer: "A check engine light indicates your vehicle's onboard computer has detected a problem with the engine, emissions, or drivetrain systems. Common causes include a loose gas cap, failing oxygen sensor, catalytic converter issue, or misfiring spark plugs. An OBD-II diagnostic scan reads the specific trouble code to identify the exact problem."
+      },
+      {
+        question: "How much does a check engine light diagnosis cost in Cleveland?",
+        answer: "A basic OBD-II code read is often free at parts stores, but a full diagnostic evaluation at a repair shop typically costs $80 to $150 in Cleveland. At Nick's Tire & Auto, our technicians go beyond reading codes — we use live data analysis to pinpoint the actual failed component so you only pay for the repair you need."
+      },
+      {
+        question: "Can I drive with the check engine light on?",
+        answer: "A steady check engine light usually means you can drive to a shop safely, but should have it diagnosed soon. A flashing check engine light indicates a severe misfire that can damage the catalytic converter. If the light is flashing, reduce speed and have the vehicle inspected immediately to prevent expensive secondary damage."
+      },
+      {
+        question: "What is an OBD-II diagnostic scan?",
+        answer: "OBD-II stands for On-Board Diagnostics, second generation. It is a standardized system in all vehicles made after 1996 that monitors engine performance and emissions. A diagnostic scan tool connects to the OBD-II port under the dashboard and reads trouble codes stored by the vehicle's computer, helping technicians identify the source of a problem."
+      }
+    ],
   },
   {
     slug: "emissions",
@@ -259,6 +318,24 @@ export const SERVICES: ServiceData[] = [
       "Honest assessment — we tell you if repair cost exceeds vehicle value",
     ],
     keywords: ["Ohio E-Check repair Cleveland", "emissions repair Cleveland", "E-Check failure repair", "catalytic converter Cleveland", "oxygen sensor replacement Cleveland", "EVAP leak repair Cleveland"],
+    quickAnswers: [
+      {
+        question: "Why did my car fail the Ohio E-Check?",
+        answer: "The most common reasons for Ohio E-Check failure are a faulty oxygen sensor, an EVAP system leak, a failing catalytic converter, or incomplete readiness monitors. The E-Check tests your vehicle's emissions control systems through an OBD-II scan. If any emissions monitor shows 'not ready' or a trouble code is stored, the vehicle will fail."
+      },
+      {
+        question: "How much does it cost to fix an E-Check failure in Cleveland?",
+        answer: "E-Check repair costs in Cleveland range from $100 for a simple sensor replacement to $1,500 or more for catalytic converter replacement. The most common repairs — oxygen sensors and EVAP leaks — typically cost between $150 and $400. A proper diagnosis identifies the exact cause so you avoid replacing parts unnecessarily."
+      },
+      {
+        question: "How long does it take to fix an emissions problem?",
+        answer: "Most emissions repairs take one to three hours once the problem is diagnosed. However, after the repair is complete, the vehicle must complete a drive cycle for the emissions monitors to reset. This can take 50 to 100 miles of mixed driving. Our technicians know the exact drive cycle procedures for each vehicle to get monitors ready as quickly as possible."
+      },
+      {
+        question: "What Ohio counties require E-Check testing?",
+        answer: "Ohio E-Check emissions testing is required in seven Northeast Ohio counties: Cuyahoga, Geauga, Lake, Lorain, Medina, Portage, and Summit. Vehicles model year 1996 and newer that are registered in these counties must pass the E-Check every two years. The test is an OBD-II scan that checks for emissions-related trouble codes and monitor readiness."
+      }
+    ],
   },
   {
     slug: "oil-change",
@@ -315,6 +392,24 @@ export const SERVICES: ServiceData[] = [
       "Honest recommendation on change intervals",
     ],
     keywords: ["oil change Cleveland", "synthetic oil change Cleveland OH", "oil change near me", "quick oil change Cleveland", "oil change service Cleveland"],
+    quickAnswers: [
+      {
+        question: "How often should I change my oil?",
+        answer: "Most modern vehicles with synthetic oil should have an oil change every 5,000 to 7,500 miles or every six months, whichever comes first. Vehicles using conventional oil should change every 3,000 to 5,000 miles. Check your owner's manual for the manufacturer's recommendation. Cleveland's cold winters and stop-and-go traffic can accelerate oil degradation."
+      },
+      {
+        question: "How much does an oil change cost in Cleveland?",
+        answer: "A conventional oil change in Cleveland typically costs between $30 and $50. A full synthetic oil change ranges from $60 to $90 depending on the vehicle and oil capacity. At Nick's Tire & Auto, every oil change includes a new filter and a free multi-point vehicle inspection. Call (216) 862-0005."
+      },
+      {
+        question: "What is the difference between synthetic and conventional oil?",
+        answer: "Synthetic oil is chemically engineered to provide better protection at extreme temperatures, resist breakdown longer, and flow more easily in cold weather. Conventional oil is refined from crude petroleum and costs less but requires more frequent changes. Most manufacturers now recommend synthetic or synthetic blend oil for optimal engine protection."
+      },
+      {
+        question: "What happens if I skip an oil change?",
+        answer: "Skipping oil changes allows old oil to break down and form sludge inside the engine. Sludge restricts oil flow, increases friction, and causes accelerated wear on internal components. Over time, this can lead to overheating, reduced fuel economy, and eventually catastrophic engine failure. Regular oil changes are the single most important maintenance for engine longevity."
+      }
+    ],
   },
   {
     slug: "general-repair",
@@ -371,6 +466,24 @@ export const SERVICES: ServiceData[] = [
       "Written estimates before any work begins",
     ],
     keywords: ["auto repair Cleveland", "suspension repair Cleveland", "steering repair Cleveland OH", "exhaust repair Cleveland", "cooling system repair", "Cleveland mechanic", "car repair Cleveland"],
+    quickAnswers: [
+      {
+        question: "How do I find a trustworthy mechanic in Cleveland?",
+        answer: "Look for a shop with a high volume of verified Google reviews, transparent pricing, and technicians who explain repairs before performing them. Nick's Tire & Auto has over 1,685 Google reviews at 4.9 stars. We provide written estimates, show you the problem before we fix it, and never pressure you into unnecessary repairs."
+      },
+      {
+        question: "What are signs my car needs suspension repair?",
+        answer: "Common signs of suspension problems include a rough or bouncy ride, the vehicle pulling to one side, uneven tire wear, nose-diving when braking, or clunking noises over bumps. Cleveland's pothole-heavy roads are particularly hard on suspension components. Have your suspension inspected if you notice any of these symptoms."
+      },
+      {
+        question: "How much does auto repair cost in Cleveland?",
+        answer: "Auto repair costs in Cleveland vary widely by service. Oil changes run $30 to $90, brake jobs $150 to $600 per axle, and suspension work $200 to $1,500 depending on the component. At Nick's Tire & Auto, we provide a written estimate before any work begins so there are no surprises on the bill."
+      },
+      {
+        question: "Why is my car making a strange noise?",
+        answer: "Strange vehicle noises indicate specific problems. Squealing from the front usually means worn brake pads or a loose belt. Grinding suggests metal-on-metal contact in brakes or transmission. Clunking over bumps points to worn suspension components. Humming at highway speed often indicates a wheel bearing issue. A diagnostic inspection can identify the exact source."
+      }
+    ],
   },
 ];
 

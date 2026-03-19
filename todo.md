@@ -411,9 +411,10 @@
 - [x] Install Meta Pixel on website (retargeting + conversion tracking)
 - [x] Install Google Analytics 4 (GA4) on website (G-B1LJ1P43G8)
 - [x] Build review generation page at /review with QR code
-- [ ] Turn on all Meta Business Suite automations (instant reply, FAQ, away messages)
+- [x] Update Meta Business Suite auto reply (Nick's message, both channels, saved)
+- [ ] Set up remaining Meta automations (away msg, contact, hours, location, FAQ) — messages written in meta_automation_messages.md
 ### Growth Engine (Week 2-3)
-- [ ] Add AEO-optimized Q&A content to service pages
+- [x] Add AEO-optimized Q&A content to service pages (24 quick answers, 4 per service, FAQ schema updated)
 - [ ] Optimize Google Business Profile (posts, services, products, photos)
 - [ ] Submit to top 20 local citation directories
 - [ ] Create Instagram Reels content strategy and 30-day calendar

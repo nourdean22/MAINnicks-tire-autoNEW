@@ -404,6 +404,42 @@ function WhyUs({ service }: { service: ServiceData }) {
   );
 }
 
+// ─── AEO QUICK ANSWERS ────────────────────────────────
+function QuickAnswers({ service }: { service: ServiceData }) {
+  if (!service.quickAnswers || service.quickAnswers.length === 0) return null;
+
+  return (
+    <section className="section-darker py-20 lg:py-28">
+      <div className="container">
+        <FadeIn>
+          <span className="font-mono text-nick-blue-light text-sm tracking-wide">Quick Answers</span>
+          <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+            PEOPLE <span className="text-gradient-yellow">ALSO ASK</span>
+          </h2>
+          <p className="mt-4 text-foreground/60 text-lg max-w-2xl">
+            Answers to the most common questions Cleveland drivers ask about {service.title.toLowerCase()} service.
+          </p>
+        </FadeIn>
+
+        <div className="mt-12 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {service.quickAnswers.map((qa, i) => (
+            <FadeIn key={i} delay={i * 0.08}>
+              <div className="bg-card/60 border border-nick-blue/10 rounded-lg p-6 lg:p-8 h-full">
+                <h3 className="font-semibold font-bold text-lg text-nick-yellow tracking-wide mb-4">
+                  {qa.question}
+                </h3>
+                <p className="text-foreground/70 leading-relaxed text-base">
+                  {qa.answer}
+                </p>
+              </div>
+            </FadeIn>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ─── BOOKING SECTION ───────────────────────────────────
 function BookingSection({ service }: { service: ServiceData }) {
   return (
@@ -536,17 +572,29 @@ function ServiceSchema({ service }: { service: ServiceData }) {
     ],
   };
 
-  const faqSchema = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: service.problems.map((p) => ({
-      "@type": "Question",
+  const allFAQs = [
+    ...service.problems.map((p) => ({
+      "@type": "Question" as const,
       name: p.question,
       acceptedAnswer: {
-        "@type": "Answer",
+        "@type": "Answer" as const,
         text: p.answer,
       },
     })),
+    ...(service.quickAnswers || []).map((qa) => ({
+      "@type": "Question" as const,
+      name: qa.question,
+      acceptedAnswer: {
+        "@type": "Answer" as const,
+        text: qa.answer,
+      },
+    })),
+  ];
+
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: allFAQs,
   };
 
   return (
@@ -610,6 +658,7 @@ export default function ServicePage() {
         <WarningSigns service={service} />
         <Process service={service} />
         <WhyUs service={service} />
+        <QuickAnswers service={service} />
         <BookingSection service={service} />
         <OtherServices currentSlug={service.slug} />
 
