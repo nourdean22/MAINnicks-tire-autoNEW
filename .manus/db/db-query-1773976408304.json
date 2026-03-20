@@ -1,0 +1,18 @@
+{
+  "query": "SELECT \n  COUNT(*) as total,\n  COUNT(CASE WHEN smsCampaignSent > 0 THEN 1 END) as already_texted,\n  COUNT(CASE WHEN smsCampaignSent = 0 THEN 1 END) as not_texted,\n  COUNT(CASE WHEN lastVisitDate >= '2025-01-01' THEN 1 END) as visited_2025,\n  COUNT(CASE WHEN lastVisitDate >= '2025-01-01' AND smsCampaignSent = 0 THEN 1 END) as visited_2025_not_texted,\n  COUNT(CASE WHEN lastVisitDate >= '2025-01-01' AND smsCampaignSent > 0 THEN 1 END) as visited_2025_already_texted\nFROM customers;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute SELECT \n  COUNT(*) as total,\n  COUNT(CASE WHEN smsCampaignSent > 0 THEN 1 END) as already_texted,\n  COUNT(CASE WHEN smsCampaignSent = 0 THEN 1 END) as not_texted,\n  COUNT(CASE WHEN lastVisitDate >= '2025-01-01' THEN 1 END) as visited_2025,\n  COUNT(CASE WHEN lastVisitDate >= '2025-01-01' AND smsCampaignSent = 0 THEN 1 END) as visited_2025_not_texted,\n  COUNT(CASE WHEN lastVisitDate >= '2025-01-01' AND smsCampaignSent > 0 THEN 1 END) as visited_2025_already_texted\nFROM customers;",
+  "rows": [
+    {
+      "total": "1881",
+      "already_texted": "0",
+      "not_texted": "1881",
+      "visited_2025": "1192",
+      "visited_2025_not_texted": "1192",
+      "visited_2025_already_texted": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\talready_texted\tnot_texted\tvisited_2025\tvisited_2025_not_texted\tvisited_2025_already_texted\n1881\t0\t1881\t1192\t1192\t0\n",
+  "stderr": "",
+  "execution_time_ms": 71
+}

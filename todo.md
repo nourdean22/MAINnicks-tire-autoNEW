@@ -922,12 +922,18 @@
 - [ ] Track delivery status
 
 ### Task 12: Automated 7-Day Post-Invoice Follow-Up
-- [ ] Build server-side cron/scheduler that checks for invoices 7 days old
-- [ ] Auto-send thank you + review request + referral text
-- [ ] Track sends to prevent duplicates
-- [ ] Admin visibility into automated follow-ups
+- [x] Build server-side cron/scheduler that checks for invoices 7 days old
+- [x] Auto-send thank you + review request + referral text
+- [x] Track sends to prevent duplicates
+- [x] Admin visibility into automated follow-ups
 
 ### Task 13: Admin Dashboard Upgrades
-- [ ] Add more creative features and tools to admin dashboard
-- [ ] Improve admin UX for campaign management
-- [ ] Add analytics/insights to admin overview
+- [x] Quick SMS — send custom texts from customer detail modal
+- [x] Customer Notes — add/edit internal notes per customer (persisted in DB)
+- [x] Campaign Retry — "Send Next 50" button to resume stalled SMS campaign
+- [x] CSV Export — export customers by segment to CSV file
+- [x] Campaign Progress — live progress bar with sent/remaining counts (30s auto-refresh)
+- [x] SMS status column — green checkmark for texted customers in table
+- [x] Notes indicator — sticky note icon for customers with notes
+- [x] Customer detail modal — full contact info, segment badge, campaign status
+- [x] Updated test suite: 14 customer tests covering all new endpoints (270 total tests)

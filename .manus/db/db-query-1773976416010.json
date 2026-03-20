@@ -1,0 +1,100 @@
+{
+  "query": "SELECT id, firstName, lastName, phone, segment, totalVisits, lastVisitDate FROM customers WHERE lastVisitDate >= '2025-01-01' ORDER BY lastVisitDate DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute SELECT id, firstName, lastName, phone, segment, totalVisits, lastVisitDate FROM customers WHERE lastVisitDate >= '2025-01-01' ORDER BY lastVisitDate DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "1540",
+      "firstName": "Ag",
+      "lastName": "Harper",
+      "phone": "+12167508485",
+      "segment": "recent",
+      "totalVisits": "1",
+      "lastVisitDate": "2026-03-19 00:00:00"
+    },
+    {
+      "id": "1035",
+      "firstName": "Bonnie",
+      "lastName": "Boone",
+      "phone": "+12169248069",
+      "segment": "recent",
+      "totalVisits": "2",
+      "lastVisitDate": "2026-03-19 00:00:00"
+    },
+    {
+      "id": "881",
+      "firstName": "Adedeji",
+      "lastName": "Adeloye",
+      "phone": "+12346029290",
+      "segment": "recent",
+      "totalVisits": "2",
+      "lastVisitDate": "2026-03-19 00:00:00"
+    },
+    {
+      "id": "2688",
+      "firstName": "Denzel",
+      "lastName": "White",
+      "phone": "+15133042106",
+      "segment": "recent",
+      "totalVisits": "2",
+      "lastVisitDate": "2026-03-18 00:00:00"
+    },
+    {
+      "id": "1902",
+      "firstName": "Chelsea",
+      "lastName": "Marshall",
+      "phone": "+12162090763",
+      "segment": "recent",
+      "totalVisits": "2",
+      "lastVisitDate": "2026-03-18 00:00:00"
+    },
+    {
+      "id": "1642",
+      "firstName": "Cina",
+      "lastName": "Huggins",
+      "phone": "+12162722594",
+      "segment": "recent",
+      "totalVisits": "3",
+      "lastVisitDate": "2026-03-18 00:00:00"
+    },
+    {
+      "id": "1426",
+      "firstName": "Willie",
+      "lastName": "Gambrell",
+      "phone": "+12165513025",
+      "segment": "recent",
+      "totalVisits": "1",
+      "lastVisitDate": "2026-03-18 00:00:00"
+    },
+    {
+      "id": "1191",
+      "firstName": "Alaias",
+      "lastName": "Conner",
+      "phone": "+12169061766",
+      "segment": "recent",
+      "totalVisits": "1",
+      "lastVisitDate": "2026-03-18 00:00:00"
+    },
+    {
+      "id": "2278",
+      "firstName": "Joe",
+      "lastName": "Quinn",
+      "phone": "+17037856386",
+      "segment": "recent",
+      "totalVisits": "1",
+      "lastVisitDate": "2026-03-17 00:00:00"
+    },
+    {
+      "id": "1873",
+      "firstName": "Diana",
+      "lastName": "Lucas",
+      "phone": "+12165591171",
+      "segment": "recent",
+      "totalVisits": "4",
+      "lastVisitDate": "2026-03-17 00:00:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tfirstName\tlastName\tphone\tsegment\ttotalVisits\tlastVisitDate\n1540\tAg\tHarper\t+12167508485\trecent\t1\t2026-03-19 00:00:00\n1035\tBonnie\tBoone\t+12169248069\trecent\t2\t2026-03-19 00:00:00\n881\tAdedeji\tAdeloye\t+12346029290\trecent\t2\t2026-03-19 00:00:00\n2688\tDenzel\tWhite\t+15133042106\trecent\t2\t2026-03-18 00:00:00\n1902\tChelsea\tMarshall\t+12162090763\trecent\t2\t2026-03-18 00:00:00\n1642\tCina\tHuggins\t+12162722594\trecent\t3\t2026-03-18 00:00:00\n1426\tWillie\tGambrell\t+12165513025\trecent\t1\t2026-03-18 00:00:00\n1191\tAlaias\tConner\t+12169061766\trecent\t1\t2026-03-18 00:00:00\n2278\tJoe\tQuinn\t+17037856386\trecent\t1\t2026-03-17 00:00:00\n1873\tDiana\tLucas\t+12165591171\trecent\t4\t2026-03-17 00:00:00\n",
+  "stderr": "",
+  "execution_time_ms": 62
+}

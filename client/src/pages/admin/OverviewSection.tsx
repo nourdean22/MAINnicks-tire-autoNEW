@@ -12,7 +12,7 @@ import {
   type BookingStatus, type LeadStatus,
 } from "./shared";
 import {
-  Activity, AlertTriangle, BarChart3, Bell, CalendarClock, CheckCircle2, ChevronRight, Clock, ExternalLink, FileSpreadsheet, FileText, Globe, Hash, Loader2, MessageSquare, Newspaper, PieChart, Sparkles, Star, TrendingUp, Users, XCircle, Zap
+  Activity, AlertTriangle, BarChart3, Bell, CalendarClock, CheckCircle2, ChevronRight, Clock, ExternalLink, FileSpreadsheet, FileText, Globe, Hash, Loader2, MessageSquare, Newspaper, PieChart, Send, Sparkles, Star, TrendingUp, Users, XCircle, Zap
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
@@ -27,6 +27,8 @@ export default function OverviewSection() {
     refetchInterval: 300000,
   });
   const { data: sheetInfo } = trpc.lead.sheetUrl.useQuery();
+  const { data: customerStats } = trpc.customers.stats.useQuery();
+  const { data: campaignStats } = trpc.customers.campaignStats.useQuery(undefined, { refetchInterval: 30000 });
 
   if (isLoading || !stats) {
     return (
@@ -96,6 +98,46 @@ export default function OverviewSection() {
         <StatCard label="Draft Articles" value={stats.content.drafts} icon={<Newspaper className="w-4 h-4" />} color="text-amber-400" />
         <StatCard label="Active Notifications" value={stats.content.activeNotifications} icon={<Bell className="w-4 h-4" />} color="text-primary" />
       </div>
+
+      {/* Customer & SMS Campaign Stats */}
+      {(customerStats || campaignStats) && (
+        <div className="bg-card border border-border/30 p-6">
+          <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground mb-5 flex items-center gap-2">
+            <Send className="w-4 h-4 text-primary" />
+            CUSTOMER DATABASE & SMS
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="text-center p-3 border border-border/20">
+              <p className="font-heading font-bold text-2xl text-foreground">{customerStats?.total ?? 0}</p>
+              <p className="font-mono text-xs text-foreground/40 mt-1">Total Customers</p>
+            </div>
+            <div className="text-center p-3 border border-border/20">
+              <p className="font-heading font-bold text-2xl text-emerald-400">{customerStats?.recent ?? 0}</p>
+              <p className="font-mono text-xs text-foreground/40 mt-1">Recent</p>
+            </div>
+            <div className="text-center p-3 border border-border/20">
+              <p className="font-heading font-bold text-2xl text-amber-400">{customerStats?.lapsed ?? 0}</p>
+              <p className="font-mono text-xs text-foreground/40 mt-1">Lapsed</p>
+            </div>
+            <div className="text-center p-3 border border-border/20">
+              <p className="font-heading font-bold text-2xl text-primary">{campaignStats?.sent ?? 0}</p>
+              <p className="font-mono text-xs text-foreground/40 mt-1">Texts Sent</p>
+            </div>
+            <div className="text-center p-3 border border-border/20">
+              <p className="font-heading font-bold text-2xl text-foreground/60">{campaignStats?.remaining ?? 0}</p>
+              <p className="font-mono text-xs text-foreground/40 mt-1">Remaining</p>
+            </div>
+            <div className="text-center p-3 border border-border/20">
+              {campaignStats && campaignStats.total > 0 ? (
+                <p className="font-heading font-bold text-2xl text-primary">{Math.round((campaignStats.sent / campaignStats.total) * 100)}%</p>
+              ) : (
+                <p className="font-heading font-bold text-2xl text-foreground/30">—</p>
+              )}
+              <p className="font-mono text-xs text-foreground/40 mt-1">Campaign Progress</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

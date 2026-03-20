@@ -78,6 +78,13 @@
       "when": 1773974062566,
       "tag": "0010_lyrical_queen_noir",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1773978675482,
+      "tag": "0011_mute_carnage",
+      "breakpoints": true
     }
   ]
 }

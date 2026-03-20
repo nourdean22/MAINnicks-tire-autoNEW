@@ -12,6 +12,7 @@ import { getPublishedArticles } from "../content-generator";
 import { markReviewRequestClicked } from "../db";
 import { processReviewRequestQueue } from "../routers/reviewRequests";
 import { processReminderQueue } from "../routers/reminders";
+import { processPostInvoiceFollowUps } from "../postInvoiceFollowUp";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -275,6 +276,20 @@ async function startServer() {
       console.error("[Reminders] Queue processing error:", err);
     }
   }, 15 * 60 * 1000); // Every 15 minutes
+
+  // ─── Automated 7-day post-invoice follow-up ──────────
+  // Checks every hour for customers whose last visit was 7 days ago
+  // Sends thank you + review request + referral text (same as campaign)
+  setInterval(async () => {
+    try {
+      const result = await processPostInvoiceFollowUps();
+      if (result.processed > 0) {
+        console.log(`[PostInvoiceFollowUp] Processed: ${result.sent} sent, ${result.failed} failed out of ${result.processed}`);
+      }
+    } catch (err) {
+      console.error("[PostInvoiceFollowUp] Processing error:", err);
+    }
+  }, 60 * 60 * 1000); // Every 1 hour
 
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {

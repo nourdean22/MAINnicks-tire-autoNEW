@@ -1,7 +1,8 @@
 /**
  * Customer Database Admin Section
  * View, search, filter, and manage imported customer records.
- * Supports segment filtering, search, pagination, and individual customer details.
+ * Supports segment filtering, search, pagination, individual customer details,
+ * quick SMS, notes, and bulk campaign retry.
  */
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
@@ -9,8 +10,10 @@ import { StatCard } from "./shared";
 import {
   Users, Search, ChevronLeft, ChevronRight, Phone, Mail,
   MapPin, Calendar, UserCheck, AlertTriangle, Building2,
-  ArrowUpDown, Filter, Eye, X
+  ArrowUpDown, Filter, Eye, X, Download, Send, CheckCircle2,
+  MessageSquare, StickyNote, RefreshCw, Loader2
 } from "lucide-react";
+import { toast } from "sonner";
 
 type Segment = "all" | "recent" | "lapsed" | "unknown";
 type SortBy = "name" | "visits" | "lastVisit";
@@ -33,7 +36,44 @@ function SegmentBadge({ segment }: { segment: string }) {
 }
 
 function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: () => void }) {
+  const utils = trpc.useUtils();
   const { data: customer, isLoading } = trpc.customers.getById.useQuery({ id: customerId });
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [smsText, setSmsText] = useState("");
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [notesText, setNotesText] = useState("");
+  const [notesInitialized, setNotesInitialized] = useState(false);
+
+  // Initialize notes text when customer loads
+  if (customer && !notesInitialized) {
+    setNotesText(customer.notes || "");
+    setNotesInitialized(true);
+  }
+
+  const quickSms = trpc.customers.quickSms.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success("SMS sent successfully");
+        setSmsText("");
+        setSmsOpen(false);
+      } else {
+        toast.error(result.error || "Failed to send SMS");
+      }
+    },
+    onError: () => toast.error("Failed to send SMS"),
+  });
+
+  const updateNotes = trpc.customers.updateNotes.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success("Notes saved");
+        utils.customers.getById.invalidate({ id: customerId });
+      } else {
+        toast.error("Failed to save notes");
+      }
+    },
+    onError: () => toast.error("Failed to save notes"),
+  });
 
   if (isLoading) {
     return (
@@ -135,12 +175,122 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
             </div>
           </div>
 
+          {/* SMS Campaign Status */}
+          <div className="pt-2 border-t border-border/20">
+            <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">Campaign Status</span>
+            {customer.smsCampaignSent ? (
+              <span className="text-xs text-emerald-400 flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Texted {customer.smsCampaignDate ? new Date(customer.smsCampaignDate).toLocaleDateString() : ""}
+              </span>
+            ) : (
+              <span className="text-xs text-foreground/40">Not yet texted</span>
+            )}
+          </div>
+
           {customer.alsCustomerId && (
             <div className="pt-2 border-t border-border/20">
               <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">ALS Customer ID</span>
               <span className="text-sm text-foreground/60 font-mono">{customer.alsCustomerId}</span>
             </div>
           )}
+
+          {/* Notes Section */}
+          <div className="pt-2 border-t border-border/20">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase flex items-center gap-1">
+                <StickyNote className="w-3 h-3" /> Notes
+              </span>
+              {!notesOpen && (
+                <button
+                  onClick={() => setNotesOpen(true)}
+                  className="text-[10px] font-mono text-primary hover:text-primary/80 tracking-wider"
+                >
+                  {customer.notes ? "EDIT" : "ADD NOTE"}
+                </button>
+              )}
+            </div>
+            {notesOpen ? (
+              <div className="space-y-2">
+                <textarea
+                  value={notesText}
+                  onChange={e => setNotesText(e.target.value)}
+                  placeholder="Add internal notes about this customer..."
+                  className="w-full bg-background border border-border/30 p-3 text-sm text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 resize-none"
+                  rows={3}
+                  maxLength={5000}
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      updateNotes.mutate({ id: customer.id, notes: notesText });
+                      setNotesOpen(false);
+                    }}
+                    disabled={updateNotes.isPending}
+                    className="px-3 py-1.5 bg-primary text-primary-foreground text-xs font-mono tracking-wider hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {updateNotes.isPending ? "SAVING..." : "SAVE"}
+                  </button>
+                  <button
+                    onClick={() => { setNotesOpen(false); setNotesText(customer.notes || ""); }}
+                    className="px-3 py-1.5 text-xs font-mono text-foreground/50 hover:text-foreground tracking-wider"
+                  >
+                    CANCEL
+                  </button>
+                </div>
+              </div>
+            ) : customer.notes ? (
+              <p className="text-sm text-foreground/60 whitespace-pre-wrap">{customer.notes}</p>
+            ) : (
+              <p className="text-xs text-foreground/30 italic">No notes yet</p>
+            )}
+          </div>
+
+          {/* Quick SMS */}
+          <div className="pt-2 border-t border-border/20">
+            {!smsOpen ? (
+              <button
+                onClick={() => setSmsOpen(true)}
+                className="flex items-center gap-2 text-xs font-mono text-primary hover:text-primary/80 tracking-wider"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                QUICK TEXT
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block">
+                  Send SMS to {customer.firstName}
+                </span>
+                <textarea
+                  value={smsText}
+                  onChange={e => setSmsText(e.target.value)}
+                  placeholder="Type your message..."
+                  className="w-full bg-background border border-border/30 p-3 text-sm text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 resize-none"
+                  rows={3}
+                  maxLength={500}
+                />
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-foreground/30">{smsText.length}/500</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => { setSmsOpen(false); setSmsText(""); }}
+                      className="px-3 py-1.5 text-xs font-mono text-foreground/50 hover:text-foreground tracking-wider"
+                    >
+                      CANCEL
+                    </button>
+                    <button
+                      onClick={() => quickSms.mutate({ customerId: customer.id, message: smsText })}
+                      disabled={!smsText.trim() || quickSms.isPending}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-xs font-mono tracking-wider hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      {quickSms.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                      {quickSms.isPending ? "SENDING..." : "SEND"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -148,6 +298,7 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
 }
 
 export default function CustomersSection() {
+  const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const [segment, setSegment] = useState<Segment>("all");
   const [sortBy, setSortBy] = useState<SortBy>("lastVisit");
@@ -156,7 +307,10 @@ export default function CustomersSection() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const pageSize = 25;
 
+  const [exporting, setExporting] = useState(false);
+
   const { data: stats } = trpc.customers.stats.useQuery();
+  const { data: campaignStats } = trpc.customers.campaignStats.useQuery(undefined, { refetchInterval: 30000 });
   const { data: listData, isLoading } = trpc.customers.list.useQuery({
     page,
     pageSize,
@@ -164,6 +318,14 @@ export default function CustomersSection() {
     segment,
     sortBy,
     sortDir,
+  });
+
+  const retryCampaign = trpc.customers.retryCampaign.useMutation({
+    onSuccess: (result) => {
+      toast.success(`Sent ${result.sent} texts (${result.failed} failed). ${result.remaining} remaining.`);
+      utils.customers.campaignStats.invalidate();
+    },
+    onError: () => toast.error("Campaign retry failed — check Twilio balance"),
   });
 
   const totalPages = Math.ceil((listData?.total ?? 0) / pageSize);
@@ -188,6 +350,80 @@ export default function CustomersSection() {
         <StatCard label="Unknown" value={stats?.unknown ?? 0} icon={<Users className="w-4 h-4" />} color="text-foreground/50" />
         <StatCard label="With Email" value={stats?.withEmail ?? 0} icon={<Mail className="w-4 h-4" />} color="text-blue-400" />
         <StatCard label="Commercial" value={stats?.commercial ?? 0} icon={<Building2 className="w-4 h-4" />} color="text-purple-400" />
+      </div>
+
+      {/* Campaign Progress + Retry + Export */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        {campaignStats && (
+          <div className="flex-1 bg-card border border-border/30 p-4 flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Send className="w-4 h-4 text-primary" />
+              <span className="font-mono text-xs text-foreground/60 tracking-wider">SMS CAMPAIGN:</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1 font-mono text-xs">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                <span className="text-emerald-400">{campaignStats.sent}</span>
+                <span className="text-foreground/30">sent</span>
+              </span>
+              <span className="flex items-center gap-1 font-mono text-xs">
+                <span className="text-amber-400">{campaignStats.remaining}</span>
+                <span className="text-foreground/30">remaining</span>
+              </span>
+            </div>
+            {campaignStats.total > 0 && (
+              <div className="flex-1 bg-foreground/5 h-2 hidden sm:block">
+                <div className="bg-primary h-2 transition-all" style={{ width: `${Math.round((campaignStats.sent / campaignStats.total) * 100)}%` }} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Retry Campaign Button */}
+        {campaignStats && campaignStats.remaining > 0 && (
+          <button
+            onClick={() => {
+              if (confirm(`Send thank you + review texts to the next 50 untexted customers?`)) {
+                retryCampaign.mutate({ batchSize: 50 });
+              }
+            }}
+            disabled={retryCampaign.isPending}
+            className="flex items-center gap-2 bg-primary/10 border border-primary/30 px-4 py-2.5 text-sm text-primary hover:bg-primary/20 transition-colors whitespace-nowrap disabled:opacity-50"
+          >
+            {retryCampaign.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            {retryCampaign.isPending ? "Sending..." : "Send Next 50"}
+          </button>
+        )}
+
+        <button
+          onClick={async () => {
+            setExporting(true);
+            try {
+              const result = await fetch(`/api/trpc/customers.exportCsv?input=${encodeURIComponent(JSON.stringify({ segment }))}`, {
+                credentials: "include",
+              }).then(r => r.json());
+              const csvData = result?.result?.data?.csv;
+              if (!csvData) { toast.error("Export failed"); return; }
+              const blob = new Blob([csvData], { type: "text/csv" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `customers-${segment}-${new Date().toISOString().split("T")[0]}.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+              toast.success(`Exported ${result?.result?.data?.count ?? 0} customers`);
+            } catch { toast.error("Export failed"); } finally { setExporting(false); }
+          }}
+          disabled={exporting}
+          className="flex items-center gap-2 bg-card border border-border/30 px-4 py-2.5 text-sm text-foreground/60 hover:text-primary hover:border-primary/30 transition-colors whitespace-nowrap"
+        >
+          <Download className="w-4 h-4" />
+          {exporting ? "Exporting..." : "Export CSV"}
+        </button>
       </div>
 
       {/* Filters */}
@@ -243,19 +479,20 @@ export default function CustomersSection() {
                   Last Visit <ArrowUpDown className="w-3 h-3" />
                 </button>
               </th>
+              <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase w-16">SMS</th>
               <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase w-10"></th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={7} className="p-8 text-center text-foreground/30">
+                <td colSpan={8} className="p-8 text-center text-foreground/30">
                   <div className="w-5 h-5 border-2 border-nick-yellow border-t-transparent rounded-full animate-spin mx-auto" />
                 </td>
               </tr>
             ) : listData?.customers.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-8 text-center text-foreground/30 font-mono text-xs">
+                <td colSpan={8} className="p-8 text-center text-foreground/30 font-mono text-xs">
                   No customers found
                 </td>
               </tr>
@@ -266,6 +503,9 @@ export default function CustomersSection() {
                     <span className="text-foreground font-medium">{c.firstName} {c.lastName || ""}</span>
                     {c.customerType === "commercial" && (
                       <Building2 className="w-3 h-3 text-purple-400 inline ml-1.5" />
+                    )}
+                    {c.notes && (
+                      <span title="Has notes"><StickyNote className="w-3 h-3 text-amber-400/60 inline ml-1" /></span>
                     )}
                   </td>
                   <td className="p-3">
@@ -278,6 +518,13 @@ export default function CustomersSection() {
                   <td className="p-3 text-foreground/60 font-mono">{c.totalVisits}</td>
                   <td className="p-3 text-foreground/50 text-xs hidden sm:table-cell">
                     {c.lastVisitDate ? new Date(c.lastVisitDate).toLocaleDateString() : "—"}
+                  </td>
+                  <td className="p-3">
+                    {c.smsCampaignSent ? (
+                      <span title="Texted"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /></span>
+                    ) : (
+                      <span className="w-3.5 h-3.5 block rounded-full border border-foreground/20" />
+                    )}
                   </td>
                   <td className="p-3">
                     <button

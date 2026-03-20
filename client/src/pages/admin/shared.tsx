@@ -6,11 +6,11 @@ import {
   CheckCircle2, XCircle, Loader2, AlertTriangle,
   Phone, Mail, MessageSquare, CalendarClock, Users,
   LayoutDashboard, FileText, Globe, Wrench, Gauge,
-  ClipboardList, Trophy, Gift, Send, Star, UserCheck, RotateCcw
+  ClipboardList, Trophy, Gift, Send, Star, UserCheck, RotateCcw, Timer
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback";
+export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "autoFollowUp";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "closed" | "lost";
 
@@ -38,25 +38,56 @@ export const TIME_LABELS: Record<string, string> = {
 
 export const CHART_COLORS = ["#F5A623", "#3B82F6", "#10B981", "#EF4444", "#8B5CF6", "#EC4899", "#F97316", "#06B6D4"];
 
-export const NAV_ITEMS: { id: AdminSection; label: string; icon: React.ReactNode; badge?: string }[] = [
-  { id: "overview", label: "Overview", icon: <LayoutDashboard className="w-4 h-4" /> },
-  { id: "bookings", label: "Bookings", icon: <CalendarClock className="w-4 h-4" />, badge: "bookings" },
-  { id: "leads", label: "Leads / CRM", icon: <Users className="w-4 h-4" />, badge: "leads" },
-  { id: "content", label: "Content", icon: <FileText className="w-4 h-4" /> },
-  { id: "chats", label: "Chat Sessions", icon: <MessageSquare className="w-4 h-4" /> },
-  { id: "health", label: "Site Health", icon: <Globe className="w-4 h-4" /> },
-  { id: "coupons", label: "Coupons", icon: <Star className="w-4 h-4" /> },
-  { id: "qa", label: "Q&A", icon: <MessageSquare className="w-4 h-4" /> },
-  { id: "referrals", label: "Referrals", icon: <Gift className="w-4 h-4" /> },
-  { id: "jobs", label: "Job Board", icon: <Wrench className="w-4 h-4" /> },
-  { id: "inspections", label: "Inspections", icon: <ClipboardList className="w-4 h-4" /> },
-  { id: "loyalty", label: "Loyalty", icon: <Trophy className="w-4 h-4" /> },
-  { id: "followups", label: "Follow-Ups", icon: <Send className="w-4 h-4" /> },
-  { id: "sms", label: "SMS", icon: <Phone className="w-4 h-4" /> },
-  { id: "reviewRequests", label: "Reviews", icon: <Star className="w-4 h-4" /> },
-  { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
-  { id: "winback", label: "Win-Back", icon: <RotateCcw className="w-4 h-4" /> },
+export type NavGroup = { label: string; items: { id: AdminSection; label: string; icon: React.ReactNode; badge?: string }[] };
+
+export const NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Dashboard",
+    items: [
+      { id: "overview", label: "Overview", icon: <LayoutDashboard className="w-4 h-4" /> },
+      { id: "health", label: "Site Health", icon: <Globe className="w-4 h-4" /> },
+    ],
+  },
+  {
+    label: "Sales Pipeline",
+    items: [
+      { id: "bookings", label: "Bookings", icon: <CalendarClock className="w-4 h-4" />, badge: "bookings" },
+      { id: "leads", label: "Leads / CRM", icon: <Users className="w-4 h-4" />, badge: "leads" },
+      { id: "chats", label: "Chat Sessions", icon: <MessageSquare className="w-4 h-4" /> },
+    ],
+  },
+  {
+    label: "Customers & SMS",
+    items: [
+      { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
+      { id: "sms", label: "SMS", icon: <Phone className="w-4 h-4" /> },
+      { id: "winback", label: "Win-Back", icon: <RotateCcw className="w-4 h-4" /> },
+      { id: "autoFollowUp", label: "Auto Follow-Up", icon: <Timer className="w-4 h-4" /> },
+      { id: "followups", label: "Follow-Ups", icon: <Send className="w-4 h-4" /> },
+    ],
+  },
+  {
+    label: "Marketing",
+    items: [
+      { id: "content", label: "Content", icon: <FileText className="w-4 h-4" /> },
+      { id: "coupons", label: "Coupons", icon: <Star className="w-4 h-4" /> },
+      { id: "referrals", label: "Referrals", icon: <Gift className="w-4 h-4" /> },
+      { id: "reviewRequests", label: "Reviews", icon: <Star className="w-4 h-4" /> },
+    ],
+  },
+  {
+    label: "Operations",
+    items: [
+      { id: "inspections", label: "Inspections", icon: <ClipboardList className="w-4 h-4" /> },
+      { id: "loyalty", label: "Loyalty", icon: <Trophy className="w-4 h-4" /> },
+      { id: "qa", label: "Q&A", icon: <MessageSquare className="w-4 h-4" /> },
+      { id: "jobs", label: "Job Board", icon: <Wrench className="w-4 h-4" /> },
+    ],
+  },
 ];
+
+// Flat list for backward compatibility
+export const NAV_ITEMS = NAV_GROUPS.flatMap(g => g.items);
 
 export const SECTION_TITLES: Record<AdminSection, string> = {
   overview: "Dashboard Overview",
@@ -76,6 +107,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   reviewRequests: "Review Requests",
   customers: "Customer Database",
   winback: "Win-Back Campaigns",
+  autoFollowUp: "Automated Follow-Ups",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────

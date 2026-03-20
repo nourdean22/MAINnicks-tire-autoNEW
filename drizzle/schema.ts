@@ -759,6 +759,8 @@ export const customers = mysqlTable("customers", {
   /** Whether this customer was sent the March 2026 SMS campaign */
   smsCampaignSent: int("smsCampaignSent").default(0).notNull(),
   smsCampaignDate: timestamp("smsCampaignDate"),
+  /** Admin notes for internal tracking */
+  notes: text("notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

@@ -12,7 +12,7 @@ import {
   Loader2, Shield, XCircle, ArrowLeft, Menu, X, Sparkles,
 } from "lucide-react";
 import {
-  AdminSection, NAV_ITEMS, SECTION_TITLES,
+  AdminSection, NAV_ITEMS, NAV_GROUPS, SECTION_TITLES,
 } from "./admin/shared";
 
 // Lazy-load each section for code splitting
@@ -33,6 +33,7 @@ const SmsSection = lazy(() => import("./admin/SmsSection"));
 const ReviewRequestsSection = lazy(() => import("./admin/ReviewRequestsSection"));
 const CustomersSection = lazy(() => import("./admin/CustomersSection"));
 const WinBackSection = lazy(() => import("./admin/WinBackSection"));
+const AutoFollowUpSection = lazy(() => import("./admin/AutoFollowUpSection"));
 
 function SectionSpinner() {
   return (
@@ -62,6 +63,7 @@ function SectionContent({ section }: { section: AdminSection }) {
       {section === "reviewRequests" && <ReviewRequestsSection />}
       {section === "customers" && <CustomersSection />}
       {section === "winback" && <WinBackSection />}
+      {section === "autoFollowUp" && <AutoFollowUpSection />}
     </Suspense>
   );
 }
@@ -150,34 +152,41 @@ export default function Admin() {
           </div>
         </div>
 
-        {/* Nav Items */}
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {NAV_ITEMS.map(item => {
-            const isActive = section === item.id;
-            let badge = 0;
-            if (item.id === "bookings") badge = newBookings;
-            if (item.id === "leads") badge = urgentLeads + newLeads;
+        {/* Nav Items — Grouped */}
+        <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
+          {NAV_GROUPS.map(group => (
+            <div key={group.label}>
+              <span className="font-mono text-[9px] text-foreground/30 tracking-[0.2em] uppercase px-3 mb-1 block">{group.label}</span>
+              <div className="space-y-0.5">
+                {group.items.map(item => {
+                  const isActive = section === item.id;
+                  let badge = 0;
+                  if (item.id === "bookings") badge = newBookings;
+                  if (item.id === "leads") badge = urgentLeads + newLeads;
 
-            return (
-              <button
-                key={item.id}
-                onClick={() => { setSection(item.id); setSidebarOpen(false); }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 transition-colors ${
-                  isActive
-                    ? "bg-primary/10 text-primary border-l-2 border-primary"
-                    : "text-foreground/60 hover:text-foreground hover:bg-foreground/5 border-l-2 border-transparent"
-                }`}
-              >
-                {item.icon}
-                <span className="font-heading font-bold text-xs tracking-wider uppercase flex-1 text-left">{item.label}</span>
-                {badge > 0 && (
-                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${
-                    item.id === "leads" ? "bg-red-500 text-white" : "bg-blue-500 text-white"
-                  }`}>{badge}</span>
-                )}
-              </button>
-            );
-          })}
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => { setSection(item.id); setSidebarOpen(false); }}
+                      className={`w-full flex items-center gap-3 px-3 py-2 transition-colors ${
+                        isActive
+                          ? "bg-primary/10 text-primary border-l-2 border-primary"
+                          : "text-foreground/60 hover:text-foreground hover:bg-foreground/5 border-l-2 border-transparent"
+                      }`}
+                    >
+                      {item.icon}
+                      <span className="font-heading font-bold text-xs tracking-wider uppercase flex-1 text-left">{item.label}</span>
+                      {badge > 0 && (
+                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${
+                          item.id === "leads" ? "bg-red-500 text-white" : "bg-blue-500 text-white"
+                        }`}>{badge}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         {/* Sidebar Footer */}
