@@ -229,14 +229,19 @@ export default function ReviewsPage() {
                 {/* Rating Summary Card */}
                 <div className="bg-card/80 border border-primary/20 rounded-lg p-6 lg:p-8 text-center shrink-0">
                   <div className="font-semibold font-bold text-6xl text-primary leading-none">
-                    {reviewData?.rating || "4.9"}
+                    {reviewData?.rating ?? 4.9}
                   </div>
                   <div className="flex justify-center mt-2">
-                    <StarRating rating={Math.round(reviewData?.rating || 4.9)} size="lg" />
+                    <StarRating rating={Math.round(reviewData?.rating ?? 4.9)} size="lg" />
                   </div>
                   <p className="text-[13px] text-foreground/60 mt-2">
-                    {(reviewData?.totalReviews || 1685).toLocaleString()}+ Reviews
+                    {(reviewData?.totalReviews ?? 1685).toLocaleString()}+ Reviews
                   </p>
+                  {reviewData?.lastUpdated && (
+                    <p className="text-[11px] text-foreground/40 mt-2">
+                      Updated {new Date(reviewData.lastUpdated).toLocaleDateString()}
+                    </p>
+                  )}
                   <a
                     href={GBP_PLACE_URL}
                     target="_blank"
@@ -423,8 +428,8 @@ export default function ReviewsPage() {
             <FadeIn>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
-                  { value: "4.9", label: "Google Rating", icon: <Star className="w-6 h-6" /> },
-                  { value: `${((reviewData?.totalReviews || 1685) / 1000).toFixed(1)}K+`, label: "Total Reviews", icon: <MessageSquare className="w-6 h-6" /> },
+                  { value: reviewData?.rating?.toFixed(1) ?? "4.9", label: "Google Rating", icon: <Star className="w-6 h-6" /> },
+                  { value: `${((reviewData?.totalReviews ?? 1685) / 1000).toFixed(1)}K+`, label: "Total Reviews", icon: <MessageSquare className="w-6 h-6" /> },
                   { value: "Same Day", label: "Most Repairs", icon: <ThumbsUp className="w-6 h-6" /> },
                   { value: "Since '18", label: "Serving Cleveland", icon: <MapPin className="w-6 h-6" /> },
                 ].map((stat, _i) => (

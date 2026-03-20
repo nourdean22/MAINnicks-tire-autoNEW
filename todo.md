@@ -1303,6 +1303,7 @@
 ### Google Business Profile Integration
 - [x] Verify GBP API access and review data sync — live reviews pulling from GBP
 - [x] Ensure live review count pulls into website dynamically — BUSINESS.reviews.count centralized
+- [x] Fix live reviews display on ReviewsPage (nullish coalescing, update timestamp) — 1,686 reviews now showing live
 - [ ] Check GBP categories, attributes, and service areas are optimized
 - [ ] Verify GBP posts are being created from content system
 
