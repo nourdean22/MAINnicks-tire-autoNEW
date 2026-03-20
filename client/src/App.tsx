@@ -45,6 +45,7 @@ const CarCareGuidePage = lazy(() => import("./pages/CarCareGuidePage"));
 const ReviewPage = lazy(() => import("./pages/ReviewPage"));
 const StatusTracker = lazy(() => import("./pages/StatusTracker"));
 const PriceEstimator = lazy(() => import("./pages/PriceEstimator"));
+const LaborEstimator = lazy(() => import("./pages/LaborEstimator"));
 const InspectionReport = lazy(() => import("./pages/InspectionReport"));
 const Fleet = lazy(() => import("./pages/Fleet"));
 const Financing = lazy(() => import("./pages/Financing"));
@@ -137,6 +138,7 @@ function Router() {
         <Route path={"/status"} component={StatusTracker} />
         {/* Price Estimator */}
         <Route path={"/pricing"} component={PriceEstimator} />
+        <Route path={"/estimate"} component={LaborEstimator} />
         {/* Digital Inspection Reports */}
         <Route path={"/inspection/:token"} component={InspectionReport} />
         {/* Fleet & Commercial */}

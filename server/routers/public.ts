@@ -7,6 +7,7 @@ import { getGoogleReviews } from "../google-reviews";
 import { getInstagramPosts, getInstagramAccount } from "../instagram";
 import { keywordSearch, aiSearch } from "../search";
 import { runDiagnosis } from "../diagnose";
+import { generateLaborEstimate } from "../laborEstimate";
 import { z } from "zod";
 import { sanitizeText } from "../sanitize";
 
@@ -46,6 +47,29 @@ export const searchRouter = router({
     .input(z.object({ query: z.string().min(2).max(500) }))
     .mutation(async ({ input }) => {
       return aiSearch(sanitizeText(input.query));
+    }),
+});
+
+export const laborEstimateRouter = router({
+  generate: publicProcedure
+    .input(
+      z.object({
+        year: z.string().min(4).max(4),
+        make: z.string().min(1).max(50),
+        model: z.string().min(1).max(50),
+        mileage: z.string().optional(),
+        repairDescription: z.string().min(3).max(1000),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const sanitized = {
+        year: sanitizeText(input.year) || input.year,
+        make: sanitizeText(input.make) || input.make,
+        model: sanitizeText(input.model) || input.model,
+        mileage: sanitizeText(input.mileage),
+        repairDescription: sanitizeText(input.repairDescription) || input.repairDescription,
+      };
+      return generateLaborEstimate(sanitized);
     }),
 });
 

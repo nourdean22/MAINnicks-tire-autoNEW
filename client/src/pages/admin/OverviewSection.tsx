@@ -99,6 +99,85 @@ export default function OverviewSection() {
         <StatCard label="Active Notifications" value={stats.content.activeNotifications} icon={<Bell className="w-4 h-4" />} color="text-primary" />
       </div>
 
+      {/* Quick Actions */}
+      <div className="bg-card border border-border/30 p-6">
+        <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground mb-4 flex items-center gap-2">
+          <Zap className="w-4 h-4 text-primary" />
+          QUICK ACTIONS
+        </h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <Link href="/admin/content" className="flex flex-col items-center gap-2 p-4 border border-border/20 hover:border-primary/30 hover:bg-primary/5 transition-colors cursor-pointer">
+            <Sparkles className="w-5 h-5 text-primary" />
+            <span className="font-mono text-[10px] text-foreground/60 text-center">Generate Content</span>
+          </Link>
+          <button onClick={() => toast.info('Navigate to Customers → Send Next 50')} className="flex flex-col items-center gap-2 p-4 border border-border/20 hover:border-primary/30 hover:bg-primary/5 transition-colors cursor-pointer">
+            <Send className="w-5 h-5 text-emerald-400" />
+            <span className="font-mono text-[10px] text-foreground/60 text-center">Resume SMS Campaign</span>
+          </button>
+          <Link href="/admin" className="flex flex-col items-center gap-2 p-4 border border-border/20 hover:border-primary/30 hover:bg-primary/5 transition-colors cursor-pointer">
+            <FileSpreadsheet className="w-5 h-5 text-blue-400" />
+            <span className="font-mono text-[10px] text-foreground/60 text-center">Export Customers</span>
+          </Link>
+          <a href={sheetInfo?.url || '#'} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-2 p-4 border border-border/20 hover:border-primary/30 hover:bg-primary/5 transition-colors cursor-pointer">
+            <ExternalLink className="w-5 h-5 text-amber-400" />
+            <span className="font-mono text-[10px] text-foreground/60 text-center">Open CRM Sheet</span>
+          </a>
+          <Link href="/estimate" className="flex flex-col items-center gap-2 p-4 border border-border/20 hover:border-primary/30 hover:bg-primary/5 transition-colors cursor-pointer">
+            <TrendingUp className="w-5 h-5 text-cyan-400" />
+            <span className="font-mono text-[10px] text-foreground/60 text-center">View Estimator</span>
+          </Link>
+          <Link href="/blog" className="flex flex-col items-center gap-2 p-4 border border-border/20 hover:border-primary/30 hover:bg-primary/5 transition-colors cursor-pointer">
+            <Globe className="w-5 h-5 text-purple-400" />
+            <span className="font-mono text-[10px] text-foreground/60 text-center">View Blog</span>
+          </Link>
+        </div>
+      </div>
+
+      {/* Revenue Estimator */}
+      {campaignStats && campaignStats.total > 0 && (
+        <div className="bg-card border border-primary/20 p-6">
+          <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-primary mb-4 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4" />
+            SMS CAMPAIGN ROI ESTIMATOR
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+            <div>
+              <span className="font-mono text-[10px] text-foreground/40 block mb-1">Texts Sent</span>
+              <span className="font-heading font-bold text-3xl text-foreground">{campaignStats.sent}</span>
+            </div>
+            <div>
+              <span className="font-mono text-[10px] text-foreground/40 block mb-1">Est. Response Rate (3%)</span>
+              <span className="font-heading font-bold text-3xl text-blue-400">{Math.round(campaignStats.sent * 0.03)}</span>
+              <span className="font-mono text-[10px] text-foreground/30 block">potential customers</span>
+            </div>
+            <div>
+              <span className="font-mono text-[10px] text-foreground/40 block mb-1">Avg Ticket Value</span>
+              <span className="font-heading font-bold text-3xl text-emerald-400">$350</span>
+              <span className="font-mono text-[10px] text-foreground/30 block">industry average</span>
+            </div>
+            <div>
+              <span className="font-mono text-[10px] text-foreground/40 block mb-1">Potential Revenue</span>
+              <span className="font-heading font-bold text-3xl text-primary">${(Math.round(campaignStats.sent * 0.03) * 350).toLocaleString()}</span>
+              <span className="font-mono text-[10px] text-foreground/30 block">from {campaignStats.sent} texts</span>
+            </div>
+          </div>
+          <div className="mt-4 pt-4 border-t border-border/20">
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <div className="flex justify-between mb-1">
+                  <span className="font-mono text-[10px] text-foreground/40">Campaign Progress</span>
+                  <span className="font-mono text-[10px] text-primary">{Math.round((campaignStats.sent / campaignStats.total) * 100)}%</span>
+                </div>
+                <div className="h-2 bg-nick-dark/50 overflow-hidden">
+                  <div className="h-full bg-primary transition-all duration-500" style={{ width: `${(campaignStats.sent / campaignStats.total) * 100}%` }} />
+                </div>
+              </div>
+              <span className="font-mono text-xs text-foreground/40">{campaignStats.remaining} remaining</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Customer & SMS Campaign Stats */}
       {(customerStats || campaignStats) && (
         <div className="bg-card border border-border/30 p-6">

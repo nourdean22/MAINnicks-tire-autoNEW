@@ -20,6 +20,7 @@ import {
   instagramRouter,
   searchRouter,
   diagnoseRouter,
+  laborEstimateRouter,
   couponsRouter,
   garageRouter,
   referralsRouter,
@@ -36,6 +37,7 @@ import {
   techniciansRouter,
   customersRouter,
   winbackRouter,
+  shopdriverRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -55,6 +57,7 @@ export const appRouter = router({
   instagram: instagramRouter,
   search: searchRouter,
   diagnose: diagnoseRouter,
+  laborEstimate: laborEstimateRouter,
   content: contentRouter,
 
   // Customer-facing features
@@ -85,6 +88,7 @@ export const appRouter = router({
   technicians: techniciansRouter,
   customers: customersRouter,
   winback: winbackRouter,
+  shopdriver: shopdriverRouter,
 });
 
 export type AppRouter = typeof appRouter;

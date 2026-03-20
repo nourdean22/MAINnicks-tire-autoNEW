@@ -6,11 +6,12 @@ import {
   CheckCircle2, XCircle, Loader2, AlertTriangle,
   Phone, Mail, MessageSquare, CalendarClock, Users,
   LayoutDashboard, FileText, Globe, Wrench, Gauge,
-  ClipboardList, Trophy, Gift, Send, Star, UserCheck, RotateCcw, Timer
+  ClipboardList, Trophy, Gift, Send, Star, UserCheck, RotateCcw, Timer,
+  Settings, Upload, DollarSign, Activity
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "autoFollowUp";
+export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "closed" | "lost";
 
@@ -84,6 +85,15 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "jobs", label: "Job Board", icon: <Wrench className="w-4 h-4" /> },
     ],
   },
+  {
+    label: "System",
+    items: [
+      { id: "shopdriver", label: "ShopDriver Sync", icon: <Upload className="w-4 h-4" /> },
+      { id: "estimates", label: "Estimate Log", icon: <DollarSign className="w-4 h-4" /> },
+      { id: "activity", label: "Activity Feed", icon: <Activity className="w-4 h-4" /> },
+      { id: "settings", label: "Shop Settings", icon: <Settings className="w-4 h-4" /> },
+    ],
+  },
 ];
 
 // Flat list for backward compatibility
@@ -108,6 +118,10 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   customers: "Customer Database",
   winback: "Win-Back Campaigns",
   autoFollowUp: "Automated Follow-Ups",
+  settings: "Shop Settings",
+  shopdriver: "ShopDriver Sync",
+  estimates: "Estimate Log",
+  activity: "Activity Feed",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────

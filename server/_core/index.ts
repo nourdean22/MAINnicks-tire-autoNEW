@@ -90,6 +90,7 @@ async function startServer() {
   app.use("/api/trpc/public.diagnose", aiLimiter);
   app.use("/api/trpc/public.askMechanic", aiLimiter);
   app.use("/api/trpc/public.aiSearch", aiLimiter);
+  app.use("/api/trpc/laborEstimate.generate", aiLimiter);
 
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
@@ -137,6 +138,9 @@ async function startServer() {
       { path: "/suspension-repair-cleveland", priority: "0.8", changefreq: "monthly" },
       { path: "/ac-repair-cleveland", priority: "0.8", changefreq: "monthly" },
       { path: "/diagnostics-cleveland", priority: "0.8", changefreq: "monthly" },
+      { path: "/tire-shop-cleveland", priority: "0.8", changefreq: "monthly" },
+      { path: "/oil-change-cleveland", priority: "0.8", changefreq: "monthly" },
+      { path: "/echeck-repair-cleveland", priority: "0.8", changefreq: "monthly" },
       // Vehicle make pages
       { path: "/toyota-repair-cleveland", priority: "0.7", changefreq: "monthly" },
       { path: "/honda-repair-cleveland", priority: "0.7", changefreq: "monthly" },
@@ -175,6 +179,8 @@ async function startServer() {
       { path: "/diagnose", priority: "0.7", changefreq: "monthly" },
       { path: "/specials", priority: "0.7", changefreq: "weekly" },
       { path: "/pricing", priority: "0.7", changefreq: "monthly" },
+      { path: "/estimate", priority: "0.8", changefreq: "monthly" },
+      { path: "/book", priority: "0.9", changefreq: "monthly" },
       { path: "/fleet", priority: "0.7", changefreq: "monthly" },
       { path: "/financing", priority: "0.7", changefreq: "monthly" },
       { path: "/rewards", priority: "0.6", changefreq: "monthly" },

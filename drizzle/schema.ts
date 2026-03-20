@@ -819,3 +819,56 @@ export const winbackSends = mysqlTable("winback_sends", {
 });
 
 export type WinbackSend = typeof winbackSends.$inferSelect;
+
+// ─── SHOP SETTINGS ──────────────────────────────────────
+/**
+ * Key-value store for dynamic shop settings.
+ * Allows admin to update labor rate, shop info, etc. without code changes.
+ * Auto-syncs with ShopDriver Elite when CSV is imported.
+ */
+export const shopSettings = mysqlTable("shop_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Setting key (e.g. "laborRate", "shopName", "taxRate") */
+  key: varchar("key", { length: 100 }).notNull().unique(),
+  /** Setting value (stored as string, parsed by consumer) */
+  value: text("value").notNull(),
+  /** Human-readable label */
+  label: varchar("label", { length: 255 }),
+  /** Category for grouping in admin UI */
+  category: mysqlEnum("category", ["pricing", "contact", "hours", "sms", "general"]).default("general").notNull(),
+  /** Last updated by (user or "system" for auto-sync) */
+  updatedBy: varchar("updatedBy", { length: 100 }).default("system").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ShopSetting = typeof shopSettings.$inferSelect;
+export type InsertShopSetting = typeof shopSettings.$inferInsert;
+
+// ─── CUSTOMER IMPORT LOG ────────────────────────────────
+/**
+ * Tracks CSV import history from ShopDriver Elite.
+ */
+export const customerImportLog = mysqlTable("customer_import_log", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Number of rows in the CSV */
+  totalRows: int("totalRows").default(0).notNull(),
+  /** New customers added */
+  newCustomers: int("newCustomers").default(0).notNull(),
+  /** Existing customers updated */
+  updatedCustomers: int("updatedCustomers").default(0).notNull(),
+  /** Rows skipped (invalid data) */
+  skippedRows: int("skippedRows").default(0).notNull(),
+  /** Import source */
+  source: varchar("source", { length: 100 }).default("shopdriver_csv").notNull(),
+  /** Status */
+  status: mysqlEnum("status", ["processing", "completed", "failed"]).default("processing").notNull(),
+  /** Error message if failed */
+  errorMessage: text("errorMessage"),
+  /** Who triggered the import */
+  importedBy: varchar("importedBy", { length: 100 }).default("admin").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CustomerImportLog = typeof customerImportLog.$inferSelect;
+export type InsertCustomerImportLog = typeof customerImportLog.$inferInsert;

@@ -47,6 +47,9 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
         </div>
 
         <div className="hidden lg:flex items-center gap-4">
+          <Link href="/estimate" className="text-sm font-medium text-nick-teal hover:text-nick-teal/80 transition-colors">
+            Get Estimate
+          </Link>
           <Link href="/diagnose" className="text-sm font-medium text-nick-yellow hover:text-nick-gold transition-colors">
             Diagnose My Car
           </Link>
@@ -73,6 +76,9 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
                 {l.label}
               </Link>
             ))}
+            <Link href="/estimate" onClick={() => setMobileOpen(false)} className="text-2xl font-semibold text-nick-teal tracking-tight">
+              Get Estimate
+            </Link>
             <Link href="/diagnose" onClick={() => setMobileOpen(false)} className="text-2xl font-semibold text-nick-yellow tracking-tight">
               Diagnose My Car
             </Link>

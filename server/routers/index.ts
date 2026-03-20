@@ -7,7 +7,7 @@ export { leadRouter } from "./lead";
 export { chatRouter } from "./chat";
 export { contentRouter, contentAdminRouter } from "./content";
 export { adminDashboardRouter, analyticsRouter, followUpsRouter, weeklyReportRouter } from "./admin";
-export { weatherRouter, reviewsRouter, instagramRouter, searchRouter, diagnoseRouter } from "./public";
+export { weatherRouter, reviewsRouter, instagramRouter, searchRouter, diagnoseRouter, laborEstimateRouter } from "./public";
 export {
   couponsRouter,
   garageRouter,
@@ -26,3 +26,4 @@ export { galleryRouter } from "./gallery";
 export { techniciansRouter } from "./technicians";
 export { customersRouter } from "./customers";
 export { winbackRouter } from "./winback";
+export { shopdriverRouter } from "./shopdriver";

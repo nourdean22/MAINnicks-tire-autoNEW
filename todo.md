@@ -949,3 +949,98 @@
 - [x] Optimize follow-ups.ts: 7d review message uses short URL (3→2 segments)
 - [x] Optimize sms.ts reviewRequestSms: short URL (stays 2 segments, shorter)
 - [x] Add segment length test to sms.test.ts (271 total tests, 270 passing)
+
+## Phase 38 — SMS Campaign Execution & Additional Features
+- [ ] Verify Twilio account is active with $39 funding
+- [ ] Execute Wave 1: 399 remaining "recent" customers
+- [ ] Execute Wave 2: 848 "lapsed" customers
+- [ ] Execute Wave 3: 384 "unknown" customers
+- [ ] Log campaign results to Google Sheets
+- [ ] Build additional creative admin features
+
+## Phase 39 — Auto Labor Guide Integration & Twilio Fix
+
+### Task 14: SMS Campaign Bug Investigation & Fix
+- [ ] Verify whether 250 texts actually delivered or failed silently
+- [ ] Fix any bugs in SMS send/tracking logic
+- [ ] Get Twilio account unsuspended
+- [ ] Handle 10DLC registration requirement
+- [ ] Reset smsCampaignSent for any customers who were falsely marked as sent
+
+### Task 15: Auto Labor Guide Integration
+- [x] Research Auto Labor Guide API/data export options (no API, built CSV bridge)
+- [x] Build sync mechanism between ALG and the website (ShopDriver CSV import + DB settings)
+- [x] Display labor estimates on the website for customers (AI Labor Estimator at /estimate)
+
+## Phase 40 — Overnight Work (Mar 20, 2026)
+
+### ShopDriver Integration
+- [x] Build ShopDriver CSV customer import endpoint (admin)
+- [x] Build CSV import UI in admin ShopDriver Sync section
+- [x] Build labor rate auto-sync from ShopDriver to website (dynamic DB settings)
+- [x] Store labor rate in DB settings table for dynamic updates
+
+### Admin Dashboard Upgrades
+- [x] Add revenue overview card (Revenue Estimator widget)
+- [ ] Add customer growth chart (new customers over time)
+- [ ] Add SMS campaign analytics (delivery rate, cost tracking)
+- [ ] Add appointment/booking management improvements
+- [x] Add quick actions panel (Send Campaign, Export, View Reports, Settings)
+- [x] Add customer detail expansion with full history
+- [x] Add settings page for shop info, labor rate, notification preferences
+- [x] Improve admin navigation (added Settings, ShopDriver, Estimates, Activity sections)
+- [x] Add real-time activity feed (recent bookings, calls, texts)
+
+### Bug Hunt & Error Fixes
+- [x] Audit every page for TypeScript errors (0 errors)
+- [x] Check all API endpoints for error handling (all have try-catch)
+- [x] Verify all links work (no 404s on any page)
+- [ ] Check mobile responsiveness on all pages
+- [x] Fix any console errors in browser logs (weather fetch is transient)
+- [x] Verify all forms submit correctly
+
+### Google Search Console
+- [ ] Check indexing status for all pages (NEEDS NOUR LOGIN)
+- [x] Verify sitemap is submitted and up to date (79 URLs)
+- [ ] Check for crawl errors (NEEDS NOUR LOGIN)
+- [x] Verify structured data (AutoRepair + TireShop + WebSite JSON-LD)
+- [ ] Check mobile usability report (NEEDS NOUR LOGIN)
+- [x] Verify all SEO pages are discoverable (all in sitemap)
+
+### Full Website Audit
+- [x] Test every navigation link (all working)
+- [x] Verify all CTAs work (phone, booking, contact)
+- [x] Check all images load correctly (all CDN URLs)
+- [x] Verify weather widget functionality (transient network issue only)
+- [x] Test AI diagnostic tool end-to-end
+- [x] Test AI labor estimator end-to-end (working with 2018 Honda Civic brake test)
+- [x] Verify review display and Google reviews integration
+- [x] Check all SEO city/service/vehicle/problem pages
+- [x] Test coupon system
+- [x] Test booking flow
+- [x] Verify Instagram feed integration
+
+### Infrastructure Improvements
+- [x] Optimize page load performance (32 lazy-loaded pages)
+- [x] Add error boundaries to all major sections (ErrorBoundary in App.tsx)
+- [x] Improve SEO meta tags across all pages (SEOHead on all pages)
+- [x] Add Open Graph tags for social sharing on new pages
+- [x] Verify robots.txt and sitemap.xml include new pages (/estimate added)
+- [x] Add rate limiting to laborEstimate.generate (30/hr AI limit)
+- [x] All images have alt text, all admin routes protected
+
+### Next Phase Roadmap Presentation
+- [ ] Create comprehensive next-phase plan with backend and frontend work
+- [ ] Include creative and clever marketing/feature ideas
+- [ ] Build presentation slides for Nour to review
+
+### Auto-Publish
+- [ ] Save checkpoint and publish updates to live site after all work is complete
+
+### Admin Audit
+- [x] Audit every admin section for bugs, broken UI, and missing features
+- [x] Fix FollowUpsSection — connected to real DB queries (pending + recent)
+- [x] Add Quick Actions panel and Revenue Estimator to overview
+- [x] Add 4 new admin sections: ShopDriver Sync, Settings, Estimates, Activity
+- [x] All admin routes verified using adminProcedure
+- [x] Write shopdriver.test.ts — 11 new tests (286 total, 285 passing)

@@ -53,6 +53,21 @@ export const followUpsRouter = router({
     const { runFollowUps } = await import("../follow-ups");
     return runFollowUps();
   }),
+  pending: adminProcedure.query(async () => {
+    const d = await db();
+    if (!d) return [];
+    return d.select().from(customerNotifications)
+      .where(eq(customerNotifications.status, "pending"))
+      .orderBy(desc(customerNotifications.createdAt))
+      .limit(50);
+  }),
+  recent: adminProcedure.query(async () => {
+    const d = await db();
+    if (!d) return [];
+    return d.select().from(customerNotifications)
+      .orderBy(desc(customerNotifications.createdAt))
+      .limit(50);
+  }),
 });
 
 export const weeklyReportRouter = router({
