@@ -1,0 +1,20 @@
+{
+  "query": "\nSELECT id, firstName, lastName, phone, phone2, lastVisitDate, totalVisits, segment \nFROM customers \nWHERE LENGTH(REPLACE(REPLACE(REPLACE(REPLACE(phone, '(', ''), ')', ''), '-', ''), ' ', '')) < 10\nLIMIT 5;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute \nSELECT id, firstName, lastName, phone, phone2, lastVisitDate, totalVisits, segment \nFROM customers \nWHERE LENGTH(REPLACE(REPLACE(REPLACE(REPLACE(phone, '(', ''), ')', ''), '-', ''), ' ', '')) < 10\nLIMIT 5;\n",
+  "rows": [
+    {
+      "id": "1129",
+      "firstName": "Tajuana",
+      "lastName": "Cambell",
+      "phone": "(12) 345-6789",
+      "phone2": "NULL",
+      "lastVisitDate": "2024-11-27 00:00:00",
+      "totalVisits": "2",
+      "segment": "unknown"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tfirstName\tlastName\tphone\tphone2\tlastVisitDate\ttotalVisits\tsegment\n1129\tTajuana\tCambell\t(12) 345-6789\tNULL\t2024-11-27 00:00:00\t2\tunknown\n",
+  "stderr": "",
+  "execution_time_ms": 59
+}

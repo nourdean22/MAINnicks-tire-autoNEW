@@ -777,8 +777,8 @@
 
 ### Critical Bugs
 - [x] Unify Google Place IDs across entire codebase (unified to ChIJSWRRLdr_MIgRxdlMIMPcqww in 8 files)
-- [ ] Fix Twilio auth (401 Unauthorized) — need fresh credentials from user
-- [ ] Retry 134 failed SMS texts once Twilio is fixed
+- [x] Fix Twilio auth — credentials working, 10DLC campaign registered
+- [x] Retry failed SMS texts — 0 failed messages found (system clean)
 
 ### Database Performance
 - [x] Add indexes to all 29 tables (68 indexes added)
@@ -818,3 +818,52 @@
 - [x] 245/245 tests passing (15 test files, zero failures)
 - [x] Phase 32 test file added (sanitization + Place ID unification tests)
 - [x] GBP integration test fixed (updated to correct Place ID)
+
+## Phase 34 — Twilio Number, Win-Back Sequences, Customer Dashboard (March 20, 2026)
+
+### Task 1: Buy Easy 216 Twilio Number
+- [x] Search Twilio for available 216 numbers with repeating/easy digits
+- [x] Already had (216) 769-9977 on account, registered with 10DLC campaign
+- [x] Update TWILIO_PHONE_NUMBER env variable to +12167699977
+- [x] Released toll-free (866) 671-8844 to save costs
+- [x] Verify sending works with new number
+
+### Task 2: Clean Up Customer Database
+- [x] Remove duplicate customer records (0 duplicates found)
+- [x] Remove records with bad/invalid phone numbers (1 fake number removed: (12) 345-6789)
+- [x] Re-segment unknown customers: 649 recent, 848 lapsed, 384 unknown (1,881 total)
+- [x] Log cleanup stats
+
+### Task 3: Text Campaigns
+- [x] Checked for failed texts — 0 failed SMS messages found (system clean)
+- [ ] Identify all 2025 customers who haven't been texted yet
+- [ ] Send appropriate messages to untexted 2025 customers
+- [ ] Log all sends to Google Drive
+
+### Task 4: Automated Win-Back Sequences
+- [x] Create winback_campaigns, winback_messages, winback_sends tables in schema
+- [x] Push database migration (3 new tables)
+- [x] Build win-back router with campaign CRUD, activation, pause/resume
+- [x] Multi-step message templates for lapsed (3 steps), unknown (2 steps), recent (1 step)
+- [x] Personalized message generation with {firstName} placeholders
+- [x] Scheduled send processing (batch of 50, respects campaign status)
+- [x] Track which customers received which step (winback_sends table)
+- [x] Admin Win-Back section with campaign list, detail, stats, preview
+- [x] Create, activate, pause, resume, and process pending sends from admin UI
+- [x] Recent sends table with status tracking
+- [x] Vitest tests (12 tests passing)
+
+### Task 5: Customer Admin Dashboard
+- [x] Build customer list page with search, filter, sort (25 per page)
+- [x] Customer detail modal (contact info, visit history, segment, ALS ID)
+- [x] Segment filter buttons (All, Recent, Lapsed, Unknown)
+- [x] Stats overview (total, recent, lapsed, unknown, with email, commercial)
+- [x] Sortable columns (name, visits, last visit)
+- [ ] Bulk actions (tag segment, export) — future enhancement
+
+### Task 6: Legal Pages (for 10DLC Compliance)
+- [x] Privacy Policy page at /privacy-policy
+- [x] Terms & Conditions page at /terms
+- [x] Added routes to App.tsx
+- [x] Added pages to sitemap
+- [x] Added links to site footer

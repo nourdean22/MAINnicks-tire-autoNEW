@@ -1,0 +1,54 @@
+{
+  "query": "\nSELECT 'Total Customers' as metric, COUNT(*) as value FROM customers\nUNION ALL\nSELECT 'Recent Segment', COUNT(*) FROM customers WHERE segment = 'recent'\nUNION ALL\nSELECT 'Lapsed Segment', COUNT(*) FROM customers WHERE segment = 'lapsed'\nUNION ALL\nSELECT 'Unknown Segment', COUNT(*) FROM customers WHERE segment = 'unknown'\nUNION ALL\nSELECT 'New Segment', COUNT(*) FROM customers WHERE segment = 'new'\nUNION ALL\nSELECT 'With Email', COUNT(*) FROM customers WHERE email IS NOT NULL AND email != ''\nUNION ALL\nSELECT 'Commercial', COUNT(*) FROM customers WHERE customerType = 'commercial'\nUNION ALL\nSELECT 'SMS Campaign Sent', COUNT(*) FROM customers WHERE smsCampaignSent = 1\nUNION ALL\nSELECT 'With Balance Due', COUNT(*) FROM customers WHERE balanceDue > 0\nUNION ALL\nSELECT 'Invalid Phone (too short)', COUNT(*) FROM customers WHERE LENGTH(REPLACE(REPLACE(REPLACE(REPLACE(phone, '(', ''), ')', ''), '-', ''), ' ', '')) < 10\nUNION ALL\nSELECT 'Duplicate Phones', COUNT(*) - COUNT(DISTINCT phone) FROM customers\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute \nSELECT 'Total Customers' as metric, COUNT(*) as value FROM customers\nUNION ALL\nSELECT 'Recent Segment', COUNT(*) FROM customers WHERE segment = 'recent'\nUNION ALL\nSELECT 'Lapsed Segment', COUNT(*) FROM customers WHERE segment = 'lapsed'\nUNION ALL\nSELECT 'Unknown Segment', COUNT(*) FROM customers WHERE segment = 'unknown'\nUNION ALL\nSELECT 'New Segment', COUNT(*) FROM customers WHERE segment = 'new'\nUNION ALL\nSELECT 'With Email', COUNT(*) FROM customers WHERE email IS NOT NULL AND email != ''\nUNION ALL\nSELECT 'Commercial', COUNT(*) FROM customers WHERE customerType = 'commercial'\nUNION ALL\nSELECT 'SMS Campaign Sent', COUNT(*) FROM customers WHERE smsCampaignSent = 1\nUNION ALL\nSELECT 'With Balance Due', COUNT(*) FROM customers WHERE balanceDue > 0\nUNION ALL\nSELECT 'Invalid Phone (too short)', COUNT(*) FROM customers WHERE LENGTH(REPLACE(REPLACE(REPLACE(REPLACE(phone, '(', ''), ')', ''), '-', ''), ' ', '')) < 10\nUNION ALL\nSELECT 'Duplicate Phones', COUNT(*) - COUNT(DISTINCT phone) FROM customers\n",
+  "rows": [
+    {
+      "metric": "Total Customers",
+      "value": "1882"
+    },
+    {
+      "metric": "New Segment",
+      "value": "0"
+    },
+    {
+      "metric": "Lapsed Segment",
+      "value": "230"
+    },
+    {
+      "metric": "Recent Segment",
+      "value": "367"
+    },
+    {
+      "metric": "Unknown Segment",
+      "value": "1285"
+    },
+    {
+      "metric": "Commercial",
+      "value": "4"
+    },
+    {
+      "metric": "SMS Campaign Sent",
+      "value": "0"
+    },
+    {
+      "metric": "With Balance Due",
+      "value": "0"
+    },
+    {
+      "metric": "With Email",
+      "value": "19"
+    },
+    {
+      "metric": "Invalid Phone (too short)",
+      "value": "1"
+    },
+    {
+      "metric": "Duplicate Phones",
+      "value": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "metric\tvalue\nTotal Customers\t1882\nNew Segment\t0\nLapsed Segment\t230\nRecent Segment\t367\nUnknown Segment\t1285\nCommercial\t4\nSMS Campaign Sent\t0\nWith Balance Due\t0\nWith Email\t19\nInvalid Phone (too short)\t1\nDuplicate Phones\t0\n",
+  "stderr": "",
+  "execution_time_ms": 159
+}

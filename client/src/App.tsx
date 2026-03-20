@@ -50,6 +50,8 @@ const Fleet = lazy(() => import("./pages/Fleet"));
 const Financing = lazy(() => import("./pages/Financing"));
 const Loyalty = lazy(() => import("./pages/Loyalty"));
 const ServicesOverview = lazy(() => import("./pages/ServicesOverview"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const Terms = lazy(() => import("./pages/Terms"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 function Router() {
@@ -148,6 +150,9 @@ function Router() {
         {/* Blog / Tips */}
         <Route path={"/blog"} component={Blog} />
         <Route path={"/blog/:slug"} component={BlogPost} />
+        {/* Legal pages */}
+        <Route path={"/privacy-policy"} component={PrivacyPolicy} />
+        <Route path={"/terms"} component={Terms} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}
         <Route component={NotFound} />

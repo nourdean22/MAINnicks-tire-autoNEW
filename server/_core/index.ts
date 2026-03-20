@@ -170,6 +170,9 @@ async function startServer() {
       { path: "/ask", priority: "0.6", changefreq: "weekly" },
       { path: "/my-garage", priority: "0.5", changefreq: "monthly" },
       { path: "/review", priority: "0.6", changefreq: "monthly" },
+      // Legal pages
+      { path: "/privacy-policy", priority: "0.4", changefreq: "yearly" },
+      { path: "/terms", priority: "0.4", changefreq: "yearly" },
     ];
 
     const hardcodedBlogSlugs = [

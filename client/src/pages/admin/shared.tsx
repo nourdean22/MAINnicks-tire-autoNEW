@@ -6,11 +6,11 @@ import {
   CheckCircle2, XCircle, Loader2, AlertTriangle,
   Phone, Mail, MessageSquare, CalendarClock, Users,
   LayoutDashboard, FileText, Globe, Wrench, Gauge,
-  ClipboardList, Trophy, Gift, Send, Star
+  ClipboardList, Trophy, Gift, Send, Star, UserCheck, RotateCcw
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests";
+export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "closed" | "lost";
 
@@ -54,6 +54,8 @@ export const NAV_ITEMS: { id: AdminSection; label: string; icon: React.ReactNode
   { id: "followups", label: "Follow-Ups", icon: <Send className="w-4 h-4" /> },
   { id: "sms", label: "SMS", icon: <Phone className="w-4 h-4" /> },
   { id: "reviewRequests", label: "Reviews", icon: <Star className="w-4 h-4" /> },
+  { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
+  { id: "winback", label: "Win-Back", icon: <RotateCcw className="w-4 h-4" /> },
 ];
 
 export const SECTION_TITLES: Record<AdminSection, string> = {
@@ -72,6 +74,8 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   followups: "Follow-Up Manager",
   sms: "SMS Messaging",
   reviewRequests: "Review Requests",
+  customers: "Customer Database",
+  winback: "Win-Back Campaigns",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────

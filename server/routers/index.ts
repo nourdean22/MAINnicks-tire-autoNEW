@@ -25,3 +25,4 @@ export { smsConversationsRouter } from "./smsConversations";
 export { galleryRouter } from "./gallery";
 export { techniciansRouter } from "./technicians";
 export { customersRouter } from "./customers";
+export { winbackRouter } from "./winback";

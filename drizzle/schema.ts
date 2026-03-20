@@ -765,3 +765,55 @@ export const customers = mysqlTable("customers", {
 
 export type Customer = typeof customers.$inferSelect;
 export type InsertCustomer = typeof customers.$inferInsert;
+
+/**
+ * Win-back campaigns — automated SMS sequences to re-engage lapsed customers.
+ */
+export const winbackCampaigns = mysqlTable("winback_campaigns", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  targetSegment: mysqlEnum("targetSegment", ["lapsed", "unknown", "recent"]).notNull(),
+  targetCount: int("targetCount").default(0).notNull(),
+  sentCount: int("sentCount").default(0).notNull(),
+  status: mysqlEnum("status", ["draft", "active", "paused", "completed"]).default("draft").notNull(),
+  activatedAt: timestamp("activatedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type WinbackCampaign = typeof winbackCampaigns.$inferSelect;
+
+/**
+ * Individual message steps within a win-back campaign.
+ */
+export const winbackMessages = mysqlTable("winback_messages", {
+  id: int("id").autoincrement().primaryKey(),
+  campaignId: int("campaignId").notNull(),
+  step: int("step").notNull(),
+  delayDays: int("delayDays").default(0).notNull(),
+  body: text("body").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type WinbackMessage = typeof winbackMessages.$inferSelect;
+
+/**
+ * Individual send records — one per customer per message step.
+ */
+export const winbackSends = mysqlTable("winback_sends", {
+  id: int("id").autoincrement().primaryKey(),
+  campaignId: int("campaignId").notNull(),
+  customerId: int("customerId").notNull(),
+  messageId: int("messageId").notNull(),
+  step: int("step").notNull(),
+  phone: varchar("phone", { length: 30 }).notNull(),
+  personalizedBody: text("personalizedBody").notNull(),
+  scheduledAt: timestamp("scheduledAt").notNull(),
+  sentAt: timestamp("sentAt"),
+  status: mysqlEnum("status", ["pending", "sent", "failed"]).default("pending").notNull(),
+  twilioSid: varchar("twilioSid", { length: 100 }),
+  errorMessage: text("errorMessage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type WinbackSend = typeof winbackSends.$inferSelect;

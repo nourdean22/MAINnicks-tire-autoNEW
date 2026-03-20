@@ -1,0 +1,42 @@
+{
+  "query": "\nSELECT 'Failed Review Requests' as metric, COUNT(*) as value FROM review_requests WHERE status = 'failed'\nUNION ALL\nSELECT 'Pending Review Requests', COUNT(*) FROM review_requests WHERE status = 'pending'\nUNION ALL\nSELECT 'Sent Review Requests', COUNT(*) FROM review_requests WHERE status = 'sent'\nUNION ALL\nSELECT 'Total Review Requests', COUNT(*) FROM review_requests\nUNION ALL\nSELECT 'Failed SMS Messages', COUNT(*) FROM sms_messages WHERE status = 'failed'\nUNION ALL\nSELECT 'Total SMS Messages', COUNT(*) FROM sms_messages\nUNION ALL\nSELECT 'Failed Service Reminders', COUNT(*) FROM service_reminders WHERE errorMessage IS NOT NULL\nUNION ALL\nSELECT 'Total Service Reminders', COUNT(*) FROM service_reminders\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute \nSELECT 'Failed Review Requests' as metric, COUNT(*) as value FROM review_requests WHERE status = 'failed'\nUNION ALL\nSELECT 'Pending Review Requests', COUNT(*) FROM review_requests WHERE status = 'pending'\nUNION ALL\nSELECT 'Sent Review Requests', COUNT(*) FROM review_requests WHERE status = 'sent'\nUNION ALL\nSELECT 'Total Review Requests', COUNT(*) FROM review_requests\nUNION ALL\nSELECT 'Failed SMS Messages', COUNT(*) FROM sms_messages WHERE status = 'failed'\nUNION ALL\nSELECT 'Total SMS Messages', COUNT(*) FROM sms_messages\nUNION ALL\nSELECT 'Failed Service Reminders', COUNT(*) FROM service_reminders WHERE errorMessage IS NOT NULL\nUNION ALL\nSELECT 'Total Service Reminders', COUNT(*) FROM service_reminders\n",
+  "rows": [
+    {
+      "metric": "Failed SMS Messages",
+      "value": "0"
+    },
+    {
+      "metric": "Pending Review Requests",
+      "value": "0"
+    },
+    {
+      "metric": "Sent Review Requests",
+      "value": "1"
+    },
+    {
+      "metric": "Failed Review Requests",
+      "value": "0"
+    },
+    {
+      "metric": "Total Review Requests",
+      "value": "1"
+    },
+    {
+      "metric": "Failed Service Reminders",
+      "value": "0"
+    },
+    {
+      "metric": "Total Service Reminders",
+      "value": "0"
+    },
+    {
+      "metric": "Total SMS Messages",
+      "value": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "metric\tvalue\nFailed SMS Messages\t0\nPending Review Requests\t0\nSent Review Requests\t1\nFailed Review Requests\t0\nTotal Review Requests\t1\nFailed Service Reminders\t0\nTotal Service Reminders\t0\nTotal SMS Messages\t0\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}

@@ -75,9 +75,13 @@ export default function SiteFooter() {
           <p className="text-foreground/20 text-xs">
             &copy; {new Date().getFullYear()} Nick's Tire & Auto. All rights reserved.
           </p>
-          <a href={BUSINESS.phone.href} className="text-foreground/30 text-sm hover:text-foreground/50 transition-colors">
-            {BUSINESS.phone.display}
-          </a>
+          <div className="flex items-center gap-4">
+            <Link href="/privacy-policy" className="text-foreground/20 text-xs hover:text-foreground/40 transition-colors">Privacy Policy</Link>
+            <Link href="/terms" className="text-foreground/20 text-xs hover:text-foreground/40 transition-colors">Terms & Conditions</Link>
+            <a href={BUSINESS.phone.href} className="text-foreground/30 text-sm hover:text-foreground/50 transition-colors">
+              {BUSINESS.phone.display}
+            </a>
+          </div>
         </div>
       </div>
     </footer>

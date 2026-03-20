@@ -71,6 +71,13 @@
       "when": 1773965679083,
       "tag": "0009_smooth_the_executioner",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1773974062566,
+      "tag": "0010_lyrical_queen_noir",
+      "breakpoints": true
     }
   ]
 }

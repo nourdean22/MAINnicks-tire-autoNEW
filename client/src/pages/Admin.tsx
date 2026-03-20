@@ -31,6 +31,8 @@ const LoyaltyAdminSection = lazy(() => import("./admin/LoyaltyAdminSection"));
 const FollowUpsSection = lazy(() => import("./admin/FollowUpsSection"));
 const SmsSection = lazy(() => import("./admin/SmsSection"));
 const ReviewRequestsSection = lazy(() => import("./admin/ReviewRequestsSection"));
+const CustomersSection = lazy(() => import("./admin/CustomersSection"));
+const WinBackSection = lazy(() => import("./admin/WinBackSection"));
 
 function SectionSpinner() {
   return (
@@ -58,6 +60,8 @@ function SectionContent({ section }: { section: AdminSection }) {
       {section === "followups" && <FollowUpsSection />}
       {section === "sms" && <SmsSection />}
       {section === "reviewRequests" && <ReviewRequestsSection />}
+      {section === "customers" && <CustomersSection />}
+      {section === "winback" && <WinBackSection />}
     </Suspense>
   );
 }

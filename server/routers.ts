@@ -35,6 +35,7 @@ import {
   galleryRouter,
   techniciansRouter,
   customersRouter,
+  winbackRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -83,6 +84,7 @@ export const appRouter = router({
   gallery: galleryRouter,
   technicians: techniciansRouter,
   customers: customersRouter,
+  winback: winbackRouter,
 });
 
 export type AppRouter = typeof appRouter;
