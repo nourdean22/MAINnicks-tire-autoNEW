@@ -1,7 +1,6 @@
 /**
- * AI Vehicle Diagnosis Chat Widget
- * Floating chat bubble in the bottom-right corner.
- * Powered by Gemini AI via the server.
+ * Premium AI Vehicle Diagnosis Chat Widget
+ * Floating chat bubble — glass morphism, refined typography.
  */
 
 import { useState, useRef, useEffect } from "react";
@@ -29,7 +28,6 @@ export default function ChatWidget() {
     onSuccess: (data) => {
       setMessages(prev => [...prev, { role: "assistant", content: data.reply }]);
       if (data.sessionId) setSessionId(data.sessionId);
-      // After 3 exchanges, suggest capturing contact info
       if (messages.length >= 4 && !leadSubmitted && !showLeadCapture) {
         setShowLeadCapture(true);
       }
@@ -70,7 +68,7 @@ export default function ChatWidget() {
 
   return (
     <>
-      {/* Chat bubble */}
+      {/* ─── FLOATING BUBBLE ─── */}
       <AnimatePresence>
         {!open && (
           <motion.button
@@ -78,50 +76,55 @@ export default function ChatWidget() {
             animate={{ scale: 1 }}
             exit={{ scale: 0 }}
             onClick={() => setOpen(true)}
-            className="fixed bottom-20 lg:bottom-6 right-4 z-[90] w-14 h-14 bg-nick-teal text-white rounded-full shadow-lg shadow-nick-teal/30 flex items-center justify-center hover:bg-nick-cyan transition-colors"
+            className="fixed bottom-20 lg:bottom-6 right-4 z-[90] w-13 h-13 bg-primary text-primary-foreground rounded-full shadow-lg shadow-primary/20 flex items-center justify-center hover:opacity-90 transition-opacity"
           >
-            <MessageCircle className="w-6 h-6" />
+            <MessageCircle className="w-5 h-5" />
           </motion.button>
         )}
       </AnimatePresence>
 
-      {/* Chat window */}
+      {/* ─── CHAT WINDOW ─── */}
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            initial={{ opacity: 0, y: 16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-20 lg:bottom-6 right-4 z-[90] w-[360px] max-w-[calc(100vw-2rem)] bg-card/95 backdrop-blur-md border border-nick-teal/30 rounded-xl shadow-2xl shadow-nick-teal/10 flex flex-col overflow-hidden"
+            exit={{ opacity: 0, y: 16, scale: 0.96 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="fixed bottom-20 lg:bottom-6 right-4 z-[90] w-[360px] max-w-[calc(100vw-2rem)] bg-[oklch(0.08_0.004_260/0.97)] backdrop-blur-2xl border border-[oklch(0.17_0.004_260)] rounded-2xl shadow-2xl shadow-black/30 flex flex-col overflow-hidden"
             style={{ height: "480px" }}
           >
-            {/* Header */}
-            <div className="bg-gradient-to-r from-nick-teal to-nick-cyan px-4 py-3 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
-                <Wrench className="w-5 h-5 text-white" />
+            {/* ─── HEADER ─── */}
+            <div className="bg-[oklch(0.10_0.005_260)] border-b border-[oklch(0.17_0.004_260)] px-4 py-3 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Wrench className="w-4 h-4 text-primary" />
+                </div>
                 <div>
-                  <span className="font-heading font-bold text-white text-sm tracking-wider block">
-                    NICK'S AUTO ASSISTANT
+                  <span className="font-semibold text-foreground text-[13px] tracking-[-0.01em] block">
+                    Auto Assistant
                   </span>
-                  <span className="text-white/70 text-xs font-mono">
+                  <span className="text-foreground/40 text-[11px]">
                     Describe your car problem
                   </span>
                 </div>
               </div>
-              <button onClick={() => setOpen(false)} className="text-white/70 hover:text-white transition-colors">
-                <X className="w-5 h-5" />
+              <button onClick={() => setOpen(false)} className="text-foreground/30 hover:text-foreground/60 transition-colors p-1">
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Messages */}
+            {/* ─── MESSAGES ─── */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.length === 0 && (
                 <div className="text-center py-8">
-                  <Wrench className="w-10 h-10 text-nick-teal/30 mx-auto mb-3" />
-                  <p className="text-foreground/50 text-sm leading-relaxed">
-                    Tell me what's going on with your car. I'll help figure out what might be wrong and recommend the right service.
+                  <div className="w-12 h-12 rounded-full bg-foreground/[0.04] flex items-center justify-center mx-auto mb-3">
+                    <Wrench className="w-5 h-5 text-foreground/15" />
+                  </div>
+                  <p className="text-foreground/40 text-[13px] leading-relaxed max-w-[260px] mx-auto">
+                    Tell me what's going on with your car. I'll help figure out what might be wrong.
                   </p>
-                  <div className="mt-4 space-y-2">
+                  <div className="mt-5 space-y-2">
                     {["Check engine light is on", "Brakes are squealing", "Car shakes at highway speed"].map(q => (
                       <button
                         key={q}
@@ -130,7 +133,7 @@ export default function ChatWidget() {
                           setMessages([{ role: "user", content: q }]);
                           sendMessage.mutate({ message: q });
                         }}
-                        className="block w-full text-left text-xs font-mono text-foreground/40 hover:text-nick-teal border border-border/30 rounded-md px-3 py-2 hover:border-nick-teal/50 hover:bg-nick-teal/5 transition-all"
+                        className="block w-full text-left text-[12px] text-foreground/35 hover:text-foreground/60 border border-[oklch(0.17_0.004_260)] rounded-lg px-3 py-2.5 hover:border-foreground/15 hover:bg-foreground/[0.03] transition-all"
                       >
                         "{q}"
                       </button>
@@ -142,10 +145,10 @@ export default function ChatWidget() {
               {messages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div
-                    className={`max-w-[85%] px-3 py-2 text-sm leading-relaxed rounded-lg ${
+                    className={`max-w-[85%] px-3.5 py-2.5 text-[13px] leading-relaxed rounded-xl ${
                       msg.role === "user"
-                        ? "bg-nick-yellow text-nick-dark"
-                        : "bg-background/60 text-foreground/90 border border-nick-teal/20"
+                        ? "bg-primary text-primary-foreground rounded-br-sm"
+                        : "bg-foreground/[0.05] text-foreground/80 border border-[oklch(0.17_0.004_260)] rounded-bl-sm"
                     }`}
                   >
                     {msg.content}
@@ -155,7 +158,7 @@ export default function ChatWidget() {
 
               {sendMessage.isPending && (
                 <div className="flex justify-start">
-                  <div className="bg-background/60 border border-nick-teal/20 rounded-lg px-3 py-2 text-sm text-nick-teal">
+                  <div className="bg-foreground/[0.05] border border-[oklch(0.17_0.004_260)] rounded-xl rounded-bl-sm px-3.5 py-2.5 text-[13px] text-foreground/40">
                     <span className="inline-flex gap-1">
                       <span className="animate-pulse">●</span>
                       <span className="animate-pulse" style={{ animationDelay: "0.2s" }}>●</span>
@@ -165,10 +168,10 @@ export default function ChatWidget() {
                 </div>
               )}
 
-              {/* Lead capture inline */}
+              {/* Lead capture */}
               {showLeadCapture && !leadSubmitted && (
-                <div className="bg-background/60 border border-nick-yellow/30 rounded-lg p-3 space-y-2">
-                  <p className="text-foreground/70 text-xs font-mono">
+                <div className="bg-foreground/[0.03] border border-primary/15 rounded-xl p-3.5 space-y-2.5">
+                  <p className="text-foreground/50 text-[12px]">
                     Want us to call you with a free assessment?
                   </p>
                   <input
@@ -176,57 +179,57 @@ export default function ChatWidget() {
                     placeholder="Your name"
                     value={leadForm.name}
                     onChange={e => setLeadForm(f => ({ ...f, name: e.target.value }))}
-                    className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-3 py-2 text-xs font-mono placeholder:text-foreground/30 focus:border-nick-yellow focus:outline-none transition-all"
+                    className="w-full bg-foreground/[0.04] border border-[oklch(0.17_0.004_260)] rounded-lg text-foreground px-3 py-2 text-[12px] placeholder:text-foreground/25 focus:border-primary/30 focus:outline-none transition-all"
                   />
                   <input
                     type="tel"
                     placeholder="Phone number"
                     value={leadForm.phone}
                     onChange={e => setLeadForm(f => ({ ...f, phone: e.target.value }))}
-                    className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-3 py-2 text-xs font-mono placeholder:text-foreground/30 focus:border-nick-yellow focus:outline-none transition-all"
+                    className="w-full bg-foreground/[0.04] border border-[oklch(0.17_0.004_260)] rounded-lg text-foreground px-3 py-2 text-[12px] placeholder:text-foreground/25 focus:border-primary/30 focus:outline-none transition-all"
                   />
                   <button
                     onClick={handleLeadSubmit}
                     disabled={submitLead.isPending}
-                    className="w-full bg-nick-yellow text-nick-dark py-2 rounded-md font-heading font-bold tracking-wider uppercase text-xs hover:bg-nick-gold transition-colors"
+                    className="w-full bg-primary text-primary-foreground py-2 rounded-lg font-semibold text-[12px] hover:opacity-90 transition-opacity"
                   >
-                    {submitLead.isPending ? "SENDING..." : "CALL ME"}
+                    {submitLead.isPending ? "Sending..." : "Call Me"}
                   </button>
                 </div>
               )}
 
               {leadSubmitted && (
-                <div className="bg-background/60 border border-nick-teal/30 rounded-lg p-3 text-center">
-                  <p className="text-nick-teal text-xs font-mono">
+                <div className="bg-foreground/[0.03] border border-nick-teal/20 rounded-xl p-3.5 text-center">
+                  <p className="text-nick-teal text-[12px]">
                     Got it. We'll call you shortly.
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Input */}
-            <div className="border-t border-nick-teal/20 p-3 flex gap-2 shrink-0">
+            {/* ─── INPUT ─── */}
+            <div className="border-t border-[oklch(0.17_0.004_260)] p-3 flex gap-2 shrink-0">
               <input
                 type="text"
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleSend()}
                 placeholder="Describe your problem..."
-                className="flex-1 bg-background/60 border border-border/50 rounded-md text-foreground px-3 py-2 text-sm font-mono placeholder:text-foreground/30 focus:border-nick-teal focus:outline-none transition-all"
+                className="flex-1 bg-foreground/[0.04] border border-[oklch(0.17_0.004_260)] rounded-lg text-foreground px-3 py-2 text-[13px] placeholder:text-foreground/25 focus:border-foreground/15 focus:outline-none transition-all"
               />
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || sendMessage.isPending}
-                className="bg-nick-teal text-white px-3 py-2 rounded-md hover:bg-nick-cyan transition-colors disabled:opacity-50"
+                className="bg-primary text-primary-foreground w-9 h-9 rounded-lg flex items-center justify-center hover:opacity-90 transition-opacity disabled:opacity-30"
               >
                 <Send className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Call CTA */}
-            <div className="border-t border-nick-teal/10 px-3 py-2 flex items-center justify-center gap-2 text-foreground/30 text-xs shrink-0">
-              <Phone className="w-3 h-3 text-nick-teal/50" />
-              <span className="font-mono">Or call: <a href={BUSINESS.phone.href} className="text-nick-teal hover:text-nick-cyan transition-colors">{BUSINESS.phone.display}</a></span>
+            {/* ─── CALL CTA ─── */}
+            <div className="border-t border-[oklch(0.12_0.004_260)] px-3 py-2 flex items-center justify-center gap-2 text-foreground/20 text-[11px] shrink-0">
+              <Phone className="w-3 h-3" />
+              <span>Or call: <a href={BUSINESS.phone.href} className="text-foreground/35 hover:text-foreground/50 transition-colors">{BUSINESS.phone.display}</a></span>
             </div>
           </motion.div>
         )}

@@ -136,12 +136,12 @@ export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
             {item.href && index < fullItems.length - 1 ? (
               <Link
                 href={item.href}
-                className="font-mono text-xs text-foreground/50 hover:text-primary transition-colors"
+                className="text-[12px] text-foreground/50 hover:text-primary transition-colors"
               >
                 {item.label}
               </Link>
             ) : (
-              <span className="font-mono text-xs text-primary">{item.label}</span>
+              <span className="text-[12px] text-primary">{item.label}</span>
             )}
           </span>
         ))}
@@ -175,7 +175,7 @@ export function SkipToContent() {
   return (
     <a
       href="#main-content"
-      className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[9999] focus:bg-nick-yellow focus:text-nick-dark focus:px-4 focus:py-2 focus:rounded-md focus:font-heading focus:font-bold focus:text-sm focus:tracking-wider"
+      className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[9999] focus:bg-primary focus:text-primary-foreground focus:px-4 focus:py-2 focus:rounded-md focus:font-heading focus:font-bold focus:text-sm focus:tracking-wider"
     >
       Skip to main content
     </a>

@@ -138,17 +138,17 @@ export function StatCard({ label, value, icon, color = "text-foreground", trend,
   trendLabel?: string;
 }) {
   return (
-    <div className="bg-card border border-border/30 p-5">
-      <div className="flex items-start justify-between mb-3">
-        <span className="font-mono text-[10px] text-foreground/50 tracking-wider uppercase">{label}</span>
-        <div className="text-foreground/30">{icon}</div>
+    <div className="stat-card group">
+      <div className="flex items-start justify-between mb-2.5">
+        <span className="text-[11px] font-medium text-muted-foreground tracking-wide">{label}</span>
+        <div className="text-muted-foreground/30 group-hover:text-primary/50 transition-colors">{icon}</div>
       </div>
-      <div className={`font-heading font-bold text-3xl tracking-tight ${color}`}>{value}</div>
+      <div className={`font-bold text-2xl tracking-tight ${color}`}>{value}</div>
       {trendLabel && (
-        <div className={`mt-2 font-mono text-[10px] tracking-wider ${
-          trend === "up" ? "text-emerald-400" : trend === "down" ? "text-red-400" : "text-foreground/40"
+        <div className={`mt-2 text-[10px] font-medium tracking-wide flex items-center gap-1 ${
+          trend === "up" ? "text-emerald-400" : trend === "down" ? "text-red-400" : "text-muted-foreground"
         }`}>
-          {trendLabel}
+          {trend === "up" && "\u2191"}{trend === "down" && "\u2193"} {trendLabel}
         </div>
       )}
     </div>
@@ -163,7 +163,7 @@ export function UrgencyBadge({ score }: { score: number }) {
     : { label: `LOW (${score}/5)`, color: "text-foreground/50 bg-foreground/5 border-border/30" };
 
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono tracking-wider border ${config.color}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide border ${config.color}`}>
       {config.label}
     </span>
   );
@@ -184,5 +184,5 @@ export function StatusDot({ status }: { status?: string }) {
     cancelled: "bg-red-400", contacted: "bg-amber-400", booked: "bg-emerald-400",
     closed: "bg-foreground/30", lost: "bg-red-400",
   };
-  return <div className={`w-2 h-2 rounded-full ${colors[status || ""] || "bg-foreground/20"}`} />;
+  return <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${colors[status || ""] || "bg-foreground/20"}`} />;
 }

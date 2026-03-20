@@ -63,11 +63,11 @@ class ErrorBoundary extends Component<Props, State> {
       const showRetry = retryCount < 3;
 
       return (
-        <div className="min-h-screen bg-nick-dark flex items-center justify-center p-6">
+        <div className="min-h-screen bg-background flex items-center justify-center p-6">
           <div className="max-w-lg w-full text-center">
             {/* Logo / Brand */}
-            <div className="w-14 h-14 bg-nick-yellow flex items-center justify-center mx-auto mb-6">
-              <span className="font-heading font-bold text-nick-dark text-2xl">N</span>
+            <div className="w-14 h-14 bg-primary flex items-center justify-center mx-auto mb-6">
+              <span className="font-bold text-primary-foreground text-2xl">N</span>
             </div>
 
             {/* Error Icon */}
@@ -77,11 +77,11 @@ class ErrorBoundary extends Component<Props, State> {
               </svg>
             </div>
 
-            <h1 className="font-heading font-bold text-2xl sm:text-3xl text-foreground tracking-wider mb-3">
+            <h1 className="font-bold text-2xl sm:text-3xl text-foreground tracking-[-0.01em] mb-3">
               SOMETHING WENT WRONG
             </h1>
 
-            <p className="text-foreground/60 font-mono text-sm mb-8 leading-relaxed max-w-md mx-auto">
+            <p className="text-foreground/60 text-[13px] mb-8 leading-relaxed max-w-md mx-auto">
               We hit an unexpected error. This has been logged and we will look into it.
               You can try again or return to the homepage.
             </p>
@@ -89,11 +89,11 @@ class ErrorBoundary extends Component<Props, State> {
             {/* Error details (collapsed by default) */}
             {error && (
               <details className="mb-8 text-left">
-                <summary className="font-mono text-xs text-foreground/40 cursor-pointer hover:text-foreground/60 transition-colors">
+                <summary className="text-[12px] text-foreground/40 cursor-pointer hover:text-foreground/60 transition-colors">
                   Technical details
                 </summary>
                 <div className="mt-3 p-4 bg-background/50 border border-border/30 overflow-auto max-h-40">
-                  <pre className="font-mono text-xs text-red-400/80 whitespace-pre-wrap break-words">
+                  <pre className="text-[12px] text-red-400/80 whitespace-pre-wrap break-words">
                     {error.message}
                   </pre>
                 </div>
@@ -105,7 +105,7 @@ class ErrorBoundary extends Component<Props, State> {
               {showRetry && (
                 <button
                   onClick={this.handleRetry}
-                  className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors"
+                  className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
@@ -116,29 +116,29 @@ class ErrorBoundary extends Component<Props, State> {
 
               <button
                 onClick={this.handleReload}
-                className="inline-flex items-center justify-center gap-2 border border-foreground/30 text-foreground px-6 py-3 font-heading font-bold text-sm tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors"
+                className="inline-flex items-center justify-center gap-2 border border-foreground/30 text-foreground px-6 py-3 font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors"
               >
                 RELOAD PAGE
               </button>
 
               <button
                 onClick={this.handleGoHome}
-                className="inline-flex items-center justify-center gap-2 border border-foreground/30 text-foreground px-6 py-3 font-heading font-bold text-sm tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors"
+                className="inline-flex items-center justify-center gap-2 border border-foreground/30 text-foreground px-6 py-3 font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors"
               >
                 GO HOME
               </button>
             </div>
 
             {/* Contact fallback */}
-            <p className="mt-8 text-foreground/30 font-mono text-xs">
+            <p className="mt-8 text-foreground/30 text-[12px]">
               Need help? Call us at{" "}
-              <a href={`tel:${BUSINESS.phone.raw}`} className="text-nick-yellow hover:text-nick-gold transition-colors">
+              <a href={`tel:${BUSINESS.phone.raw}`} className="text-primary hover:text-primary transition-colors">
                 {BUSINESS.phone.display}
               </a>
             </p>
 
             {retryCount >= 3 && (
-              <p className="mt-4 text-red-400/60 font-mono text-xs">
+              <p className="mt-4 text-red-400/60 text-[12px]">
                 Multiple retries failed. Please reload the page or try again later.
               </p>
             )}

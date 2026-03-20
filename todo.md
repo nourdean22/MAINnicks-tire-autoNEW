@@ -1174,3 +1174,60 @@
 - [ ] Explore additional integrations (AutoZone Pro, ATD Online, etc.)
 - [x] Add Integrations section to admin sidebar
 - [ ] Tests and checkpoint (in progress)
+
+### Task 28: Deep ShopDriver CRM Sync (Auto Labor Guide = Primary CRM)
+- [ ] Build server-side ShopDriver session management (login, cookie persistence, auto-refresh)
+- [ ] Build customer sync: ShopDriver customers → website CRM (name, phone, email, vehicle, history)
+- [ ] Build invoice sync: ShopDriver invoices → website Revenue Center (real-time)
+- [ ] Build ticket sync: Active ShopDriver tickets → website Job Board
+- [ ] Build vehicle data sync: VIN, year/make/model → customer profiles
+- [ ] Build two-way sync: website bookings → ShopDriver new tickets
+- [ ] Auto-sync on schedule (every 15 min) + manual sync button in admin
+- [ ] Sync status dashboard showing last sync time, records synced, errors
+
+### Task 29: Customer-Facing Tire Search + Ordering (Gateway Tire)
+- [ ] Build public /tires/shop page with tire size search (width/aspect/diameter)
+- [ ] Build vehicle-based tire finder (Year/Make/Model → correct tire sizes)
+- [ ] Display tire results with customer pricing (wholesale + markup)
+- [ ] Tire comparison tool (select 2-3 tires side by side)
+- [ ] Add to cart / request install appointment flow
+- [ ] Order confirmation → admin notification → Gateway Tire order processing
+- [ ] Tire order tracking in admin dashboard
+
+### Task 30: CEO-Level Aesthetic Overhaul (Tesla Quality)
+- [ ] Redesign color system — minimal, high-contrast, premium feel
+- [ ] Typography upgrade — clean sans-serif, perfect hierarchy
+- [ ] Micro-interactions — subtle animations, smooth transitions
+- [ ] Whitespace mastery — breathing room, no clutter
+- [ ] Admin dashboard redesign — dark mode premium, data-dense but clean
+- [ ] Mobile-first responsive perfection
+- [ ] Loading states — skeleton screens, smooth transitions
+- [ ] Every component reviewed for pixel-perfect quality
+
+## Premium Aesthetic Overhaul — CEO-Level Polish (Current Sprint)
+- [x] Overhaul index.css with premium design system
+- [x] Upgrade Admin.tsx shell (sidebar, topbar, layout)
+- [x] Upgrade OverviewSection with refined design
+- [x] Update shared.tsx StatCard, UrgencyBadge, StatusDot
+- [x] Polish BookingForm component
+- [x] Polish ChatWidget component
+- [x] Polish LeadPopup component
+- [x] Polish NotificationBar component
+- [x] Polish SiteNavbar component
+- [x] Polish SiteFooter component
+- [x] Polish SiteMobileCTA component
+- [x] Polish TireFinder page
+- [x] Polish CustomerPortal page
+- [x] Polish Contact page
+- [x] Polish About page
+- [x] Polish FAQ page
+- [x] Polish ReviewsPage
+- [x] Polish SpecialsPage
+- [x] Polish ServicePage template
+- [x] Polish DiagnosePage
+- [x] Polish PriceEstimator / LaborEstimator
+- [x] Polish Blog / BlogPost pages
+- [x] Polish remaining public pages (Fleet, Financing, Loyalty, Referral, StatusTracker, InspectionReport, MyGarage, CarCareGuide)
+- [x] Polish remaining admin sections
+- [x] TypeScript check passes clean (0 errors)
+- [x] Browser visual verification (homepage, admin, tire page all verified)

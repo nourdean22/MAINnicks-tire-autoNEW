@@ -20,7 +20,7 @@ export default function Terms() {
       <LocalBusinessSchema />
 
       {/* Hero */}
-      <section className="bg-nick-dark pt-32 pb-16">
+      <section className="bg-background pt-32 pb-16">
         <div className="container">
           <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Terms & Conditions" }]} />
           <h1 className="font-display text-4xl md:text-5xl font-bold text-foreground mt-6 tracking-tight">
@@ -33,7 +33,7 @@ export default function Terms() {
       </section>
 
       {/* Content */}
-      <section className="bg-nick-dark py-16">
+      <section className="bg-background py-16">
         <div className="container max-w-3xl">
           <div className="prose prose-invert prose-lg max-w-none space-y-10 text-foreground/80 leading-relaxed">
 
@@ -41,7 +41,7 @@ export default function Terms() {
               <h2 className="text-2xl font-bold text-foreground mb-4">1. Acceptance of Terms</h2>
               <p>
                 By accessing or using the Nick's Tire & Auto website at{" "}
-                <a href="https://nickstire.org" className="text-nick-yellow hover:underline">nickstire.org</a>,
+                <a href="https://nickstire.org" className="text-primary hover:underline">nickstire.org</a>,
                 booking an appointment, or opting in to our SMS messaging program, you agree to be bound by these
                 Terms and Conditions. If you do not agree, please do not use our website or services.
               </p>
@@ -94,18 +94,18 @@ export default function Terms() {
 
               <h3 className="text-xl font-semibold text-foreground mt-6 mb-3">Opt-Out</h3>
               <p>
-                You can opt out of receiving SMS messages at any time by texting <strong className="text-nick-yellow text-xl">STOP</strong> to
+                You can opt out of receiving SMS messages at any time by texting <strong className="text-primary text-xl">STOP</strong> to
                 any message you receive from us. You will receive a confirmation message and will no longer receive
                 text messages from Nick's Tire & Auto. You may also opt out by calling us at {BUSINESS.phone.display}.
               </p>
 
               <h3 className="text-xl font-semibold text-foreground mt-6 mb-3">Help</h3>
               <p>
-                For help with our SMS program, text <strong className="text-nick-yellow text-xl">HELP</strong> to
+                For help with our SMS program, text <strong className="text-primary text-xl">HELP</strong> to
                 any message from us, or contact us directly:
               </p>
               <ul className="list-disc pl-6 space-y-1 mt-2">
-                <li>Phone: <a href={BUSINESS.phone.href} className="text-nick-yellow hover:underline">{BUSINESS.phone.display}</a></li>
+                <li>Phone: <a href={BUSINESS.phone.href} className="text-primary hover:underline">{BUSINESS.phone.display}</a></li>
                 <li>Visit: {BUSINESS.address.full}</li>
                 <li>Hours: {BUSINESS.hours.display}</li>
               </ul>
@@ -164,7 +164,7 @@ export default function Terms() {
               <h2 className="text-2xl font-bold text-foreground mb-4">9. Privacy</h2>
               <p>
                 Your use of our website and services is also governed by our{" "}
-                <a href="/privacy-policy" className="text-nick-yellow hover:underline">Privacy Policy</a>,
+                <a href="/privacy-policy" className="text-primary hover:underline">Privacy Policy</a>,
                 which describes how we collect, use, and protect your personal information.
               </p>
             </div>
@@ -194,8 +194,8 @@ export default function Terms() {
               <div className="mt-4 p-6 bg-card/50 border border-border/30 rounded-sm">
                 <p className="font-bold text-foreground">{BUSINESS.name}</p>
                 <p>{BUSINESS.address.full}</p>
-                <p>Phone: <a href={BUSINESS.phone.href} className="text-nick-yellow hover:underline">{BUSINESS.phone.display}</a></p>
-                <p>Website: <a href="https://nickstire.org" className="text-nick-yellow hover:underline">nickstire.org</a></p>
+                <p>Phone: <a href={BUSINESS.phone.href} className="text-primary hover:underline">{BUSINESS.phone.display}</a></p>
+                <p>Website: <a href="https://nickstire.org" className="text-primary hover:underline">nickstire.org</a></p>
               </div>
             </div>
 

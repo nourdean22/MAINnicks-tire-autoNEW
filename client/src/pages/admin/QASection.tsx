@@ -30,14 +30,14 @@ export default function QASection() {
 
   return (
     <div className="space-y-6">
-      <h2 className="font-heading font-bold text-xl text-foreground tracking-wider">CUSTOMER QUESTIONS</h2>
+      <h2 className="font-bold text-xl text-foreground tracking-wider">CUSTOMER QUESTIONS</h2>
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       ) : (questions ?? []).length === 0 ? (
         <div className="text-center py-12 text-foreground/40">
           <MessageSquare className="w-8 h-8 mx-auto mb-3 opacity-30" />
-          <p className="font-mono text-sm">No questions yet.</p>
+          <p className="text-[13px]">No questions yet.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -46,22 +46,22 @@ export default function QASection() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-heading font-bold text-foreground text-sm">{q.questionerName}</span>
-                    {q.vehicleInfo && <span className="text-foreground/40 text-xs font-mono">• {q.vehicleInfo}</span>}
-                    {q.category && <span className="text-xs bg-foreground/5 text-foreground/40 px-1.5 py-0.5 font-mono">{q.category}</span>}
-                    {!q.answer && <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 font-mono">NEEDS ANSWER</span>}
+                    <span className="font-bold text-foreground text-sm">{q.questionerName}</span>
+                    {q.vehicleInfo && <span className="text-foreground/40 text-xs">• {q.vehicleInfo}</span>}
+                    {q.category && <span className="text-xs bg-foreground/5 text-foreground/40 px-1.5 py-0.5">{q.category}</span>}
+                    {!q.answer && <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5">NEEDS ANSWER</span>}
                   </div>
                   <p className="text-foreground/70 text-sm">{q.question}</p>
                   {q.answer && (
                     <div className="mt-3 pl-4 border-l-2 border-primary/30">
-                      <p className="text-foreground/50 text-xs font-mono mb-1">Answer by {q.answeredBy || "Nick's Tire & Auto"}:</p>
+                      <p className="text-foreground/50 text-xs mb-1">Answer by {q.answeredBy || "Nick's Tire & Auto"}:</p>
                       <p className="text-foreground/60 text-sm">{q.answer}</p>
                     </div>
                   )}
                 </div>
                 <div className="flex gap-2 shrink-0">
                   {!q.answer && (
-                    <button onClick={() => { setAnsweringId(q.id); setAnswer(""); }} className="text-primary hover:text-primary/80 text-xs font-mono">ANSWER</button>
+                    <button onClick={() => { setAnsweringId(q.id); setAnswer(""); }} className="text-primary hover:text-primary/80 text-xs">ANSWER</button>
                   )}
                   <button onClick={() => { if (confirm("Delete?")) deleteQuestion.mutate({ id: q.id, answer: "[removed]", answeredBy: "Admin" }); }} className="text-foreground/30 hover:text-red-400">
                     <XCircle className="w-4 h-4" />
@@ -75,11 +75,11 @@ export default function QASection() {
                     <button
                       onClick={() => answerQuestion.mutate({ id: q.id, answer, answeredBy: "Nick's Tire & Auto" })}
                       disabled={!answer.trim() || answerQuestion.isPending}
-                      className="bg-primary text-primary-foreground px-4 py-1.5 font-heading font-bold text-xs tracking-wider uppercase disabled:opacity-50"
+                      className="bg-primary text-primary-foreground px-4 py-1.5 font-bold text-xs tracking-wide disabled:opacity-50"
                     >
                       {answerQuestion.isPending ? "PUBLISHING..." : "PUBLISH ANSWER"}
                     </button>
-                    <button onClick={() => setAnsweringId(null)} className="text-foreground/50 text-xs font-mono">CANCEL</button>
+                    <button onClick={() => setAnsweringId(null)} className="text-foreground/50 text-xs">CANCEL</button>
                   </div>
                 </div>
               )}

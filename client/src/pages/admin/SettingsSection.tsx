@@ -66,8 +66,8 @@ export default function SettingsSection() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="font-heading font-bold text-2xl text-foreground tracking-wider">SHOP SETTINGS</h2>
-        <p className="text-foreground/50 font-mono text-xs mt-1">Manage shop configuration. Changes take effect immediately.</p>
+        <h2 className="font-bold text-2xl text-foreground tracking-wider">SHOP SETTINGS</h2>
+        <p className="text-foreground/50 text-[12px] mt-1">Manage shop configuration. Changes take effect immediately.</p>
       </div>
 
       {/* Category Tabs */}
@@ -76,7 +76,7 @@ export default function SettingsSection() {
           <button
             key={cat}
             onClick={() => setActiveCategory(cat)}
-            className={`flex items-center gap-2 px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase whitespace-nowrap transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2.5 font-bold text-xs tracking-wide whitespace-nowrap transition-colors ${
               activeCategory === cat
                 ? "bg-primary/10 text-primary border-b-2 border-primary"
                 : "text-foreground/50 hover:text-foreground hover:bg-foreground/5"
@@ -91,14 +91,14 @@ export default function SettingsSection() {
       {/* Settings Panel */}
       <div className="bg-card border border-border/30 p-6">
         <div className="mb-6">
-          <h3 className="font-heading font-bold text-sm text-foreground tracking-wider uppercase">
+          <h3 className="font-bold text-sm text-foreground tracking-wide">
             {CATEGORY_CONFIG[activeCategory].label}
           </h3>
           <p className="text-foreground/50 text-xs mt-1">{CATEGORY_CONFIG[activeCategory].description}</p>
         </div>
 
         {categorySettings.length === 0 ? (
-          <p className="text-foreground/40 font-mono text-xs">No settings in this category</p>
+          <p className="text-foreground/40 text-[12px]">No settings in this category</p>
         ) : (
           <div className="space-y-4">
             {categorySettings.map(setting => {
@@ -109,7 +109,7 @@ export default function SettingsSection() {
               return (
                 <div key={setting.key} className="flex flex-col sm:flex-row sm:items-center gap-3 py-3 border-b border-border/10 last:border-0">
                   <div className="sm:w-1/3">
-                    <label className="font-heading font-bold text-xs text-foreground tracking-wider uppercase block">
+                    <label className="font-bold text-xs text-foreground tracking-wide block">
                       {setting.label || setting.key}
                     </label>
                     <span className="font-mono text-[10px] text-foreground/30">{setting.key}</span>
@@ -119,12 +119,12 @@ export default function SettingsSection() {
                       type="text"
                       value={editValues[setting.key] ?? setting.value}
                       onChange={(e) => setEditValues(prev => ({ ...prev, [setting.key]: e.target.value }))}
-                      className="flex-1 bg-foreground/5 border border-border/30 px-3 py-2 text-foreground font-mono text-sm focus:outline-none focus:border-primary/50 transition-colors"
+                      className="flex-1 bg-foreground/5 border border-border/30 px-3 py-2 text-foreground text-[13px] focus:outline-none focus:border-primary/50 transition-colors"
                     />
                     <button
                       onClick={() => handleSave(setting.key)}
                       disabled={!isChanged || isSaving}
-                      className={`flex items-center gap-1.5 px-4 py-2 font-heading font-bold text-[10px] tracking-wider uppercase transition-colors ${
+                      className={`flex items-center gap-1.5 px-4 py-2 font-bold text-[10px] tracking-wide transition-colors ${
                         isSaved
                           ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
                           : isChanged
@@ -150,7 +150,7 @@ export default function SettingsSection() {
 
       {/* Info Box */}
       <div className="bg-primary/5 border border-primary/20 p-4">
-        <h4 className="font-heading font-bold text-xs text-primary tracking-wider uppercase mb-2">AUTO-SYNC WITH ESTIMATOR</h4>
+        <h4 className="font-bold text-xs text-primary tracking-wide mb-2">AUTO-SYNC WITH ESTIMATOR</h4>
         <p className="text-foreground/60 text-xs leading-relaxed">
           Changes here auto-sync with the AI Repair Estimator on the website. The estimator uses these settings in real time for all future estimates.
           The labor rate is used internally for calculations but is not displayed to customers.

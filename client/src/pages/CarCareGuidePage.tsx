@@ -58,8 +58,8 @@ const SEASONAL_GUIDES = [
   {
     season: "Summer",
     icon: <Sun className="w-7 h-7" />,
-    color: "text-nick-yellow",
-    bgColor: "bg-nick-yellow/10",
+    color: "text-primary",
+    bgColor: "bg-primary/10",
     title: "SUMMER READINESS",
     subtitle: "Beat the heat",
     tips: [
@@ -135,12 +135,12 @@ export default function CarCareGuidePage() {
       <LocalBusinessSchema />
             <FadeIn>
               <div className="flex items-center gap-3 mb-4">
-                <BookOpen className="w-6 h-6 text-nick-yellow" />
+                <BookOpen className="w-6 h-6 text-primary" />
                 <span className="font-mono text-nick-blue-light text-sm tracking-wide">Maintenance Education</span>
               </div>
               <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
                 CAR CARE<br />
-                <span className="text-gradient-yellow">GUIDE</span>
+                <span className="text-primary">GUIDE</span>
               </h1>
               <p className="mt-6 text-foreground/70 text-lg max-w-2xl leading-relaxed">
                 Everything Cleveland drivers need to know about keeping their vehicles running right. Seasonal tips, mileage milestones, and warning signs explained by our technicians.
@@ -150,12 +150,12 @@ export default function CarCareGuidePage() {
         </section>
 
         {/* Seasonal Guides */}
-        <section className="py-12 lg:py-16 section-darker">
+        <section className="py-12 lg:py-16 bg-[oklch(0.055_0.004_260)]">
           <div className="hidden" />
           <div className="container pt-12">
             <FadeIn>
               <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
-                SEASONAL <span className="text-gradient-yellow">MAINTENANCE</span>
+                SEASONAL <span className="text-primary">MAINTENANCE</span>
               </h2>
               <p className="mt-3 text-foreground/60 max-w-2xl">
                 Cleveland weather puts unique demands on your vehicle. Here is what to focus on each season.
@@ -168,10 +168,10 @@ export default function CarCareGuidePage() {
                 <button
                   key={guide.season}
                   onClick={() => setActiveSeason(i)}
-                  className={`flex items-center gap-2 px-5 py-2.5 font-semibold font-bold text-sm tracking-wider uppercase transition-colors ${
+                  className={`flex items-center gap-2 px-5 py-2.5 font-semibold font-bold text-sm tracking-wide transition-colors ${
                     activeSeason === i
-                      ? "bg-nick-yellow text-nick-dark"
-                      : "border border-nick-yellow/20 text-foreground/60 hover:border-nick-yellow/50"
+                      ? "bg-primary text-primary-foreground"
+                      : "border border-primary/20 text-foreground/60 hover:border-primary/50"
                   }`}
                 >
                   {guide.icon}
@@ -183,36 +183,36 @@ export default function CarCareGuidePage() {
             {/* Active Season Content */}
             <div className="mt-8">
               <FadeIn key={activeSeason}>
-                <div className="border border-nick-yellow/20 bg-nick-dark/50 p-6 lg:p-10">
+                <div className="border border-primary/20 bg-background/50 p-6 lg:p-10">
                   <div className="flex items-center gap-4 mb-6">
                     <div className={`w-14 h-14 ${SEASONAL_GUIDES[activeSeason].bgColor} flex items-center justify-center rounded-md ${SEASONAL_GUIDES[activeSeason].color}`}>
                       {SEASONAL_GUIDES[activeSeason].icon}
                     </div>
                     <div>
                       <h3 className="font-semibold font-bold text-foreground text-2xl lg:text-3xl tracking-wider">{SEASONAL_GUIDES[activeSeason].title}</h3>
-                      <p className="text-foreground/50 text-sm font-mono">{SEASONAL_GUIDES[activeSeason].subtitle}</p>
+                      <p className="text-foreground/50 text-sm">{SEASONAL_GUIDES[activeSeason].subtitle}</p>
                     </div>
                   </div>
 
                   <div className="space-y-6">
                     {SEASONAL_GUIDES[activeSeason].tips.map((tip, i) => (
                       <div key={i} className="flex gap-4">
-                        <div className="w-8 h-8 bg-nick-yellow/10 flex items-center justify-center rounded shrink-0 mt-1">
-                          <CheckCircle className="w-4 h-4 text-nick-yellow" />
+                        <div className="w-8 h-8 bg-primary/10 flex items-center justify-center rounded shrink-0 mt-1">
+                          <CheckCircle className="w-4 h-4 text-primary" />
                         </div>
                         <div>
-                          <h4 className="font-semibold font-bold text-foreground text-base tracking-wider uppercase">{tip.title}</h4>
+                          <h4 className="font-semibold font-bold text-foreground text-base tracking-wide">{tip.title}</h4>
                           <p className="text-foreground/70 leading-relaxed mt-1">{tip.desc}</p>
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  <div className="mt-8 pt-6 border-t border-nick-yellow/10">
+                  <div className="mt-8 pt-6 border-t border-primary/10">
                     <a
                       href={BUSINESS.phone.href}
                       onClick={() => trackPhoneClick("car_care_guide_seasonal")}
-                      className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors"
+                      className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
                     >
                       <Phone className="w-4 h-4" />
                       SCHEDULE {SEASONAL_GUIDES[activeSeason].season.toUpperCase()} SERVICE
@@ -229,7 +229,7 @@ export default function CarCareGuidePage() {
           <div className="container">
             <FadeIn>
               <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
-                MILEAGE <span className="text-gradient-yellow">MILESTONES</span>
+                MILEAGE <span className="text-primary">MILESTONES</span>
               </h2>
               <p className="mt-3 text-foreground/60 max-w-2xl">
                 Here is when common maintenance items are typically due. These are general guidelines — check your owner's manual for your specific vehicle.
@@ -239,12 +239,12 @@ export default function CarCareGuidePage() {
             <div className="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {MILEAGE_MILESTONES.map((item, i) => (
                 <FadeIn key={item.service} delay={i * 0.05}>
-                  <div className="border border-nick-yellow/15 bg-nick-dark/30 p-6 h-full">
+                  <div className="border border-primary/15 bg-background/30 p-6 h-full">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="text-nick-blue-light">{item.icon}</div>
-                      <span className="font-mono text-nick-yellow text-sm tracking-wider">{item.miles} MI</span>
+                      <span className="font-mono text-primary text-sm tracking-wider">{item.miles} MI</span>
                     </div>
-                    <h3 className="font-semibold font-bold text-foreground text-lg tracking-wider uppercase mb-2">{item.service}</h3>
+                    <h3 className="font-semibold font-bold text-foreground text-lg tracking-wide mb-2">{item.service}</h3>
                     <p className="text-foreground/60 text-sm leading-relaxed">{item.desc}</p>
                   </div>
                 </FadeIn>
@@ -254,11 +254,11 @@ export default function CarCareGuidePage() {
         </section>
 
         {/* Warning Signs */}
-        <section className="py-12 lg:py-16 section-darker">
+        <section className="py-12 lg:py-16 bg-[oklch(0.055_0.004_260)]">
           <div className="container">
             <FadeIn>
               <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
-                WARNING <span className="text-gradient-yellow">SIGNS</span>
+                WARNING <span className="text-primary">SIGNS</span>
               </h2>
               <p className="mt-3 text-foreground/60 max-w-2xl">
                 Do not ignore these symptoms. Catching problems early saves money and prevents breakdowns.
@@ -268,15 +268,15 @@ export default function CarCareGuidePage() {
             <div className="mt-10 space-y-4">
               {WARNING_SIGNS.map((item, i) => (
                 <FadeIn key={item.sign} delay={i * 0.05}>
-                  <div className="border border-nick-yellow/15 bg-nick-dark/50 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                    <div className="w-10 h-10 bg-nick-yellow/10 flex items-center justify-center rounded-md shrink-0">
-                      <AlertTriangle className="w-5 h-5 text-nick-yellow" />
+                  <div className="border border-primary/15 bg-background/50 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <div className="w-10 h-10 bg-primary/10 flex items-center justify-center rounded-md shrink-0">
+                      <AlertTriangle className="w-5 h-5 text-primary" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold font-bold text-foreground text-base tracking-wider uppercase">{item.sign}</h3>
+                      <h3 className="font-semibold font-bold text-foreground text-base tracking-wide">{item.sign}</h3>
                       <p className="text-foreground/60 text-sm mt-1 leading-relaxed">{item.action}</p>
                     </div>
-                    <Link href={item.link} className="shrink-0 inline-flex items-center gap-1 text-nick-yellow text-sm font-semibold font-bold tracking-wider uppercase hover:text-nick-gold transition-colors">
+                    <Link href={item.link} className="shrink-0 inline-flex items-center gap-1 text-primary text-sm font-semibold font-bold tracking-wide hover:text-primary transition-colors">
                       LEARN MORE
                       <ChevronRight className="w-4 h-4" />
                     </Link>
@@ -292,7 +292,7 @@ export default function CarCareGuidePage() {
           <div className="container text-center">
             <FadeIn>
               <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
-                QUESTIONS ABOUT YOUR <span className="text-gradient-yellow">VEHICLE</span>?
+                QUESTIONS ABOUT YOUR <span className="text-primary">VEHICLE</span>?
               </h2>
               <p className="mt-4 text-foreground/70 text-lg max-w-xl mx-auto">
                 Our technicians are here to help. Call us, book online, or use our free diagnostic tool.
@@ -301,14 +301,14 @@ export default function CarCareGuidePage() {
                 <a
                   href={BUSINESS.phone.href}
                   onClick={() => trackPhoneClick("car_care_guide_cta")}
-                  className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors"
+                  className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
                 >
                   <Phone className="w-5 h-5" />
                   CALL NOW
                 </a>
                 <Link
                   href="/diagnose"
-                  className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors"
+                  className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors"
                 >
                   DIAGNOSE MY CAR
                   <ChevronRight className="w-5 h-5" />

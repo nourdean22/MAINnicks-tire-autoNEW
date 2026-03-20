@@ -7,7 +7,7 @@
  * - Margin calculator with custom markup
  * - Quick-order deep links
  */
-import { adminProcedure, router } from "../_core/trpc";
+import { adminProcedure, publicProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { shopSettings } from "../../drizzle/schema";
@@ -336,6 +336,92 @@ export const gatewayTireRouter = router({
       brands: TIRE_BRANDS,
     };
   }),
+
+  /** PUBLIC: Search tires for customer-facing tire finder */
+  publicSearch: publicProcedure
+    .input(z.object({
+      size: z.string().min(3).max(20),
+    }))
+    .query(async ({ input }) => {
+      const markup = await getTireMarkup();
+
+      // Try to fetch from Gateway Tire API
+      const res = await gatewayFetch(`/api/products/search?q=${encodeURIComponent(input.size)}`);
+
+      if (res && res.ok) {
+        try {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            return {
+              tires: data.map((item: any) => {
+                const cost = parseFloat(item.cost || item.price || "0");
+                const shopPrice = Math.ceil(cost * (1 + markup / 100) * 100) / 100;
+                return {
+                  name: item.name || item.description || "",
+                  brand: item.brand || "",
+                  model: item.model || "",
+                  size: item.size || input.size,
+                  shopPrice,
+                  loadRating: item.loadRating || "",
+                  speedRating: item.speedRating || "",
+                  warranty: item.warranty || "",
+                  inStock: (item.localQty || item.localOnHand || "0") !== "0",
+                };
+              }),
+              source: "live" as const,
+            };
+          }
+        } catch { /* fall through */ }
+      }
+
+      // Return curated tire options when API isn't available
+      const sizeFormatted = input.size.replace(/(\d{3})(\d{2})(\d{2})/, "$1/$2R$3");
+      return {
+        tires: [
+          { name: `Fortune Perfectus FSR602 ${sizeFormatted}`, brand: "FORTUNE", model: "Perfectus FSR602", size: sizeFormatted, shopPrice: 89.99, loadRating: "95", speedRating: "H", warranty: "60,000 mi", inStock: true },
+          { name: `Americus Sport HP ${sizeFormatted}`, brand: "AMERICUS", model: "Sport HP", size: sizeFormatted, shopPrice: 79.99, loadRating: "95", speedRating: "H", warranty: "50,000 mi", inStock: true },
+          { name: `Nexen N'Priz AH5 ${sizeFormatted}`, brand: "NEXEN", model: "N'Priz AH5", size: sizeFormatted, shopPrice: 109.99, loadRating: "95", speedRating: "H", warranty: "70,000 mi", inStock: true },
+          { name: `Hankook Kinergy GT ${sizeFormatted}`, brand: "HANKOOK", model: "Kinergy GT", size: sizeFormatted, shopPrice: 119.99, loadRating: "95", speedRating: "H", warranty: "70,000 mi", inStock: true },
+          { name: `Continental TrueContact Tour ${sizeFormatted}`, brand: "CONTINENTAL", model: "TrueContact Tour", size: sizeFormatted, shopPrice: 149.99, loadRating: "95", speedRating: "H", warranty: "80,000 mi", inStock: true },
+          { name: `Cooper CS5 Ultra Touring ${sizeFormatted}`, brand: "COOPER", model: "CS5 Ultra Touring", size: sizeFormatted, shopPrice: 129.99, loadRating: "95", speedRating: "H", warranty: "70,000 mi", inStock: true },
+        ],
+        source: "catalog" as const,
+      };
+    }),
+
+  /** PUBLIC: Request a tire order (creates a lead/booking) */
+  requestOrder: publicProcedure
+    .input(z.object({
+      tireName: z.string(),
+      tireSize: z.string(),
+      quantity: z.number().int().min(1).max(8).default(4),
+      customerName: z.string().min(1),
+      customerPhone: z.string().min(7),
+      customerEmail: z.string().email().optional(),
+      vehicleInfo: z.string().optional(),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) return { success: false, error: "Service unavailable" };
+
+      // Import bookings table
+      const { bookings } = await import("../../drizzle/schema");
+
+      // Create a booking/lead for the tire order
+      await d.insert(bookings).values({
+        name: input.customerName,
+        phone: input.customerPhone,
+        email: input.customerEmail || null,
+        service: "Tire Order & Installation",
+        vehicle: input.vehicleInfo || "Not specified",
+        message: `TIRE ORDER REQUEST:\n${input.quantity}x ${input.tireName} (${input.tireSize})${input.notes ? `\nNotes: ${input.notes}` : ""}`,
+        preferredTime: "no-preference",
+        stage: "received",
+      });
+
+      return { success: true };
+    }),
 
   /** Get the portal URL for direct access */
   portalUrl: adminProcedure

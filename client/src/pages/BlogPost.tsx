@@ -42,11 +42,11 @@ export default function BlogPost() {
   // 404 for unknown articles
   if (!article) {
     return (
-      <div className="min-h-screen bg-nick-dark flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <h1 className="font-semibold font-bold text-4xl text-foreground mb-4">ARTICLE NOT FOUND</h1>
           <p className="text-foreground/60 mb-8">The article you are looking for does not exist.</p>
-          <Link href="/blog" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 font-semibold font-bold text-sm tracking-wider uppercase">
+          <Link href="/blog" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 font-semibold font-bold text-sm tracking-wide">
             <ArrowLeft className="w-4 h-4" />
             BACK TO BLOG
           </Link>
@@ -120,30 +120,30 @@ export default function BlogPost() {
       <section className="relative min-h-[50vh] lg:min-h-[60vh] flex items-end overflow-hidden">
         <div className="absolute inset-0">
           <img loading="lazy" src={article.heroImage} alt={article.title} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-nick-dark via-nick-dark/80 to-nick-dark/40" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/40" />
         </div>
 
         <div className="relative container pb-16 pt-32 lg:pb-20">
           <FadeIn>
             <div className="flex items-center gap-3 mb-4">
-              <Link href="/" className="font-mono text-xs text-foreground/50 hover:text-primary transition-colors">Home</Link>
+              <Link href="/" className="text-[12px] text-foreground/50 hover:text-primary transition-colors">Home</Link>
               <ChevronRight className="w-3 h-3 text-foreground/30" />
-              <Link href="/blog" className="font-mono text-xs text-foreground/50 hover:text-primary transition-colors">Blog</Link>
+              <Link href="/blog" className="text-[12px] text-foreground/50 hover:text-primary transition-colors">Blog</Link>
               <ChevronRight className="w-3 h-3 text-foreground/30" />
-              <span className="font-mono text-xs text-primary">{article.category}</span>
+              <span className="text-[12px] text-primary">{article.category}</span>
             </div>
           </FadeIn>
 
           <FadeIn delay={0.1}>
             <div className="flex items-center gap-4 mb-4">
-              <span className="font-mono text-sm text-primary tracking-wide">{article.category}</span>
+              <span className="text-[13px] text-primary tracking-wide">{article.category}</span>
               <span className="text-foreground/20">|</span>
-              <span className="font-mono text-sm text-foreground/50 flex items-center gap-1">
+              <span className="text-[13px] text-foreground/50 flex items-center gap-1">
                 <Clock className="w-4 h-4" />
                 {article.readTime}
               </span>
               <span className="text-foreground/20">|</span>
-              <span className="font-mono text-sm text-foreground/50">
+              <span className="text-[13px] text-foreground/50">
                 {new Date(article.publishDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
               </span>
             </div>
@@ -161,13 +161,13 @@ export default function BlogPost() {
       </section>
 
       {/* Article Content */}
-      <section className="section-dark py-16 lg:py-20">
+      <section className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-20">
         <div className="container">
           <div className="max-w-3xl mx-auto">
             {article.sections.map((section, i) => (
               <FadeIn key={i} delay={i * 0.05}>
                 <div className="mb-12">
-                  <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-wider mb-4">
+                  <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-[-0.01em] mb-4">
                     {section.heading}
                   </h2>
                   <p className="text-foreground/70 text-lg leading-relaxed">
@@ -183,7 +183,7 @@ export default function BlogPost() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <Tag className="w-4 h-4 text-foreground/40" />
                   {article.tags.map(tag => (
-                    <span key={tag} className="px-3 py-1 bg-card border border-border/30 font-mono text-xs text-foreground/50">
+                    <span key={tag} className="px-3 py-1 bg-card border border-border/30 text-[12px] text-foreground/50">
                       {tag}
                     </span>
                   ))}
@@ -195,13 +195,13 @@ export default function BlogPost() {
             {article.relatedServices.length > 0 && (
               <FadeIn>
                 <div className="mt-8 bg-card border border-primary/20 p-6">
-                  <h3 className="font-semibold font-bold text-lg text-foreground tracking-wider mb-3">RELATED SERVICES</h3>
+                  <h3 className="font-semibold font-bold text-lg text-foreground tracking-[-0.01em] mb-3">RELATED SERVICES</h3>
                   <div className="flex flex-wrap gap-3">
                     {article.relatedServices.map(svc => (
                       <Link
                         key={svc}
                         href={svc}
-                        className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary px-4 py-2 font-semibold font-bold text-xs tracking-wider uppercase hover:bg-primary/20 transition-colors"
+                        className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary px-4 py-2 font-semibold font-bold text-xs tracking-wide hover:bg-primary/20 transition-colors"
                       >
                         {svc.replace("/", "").replace("-", " ")}
                         <ArrowRight className="w-3 h-3" />
@@ -215,18 +215,18 @@ export default function BlogPost() {
             {/* CTA */}
             <FadeIn>
               <div className="mt-12 bg-primary/10 border border-primary/30 p-8 text-center">
-                <h3 className="font-semibold font-bold text-2xl text-foreground tracking-wider mb-3">
+                <h3 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-3">
                   NEED THIS REPAIR?
                 </h3>
                 <p className="text-foreground/60 mb-6">
                   Our technicians are ready to help. Call or book online for an appointment.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <a href={BUSINESS.phone.href} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-primary/90 transition-colors">
+                  <a href={BUSINESS.phone.href} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-semibold font-bold text-sm tracking-wide hover:bg-primary/90 transition-colors">
                     <Phone className="w-4 h-4" />
                     CALL {BUSINESS.phone.display}
                   </a>
-                  <Link href="/#contact" className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-sm tracking-wider uppercase hover:border-primary hover:text-primary transition-colors">
+                  <Link href="/#contact" className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
                     BOOK ONLINE
                   </Link>
                 </div>
@@ -238,7 +238,7 @@ export default function BlogPost() {
 
       {/* Related Articles */}
       {moreRelated.length > 0 && (
-        <section className="section-darker py-16 border-t border-border/30">
+        <section className="bg-[oklch(0.055_0.004_260)] py-16 border-t border-border/30">
           <div className="container">
             <FadeIn>
               <span className="font-mono text-primary text-sm tracking-wide">Keep Reading</span>
@@ -260,8 +260,8 @@ export default function BlogPost() {
                     </div>
                     <div className="p-6">
                       <div className="flex items-center gap-3 mb-3">
-                        <span className="font-mono text-xs text-primary tracking-wider uppercase">{rel.category}</span>
-                        <span className="font-mono text-xs text-foreground/40 flex items-center gap-1">
+                        <span className="text-[12px] text-primary tracking-wide">{rel.category}</span>
+                        <span className="text-[12px] text-foreground/40 flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           {rel.readTime}
                         </span>
@@ -277,7 +277,7 @@ export default function BlogPost() {
 
             <FadeIn delay={0.2}>
               <div className="mt-8 text-center">
-                <Link href="/blog" className="inline-flex items-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-sm tracking-wider uppercase hover:border-primary hover:text-primary transition-colors">
+                <Link href="/blog" className="inline-flex items-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
                   VIEW ALL ARTICLES
                   <ArrowRight className="w-4 h-4" />
                 </Link>

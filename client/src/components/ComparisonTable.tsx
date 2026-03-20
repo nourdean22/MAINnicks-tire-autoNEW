@@ -30,7 +30,7 @@ function StatusIcon({ status }: { status: "yes" | "no" | "partial" }) {
 
 export default function ComparisonTable() {
   return (
-    <section className="section-dark py-20">
+    <section className="bg-[oklch(0.065_0.004_260)] py-20">
       <div className="container">
         <div className="text-center mb-12">
           <p className="text-xs font-semibold text-foreground/30 uppercase tracking-widest mb-3">
@@ -46,7 +46,7 @@ export default function ComparisonTable() {
             <thead>
               <tr className="border-b border-border/30">
                 <th className="text-left py-4 pr-4 text-foreground/40 font-medium text-xs uppercase tracking-wider">Feature</th>
-                <th className="text-center py-4 px-4 text-nick-yellow font-semibold text-xs uppercase tracking-wider">Nick's</th>
+                <th className="text-center py-4 px-4 text-primary font-semibold text-xs uppercase tracking-wider">Nick's</th>
                 <th className="text-center py-4 px-4 text-foreground/40 font-medium text-xs uppercase tracking-wider">Dealership</th>
                 <th className="text-center py-4 px-4 text-foreground/40 font-medium text-xs uppercase tracking-wider">Chain Shop</th>
               </tr>

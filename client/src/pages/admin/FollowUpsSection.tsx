@@ -48,15 +48,15 @@ export default function FollowUpsSection() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-heading font-bold text-2xl text-foreground tracking-wider">FOLLOW-UP MANAGER</h2>
-          <p className="text-foreground/50 font-mono text-xs mt-1">
+          <h2 className="font-bold text-2xl text-foreground tracking-wider">FOLLOW-UP MANAGER</h2>
+          <p className="text-foreground/50 text-[12px] mt-1">
             Automated thank-you and review request messages for completed bookings
           </p>
         </div>
         <button
           onClick={() => runFollowUps.mutate()}
           disabled={runFollowUps.isPending}
-          className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-heading font-bold text-xs tracking-wider uppercase disabled:opacity-50 hover:bg-primary/90 transition-colors"
+          className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground font-bold text-xs tracking-wide disabled:opacity-50 hover:bg-primary/90 transition-colors"
         >
           {runFollowUps.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           {runFollowUps.isPending ? "PROCESSING..." : "RUN FOLLOW-UPS"}
@@ -66,16 +66,16 @@ export default function FollowUpsSection() {
       {/* Stats Row */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-card border border-border/30 p-4">
-          <span className="font-mono text-[10px] text-foreground/50 tracking-wider uppercase block mb-1">Pending</span>
-          <span className="font-heading font-bold text-2xl text-amber-400">{pendingCount}</span>
+          <span className="font-mono text-[10px] text-foreground/50 tracking-wide block mb-1">Pending</span>
+          <span className="font-bold text-2xl text-amber-400">{pendingCount}</span>
         </div>
         <div className="bg-card border border-border/30 p-4">
-          <span className="font-mono text-[10px] text-foreground/50 tracking-wider uppercase block mb-1">Sent (Recent 50)</span>
-          <span className="font-heading font-bold text-2xl text-emerald-400">{sentCount}</span>
+          <span className="font-mono text-[10px] text-foreground/50 tracking-wide block mb-1">Sent (Recent 50)</span>
+          <span className="font-bold text-2xl text-emerald-400">{sentCount}</span>
         </div>
         <div className="bg-card border border-border/30 p-4">
-          <span className="font-mono text-[10px] text-foreground/50 tracking-wider uppercase block mb-1">Failed</span>
-          <span className="font-heading font-bold text-2xl text-red-400">{failedCount}</span>
+          <span className="font-mono text-[10px] text-foreground/50 tracking-wide block mb-1">Failed</span>
+          <span className="font-bold text-2xl text-red-400">{failedCount}</span>
         </div>
       </div>
 
@@ -86,7 +86,7 @@ export default function FollowUpsSection() {
           {/* Pending Follow-Ups */}
           {pendingCount > 0 && (
             <div>
-              <h3 className="font-heading font-bold text-sm text-amber-400 tracking-wider uppercase mb-3 flex items-center gap-2">
+              <h3 className="font-bold text-sm text-amber-400 tracking-wide mb-3 flex items-center gap-2">
                 <AlertCircle className="w-4 h-4" /> PENDING ({pendingCount})
               </h3>
               <div className="space-y-2">
@@ -94,17 +94,17 @@ export default function FollowUpsSection() {
                   const cfg = TYPE_CONFIG[fu.notificationType] || TYPE_CONFIG.follow_up;
                   return (
                     <div key={fu.id} className="bg-card border border-border/30 p-4 flex items-center gap-4">
-                      <div className={`flex items-center gap-1.5 px-2 py-1 text-[10px] font-mono ${cfg.color}`}>
+                      <div className={`flex items-center gap-1.5 px-2 py-1 text-[10px] ${cfg.color}`}>
                         {cfg.icon} {cfg.label}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <span className="font-heading font-bold text-foreground text-sm">{fu.recipientName}</span>
-                        <span className="font-mono text-xs text-foreground/40 ml-3">{fu.recipientPhone || "No phone"}</span>
+                        <span className="font-bold text-foreground text-sm">{fu.recipientName}</span>
+                        <span className="text-[12px] text-foreground/40 ml-3">{fu.recipientPhone || "No phone"}</span>
                       </div>
                       <span className="font-mono text-[10px] text-foreground/30">
                         {new Date(fu.createdAt).toLocaleDateString()}
                       </span>
-                      <span className={`px-2 py-0.5 text-[10px] font-mono ${STATUS_STYLES[fu.status]}`}>
+                      <span className={`px-2 py-0.5 text-[10px] ${STATUS_STYLES[fu.status]}`}>
                         {fu.status.toUpperCase()}
                       </span>
                     </div>
@@ -116,14 +116,14 @@ export default function FollowUpsSection() {
 
           {/* Recent Follow-Ups */}
           <div>
-            <h3 className="font-heading font-bold text-sm text-foreground/60 tracking-wider uppercase mb-3">
+            <h3 className="font-bold text-sm text-foreground/60 tracking-wide mb-3">
               RECENT FOLLOW-UPS
             </h3>
             {(recent?.length ?? 0) === 0 ? (
               <div className="text-center py-12 text-foreground/40">
                 <Send className="w-8 h-8 mx-auto mb-3 opacity-30" />
-                <p className="font-mono text-sm">No follow-ups yet. They are generated when bookings are completed.</p>
-                <p className="font-mono text-xs text-foreground/30 mt-2">Click "Run Follow-Ups" to process eligible bookings.</p>
+                <p className="text-[13px]">No follow-ups yet. They are generated when bookings are completed.</p>
+                <p className="text-[12px] text-foreground/30 mt-2">Click "Run Follow-Ups" to process eligible bookings.</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -131,17 +131,17 @@ export default function FollowUpsSection() {
                   const cfg = TYPE_CONFIG[fu.notificationType] || TYPE_CONFIG.follow_up;
                   return (
                     <div key={fu.id} className="bg-card border border-border/30 p-4 flex items-center gap-4">
-                      <div className={`flex items-center gap-1.5 px-2 py-1 text-[10px] font-mono ${cfg.color}`}>
+                      <div className={`flex items-center gap-1.5 px-2 py-1 text-[10px] ${cfg.color}`}>
                         {cfg.icon} {cfg.label}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <span className="font-heading font-bold text-foreground text-sm">{fu.recipientName}</span>
-                        <span className="font-mono text-xs text-foreground/40 ml-3">{fu.recipientPhone || "No phone"}</span>
+                        <span className="font-bold text-foreground text-sm">{fu.recipientName}</span>
+                        <span className="text-[12px] text-foreground/40 ml-3">{fu.recipientPhone || "No phone"}</span>
                       </div>
                       <span className="font-mono text-[10px] text-foreground/30">
                         {new Date(fu.createdAt).toLocaleDateString()}
                       </span>
-                      <span className={`px-2 py-0.5 text-[10px] font-mono ${STATUS_STYLES[fu.status]}`}>
+                      <span className={`px-2 py-0.5 text-[10px] ${STATUS_STYLES[fu.status]}`}>
                         {fu.status.toUpperCase()}
                       </span>
                     </div>
@@ -155,7 +155,7 @@ export default function FollowUpsSection() {
 
       {/* Info */}
       <div className="bg-primary/5 border border-primary/20 p-4">
-        <h4 className="font-heading font-bold text-xs text-primary tracking-wider uppercase mb-2">HOW FOLLOW-UPS WORK</h4>
+        <h4 className="font-bold text-xs text-primary tracking-wide mb-2">HOW FOLLOW-UPS WORK</h4>
         <p className="text-foreground/60 text-xs leading-relaxed">
           When a booking is marked as completed, the system automatically queues two follow-ups:
           a 24-hour thank-you message and a 7-day review request. Click "Run Follow-Ups" to process

@@ -35,7 +35,7 @@ function BookingNotesEditor({ bookingId, initialNotes }: { bookingId: number; in
         className="flex items-start gap-2 w-full text-left p-2 border border-dashed border-border/30 hover:border-primary/30 transition-colors group"
       >
         <FileText className="w-3.5 h-3.5 text-foreground/30 group-hover:text-primary shrink-0 mt-0.5" />
-        <span className={`font-mono text-xs leading-relaxed ${notes ? "text-foreground/60" : "text-foreground/30 italic"}`}>
+        <span className={`text-[12px] leading-relaxed ${notes ? "text-foreground/60" : "text-foreground/30 italic"}`}>
           {notes || "Add admin notes..."}
         </span>
       </button>
@@ -49,20 +49,20 @@ function BookingNotesEditor({ bookingId, initialNotes }: { bookingId: number; in
         onChange={(e) => setNotes(e.target.value)}
         rows={3}
         autoFocus
-        className="w-full bg-background/60 border border-primary/30 text-foreground px-3 py-2 font-mono text-xs focus:outline-none focus:border-primary/50 resize-none"
+        className="w-full bg-background/60 border border-primary/30 text-foreground px-3 py-2 text-[12px] focus:outline-none focus:border-primary/50 resize-none"
         placeholder="Internal notes about this booking..."
       />
       <div className="flex gap-2">
         <button
           onClick={() => updateNotes.mutate({ id: bookingId, notes })}
           disabled={updateNotes.isPending}
-          className="px-3 py-1.5 bg-primary text-primary-foreground font-mono text-xs tracking-wider uppercase hover:bg-primary/90 disabled:opacity-50"
+          className="px-3 py-1.5 bg-primary text-primary-foreground text-[12px] tracking-wide hover:bg-primary/90 disabled:opacity-50"
         >
           {updateNotes.isPending ? "Saving..." : "Save"}
         </button>
         <button
           onClick={() => { setNotes(initialNotes || ""); setEditing(false); }}
-          className="px-3 py-1.5 border border-border/30 text-foreground/50 font-mono text-xs tracking-wider uppercase hover:text-foreground"
+          className="px-3 py-1.5 border border-border/30 text-foreground/50 text-[12px] tracking-wide hover:text-foreground"
         >
           Cancel
         </button>
@@ -95,7 +95,7 @@ function PrioritySelector({ bookingId, currentPriority }: { bookingId: number; c
           key={p.value}
           onClick={() => updatePriority.mutate({ id: bookingId, priority: p.value })}
           disabled={updatePriority.isPending}
-          className={`px-2 py-1 border font-mono text-[10px] tracking-wider uppercase transition-all ${
+          className={`px-2 py-1 border text-[10px] tracking-wide transition-all ${
             currentPriority === p.value
               ? `${p.color} ${p.bg} ring-1 ring-current/20`
               : "border-border/20 text-foreground/20 hover:text-foreground/50"
@@ -195,7 +195,7 @@ export default function BookingsSection() {
             placeholder="Search bookings..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full bg-card border border-border/50 text-foreground pl-10 pr-4 py-3 font-mono text-sm placeholder:text-foreground/30 focus:outline-none focus:border-primary/50"
+            className="w-full bg-card border border-border/50 text-foreground pl-10 pr-4 py-3 text-[13px] placeholder:text-foreground/30 focus:outline-none focus:border-primary/50"
           />
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -204,7 +204,7 @@ export default function BookingsSection() {
             <button
               key={f}
               onClick={() => setBookingFilter(f)}
-              className={`px-3 py-2 font-mono text-xs tracking-wider uppercase transition-colors ${
+              className={`px-3 py-2 text-[12px] tracking-wide transition-colors ${
                 bookingFilter === f ? "bg-primary text-primary-foreground" : "bg-card border border-border/30 text-foreground/60 hover:text-foreground"
               }`}
             >
@@ -214,7 +214,7 @@ export default function BookingsSection() {
           <div className="h-6 w-px bg-border/30 mx-1" />
           <button
             onClick={() => setSortBy(sortBy === "date" ? "priority" : "date")}
-            className={`px-3 py-2 font-mono text-xs tracking-wider uppercase transition-colors border ${
+            className={`px-3 py-2 text-[12px] tracking-wide transition-colors border ${
               sortBy === "priority" ? "border-amber-500/30 text-amber-400 bg-amber-500/10" : "border-border/30 text-foreground/60 hover:text-foreground"
             }`}
           >
@@ -234,8 +234,8 @@ export default function BookingsSection() {
       ) : filteredBookings.length === 0 ? (
         <div className="text-center py-20 border border-border/30 bg-card">
           <CalendarClock className="w-12 h-12 text-foreground/20 mx-auto mb-4" />
-          <p className="font-heading font-bold text-xl text-foreground/40 tracking-wider">NO BOOKINGS</p>
-          <p className="text-foreground/30 font-mono text-sm mt-2">Bookings from the website will appear here.</p>
+          <p className="font-bold text-xl text-foreground/40 tracking-wider">NO BOOKINGS</p>
+          <p className="text-foreground/30 text-[13px] mt-2">Bookings from the website will appear here.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -249,13 +249,13 @@ export default function BookingsSection() {
                   <div className="flex-1 space-y-3">
                     {/* Header: Name + Status + Priority */}
                     <div className="flex flex-wrap items-center gap-3">
-                      <h3 className="font-heading font-bold text-lg text-foreground tracking-wider">{booking.name}</h3>
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 border font-mono text-xs tracking-wider ${BOOKING_STATUS_CONFIG[booking.status as BookingStatus]?.color} ${BOOKING_STATUS_CONFIG[booking.status as BookingStatus]?.bgColor}`}>
+                      <h3 className="font-bold text-lg text-foreground tracking-wider">{booking.name}</h3>
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 border text-[12px] tracking-wider ${BOOKING_STATUS_CONFIG[booking.status as BookingStatus]?.color} ${BOOKING_STATUS_CONFIG[booking.status as BookingStatus]?.bgColor}`}>
                         {BOOKING_STATUS_CONFIG[booking.status as BookingStatus]?.icon}
                         {BOOKING_STATUS_CONFIG[booking.status as BookingStatus]?.label}
                       </span>
                       {priorityLevel > 0 && (
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 border font-mono text-[10px] tracking-wider ${
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 border text-[10px] tracking-wider ${
                           priorityLevel >= 2 ? "text-red-400 bg-red-500/10 border-red-500/30" : "text-amber-400 bg-amber-500/10 border-amber-500/30"
                         }`}>
                           <AlertTriangle className="w-3 h-3" />
@@ -268,22 +268,22 @@ export default function BookingsSection() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div className="flex items-center gap-2 text-foreground/70">
                         <Phone className="w-4 h-4 text-primary shrink-0" />
-                        <a href={`tel:${booking.phone}`} className="font-mono text-sm hover:text-primary">{booking.phone}</a>
+                        <a href={`tel:${booking.phone}`} className="text-[13px] hover:text-primary">{booking.phone}</a>
                       </div>
                       {booking.email && (
                         <div className="flex items-center gap-2 text-foreground/70">
                           <Mail className="w-4 h-4 text-primary shrink-0" />
-                          <span className="font-mono text-sm truncate">{booking.email}</span>
+                          <span className="text-[13px] truncate">{booking.email}</span>
                         </div>
                       )}
                       <div className="flex items-center gap-2 text-foreground/70">
                         <Wrench className="w-4 h-4 text-primary shrink-0" />
-                        <span className="font-mono text-sm">{booking.service}</span>
+                        <span className="text-[13px]">{booking.service}</span>
                       </div>
                       {(booking.vehicleYear || booking.vehicleMake || booking.vehicle) && (
                         <div className="flex items-center gap-2 text-foreground/70">
                           <Car className="w-4 h-4 text-primary shrink-0" />
-                          <span className="font-mono text-sm">
+                          <span className="text-[13px]">
                             {booking.vehicleYear && booking.vehicleMake
                               ? `${booking.vehicleYear} ${booking.vehicleMake} ${booking.vehicleModel || ""}`.trim()
                               : booking.vehicle}
@@ -293,20 +293,20 @@ export default function BookingsSection() {
                       {booking.preferredDate && (
                         <div className="flex items-center gap-2 text-foreground/70">
                           <Calendar className="w-4 h-4 text-primary shrink-0" />
-                          <span className="font-mono text-sm">{booking.preferredDate}</span>
+                          <span className="text-[13px]">{booking.preferredDate}</span>
                         </div>
                       )}
                       <div className="flex items-center gap-2 text-foreground/70">
                         <Clock className="w-4 h-4 text-primary shrink-0" />
-                        <span className="font-mono text-sm">{TIME_LABELS[booking.preferredTime] || booking.preferredTime}</span>
+                        <span className="text-[13px]">{TIME_LABELS[booking.preferredTime] || booking.preferredTime}</span>
                       </div>
                     </div>
 
                     {/* Customer Message */}
                     {booking.message && (
-                      <div className="flex items-start gap-2 text-foreground/60 bg-nick-dark/50 p-3 border border-border/20">
+                      <div className="flex items-start gap-2 text-foreground/60 bg-background/50 p-3 border border-border/20">
                         <MessageSquare className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                        <p className="font-mono text-sm leading-relaxed">{booking.message}</p>
+                        <p className="text-[13px] leading-relaxed">{booking.message}</p>
                       </div>
                     )}
 
@@ -315,40 +315,40 @@ export default function BookingsSection() {
 
                     {/* Priority Selector */}
                     <div className="flex items-center gap-3">
-                      <span className="font-mono text-[10px] text-foreground/30 tracking-wider uppercase">Priority:</span>
+                      <span className="font-mono text-[10px] text-foreground/30 tracking-wide">Priority:</span>
                       <PrioritySelector bookingId={booking.id} currentPriority={booking.priority || 0} />
                     </div>
 
                     {/* Admin Notes */}
                     <BookingNotesEditor bookingId={booking.id} initialNotes={booking.adminNotes} />
 
-                    <p className="font-mono text-xs text-foreground/30">
+                    <p className="text-[12px] text-foreground/30">
                       Submitted {new Date(booking.createdAt).toLocaleString()}
                     </p>
                   </div>
                   <div className="flex flex-row lg:flex-col gap-2 shrink-0">
                     {booking.status === "new" && (
                       <>
-                        <button onClick={() => updateBookingStatus.mutate({ id: booking.id, status: "confirmed" })} disabled={updateBookingStatus.isPending} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:bg-primary/90 disabled:opacity-50">
+                        <button onClick={() => updateBookingStatus.mutate({ id: booking.id, status: "confirmed" })} disabled={updateBookingStatus.isPending} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/90 disabled:opacity-50">
                           <CheckCircle2 className="w-4 h-4" /> CONFIRM
                         </button>
-                        <button onClick={() => updateBookingStatus.mutate({ id: booking.id, status: "cancelled" })} disabled={updateBookingStatus.isPending} className="flex items-center gap-2 border border-red-500/30 text-red-400 px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:bg-red-500/10 disabled:opacity-50">
+                        <button onClick={() => updateBookingStatus.mutate({ id: booking.id, status: "cancelled" })} disabled={updateBookingStatus.isPending} className="flex items-center gap-2 border border-red-500/30 text-red-400 px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-red-500/10 disabled:opacity-50">
                           <XCircle className="w-4 h-4" /> CANCEL
                         </button>
                       </>
                     )}
                     {booking.status === "confirmed" && (
                       <>
-                        <button onClick={() => updateBookingStatus.mutate({ id: booking.id, status: "completed" })} disabled={updateBookingStatus.isPending} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:bg-emerald-700 disabled:opacity-50">
+                        <button onClick={() => updateBookingStatus.mutate({ id: booking.id, status: "completed" })} disabled={updateBookingStatus.isPending} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-emerald-700 disabled:opacity-50">
                           <CheckCircle2 className="w-4 h-4" /> COMPLETE
                         </button>
-                        <button onClick={() => updateBookingStatus.mutate({ id: booking.id, status: "cancelled" })} disabled={updateBookingStatus.isPending} className="flex items-center gap-2 border border-red-500/30 text-red-400 px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:bg-red-500/10 disabled:opacity-50">
+                        <button onClick={() => updateBookingStatus.mutate({ id: booking.id, status: "cancelled" })} disabled={updateBookingStatus.isPending} className="flex items-center gap-2 border border-red-500/30 text-red-400 px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-red-500/10 disabled:opacity-50">
                           <XCircle className="w-4 h-4" /> CANCEL
                         </button>
                       </>
                     )}
                     {(booking.status === "completed" || booking.status === "cancelled") && (
-                      <button onClick={() => updateBookingStatus.mutate({ id: booking.id, status: "new" })} disabled={updateBookingStatus.isPending} className="flex items-center gap-2 border border-border/30 text-foreground/50 px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:text-foreground disabled:opacity-50">
+                      <button onClick={() => updateBookingStatus.mutate({ id: booking.id, status: "new" })} disabled={updateBookingStatus.isPending} className="flex items-center gap-2 border border-border/30 text-foreground/50 px-4 py-2.5 font-bold text-xs tracking-wide hover:text-foreground disabled:opacity-50">
                         <RefreshCw className="w-4 h-4" /> REOPEN
                       </button>
                     )}

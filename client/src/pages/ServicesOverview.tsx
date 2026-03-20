@@ -70,10 +70,10 @@ export default function ServicesOverview() {
         <div className="absolute inset-0 bg-gradient-to-b from-nick-yellow/5 to-transparent" />
         <div className="container relative">
           <div className="max-w-3xl">
-            <span className="font-mono text-nick-yellow text-sm tracking-widest uppercase">What We Do</span>
-            <h1 className="font-heading font-bold text-4xl sm:text-5xl lg:text-6xl text-foreground mt-3 tracking-tight leading-[1.05]">
+            <span className="font-mono text-primary text-sm tracking-wide">What We Do</span>
+            <h1 className="font-bold text-4xl sm:text-5xl lg:text-6xl text-foreground mt-3 tracking-tight leading-[1.05]">
               COMPLETE AUTO REPAIR<br />
-              <span className="text-nick-yellow">SERVICES</span>
+              <span className="text-primary">SERVICES</span>
             </h1>
             <p className="mt-6 text-foreground/70 text-lg leading-relaxed max-w-2xl">
               From routine oil changes to complex engine diagnostics, our experienced technicians handle every repair with honest communication and fair pricing. We explain the problem, show you the worn parts, and let you decide — no pressure, no upselling.
@@ -82,7 +82,7 @@ export default function ServicesOverview() {
               <a
                 href={BUSINESS.phone.href}
                 onClick={() => trackPhoneClick("services-hero")}
-                className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-full font-bold text-lg hover:bg-nick-yellow/90 transition-colors"
+                className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-full font-bold text-lg hover:bg-primary/90 transition-colors"
               >
                 <Phone className="w-5 h-5" />
                 {BUSINESS.phone.display}
@@ -104,27 +104,27 @@ export default function ServicesOverview() {
               <Link
                 key={service.slug}
                 href={`/${service.slug}`}
-                className="group block border border-border/50 rounded-lg p-8 hover:border-nick-yellow/50 hover:bg-card/50 transition-all duration-300"
+                className="group block border border-border/50 rounded-lg p-8 hover:border-primary/50 hover:bg-card/50 transition-all duration-300"
               >
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="text-nick-yellow">{service.icon}</div>
-                  <h2 className="font-heading font-bold text-2xl text-foreground tracking-wide group-hover:text-nick-yellow transition-colors">
+                  <div className="text-primary">{service.icon}</div>
+                  <h2 className="font-bold text-2xl text-foreground tracking-wide group-hover:text-primary transition-colors">
                     {service.title}
                   </h2>
                 </div>
                 <p className="text-foreground/70 leading-relaxed mb-4">{service.shortDesc}</p>
                 <div className="space-y-2">
-                  <span className="text-xs font-mono text-foreground/50 uppercase tracking-wider">Common problems we fix:</span>
+                  <span className="text-xs text-foreground/50 uppercase tracking-wider">Common problems we fix:</span>
                   <ul className="space-y-1">
                     {service.problems.map((problem) => (
                       <li key={problem} className="text-sm text-foreground/60 flex items-center gap-2">
-                        <ChevronRight className="w-3 h-3 text-nick-yellow flex-shrink-0" />
+                        <ChevronRight className="w-3 h-3 text-primary flex-shrink-0" />
                         {problem}
                       </li>
                     ))}
                   </ul>
                 </div>
-                <div className="mt-6 flex items-center gap-2 text-nick-yellow font-medium text-sm">
+                <div className="mt-6 flex items-center gap-2 text-primary font-medium text-sm">
                   Learn More <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </div>
               </Link>
@@ -137,7 +137,7 @@ export default function ServicesOverview() {
       <section className="py-16 lg:py-20 bg-card/30">
         <div className="container">
           <div className="max-w-3xl mx-auto text-center">
-            <h2 className="font-heading font-bold text-3xl lg:text-4xl text-foreground tracking-tight">
+            <h2 className="font-bold text-3xl lg:text-4xl text-foreground tracking-tight">
               WHY CLEVELAND DRIVERS CHOOSE US
             </h2>
             <p className="mt-4 text-foreground/70 text-lg leading-relaxed">
@@ -147,20 +147,20 @@ export default function ServicesOverview() {
               <div className="text-center">
                 <div className="flex justify-center gap-0.5 mb-2">
                   {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 fill-nick-yellow text-nick-yellow" />
+                    <Star key={i} className="w-5 h-5 fill-nick-yellow text-primary" />
                   ))}
                 </div>
-                <span className="font-heading font-bold text-2xl text-foreground">4.9 Stars</span>
+                <span className="font-bold text-2xl text-foreground">4.9 Stars</span>
                 <p className="text-foreground/60 text-sm mt-1">{BUSINESS.reviews.countDisplay} Google Reviews</p>
               </div>
               <div className="text-center">
-                <MapPin className="w-8 h-8 text-nick-yellow mx-auto mb-2" />
-                <span className="font-heading font-bold text-2xl text-foreground">Local</span>
+                <MapPin className="w-8 h-8 text-primary mx-auto mb-2" />
+                <span className="font-bold text-2xl text-foreground">Local</span>
                 <p className="text-foreground/60 text-sm mt-1">Cleveland owned and operated</p>
               </div>
               <div className="text-center">
-                <Wrench className="w-8 h-8 text-nick-yellow mx-auto mb-2" />
-                <span className="font-heading font-bold text-2xl text-foreground">Expert</span>
+                <Wrench className="w-8 h-8 text-primary mx-auto mb-2" />
+                <span className="font-bold text-2xl text-foreground">Expert</span>
                 <p className="text-foreground/60 text-sm mt-1">Advanced OBD-II diagnostics</p>
               </div>
             </div>
@@ -171,7 +171,7 @@ export default function ServicesOverview() {
       {/* CTA Section */}
       <section className="py-16 lg:py-20">
         <div className="container text-center">
-          <h2 className="font-heading font-bold text-3xl lg:text-4xl text-foreground tracking-tight">
+          <h2 className="font-bold text-3xl lg:text-4xl text-foreground tracking-tight">
             NEED A REPAIR?
           </h2>
           <p className="mt-4 text-foreground/70 text-lg max-w-xl mx-auto">
@@ -181,7 +181,7 @@ export default function ServicesOverview() {
             <a
               href={BUSINESS.phone.href}
               onClick={() => trackPhoneClick("services-cta")}
-              className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-full font-bold text-lg hover:bg-nick-yellow/90 transition-colors"
+              className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-full font-bold text-lg hover:bg-primary/90 transition-colors"
             >
               <Phone className="w-5 h-5" />
               Call {BUSINESS.phone.display}
@@ -191,7 +191,7 @@ export default function ServicesOverview() {
               <ChevronRight className="w-5 h-5" />
             </Link>
           </div>
-          <p className="mt-6 text-foreground/50 text-sm font-mono">
+          <p className="mt-6 text-foreground/50 text-sm">
             {BUSINESS.address.full} — {BUSINESS.hours.display}
           </p>
         </div>

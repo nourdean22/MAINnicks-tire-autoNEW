@@ -32,14 +32,14 @@ export default function ReferralsSection() {
 
   return (
     <div className="space-y-6">
-      <h2 className="font-heading font-bold text-xl text-foreground tracking-wider">REFERRAL TRACKING</h2>
+      <h2 className="font-bold text-xl text-foreground tracking-wider">REFERRAL TRACKING</h2>
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       ) : (referrals ?? []).length === 0 ? (
         <div className="text-center py-12 text-foreground/40">
           <Users className="w-8 h-8 mx-auto mb-3 opacity-30" />
-          <p className="font-mono text-sm">No referrals yet.</p>
+          <p className="text-[13px]">No referrals yet.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -48,11 +48,11 @@ export default function ReferralsSection() {
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-1">
-                    <span className="font-heading font-bold text-foreground text-sm">{r.referrerName}</span>
+                    <span className="font-bold text-foreground text-sm">{r.referrerName}</span>
                     <ChevronRight className="w-4 h-4 text-foreground/30" />
-                    <span className="font-heading font-bold text-foreground text-sm">{r.refereeName}</span>
+                    <span className="font-bold text-foreground text-sm">{r.refereeName}</span>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-foreground/40 font-mono">
+                  <div className="flex items-center gap-3 text-xs text-foreground/40">
                     <span>{r.referrerPhone}</span>
                     <span>→</span>
                     <span>{r.refereePhone}</span>
@@ -63,7 +63,7 @@ export default function ReferralsSection() {
                 <select
                   value={r.status}
                   onChange={(e) => updateStatus.mutate({ id: r.id, status: e.target.value as "pending" | "visited" | "redeemed" | "expired" })}
-                  className={`px-2 py-1 text-xs font-mono border-0 ${statusColors[r.status] || "text-foreground/50"}`}
+                  className={`px-2 py-1 text-xs border-0 ${statusColors[r.status] || "text-foreground/50"}`}
                 >
                   <option value="pending">PENDING</option>
                   <option value="contacted">CONTACTED</option>

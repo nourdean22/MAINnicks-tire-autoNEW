@@ -21,15 +21,15 @@ export default function NotFound() {
         <div className="max-w-2xl w-full text-center">
           {/* Big 404 */}
           <div className="relative mb-8">
-            <span className="font-heading font-bold text-[10rem] sm:text-[14rem] leading-none text-border/30 select-none">
+            <span className="font-bold text-[10rem] sm:text-[14rem] leading-none text-border/30 select-none">
               404
             </span>
             <div className="absolute inset-0 flex items-center justify-center">
-              <Wrench className="w-16 h-16 sm:w-24 sm:h-24 text-nick-yellow" />
+              <Wrench className="w-16 h-16 sm:w-24 sm:h-24 text-primary" />
             </div>
           </div>
 
-          <h1 className="font-heading font-bold text-3xl sm:text-4xl text-foreground tracking-tight mb-4">
+          <h1 className="font-bold text-3xl sm:text-4xl text-foreground tracking-tight mb-4">
             PAGE NOT FOUND
           </h1>
 
@@ -41,14 +41,14 @@ export default function NotFound() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
             <Link
               href="/"
-              className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow"
+              className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-bold text-sm tracking-wide hover:opacity-90 transition-colors hover:opacity-90 transition-opacity"
             >
               <ArrowLeft className="w-4 h-4" />
               BACK TO HOME
             </Link>
             <a
               href={BUSINESS.phone.href}
-              className="inline-flex items-center justify-center gap-2 border-2 border-nick-teal/50 text-nick-teal px-8 py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-teal/10 hover:border-nick-teal transition-colors"
+              className="inline-flex items-center justify-center gap-2 border-2 border-nick-teal/50 text-nick-teal px-8 py-4 rounded-md font-bold text-sm tracking-wide hover:bg-nick-teal/10 hover:border-nick-teal transition-colors"
               aria-label={`Call Nick's Tire and Auto at ${BUSINESS.phone.dashed}`}
             >
               <Phone className="w-4 h-4" />
@@ -58,7 +58,7 @@ export default function NotFound() {
 
           {/* Quick links */}
           <div className="border-t border-border/50 pt-8">
-            <p className="font-heading text-sm tracking-widest uppercase text-foreground/40 mb-4">
+            <p className="font-heading text-sm tracking-wide text-foreground/40 mb-4">
               POPULAR PAGES
             </p>
             <div className="flex flex-wrap gap-3 justify-center">
@@ -74,7 +74,7 @@ export default function NotFound() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="px-4 py-2 bg-card/50 border border-border/50 rounded-md text-sm text-foreground/70 hover:text-nick-yellow hover:border-nick-yellow/30 transition-colors"
+                  className="px-4 py-2 bg-card/50 border border-border/50 rounded-md text-sm text-foreground/70 hover:text-primary hover:border-primary/30 transition-colors"
                 >
                   {link.label}
                 </Link>

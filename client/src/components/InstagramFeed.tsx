@@ -62,21 +62,21 @@ export default function InstagramFeed() {
   if (!isLoading && (!posts || posts.length === 0)) return null;
 
   return (
-    <section className="section-darker py-20 lg:py-28">
+    <section className="bg-[oklch(0.055_0.004_260)] py-20 lg:py-28">
       <div className="h-1.5 w-full bg-gradient-to-r from-nick-yellow via-nick-orange to-nick-teal" />
       <div className="container pt-16">
         <FadeIn>
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
-              <span className="font-mono text-nick-orange text-sm tracking-widest uppercase flex items-center gap-2">
+              <span className="font-mono text-nick-orange text-sm tracking-wide flex items-center gap-2">
                 <Instagram className="w-4 h-4" />
                 From The Shop Floor
               </span>
-              <h2 className="font-heading font-bold text-4xl lg:text-6xl text-foreground mt-3 tracking-tight">
-                FOLLOW <span className="text-gradient-yellow">ALONG</span>
+              <h2 className="font-bold text-4xl lg:text-6xl text-foreground mt-3 tracking-tight">
+                FOLLOW <span className="text-primary">ALONG</span>
               </h2>
               {account && (
-                <p className="mt-2 text-foreground/50 text-sm font-mono">
+                <p className="mt-2 text-foreground/50 text-sm">
                   @{account.username} · {account.followers.toLocaleString()} followers · {account.posts} posts
                 </p>
               )}
@@ -85,7 +85,7 @@ export default function InstagramFeed() {
               href="https://www.instagram.com/nicks_tire_euclid/"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white px-5 py-2.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:opacity-90 transition-opacity"
+              className="flex items-center gap-2 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white px-5 py-2.5 rounded-md font-bold text-sm tracking-wide hover:opacity-90 transition-opacity"
             >
               <Instagram className="w-4 h-4" />
               FOLLOW US
@@ -96,7 +96,7 @@ export default function InstagramFeed() {
         <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {isLoading
             ? Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="card-vibrant bg-card/80 rounded-lg animate-pulse overflow-hidden">
+                <div key={i} className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl animate-pulse overflow-hidden">
                   <div className="aspect-square bg-background/60" />
                   <div className="p-4 space-y-2">
                     <div className="h-3 bg-background/60 rounded w-3/4" />
@@ -110,7 +110,7 @@ export default function InstagramFeed() {
                     href={post.link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group card-vibrant bg-card/80 rounded-lg overflow-hidden block"
+                    className="group bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl overflow-hidden block"
                   >
                     {/* Post image or video thumbnail */}
                     <div className="relative aspect-square bg-background/60 overflow-hidden">
@@ -135,12 +135,12 @@ export default function InstagramFeed() {
                       )}
 
                       {/* Hover overlay */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-nick-dark/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-6 gap-6">
-                        <span className="flex items-center gap-1.5 text-white font-mono text-sm">
-                          <Heart className="w-5 h-5 fill-nick-yellow text-nick-yellow" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-6 gap-6">
+                        <span className="flex items-center gap-1.5 text-white text-[13px]">
+                          <Heart className="w-5 h-5 fill-nick-yellow text-primary" />
                           {post.likes}
                         </span>
-                        <span className="flex items-center gap-1.5 text-white font-mono text-sm">
+                        <span className="flex items-center gap-1.5 text-white text-[13px]">
                           <MessageCircle className="w-5 h-5 fill-nick-teal text-nick-teal" />
                           {post.comments}
                         </span>
@@ -154,9 +154,9 @@ export default function InstagramFeed() {
                           {truncateCaption(post.caption)}
                         </p>
                       )}
-                      <div className="mt-3 flex items-center justify-between text-foreground/40 text-xs font-mono">
+                      <div className="mt-3 flex items-center justify-between text-foreground/40 text-xs">
                         <div className="flex items-center gap-3">
-                          <span className="flex items-center gap-1 text-nick-yellow/60">
+                          <span className="flex items-center gap-1 text-primary/60">
                             <Heart className="w-3 h-3" />
                             {post.likes}
                           </span>

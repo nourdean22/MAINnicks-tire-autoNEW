@@ -1,5 +1,5 @@
 /**
- * ADMIN DASHBOARD — Slim shell that composes section components.
+ * ADMIN DASHBOARD — Premium shell with CEO-level polish.
  * Each section lives in client/src/pages/admin/<SectionName>.tsx
  */
 
@@ -9,10 +9,10 @@ import { getLoginUrl } from "@/const";
 import { useState, lazy, Suspense } from "react";
 import { Link } from "wouter";
 import {
-  Loader2, Shield, XCircle, ArrowLeft, Menu, X, Sparkles,
+  Loader2, Shield, XCircle, ArrowLeft, Menu, X, Sparkles, ChevronRight,
 } from "lucide-react";
 import {
-  AdminSection, NAV_ITEMS, NAV_GROUPS, SECTION_TITLES,
+  AdminSection, NAV_GROUPS, SECTION_TITLES,
 } from "./admin/shared";
 
 // Lazy-load each section for code splitting
@@ -44,7 +44,10 @@ const IntegrationsSection = lazy(() => import("./admin/IntegrationsSection"));
 function SectionSpinner() {
   return (
     <div className="flex items-center justify-center py-32">
-      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="flex flex-col items-center gap-3">
+        <Loader2 className="w-6 h-6 animate-spin text-primary/60" />
+        <span className="text-xs text-muted-foreground tracking-wide">Loading...</span>
+      </div>
     </div>
   );
 }
@@ -93,21 +96,27 @@ export default function Admin() {
   // ─── AUTH GATE ───────────────────────────────────────
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-nick-dark flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-primary/60" />
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-nick-dark flex items-center justify-center">
-        <div className="text-center max-w-md px-6">
-          <Shield className="w-12 h-12 text-primary mx-auto mb-4" />
-          <h1 className="font-heading font-bold text-3xl text-foreground tracking-wider mb-4">ADMIN ACCESS</h1>
-          <p className="text-foreground/60 mb-8">Sign in with your admin account to manage bookings and leads.</p>
-          <a href={getLoginUrl()} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-heading font-bold text-sm tracking-wider uppercase hover:bg-primary/90 transition-colors">
-            SIGN IN
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center max-w-sm px-6">
+          <div className="w-14 h-14 bg-primary/10 flex items-center justify-center rounded-xl mx-auto mb-6">
+            <Shield className="w-7 h-7 text-primary" />
+          </div>
+          <h1 className="text-2xl font-semibold text-foreground tracking-tight mb-2">Admin Access</h1>
+          <p className="text-sm text-muted-foreground mb-8 leading-relaxed">Sign in with your admin account to manage operations.</p>
+          <a
+            href={getLoginUrl()}
+            className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors"
+          >
+            Sign In
+            <ChevronRight className="w-4 h-4" />
           </a>
         </div>
       </div>
@@ -116,14 +125,19 @@ export default function Admin() {
 
   if (user.role !== "admin") {
     return (
-      <div className="min-h-screen bg-nick-dark flex items-center justify-center">
-        <div className="text-center max-w-md px-6">
-          <XCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h1 className="font-heading font-bold text-3xl text-foreground tracking-wider mb-4">ACCESS DENIED</h1>
-          <p className="text-foreground/60 mb-8">You do not have admin privileges.</p>
-          <Link href="/" className="inline-flex items-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-heading font-bold text-sm tracking-wider uppercase hover:border-primary hover:text-primary transition-colors">
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center max-w-sm px-6">
+          <div className="w-14 h-14 bg-destructive/10 flex items-center justify-center rounded-xl mx-auto mb-6">
+            <XCircle className="w-7 h-7 text-destructive" />
+          </div>
+          <h1 className="text-2xl font-semibold text-foreground tracking-tight mb-2">Access Denied</h1>
+          <p className="text-sm text-muted-foreground mb-8">You do not have admin privileges.</p>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm font-medium"
+          >
             <ArrowLeft className="w-4 h-4" />
-            BACK TO SITE
+            Back to site
           </Link>
         </div>
       </div>
@@ -136,39 +150,43 @@ export default function Admin() {
   const newLeads = stats?.leads.new ?? 0;
 
   return (
-    <div className="min-h-screen bg-nick-dark flex">
+    <div className="min-h-screen bg-background flex">
       {/* Mobile overlay */}
       {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
       )}
 
-      {/* Sidebar */}
-      <aside className={`fixed lg:sticky top-0 left-0 z-50 lg:z-auto h-screen w-64 bg-card border-r border-border/30 flex flex-col transition-transform duration-200 ${
+      {/* ─── SIDEBAR ─── */}
+      <aside className={`admin-sidebar fixed lg:sticky top-0 left-0 z-50 lg:z-auto h-screen w-[260px] flex flex-col transition-transform duration-200 ${
         sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       }`}>
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-border/30">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-primary flex items-center justify-center rounded-sm">
-                <span className="font-heading font-bold text-primary-foreground text-base">N</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="font-heading font-bold text-primary text-sm leading-tight tracking-wider">NICK'S ADMIN</span>
-                <span className="text-foreground/40 text-[10px] font-mono tracking-wider">MANAGEMENT HUB</span>
-              </div>
-            </Link>
-            <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-foreground/50 hover:text-foreground p-1">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+        <div className="h-14 flex items-center px-5 border-b border-sidebar-border shrink-0">
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <div className="w-7 h-7 bg-primary flex items-center justify-center rounded-md">
+              <span className="font-bold text-primary-foreground text-xs">N</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-semibold text-foreground text-[13px] leading-tight tracking-tight group-hover:text-primary transition-colors">Nick's Admin</span>
+              <span className="text-[10px] text-muted-foreground tracking-wide">Management Hub</span>
+            </div>
+          </Link>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden ml-auto text-muted-foreground hover:text-foreground p-1 rounded-md"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Nav Items — Grouped */}
-        <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
+        <nav className="flex-1 py-3 px-3 space-y-4 overflow-y-auto">
           {NAV_GROUPS.map(group => (
             <div key={group.label}>
-              <span className="font-mono text-[9px] text-foreground/30 tracking-[0.2em] uppercase px-3 mb-1 block">{group.label}</span>
+              <div className="admin-sidebar-group-label">{group.label}</div>
               <div className="space-y-0.5">
                 {group.items.map(item => {
                   const isActive = section === item.id;
@@ -180,17 +198,15 @@ export default function Admin() {
                     <button
                       key={item.id}
                       onClick={() => { setSection(item.id); setSidebarOpen(false); }}
-                      className={`w-full flex items-center gap-3 px-3 py-2 transition-colors ${
-                        isActive
-                          ? "bg-primary/10 text-primary border-l-2 border-primary"
-                          : "text-foreground/60 hover:text-foreground hover:bg-foreground/5 border-l-2 border-transparent"
-                      }`}
+                      className={`admin-sidebar-item w-full ${isActive ? "active" : ""}`}
                     >
-                      {item.icon}
-                      <span className="font-heading font-bold text-xs tracking-wider uppercase flex-1 text-left">{item.label}</span>
+                      <span className={isActive ? "text-primary" : ""}>{item.icon}</span>
+                      <span className="flex-1 text-left">{item.label}</span>
                       {badge > 0 && (
-                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${
-                          item.id === "leads" ? "bg-red-500 text-white" : "bg-blue-500 text-white"
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${
+                          item.id === "leads"
+                            ? "bg-destructive/15 text-destructive"
+                            : "bg-info/15 text-info"
                         }`}>{badge}</span>
                       )}
                     </button>
@@ -202,44 +218,53 @@ export default function Admin() {
         </nav>
 
         {/* Sidebar Footer */}
-        <div className="p-4 border-t border-border/30">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-foreground/10 flex items-center justify-center rounded-full">
-              <span className="font-heading font-bold text-foreground/60 text-xs">
+        <div className="px-4 py-3 border-t border-sidebar-border shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 bg-muted flex items-center justify-center rounded-full shrink-0">
+              <span className="font-semibold text-muted-foreground text-[10px]">
                 {user.name?.charAt(0)?.toUpperCase() || "A"}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-mono text-xs text-foreground truncate">{user.name || "Admin"}</p>
-              <p className="font-mono text-[10px] text-foreground/30">Admin</p>
+              <p className="text-xs font-medium text-foreground truncate">{user.name || "Admin"}</p>
+              <p className="text-[10px] text-muted-foreground">Administrator</p>
             </div>
           </div>
-          <Link href="/" className="flex items-center gap-2 mt-3 text-foreground/40 hover:text-primary transition-colors font-mono text-xs">
-            <ArrowLeft className="w-3.5 h-3.5" />
+          <Link
+            href="/"
+            className="flex items-center gap-1.5 mt-2.5 text-muted-foreground hover:text-primary transition-colors text-xs font-medium"
+          >
+            <ArrowLeft className="w-3 h-3" />
             Back to site
           </Link>
         </div>
       </aside>
 
-      {/* Main Content */}
+      {/* ─── MAIN CONTENT ─── */}
       <main className="flex-1 min-w-0">
         {/* Top Bar */}
-        <header className="sticky top-0 z-30 bg-nick-dark/95 backdrop-blur-md border-b border-border/30 h-14 flex items-center px-4 lg:px-8 gap-4">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-foreground/60 hover:text-foreground p-1">
-            <Menu className="w-5 h-5" />
+        <header className="admin-topbar sticky top-0 z-30 flex items-center px-4 lg:px-6 gap-3">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="lg:hidden text-muted-foreground hover:text-foreground p-1.5 rounded-md hover:bg-muted/50 transition-colors"
+          >
+            <Menu className="w-4 h-4" />
           </button>
-          <h1 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground">
+          <h1 className="text-sm font-semibold text-foreground tracking-tight">
             {SECTION_TITLES[section]}
           </h1>
           <div className="flex-1" />
-          <Link href="/admin/content" className="flex items-center gap-1.5 bg-card border border-border/30 px-3 py-1.5 text-foreground/60 hover:text-primary hover:border-primary/30 transition-colors">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span className="font-heading font-bold text-[10px] tracking-wider uppercase hidden sm:inline">AI Content</span>
+          <Link
+            href="/admin/content"
+            className="flex items-center gap-1.5 bg-muted/50 border border-border px-3 py-1.5 rounded-md text-muted-foreground hover:text-primary hover:border-primary/30 transition-all text-xs font-medium"
+          >
+            <Sparkles className="w-3 h-3" />
+            <span className="hidden sm:inline">AI Content</span>
           </Link>
         </header>
 
         {/* Section Content */}
-        <div className="p-4 lg:p-8">
+        <div className="admin-content">
           <SectionContent section={section} />
         </div>
       </main>

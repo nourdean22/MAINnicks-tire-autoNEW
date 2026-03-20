@@ -60,7 +60,7 @@ function CountdownTimer({ expiresAt }: { expiresAt: string | Date | null }) {
   return (
     <div className="flex items-center gap-1.5 text-nick-blue-light">
       <Timer className="w-3.5 h-3.5" />
-      <div className="flex gap-1 font-mono text-xs tracking-wider">
+      <div className="flex gap-1 text-[12px] tracking-wider">
         {timeLeft.days > 0 && <span className="bg-nick-blue/10 px-1.5 py-0.5 rounded">{timeLeft.days}d</span>}
         <span className="bg-nick-blue/10 px-1.5 py-0.5 rounded">{String(timeLeft.hours).padStart(2, "0")}h</span>
         <span className="bg-nick-blue/10 px-1.5 py-0.5 rounded">{String(timeLeft.minutes).padStart(2, "0")}m</span>
@@ -90,9 +90,9 @@ function CouponCard({ coupon }: { coupon: any }) {
   };
 
   return (
-    <div className={`relative border ${coupon.isFeatured ? "border-nick-yellow/50" : "border-nick-yellow/15"} bg-nick-dark/50 overflow-hidden`}>
+    <div className={`relative border ${coupon.isFeatured ? "border-primary/50" : "border-primary/15"} bg-background/50 overflow-hidden`}>
       {coupon.isFeatured && (
-        <div className="absolute top-0 right-0 bg-nick-yellow text-nick-dark px-3 py-1 font-semibold font-bold text-xs tracking-wider">
+        <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-3 py-1 font-semibold font-bold text-xs tracking-wider">
           FEATURED
         </div>
       )}
@@ -101,22 +101,22 @@ function CouponCard({ coupon }: { coupon: any }) {
       <div className="p-6 lg:p-8">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
-            <div className="font-semibold font-bold text-nick-yellow text-3xl lg:text-4xl tracking-tight">
+            <div className="font-semibold font-bold text-primary text-3xl lg:text-4xl tracking-tight">
               {discountDisplay}
             </div>
             <h3 className="font-semibold font-bold text-foreground text-lg lg:text-xl tracking-wider mt-2 uppercase">
               {coupon.title}
             </h3>
           </div>
-          <div className="shrink-0 w-14 h-14 bg-nick-yellow/10 flex items-center justify-center rounded-md">
-            {coupon.discountType === "percent" ? <Percent className="w-7 h-7 text-nick-yellow" /> : coupon.discountType === "free" ? <Gift className="w-7 h-7 text-nick-yellow" /> : <Tag className="w-7 h-7 text-nick-yellow" />}
+          <div className="shrink-0 w-14 h-14 bg-primary/10 flex items-center justify-center rounded-md">
+            {coupon.discountType === "percent" ? <Percent className="w-7 h-7 text-primary" /> : coupon.discountType === "free" ? <Gift className="w-7 h-7 text-primary" /> : <Tag className="w-7 h-7 text-primary" />}
           </div>
         </div>
 
         <p className="text-foreground/70 leading-relaxed mb-4">{coupon.description}</p>
 
         {coupon.applicableServices !== "all" && (
-          <p className="text-nick-blue-light text-sm font-mono mb-3">
+          <p className="text-nick-blue-light text-sm mb-3">
             Applies to: {coupon.applicableServices}
           </p>
         )}
@@ -135,7 +135,7 @@ function CouponCard({ coupon }: { coupon: any }) {
           {coupon.code && (
             <button
               onClick={copyCode}
-              className="flex items-center justify-center gap-2 border border-dashed border-nick-yellow/50 bg-nick-yellow/5 px-4 py-2.5 font-mono text-nick-yellow text-sm tracking-wider hover:bg-nick-yellow/10 transition-colors"
+              className="flex items-center justify-center gap-2 border border-dashed border-primary/50 bg-primary/5 px-4 py-2.5 text-primary text-sm tracking-wider hover:bg-primary/10 transition-colors"
             >
               <Scissors className="w-4 h-4" />
               {copied ? "COPIED!" : coupon.code}
@@ -144,7 +144,7 @@ function CouponCard({ coupon }: { coupon: any }) {
           )}
           <button
             onClick={() => setShowCoupon(true)}
-            className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-6 py-2.5 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors"
+            className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
           >
             SHOW THIS COUPON
             <ChevronRight className="w-4 h-4" />
@@ -163,20 +163,20 @@ function CouponCard({ coupon }: { coupon: any }) {
             onClick={() => setShowCoupon(false)}
           >
             <div className="max-w-md w-full">
-              <div className="w-16 h-16 bg-nick-yellow mx-auto flex items-center justify-center rounded-md mb-6">
-                <span className="font-semibold font-bold text-nick-dark text-2xl">N</span>
+              <div className="w-16 h-16 bg-primary mx-auto flex items-center justify-center rounded-md mb-6">
+                <span className="font-semibold font-bold text-primary-foreground text-2xl">N</span>
               </div>
-              <h2 className="font-semibold font-bold text-nick-dark text-2xl tracking-wider mb-2">NICK'S TIRE & AUTO</h2>
+              <h2 className="font-semibold font-bold text-primary-foreground text-2xl tracking-[-0.01em] mb-2">NICK'S TIRE & AUTO</h2>
               <div className="hidden" />
-              <div className="font-semibold font-bold text-nick-dark text-5xl tracking-tight my-6">
+              <div className="font-semibold font-bold text-primary-foreground text-5xl tracking-tight my-6">
                 {discountDisplay}
               </div>
-              <h3 className="font-semibold font-bold text-nick-dark text-xl tracking-wider uppercase mb-3">
+              <h3 className="font-semibold font-bold text-primary-foreground text-xl tracking-wide mb-3">
                 {coupon.title}
               </h3>
               <p className="text-gray-600 mb-4">{coupon.description}</p>
               {coupon.code && (
-                <div className="border-2 border-dashed border-nick-dark/30 px-6 py-3 inline-block font-mono text-nick-dark text-xl tracking-widest mb-4">
+                <div className="border-2 border-dashed border-nick-dark/30 px-6 py-3 inline-block text-primary-foreground text-xl tracking-widest mb-4">
                   {coupon.code}
                 </div>
               )}
@@ -280,12 +280,12 @@ export default function SpecialsPage() {
       <LocalBusinessSchema />
             <FadeIn>
               <div className="flex items-center gap-3 mb-4">
-                <Tag className="w-6 h-6 text-nick-yellow" />
+                <Tag className="w-6 h-6 text-primary" />
                 <span className="font-mono text-nick-blue-light text-sm tracking-wide">Current Offers</span>
               </div>
               <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
                 SPECIALS &<br />
-                <span className="text-gradient-yellow">COUPONS</span>
+                <span className="text-primary">COUPONS</span>
               </h1>
               <p className="mt-6 text-foreground/70 text-lg max-w-2xl leading-relaxed">
                 Honest auto repair at fair prices — plus these current specials. Show any coupon on your phone at the shop or mention the code when you call.
@@ -299,7 +299,7 @@ export default function SpecialsPage() {
           <section className="py-12 lg:py-16 bg-background">
             <div className="container">
               <FadeIn>
-                <span className="font-mono text-nick-yellow text-sm tracking-wide">Featured Deal</span>
+                <span className="font-mono text-primary text-sm tracking-wide">Featured Deal</span>
               </FadeIn>
               <div className="mt-6 grid grid-cols-1 gap-6">
                 {featuredCoupons.map((c: any) => (
@@ -313,7 +313,7 @@ export default function SpecialsPage() {
         )}
 
         {/* All Specials Grid */}
-        <section className="py-12 lg:py-16 section-darker">
+        <section className="py-12 lg:py-16 bg-[oklch(0.055_0.004_260)]">
           <div className="hidden" />
           <div className="container pt-12">
             <FadeIn>
@@ -328,8 +328,8 @@ export default function SpecialsPage() {
             ) : isLoading ? (
               <div className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="border border-nick-yellow/10 bg-nick-dark/30 p-8 animate-pulse">
-                    <div className="h-8 w-32 bg-nick-yellow/10 rounded mb-4" />
+                  <div key={i} className="border border-primary/10 bg-background/30 p-8 animate-pulse">
+                    <div className="h-8 w-32 bg-primary/10 rounded mb-4" />
                     <div className="h-5 w-48 bg-foreground/10 rounded mb-3" />
                     <div className="h-4 w-full bg-foreground/5 rounded mb-2" />
                     <div className="h-4 w-3/4 bg-foreground/5 rounded" />
@@ -353,7 +353,7 @@ export default function SpecialsPage() {
           <div className="container">
             <FadeIn>
               <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground tracking-tight text-center">
-                HOW TO <span className="text-gradient-yellow">REDEEM</span>
+                HOW TO <span className="text-primary">REDEEM</span>
               </h2>
             </FadeIn>
             <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
@@ -364,8 +364,8 @@ export default function SpecialsPage() {
               ].map((step, i) => (
                 <FadeIn key={step.num} delay={i * 0.1}>
                   <div className="text-center">
-                    <span className="font-semibold font-bold text-5xl text-nick-yellow/20">{step.num}</span>
-                    <h3 className="font-semibold font-bold text-foreground text-lg tracking-wider uppercase mt-2">{step.title}</h3>
+                    <span className="font-semibold font-bold text-5xl text-primary/20">{step.num}</span>
+                    <h3 className="font-semibold font-bold text-foreground text-lg tracking-wide mt-2">{step.title}</h3>
                     <p className="text-foreground/60 mt-2 leading-relaxed">{step.desc}</p>
                   </div>
                 </FadeIn>
@@ -375,11 +375,11 @@ export default function SpecialsPage() {
         </section>
 
         {/* CTA */}
-        <section className="py-16 lg:py-20 section-darker">
+        <section className="py-16 lg:py-20 bg-[oklch(0.055_0.004_260)]">
           <div className="container text-center">
             <FadeIn>
               <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
-                READY TO <span className="text-gradient-yellow">SAVE</span>?
+                READY TO <span className="text-primary">SAVE</span>?
               </h2>
               <p className="mt-4 text-foreground/70 text-lg max-w-xl mx-auto">
                 Call us or book online to schedule your service. Mention any coupon code and we will apply the discount.
@@ -388,14 +388,14 @@ export default function SpecialsPage() {
                 <a
                   href={BUSINESS.phone.href}
                   onClick={() => trackPhoneClick("specials_cta")}
-                  className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors"
+                  className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
                 >
                   <Phone className="w-5 h-5" />
                   CALL NOW
                 </a>
                 <Link
                   href="/contact"
-                  className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors"
+                  className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors"
                 >
                   BOOK ONLINE
                   <ChevronRight className="w-5 h-5" />

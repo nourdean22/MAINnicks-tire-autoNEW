@@ -228,22 +228,22 @@ function getFilteredHardcodedNotifications(): Notification[] {
 
 // ─── STRATEGY COLOR MAP ────────────────────────────────
 const strategyStyles: Record<Strategy, string> = {
-  urgency: "bg-red-800/95 border-red-500/40",
-  social_proof: "bg-nick-warm-dark border-nick-yellow/30",
-  scarcity: "bg-amber-800/95 border-amber-500/40",
-  seasonal: "bg-emerald-800/95 border-emerald-500/40",
-  authority: "bg-nick-warm-dark border-nick-teal/30",
-  loss_aversion: "bg-orange-800/95 border-orange-500/40",
-  local_identity: "bg-nick-warm-dark border-nick-yellow/30",
-  value_anchor: "bg-teal-800/95 border-teal-500/40",
-  weather: "bg-sky-800/95 border-sky-500/40",
-  dynamic: "bg-nick-warm-dark border-nick-cyan/30",
+  urgency: "bg-red-900/90 border-red-500/20",
+  social_proof: "bg-[oklch(0.10_0.005_260)] border-primary/15",
+  scarcity: "bg-amber-900/90 border-amber-500/20",
+  seasonal: "bg-emerald-900/90 border-emerald-500/20",
+  authority: "bg-[oklch(0.10_0.005_260)] border-[oklch(0.55_0.12_250/0.2)]",
+  loss_aversion: "bg-orange-900/90 border-orange-500/20",
+  local_identity: "bg-[oklch(0.10_0.005_260)] border-primary/15",
+  value_anchor: "bg-teal-900/90 border-teal-500/20",
+  weather: "bg-sky-900/90 border-sky-500/20",
+  dynamic: "bg-[oklch(0.10_0.005_260)] border-[oklch(0.65_0.15_195/0.2)]",
 };
 
 const weatherSeverityStyles: Record<string, string> = {
-  danger: "bg-red-700/95 border-red-400/50",
-  warning: "bg-amber-700/95 border-amber-400/50",
-  info: "bg-sky-700/90 border-sky-400/40",
+  danger: "bg-red-900/90 border-red-400/25",
+  warning: "bg-amber-900/90 border-amber-400/25",
+  info: "bg-sky-900/90 border-sky-400/20",
 };
 
 // ─── COMPONENT ─────────────────────────────────────────
@@ -341,8 +341,8 @@ export default function NotificationBar() {
       : strategyStyles[current.strategy];
 
   return (
-    <div className={`fixed top-0 left-0 right-0 z-[60] border-b ${barStyle} backdrop-blur-sm transition-colors duration-700`}>
-      <div className="container relative flex items-center justify-center min-h-[40px] py-2">
+    <div className={`fixed top-0 left-0 right-0 z-[60] border-b ${barStyle} backdrop-blur-xl transition-colors duration-700`}>
+      <div className="container relative flex items-center justify-center min-h-[36px] py-1.5">
         {/* Progress dots */}
         <div className="absolute left-4 hidden sm:flex items-center gap-1.5">
           {activeNotifications.slice(0, 8).map((_, i) => (
@@ -369,13 +369,13 @@ export default function NotificationBar() {
             className="flex items-center gap-2 text-center px-10 sm:px-16"
           >
             <span className="text-white/80 shrink-0">{current.icon}</span>
-            <span className="text-white/95 text-xs sm:text-sm font-medium tracking-wide">
+            <span className="text-white/90 text-[12px] sm:text-[13px] font-medium tracking-[-0.005em]">
               {current.text}
             </span>
             {current.cta && current.ctaHref && (
               <a
                 href={current.ctaHref}
-                className="shrink-0 ml-2 text-nick-dark font-heading font-bold text-xs tracking-widest uppercase bg-nick-yellow px-3 py-1 rounded hover:bg-nick-gold transition-colors hidden sm:inline-block"
+                className="shrink-0 ml-3 text-[oklch(0.10_0.005_260)] font-semibold text-[11px] tracking-wide bg-white/90 px-3 py-1 rounded-full hover:bg-white transition-colors hidden sm:inline-block"
               >
                 {current.cta}
               </a>
@@ -385,7 +385,7 @@ export default function NotificationBar() {
 
         {/* Weather badge for weather alerts */}
         {current.strategy === "weather" && weatherData?.weather && (
-          <div className="absolute right-12 hidden lg:flex items-center gap-1.5 text-white/50 text-xs font-mono">
+          <div className="absolute right-12 hidden lg:flex items-center gap-1.5 text-white/50 text-xs">
             <Thermometer className="w-3 h-3" />
             <span>{weatherData.weather.temperature_f}°F</span>
           </div>

@@ -70,26 +70,26 @@ export default function StatusTracker() {
       <LocalBusinessSchema />
 
       {/* Hero */}
-      <section className="section-dark pt-28 pb-16 lg:pt-36 lg:pb-20">
+      <section className="bg-[oklch(0.065_0.004_260)] pt-28 pb-16 lg:pt-36 lg:pb-20">
         <div className="container max-w-3xl text-center">
-          <span className="font-mono text-nick-teal text-sm tracking-widest uppercase">Vehicle Status</span>
-          <h1 className="font-heading font-bold text-4xl lg:text-5xl text-foreground mt-3 tracking-tight">
-            CHECK YOUR <span className="text-gradient-yellow">REPAIR STATUS</span>
+          <span className="font-mono text-nick-teal text-sm tracking-wide">Vehicle Status</span>
+          <h1 className="font-bold text-4xl lg:text-5xl text-foreground mt-3 tracking-tight">
+            CHECK YOUR <span className="text-primary">REPAIR STATUS</span>
           </h1>
           <p className="mt-4 text-foreground/70 text-lg max-w-xl mx-auto">
             Enter your phone number or reference code to see where your vehicle is in the repair process.
           </p>
 
           {/* Search Form */}
-          <form onSubmit={handleSearch} className="mt-8 card-vibrant bg-card/80 rounded-lg p-6 lg:p-8">
+          <form onSubmit={handleSearch} className="mt-8 bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 lg:p-8">
             {/* Toggle */}
             <div className="flex justify-center gap-2 mb-6">
               <button
                 type="button"
                 onClick={() => { setSearchType("phone"); setSearched(false); setQuery(""); }}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md font-mono text-sm transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-[13px] transition-all ${
                   searchType === "phone"
-                    ? "bg-nick-yellow text-nick-dark font-bold"
+                    ? "bg-primary text-primary-foreground font-bold"
                     : "bg-border/20 text-foreground/60 hover:text-foreground"
                 }`}
               >
@@ -98,9 +98,9 @@ export default function StatusTracker() {
               <button
                 type="button"
                 onClick={() => { setSearchType("ref"); setSearched(false); setQuery(""); }}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md font-mono text-sm transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-md text-[13px] transition-all ${
                   searchType === "ref"
-                    ? "bg-nick-yellow text-nick-dark font-bold"
+                    ? "bg-primary text-primary-foreground font-bold"
                     : "bg-border/20 text-foreground/60 hover:text-foreground"
                 }`}
               >
@@ -116,12 +116,12 @@ export default function StatusTracker() {
                   value={query}
                   onChange={(e) => { setQuery(e.target.value); setSearched(false); }}
                   placeholder={searchType === "phone" ? "(216) 555-0000" : "NT-XXXXXX"}
-                  className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-11 pr-4 py-3.5 font-mono text-base focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
+                  className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-11 pr-4 py-3.5 text-base focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                 />
               </div>
               <button
                 type="submit"
-                className="bg-nick-yellow text-nick-dark px-6 py-3.5 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors shrink-0"
+                className="bg-primary text-primary-foreground px-6 py-3.5 rounded-md font-bold text-sm tracking-wide hover:opacity-90 transition-colors shrink-0"
               >
                 SEARCH
               </button>
@@ -132,26 +132,26 @@ export default function StatusTracker() {
 
       {/* Results */}
       {searched && (
-        <section className="section-darker py-12 lg:py-16">
+        <section className="bg-[oklch(0.055_0.004_260)] py-12 lg:py-16">
           <div className="container max-w-3xl">
             {isLoading ? (
               <div className="text-center py-12">
-                <div className="w-10 h-10 border-2 border-nick-yellow border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                <p className="text-foreground/60 font-mono text-sm">Searching...</p>
+                <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-foreground/60 text-[13px]">Searching...</p>
               </div>
             ) : !results || results.length === 0 ? (
-              <div className="text-center py-12 card-vibrant bg-card/80 rounded-lg p-8">
-                <AlertTriangle className="w-12 h-12 text-nick-yellow/60 mx-auto mb-4" />
-                <h3 className="font-heading font-bold text-xl text-foreground mb-2">No Results Found</h3>
+              <div className="text-center py-12 bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-8">
+                <AlertTriangle className="w-12 h-12 text-primary/60 mx-auto mb-4" />
+                <h3 className="font-bold text-xl text-foreground mb-2">No Results Found</h3>
                 <p className="text-foreground/60 max-w-md mx-auto">
                   We could not find any active bookings matching that {searchType === "phone" ? "phone number" : "reference code"}.
                   If you recently booked, it may take a few minutes to appear. You can also call us at{" "}
-                  <a href={BUSINESS.phone.href} className="text-nick-yellow hover:underline">{BUSINESS.phone.display}</a>.
+                  <a href={BUSINESS.phone.href} className="text-primary hover:underline">{BUSINESS.phone.display}</a>.
                 </p>
               </div>
             ) : (
               <div className="space-y-6">
-                <h2 className="font-heading font-bold text-2xl text-foreground">
+                <h2 className="font-bold text-2xl text-foreground">
                   {results.length} Active {results.length === 1 ? "Booking" : "Bookings"}
                 </h2>
                 {results.map((booking: any) => {
@@ -160,26 +160,26 @@ export default function StatusTracker() {
                   const isReady = booking.stage === "ready";
 
                   return (
-                    <div key={booking.id} className={`card-vibrant rounded-lg p-6 lg:p-8 ${isReady ? "ring-2 ring-nick-teal" : "bg-card/80"}`}>
+                    <div key={booking.id} className={`bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl rounded-lg p-6 lg:p-8 ${isReady ? "ring-2 ring-nick-teal" : "bg-card/80"}`}>
                       {/* Header */}
                       <div className="flex items-start justify-between mb-6">
                         <div>
                           <div className="flex items-center gap-3 mb-1">
-                            <h3 className="font-heading font-bold text-lg text-foreground">{booking.service}</h3>
+                            <h3 className="font-bold text-lg text-foreground">{booking.service}</h3>
                             {booking.referenceCode && (
-                              <span className="font-mono text-xs bg-border/30 text-foreground/60 px-2 py-0.5 rounded">
+                              <span className="text-[12px] bg-border/30 text-foreground/60 px-2 py-0.5 rounded">
                                 {booking.referenceCode}
                               </span>
                             )}
                           </div>
                           {booking.vehicle && (
-                            <p className="text-foreground/60 font-mono text-sm">{booking.vehicle}</p>
+                            <p className="text-foreground/60 text-[13px]">{booking.vehicle}</p>
                           )}
                         </div>
-                        <div className={`px-3 py-1.5 rounded-md font-mono text-xs font-bold tracking-wider ${
+                        <div className={`px-3 py-1.5 rounded-md text-[12px] font-bold tracking-wider ${
                           isReady
                             ? "bg-nick-teal/20 text-nick-teal"
-                            : "bg-nick-yellow/20 text-nick-yellow"
+                            : "bg-primary/20 text-primary"
                         }`}>
                           {isReady ? "READY FOR PICKUP" : "IN PROGRESS"}
                         </div>
@@ -192,19 +192,19 @@ export default function StatusTracker() {
                             <div key={stage.key} className="flex items-center">
                               <div className={`flex flex-col items-center ${
                                 i <= stageIdx
-                                  ? i === stageIdx ? "text-nick-yellow" : "text-nick-teal"
+                                  ? i === stageIdx ? "text-primary" : "text-nick-teal"
                                   : "text-foreground/20"
                               }`}>
                                 <div className={`w-9 h-9 rounded-full flex items-center justify-center border-2 ${
                                   i <= stageIdx
                                     ? i === stageIdx
-                                      ? "border-nick-yellow bg-nick-yellow/20"
+                                      ? "border-primary bg-primary/20"
                                       : "border-nick-teal bg-nick-teal/20"
                                     : "border-border/30"
                                 }`}>
                                   {stage.icon}
                                 </div>
-                                <span className="text-[10px] font-mono mt-1.5 hidden sm:block">{stage.label}</span>
+                                <span className="text-[10px] mt-1.5 hidden sm:block">{stage.label}</span>
                               </div>
                               {i < STAGES.length - 1 && (
                                 <div className={`w-6 sm:w-10 h-0.5 mx-1 ${
@@ -219,17 +219,17 @@ export default function StatusTracker() {
                       {/* Current Status */}
                       <div className={`rounded-md p-4 ${isReady ? "bg-nick-teal/10 border border-nick-teal/30" : "bg-background/40 border border-border/30"}`}>
                         <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isReady ? "bg-nick-teal/20" : "bg-nick-yellow/20"}`}>
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isReady ? "bg-nick-teal/20" : "bg-primary/20"}`}>
                             {currentStage.icon}
                           </div>
                           <div>
-                            <p className={`font-heading font-bold text-sm tracking-wider ${isReady ? "text-nick-teal" : "text-nick-yellow"}`}>
+                            <p className={`font-bold text-sm tracking-wider ${isReady ? "text-nick-teal" : "text-primary"}`}>
                               {currentStage.label.toUpperCase()}
                             </p>
                             <p className="text-foreground/60 text-sm">{currentStage.desc}</p>
                           </div>
                           {booking.stageUpdatedAt && (
-                            <span className="ml-auto text-foreground/40 font-mono text-xs flex items-center gap-1">
+                            <span className="ml-auto text-foreground/40 text-[12px] flex items-center gap-1">
                               <Clock className="w-3 h-3" />
                               {timeAgo(booking.stageUpdatedAt)}
                             </span>
@@ -241,7 +241,7 @@ export default function StatusTracker() {
                         <div className="mt-4 text-center">
                           <a
                             href={BUSINESS.phone.href}
-                            className="inline-flex items-center gap-2 bg-nick-teal text-white px-6 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-teal/90 transition-colors"
+                            className="inline-flex items-center gap-2 bg-nick-teal text-white px-6 py-3 rounded-md font-bold text-sm tracking-wide hover:bg-nick-teal/90 transition-colors"
                           >
                             <Phone className="w-4 h-4" />
                             CALL TO ARRANGE PICKUP
@@ -258,7 +258,7 @@ export default function StatusTracker() {
       )}
 
       {/* Info Section */}
-      <section className="section-dark py-12 lg:py-16">
+      <section className="bg-[oklch(0.065_0.004_260)] py-12 lg:py-16">
         <div className="container max-w-3xl">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             {[
@@ -267,10 +267,10 @@ export default function StatusTracker() {
               { icon: <Wrench className="w-6 h-6" />, title: "Walk-Ins Welcome", desc: "No appointment needed. First come, first served." },
             ].map((item) => (
               <div key={item.title} className="text-center">
-                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-nick-yellow/10 flex items-center justify-center text-nick-yellow">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                   {item.icon}
                 </div>
-                <h3 className="font-heading font-bold text-sm text-foreground tracking-wider mb-1">{item.title}</h3>
+                <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-1">{item.title}</h3>
                 <p className="text-foreground/60 text-sm">{item.desc}</p>
               </div>
             ))}

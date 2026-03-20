@@ -73,19 +73,19 @@ export default function AskMechanicPage() {
       <LocalBusinessSchema />
             <FadeIn>
               <div className="flex items-center gap-3 mb-4">
-                <MessageCircle className="w-6 h-6 text-nick-yellow" />
+                <MessageCircle className="w-6 h-6 text-primary" />
                 <span className="font-mono text-nick-blue-light text-sm tracking-wide">Free Expert Advice</span>
               </div>
               <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
                 ASK A<br />
-                <span className="text-gradient-yellow">MECHANIC</span>
+                <span className="text-primary">MECHANIC</span>
               </h1>
               <p className="mt-4 text-foreground/70 text-lg max-w-2xl leading-relaxed">
                 Got a car question? Ask our experienced technicians. We answer questions publicly so every driver can benefit from the knowledge.
               </p>
               <button
                 onClick={() => setShowForm(true)}
-                className="mt-6 inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-3 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors"
+                className="mt-6 inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-3 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
               >
                 ASK YOUR QUESTION
                 <ChevronRight className="w-4 h-4" />
@@ -99,41 +99,41 @@ export default function AskMechanicPage() {
           <section className="py-8 bg-background">
             <div className="container max-w-2xl">
               <FadeIn>
-                <div className="border border-nick-yellow/30 bg-nick-dark/50 p-6 lg:p-8">
-                  <h2 className="font-semibold font-bold text-xl text-foreground tracking-wider mb-6">SUBMIT YOUR QUESTION</h2>
+                <div className="border border-primary/30 bg-background/50 p-6 lg:p-8">
+                  <h2 className="font-semibold font-bold text-xl text-foreground tracking-[-0.01em] mb-6">SUBMIT YOUR QUESTION</h2>
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-foreground/60 text-sm mb-1 font-mono">Your Name *</label>
-                        <input type="text" required value={form.questionerName} onChange={(e) => setForm({ ...form, questionerName: e.target.value })} className="w-full bg-background border border-nick-yellow/20 text-foreground px-3 py-2.5 focus:border-nick-yellow outline-none" />
+                        <label className="block text-foreground/60 text-sm mb-1">Your Name *</label>
+                        <input type="text" required value={form.questionerName} onChange={(e) => setForm({ ...form, questionerName: e.target.value })} className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
                       </div>
                       <div>
-                        <label className="block text-foreground/60 text-sm mb-1 font-mono">Email (optional, for reply)</label>
-                        <input type="email" value={form.questionerEmail} onChange={(e) => setForm({ ...form, questionerEmail: e.target.value })} className="w-full bg-background border border-nick-yellow/20 text-foreground px-3 py-2.5 focus:border-nick-yellow outline-none" />
+                        <label className="block text-foreground/60 text-sm mb-1">Email (optional, for reply)</label>
+                        <input type="email" value={form.questionerEmail} onChange={(e) => setForm({ ...form, questionerEmail: e.target.value })} className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-foreground/60 text-sm mb-1 font-mono">Vehicle (optional)</label>
-                        <input type="text" value={form.vehicleInfo} onChange={(e) => setForm({ ...form, vehicleInfo: e.target.value })} placeholder="e.g. 2018 Honda Civic" className="w-full bg-background border border-nick-yellow/20 text-foreground px-3 py-2.5 focus:border-nick-yellow outline-none placeholder:text-foreground/30" />
+                        <label className="block text-foreground/60 text-sm mb-1">Vehicle (optional)</label>
+                        <input type="text" value={form.vehicleInfo} onChange={(e) => setForm({ ...form, vehicleInfo: e.target.value })} placeholder="e.g. 2018 Honda Civic" className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30" />
                       </div>
                       <div>
-                        <label className="block text-foreground/60 text-sm mb-1 font-mono">Category</label>
-                        <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full bg-background border border-nick-yellow/20 text-foreground px-3 py-2.5 focus:border-nick-yellow outline-none">
+                        <label className="block text-foreground/60 text-sm mb-1">Category</label>
+                        <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none">
                           <option value="">Select Category</option>
                           {CATEGORIES.filter(c => c !== "All").map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
                     </div>
                     <div>
-                      <label className="block text-foreground/60 text-sm mb-1 font-mono">Your Question *</label>
-                      <textarea required rows={4} value={form.question} onChange={(e) => setForm({ ...form, question: e.target.value })} placeholder="Describe your car problem or question in detail..." className="w-full bg-background border border-nick-yellow/20 text-foreground px-3 py-2.5 focus:border-nick-yellow outline-none placeholder:text-foreground/30 resize-none" />
+                      <label className="block text-foreground/60 text-sm mb-1">Your Question *</label>
+                      <textarea required rows={4} value={form.question} onChange={(e) => setForm({ ...form, question: e.target.value })} placeholder="Describe your car problem or question in detail..." className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30 resize-none" />
                     </div>
                     <div className="flex gap-3">
-                      <button type="submit" disabled={submitQuestion.isPending} className="bg-nick-yellow text-nick-dark px-6 py-2.5 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors disabled:opacity-50">
+                      <button type="submit" disabled={submitQuestion.isPending} className="bg-primary text-primary-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors disabled:opacity-50">
                         {submitQuestion.isPending ? "SUBMITTING..." : "SUBMIT QUESTION"}
                       </button>
-                      <button type="button" onClick={() => setShowForm(false)} className="border border-foreground/30 text-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors">
+                      <button type="button" onClick={() => setShowForm(false)} className="border border-foreground/30 text-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
                         CANCEL
                       </button>
                     </div>
@@ -148,10 +148,10 @@ export default function AskMechanicPage() {
           <section className="py-8 bg-background">
             <div className="container max-w-2xl text-center">
               <FadeIn>
-                <CheckCircle className="w-12 h-12 text-nick-yellow mx-auto mb-4" />
-                <h2 className="font-semibold font-bold text-2xl text-foreground tracking-wider mb-3">QUESTION SUBMITTED</h2>
+                <CheckCircle className="w-12 h-12 text-primary mx-auto mb-4" />
+                <h2 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-3">QUESTION SUBMITTED</h2>
                 <p className="text-foreground/60 mb-6">Our team will review and answer your question. Check back soon.</p>
-                <button onClick={() => { setSubmitted(false); setShowForm(false); setForm({ questionerName: "", questionerEmail: "", question: "", vehicleInfo: "", category: "" }); }} className="bg-nick-yellow text-nick-dark px-6 py-2.5 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors">
+                <button onClick={() => { setSubmitted(false); setShowForm(false); setForm({ questionerName: "", questionerEmail: "", question: "", vehicleInfo: "", category: "" }); }} className="bg-primary text-primary-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors">
                   ASK ANOTHER QUESTION
                 </button>
               </FadeIn>
@@ -160,12 +160,12 @@ export default function AskMechanicPage() {
         )}
 
         {/* Q&A List */}
-        <section className="py-12 lg:py-16 section-darker">
+        <section className="py-12 lg:py-16 bg-[oklch(0.055_0.004_260)]">
           <div className="hidden" />
           <div className="container pt-12">
             <FadeIn>
               <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground tracking-tight mb-6">
-                ANSWERED <span className="text-gradient-yellow">QUESTIONS</span>
+                ANSWERED <span className="text-primary">QUESTIONS</span>
               </h2>
             </FadeIn>
 
@@ -178,7 +178,7 @@ export default function AskMechanicPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search questions..."
-                  className="w-full bg-background border border-nick-yellow/20 text-foreground pl-10 pr-3 py-2.5 focus:border-nick-yellow outline-none placeholder:text-foreground/30 text-sm"
+                  className="w-full bg-background border border-primary/20 text-foreground pl-10 pr-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30 text-sm"
                 />
               </div>
               <div className="flex flex-wrap gap-2">
@@ -186,7 +186,7 @@ export default function AskMechanicPage() {
                   <button
                     key={cat}
                     onClick={() => setFilterCategory(cat)}
-                    className={`px-3 py-1.5 font-mono text-xs tracking-wider transition-colors ${filterCategory === cat ? "bg-nick-yellow text-nick-dark" : "border border-nick-yellow/20 text-foreground/60 hover:border-nick-yellow/50"}`}
+                    className={`px-3 py-1.5 text-[12px] tracking-wider transition-colors ${filterCategory === cat ? "bg-primary text-primary-foreground" : "border border-primary/20 text-foreground/60 hover:border-primary/50"}`}
                   >
                     {cat.toUpperCase()}
                   </button>
@@ -199,7 +199,7 @@ export default function AskMechanicPage() {
             ) : isLoading ? (
               <div className="space-y-4">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="border border-nick-yellow/10 bg-nick-dark/30 p-6 animate-pulse">
+                  <div key={i} className="border border-primary/10 bg-background/30 p-6 animate-pulse">
                     <div className="h-5 w-3/4 bg-foreground/10 rounded mb-3" />
                     <div className="h-4 w-full bg-foreground/5 rounded mb-2" />
                     <div className="h-4 w-2/3 bg-foreground/5 rounded" />
@@ -210,16 +210,16 @@ export default function AskMechanicPage() {
               <div className="space-y-4">
                 {filteredQuestions.map((q: any, i: number) => (
                   <FadeIn key={q.id} delay={i * 0.03}>
-                    <div className="border border-nick-yellow/15 bg-nick-dark/50 p-6">
+                    <div className="border border-primary/15 bg-background/50 p-6">
                       <div className="flex items-start gap-4">
-                        <div className="w-10 h-10 bg-nick-yellow/10 flex items-center justify-center rounded-md shrink-0 mt-1">
-                          <HelpCircle className="w-5 h-5 text-nick-yellow" />
+                        <div className="w-10 h-10 bg-primary/10 flex items-center justify-center rounded-md shrink-0 mt-1">
+                          <HelpCircle className="w-5 h-5 text-primary" />
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="font-semibold font-bold text-foreground text-sm tracking-wider">{q.questionerName}</span>
-                            {q.vehicleInfo && <span className="text-nick-blue-light text-xs font-mono">• {q.vehicleInfo}</span>}
-                            {q.category && <span className="text-foreground/30 text-xs font-mono bg-foreground/5 px-1.5 py-0.5 rounded">{q.category}</span>}
+                            {q.vehicleInfo && <span className="text-nick-blue-light text-xs">• {q.vehicleInfo}</span>}
+                            {q.category && <span className="text-foreground/30 text-xs bg-foreground/5 px-1.5 py-0.5 rounded">{q.category}</span>}
                           </div>
                           <p className="text-foreground/80 leading-relaxed">{q.question}</p>
                         </div>
@@ -238,12 +238,12 @@ export default function AskMechanicPage() {
               </div>
             ) : (
               <div className="text-center py-16">
-                <MessageCircle className="w-12 h-12 text-nick-yellow/20 mx-auto mb-4" />
-                <h3 className="font-semibold font-bold text-foreground/60 text-lg tracking-wider mb-2">
+                <MessageCircle className="w-12 h-12 text-primary/20 mx-auto mb-4" />
+                <h3 className="font-semibold font-bold text-foreground/60 text-lg tracking-[-0.01em] mb-2">
                   {searchQuery || filterCategory !== "All" ? "NO MATCHING QUESTIONS" : "NO QUESTIONS YET"}
                 </h3>
                 <p className="text-foreground/40 text-sm mb-6">Be the first to ask a question.</p>
-                <button onClick={() => setShowForm(true)} className="bg-nick-yellow text-nick-dark px-6 py-2.5 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors">
+                <button onClick={() => setShowForm(true)} className="bg-primary text-primary-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors">
                   ASK A QUESTION
                 </button>
               </div>

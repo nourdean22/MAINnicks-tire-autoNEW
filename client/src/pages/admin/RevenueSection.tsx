@@ -44,12 +44,12 @@ export default function RevenueSection() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <p className="font-mono text-xs text-foreground/40">Real-time financial intelligence</p>
+          <p className="text-[12px] text-foreground/40">Real-time financial intelligence</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setTab("dashboard")} className={`px-3 py-1.5 font-mono text-xs tracking-wider ${tab === "dashboard" ? "bg-primary text-primary-foreground" : "bg-card border border-border/30 text-foreground/60"}`}>DASHBOARD</button>
-          <button onClick={() => setTab("invoices")} className={`px-3 py-1.5 font-mono text-xs tracking-wider ${tab === "invoices" ? "bg-primary text-primary-foreground" : "bg-card border border-border/30 text-foreground/60"}`}>INVOICES</button>
-          <button onClick={() => setTab("create")} className={`px-3 py-1.5 font-mono text-xs tracking-wider flex items-center gap-1 ${tab === "create" ? "bg-primary text-primary-foreground" : "bg-card border border-border/30 text-foreground/60"}`}>
+          <button onClick={() => setTab("dashboard")} className={`px-3 py-1.5 text-[12px] tracking-wider ${tab === "dashboard" ? "bg-primary text-primary-foreground" : "bg-card border border-border/30 text-foreground/60"}`}>DASHBOARD</button>
+          <button onClick={() => setTab("invoices")} className={`px-3 py-1.5 text-[12px] tracking-wider ${tab === "invoices" ? "bg-primary text-primary-foreground" : "bg-card border border-border/30 text-foreground/60"}`}>INVOICES</button>
+          <button onClick={() => setTab("create")} className={`px-3 py-1.5 text-[12px] tracking-wider flex items-center gap-1 ${tab === "create" ? "bg-primary text-primary-foreground" : "bg-card border border-border/30 text-foreground/60"}`}>
             <Plus className="w-3 h-3" /> NEW
           </button>
         </div>
@@ -74,7 +74,7 @@ function DashboardView({ stats, topCustomers, kpi, period, setPeriod }: any) {
           <button
             key={d}
             onClick={() => setPeriod(d)}
-            className={`px-3 py-1.5 font-mono text-xs tracking-wider ${period === d ? "bg-primary text-primary-foreground" : "bg-card border border-border/30 text-foreground/60 hover:text-foreground"}`}
+            className={`px-3 py-1.5 text-[12px] tracking-wider ${period === d ? "bg-primary text-primary-foreground" : "bg-card border border-border/30 text-foreground/60 hover:text-foreground"}`}
           >
             {d}D
           </button>
@@ -103,7 +103,7 @@ function DashboardView({ stats, topCustomers, kpi, period, setPeriod }: any) {
       {/* Revenue Chart */}
       {stats?.revenueByDay && stats.revenueByDay.length > 0 && (
         <div className="bg-card border border-border/30 p-5">
-          <h3 className="font-heading font-bold text-sm text-foreground tracking-wider mb-4">REVENUE TREND</h3>
+          <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">REVENUE TREND</h3>
           <div style={{ height: 280 }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={stats.revenueByDay.map((d: any) => ({ ...d, amount: d.amount / 100 }))}>
@@ -122,7 +122,7 @@ function DashboardView({ stats, topCustomers, kpi, period, setPeriod }: any) {
         {/* Payment Method Breakdown */}
         {stats?.revenueByPayment && stats.revenueByPayment.length > 0 && (
           <div className="bg-card border border-border/30 p-5">
-            <h3 className="font-heading font-bold text-sm text-foreground tracking-wider mb-4">PAYMENT METHODS</h3>
+            <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">PAYMENT METHODS</h3>
             <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <RPieChart>
@@ -139,7 +139,7 @@ function DashboardView({ stats, topCustomers, kpi, period, setPeriod }: any) {
         {/* Booking Heatmap (Day of Week) */}
         {kpi?.dayOfWeekCounts && (
           <div className="bg-card border border-border/30 p-5">
-            <h3 className="font-heading font-bold text-sm text-foreground tracking-wider mb-4">BOOKING HEATMAP — DAY OF WEEK</h3>
+            <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">BOOKING HEATMAP — DAY OF WEEK</h3>
             <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, i) => ({ day, count: kpi.dayOfWeekCounts[i] }))}>
@@ -157,7 +157,7 @@ function DashboardView({ stats, topCustomers, kpi, period, setPeriod }: any) {
       {/* Hour-of-Day Heatmap */}
       {kpi?.hourCounts && (
         <div className="bg-card border border-border/30 p-5">
-          <h3 className="font-heading font-bold text-sm text-foreground tracking-wider mb-4">BOOKING HEATMAP — HOUR OF DAY</h3>
+          <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">BOOKING HEATMAP — HOUR OF DAY</h3>
           <div className="flex items-end gap-1" style={{ height: 120 }}>
             {kpi.hourCounts.map((count: number, hour: number) => {
               const maxCount = Math.max(...kpi.hourCounts, 1);
@@ -188,19 +188,19 @@ function DashboardView({ stats, topCustomers, kpi, period, setPeriod }: any) {
       {topCustomers && topCustomers.length > 0 && (
         <div className="bg-card border border-border/30 p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-heading font-bold text-sm text-foreground tracking-wider">TOP CUSTOMERS BY REVENUE</h3>
+            <h3 className="font-bold text-sm text-foreground tracking-wider">TOP CUSTOMERS BY REVENUE</h3>
             <span className="font-mono text-[10px] text-foreground/30">Lifetime value</span>
           </div>
           <div className="space-y-2">
             {topCustomers.map((c: any, i: number) => (
               <div key={i} className="flex items-center gap-4 py-2 border-b border-border/10 last:border-0">
-                <span className="font-heading font-bold text-lg text-foreground/20 w-8">{i + 1}</span>
+                <span className="font-bold text-lg text-foreground/20 w-8">{i + 1}</span>
                 <div className="flex-1 min-w-0">
-                  <span className="font-heading font-bold text-sm text-foreground">{c.name}</span>
+                  <span className="font-bold text-sm text-foreground">{c.name}</span>
                   {c.phone && <span className="font-mono text-[10px] text-foreground/30 ml-2">{c.phone}</span>}
                 </div>
                 <div className="text-right">
-                  <span className="font-heading font-bold text-sm text-primary">{formatCents(c.total)}</span>
+                  <span className="font-bold text-sm text-primary">{formatCents(c.total)}</span>
                   <span className="font-mono text-[10px] text-foreground/30 block">{c.count} visits</span>
                 </div>
               </div>
@@ -213,8 +213,8 @@ function DashboardView({ stats, topCustomers, kpi, period, setPeriod }: any) {
       {(!stats?.revenueByDay || stats.revenueByDay.length === 0) && (
         <div className="bg-card border border-border/30 p-12 text-center">
           <DollarSign className="w-10 h-10 mx-auto mb-3 text-foreground/20" />
-          <h3 className="font-heading font-bold text-foreground tracking-wider mb-2">NO REVENUE DATA YET</h3>
-          <p className="font-mono text-xs text-foreground/40 max-w-md mx-auto">
+          <h3 className="font-bold text-foreground tracking-[-0.01em] mb-2">NO REVENUE DATA YET</h3>
+          <p className="text-[12px] text-foreground/40 max-w-md mx-auto">
             Revenue data populates when invoices are created — either manually, from ShopDriver imports, or from Stripe payments.
           </p>
         </div>
@@ -244,10 +244,10 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search invoices by name, number, or service..."
-            className="w-full bg-card border border-border/30 pl-10 pr-4 py-2 font-mono text-xs text-foreground placeholder:text-foreground/20 focus:border-primary/50 focus:outline-none"
+            className="w-full bg-card border border-border/30 pl-10 pr-4 py-2 text-[12px] text-foreground placeholder:text-foreground/20 focus:border-primary/50 focus:outline-none"
           />
         </div>
-        <button onClick={onCreateNew} className="px-4 py-2 bg-primary text-primary-foreground font-heading font-bold text-xs tracking-wider flex items-center gap-1">
+        <button onClick={onCreateNew} className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs tracking-wider flex items-center gap-1">
           <Plus className="w-3.5 h-3.5" /> CREATE
         </button>
       </div>
@@ -257,14 +257,14 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
       ) : (data?.items?.length ?? 0) === 0 ? (
         <div className="bg-card border border-border/30 p-12 text-center">
           <FileText className="w-8 h-8 mx-auto mb-3 text-foreground/20" />
-          <h3 className="font-heading font-bold text-foreground tracking-wider mb-2">NO INVOICES</h3>
-          <p className="font-mono text-xs text-foreground/40 mb-4">Create your first invoice to start tracking revenue.</p>
-          <button onClick={onCreateNew} className="px-4 py-2 bg-primary text-primary-foreground font-heading font-bold text-xs tracking-wider">CREATE INVOICE</button>
+          <h3 className="font-bold text-foreground tracking-[-0.01em] mb-2">NO INVOICES</h3>
+          <p className="text-[12px] text-foreground/40 mb-4">Create your first invoice to start tracking revenue.</p>
+          <button onClick={onCreateNew} className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs tracking-wider">CREATE INVOICE</button>
         </div>
       ) : (
         <div className="space-y-1">
           {/* Table header */}
-          <div className="grid grid-cols-12 gap-2 px-4 py-2 font-mono text-[9px] text-foreground/30 tracking-wider uppercase">
+          <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[9px] text-foreground/30 tracking-wide">
             <div className="col-span-1">#</div>
             <div className="col-span-3">Customer</div>
             <div className="col-span-3">Service</div>
@@ -276,12 +276,12 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
           </div>
           {data?.items?.map((inv: any) => (
             <div key={inv.id} className="grid grid-cols-12 gap-2 items-center px-4 py-3 bg-card border border-border/20 hover:border-border/40 transition-colors">
-              <div className="col-span-1 font-mono text-[10px] text-foreground/30">{inv.invoiceNumber || inv.id}</div>
+              <div className="col-span-1 text-[10px] text-foreground/30">{inv.invoiceNumber || inv.id}</div>
               <div className="col-span-3">
-                <span className="font-heading font-bold text-xs text-foreground block truncate">{inv.customerName}</span>
+                <span className="font-bold text-xs text-foreground block truncate">{inv.customerName}</span>
                 {inv.customerPhone && <span className="font-mono text-[9px] text-foreground/30">{inv.customerPhone}</span>}
               </div>
-              <div className="col-span-3 font-mono text-[10px] text-foreground/50 truncate">{inv.serviceDescription || "—"}</div>
+              <div className="col-span-3 text-[10px] text-foreground/50 truncate">{inv.serviceDescription || "—"}</div>
               <div className="col-span-1">
                 <span className="font-mono text-[9px] text-foreground/40 uppercase">{inv.paymentMethod}</span>
               </div>
@@ -295,8 +295,8 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
                   {inv.paymentStatus?.toUpperCase()}
                 </span>
               </div>
-              <div className="col-span-1 font-heading font-bold text-sm text-primary">{formatCents(inv.totalAmount)}</div>
-              <div className="col-span-1 font-mono text-[9px] text-foreground/30">
+              <div className="col-span-1 font-bold text-sm text-primary">{formatCents(inv.totalAmount)}</div>
+              <div className="col-span-1 text-[9px] text-foreground/30">
                 {new Date(inv.invoiceDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               </div>
               <div className="col-span-1 flex items-center gap-1 justify-end">
@@ -369,7 +369,7 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
   return (
     <div className="max-w-2xl">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="font-heading font-bold text-lg text-foreground tracking-wider">CREATE INVOICE</h3>
+        <h3 className="font-bold text-lg text-foreground tracking-wider">CREATE INVOICE</h3>
         <button onClick={onDone} className="text-foreground/40 hover:text-foreground">
           <X className="w-5 h-5" />
         </button>
@@ -395,8 +395,8 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
 
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="font-mono text-[10px] text-foreground/50 tracking-wider uppercase block mb-1">Payment Method</label>
-            <select value={form.paymentMethod} onChange={(e) => setForm(f => ({ ...f, paymentMethod: e.target.value as any }))} className="w-full bg-background border border-border/30 px-3 py-2 font-mono text-xs text-foreground">
+            <label className="font-mono text-[10px] text-foreground/50 tracking-wide block mb-1">Payment Method</label>
+            <select value={form.paymentMethod} onChange={(e) => setForm(f => ({ ...f, paymentMethod: e.target.value as any }))} className="w-full bg-background border border-border/30 px-3 py-2 text-[12px] text-foreground">
               <option value="card">Card</option>
               <option value="cash">Cash</option>
               <option value="check">Check</option>
@@ -405,8 +405,8 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
             </select>
           </div>
           <div>
-            <label className="font-mono text-[10px] text-foreground/50 tracking-wider uppercase block mb-1">Status</label>
-            <select value={form.paymentStatus} onChange={(e) => setForm(f => ({ ...f, paymentStatus: e.target.value as any }))} className="w-full bg-background border border-border/30 px-3 py-2 font-mono text-xs text-foreground">
+            <label className="font-mono text-[10px] text-foreground/50 tracking-wide block mb-1">Status</label>
+            <select value={form.paymentStatus} onChange={(e) => setForm(f => ({ ...f, paymentStatus: e.target.value as any }))} className="w-full bg-background border border-border/30 px-3 py-2 text-[12px] text-foreground">
               <option value="paid">Paid</option>
               <option value="pending">Pending</option>
               <option value="partial">Partial</option>
@@ -414,8 +414,8 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
             </select>
           </div>
           <div>
-            <label className="font-mono text-[10px] text-foreground/50 tracking-wider uppercase block mb-1">Date</label>
-            <input type="date" value={form.invoiceDate} onChange={(e) => setForm(f => ({ ...f, invoiceDate: e.target.value }))} className="w-full bg-background border border-border/30 px-3 py-2 font-mono text-xs text-foreground" />
+            <label className="font-mono text-[10px] text-foreground/50 tracking-wide block mb-1">Date</label>
+            <input type="date" value={form.invoiceDate} onChange={(e) => setForm(f => ({ ...f, invoiceDate: e.target.value }))} className="w-full bg-background border border-border/30 px-3 py-2 text-[12px] text-foreground" />
           </div>
         </div>
 
@@ -423,11 +423,11 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
           <button
             onClick={handleSubmit}
             disabled={createInvoice.isPending}
-            className="px-6 py-2.5 bg-primary text-primary-foreground font-heading font-bold text-sm tracking-wider hover:bg-primary/90 transition-colors disabled:opacity-50"
+            className="px-6 py-2.5 bg-primary text-primary-foreground font-bold text-sm tracking-wider hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
             {createInvoice.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "CREATE INVOICE"}
           </button>
-          <button onClick={onDone} className="px-6 py-2.5 border border-border/30 text-foreground/60 font-heading font-bold text-sm tracking-wider hover:text-foreground transition-colors">
+          <button onClick={onDone} className="px-6 py-2.5 border border-border/30 text-foreground/60 font-bold text-sm tracking-wider hover:text-foreground transition-colors">
             CANCEL
           </button>
         </div>
@@ -442,13 +442,13 @@ function FormField({ label, value, onChange, placeholder, type = "text" }: {
 }) {
   return (
     <div>
-      <label className="font-mono text-[10px] text-foreground/50 tracking-wider uppercase block mb-1">{label}</label>
+      <label className="font-mono text-[10px] text-foreground/50 tracking-wide block mb-1">{label}</label>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full bg-background border border-border/30 px-3 py-2 font-mono text-xs text-foreground placeholder:text-foreground/20 focus:border-primary/50 focus:outline-none"
+        className="w-full bg-background border border-border/30 px-3 py-2 text-[12px] text-foreground placeholder:text-foreground/20 focus:border-primary/50 focus:outline-none"
       />
     </div>
   );
@@ -461,12 +461,12 @@ function KPICard({ label, value, icon, trend, trendLabel, color = "text-foregrou
   return (
     <div className="bg-card border border-border/30 p-5">
       <div className="flex items-start justify-between mb-3">
-        <span className="font-mono text-[10px] text-foreground/50 tracking-wider uppercase">{label}</span>
+        <span className="font-mono text-[10px] text-foreground/50 tracking-wide">{label}</span>
         <div className="text-foreground/30">{icon}</div>
       </div>
-      <div className={`font-heading font-bold text-3xl tracking-tight ${color}`}>{value}</div>
+      <div className={`font-bold text-3xl tracking-tight ${color}`}>{value}</div>
       {trendLabel && (
-        <div className={`mt-2 flex items-center gap-1 font-mono text-[10px] tracking-wider ${
+        <div className={`mt-2 flex items-center gap-1 text-[10px] tracking-wider ${
           trend !== undefined ? (trend > 0 ? "text-emerald-400" : trend < 0 ? "text-red-400" : "text-foreground/40") : "text-foreground/40"
         }`}>
           {trend !== undefined && trend > 0 && <ArrowUpRight className="w-3 h-3" />}
@@ -483,8 +483,8 @@ function KPICard({ label, value, icon, trend, trendLabel, color = "text-foregrou
 function MiniKPI({ label, value, sub, alert = false }: { label: string; value: number; sub: string; alert?: boolean }) {
   return (
     <div className={`bg-card border p-3 ${alert ? "border-red-500/30" : "border-border/30"}`}>
-      <span className="font-mono text-[9px] text-foreground/40 tracking-wider uppercase block">{label}</span>
-      <span className={`font-heading font-bold text-2xl ${alert ? "text-red-400" : "text-foreground"}`}>{value}</span>
+      <span className="font-mono text-[9px] text-foreground/40 tracking-wide block">{label}</span>
+      <span className={`font-bold text-2xl ${alert ? "text-red-400" : "text-foreground"}`}>{value}</span>
       <span className="font-mono text-[9px] text-foreground/30 ml-1">{sub}</span>
     </div>
   );

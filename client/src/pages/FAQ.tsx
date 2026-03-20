@@ -179,7 +179,7 @@ function FAQAccordion({ item, index }: { item: FAQItem; index: number }) {
           aria-expanded={open}
         >
           <span className="font-semibold font-bold text-foreground text-sm sm:text-base tracking-wide pr-4">{item.question}</span>
-          <ChevronDown className={`w-5 h-5 text-nick-yellow flex-shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+          <ChevronDown className={`w-5 h-5 text-primary flex-shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
         </button>
         <AnimatePresence>
           {open && (
@@ -243,7 +243,7 @@ export default function FAQ() {
       
       
         {/* Hero */}
-        <section className="pt-32 pb-12 lg:pt-40 lg:pb-16 section-dark">
+        <section className="pt-32 pb-12 lg:pt-40 lg:pb-16 bg-[oklch(0.065_0.004_260)]">
           <div className="container">
             <FadeIn>
               <Breadcrumbs items={[{ label: "FAQ" }]} />
@@ -252,7 +252,7 @@ export default function FAQ() {
               <span className="font-mono text-nick-blue-light text-sm tracking-wide mt-4 block">Common Questions</span>
               <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-6xl text-foreground mt-3 tracking-tight leading-[0.95]">
                 FREQUENTLY ASKED<br />
-                <span className="text-nick-yellow">QUESTIONS</span>
+                <span className="text-primary">QUESTIONS</span>
               </h1>
               <p className="mt-6 text-lg text-foreground/70 max-w-2xl leading-relaxed">
                 Find answers to common questions about our auto repair services, pricing, and what to expect when you visit Nick's Tire & Auto in Cleveland.
@@ -262,7 +262,7 @@ export default function FAQ() {
         </section>
 
         {/* Category Filter */}
-        <section className="py-8 section-darker border-b border-border/50">
+        <section className="py-8 bg-[oklch(0.055_0.004_260)] border-b border-border/50">
           <div className="container">
             <div className="flex flex-wrap gap-2">
               {CATEGORIES.map((cat) => (
@@ -271,8 +271,8 @@ export default function FAQ() {
                   onClick={() => setActiveCategory(cat)}
                   className={`px-4 py-2 rounded-full font-semibold text-xs tracking-wide transition-colors ${
                     activeCategory === cat
-                      ? "bg-nick-yellow text-nick-dark"
-                      : "bg-card/50 text-foreground/60 hover:text-nick-yellow border border-border/50"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-card/50 text-foreground/60 hover:text-primary border border-border/50"
                   }`}
                 >
                   {cat}
@@ -283,7 +283,7 @@ export default function FAQ() {
         </section>
 
         {/* FAQ List */}
-        <section className="py-12 lg:py-20 section-dark">
+        <section className="py-12 lg:py-20 bg-[oklch(0.065_0.004_260)]">
           <div className="container max-w-3xl">
             <div className="flex flex-col gap-3">
               {filtered.map((item, i) => (
@@ -301,11 +301,11 @@ export default function FAQ() {
                   Our team is happy to help. Give us a call or stop by the shop.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('faq-cta')} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+                  <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('faq-cta')} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
                     <Phone className="w-4 h-4" />
                     CALL {BUSINESS.phone.display}
                   </a>
-                  <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
+                  <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
                     VISIT CONTACT PAGE
                   </Link>
                 </div>

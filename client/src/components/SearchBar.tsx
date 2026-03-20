@@ -22,7 +22,7 @@ interface SearchResult {
 
 function ResultIcon({ type }: { type: string }) {
   switch (type) {
-    case "service": return <Wrench className="w-4 h-4 text-nick-yellow" />;
+    case "service": return <Wrench className="w-4 h-4 text-primary" />;
     case "blog": return <BookOpen className="w-4 h-4 text-nick-teal" />;
     case "faq": return <HelpCircle className="w-4 h-4 text-nick-orange" />;
     default: return <Link2 className="w-4 h-4 text-foreground/50" />;
@@ -31,13 +31,13 @@ function ResultIcon({ type }: { type: string }) {
 
 function TypeBadge({ type }: { type: string }) {
   const colors: Record<string, string> = {
-    service: "bg-nick-yellow/15 text-nick-yellow border-nick-yellow/30",
+    service: "bg-primary/15 text-primary border-primary/30",
     blog: "bg-nick-teal/15 text-nick-teal border-nick-teal/30",
     faq: "bg-nick-orange/15 text-nick-orange border-nick-orange/30",
     page: "bg-foreground/10 text-foreground/60 border-foreground/20",
   };
   return (
-    <span className={`text-[10px] font-heading font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${colors[type] || colors.page}`}>
+    <span className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border ${colors[type] || colors.page}`}>
       {type}
     </span>
   );
@@ -148,17 +148,17 @@ export default function SearchBar() {
         {/* Desktop search trigger */}
         <button
           onClick={() => setOpen(true)}
-          className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-foreground/20 text-foreground/50 hover:border-nick-yellow/50 hover:text-nick-yellow transition-all text-sm"
+          className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[oklch(0.17_0.004_260)] text-foreground/35 hover:border-foreground/15 hover:text-foreground/50 transition-all text-[13px]"
         >
           <Search className="w-3.5 h-3.5" />
-          <span className="font-mono text-xs">Search...</span>
-          <kbd className="ml-2 text-[10px] font-mono bg-foreground/10 px-1.5 py-0.5 rounded">⌘K</kbd>
+          <span className="text-[12px]">Search...</span>
+          <kbd className="ml-2 text-[10px] bg-foreground/[0.06] px-1.5 py-0.5 rounded">⌘K</kbd>
         </button>
 
         {/* Mobile search trigger */}
         <button
           onClick={() => setOpen(true)}
-          className="lg:hidden p-2 text-foreground/70 hover:text-nick-yellow transition-colors"
+          className="lg:hidden p-2 text-foreground/40 hover:text-foreground/60 transition-colors"
         >
           <Search className="w-5 h-5" />
         </button>
@@ -177,11 +177,11 @@ export default function SearchBar() {
       {/* Search panel */}
       <div
         ref={containerRef}
-        className="fixed z-[101] top-0 left-0 right-0 lg:top-[10vh] lg:left-1/2 lg:-translate-x-1/2 lg:max-w-2xl lg:rounded-2xl bg-background border border-nick-yellow/20 shadow-2xl shadow-nick-yellow/10 overflow-hidden"
+        className="fixed z-[101] top-0 left-0 right-0 lg:top-[10vh] lg:left-1/2 lg:-translate-x-1/2 lg:max-w-2xl lg:rounded-2xl bg-[oklch(0.08_0.004_260/0.97)] backdrop-blur-2xl border border-[oklch(0.17_0.004_260)] shadow-2xl shadow-black/30 overflow-hidden"
       >
         {/* Search input */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-foreground/10">
-          <Search className="w-5 h-5 text-nick-yellow shrink-0" />
+          <Search className="w-5 h-5 text-foreground/30 shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -215,7 +215,7 @@ export default function SearchBar() {
           )}
           <button
             onClick={() => setOpen(false)}
-            className="text-xs font-mono text-foreground/40 hover:text-foreground transition-colors"
+            className="text-xs text-foreground/40 hover:text-foreground transition-colors"
           >
             ESC
           </button>
@@ -246,7 +246,7 @@ export default function SearchBar() {
             <div className="py-2">
               {!aiMode && query.trim().length >= 2 && (
                 <div className="px-4 py-1.5">
-                  <span className="text-[10px] font-heading font-bold uppercase tracking-widest text-foreground/30">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground/25">
                     {results.length} result{results.length !== 1 ? "s" : ""}
                   </span>
                 </div>
@@ -258,8 +258,8 @@ export default function SearchBar() {
                   onMouseEnter={() => setActiveIndex(i)}
                   className={`w-full text-left px-4 py-3 flex items-start gap-3 transition-colors ${
                     activeIndex === i
-                      ? "bg-nick-yellow/10"
-                      : "hover:bg-foreground/5"
+                      ? "bg-foreground/[0.05]"
+                      : "hover:bg-foreground/[0.03]"
                   }`}
                 >
                   <div className="mt-0.5 shrink-0">
@@ -267,12 +267,12 @@ export default function SearchBar() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-heading font-bold text-sm text-foreground truncate">{result.title}</span>
+                      <span className="font-semibold text-[13px] text-foreground truncate">{result.title}</span>
                       <TypeBadge type={result.type} />
                     </div>
                     <p className="text-xs text-foreground/50 mt-0.5 line-clamp-1">{result.description}</p>
                   </div>
-                  <ArrowRight className={`w-4 h-4 shrink-0 mt-1 transition-opacity ${activeIndex === i ? "text-nick-yellow opacity-100" : "opacity-0"}`} />
+                  <ArrowRight className={`w-4 h-4 shrink-0 mt-1 transition-opacity ${activeIndex === i ? "text-primary opacity-100" : "opacity-0"}`} />
                 </button>
               ))}
             </div>
@@ -303,7 +303,7 @@ export default function SearchBar() {
 
         {/* Footer */}
         <div className="px-4 py-2.5 border-t border-foreground/10 flex items-center justify-between">
-          <div className="flex items-center gap-3 text-[10px] font-mono text-foreground/30">
+          <div className="flex items-center gap-3 text-[10px] text-foreground/30">
             <span><kbd className="bg-foreground/10 px-1 py-0.5 rounded">↑↓</kbd> navigate</span>
             <span><kbd className="bg-foreground/10 px-1 py-0.5 rounded">↵</kbd> select</span>
             <span><kbd className="bg-foreground/10 px-1 py-0.5 rounded">esc</kbd> close</span>

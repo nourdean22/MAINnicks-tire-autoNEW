@@ -158,15 +158,15 @@ function StepIndicator({ currentStep, totalSteps }: { currentStep: number; total
         <div key={i} className="flex items-center gap-2">
           <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold font-bold text-sm transition-all ${
             i < currentStep
-              ? "bg-nick-yellow text-nick-dark"
+              ? "bg-primary text-primary-foreground"
               : i === currentStep
-              ? "bg-nick-yellow/20 text-nick-yellow border-2 border-nick-yellow"
+              ? "bg-primary/20 text-primary border-2 border-primary"
               : "bg-card border border-border/30 text-foreground/30"
           }`}>
             {i < currentStep ? <CheckCircle className="w-4 h-4" /> : i + 1}
           </div>
           {i < totalSteps - 1 && (
-            <div className={`w-8 h-0.5 ${i < currentStep ? "bg-nick-yellow" : "bg-border/30"}`} />
+            <div className={`w-8 h-0.5 ${i < currentStep ? "bg-primary" : "bg-border/30"}`} />
           )}
         </div>
       ))}
@@ -182,7 +182,7 @@ function VehicleStep({ vehicle, setVehicle, onNext }: {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="font-semibold font-bold text-2xl text-foreground tracking-wider mb-2">
+        <h3 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-2">
           TELL US ABOUT YOUR VEHICLE
         </h3>
         <p className="text-foreground/60 text-sm">
@@ -192,45 +192,45 @@ function VehicleStep({ vehicle, setVehicle, onNext }: {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block font-mono text-xs text-foreground/50 tracking-wider uppercase mb-2">Year</label>
+          <label className="block text-[12px] text-foreground/50 tracking-wide mb-2">Year</label>
           <select
             value={vehicle.year}
             onChange={(e) => setVehicle({ ...vehicle, year: e.target.value })}
-            className="w-full bg-card border border-border/50 text-foreground px-4 py-3 font-mono text-sm focus:outline-none focus:border-nick-yellow/50 rounded-md"
+            className="w-full bg-card border border-border/50 text-foreground px-4 py-3 text-[13px] focus:outline-none focus:border-primary/50 rounded-md"
           >
             <option value="">Select Year</option>
             {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
         <div>
-          <label className="block font-mono text-xs text-foreground/50 tracking-wider uppercase mb-2">Make</label>
+          <label className="block text-[12px] text-foreground/50 tracking-wide mb-2">Make</label>
           <select
             value={vehicle.make}
             onChange={(e) => setVehicle({ ...vehicle, make: e.target.value })}
-            className="w-full bg-card border border-border/50 text-foreground px-4 py-3 font-mono text-sm focus:outline-none focus:border-nick-yellow/50 rounded-md"
+            className="w-full bg-card border border-border/50 text-foreground px-4 py-3 text-[13px] focus:outline-none focus:border-primary/50 rounded-md"
           >
             <option value="">Select Make</option>
             {MAKES.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
         <div>
-          <label className="block font-mono text-xs text-foreground/50 tracking-wider uppercase mb-2">Model</label>
+          <label className="block text-[12px] text-foreground/50 tracking-wide mb-2">Model</label>
           <input
             type="text"
             value={vehicle.model}
             onChange={(e) => setVehicle({ ...vehicle, model: e.target.value })}
             placeholder="e.g., Camry, Civic, F-150"
-            className="w-full bg-card border border-border/50 text-foreground px-4 py-3 font-mono text-sm placeholder:text-foreground/30 focus:outline-none focus:border-nick-yellow/50 rounded-md"
+            className="w-full bg-card border border-border/50 text-foreground px-4 py-3 text-[13px] placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 rounded-md"
           />
         </div>
         <div>
-          <label className="block font-mono text-xs text-foreground/50 tracking-wider uppercase mb-2">Approx. Mileage</label>
+          <label className="block text-[12px] text-foreground/50 tracking-wide mb-2">Approx. Mileage</label>
           <input
             type="text"
             value={vehicle.mileage}
             onChange={(e) => setVehicle({ ...vehicle, mileage: e.target.value })}
             placeholder="e.g., 85,000"
-            className="w-full bg-card border border-border/50 text-foreground px-4 py-3 font-mono text-sm placeholder:text-foreground/30 focus:outline-none focus:border-nick-yellow/50 rounded-md"
+            className="w-full bg-card border border-border/50 text-foreground px-4 py-3 text-[13px] placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 rounded-md"
           />
         </div>
       </div>
@@ -238,7 +238,7 @@ function VehicleStep({ vehicle, setVehicle, onNext }: {
       <div className="flex justify-end">
         <button
           onClick={onNext}
-          className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors"
+          className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
         >
           NEXT: SELECT SYMPTOMS
           <ChevronRight className="w-4 h-4" />
@@ -259,14 +259,14 @@ function SymptomsStep({ selectedSymptoms, toggleSymptom, onNext, onBack }: {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="font-semibold font-bold text-2xl text-foreground tracking-wider mb-2">
+        <h3 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-2">
           WHAT SYMPTOMS ARE YOU EXPERIENCING?
         </h3>
         <p className="text-foreground/60 text-sm">
           Select all that apply. The more details you provide, the more accurate our preliminary assessment will be.
         </p>
         {selectedSymptoms.length > 0 && (
-          <p className="font-mono text-xs text-nick-yellow mt-2">
+          <p className="text-[12px] text-primary mt-2">
             {selectedSymptoms.length} symptom{selectedSymptoms.length !== 1 ? "s" : ""} selected
           </p>
         )}
@@ -283,7 +283,7 @@ function SymptomsStep({ selectedSymptoms, toggleSymptom, onNext, onBack }: {
                 <span className={cat.color}>{cat.icon}</span>
                 <span className="font-semibold font-bold text-foreground tracking-wider text-sm">{cat.label}</span>
                 {cat.symptoms.filter(s => selectedSymptoms.includes(s.id)).length > 0 && (
-                  <span className="bg-nick-yellow/20 text-nick-yellow px-2 py-0.5 font-mono text-[10px] tracking-wider rounded">
+                  <span className="bg-primary/20 text-primary px-2 py-0.5 text-[10px] tracking-wider rounded">
                     {cat.symptoms.filter(s => selectedSymptoms.includes(s.id)).length} SELECTED
                   </span>
                 )}
@@ -309,21 +309,21 @@ function SymptomsStep({ selectedSymptoms, toggleSymptom, onNext, onBack }: {
                           onClick={() => toggleSymptom(symptom.id)}
                           className={`text-left p-3 rounded-md border transition-all ${
                             isSelected
-                              ? "border-nick-yellow/50 bg-nick-yellow/10"
+                              ? "border-primary/50 bg-primary/10"
                               : "border-border/20 hover:border-border/40 bg-card/30"
                           }`}
                         >
                           <div className="flex items-start gap-2">
                             <div className={`w-4 h-4 mt-0.5 rounded-sm border flex items-center justify-center shrink-0 ${
-                              isSelected ? "bg-nick-yellow border-nick-yellow" : "border-foreground/30"
+                              isSelected ? "bg-primary border-primary" : "border-foreground/30"
                             }`}>
-                              {isSelected && <CheckCircle className="w-3 h-3 text-nick-dark" />}
+                              {isSelected && <CheckCircle className="w-3 h-3 text-primary-foreground" />}
                             </div>
                             <div>
-                              <p className={`font-mono text-sm ${isSelected ? "text-nick-yellow" : "text-foreground/80"}`}>
+                              <p className={`text-[13px] ${isSelected ? "text-primary" : "text-foreground/80"}`}>
                                 {symptom.label}
                               </p>
-                              <p className="font-mono text-xs text-foreground/40 mt-0.5">{symptom.detail}</p>
+                              <p className="text-[12px] text-foreground/40 mt-0.5">{symptom.detail}</p>
                             </div>
                           </div>
                         </button>
@@ -340,7 +340,7 @@ function SymptomsStep({ selectedSymptoms, toggleSymptom, onNext, onBack }: {
       <div className="flex justify-between">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 border border-border/30 text-foreground/60 px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:text-foreground transition-colors"
+          className="flex items-center gap-2 border border-border/30 text-foreground/60 px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:text-foreground transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
           BACK
@@ -348,7 +348,7 @@ function SymptomsStep({ selectedSymptoms, toggleSymptom, onNext, onBack }: {
         <button
           onClick={onNext}
           disabled={selectedSymptoms.length === 0}
-          className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           NEXT: ADD DETAILS
           <ChevronRight className="w-4 h-4" />
@@ -368,7 +368,7 @@ function DetailsStep({ additionalInfo, setAdditionalInfo, onAnalyze, onBack, isA
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="font-semibold font-bold text-2xl text-foreground tracking-wider mb-2">
+        <h3 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-2">
           ANYTHING ELSE WE SHOULD KNOW?
         </h3>
         <p className="text-foreground/60 text-sm">
@@ -381,13 +381,13 @@ function DetailsStep({ additionalInfo, setAdditionalInfo, onAnalyze, onBack, isA
         onChange={(e) => setAdditionalInfo(e.target.value)}
         rows={5}
         placeholder="Example: The squealing started about a week ago and gets worse when I brake going downhill. I had the oil changed last month but nothing else recently..."
-        className="w-full bg-card border border-border/50 text-foreground px-4 py-3 font-mono text-sm placeholder:text-foreground/30 focus:outline-none focus:border-nick-yellow/50 rounded-md resize-none"
+        className="w-full bg-card border border-border/50 text-foreground px-4 py-3 text-[13px] placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 rounded-md resize-none"
       />
 
       <div className="flex justify-between">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 border border-border/30 text-foreground/60 px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:text-foreground transition-colors"
+          className="flex items-center gap-2 border border-border/30 text-foreground/60 px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:text-foreground transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
           BACK
@@ -395,7 +395,7 @@ function DetailsStep({ additionalInfo, setAdditionalInfo, onAnalyze, onBack, isA
         <button
           onClick={onAnalyze}
           disabled={isAnalyzing}
-          className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-3 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors disabled:opacity-70"
+          className="flex items-center gap-2 bg-primary text-primary-foreground px-8 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors disabled:opacity-70"
         >
           {isAnalyzing ? (
             <>
@@ -456,20 +456,20 @@ function ResultsStep({ result, vehicle, onReset, onBook: _onBook }: {
           <div className="flex-1 h-2 bg-background/50 rounded-full overflow-hidden">
             <div className={`h-full rounded-full ${uc.barColor}`} style={{ width: `${result.urgencyScore * 20}%` }} />
           </div>
-          <span className={`font-mono text-xs ${uc.color}`}>{result.urgencyScore}/5</span>
+          <span className={`text-[12px] ${uc.color}`}>{result.urgencyScore}/5</span>
         </div>
         {result.safetyNote && (
-          <p className={`font-mono text-xs ${uc.color} mt-2`}>{result.safetyNote}</p>
+          <p className={`text-[12px] ${uc.color} mt-2`}>{result.safetyNote}</p>
         )}
       </div>
 
       {/* Diagnosis Title */}
       <div>
-        <h3 className="font-semibold font-bold text-2xl text-foreground tracking-wider mb-2">
+        <h3 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-2">
           {result.title}
         </h3>
         {vehicleStr && (
-          <p className="font-mono text-xs text-foreground/40">
+          <p className="text-[12px] text-foreground/40">
             <Car className="w-3.5 h-3.5 inline mr-1" />
             Analysis for: {vehicleStr}{vehicle.mileage ? ` — ${vehicle.mileage} miles` : ""}
           </p>
@@ -479,7 +479,7 @@ function ResultsStep({ result, vehicle, onReset, onBook: _onBook }: {
 
       {/* Likely Causes */}
       <div>
-        <h4 className="font-semibold font-bold text-sm text-nick-blue-light tracking-wider uppercase mb-4">
+        <h4 className="font-semibold font-bold text-sm text-nick-blue-light tracking-wide mb-4">
           MOST LIKELY CAUSES
         </h4>
         <div className="space-y-3">
@@ -488,7 +488,7 @@ function ResultsStep({ result, vehicle, onReset, onBook: _onBook }: {
               <div className="flex items-center justify-between mb-2">
                 <h5 className="font-semibold font-bold text-foreground tracking-wider text-sm">{cause.cause}</h5>
                 <span className={`font-mono text-[10px] tracking-wider px-2 py-0.5 rounded ${
-                  cause.likelihood === "High" ? "bg-nick-yellow/20 text-nick-yellow" :
+                  cause.likelihood === "High" ? "bg-primary/20 text-primary" :
                   cause.likelihood === "Medium" ? "bg-nick-blue/20 text-nick-blue-light" :
                   "bg-foreground/10 text-foreground/50"
                 }`}>
@@ -503,17 +503,17 @@ function ResultsStep({ result, vehicle, onReset, onBook: _onBook }: {
 
       {/* Recommended Service & Cost */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-card/50 border border-nick-yellow/20 rounded-lg p-5">
+        <div className="bg-card/50 border border-primary/20 rounded-lg p-5">
           <div className="flex items-center gap-2 mb-2">
-            <Wrench className="w-4 h-4 text-nick-yellow" />
-            <span className="font-mono text-xs text-foreground/50 tracking-wider uppercase">Recommended Service</span>
+            <Wrench className="w-4 h-4 text-primary" />
+            <span className="text-[12px] text-foreground/50 tracking-wide">Recommended Service</span>
           </div>
           <p className="font-semibold font-bold text-foreground tracking-wider">{result.recommendedService}</p>
         </div>
         <div className="bg-card/50 border border-nick-blue/20 rounded-lg p-5">
           <div className="flex items-center gap-2 mb-2">
             <CircleDot className="w-4 h-4 text-nick-blue-light" />
-            <span className="font-mono text-xs text-foreground/50 tracking-wider uppercase">Estimated Cost Range</span>
+            <span className="text-[12px] text-foreground/50 tracking-wide">Estimated Cost Range</span>
           </div>
           <p className="font-semibold font-bold text-foreground tracking-wider">{result.estimatedCostRange}</p>
           <p className="font-mono text-[10px] text-foreground/40 mt-1">*Actual cost determined after in-person diagnosis</p>
@@ -522,13 +522,13 @@ function ResultsStep({ result, vehicle, onReset, onBook: _onBook }: {
 
       {/* Next Steps */}
       <div>
-        <h4 className="font-semibold font-bold text-sm text-nick-blue-light tracking-wider uppercase mb-3">
+        <h4 className="font-semibold font-bold text-sm text-nick-blue-light tracking-wide mb-3">
           RECOMMENDED NEXT STEPS
         </h4>
         <ol className="space-y-2">
           {result.nextSteps.map((step, i) => (
             <li key={i} className="flex items-start gap-3">
-              <span className="w-6 h-6 bg-nick-yellow/20 text-nick-yellow rounded-full flex items-center justify-center font-mono text-xs shrink-0 mt-0.5">
+              <span className="w-6 h-6 bg-primary/20 text-primary rounded-full flex items-center justify-center text-[12px] shrink-0 mt-0.5">
                 {i + 1}
               </span>
               <span className="text-foreground/70 text-sm leading-relaxed">{step}</span>
@@ -539,7 +539,7 @@ function ResultsStep({ result, vehicle, onReset, onBook: _onBook }: {
 
       {/* Disclaimer */}
       <div className="bg-card/30 border border-border/20 rounded-lg p-4">
-        <p className="font-mono text-xs text-foreground/40 leading-relaxed">
+        <p className="text-[12px] text-foreground/40 leading-relaxed">
           <Shield className="w-3.5 h-3.5 inline mr-1 text-foreground/30" />
           This is a preliminary assessment based on the symptoms you described. A proper diagnosis requires an in-person inspection by our certified technicians using professional diagnostic equipment. Costs may vary based on the actual findings.
         </p>
@@ -550,14 +550,14 @@ function ResultsStep({ result, vehicle, onReset, onBook: _onBook }: {
         <a
           href={BUSINESS.phone.href}
           onClick={() => trackPhoneClick("diagnose-results")}
-          className="flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-base tracking-wider uppercase hover:bg-nick-gold transition-colors flex-1"
+          className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-base tracking-wide hover:opacity-90 transition-colors flex-1"
         >
           <Phone className="w-5 h-5" />
           CALL {BUSINESS.phone.display}
         </a>
         <Link
           href="/contact"
-          className="flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-base tracking-wider uppercase hover:bg-nick-blue/10 hover:border-nick-blue transition-colors flex-1"
+          className="flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-base tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors flex-1"
         >
           BOOK APPOINTMENT
           <ArrowRight className="w-5 h-5" />
@@ -566,7 +566,7 @@ function ResultsStep({ result, vehicle, onReset, onBook: _onBook }: {
 
       <button
         onClick={onReset}
-        className="flex items-center gap-2 text-foreground/40 hover:text-foreground/60 font-mono text-xs tracking-wider uppercase transition-colors mx-auto"
+        className="flex items-center gap-2 text-foreground/40 hover:text-foreground/60 text-[12px] tracking-wide transition-colors mx-auto"
       >
         <RotateCcw className="w-3.5 h-3.5" />
         START OVER
@@ -681,14 +681,14 @@ export default function DiagnosePage() {
 
             <FadeIn>
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 bg-nick-yellow/20 rounded-lg flex items-center justify-center">
-                  <Activity className="w-6 h-6 text-nick-yellow" />
+                <div className="w-12 h-12 bg-primary/20 rounded-lg flex items-center justify-center">
+                  <Activity className="w-6 h-6 text-primary" />
                 </div>
                 <span className="font-mono text-nick-blue-light text-xs tracking-wide">Free Diagnostic Tool</span>
               </div>
               <h1 className="font-semibold font-bold text-4xl lg:text-6xl text-foreground tracking-tight leading-[0.95]">
                 WHAT'S WRONG WITH<br />
-                <span className="text-gradient-yellow">MY CAR</span>?
+                <span className="text-primary">MY CAR</span>?
               </h1>
               <p className="mt-4 text-foreground/60 text-lg max-w-2xl">
                 Describe your vehicle's symptoms and our AI-powered diagnostic tool will provide a preliminary assessment. This is not a replacement for professional diagnosis — but it can help you understand what might be going on before you visit.
@@ -698,7 +698,7 @@ export default function DiagnosePage() {
         </section>
 
         {/* Diagnostic Tool */}
-        <section className="section-dark py-12 lg:py-16">
+        <section className="bg-[oklch(0.065_0.004_260)] py-12 lg:py-16">
           <div className="container max-w-3xl">
             <FadeIn>
               <StepIndicator currentStep={step} totalSteps={4} />
@@ -732,16 +732,16 @@ export default function DiagnosePage() {
         </section>
 
         {/* Trust Section */}
-        <section className="section-dark py-16">
+        <section className="bg-[oklch(0.065_0.004_260)] py-16">
           <div className="container max-w-3xl text-center">
             <FadeIn>
-              <h2 className="font-semibold font-bold text-2xl text-foreground tracking-wider mb-4">
-                WHY USE THIS <span className="text-gradient-yellow">TOOL</span>?
+              <h2 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-4">
+                WHY USE THIS <span className="text-primary">TOOL</span>?
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-8">
                 <div className="text-center">
-                  <div className="w-12 h-12 bg-nick-yellow/10 rounded-lg flex items-center justify-center mx-auto mb-3">
-                    <Shield className="w-6 h-6 text-nick-yellow" />
+                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-3">
+                    <Shield className="w-6 h-6 text-primary" />
                   </div>
                   <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm mb-2">UNDERSTAND FIRST</h3>
                   <p className="text-foreground/50 text-sm">Know what might be wrong before you visit any shop. No surprises.</p>
@@ -754,8 +754,8 @@ export default function DiagnosePage() {
                   <p className="text-foreground/50 text-sm">Get a preliminary assessment in under 60 seconds. No cost, no obligation.</p>
                 </div>
                 <div className="text-center">
-                  <div className="w-12 h-12 bg-nick-yellow/10 rounded-lg flex items-center justify-center mx-auto mb-3">
-                    <Wrench className="w-6 h-6 text-nick-yellow" />
+                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-3">
+                    <Wrench className="w-6 h-6 text-primary" />
                   </div>
                   <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm mb-2">EXPERT BACKED</h3>
                   <p className="text-foreground/50 text-sm">Built on real diagnostic knowledge from professional auto technicians.</p>
@@ -766,22 +766,22 @@ export default function DiagnosePage() {
         </section>
 
         {/* CTA */}
-        <section className="section-dark py-16">
+        <section className="bg-[oklch(0.065_0.004_260)] py-16">
           
           <div className="container pt-12 text-center">
             <FadeIn>
               <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground tracking-tight">
-                PREFER TO <span className="text-gradient-yellow">TALK</span>?
+                PREFER TO <span className="text-primary">TALK</span>?
               </h2>
               <p className="mt-4 text-foreground/60 text-lg max-w-xl mx-auto">
                 Our technicians are happy to discuss your vehicle's symptoms over the phone. Call us for a free consultation.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("diagnose-cta")} className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("diagnose-cta")} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors">
                   <Phone className="w-5 h-5" />
                   CALL {BUSINESS.phone.display}
                 </a>
-                <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
+                <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
                   BOOK ONLINE
                 </Link>
               </div>

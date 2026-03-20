@@ -57,41 +57,41 @@ function AddVehicleForm({ onClose }: { onClose: () => void }) {
   const years = Array.from({ length: 35 }, (_, i) => String(currentYear - i));
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="border border-nick-yellow/30 bg-nick-dark/50 p-6 lg:p-8">
-      <h3 className="font-semibold font-bold text-foreground text-xl tracking-wider uppercase mb-6">ADD A VEHICLE</h3>
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="border border-primary/30 bg-background/50 p-6 lg:p-8">
+      <h3 className="font-semibold font-bold text-foreground text-xl tracking-wide mb-6">ADD A VEHICLE</h3>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <label className="block text-foreground/60 text-sm mb-1 font-mono">Year</label>
-            <select value={year} onChange={(e) => setYear(e.target.value)} required className="w-full bg-background border border-nick-yellow/20 text-foreground px-3 py-2.5 focus:border-nick-yellow outline-none">
+            <label className="block text-foreground/60 text-sm mb-1">Year</label>
+            <select value={year} onChange={(e) => setYear(e.target.value)} required className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none">
               <option value="">Select Year</option>
               {years.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-foreground/60 text-sm mb-1 font-mono">Make</label>
-            <input type="text" value={make} onChange={(e) => setMake(e.target.value)} required placeholder="e.g. Toyota" className="w-full bg-background border border-nick-yellow/20 text-foreground px-3 py-2.5 focus:border-nick-yellow outline-none placeholder:text-foreground/30" />
+            <label className="block text-foreground/60 text-sm mb-1">Make</label>
+            <input type="text" value={make} onChange={(e) => setMake(e.target.value)} required placeholder="e.g. Toyota" className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30" />
           </div>
           <div>
-            <label className="block text-foreground/60 text-sm mb-1 font-mono">Model</label>
-            <input type="text" value={model} onChange={(e) => setModel(e.target.value)} required placeholder="e.g. Camry" className="w-full bg-background border border-nick-yellow/20 text-foreground px-3 py-2.5 focus:border-nick-yellow outline-none placeholder:text-foreground/30" />
+            <label className="block text-foreground/60 text-sm mb-1">Model</label>
+            <input type="text" value={model} onChange={(e) => setModel(e.target.value)} required placeholder="e.g. Camry" className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30" />
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-foreground/60 text-sm mb-1 font-mono">Current Mileage (optional)</label>
-            <input type="number" value={mileage} onChange={(e) => setMileage(e.target.value)} placeholder="e.g. 85000" className="w-full bg-background border border-nick-yellow/20 text-foreground px-3 py-2.5 focus:border-nick-yellow outline-none placeholder:text-foreground/30" />
+            <label className="block text-foreground/60 text-sm mb-1">Current Mileage (optional)</label>
+            <input type="number" value={mileage} onChange={(e) => setMileage(e.target.value)} placeholder="e.g. 85000" className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30" />
           </div>
           <div>
-            <label className="block text-foreground/60 text-sm mb-1 font-mono">Nickname (optional)</label>
-            <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="e.g. Daily Driver" className="w-full bg-background border border-nick-yellow/20 text-foreground px-3 py-2.5 focus:border-nick-yellow outline-none placeholder:text-foreground/30" />
+            <label className="block text-foreground/60 text-sm mb-1">Nickname (optional)</label>
+            <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="e.g. Daily Driver" className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30" />
           </div>
         </div>
         <div className="flex gap-3 pt-2">
-          <button type="submit" disabled={addVehicle.isPending} className="bg-nick-yellow text-nick-dark px-6 py-2.5 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors disabled:opacity-50">
+          <button type="submit" disabled={addVehicle.isPending} className="bg-primary text-primary-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors disabled:opacity-50">
             {addVehicle.isPending ? "ADDING..." : "ADD VEHICLE"}
           </button>
-          <button type="button" onClick={onClose} className="border border-foreground/30 text-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors">
+          <button type="button" onClick={onClose} className="border border-foreground/30 text-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
             CANCEL
           </button>
         </div>
@@ -108,18 +108,18 @@ function VehicleCard({ vehicle }: { vehicle: any }) {
   });
 
   return (
-    <div className="border border-nick-yellow/15 bg-nick-dark/50 p-6 hover:border-nick-yellow/30 transition-colors">
+    <div className="border border-primary/15 bg-background/50 p-6 hover:border-primary/30 transition-colors">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-nick-yellow/10 flex items-center justify-center rounded-md">
-            <Car className="w-6 h-6 text-nick-yellow" />
+          <div className="w-12 h-12 bg-primary/10 flex items-center justify-center rounded-md">
+            <Car className="w-6 h-6 text-primary" />
           </div>
           <div>
             <h3 className="font-semibold font-bold text-foreground text-lg tracking-wider">
               {vehicle.year} {vehicle.make} {vehicle.model}
             </h3>
             {vehicle.nickname && (
-              <span className="text-nick-blue-light text-sm font-mono">"{vehicle.nickname}"</span>
+              <span className="text-nick-blue-light text-sm">"{vehicle.nickname}"</span>
             )}
           </div>
         </div>
@@ -139,21 +139,21 @@ function VehicleCard({ vehicle }: { vehicle: any }) {
       )}
 
       {/* Maintenance Recommendations */}
-      <div className="mt-4 pt-4 border-t border-nick-yellow/10">
+      <div className="mt-4 pt-4 border-t border-primary/10">
         <h4 className="font-semibold font-bold text-foreground/80 text-xs tracking-wide mb-3">RECOMMENDED MAINTENANCE</h4>
         <div className="space-y-2">
           {getMaintenanceItems(vehicle.mileage).map((item, i) => (
-            <div key={i} className={`flex items-center gap-2 text-sm ${item.due ? "text-nick-yellow" : "text-foreground/40"}`}>
+            <div key={i} className={`flex items-center gap-2 text-sm ${item.due ? "text-primary" : "text-foreground/40"}`}>
               {item.due ? <AlertTriangle className="w-3.5 h-3.5" /> : <Wrench className="w-3.5 h-3.5" />}
-              <span className="font-mono text-xs">{item.label}</span>
-              {item.due && <span className="text-xs bg-nick-yellow/10 text-nick-yellow px-1.5 py-0.5 rounded font-mono">DUE</span>}
+              <span className="text-[12px]">{item.label}</span>
+              {item.due && <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">DUE</span>}
             </div>
           ))}
         </div>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-nick-yellow/10">
-        <Link href="/contact" className="inline-flex items-center gap-2 text-nick-yellow text-sm font-semibold font-bold tracking-wider uppercase hover:text-nick-gold transition-colors">
+      <div className="mt-4 pt-4 border-t border-primary/10">
+        <Link href="/contact" className="inline-flex items-center gap-2 text-primary text-sm font-semibold font-bold tracking-wide hover:text-primary transition-colors">
           BOOK SERVICE FOR THIS VEHICLE
           <ChevronRight className="w-4 h-4" />
         </Link>
@@ -206,11 +206,11 @@ export default function MyGaragePage() {
             <Breadcrumbs items={[{ label: "My Garage" }]} />
             <FadeIn>
               <div className="flex items-center gap-3 mb-4">
-                <Car className="w-6 h-6 text-nick-yellow" />
+                <Car className="w-6 h-6 text-primary" />
                 <span className="font-mono text-nick-blue-light text-sm tracking-wide">Your Vehicles</span>
               </div>
               <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
-                MY <span className="text-gradient-yellow">GARAGE</span>
+                MY <span className="text-primary">GARAGE</span>
               </h1>
               <p className="mt-4 text-foreground/70 text-lg max-w-2xl leading-relaxed">
                 Save your vehicles, track service history, and get personalized maintenance reminders.
@@ -220,24 +220,24 @@ export default function MyGaragePage() {
         </section>
 
         {/* Content */}
-        <section className="py-12 lg:py-16 section-darker">
+        <section className="py-12 lg:py-16 bg-[oklch(0.055_0.004_260)]">
           <div className="container">
             {authLoading ? (
               <div className="text-center py-20">
-                <div className="w-8 h-8 border-2 border-nick-yellow border-t-transparent rounded-full animate-spin mx-auto" />
-                <p className="text-foreground/50 mt-4 font-mono text-sm">Loading...</p>
+                <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+                <p className="text-foreground/50 mt-4 text-[13px]">Loading...</p>
               </div>
             ) : !isAuthenticated ? (
               <FadeIn>
                 <div className="text-center py-20 max-w-lg mx-auto">
-                  <Car className="w-16 h-16 text-nick-yellow/30 mx-auto mb-6" />
-                  <h2 className="font-semibold font-bold text-2xl text-foreground tracking-wider mb-4">SIGN IN TO ACCESS YOUR GARAGE</h2>
+                  <Car className="w-16 h-16 text-primary/30 mx-auto mb-6" />
+                  <h2 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-4">SIGN IN TO ACCESS YOUR GARAGE</h2>
                   <p className="text-foreground/60 mb-8 leading-relaxed">
                     Create an account or sign in to save your vehicles, track service history, and get personalized maintenance reminders.
                   </p>
                   <a
                     href={getLoginUrl()}
-                    className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-3 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors"
+                    className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-3 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
                   >
                     SIGN IN
                     <ChevronRight className="w-4 h-4" />
@@ -253,13 +253,13 @@ export default function MyGaragePage() {
                       <h2 className="font-semibold font-bold text-2xl text-foreground tracking-wider">
                         {user?.name ? `Welcome back, ${user.name.split(" ")[0]}` : "Your Vehicles"}
                       </h2>
-                      <p className="text-foreground/50 text-sm font-mono mt-1">
+                      <p className="text-foreground/50 text-sm mt-1">
                         {vehicles?.length ?? 0} vehicle{(vehicles?.length ?? 0) !== 1 ? "s" : ""} saved
                       </p>
                     </div>
                     <button
                       onClick={() => setShowAddForm(true)}
-                      className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-5 py-2.5 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors"
+                      className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
                     >
                       <Plus className="w-4 h-4" />
                       ADD VEHICLE
@@ -279,7 +279,7 @@ export default function MyGaragePage() {
             ) : isLoading ? (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {[1, 2].map((i) => (
-                      <div key={i} className="border border-nick-yellow/10 bg-nick-dark/30 p-6 animate-pulse">
+                      <div key={i} className="border border-primary/10 bg-background/30 p-6 animate-pulse">
                         <div className="h-6 w-48 bg-foreground/10 rounded mb-4" />
                         <div className="h-4 w-32 bg-foreground/5 rounded" />
                       </div>
@@ -295,13 +295,13 @@ export default function MyGaragePage() {
                   </div>
                 ) : (
                   <FadeIn>
-                    <div className="text-center py-16 border border-dashed border-nick-yellow/20">
-                      <Car className="w-12 h-12 text-nick-yellow/20 mx-auto mb-4" />
-                      <h3 className="font-semibold font-bold text-foreground/60 text-lg tracking-wider mb-2">NO VEHICLES YET</h3>
+                    <div className="text-center py-16 border border-dashed border-primary/20">
+                      <Car className="w-12 h-12 text-primary/20 mx-auto mb-4" />
+                      <h3 className="font-semibold font-bold text-foreground/60 text-lg tracking-[-0.01em] mb-2">NO VEHICLES YET</h3>
                       <p className="text-foreground/40 text-sm mb-6">Add your first vehicle to get personalized maintenance reminders.</p>
                       <button
                         onClick={() => setShowAddForm(true)}
-                        className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-6 py-2.5 font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors"
+                        className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
                       >
                         <Plus className="w-4 h-4" />
                         ADD YOUR FIRST VEHICLE
@@ -313,24 +313,24 @@ export default function MyGaragePage() {
                 {/* Service History */}
                 {serviceHistory && serviceHistory.length > 0 && (
                   <div className="mt-12">
-                    <h2 className="font-semibold font-bold text-2xl text-foreground tracking-wider mb-6">SERVICE HISTORY</h2>
+                    <h2 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-6">SERVICE HISTORY</h2>
                     <div className="space-y-4">
                       {serviceHistory.map((record: any) => (
-                        <div key={record.id} className="border border-nick-yellow/10 bg-nick-dark/30 p-5 flex items-center gap-4">
+                        <div key={record.id} className="border border-primary/10 bg-background/30 p-5 flex items-center gap-4">
                           <div className="w-10 h-10 bg-nick-blue/10 flex items-center justify-center rounded-md shrink-0">
                             <Wrench className="w-5 h-5 text-nick-blue-light" />
                           </div>
                           <div className="flex-1">
-                            <h4 className="font-semibold font-bold text-foreground text-sm tracking-wider uppercase">{record.serviceType}</h4>
+                            <h4 className="font-semibold font-bold text-foreground text-sm tracking-wide">{record.serviceType}</h4>
                             {record.description && <p className="text-foreground/50 text-sm mt-1">{record.description}</p>}
                           </div>
                           <div className="text-right shrink-0">
-                            <div className="flex items-center gap-1 text-foreground/40 text-xs font-mono">
+                            <div className="flex items-center gap-1 text-foreground/40 text-xs">
                               <Calendar className="w-3 h-3" />
                               {new Date(record.completedAt).toLocaleDateString()}
                             </div>
                             {record.mileageAtService && (
-                              <span className="text-foreground/30 text-xs font-mono">{record.mileageAtService.toLocaleString()} mi</span>
+                              <span className="text-foreground/30 text-xs">{record.mileageAtService.toLocaleString()} mi</span>
                             )}
                           </div>
                         </div>

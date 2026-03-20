@@ -998,13 +998,13 @@ export default function ComponentsShowcase() {
                 <CollapsibleContent>
                   <CardContent>
                     <div className="space-y-2">
-                      <div className="rounded-md border px-4 py-3 font-mono text-sm">
+                      <div className="rounded-md border px-4 py-3 text-[13px]">
                         @radix-ui/primitives
                       </div>
-                      <div className="rounded-md border px-4 py-3 font-mono text-sm">
+                      <div className="rounded-md border px-4 py-3 text-[13px]">
                         @radix-ui/colors
                       </div>
-                      <div className="rounded-md border px-4 py-3 font-mono text-sm">
+                      <div className="rounded-md border px-4 py-3 text-[13px]">
                         @stitches/react
                       </div>
                     </div>

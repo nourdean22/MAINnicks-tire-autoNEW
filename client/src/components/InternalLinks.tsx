@@ -57,7 +57,7 @@ export default function InternalLinks({ title = "Explore More Services", maxLink
   const links = shuffled.slice(0, maxLinks);
 
   return (
-    <section className="section-darker py-16 border-t border-border/30">
+    <section className="bg-[oklch(0.055_0.004_260)] py-16 border-t border-border/30">
       <div className="container">
         <h3 className="text-xs font-semibold text-foreground/30 uppercase tracking-widest mb-8">
           {title}
@@ -67,15 +67,15 @@ export default function InternalLinks({ title = "Explore More Services", maxLink
             <Link
               key={link.href}
               href={link.href}
-              className="group flex items-center justify-between p-4 border border-border/20 hover:border-nick-yellow/30 transition-colors"
+              className="group flex items-center justify-between p-4 border border-border/20 hover:border-primary/30 transition-colors"
             >
               <div className="min-w-0">
-                <p className="font-medium text-sm text-foreground group-hover:text-nick-yellow transition-colors truncate">
+                <p className="font-medium text-sm text-foreground group-hover:text-primary transition-colors truncate">
                   {link.label}
                 </p>
                 <p className="text-xs text-foreground/40 mt-0.5 truncate">{link.desc}</p>
               </div>
-              <ChevronRight className="w-4 h-4 text-foreground/20 group-hover:text-nick-yellow shrink-0 ml-3 transition-colors" />
+              <ChevronRight className="w-4 h-4 text-foreground/20 group-hover:text-primary shrink-0 ml-3 transition-colors" />
             </Link>
           ))}
         </div>

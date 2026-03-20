@@ -16,12 +16,12 @@ const BADGES = [
 
 export default function TrustBadges() {
   return (
-    <section className="border-y border-border/20 bg-nick-dark/50 py-8">
+    <section className="border-y border-border/20 bg-background/50 py-8">
       <div className="container">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6">
           {BADGES.map((badge) => (
             <div key={badge.label} className="flex items-center gap-3">
-              <badge.icon className="w-5 h-5 text-nick-yellow shrink-0" />
+              <badge.icon className="w-5 h-5 text-primary shrink-0" />
               <div>
                 <p className="text-sm font-medium text-foreground leading-tight">{badge.label}</p>
                 <p className="text-xs text-foreground/40">{badge.detail}</p>

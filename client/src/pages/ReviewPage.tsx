@@ -109,8 +109,8 @@ export default function ReviewPage() {
       <LocalBusinessSchema />
 
       {/* Hero Section */}
-      <section className="relative bg-nick-dark pt-28 pb-16 lg:pt-36 lg:pb-24">
-        <div className="absolute inset-0 bg-gradient-to-b from-nick-dark via-nick-dark/95 to-nick-dark" />
+      <section className="relative bg-background pt-28 pb-16 lg:pt-36 lg:pb-24">
+        <div className="absolute inset-0 bg-gradient-to-b from-background via-background/95 to-background" />
         <div className="relative container text-center">
           <FadeIn>
             <div className="flex justify-center gap-1 mb-6">
@@ -118,9 +118,9 @@ export default function ReviewPage() {
                 <Star key={i} className="w-8 h-8 fill-primary text-primary" />
               ))}
             </div>
-            <h1 className="font-heading font-bold text-4xl sm:text-5xl lg:text-6xl text-foreground tracking-tight mb-4">
+            <h1 className="font-bold text-4xl sm:text-5xl lg:text-6xl text-foreground tracking-tight mb-4">
               YOUR FEEDBACK<br />
-              <span className="text-gradient-yellow">MEANS EVERYTHING</span>
+              <span className="text-primary">MEANS EVERYTHING</span>
             </h1>
             <p className="text-lg sm:text-xl text-foreground/70 max-w-2xl mx-auto leading-relaxed mb-8">
               Had a good experience at Nick's Tire & Auto? A quick Google review helps other Cleveland drivers find honest, reliable auto repair. It takes less than a minute.
@@ -133,7 +133,7 @@ export default function ReviewPage() {
               target="_blank"
               rel="noopener noreferrer"
               onClick={handleReviewClick}
-              className="inline-flex items-center justify-center gap-3 bg-primary text-primary-foreground px-10 py-5 font-heading font-bold text-xl tracking-wider uppercase hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center justify-center gap-3 bg-primary text-primary-foreground px-10 py-5 font-bold text-xl tracking-wide hover:bg-primary/90 transition-colors"
             >
               <Star className="w-6 h-6" />
               LEAVE A GOOGLE REVIEW
@@ -150,15 +150,15 @@ export default function ReviewPage() {
       </section>
 
       {/* QR Code Section */}
-      <section className="section-darker py-16 lg:py-24">
+      <section className="bg-[oklch(0.055_0.004_260)] py-16 lg:py-24">
         <div className="container">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
             <FadeIn>
               <div className="text-center lg:text-left">
-                <span className="font-mono text-primary text-sm tracking-widest uppercase">Scan & Review</span>
-                <h2 className="font-heading font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-6">
+                <span className="font-mono text-primary text-sm tracking-wide">Scan & Review</span>
+                <h2 className="font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-6">
                   QR CODE FOR THE<br />
-                  <span className="text-gradient-yellow">SHOP COUNTER</span>
+                  <span className="text-primary">SHOP COUNTER</span>
                 </h2>
                 <p className="text-foreground/70 leading-relaxed text-lg mb-6">
                   Print this QR code and place it at the front counter, on your business cards, or in the waiting area. Customers scan it with their phone camera and go straight to the Google review form.
@@ -166,7 +166,7 @@ export default function ReviewPage() {
                 <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                   <button
                     onClick={handlePrint}
-                    className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 font-heading font-bold text-sm tracking-wider uppercase hover:bg-primary/90 transition-colors"
+                    className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 font-bold text-sm tracking-wide hover:bg-primary/90 transition-colors"
                   >
                     <Printer className="w-4 h-4" />
                     PRINT QR CODE CARD
@@ -196,14 +196,14 @@ export default function ReviewPage() {
       </section>
 
       {/* Why Reviews Matter Section */}
-      <section className="section-dark py-16 lg:py-24">
+      <section className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-24">
         <div className="container">
           <FadeIn>
             <div className="text-center mb-14">
-              <span className="font-mono text-primary text-sm tracking-widest uppercase">Why It Matters</span>
-              <h2 className="font-heading font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight">
+              <span className="font-mono text-primary text-sm tracking-wide">Why It Matters</span>
+              <h2 className="font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight">
                 YOUR REVIEW HELPS<br />
-                <span className="text-gradient-yellow">OTHER DRIVERS</span>
+                <span className="text-primary">OTHER DRIVERS</span>
               </h2>
             </div>
           </FadeIn>
@@ -229,7 +229,7 @@ export default function ReviewPage() {
               <FadeIn key={item.title} delay={i * 0.1}>
                 <div className="text-center p-6">
                   <div className="text-primary mb-4 flex justify-center">{item.icon}</div>
-                  <h3 className="font-heading font-bold text-lg text-foreground tracking-wider mb-3">{item.title}</h3>
+                  <h3 className="font-bold text-lg text-foreground tracking-[-0.01em] mb-3">{item.title}</h3>
                   <p className="text-foreground/60 leading-relaxed text-sm">{item.desc}</p>
                 </div>
               </FadeIn>
@@ -239,7 +239,7 @@ export default function ReviewPage() {
       </section>
 
       {/* Current Rating Section */}
-      <section className="section-darker py-16 lg:py-20">
+      <section className="bg-[oklch(0.055_0.004_260)] py-16 lg:py-20">
         <div className="container text-center">
           <FadeIn>
             <div className="flex justify-center gap-1 mb-4">
@@ -247,8 +247,8 @@ export default function ReviewPage() {
                 <Star key={i} className="w-10 h-10 fill-primary text-primary" />
               ))}
             </div>
-            <p className="font-heading font-bold text-5xl lg:text-6xl text-foreground mb-2">4.9</p>
-            <p className="font-mono text-primary text-lg tracking-wider mb-4">{BUSINESS.reviews.countDisplay} GOOGLE REVIEWS</p>
+            <p className="font-bold text-5xl lg:text-6xl text-foreground mb-2">4.9</p>
+            <p className="font-mono text-primary text-lg tracking-[-0.01em] mb-4">{BUSINESS.reviews.countDisplay} GOOGLE REVIEWS</p>
             <p className="text-foreground/60 text-lg max-w-xl mx-auto mb-8">
               Cleveland drivers have spoken. Join them in sharing your experience.
             </p>
@@ -257,7 +257,7 @@ export default function ReviewPage() {
               target="_blank"
               rel="noopener noreferrer"
               onClick={handleReviewClick}
-              className="inline-flex items-center justify-center gap-3 bg-primary text-primary-foreground px-10 py-5 font-heading font-bold text-xl tracking-wider uppercase hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center justify-center gap-3 bg-primary text-primary-foreground px-10 py-5 font-bold text-xl tracking-wide hover:bg-primary/90 transition-colors"
             >
               <Star className="w-6 h-6" />
               LEAVE YOUR REVIEW
@@ -268,11 +268,11 @@ export default function ReviewPage() {
       </section>
 
       {/* Contact / Concern Section */}
-      <section className="section-dark py-16 lg:py-20">
+      <section className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-20">
         <div className="container text-center max-w-2xl mx-auto">
           <FadeIn>
-            <h2 className="font-heading font-bold text-2xl lg:text-3xl text-foreground tracking-tight mb-6">
-              HAD AN ISSUE? <span className="text-gradient-yellow">TALK TO US FIRST</span>
+            <h2 className="font-bold text-2xl lg:text-3xl text-foreground tracking-tight mb-6">
+              HAD AN ISSUE? <span className="text-primary">TALK TO US FIRST</span>
             </h2>
             <p className="text-foreground/70 leading-relaxed text-lg mb-8">
               If something was not right with your visit, we want to hear about it directly. Call us and we will make it right. Our reputation is built on doing right by every customer.
@@ -280,7 +280,7 @@ export default function ReviewPage() {
             <a
               href={BUSINESS.phone.href}
               onClick={() => trackPhoneClick("review_page_concern")}
-              className="inline-flex items-center justify-center gap-2 border-2 border-primary text-primary px-8 py-4 font-heading font-bold text-lg tracking-wider uppercase hover:bg-primary hover:text-primary-foreground transition-colors"
+              className="inline-flex items-center justify-center gap-2 border-2 border-primary text-primary px-8 py-4 font-bold text-lg tracking-wide hover:bg-primary hover:text-primary-foreground transition-colors"
             >
               <Phone className="w-5 h-5" />
               {BUSINESS.phone.display}

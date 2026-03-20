@@ -75,7 +75,7 @@ export default function LeadsSection() {
             placeholder="Search leads..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full bg-card border border-border/50 text-foreground pl-10 pr-4 py-3 font-mono text-sm placeholder:text-foreground/30 focus:outline-none focus:border-primary/50"
+            className="w-full bg-card border border-border/50 text-foreground pl-10 pr-4 py-3 text-[13px] placeholder:text-foreground/30 focus:outline-none focus:border-primary/50"
           />
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -84,7 +84,7 @@ export default function LeadsSection() {
             <button
               key={f}
               onClick={() => setLeadFilter(f)}
-              className={`px-3 py-2 font-mono text-xs tracking-wider uppercase transition-colors ${
+              className={`px-3 py-2 text-[12px] tracking-wide transition-colors ${
                 leadFilter === f ? "bg-primary text-primary-foreground" : "bg-card border border-border/30 text-foreground/60 hover:text-foreground"
               }`}
             >
@@ -105,8 +105,8 @@ export default function LeadsSection() {
       ) : filteredLeads.length === 0 ? (
         <div className="text-center py-20 border border-border/30 bg-card">
           <Users className="w-12 h-12 text-foreground/20 mx-auto mb-4" />
-          <p className="font-heading font-bold text-xl text-foreground/40 tracking-wider">NO LEADS</p>
-          <p className="text-foreground/30 font-mono text-sm mt-2">Leads from the popup and chat will appear here.</p>
+          <p className="font-bold text-xl text-foreground/40 tracking-wider">NO LEADS</p>
+          <p className="text-foreground/30 text-[13px] mt-2">Leads from the popup and chat will appear here.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -120,9 +120,9 @@ export default function LeadsSection() {
               <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                 <div className="flex-1 space-y-3">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="font-heading font-bold text-lg text-foreground tracking-wider">{lead.name}</h3>
+                    <h3 className="font-bold text-lg text-foreground tracking-wider">{lead.name}</h3>
                     <UrgencyBadge score={lead.urgencyScore ?? 3} />
-                    <span className={`inline-flex items-center px-2 py-0.5 border font-mono text-[10px] tracking-wider ${LEAD_STATUS_CONFIG[lead.status as LeadStatus]?.color} ${LEAD_STATUS_CONFIG[lead.status as LeadStatus]?.bgColor}`}>
+                    <span className={`inline-flex items-center px-2 py-0.5 border text-[10px] tracking-wider ${LEAD_STATUS_CONFIG[lead.status as LeadStatus]?.color} ${LEAD_STATUS_CONFIG[lead.status as LeadStatus]?.bgColor}`}>
                       {LEAD_STATUS_CONFIG[lead.status as LeadStatus]?.label}
                     </span>
                     <span className="font-mono text-[10px] text-foreground/30 uppercase tracking-wider">
@@ -133,53 +133,53 @@ export default function LeadsSection() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div className="flex items-center gap-2 text-foreground/70">
                       <Phone className="w-4 h-4 text-primary shrink-0" />
-                      <a href={`tel:${lead.phone}`} className="font-mono text-sm hover:text-primary">{lead.phone}</a>
+                      <a href={`tel:${lead.phone}`} className="text-[13px] hover:text-primary">{lead.phone}</a>
                     </div>
                     {lead.email && (
                       <div className="flex items-center gap-2 text-foreground/70">
                         <Mail className="w-4 h-4 text-primary shrink-0" />
-                        <span className="font-mono text-sm truncate">{lead.email}</span>
+                        <span className="text-[13px] truncate">{lead.email}</span>
                       </div>
                     )}
                     {lead.vehicle && (
                       <div className="flex items-center gap-2 text-foreground/70">
                         <Car className="w-4 h-4 text-primary shrink-0" />
-                        <span className="font-mono text-sm">{lead.vehicle}</span>
+                        <span className="text-[13px]">{lead.vehicle}</span>
                       </div>
                     )}
                     {lead.recommendedService && (
                       <div className="flex items-center gap-2 text-foreground/70">
                         <Wrench className="w-4 h-4 text-primary shrink-0" />
-                        <span className="font-mono text-sm">{lead.recommendedService}</span>
+                        <span className="text-[13px]">{lead.recommendedService}</span>
                       </div>
                     )}
                   </div>
 
                   {lead.problem && (
-                    <div className="flex items-start gap-2 text-foreground/60 bg-nick-dark/50 p-3 border border-border/20">
+                    <div className="flex items-start gap-2 text-foreground/60 bg-background/50 p-3 border border-border/20">
                       <MessageSquare className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                      <p className="font-mono text-sm leading-relaxed">{lead.problem}</p>
+                      <p className="text-[13px] leading-relaxed">{lead.problem}</p>
                     </div>
                   )}
 
                   {lead.urgencyReason && (
                     <div className="flex items-start gap-2 text-foreground/50">
                       <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-                      <p className="font-mono text-xs leading-relaxed italic">{lead.urgencyReason}</p>
+                      <p className="text-[12px] leading-relaxed italic">{lead.urgencyReason}</p>
                     </div>
                   )}
 
                   {lead.contactNotes && (
                     <div className="flex items-start gap-2 text-foreground/50 bg-emerald-500/5 p-2 border border-emerald-500/20">
                       <UserCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                      <p className="font-mono text-xs leading-relaxed">
+                      <p className="text-[12px] leading-relaxed">
                         <span className="text-emerald-400">Contacted by {lead.contactedBy || "staff"}: </span>
                         {lead.contactNotes}
                       </p>
                     </div>
                   )}
 
-                  <p className="font-mono text-xs text-foreground/30">
+                  <p className="text-[12px] text-foreground/30">
                     Received {new Date(lead.createdAt).toLocaleString()}
                   </p>
                 </div>
@@ -190,7 +190,7 @@ export default function LeadsSection() {
                     <>
                       <a
                         href={`tel:${lead.phone}`}
-                        className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:bg-primary/90"
+                        className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/90"
                       >
                         <PhoneCall className="w-4 h-4" /> CALL
                       </a>
@@ -207,7 +207,7 @@ export default function LeadsSection() {
                           }
                         }}
                         disabled={updateLead.isPending}
-                        className="flex items-center gap-2 border border-primary/30 text-primary px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:bg-primary/10 disabled:opacity-50"
+                        className="flex items-center gap-2 border border-primary/30 text-primary px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/10 disabled:opacity-50"
                       >
                         <UserCheck className="w-4 h-4" /> MARK CONTACTED
                       </button>
@@ -218,14 +218,14 @@ export default function LeadsSection() {
                       <button
                         onClick={() => updateLead.mutate({ id: lead.id, status: "booked" })}
                         disabled={updateLead.isPending}
-                        className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:bg-emerald-700 disabled:opacity-50"
+                        className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-emerald-700 disabled:opacity-50"
                       >
                         <CheckCircle2 className="w-4 h-4" /> BOOKED
                       </button>
                       <button
                         onClick={() => updateLead.mutate({ id: lead.id, status: "lost" })}
                         disabled={updateLead.isPending}
-                        className="flex items-center gap-2 border border-red-500/30 text-red-400 px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:bg-red-500/10 disabled:opacity-50"
+                        className="flex items-center gap-2 border border-red-500/30 text-red-400 px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-red-500/10 disabled:opacity-50"
                       >
                         <XCircle className="w-4 h-4" /> LOST
                       </button>
@@ -235,7 +235,7 @@ export default function LeadsSection() {
                     <button
                       onClick={() => updateLead.mutate({ id: lead.id, status: "new", contacted: 0 })}
                       disabled={updateLead.isPending}
-                      className="flex items-center gap-2 border border-border/30 text-foreground/50 px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:text-foreground disabled:opacity-50"
+                      className="flex items-center gap-2 border border-border/30 text-foreground/50 px-4 py-2.5 font-bold text-xs tracking-wide hover:text-foreground disabled:opacity-50"
                     >
                       <RefreshCw className="w-4 h-4" /> REOPEN
                     </button>

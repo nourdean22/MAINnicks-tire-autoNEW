@@ -31,7 +31,7 @@ export default function VehicleMakePage() {
 
   if (!page) {
     return (
-      <div className="min-h-screen bg-nick-dark flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <h1 className="font-semibold text-4xl text-foreground mb-4">Page Not Found</h1>
           <Link href="/" className="text-primary hover:underline">Return to Homepage</Link>
@@ -56,14 +56,14 @@ export default function VehicleMakePage() {
       
         {/* Hero */}
         <section className="relative pt-28 pb-16 lg:pt-36 lg:pb-24">
-          <div className="absolute inset-0 bg-gradient-to-b from-nick-dark via-nick-dark/95 to-nick-dark" />
+          <div className="absolute inset-0 bg-gradient-to-b from-background via-background/95 to-background" />
           <div className="relative container">
             <Breadcrumbs items={breadcrumbs} />
             <FadeIn>
               <h1 className="font-semibold font-bold text-5xl sm:text-6xl lg:text-7xl text-foreground leading-[0.9] tracking-tight mt-6">
                 {page.heroHeadline.split("\n").map((line, i) => (
                   <span key={i}>
-                    {i === 0 ? <span className="text-gradient-yellow">{line}</span> : line}
+                    {i === 0 ? <span className="text-primary">{line}</span> : line}
                     {i < page.heroHeadline.split("\n").length - 1 && <br />}
                   </span>
                 ))}
@@ -76,10 +76,10 @@ export default function VehicleMakePage() {
             </FadeIn>
             <FadeIn delay={0.2}>
               <div className="mt-8 flex flex-col sm:flex-row gap-4">
-                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`vehicle-${page.slug}-hero`)} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:bg-primary/90 transition-colors">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`vehicle-${page.slug}-hero`)} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-primary/90 transition-colors">
                   <Phone className="w-5 h-5" />CALL FOR A FREE QUOTE
                 </a>
-                <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:border-primary hover:text-primary transition-colors">
+                <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors">
                   SCHEDULE ONLINE <ChevronRight className="w-5 h-5" />
                 </Link>
               </div>
@@ -97,7 +97,7 @@ export default function VehicleMakePage() {
         </section>
 
         {/* Common Issues by Model */}
-        <section className="py-16 lg:py-20 section-darker">
+        <section className="py-16 lg:py-20 bg-[oklch(0.055_0.004_260)]">
           <div className="container">
             <FadeIn>
               <span className="font-mono text-primary text-sm tracking-wide">Model-Specific Knowledge</span>
@@ -148,7 +148,7 @@ export default function VehicleMakePage() {
         </section>
 
         {/* FAQs */}
-        <section className="py-16 lg:py-20 section-darker">
+        <section className="py-16 lg:py-20 bg-[oklch(0.055_0.004_260)]">
           <div className="container max-w-4xl">
             <FadeIn>
               <span className="font-mono text-primary text-sm tracking-wide">Common Questions</span>
@@ -181,7 +181,7 @@ export default function VehicleMakePage() {
               {page.relatedPages.map((relSlug, i) => (
                 <FadeIn key={relSlug} delay={i * 0.05}>
                   <Link href={`/${relSlug}`} className="block p-5 border border-border/40 bg-card/30 hover:bg-card/50 hover:border-primary/50 transition-colors group">
-                    <span className="font-semibold font-bold text-foreground group-hover:text-primary transition-colors tracking-wider uppercase text-sm">
+                    <span className="font-semibold font-bold text-foreground group-hover:text-primary transition-colors tracking-wide text-sm">
                       {relSlug.replace(/-/g, " ").replace("cleveland", "").trim()}
                     </span>
                     <ChevronRight className="w-4 h-4 text-primary mt-2" />
@@ -193,7 +193,7 @@ export default function VehicleMakePage() {
         </section>
 
         {/* Other Makes */}
-        <section className="py-16 lg:py-20 section-darker">
+        <section className="py-16 lg:py-20 bg-[oklch(0.055_0.004_260)]">
           <div className="container">
             <FadeIn>
               <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-tight mb-8">
@@ -204,7 +204,7 @@ export default function VehicleMakePage() {
               {["toyota", "honda", "ford", "chevy"].filter(m => m !== page.make.toLowerCase()).map((make, i) => (
                 <FadeIn key={make} delay={i * 0.05}>
                   <Link href={`/${make}-repair-cleveland`} className="block p-5 border border-border/40 bg-card/30 hover:bg-card/50 hover:border-primary/50 transition-colors text-center group">
-                    <span className="font-semibold font-bold text-foreground group-hover:text-primary transition-colors tracking-wider uppercase">
+                    <span className="font-semibold font-bold text-foreground group-hover:text-primary transition-colors tracking-wide">
                       {make === "chevy" ? "Chevrolet" : make.charAt(0).toUpperCase() + make.slice(1)}
                     </span>
                   </Link>
@@ -225,10 +225,10 @@ export default function VehicleMakePage() {
                 Call us or schedule online. We know {page.make} vehicles and we will take care of yours.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`vehicle-${page.slug}-bottom-cta`)} className="inline-flex items-center justify-center gap-2 bg-nick-dark text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-dark/90 transition-colors">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`vehicle-${page.slug}-bottom-cta`)} className="inline-flex items-center justify-center gap-2 bg-background text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-background/90 transition-colors">
                   <Phone className="w-5 h-5" />{BUSINESS.phone.display}
                 </a>
-                <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-primary-foreground text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wider uppercase hover:bg-primary-foreground/10 transition-colors">
+                <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-primary-foreground text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-primary-foreground/10 transition-colors">
                   SCHEDULE ONLINE
                 </Link>
               </div>
@@ -240,12 +240,12 @@ export default function VehicleMakePage() {
         
 
         {/* Sticky Mobile CTA */}
-        <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-nick-dark/95 backdrop-blur-md border-t border-border p-3">
+        <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/95 backdrop-blur-md border-t border-border p-3">
           <div className="flex gap-2">
-            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`vehicle-${page.slug}-sticky`)} aria-label="Call Nick's Tire and Auto" className="flex-1 flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3 font-semibold font-bold text-sm tracking-wider uppercase">
+            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`vehicle-${page.slug}-sticky`)} aria-label="Call Nick's Tire and Auto" className="flex-1 flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3 font-semibold font-bold text-sm tracking-wide">
               <Phone className="w-4 h-4" />CALL NOW
             </a>
-            <Link href="/contact" className="flex-1 flex items-center justify-center gap-2 border border-primary text-primary py-3 font-semibold font-bold text-sm tracking-wider uppercase">
+            <Link href="/contact" className="flex-1 flex items-center justify-center gap-2 border border-primary text-primary py-3 font-semibold font-bold text-sm tracking-wide">
               BOOK ONLINE
             </Link>
           </div>

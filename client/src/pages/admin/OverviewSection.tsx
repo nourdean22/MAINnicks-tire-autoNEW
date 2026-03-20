@@ -1,23 +1,31 @@
 /**
- * OverviewSection — extracted from Admin.tsx for maintainability.
+ * OverviewSection — Premium admin dashboard overview with CEO-level polish.
  */
-import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Link } from "wouter";
-import { BUSINESS } from "@shared/business";
 import {
-  StatCard, UrgencyBadge, ActivityIcon, StatusDot,
-  BOOKING_STATUS_CONFIG, LEAD_STATUS_CONFIG, TIME_LABELS, CHART_COLORS,
-  type BookingStatus, type LeadStatus,
+  StatCard, ActivityIcon, StatusDot, CHART_COLORS,
 } from "./shared";
 import {
-  Activity, AlertTriangle, BarChart3, Bell, CalendarClock, CheckCircle2, ChevronRight, Clock, ExternalLink, FileSpreadsheet, FileText, Globe, Hash, Loader2, MessageSquare, Newspaper, PieChart, Send, Sparkles, Star, TrendingUp, Users, XCircle, Zap
+  Activity, AlertTriangle, BarChart3, Bell, CalendarClock, CheckCircle2,
+  ChevronRight, ExternalLink, FileSpreadsheet, FileText, Globe, Hash,
+  Loader2, MessageSquare, Newspaper, PieChart, Send, Sparkles, Star,
+  TrendingUp, Users, XCircle, Zap,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
-  ResponsiveContainer, PieChart as RPieChart, Pie, Cell, Legend
+  ResponsiveContainer, PieChart as RPieChart, Pie, Cell, Legend,
 } from "recharts";
+
+const TOOLTIP_STYLE = {
+  background: "oklch(0.12 0.005 260)",
+  border: "1px solid oklch(0.20 0.005 260)",
+  borderRadius: "6px",
+  fontFamily: "'Roboto Mono', monospace",
+  fontSize: 11,
+  padding: "8px 12px",
+};
 
 export default function OverviewSection() {
   const { data: stats, isLoading } = trpc.adminDashboard.stats.useQuery(undefined, {
@@ -33,13 +41,13 @@ export default function OverviewSection() {
   if (isLoading || !stats) {
     return (
       <div className="flex items-center justify-center py-32">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <Loader2 className="w-6 h-6 animate-spin text-primary/60" />
       </div>
     );
   }
 
   const serviceChartData = stats.bookings.byService.slice(0, 6).map((s, i) => ({
-    name: s.service.length > 15 ? s.service.substring(0, 15) + "…" : s.service,
+    name: s.service.length > 15 ? s.service.substring(0, 15) + "\u2026" : s.service,
     count: s.count,
     fill: CHART_COLORS[i % CHART_COLORS.length],
   }));
@@ -59,183 +67,173 @@ export default function OverviewSection() {
   ].filter(d => d.value > 0);
 
   return (
-    <div className="space-y-8">
-      {/* Quick Stats Row */}
+    <div className="space-y-6">
+      {/* ─── PRIMARY METRICS ─── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Total Bookings" value={stats.bookings.total}
-          icon={<CalendarClock className="w-5 h-5" />} color="text-foreground"
+          icon={<CalendarClock className="w-4 h-4" />} color="text-foreground"
           trend={stats.bookings.thisWeek > 0 ? "up" : "neutral"}
           trendLabel={`${stats.bookings.thisWeek} this week`}
         />
         <StatCard
           label="Active Leads" value={stats.leads.new + stats.leads.contacted}
-          icon={<Users className="w-5 h-5" />} color="text-blue-400"
+          icon={<Users className="w-4 h-4" />} color="text-blue-400"
           trend={stats.leads.thisWeek > 0 ? "up" : "neutral"}
           trendLabel={`${stats.leads.thisWeek} this week`}
         />
         <StatCard
           label="Urgent Leads" value={stats.leads.urgent}
-          icon={<AlertTriangle className="w-5 h-5" />}
-          color={stats.leads.urgent > 0 ? "text-red-400" : "text-foreground/40"}
+          icon={<AlertTriangle className="w-4 h-4" />}
+          color={stats.leads.urgent > 0 ? "text-red-400" : "text-muted-foreground"}
           trend={stats.leads.urgent > 0 ? "up" : "neutral"}
           trendLabel={stats.leads.urgent > 0 ? "Needs attention" : "All clear"}
         />
         <StatCard
           label="Chat Sessions" value={stats.chat.totalSessions}
-          icon={<MessageSquare className="w-5 h-5" />} color="text-purple-400"
+          icon={<MessageSquare className="w-4 h-4" />} color="text-purple-400"
           trend={stats.chat.thisWeek > 0 ? "up" : "neutral"}
           trendLabel={`${stats.chat.thisWeek} this week`}
         />
       </div>
 
-      {/* Booking Status + Content Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-        <StatCard label="New Bookings" value={stats.bookings.new} icon={<Hash className="w-4 h-4" />} color="text-blue-400" />
-        <StatCard label="Confirmed" value={stats.bookings.confirmed} icon={<CheckCircle2 className="w-4 h-4" />} color="text-primary" />
-        <StatCard label="Completed" value={stats.bookings.completed} icon={<CheckCircle2 className="w-4 h-4" />} color="text-emerald-400" />
-        <StatCard label="Published Articles" value={stats.content.published} icon={<FileText className="w-4 h-4" />} color="text-emerald-400" />
-        <StatCard label="Draft Articles" value={stats.content.drafts} icon={<Newspaper className="w-4 h-4" />} color="text-amber-400" />
-        <StatCard label="Active Notifications" value={stats.content.activeNotifications} icon={<Bell className="w-4 h-4" />} color="text-primary" />
+      {/* ─── SECONDARY METRICS ─── */}
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+        <StatCard label="New Bookings" value={stats.bookings.new} icon={<Hash className="w-3.5 h-3.5" />} color="text-blue-400" />
+        <StatCard label="Confirmed" value={stats.bookings.confirmed} icon={<CheckCircle2 className="w-3.5 h-3.5" />} color="text-primary" />
+        <StatCard label="Completed" value={stats.bookings.completed} icon={<CheckCircle2 className="w-3.5 h-3.5" />} color="text-emerald-400" />
+        <StatCard label="Published" value={stats.content.published} icon={<FileText className="w-3.5 h-3.5" />} color="text-emerald-400" />
+        <StatCard label="Drafts" value={stats.content.drafts} icon={<Newspaper className="w-3.5 h-3.5" />} color="text-amber-400" />
+        <StatCard label="Notifications" value={stats.content.activeNotifications} icon={<Bell className="w-3.5 h-3.5" />} color="text-primary" />
       </div>
 
-      {/* Quick Actions */}
-      <div className="bg-card border border-border/30 p-6">
-        <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground mb-4 flex items-center gap-2">
-          <Zap className="w-4 h-4 text-primary" />
-          QUICK ACTIONS
+      {/* ─── QUICK ACTIONS ─── */}
+      <div className="stat-card !p-5">
+        <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-4 flex items-center gap-2">
+          <Zap className="w-3.5 h-3.5 text-primary" />
+          Quick Actions
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <Link href="/admin/content" className="flex flex-col items-center gap-2 p-4 border border-border/20 hover:border-primary/30 hover:bg-primary/5 transition-colors cursor-pointer">
-            <Sparkles className="w-5 h-5 text-primary" />
-            <span className="font-mono text-[10px] text-foreground/60 text-center">Generate Content</span>
-          </Link>
-          <button onClick={() => toast.info('Navigate to Customers → Send Next 50')} className="flex flex-col items-center gap-2 p-4 border border-border/20 hover:border-primary/30 hover:bg-primary/5 transition-colors cursor-pointer">
-            <Send className="w-5 h-5 text-emerald-400" />
-            <span className="font-mono text-[10px] text-foreground/60 text-center">Resume SMS Campaign</span>
-          </button>
-          <Link href="/admin" className="flex flex-col items-center gap-2 p-4 border border-border/20 hover:border-primary/30 hover:bg-primary/5 transition-colors cursor-pointer">
-            <FileSpreadsheet className="w-5 h-5 text-blue-400" />
-            <span className="font-mono text-[10px] text-foreground/60 text-center">Export Customers</span>
-          </Link>
-          <a href={sheetInfo?.url || '#'} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-2 p-4 border border-border/20 hover:border-primary/30 hover:bg-primary/5 transition-colors cursor-pointer">
-            <ExternalLink className="w-5 h-5 text-amber-400" />
-            <span className="font-mono text-[10px] text-foreground/60 text-center">Open CRM Sheet</span>
-          </a>
-          <Link href="/estimate" className="flex flex-col items-center gap-2 p-4 border border-border/20 hover:border-primary/30 hover:bg-primary/5 transition-colors cursor-pointer">
-            <TrendingUp className="w-5 h-5 text-cyan-400" />
-            <span className="font-mono text-[10px] text-foreground/60 text-center">View Estimator</span>
-          </Link>
-          <Link href="/blog" className="flex flex-col items-center gap-2 p-4 border border-border/20 hover:border-primary/30 hover:bg-primary/5 transition-colors cursor-pointer">
-            <Globe className="w-5 h-5 text-purple-400" />
-            <span className="font-mono text-[10px] text-foreground/60 text-center">View Blog</span>
-          </Link>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          {[
+            { href: "/admin/content", icon: <Sparkles className="w-4 h-4 text-primary" />, label: "Generate Content" },
+            { onClick: () => toast.info('Navigate to Customers \u2192 Send Next 50'), icon: <Send className="w-4 h-4 text-emerald-400" />, label: "Resume SMS" },
+            { href: "/admin", icon: <FileSpreadsheet className="w-4 h-4 text-blue-400" />, label: "Export Customers" },
+            { href: sheetInfo?.url || '#', external: true, icon: <ExternalLink className="w-4 h-4 text-amber-400" />, label: "CRM Sheet" },
+            { href: "/estimate", icon: <TrendingUp className="w-4 h-4 text-cyan-400" />, label: "Estimator" },
+            { href: "/blog", icon: <Globe className="w-4 h-4 text-purple-400" />, label: "View Blog" },
+          ].map((action, i) => {
+            const cls = "flex flex-col items-center gap-2 p-3 rounded-md border border-border/50 hover:border-primary/30 hover:bg-primary/5 transition-all text-center";
+            if (action.onClick) {
+              return (
+                <button key={i} onClick={action.onClick} className={cls}>
+                  {action.icon}
+                  <span className="text-[11px] text-muted-foreground font-medium">{action.label}</span>
+                </button>
+              );
+            }
+            if (action.external) {
+              return (
+                <a key={i} href={action.href} target="_blank" rel="noopener noreferrer" className={cls}>
+                  {action.icon}
+                  <span className="text-[11px] text-muted-foreground font-medium">{action.label}</span>
+                </a>
+              );
+            }
+            return (
+              <Link key={i} href={action.href!} className={cls}>
+                {action.icon}
+                <span className="text-[11px] text-muted-foreground font-medium">{action.label}</span>
+              </Link>
+            );
+          })}
         </div>
       </div>
 
-      {/* Revenue Estimator */}
+      {/* ─── SMS CAMPAIGN ROI ─── */}
       {campaignStats && campaignStats.total > 0 && (
-        <div className="bg-card border border-primary/20 p-6">
-          <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-primary mb-4 flex items-center gap-2">
-            <TrendingUp className="w-4 h-4" />
-            SMS CAMPAIGN ROI ESTIMATOR
+        <div className="stat-card !border-primary/15 !p-5">
+          <h3 className="text-xs font-semibold text-primary tracking-wide uppercase mb-4 flex items-center gap-2">
+            <TrendingUp className="w-3.5 h-3.5" />
+            SMS Campaign ROI Estimator
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-5">
             <div>
-              <span className="font-mono text-[10px] text-foreground/40 block mb-1">Texts Sent</span>
-              <span className="font-heading font-bold text-3xl text-foreground">{campaignStats.sent}</span>
+              <span className="text-[11px] text-muted-foreground block mb-1">Texts Sent</span>
+              <span className="text-2xl font-bold text-foreground tracking-tight">{campaignStats.sent}</span>
             </div>
             <div>
-              <span className="font-mono text-[10px] text-foreground/40 block mb-1">Est. Response Rate (3%)</span>
-              <span className="font-heading font-bold text-3xl text-blue-400">{Math.round(campaignStats.sent * 0.03)}</span>
-              <span className="font-mono text-[10px] text-foreground/30 block">potential customers</span>
+              <span className="text-[11px] text-muted-foreground block mb-1">Est. Responses (3%)</span>
+              <span className="text-2xl font-bold text-blue-400 tracking-tight">{Math.round(campaignStats.sent * 0.03)}</span>
+              <span className="text-[10px] text-muted-foreground block">potential customers</span>
             </div>
             <div>
-              <span className="font-mono text-[10px] text-foreground/40 block mb-1">Avg Ticket Value</span>
-              <span className="font-heading font-bold text-3xl text-emerald-400">$350</span>
-              <span className="font-mono text-[10px] text-foreground/30 block">industry average</span>
+              <span className="text-[11px] text-muted-foreground block mb-1">Avg Ticket Value</span>
+              <span className="text-2xl font-bold text-emerald-400 tracking-tight">$350</span>
+              <span className="text-[10px] text-muted-foreground block">industry average</span>
             </div>
             <div>
-              <span className="font-mono text-[10px] text-foreground/40 block mb-1">Potential Revenue</span>
-              <span className="font-heading font-bold text-3xl text-primary">${(Math.round(campaignStats.sent * 0.03) * 350).toLocaleString()}</span>
-              <span className="font-mono text-[10px] text-foreground/30 block">from {campaignStats.sent} texts</span>
+              <span className="text-[11px] text-muted-foreground block mb-1">Potential Revenue</span>
+              <span className="text-2xl font-bold text-primary tracking-tight">${(Math.round(campaignStats.sent * 0.03) * 350).toLocaleString()}</span>
+              <span className="text-[10px] text-muted-foreground block">from {campaignStats.sent} texts</span>
             </div>
           </div>
           <div className="mt-4 pt-4 border-t border-border/20">
             <div className="flex items-center gap-4">
               <div className="flex-1">
-                <div className="flex justify-between mb-1">
-                  <span className="font-mono text-[10px] text-foreground/40">Campaign Progress</span>
-                  <span className="font-mono text-[10px] text-primary">{Math.round((campaignStats.sent / campaignStats.total) * 100)}%</span>
+                <div className="flex justify-between mb-1.5">
+                  <span className="text-[10px] text-muted-foreground">Campaign Progress</span>
+                  <span className="text-[10px] font-semibold text-primary">{Math.round((campaignStats.sent / campaignStats.total) * 100)}%</span>
                 </div>
-                <div className="h-2 bg-nick-dark/50 overflow-hidden">
-                  <div className="h-full bg-primary transition-all duration-500" style={{ width: `${(campaignStats.sent / campaignStats.total) * 100}%` }} />
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${(campaignStats.sent / campaignStats.total) * 100}%` }} />
                 </div>
               </div>
-              <span className="font-mono text-xs text-foreground/40">{campaignStats.remaining} remaining</span>
+              <span className="text-[11px] text-muted-foreground">{campaignStats.remaining} remaining</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* Customer & SMS Campaign Stats */}
+      {/* ─── CUSTOMER & SMS STATS ─── */}
       {(customerStats || campaignStats) && (
-        <div className="bg-card border border-border/30 p-6">
-          <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground mb-5 flex items-center gap-2">
-            <Send className="w-4 h-4 text-primary" />
-            CUSTOMER DATABASE & SMS
+        <div className="stat-card !p-5">
+          <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-4 flex items-center gap-2">
+            <Send className="w-3.5 h-3.5 text-primary" />
+            Customer Database & SMS
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div className="text-center p-3 border border-border/20">
-              <p className="font-heading font-bold text-2xl text-foreground">{customerStats?.total ?? 0}</p>
-              <p className="font-mono text-xs text-foreground/40 mt-1">Total Customers</p>
-            </div>
-            <div className="text-center p-3 border border-border/20">
-              <p className="font-heading font-bold text-2xl text-emerald-400">{customerStats?.recent ?? 0}</p>
-              <p className="font-mono text-xs text-foreground/40 mt-1">Recent</p>
-            </div>
-            <div className="text-center p-3 border border-border/20">
-              <p className="font-heading font-bold text-2xl text-amber-400">{customerStats?.lapsed ?? 0}</p>
-              <p className="font-mono text-xs text-foreground/40 mt-1">Lapsed</p>
-            </div>
-            <div className="text-center p-3 border border-border/20">
-              <p className="font-heading font-bold text-2xl text-primary">{campaignStats?.sent ?? 0}</p>
-              <p className="font-mono text-xs text-foreground/40 mt-1">Texts Sent</p>
-            </div>
-            <div className="text-center p-3 border border-border/20">
-              <p className="font-heading font-bold text-2xl text-foreground/60">{campaignStats?.remaining ?? 0}</p>
-              <p className="font-mono text-xs text-foreground/40 mt-1">Remaining</p>
-            </div>
-            <div className="text-center p-3 border border-border/20">
-              {campaignStats && campaignStats.total > 0 ? (
-                <p className="font-heading font-bold text-2xl text-primary">{Math.round((campaignStats.sent / campaignStats.total) * 100)}%</p>
-              ) : (
-                <p className="font-heading font-bold text-2xl text-foreground/30">—</p>
-              )}
-              <p className="font-mono text-xs text-foreground/40 mt-1">Campaign Progress</p>
-            </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {[
+              { value: customerStats?.total ?? 0, label: "Total Customers", color: "text-foreground" },
+              { value: customerStats?.recent ?? 0, label: "Recent", color: "text-emerald-400" },
+              { value: customerStats?.lapsed ?? 0, label: "Lapsed", color: "text-amber-400" },
+              { value: campaignStats?.sent ?? 0, label: "Texts Sent", color: "text-primary" },
+              { value: campaignStats?.remaining ?? 0, label: "Remaining", color: "text-muted-foreground" },
+              { value: campaignStats && campaignStats.total > 0 ? `${Math.round((campaignStats.sent / campaignStats.total) * 100)}%` : "\u2014", label: "Progress", color: "text-primary" },
+            ].map((item, i) => (
+              <div key={i} className="text-center p-3 rounded-md border border-border/30">
+                <p className={`text-xl font-bold tracking-tight ${item.color}`}>{item.value}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">{item.label}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Service Breakdown Chart */}
-        <div className="bg-card border border-border/30 p-6">
-          <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground mb-6 flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-primary" />
-            BOOKINGS BY SERVICE
+      {/* ─── CHARTS ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Service Breakdown */}
+        <div className="stat-card !p-5">
+          <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-5 flex items-center gap-2">
+            <BarChart3 className="w-3.5 h-3.5 text-primary" />
+            Bookings by Service
           </h3>
           {serviceChartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={serviceChartData} layout="vertical" margin={{ left: 0, right: 20 }}>
-                <XAxis type="number" tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 11, fontFamily: "Roboto Mono" }} />
-                <YAxis type="category" dataKey="name" tick={{ fill: "rgba(255,255,255,0.6)", fontSize: 11, fontFamily: "Roboto Mono" }} width={120} />
-                <RechartsTooltip
-                  contentStyle={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 0, fontFamily: "Roboto Mono", fontSize: 12 }}
-                  labelStyle={{ color: "#F5A623" }}
-                />
-                <Bar dataKey="count" radius={[0, 2, 2, 0]}>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={serviceChartData} layout="vertical" margin={{ left: 0, right: 16 }}>
+                <XAxis type="number" tick={{ fill: "oklch(0.48 0.008 260)", fontSize: 10, fontFamily: "'Roboto Mono', monospace" }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fill: "oklch(0.60 0.008 260)", fontSize: 10, fontFamily: "'Roboto Mono', monospace" }} width={110} axisLine={false} tickLine={false} />
+                <RechartsTooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#F5A623" }} />
+                <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                   {serviceChartData.map((entry, i) => (
                     <Cell key={i} fill={entry.fill} />
                   ))}
@@ -243,29 +241,30 @@ export default function OverviewSection() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-[260px] text-foreground/30">
-              <p className="font-mono text-sm">No booking data yet</p>
+            <div className="flex items-center justify-center h-[240px] text-muted-foreground">
+              <p className="text-sm">No booking data yet</p>
             </div>
           )}
         </div>
 
         {/* Lead Pipeline */}
-        <div className="bg-card border border-border/30 p-6">
-          <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground mb-6 flex items-center gap-2">
-            <PieChart className="w-4 h-4 text-primary" />
-            LEAD PIPELINE
+        <div className="stat-card !p-5">
+          <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-5 flex items-center gap-2">
+            <PieChart className="w-3.5 h-3.5 text-primary" />
+            Lead Pipeline
           </h3>
           {leadPipelineData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={260}>
+            <ResponsiveContainer width="100%" height={240}>
               <RPieChart>
                 <Pie
                   data={leadPipelineData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={55}
-                  outerRadius={90}
+                  innerRadius={50}
+                  outerRadius={85}
                   paddingAngle={3}
                   dataKey="value"
+                  strokeWidth={0}
                 >
                   {leadPipelineData.map((entry, i) => (
                     <Cell key={i} fill={entry.fill} />
@@ -273,123 +272,109 @@ export default function OverviewSection() {
                 </Pie>
                 <Legend
                   verticalAlign="bottom"
-                  formatter={(value: string) => <span className="font-mono text-xs text-foreground/60">{value}</span>}
+                  formatter={(value: string) => <span style={{ fontSize: 11, color: "oklch(0.55 0.008 260)", fontFamily: "'Roboto Mono', monospace" }}>{value}</span>}
                 />
-                <RechartsTooltip
-                  contentStyle={{ background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 0, fontFamily: "Roboto Mono", fontSize: 12 }}
-                />
+                <RechartsTooltip contentStyle={TOOLTIP_STYLE} />
               </RPieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-[260px] text-foreground/30">
-              <p className="font-mono text-sm">No lead data yet</p>
+            <div className="flex items-center justify-center h-[240px] text-muted-foreground">
+              <p className="text-sm">No lead data yet</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Quick Actions + Lead Sources */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Quick Actions */}
-        <div className="bg-card border border-border/30 p-6">
-          <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground mb-5 flex items-center gap-2">
-            <Zap className="w-4 h-4 text-primary" />
-            QUICK ACTIONS
+      {/* ─── BOTTOM ROW: Actions + Sources + Activity ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Quick Links */}
+        <div className="stat-card !p-5">
+          <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-4 flex items-center gap-2">
+            <Zap className="w-3.5 h-3.5 text-primary" />
+            Quick Links
           </h3>
-          <div className="space-y-3">
-            <Link href="/admin/content" className="flex items-center gap-3 p-3 border border-border/30 hover:border-primary/30 hover:bg-primary/5 transition-colors group">
-              <Sparkles className="w-5 h-5 text-primary" />
-              <div className="flex-1">
-                <p className="font-heading font-bold text-sm text-foreground tracking-wider">GENERATE CONTENT</p>
-                <p className="font-mono text-xs text-foreground/40">AI articles & notifications</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-foreground/30 group-hover:text-primary transition-colors" />
-            </Link>
-            {sheetInfo?.configured && (
-              <a href={sheetInfo.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 border border-border/30 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-colors group">
-                <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
-                <div className="flex-1">
-                  <p className="font-heading font-bold text-sm text-foreground tracking-wider">OPEN CRM SHEET</p>
-                  <p className="font-mono text-xs text-foreground/40">Google Sheets CRM</p>
-                </div>
-                <ExternalLink className="w-4 h-4 text-foreground/30 group-hover:text-emerald-400 transition-colors" />
-              </a>
-            )}
-            <a href="https://business.google.com/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 border border-border/30 hover:border-blue-500/30 hover:bg-blue-500/5 transition-colors group">
-              <Star className="w-5 h-5 text-blue-400" />
-              <div className="flex-1">
-                <p className="font-heading font-bold text-sm text-foreground tracking-wider">GOOGLE BUSINESS</p>
-                <p className="font-mono text-xs text-foreground/40">Reviews & profile</p>
-              </div>
-              <ExternalLink className="w-4 h-4 text-foreground/30 group-hover:text-blue-400 transition-colors" />
-            </a>
-            <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 border border-border/30 hover:border-amber-500/30 hover:bg-amber-500/5 transition-colors group">
-              <Globe className="w-5 h-5 text-amber-400" />
-              <div className="flex-1">
-                <p className="font-heading font-bold text-sm text-foreground tracking-wider">SEARCH CONSOLE</p>
-                <p className="font-mono text-xs text-foreground/40">Indexing & performance</p>
-              </div>
-              <ExternalLink className="w-4 h-4 text-foreground/30 group-hover:text-amber-400 transition-colors" />
-            </a>
+          <div className="space-y-1.5">
+            {[
+              { href: "/admin/content", icon: <Sparkles className="w-4 h-4 text-primary" />, title: "Generate Content", sub: "AI articles & notifications", internal: true },
+              ...(sheetInfo?.configured ? [{ href: sheetInfo.url, icon: <FileSpreadsheet className="w-4 h-4 text-emerald-400" />, title: "Open CRM Sheet", sub: "Google Sheets CRM", internal: false }] : []),
+              { href: "https://business.google.com/", icon: <Star className="w-4 h-4 text-blue-400" />, title: "Google Business", sub: "Reviews & profile", internal: false },
+              { href: "https://search.google.com/search-console", icon: <Globe className="w-4 h-4 text-amber-400" />, title: "Search Console", sub: "Indexing & performance", internal: false },
+            ].map((link, i) => {
+              const cls = "flex items-center gap-3 p-2.5 rounded-md hover:bg-muted/50 transition-colors group";
+              const content = (
+                <>
+                  {link.icon}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-medium text-foreground">{link.title}</p>
+                    <p className="text-[11px] text-muted-foreground">{link.sub}</p>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/40 group-hover:text-primary transition-colors" />
+                </>
+              );
+              if (link.internal) {
+                return <Link key={i} href={link.href!} className={cls}>{content}</Link>;
+              }
+              return <a key={i} href={link.href} target="_blank" rel="noopener noreferrer" className={cls}>{content}</a>;
+            })}
           </div>
         </div>
 
         {/* Lead Sources */}
-        <div className="bg-card border border-border/30 p-6">
-          <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground mb-5 flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-primary" />
-            LEAD SOURCES
+        <div className="stat-card !p-5">
+          <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-4 flex items-center gap-2">
+            <TrendingUp className="w-3.5 h-3.5 text-primary" />
+            Lead Sources
           </h3>
           {leadSourceData.length > 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               {leadSourceData.map((s, i) => {
                 const pct = stats.leads.total > 0 ? Math.round((s.value / stats.leads.total) * 100) : 0;
                 return (
                   <div key={s.name}>
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="font-mono text-sm text-foreground/70">{s.name}</span>
-                      <span className="font-mono text-sm text-foreground/50">{s.value} ({pct}%)</span>
+                      <span className="text-[12px] font-medium text-foreground/70">{s.name}</span>
+                      <span className="text-[11px] text-muted-foreground">{s.value} ({pct}%)</span>
                     </div>
-                    <div className="h-2 bg-nick-dark/50 overflow-hidden">
-                      <div className="h-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
                     </div>
                   </div>
                 );
               })}
-              <div className="pt-2 border-t border-border/20">
+              <div className="pt-3 border-t border-border/20">
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs text-foreground/40">Avg Urgency Score</span>
-                  <span className="font-heading font-bold text-lg text-primary">{stats.leads.avgUrgency}/5</span>
+                  <span className="text-[11px] text-muted-foreground">Avg Urgency Score</span>
+                  <span className="text-lg font-bold text-primary">{stats.leads.avgUrgency}/5</span>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-center h-40 text-foreground/30">
-              <p className="font-mono text-sm">No lead data yet</p>
+            <div className="flex items-center justify-center h-40 text-muted-foreground">
+              <p className="text-sm">No lead data yet</p>
             </div>
           )}
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-card border border-border/30 p-6">
-          <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground mb-5 flex items-center gap-2">
-            <Activity className="w-4 h-4 text-primary" />
-            RECENT ACTIVITY
+        <div className="stat-card !p-5">
+          <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-4 flex items-center gap-2">
+            <Activity className="w-3.5 h-3.5 text-primary" />
+            Recent Activity
           </h3>
           {stats.recentActivity.length > 0 ? (
             <div className="space-y-0">
               {stats.recentActivity.slice(0, 8).map((item, i) => (
-                <div key={i} className="flex items-start gap-3 py-3 border-b border-border/10 last:border-0">
+                <div key={i} className="flex items-start gap-2.5 py-2.5 border-b border-border/10 last:border-0">
                   <div className="mt-0.5 shrink-0">
                     <ActivityIcon type={item.type} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-mono text-sm text-foreground truncate">{item.title}</p>
+                      <p className="text-[12px] font-medium text-foreground truncate">{item.title}</p>
                       {item.status && <StatusDot status={item.status} />}
                     </div>
-                    <p className="font-mono text-xs text-foreground/40 truncate">{item.subtitle}</p>
-                    <p className="font-mono text-[10px] text-foreground/25 mt-0.5">
+                    <p className="text-[11px] text-muted-foreground truncate">{item.subtitle}</p>
+                    <p className="text-[10px] text-muted-foreground/50 mt-0.5">
                       {new Date(item.timestamp).toLocaleString()}
                     </p>
                   </div>
@@ -397,51 +382,37 @@ export default function OverviewSection() {
               ))}
             </div>
           ) : (
-            <div className="flex items-center justify-center h-40 text-foreground/30">
-              <p className="font-mono text-sm">No activity yet</p>
+            <div className="flex items-center justify-center h-40 text-muted-foreground">
+              <p className="text-sm">No activity yet</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Site Health Summary */}
+      {/* ─── SITE OVERVIEW ─── */}
       {health && (
-        <div className="bg-card border border-border/30 p-6">
-          <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground mb-5 flex items-center gap-2">
-            <Globe className="w-4 h-4 text-primary" />
-            SITE OVERVIEW
+        <div className="stat-card !p-5">
+          <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-4 flex items-center gap-2">
+            <Globe className="w-3.5 h-3.5 text-primary" />
+            Site Overview
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div className="text-center p-3 border border-border/20">
-              <p className="font-heading font-bold text-2xl text-foreground">{health.domains.length}</p>
-              <p className="font-mono text-xs text-foreground/40 mt-1">Domains</p>
-            </div>
-            <div className="text-center p-3 border border-border/20">
-              <p className="font-heading font-bold text-2xl text-primary">{health.sitemapPageCount}+</p>
-              <p className="font-mono text-xs text-foreground/40 mt-1">Sitemap Pages</p>
-            </div>
-            <div className="text-center p-3 border border-border/20">
-              <p className="font-heading font-bold text-2xl text-foreground">{health.totalBlogPosts}</p>
-              <p className="font-mono text-xs text-foreground/40 mt-1">Blog Posts</p>
-            </div>
-            <div className="text-center p-3 border border-border/20">
-              <p className="font-heading font-bold text-2xl text-foreground">{stats.users.total}</p>
-              <p className="font-mono text-xs text-foreground/40 mt-1">Users</p>
-            </div>
-            <div className="text-center p-3 border border-border/20">
-              <p className="font-heading font-bold text-2xl text-emerald-400">{stats.content.generationLogs}</p>
-              <p className="font-mono text-xs text-foreground/40 mt-1">AI Generations</p>
-            </div>
-            <div className="text-center p-3 border border-border/20">
-              <p className="font-heading font-bold text-2xl text-foreground">
-                {health.sheetsConfigured ? <CheckCircle2 className="w-6 h-6 text-emerald-400 mx-auto" /> : <XCircle className="w-6 h-6 text-red-400 mx-auto" />}
-              </p>
-              <p className="font-mono text-xs text-foreground/40 mt-1">CRM Sheet</p>
-            </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {[
+              { value: health.domains.length, label: "Domains", color: "text-foreground" },
+              { value: `${health.sitemapPageCount}+`, label: "Sitemap Pages", color: "text-primary" },
+              { value: health.totalBlogPosts, label: "Blog Posts", color: "text-foreground" },
+              { value: stats.users.total, label: "Users", color: "text-foreground" },
+              { value: stats.content.generationLogs, label: "AI Generations", color: "text-emerald-400" },
+              { value: health.sheetsConfigured ? "Active" : "Inactive", label: "CRM Sheet", color: health.sheetsConfigured ? "text-emerald-400" : "text-red-400" },
+            ].map((item, i) => (
+              <div key={i} className="text-center p-3 rounded-md border border-border/30">
+                <p className={`text-xl font-bold tracking-tight ${item.color}`}>{item.value}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">{item.label}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
     </div>
   );
 }
-

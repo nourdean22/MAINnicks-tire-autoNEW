@@ -33,8 +33,8 @@ export default function InspectionsSection() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="font-heading font-bold text-xl text-foreground tracking-wider">VEHICLE INSPECTIONS</h2>
-        <button onClick={() => setShowForm(!showForm)} className="px-4 py-2 bg-primary text-primary-foreground font-heading font-bold text-xs tracking-wider uppercase">
+        <h2 className="font-bold text-xl text-foreground tracking-wider">VEHICLE INSPECTIONS</h2>
+        <button onClick={() => setShowForm(!showForm)} className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs tracking-wide">
           {showForm ? "CANCEL" : "+ NEW INSPECTION"}
         </button>
       </div>
@@ -48,7 +48,7 @@ export default function InspectionsSection() {
             <input placeholder="Mileage" value={form.mileage} onChange={e => setForm(f => ({ ...f, mileage: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
             <input placeholder="Technician Name" value={form.technicianName} onChange={e => setForm(f => ({ ...f, technicianName: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
           </div>
-          <button onClick={() => createInspection.mutate({ customerName: form.customerName, customerPhone: form.customerPhone, vehicleInfo: form.vehicleInfo, mileage: parseInt(form.mileage) || 0, technicianName: form.technicianName || "Technician" })} disabled={createInspection.isPending || !form.customerName} className="px-4 py-2 bg-primary text-primary-foreground font-heading font-bold text-xs tracking-wider uppercase disabled:opacity-50">
+          <button onClick={() => createInspection.mutate({ customerName: form.customerName, customerPhone: form.customerPhone, vehicleInfo: form.vehicleInfo, mileage: parseInt(form.mileage) || 0, technicianName: form.technicianName || "Technician" })} disabled={createInspection.isPending || !form.customerName} className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs tracking-wide disabled:opacity-50">
             {createInspection.isPending ? "CREATING..." : "CREATE INSPECTION"}
           </button>
         </div>
@@ -59,7 +59,7 @@ export default function InspectionsSection() {
       ) : (inspections ?? []).length === 0 ? (
         <div className="text-center py-12 text-foreground/40">
           <Camera className="w-8 h-8 mx-auto mb-3 opacity-30" />
-          <p className="font-mono text-sm">No inspections yet.</p>
+          <p className="text-[13px]">No inspections yet.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -68,23 +68,23 @@ export default function InspectionsSection() {
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-1">
-                    <span className="font-heading font-bold text-foreground text-sm">{insp.customerName}</span>
-                    <span className="font-mono text-xs text-foreground/40">{insp.vehicleInfo}</span>
+                    <span className="font-bold text-foreground text-sm">{insp.customerName}</span>
+                    <span className="text-[12px] text-foreground/40">{insp.vehicleInfo}</span>
                   </div>
-                  <p className="font-mono text-xs text-foreground/50">{insp.mileage?.toLocaleString()} mi • {new Date(insp.createdAt).toLocaleDateString()}</p>
+                  <p className="text-[12px] text-foreground/50">{insp.mileage?.toLocaleString()} mi • {new Date(insp.createdAt).toLocaleDateString()}</p>
                   {insp.isPublished === 1 && insp.shareToken && (
-                    <p className="font-mono text-xs text-nick-teal mt-1">
+                    <p className="text-[12px] text-nick-teal mt-1">
                       Share: {window.location.origin}/inspection/{insp.shareToken}
                     </p>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
                   {insp.isPublished !== 1 && (
-                    <button onClick={() => publishInspection.mutate({ id: insp.id })} className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 font-mono text-xs border border-emerald-500/30">
+                    <button onClick={() => publishInspection.mutate({ id: insp.id })} className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 text-[12px] border border-emerald-500/30">
                       PUBLISH
                     </button>
                   )}
-                  <span className={`px-2 py-1 text-xs font-mono ${insp.isPublished === 1 ? "text-emerald-400 bg-emerald-500/10" : "text-amber-400 bg-amber-500/10"}`}>
+                  <span className={`px-2 py-1 text-xs ${insp.isPublished === 1 ? "text-emerald-400 bg-emerald-500/10" : "text-amber-400 bg-amber-500/10"}`}>
                     {insp.isPublished === 1 ? "PUBLISHED" : "DRAFT"}
                   </span>
                 </div>

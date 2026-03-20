@@ -56,7 +56,7 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="font-heading font-bold text-lg text-foreground tracking-wider">CREATE WIN-BACK CAMPAIGN</h3>
+        <h3 className="font-bold text-lg text-foreground tracking-wider">CREATE WIN-BACK CAMPAIGN</h3>
         <button onClick={onClose} className="text-foreground/30 hover:text-foreground/60 transition-colors">
           <X className="w-5 h-5" />
         </button>
@@ -64,7 +64,7 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
 
       <div className="space-y-4">
         <div>
-          <label className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-2">Campaign Name</label>
+          <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-2">Campaign Name</label>
           <input
             type="text"
             value={name}
@@ -75,7 +75,7 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
         </div>
 
         <div>
-          <label className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-2">Target Segment</label>
+          <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-2">Target Segment</label>
           <div className="grid grid-cols-3 gap-3">
             {(["lapsed", "unknown", "recent"] as const).map(s => {
               const count = s === "lapsed" ? customerStats?.lapsed
@@ -91,10 +91,10 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
                       : "border-border/30 bg-card hover:border-border/50"
                   }`}
                 >
-                  <span className="font-heading font-bold text-xs tracking-wider uppercase text-foreground block">
+                  <span className="font-bold text-xs tracking-wide text-foreground block">
                     {s === "lapsed" ? "Lapsed" : s === "unknown" ? "Unknown" : "Recent"}
                   </span>
-                  <span className="font-heading font-bold text-2xl text-primary mt-1 block">{count ?? 0}</span>
+                  <span className="font-bold text-2xl text-primary mt-1 block">{count ?? 0}</span>
                   <span className="font-mono text-[10px] text-foreground/40 tracking-wider">CUSTOMERS</span>
                 </button>
               );
@@ -103,7 +103,7 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
         </div>
 
         <div className="bg-card border border-border/30 p-4">
-          <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-2">Auto-Generated Message Sequence</span>
+          <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-2">Auto-Generated Message Sequence</span>
           <div className="space-y-3">
             {segment === "lapsed" && (
               <>
@@ -131,7 +131,7 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
           <button
             onClick={handleCreate}
             disabled={!name.trim() || creating}
-            className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:bg-primary/90 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
             {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
             CREATE CAMPAIGN
@@ -209,9 +209,9 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
             <ChevronRight className="w-5 h-5 rotate-180" />
           </button>
           <div>
-            <h3 className="font-heading font-bold text-lg text-foreground tracking-wider">{campaign.name}</h3>
+            <h3 className="font-bold text-lg text-foreground tracking-wider">{campaign.name}</h3>
             <div className="flex items-center gap-3 mt-1">
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono tracking-wider ${statusCfg.color} ${statusCfg.bgColor}`}>
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] tracking-wider ${statusCfg.color} ${statusCfg.bgColor}`}>
                 {statusCfg.icon} {statusCfg.label.toUpperCase()}
               </span>
               <span className="font-mono text-[10px] text-foreground/40 tracking-wider">
@@ -226,7 +226,7 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
             <button
               onClick={() => activateMutation.mutate({ campaignId })}
               disabled={activateMutation.isPending}
-              className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 font-heading font-bold text-xs tracking-wider uppercase hover:bg-emerald-700 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 font-bold text-xs tracking-wide hover:bg-emerald-700 transition-colors disabled:opacity-50"
             >
               {activateMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
               ACTIVATE
@@ -237,7 +237,7 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
               <button
                 onClick={() => processMutation.mutate()}
                 disabled={processMutation.isPending}
-                className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 font-heading font-bold text-xs tracking-wider uppercase hover:bg-primary/90 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 font-bold text-xs tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
                 {processMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                 SEND PENDING
@@ -245,7 +245,7 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
               <button
                 onClick={() => pauseMutation.mutate({ campaignId })}
                 disabled={pauseMutation.isPending}
-                className="flex items-center gap-2 bg-card border border-border/30 text-foreground/60 px-4 py-2 font-heading font-bold text-xs tracking-wider uppercase hover:text-foreground transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 bg-card border border-border/30 text-foreground/60 px-4 py-2 font-bold text-xs tracking-wide hover:text-foreground transition-colors disabled:opacity-50"
               >
                 <Pause className="w-3.5 h-3.5" />
                 PAUSE
@@ -256,7 +256,7 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
             <button
               onClick={() => resumeMutation.mutate({ campaignId })}
               disabled={resumeMutation.isPending}
-              className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 font-heading font-bold text-xs tracking-wider uppercase hover:bg-emerald-700 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 font-bold text-xs tracking-wide hover:bg-emerald-700 transition-colors disabled:opacity-50"
             >
               <Play className="w-3.5 h-3.5" />
               RESUME
@@ -282,7 +282,7 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
 
       {/* Message Steps */}
       <div>
-        <h4 className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase mb-3">MESSAGE SEQUENCE</h4>
+        <h4 className="font-mono text-[10px] text-foreground/40 tracking-wide mb-3">MESSAGE SEQUENCE</h4>
         <div className="space-y-3">
           {messages.map((msg: any) => (
             <div key={msg.id} className="bg-card border border-border/30 p-4">
@@ -291,7 +291,7 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
                   <div className="w-6 h-6 bg-primary/10 flex items-center justify-center">
                     <span className="font-mono text-[10px] text-primary font-bold">{msg.step}</span>
                   </div>
-                  <span className="font-heading font-bold text-xs text-foreground tracking-wider">STEP {msg.step}</span>
+                  <span className="font-bold text-xs text-foreground tracking-wider">STEP {msg.step}</span>
                 </div>
                 <span className="font-mono text-[10px] text-foreground/40 tracking-wider">
                   {msg.delayDays === 0 ? "IMMEDIATELY" : `DAY ${msg.delayDays}`}
@@ -306,7 +306,7 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
       {/* Preview */}
       {preview && preview.length > 0 && (
         <div>
-          <h4 className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase mb-3">SAMPLE PREVIEWS (FIRST 5 CUSTOMERS)</h4>
+          <h4 className="font-mono text-[10px] text-foreground/40 tracking-wide mb-3">SAMPLE PREVIEWS (FIRST 5 CUSTOMERS)</h4>
           <div className="space-y-2">
             {preview.map((p: any, i: number) => (
               <div key={i} className="bg-card border border-border/30 p-3">
@@ -324,25 +324,25 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
       {/* Recent Sends */}
       {recentSends && recentSends.length > 0 && (
         <div>
-          <h4 className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase mb-3">RECENT SENDS</h4>
+          <h4 className="font-mono text-[10px] text-foreground/40 tracking-wide mb-3">RECENT SENDS</h4>
           <div className="bg-card border border-border/30 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/20">
-                  <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase">Phone</th>
-                  <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase">Step</th>
-                  <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase">Status</th>
-                  <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase hidden sm:table-cell">Scheduled</th>
-                  <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase hidden md:table-cell">Sent</th>
+                  <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide">Phone</th>
+                  <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide">Step</th>
+                  <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide">Status</th>
+                  <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide hidden sm:table-cell">Scheduled</th>
+                  <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide hidden md:table-cell">Sent</th>
                 </tr>
               </thead>
               <tbody>
                 {recentSends.map((s: any) => (
                   <tr key={s.id} className="border-b border-border/10">
-                    <td className="p-3 font-mono text-xs text-foreground/60">{s.phone}</td>
-                    <td className="p-3 font-mono text-xs text-foreground/60">{s.step}</td>
+                    <td className="p-3 text-[12px] text-foreground/60">{s.phone}</td>
+                    <td className="p-3 text-[12px] text-foreground/60">{s.step}</td>
                     <td className="p-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono tracking-wider ${
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] tracking-wider ${
                         s.status === "sent" ? "text-emerald-400 bg-emerald-500/10"
                           : s.status === "failed" ? "text-red-400 bg-red-500/10"
                           : "text-foreground/50 bg-foreground/5"
@@ -351,10 +351,10 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
                         {s.status.toUpperCase()}
                       </span>
                     </td>
-                    <td className="p-3 font-mono text-[10px] text-foreground/40 hidden sm:table-cell">
+                    <td className="p-3 text-[10px] text-foreground/40 hidden sm:table-cell">
                       {s.scheduledAt ? new Date(s.scheduledAt).toLocaleString() : "—"}
                     </td>
-                    <td className="p-3 font-mono text-[10px] text-foreground/40 hidden md:table-cell">
+                    <td className="p-3 text-[10px] text-foreground/40 hidden md:table-cell">
                       {s.sentAt ? new Date(s.sentAt).toLocaleString() : "—"}
                     </td>
                   </tr>
@@ -409,10 +409,10 @@ export default function WinBackSection() {
 
       {/* Actions */}
       <div className="flex items-center justify-between">
-        <h3 className="font-heading font-bold text-sm text-foreground/60 tracking-wider uppercase">Campaigns</h3>
+        <h3 className="font-bold text-sm text-foreground/60 tracking-wide">Campaigns</h3>
         <button
           onClick={() => setView("create")}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:bg-primary/90 transition-colors"
+          className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/90 transition-colors"
         >
           <Plus className="w-4 h-4" />
           NEW CAMPAIGN
@@ -427,7 +427,7 @@ export default function WinBackSection() {
       ) : !campaigns || campaigns.length === 0 ? (
         <div className="bg-card border border-border/30 p-12 text-center">
           <RotateCcw className="w-10 h-10 text-foreground/20 mx-auto mb-4" />
-          <h4 className="font-heading font-bold text-foreground/60 tracking-wider mb-2">NO CAMPAIGNS YET</h4>
+          <h4 className="font-bold text-foreground/60 tracking-[-0.01em] mb-2">NO CAMPAIGNS YET</h4>
           <p className="text-foreground/40 text-sm max-w-md mx-auto">
             Create a win-back campaign to re-engage lapsed customers with automated SMS sequences.
           </p>
@@ -444,8 +444,8 @@ export default function WinBackSection() {
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-3 mb-1">
-                    <span className="font-heading font-bold text-sm text-foreground tracking-wider">{c.name}</span>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono tracking-wider ${statusCfg.color} ${statusCfg.bgColor}`}>
+                    <span className="font-bold text-sm text-foreground tracking-wider">{c.name}</span>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] tracking-wider ${statusCfg.color} ${statusCfg.bgColor}`}>
                       {statusCfg.icon} {statusCfg.label.toUpperCase()}
                     </span>
                   </div>

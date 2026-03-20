@@ -37,7 +37,7 @@ export default function SiteHealthSection() {
     <div className="space-y-8">
       {/* Domain Status */}
       <div className="bg-card border border-border/30 p-6">
-        <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground mb-5 flex items-center gap-2">
+        <h3 className="font-bold text-sm tracking-wide text-foreground mb-5 flex items-center gap-2">
           <Globe className="w-4 h-4 text-primary" />
           DOMAINS
         </h3>
@@ -46,7 +46,7 @@ export default function SiteHealthSection() {
             <div key={domain} className="flex items-center justify-between p-3 border border-border/20">
               <div className="flex items-center gap-3">
                 <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                <span className="font-mono text-sm text-foreground">{domain}</span>
+                <span className="text-[13px] text-foreground">{domain}</span>
               </div>
               <a href={`https://${domain}`} target="_blank" rel="noopener noreferrer" className="text-foreground/40 hover:text-primary transition-colors">
                 <ExternalLink className="w-4 h-4" />
@@ -59,30 +59,30 @@ export default function SiteHealthSection() {
       {/* SEO & Sitemap */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-card border border-border/30 p-6">
-          <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground mb-5 flex items-center gap-2">
+          <h3 className="font-bold text-sm tracking-wide text-foreground mb-5 flex items-center gap-2">
             <MapPin className="w-4 h-4 text-primary" />
             SEO STATUS
           </h3>
           <div className="space-y-4">
             <div className="flex items-center justify-between p-3 border border-border/20">
-              <span className="font-mono text-sm text-foreground/70">Sitemap Pages</span>
-              <span className="font-heading font-bold text-lg text-primary">{health.sitemapPageCount}+</span>
+              <span className="text-[13px] text-foreground/70">Sitemap Pages</span>
+              <span className="font-bold text-lg text-primary">{health.sitemapPageCount}+</span>
             </div>
             <div className="flex items-center justify-between p-3 border border-border/20">
-              <span className="font-mono text-sm text-foreground/70">Total Blog Posts</span>
-              <span className="font-heading font-bold text-lg text-foreground">{health.totalBlogPosts}</span>
+              <span className="text-[13px] text-foreground/70">Total Blog Posts</span>
+              <span className="font-bold text-lg text-foreground">{health.totalBlogPosts}</span>
             </div>
             <div className="flex items-center justify-between p-3 border border-border/20">
-              <span className="font-mono text-sm text-foreground/70">Hardcoded Articles</span>
-              <span className="font-mono text-sm text-foreground/50">{health.hardcodedBlogPosts}</span>
+              <span className="text-[13px] text-foreground/70">Hardcoded Articles</span>
+              <span className="text-[13px] text-foreground/50">{health.hardcodedBlogPosts}</span>
             </div>
             <div className="flex items-center justify-between p-3 border border-border/20">
-              <span className="font-mono text-sm text-foreground/70">AI-Generated Articles</span>
-              <span className="font-mono text-sm text-foreground/50">{health.dynamicBlogPosts}</span>
+              <span className="text-[13px] text-foreground/70">AI-Generated Articles</span>
+              <span className="text-[13px] text-foreground/50">{health.dynamicBlogPosts}</span>
             </div>
             <div className="flex items-center justify-between p-3 border border-border/20">
-              <span className="font-mono text-sm text-foreground/70">Google Search Console</span>
-              <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-primary hover:text-primary/80 font-mono text-sm">
+              <span className="text-[13px] text-foreground/70">Google Search Console</span>
+              <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-primary hover:text-primary/80 text-[13px]">
                 View <ExternalLink className="w-3 h-3" />
               </a>
             </div>
@@ -90,7 +90,7 @@ export default function SiteHealthSection() {
         </div>
 
         <div className="bg-card border border-border/30 p-6">
-          <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground mb-5 flex items-center gap-2">
+          <h3 className="font-bold text-sm tracking-wide text-foreground mb-5 flex items-center gap-2">
             <Star className="w-4 h-4 text-primary" />
             GOOGLE REVIEWS
           </h3>
@@ -102,23 +102,23 @@ export default function SiteHealthSection() {
                     <Star key={i} className={`w-6 h-6 ${i < Math.round(reviews.rating || 4.9) ? "fill-primary text-primary" : "text-foreground/20"}`} />
                   ))}
                 </div>
-                <p className="font-heading font-bold text-4xl text-foreground">{reviews.rating || "4.9"}</p>
-                <p className="font-mono text-sm text-foreground/50 mt-1">{reviews.totalReviews || BUSINESS.reviews.countDisplay}+ reviews</p>
+                <p className="font-bold text-4xl text-foreground">{reviews.rating || "4.9"}</p>
+                <p className="text-[13px] text-foreground/50 mt-1">{reviews.totalReviews || BUSINESS.reviews.countDisplay}+ reviews</p>
               </div>
               {reviews.reviews && reviews.reviews.length > 0 && (
                 <div className="space-y-3">
-                  <p className="font-mono text-xs text-foreground/40 tracking-wider uppercase">Recent Reviews</p>
+                  <p className="text-[12px] text-foreground/40 tracking-wide">Recent Reviews</p>
                   {reviews.reviews.slice(0, 3).map((review: { authorName?: string; rating?: number; text?: string }, i: number) => (
                     <div key={i} className="p-3 border border-border/20">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-sm text-foreground">{review.authorName || "Customer"}</span>
+                        <span className="text-[13px] text-foreground">{review.authorName || "Customer"}</span>
                         <div className="flex gap-0.5">
                           {[...Array(review.rating || 5)].map((_, j) => (
                             <Star key={j} className="w-3 h-3 fill-primary text-primary" />
                           ))}
                         </div>
                       </div>
-                      <p className="font-mono text-xs text-foreground/50 line-clamp-2">{review.text || ""}</p>
+                      <p className="text-[12px] text-foreground/50 line-clamp-2">{review.text || ""}</p>
                     </div>
                   ))}
                 </div>
@@ -127,7 +127,7 @@ export default function SiteHealthSection() {
           ) : (
             <div className="text-center py-8">
               <Star className="w-10 h-10 text-foreground/20 mx-auto mb-3" />
-              <p className="font-mono text-sm text-foreground/40">Reviews data loading...</p>
+              <p className="text-[13px] text-foreground/40">Reviews data loading...</p>
             </div>
           )}
         </div>
@@ -135,7 +135,7 @@ export default function SiteHealthSection() {
 
       {/* Integrations */}
       <div className="bg-card border border-border/30 p-6">
-        <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground mb-5 flex items-center gap-2">
+        <h3 className="font-bold text-sm tracking-wide text-foreground mb-5 flex items-center gap-2">
           <Gauge className="w-4 h-4 text-primary" />
           INTEGRATIONS
         </h3>
@@ -151,8 +151,8 @@ export default function SiteHealthSection() {
                 {integration.icon}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-mono text-sm text-foreground truncate">{integration.name}</p>
-                <p className={`font-mono text-xs ${integration.status ? "text-emerald-400" : "text-red-400"}`}>
+                <p className="text-[13px] text-foreground truncate">{integration.name}</p>
+                <p className={`text-[12px] ${integration.status ? "text-emerald-400" : "text-red-400"}`}>
                   {integration.status ? "Connected" : "Not configured"}
                 </p>
               </div>

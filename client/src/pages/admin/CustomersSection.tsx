@@ -29,7 +29,7 @@ const SEGMENT_CONFIG: Record<string, { label: string; color: string; bgColor: st
 function SegmentBadge({ segment }: { segment: string }) {
   const cfg = SEGMENT_CONFIG[segment] || SEGMENT_CONFIG.unknown;
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-mono tracking-wider ${cfg.color} ${cfg.bgColor}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 text-[10px] tracking-wider ${cfg.color} ${cfg.bgColor}`}>
       {cfg.label.toUpperCase()}
     </span>
   );
@@ -80,7 +80,7 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
       <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
         <div className="bg-card border border-border/30 p-8 max-w-lg w-full">
           <div className="flex items-center justify-center py-12">
-            <div className="w-6 h-6 border-2 border-nick-yellow border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
         </div>
       </div>
@@ -104,7 +104,7 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border/20">
           <div>
-            <h3 className="font-heading font-bold text-xl text-foreground tracking-tight">
+            <h3 className="font-bold text-xl text-foreground tracking-tight">
               {customer.firstName} {customer.lastName || ""}
             </h3>
             <SegmentBadge segment={customer.segment} />
@@ -118,7 +118,7 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
         <div className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">Phone</span>
+              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Phone</span>
               <a href={`tel:${customer.phone}`} className="text-sm text-foreground flex items-center gap-1.5">
                 <Phone className="w-3.5 h-3.5 text-primary" />
                 {customer.phone}
@@ -126,7 +126,7 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
             </div>
             {customer.phone2 && (
               <div>
-                <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">Phone 2</span>
+                <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Phone 2</span>
                 <a href={`tel:${customer.phone2}`} className="text-sm text-foreground flex items-center gap-1.5">
                   <Phone className="w-3.5 h-3.5 text-foreground/30" />
                   {customer.phone2}
@@ -135,7 +135,7 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
             )}
             {customer.email && (
               <div>
-                <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">Email</span>
+                <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Email</span>
                 <a href={`mailto:${customer.email}`} className="text-sm text-foreground flex items-center gap-1.5">
                   <Mail className="w-3.5 h-3.5 text-primary" />
                   {customer.email}
@@ -143,7 +143,7 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
               </div>
             )}
             <div>
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">Type</span>
+              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Type</span>
               <span className="text-sm text-foreground flex items-center gap-1.5">
                 {customer.customerType === "commercial" ? <Building2 className="w-3.5 h-3.5 text-primary" /> : <UserCheck className="w-3.5 h-3.5 text-foreground/30" />}
                 {customer.customerType === "commercial" ? "Commercial" : "Individual"}
@@ -153,7 +153,7 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
 
           {(customer.address || customer.city) && (
             <div>
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">Address</span>
+              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Address</span>
               <p className="text-sm text-foreground flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
                 {[customer.address, customer.city, customer.state, customer.zip].filter(Boolean).join(", ")}
@@ -163,11 +163,11 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
 
           <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border/20">
             <div>
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">Total Visits</span>
-              <span className="font-heading font-bold text-2xl text-foreground">{customer.totalVisits}</span>
+              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Total Visits</span>
+              <span className="font-bold text-2xl text-foreground">{customer.totalVisits}</span>
             </div>
             <div>
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">Last Visit</span>
+              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Last Visit</span>
               <span className="text-sm text-foreground flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-foreground/30" />
                 {customer.lastVisitDate ? new Date(customer.lastVisitDate).toLocaleDateString() : "Unknown"}
@@ -177,7 +177,7 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
 
           {/* SMS Campaign Status */}
           <div className="pt-2 border-t border-border/20">
-            <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">Campaign Status</span>
+            <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Campaign Status</span>
             {customer.smsCampaignSent ? (
               <span className="text-xs text-emerald-400 flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -190,21 +190,21 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
 
           {customer.alsCustomerId && (
             <div className="pt-2 border-t border-border/20">
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">ALS Customer ID</span>
-              <span className="text-sm text-foreground/60 font-mono">{customer.alsCustomerId}</span>
+              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">ALS Customer ID</span>
+              <span className="text-sm text-foreground/60">{customer.alsCustomerId}</span>
             </div>
           )}
 
           {/* Notes Section */}
           <div className="pt-2 border-t border-border/20">
             <div className="flex items-center justify-between mb-2">
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase flex items-center gap-1">
+              <span className="font-mono text-[10px] text-foreground/40 tracking-wide flex items-center gap-1">
                 <StickyNote className="w-3 h-3" /> Notes
               </span>
               {!notesOpen && (
                 <button
                   onClick={() => setNotesOpen(true)}
-                  className="text-[10px] font-mono text-primary hover:text-primary/80 tracking-wider"
+                  className="text-[10px] text-primary hover:text-primary/80 tracking-wider"
                 >
                   {customer.notes ? "EDIT" : "ADD NOTE"}
                 </button>
@@ -227,13 +227,13 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
                       setNotesOpen(false);
                     }}
                     disabled={updateNotes.isPending}
-                    className="px-3 py-1.5 bg-primary text-primary-foreground text-xs font-mono tracking-wider hover:bg-primary/90 disabled:opacity-50"
+                    className="px-3 py-1.5 bg-primary text-primary-foreground text-xs tracking-wider hover:bg-primary/90 disabled:opacity-50"
                   >
                     {updateNotes.isPending ? "SAVING..." : "SAVE"}
                   </button>
                   <button
                     onClick={() => { setNotesOpen(false); setNotesText(customer.notes || ""); }}
-                    className="px-3 py-1.5 text-xs font-mono text-foreground/50 hover:text-foreground tracking-wider"
+                    className="px-3 py-1.5 text-xs text-foreground/50 hover:text-foreground tracking-wider"
                   >
                     CANCEL
                   </button>
@@ -251,14 +251,14 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
             {!smsOpen ? (
               <button
                 onClick={() => setSmsOpen(true)}
-                className="flex items-center gap-2 text-xs font-mono text-primary hover:text-primary/80 tracking-wider"
+                className="flex items-center gap-2 text-xs text-primary hover:text-primary/80 tracking-wider"
               >
                 <MessageSquare className="w-3.5 h-3.5" />
                 QUICK TEXT
               </button>
             ) : (
               <div className="space-y-2">
-                <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block">
+                <span className="font-mono text-[10px] text-foreground/40 tracking-wide block">
                   Send SMS to {customer.firstName}
                 </span>
                 <textarea
@@ -270,18 +270,18 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
                   maxLength={500}
                 />
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono text-foreground/30">{smsText.length}/500</span>
+                  <span className="text-[10px] text-foreground/30">{smsText.length}/500</span>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => { setSmsOpen(false); setSmsText(""); }}
-                      className="px-3 py-1.5 text-xs font-mono text-foreground/50 hover:text-foreground tracking-wider"
+                      className="px-3 py-1.5 text-xs text-foreground/50 hover:text-foreground tracking-wider"
                     >
                       CANCEL
                     </button>
                     <button
                       onClick={() => quickSms.mutate({ customerId: customer.id, message: smsText })}
                       disabled={!smsText.trim() || quickSms.isPending}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-xs font-mono tracking-wider hover:bg-primary/90 disabled:opacity-50"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-xs tracking-wider hover:bg-primary/90 disabled:opacity-50"
                     >
                       {quickSms.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
                       {quickSms.isPending ? "SENDING..." : "SEND"}
@@ -358,15 +358,15 @@ export default function CustomersSection() {
           <div className="flex-1 bg-card border border-border/30 p-4 flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Send className="w-4 h-4 text-primary" />
-              <span className="font-mono text-xs text-foreground/60 tracking-wider">SMS CAMPAIGN:</span>
+              <span className="text-[12px] text-foreground/60 tracking-wider">SMS CAMPAIGN:</span>
             </div>
             <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1 font-mono text-xs">
+              <span className="flex items-center gap-1 text-[12px]">
                 <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                 <span className="text-emerald-400">{campaignStats.sent}</span>
                 <span className="text-foreground/30">sent</span>
               </span>
-              <span className="flex items-center gap-1 font-mono text-xs">
+              <span className="flex items-center gap-1 text-[12px]">
                 <span className="text-amber-400">{campaignStats.remaining}</span>
                 <span className="text-foreground/30">remaining</span>
               </span>
@@ -444,7 +444,7 @@ export default function CustomersSection() {
             <button
               key={s}
               onClick={() => { setSegment(s); setPage(1); }}
-              className={`px-3 py-1.5 text-xs font-mono tracking-wider uppercase transition-colors ${
+              className={`px-3 py-1.5 text-xs tracking-wide transition-colors ${
                 segment === s
                   ? "bg-primary text-primary-foreground"
                   : "bg-card border border-border/30 text-foreground/50 hover:text-foreground"
@@ -461,38 +461,38 @@ export default function CustomersSection() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border/20">
-              <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase">
+              <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide">
                 <button onClick={() => toggleSort("name")} className="flex items-center gap-1 hover:text-foreground/60">
                   Name <ArrowUpDown className="w-3 h-3" />
                 </button>
               </th>
-              <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase">Phone</th>
-              <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase hidden md:table-cell">City</th>
-              <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase">Segment</th>
-              <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase">
+              <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide">Phone</th>
+              <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide hidden md:table-cell">City</th>
+              <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide">Segment</th>
+              <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide">
                 <button onClick={() => toggleSort("visits")} className="flex items-center gap-1 hover:text-foreground/60">
                   Visits <ArrowUpDown className="w-3 h-3" />
                 </button>
               </th>
-              <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase hidden sm:table-cell">
+              <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide hidden sm:table-cell">
                 <button onClick={() => toggleSort("lastVisit")} className="flex items-center gap-1 hover:text-foreground/60">
                   Last Visit <ArrowUpDown className="w-3 h-3" />
                 </button>
               </th>
-              <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase w-16">SMS</th>
-              <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase w-10"></th>
+              <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide w-16">SMS</th>
+              <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide w-10"></th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
                 <td colSpan={8} className="p-8 text-center text-foreground/30">
-                  <div className="w-5 h-5 border-2 border-nick-yellow border-t-transparent rounded-full animate-spin mx-auto" />
+                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
                 </td>
               </tr>
             ) : listData?.customers.length === 0 ? (
               <tr>
-                <td colSpan={8} className="p-8 text-center text-foreground/30 font-mono text-xs">
+                <td colSpan={8} className="p-8 text-center text-foreground/30 text-[12px]">
                   No customers found
                 </td>
               </tr>
@@ -509,13 +509,13 @@ export default function CustomersSection() {
                     )}
                   </td>
                   <td className="p-3">
-                    <a href={`tel:${c.phone}`} className="text-foreground/60 hover:text-primary transition-colors font-mono text-xs">
+                    <a href={`tel:${c.phone}`} className="text-foreground/60 hover:text-primary transition-colors text-[12px]">
                       {c.phone}
                     </a>
                   </td>
                   <td className="p-3 text-foreground/50 hidden md:table-cell">{c.city || "—"}</td>
                   <td className="p-3"><SegmentBadge segment={c.segment} /></td>
-                  <td className="p-3 text-foreground/60 font-mono">{c.totalVisits}</td>
+                  <td className="p-3 text-foreground/60">{c.totalVisits}</td>
                   <td className="p-3 text-foreground/50 text-xs hidden sm:table-cell">
                     {c.lastVisitDate ? new Date(c.lastVisitDate).toLocaleDateString() : "—"}
                   </td>

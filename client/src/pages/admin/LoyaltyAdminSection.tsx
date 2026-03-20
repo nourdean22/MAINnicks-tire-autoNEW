@@ -37,16 +37,16 @@ export default function LoyaltyAdminSection() {
 
   return (
     <div className="space-y-8">
-      <h2 className="font-heading font-bold text-xl text-foreground tracking-wider">LOYALTY PROGRAM</h2>
+      <h2 className="font-bold text-xl text-foreground tracking-wider">LOYALTY PROGRAM</h2>
 
       {/* Award Points */}
       <div className="bg-card border border-border/30 p-5">
-        <h3 className="font-heading font-bold text-sm text-foreground tracking-wider mb-4">AWARD POINTS</h3>
+        <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">AWARD POINTS</h3>
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <input placeholder="Customer Phone" value={phone} onChange={e => setPhone(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
           <input placeholder="Points" type="number" value={points} onChange={e => setPoints(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
           <input placeholder="Description" value={desc} onChange={e => setDesc(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
-          <button onClick={() => awardPoints.mutate({ userId: 0, points: parseInt(points) || 0, description: desc || "Manual award" })} disabled={awardPoints.isPending || !phone || !points} className="px-4 py-2 bg-primary text-primary-foreground font-heading font-bold text-xs tracking-wider uppercase disabled:opacity-50">
+          <button onClick={() => awardPoints.mutate({ userId: 0, points: parseInt(points) || 0, description: desc || "Manual award" })} disabled={awardPoints.isPending || !phone || !points} className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs tracking-wide disabled:opacity-50">
             {awardPoints.isPending ? "AWARDING..." : "AWARD"}
           </button>
         </div>
@@ -55,8 +55,8 @@ export default function LoyaltyAdminSection() {
       {/* Manage Rewards */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-heading font-bold text-sm text-foreground tracking-wider">REWARD CATALOG</h3>
-          <button onClick={() => setShowRewardForm(!showRewardForm)} className="px-3 py-1.5 bg-primary text-primary-foreground font-heading font-bold text-xs tracking-wider uppercase">
+          <h3 className="font-bold text-sm text-foreground tracking-wider">REWARD CATALOG</h3>
+          <button onClick={() => setShowRewardForm(!showRewardForm)} className="px-3 py-1.5 bg-primary text-primary-foreground font-bold text-xs tracking-wide">
             {showRewardForm ? "CANCEL" : "+ ADD REWARD"}
           </button>
         </div>
@@ -69,7 +69,7 @@ export default function LoyaltyAdminSection() {
               <input placeholder="Points Cost" type="number" value={rewardForm.pointsCost} onChange={e => setRewardForm(f => ({ ...f, pointsCost: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
               <input placeholder="Discount Value ($)" type="number" value={rewardForm.discountValue} onChange={e => setRewardForm(f => ({ ...f, discountValue: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
             </div>
-            <button onClick={() => createReward.mutate({ title: rewardForm.title, description: rewardForm.description, pointsCost: parseInt(rewardForm.pointsCost) || 0, rewardValue: parseInt(rewardForm.discountValue) || 0 })} disabled={createReward.isPending || !rewardForm.title || !rewardForm.pointsCost} className="px-4 py-2 bg-primary text-primary-foreground font-heading font-bold text-xs tracking-wider uppercase disabled:opacity-50">
+            <button onClick={() => createReward.mutate({ title: rewardForm.title, description: rewardForm.description, pointsCost: parseInt(rewardForm.pointsCost) || 0, rewardValue: parseInt(rewardForm.discountValue) || 0 })} disabled={createReward.isPending || !rewardForm.title || !rewardForm.pointsCost} className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs tracking-wide disabled:opacity-50">
               {createReward.isPending ? "CREATING..." : "CREATE REWARD"}
             </button>
           </div>
@@ -80,19 +80,19 @@ export default function LoyaltyAdminSection() {
         ) : (rewards ?? []).length === 0 ? (
           <div className="text-center py-8 text-foreground/40">
             <Gift className="w-8 h-8 mx-auto mb-3 opacity-30" />
-            <p className="font-mono text-sm">No rewards configured. Add one to start the loyalty program.</p>
+            <p className="text-[13px]">No rewards configured. Add one to start the loyalty program.</p>
           </div>
         ) : (
           <div className="space-y-3">
             {(rewards ?? []).map((r: any) => (
               <div key={r.id} className="bg-card border border-border/30 p-4 flex items-center justify-between">
                 <div>
-                  <span className="font-heading font-bold text-foreground text-sm">{r.title}</span>
-                  <p className="font-mono text-xs text-foreground/40">{r.description}</p>
+                  <span className="font-bold text-foreground text-sm">{r.title}</span>
+                  <p className="text-[12px] text-foreground/40">{r.description}</p>
                 </div>
                 <div className="text-right">
-                  <span className="font-heading font-bold text-primary text-sm">{r.pointsCost} pts</span>
-                  <p className="font-mono text-xs text-foreground/40">${r.discountValue} off</p>
+                  <span className="font-bold text-primary text-sm">{r.pointsCost} pts</span>
+                  <p className="text-[12px] text-foreground/40">${r.discountValue} off</p>
                 </div>
               </div>
             ))}

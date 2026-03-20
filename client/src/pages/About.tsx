@@ -43,14 +43,14 @@ export default function About() {
       <section className="relative min-h-[60vh] flex items-end overflow-hidden">
         <div className="absolute inset-0">
           <img loading="lazy" src={HERO_IMG} alt="Inside Nick's Tire and Auto" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-nick-dark via-nick-dark/60 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
         </div>
         <div className="relative container pb-16 pt-32">
           <Breadcrumbs items={[{ label: "About" }]} />
       <LocalBusinessSchema />
           <FadeIn>
             <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold text-foreground tracking-tight leading-[0.95] mt-4">
-              About <span className="text-nick-yellow">Nick's</span>
+              About <span className="text-primary">Nick's</span>
             </h1>
             <p className="mt-4 text-lg text-foreground/60 max-w-lg font-light">
               An independent shop on Euclid Avenue, built on one idea: show drivers the problem before you fix it.
@@ -60,27 +60,27 @@ export default function About() {
       </section>
 
       {/* Philosophy — split layout */}
-      <section className="section-dark py-24 lg:py-32">
+      <section className="bg-[oklch(0.065_0.004_260)] py-24 lg:py-32">
         <div className="container">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <FadeIn>
               <div className="relative rounded-2xl overflow-hidden aspect-[4/3]">
                 <img loading="lazy" src={DIAG_IMG} alt="Technician performing diagnostics" className="w-full h-full object-cover" />
-                <div className="absolute bottom-4 right-4 bg-nick-yellow px-4 py-3 rounded-xl">
+                <div className="absolute bottom-4 right-4 bg-primary px-4 py-3 rounded-xl">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-2xl text-nick-dark">{rating.toFixed(1)}</span>
+                    <span className="font-bold text-2xl text-primary-foreground">{rating.toFixed(1)}</span>
                     <div className="flex gap-0.5">
-                      {[...Array(5)].map((_, i) => <Star key={i} className="w-3.5 h-3.5 fill-nick-dark text-nick-dark" />)}
+                      {[...Array(5)].map((_, i) => <Star key={i} className="w-3.5 h-3.5 fill-nick-dark text-primary-foreground" />)}
                     </div>
                   </div>
-                  <span className="text-xs text-nick-dark/70 font-medium">{totalReviews.toLocaleString()}+ reviews</span>
+                  <span className="text-xs text-primary-foreground/70 font-medium">{totalReviews.toLocaleString()}+ reviews</span>
                 </div>
               </div>
             </FadeIn>
             <FadeIn delay={0.15}>
               <div>
                 <h2 className="text-3xl lg:text-5xl font-bold text-foreground tracking-tight leading-[1.1]">
-                  We show you the problem <span className="text-nick-yellow">before we fix it.</span>
+                  We show you the problem <span className="text-primary">before we fix it.</span>
                 </h2>
                 <p className="mt-6 text-foreground/50 text-lg leading-relaxed">
                   Most shops hand you a bill and hope you don't ask questions. We walk you through the diagnosis, show you the worn parts, explain your options, and let you decide. No pressure. No upselling.
@@ -120,7 +120,7 @@ export default function About() {
       </section>
 
       {/* Services quick links */}
-      <section className="section-dark py-24 lg:py-32">
+      <section className="bg-[oklch(0.065_0.004_260)] py-24 lg:py-32">
         <div className="container">
           <FadeIn>
             <h2 className="text-3xl lg:text-4xl font-bold text-foreground tracking-tight text-center mb-4">Our Services</h2>
@@ -137,8 +137,8 @@ export default function About() {
             ].map((s, i) => (
               <FadeIn key={s.slug} delay={i * 0.06}>
                 <Link href={s.slug} className="group flex items-center justify-between p-5 border border-border rounded-xl hover:border-foreground/20 transition-all">
-                  <span className="font-semibold text-foreground group-hover:text-nick-yellow transition-colors">{s.title}</span>
-                  <ArrowRight className="w-4 h-4 text-foreground/30 group-hover:text-nick-yellow transition-colors" />
+                  <span className="font-semibold text-foreground group-hover:text-primary transition-colors">{s.title}</span>
+                  <ArrowRight className="w-4 h-4 text-foreground/30 group-hover:text-primary transition-colors" />
                 </Link>
               </FadeIn>
             ))}

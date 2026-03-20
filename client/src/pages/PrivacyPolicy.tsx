@@ -18,7 +18,7 @@ export default function PrivacyPolicy() {
       <LocalBusinessSchema />
 
       {/* Hero */}
-      <section className="bg-nick-dark pt-32 pb-16">
+      <section className="bg-background pt-32 pb-16">
         <div className="container">
           <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Privacy Policy" }]} />
           <h1 className="font-display text-4xl md:text-5xl font-bold text-foreground mt-6 tracking-tight">
@@ -31,7 +31,7 @@ export default function PrivacyPolicy() {
       </section>
 
       {/* Content */}
-      <section className="bg-nick-dark py-16">
+      <section className="bg-background py-16">
         <div className="container max-w-3xl">
           <div className="prose prose-invert prose-lg max-w-none space-y-10 text-foreground/80 leading-relaxed">
 
@@ -39,7 +39,7 @@ export default function PrivacyPolicy() {
               <h2 className="text-2xl font-bold text-foreground mb-4">1. Introduction</h2>
               <p>
                 Nick's Tire & Auto ("we," "us," or "our") operates the website at{" "}
-                <a href="https://nickstire.org" className="text-nick-yellow hover:underline">nickstire.org</a>{" "}
+                <a href="https://nickstire.org" className="text-primary hover:underline">nickstire.org</a>{" "}
                 and provides automotive repair and tire services at our shop located at {BUSINESS.address.full}.
                 This Privacy Policy describes how we collect, use, and protect your personal information when you
                 visit our website, use our services, or communicate with us.
@@ -170,8 +170,8 @@ export default function PrivacyPolicy() {
               <div className="mt-4 p-6 bg-card/50 border border-border/30 rounded-sm">
                 <p className="font-bold text-foreground">{BUSINESS.name}</p>
                 <p>{BUSINESS.address.full}</p>
-                <p>Phone: <a href={BUSINESS.phone.href} className="text-nick-yellow hover:underline">{BUSINESS.phone.display}</a></p>
-                <p>Website: <a href="https://nickstire.org" className="text-nick-yellow hover:underline">nickstire.org</a></p>
+                <p>Phone: <a href={BUSINESS.phone.href} className="text-primary hover:underline">{BUSINESS.phone.display}</a></p>
+                <p>Website: <a href="https://nickstire.org" className="text-primary hover:underline">nickstire.org</a></p>
               </div>
             </div>
 

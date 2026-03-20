@@ -129,33 +129,33 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
   // ─── SUCCESS STATE ────────────────────────────────────
   if (submitted) {
     return (
-      <div className="card-vibrant bg-card/80 rounded-lg p-8 lg:p-12 text-center">
-        <div className="w-20 h-20 mx-auto mb-5 rounded-full bg-nick-teal/20 flex items-center justify-center">
-          <CheckCircle className="w-10 h-10 text-nick-teal" />
+      <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-8 lg:p-12 text-center">
+        <div className="w-16 h-16 mx-auto mb-5 rounded-full bg-nick-teal/10 flex items-center justify-center">
+          <CheckCircle className="w-8 h-8 text-nick-teal" />
         </div>
-        <h3 className="font-heading font-bold text-2xl text-foreground tracking-wider mb-3">
-          REQUEST RECEIVED
+        <h3 className="font-bold text-[22px] text-foreground tracking-[-0.02em] mb-3">
+          Request Received
         </h3>
-        <p className="text-foreground/70 leading-relaxed max-w-md mx-auto">
-          We got your request for <span className="text-nick-yellow font-semibold">{formData.service}</span>.
+        <p className="text-foreground/50 text-[14px] leading-relaxed max-w-md mx-auto">
+          We got your request for <span className="text-primary font-semibold">{formData.service}</span>.
           {formData.urgency === "emergency" ? (
             <span className="block mt-2 text-red-400 font-semibold">Emergency flagged — we will prioritize your vehicle.</span>
           ) : (
             <span className="block mt-1">Our team operates first-come, first-served.</span>
           )}
           We will reach out to{" "}
-          <span className="text-nick-yellow font-mono">{formData.phone}</span> when
+          <span className="text-primary">{formData.phone}</span> when
           we are ready for your vehicle.
         </p>
-        <p className="text-foreground/50 text-sm mt-3">
+        <p className="text-foreground/30 text-[13px] mt-3">
           Need immediate help? Call us directly.
         </p>
         <a
           href={BUSINESS.phone.href}
-          className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase mt-6 hover:bg-nick-gold transition-colors glow-yellow"
+          className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-3.5 rounded-lg font-semibold text-[14px] mt-6 hover:opacity-90 transition-opacity"
         >
           <Phone className="w-4 h-4" />
-          CALL {BUSINESS.phone.display}
+          Call {BUSINESS.phone.display}
         </a>
       </div>
     );
@@ -173,31 +173,31 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
           <button
             type="button"
             onClick={() => { if (s.num < step || canGoNext(step)) setStep(s.num as Step); }}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full font-mono text-xs tracking-wider transition-all ${
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[12px] font-medium transition-all ${
               step === s.num
-                ? "bg-nick-yellow text-nick-dark font-bold"
+                ? "bg-primary text-primary-foreground"
                 : step > s.num
-                ? "bg-nick-teal/20 text-nick-teal"
-                : "bg-border/20 text-foreground/30"
+                ? "bg-nick-teal/10 text-nick-teal"
+                : "bg-foreground/[0.05] text-foreground/25"
             }`}
           >
-            <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold border border-current">
+            <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold border border-current">
               {step > s.num ? "✓" : s.num}
             </span>
             <span className="hidden sm:inline">{s.label}</span>
           </button>
-          {i < 2 && <div className={`w-8 h-px ${step > s.num ? "bg-nick-teal/40" : "bg-border/20"}`} />}
+          {i < 2 && <div className={`w-8 h-px ${step > s.num ? "bg-nick-teal/30" : "bg-foreground/[0.06]"}`} />}
         </div>
       ))}
     </div>
   );
 
   return (
-    <form onSubmit={handleSubmit} className="card-vibrant bg-card/80 rounded-lg p-8 lg:p-10">
-      <h3 className="font-heading font-bold text-2xl text-nick-yellow tracking-wider mb-1">
-        BOOK AN APPOINTMENT
+    <form onSubmit={handleSubmit} className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-8 lg:p-10">
+      <h3 className="font-bold text-[22px] text-foreground tracking-[-0.02em] mb-1">
+        Book an Appointment
       </h3>
-      <p className="text-foreground/60 text-sm mb-4">
+      <p className="text-foreground/40 text-[13px] mb-5">
         First come, first served. We will call you when we are ready for your vehicle.
       </p>
 
@@ -214,7 +214,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
       {step === 1 && (
         <div className="space-y-5">
           <div>
-            <label className="font-mono text-xs text-nick-teal/80 tracking-wider uppercase block mb-2">
+            <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
               What do you need? *
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -223,9 +223,9 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                   key={s}
                   type="button"
                   onClick={() => update("service", s)}
-                  className={`flex items-center gap-3 px-4 py-3.5 border rounded-md font-mono text-sm text-left transition-all ${
+                  className={`flex items-center gap-3 px-4 py-3.5 border rounded-md text-[13px] text-left transition-all ${
                     formData.service === s
-                      ? "border-nick-yellow bg-nick-yellow/10 text-nick-yellow ring-1 ring-nick-yellow/30"
+                      ? "border-primary bg-primary/10 text-primary ring-1 ring-nick-yellow/30"
                       : "border-border/50 text-foreground/70 hover:border-nick-teal/40 hover:text-nick-teal"
                   }`}
                 >
@@ -238,20 +238,20 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
 
           {/* Urgency Routing */}
           <div>
-            <label className="font-mono text-xs text-nick-teal/80 tracking-wider uppercase block mb-2">
+            <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
               How urgent is this?
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               {[
                 { value: "emergency", label: "Emergency", desc: "Unsafe to drive", icon: <AlertTriangle className="w-4 h-4" />, color: "border-red-500 bg-red-500/10 text-red-400 ring-red-500/30" },
-                { value: "this-week", label: "This Week", desc: "Need it soon", icon: <Zap className="w-4 h-4" />, color: "border-nick-yellow bg-nick-yellow/10 text-nick-yellow ring-nick-yellow/30" },
+                { value: "this-week", label: "This Week", desc: "Need it soon", icon: <Zap className="w-4 h-4" />, color: "border-primary bg-primary/10 text-primary ring-nick-yellow/30" },
                 { value: "whenever", label: "Whenever", desc: "Not urgent", icon: <Clock className="w-4 h-4" />, color: "border-nick-teal bg-nick-teal/10 text-nick-teal ring-nick-teal/30" },
               ].map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
                   onClick={() => update("urgency", opt.value)}
-                  className={`flex items-center gap-3 px-4 py-3 border rounded-md font-mono text-sm text-left transition-all ${
+                  className={`flex items-center gap-3 px-4 py-3 border rounded-md text-[13px] text-left transition-all ${
                     formData.urgency === opt.value
                       ? opt.color + " ring-1"
                       : "border-border/50 text-foreground/70 hover:border-foreground/30"
@@ -272,9 +272,9 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
               type="button"
               disabled={!canGoNext(1)}
               onClick={() => setStep(2)}
-              className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-lg font-semibold text-[13px] hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              NEXT <ChevronRight className="w-4 h-4" />
+              Next <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -285,7 +285,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
         <div className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
-              <label className="font-mono text-xs text-nick-teal/80 tracking-wider uppercase block mb-1.5">
+              <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-1.5">
                 Your Name *
               </label>
               <div className="relative">
@@ -295,14 +295,14 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                   required
                   value={formData.name}
                   onChange={(e) => update("name", e.target.value)}
-                  className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 font-mono text-sm focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
+                  className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                   placeholder="John Smith"
                 />
               </div>
             </div>
 
             <div>
-              <label className="font-mono text-xs text-nick-teal/80 tracking-wider uppercase block mb-1.5">
+              <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-1.5">
                 Phone Number *
               </label>
               <div className="relative">
@@ -312,14 +312,14 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                   required
                   value={formData.phone}
                   onChange={(e) => update("phone", e.target.value)}
-                  className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 font-mono text-sm focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
+                  className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                   placeholder="(216) 555-0000"
                 />
               </div>
             </div>
 
             <div className="sm:col-span-2">
-              <label className="font-mono text-xs text-nick-teal/80 tracking-wider uppercase block mb-1.5">
+              <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-1.5">
                 Email (Optional)
               </label>
               <div className="relative">
@@ -328,7 +328,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                   type="email"
                   value={formData.email}
                   onChange={(e) => update("email", e.target.value)}
-                  className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 font-mono text-sm focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
+                  className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                   placeholder="you@email.com"
                 />
               </div>
@@ -339,17 +339,17 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
             <button
               type="button"
               onClick={() => setStep(1)}
-              className="flex items-center gap-2 border border-border/50 text-foreground/60 px-6 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:text-foreground transition-colors"
+              className="flex items-center gap-2 border border-[oklch(0.17_0.004_260)] text-foreground/40 px-6 py-3 rounded-lg font-semibold text-[13px] hover:text-foreground/60 transition-colors"
             >
-              <ChevronLeft className="w-4 h-4" /> BACK
+              <ChevronLeft className="w-4 h-4" /> Back
             </button>
             <button
               type="button"
               disabled={!canGoNext(2)}
               onClick={() => setStep(3)}
-              className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-6 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-lg font-semibold text-[13px] hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              NEXT <ChevronRight className="w-4 h-4" />
+              Next <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -360,7 +360,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
         <div className="space-y-5">
           {/* Vehicle Year / Make / Model */}
           <div>
-            <label className="font-mono text-xs text-nick-teal/80 tracking-wider uppercase block mb-2">
+            <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
               Vehicle Information (Optional)
             </label>
             <div className="grid grid-cols-3 gap-3">
@@ -369,7 +369,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                 <select
                   value={formData.vehicleYear}
                   onChange={(e) => update("vehicleYear", e.target.value)}
-                  className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-2 py-3 font-mono text-sm focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all appearance-none"
+                  className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-2 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all appearance-none"
                 >
                   <option value="">Year</option>
                   {YEARS.map((y) => (
@@ -380,7 +380,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
               <select
                 value={formData.vehicleMake}
                 onChange={(e) => update("vehicleMake", e.target.value)}
-                className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-3 py-3 font-mono text-sm focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all appearance-none"
+                className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-3 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all appearance-none"
               >
                 <option value="">Make</option>
                 {MAKES.map((m) => (
@@ -391,7 +391,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                 type="text"
                 value={formData.vehicleModel}
                 onChange={(e) => update("vehicleModel", e.target.value)}
-                className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-3 py-3 font-mono text-sm focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
+                className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-3 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                 placeholder="Model"
               />
             </div>
@@ -400,7 +400,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
           {/* Preferred Date & Time */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
-              <label className="font-mono text-xs text-nick-teal/80 tracking-wider uppercase block mb-1.5">
+              <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-1.5">
                 Preferred Date (Optional)
               </label>
               <div className="relative">
@@ -409,12 +409,12 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                   type="date"
                   value={formData.preferredDate}
                   onChange={(e) => update("preferredDate", e.target.value)}
-                  className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 font-mono text-sm focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
+                  className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                 />
               </div>
             </div>
             <div>
-              <label className="font-mono text-xs text-nick-teal/80 tracking-wider uppercase block mb-2">
+              <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
                 Preferred Time
               </label>
               <div className="flex flex-wrap gap-2">
@@ -427,9 +427,9 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                     key={opt.value}
                     type="button"
                     onClick={() => update("preferredTime", opt.value)}
-                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 border rounded-md font-mono text-sm transition-all ${
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 border rounded-md text-[13px] transition-all ${
                       formData.preferredTime === opt.value
-                        ? "border-nick-yellow bg-nick-yellow/10 text-nick-yellow"
+                        ? "border-primary bg-primary/10 text-primary"
                         : "border-border/50 text-foreground/60 hover:border-nick-teal/40"
                     }`}
                   >
@@ -443,7 +443,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
 
           {/* Photo Upload */}
           <div>
-            <label className="font-mono text-xs text-nick-teal/80 tracking-wider uppercase block mb-2">
+            <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
               Photos of the Problem (Optional — up to 3)
             </label>
             <div className="flex flex-wrap gap-3">
@@ -451,14 +451,14 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                 <div key={photo.preview} className="relative w-20 h-20 rounded-md overflow-hidden border border-border/50">
                   <img loading="lazy" src={photo.preview} alt="Vehicle photo upload preview" className="w-full h-full object-cover" />
                   {photo.uploading && (
-                    <div className="absolute inset-0 bg-nick-dark/70 flex items-center justify-center">
-                      <Loader2 className="w-5 h-5 animate-spin text-nick-yellow" />
+                    <div className="absolute inset-0 bg-background/70 flex items-center justify-center">
+                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
                     </div>
                   )}
                   <button
                     type="button"
                     onClick={() => removePhoto(photo.preview)}
-                    className="absolute top-0.5 right-0.5 w-5 h-5 bg-nick-dark/80 rounded-full flex items-center justify-center text-foreground/80 hover:text-red-400"
+                    className="absolute top-0.5 right-0.5 w-5 h-5 bg-background/80 rounded-full flex items-center justify-center text-foreground/80 hover:text-red-400"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -471,7 +471,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                   className="w-20 h-20 border-2 border-dashed border-border/40 rounded-md flex flex-col items-center justify-center text-foreground/30 hover:border-nick-teal/40 hover:text-nick-teal transition-colors"
                 >
                   <Camera className="w-5 h-5" />
-                  <span className="text-[10px] font-mono mt-1">ADD</span>
+                  <span className="text-[10px] mt-1">ADD</span>
                 </button>
               )}
               <input
@@ -487,7 +487,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
 
           {/* Message */}
           <div>
-            <label className="font-mono text-xs text-nick-teal/80 tracking-wider uppercase block mb-1.5">
+            <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-1.5">
               Describe the Problem (Optional)
             </label>
             <div className="relative">
@@ -496,15 +496,15 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                 value={formData.message}
                 onChange={(e) => update("message", e.target.value)}
                 rows={3}
-                className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 font-mono text-sm focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all resize-none"
+                className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all resize-none"
                 placeholder="Tell us what's going on with your vehicle..."
               />
             </div>
           </div>
 
           {/* Summary Bar */}
-          <div className="bg-background/40 border border-border/30 rounded-md p-4 flex flex-wrap items-center gap-4 text-sm font-mono">
-            <div className="flex items-center gap-2 text-nick-yellow">
+          <div className="bg-background/40 border border-border/30 rounded-md p-4 flex flex-wrap items-center gap-4 text-sm">
+            <div className="flex items-center gap-2 text-primary">
               <Wrench className="w-4 h-4" />
               <span>{formData.service}</span>
             </div>
@@ -529,30 +529,30 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
             <button
               type="button"
               onClick={() => setStep(2)}
-              className="flex items-center gap-2 border border-border/50 text-foreground/60 px-6 py-3 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:text-foreground transition-colors"
+              className="flex items-center gap-2 border border-[oklch(0.17_0.004_260)] text-foreground/40 px-6 py-3 rounded-lg font-semibold text-[13px] hover:text-foreground/60 transition-colors"
             >
-              <ChevronLeft className="w-4 h-4" /> BACK
+              <ChevronLeft className="w-4 h-4" /> Back
             </button>
             <button
               type="submit"
               disabled={mutation.isPending || photos.some((p) => p.uploading)}
-              className="flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors glow-yellow disabled:opacity-50"
+              className="flex items-center gap-2 bg-primary text-primary-foreground px-8 py-3.5 rounded-lg font-semibold text-[14px] hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               {mutation.isPending ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  SUBMITTING...
+                  Submitting...
                 </>
               ) : (
                 <>
                   <CheckCircle className="w-5 h-5" />
-                  SUBMIT REQUEST
+                  Submit Request
                 </>
               )}
             </button>
           </div>
 
-          <p className="text-foreground/40 text-xs font-mono text-center">
+          <p className="text-foreground/25 text-[12px] text-center">
             First come, first served. Walk-ins also welcome. {BUSINESS.hours.display}.
           </p>
         </div>

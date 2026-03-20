@@ -36,7 +36,7 @@ export default function AdminContent() {
   // ─── AUTH GATE ───────────────────────────────────────
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-nick-dark flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
@@ -44,14 +44,14 @@ export default function AdminContent() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-nick-dark flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center max-w-md px-6">
           <Shield className="w-12 h-12 text-primary mx-auto mb-4" />
-          <h1 className="font-heading font-bold text-3xl text-foreground tracking-wider mb-4">ADMIN ACCESS</h1>
+          <h1 className="font-bold text-3xl text-foreground tracking-[-0.01em] mb-4">ADMIN ACCESS</h1>
           <p className="text-foreground/60 mb-8">Sign in with your admin account to manage content.</p>
           <a
             href={getLoginUrl()}
-            className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-heading font-bold text-sm tracking-wider uppercase hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-bold text-sm tracking-wide hover:bg-primary/90 transition-colors"
           >
             SIGN IN
           </a>
@@ -62,12 +62,12 @@ export default function AdminContent() {
 
   if (user.role !== "admin") {
     return (
-      <div className="min-h-screen bg-nick-dark flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center max-w-md px-6">
           <XCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h1 className="font-heading font-bold text-3xl text-foreground tracking-wider mb-4">ACCESS DENIED</h1>
+          <h1 className="font-bold text-3xl text-foreground tracking-[-0.01em] mb-4">ACCESS DENIED</h1>
           <p className="text-foreground/60 mb-8">Admin privileges required.</p>
-          <Link href="/" className="inline-flex items-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-heading font-bold text-sm tracking-wider uppercase hover:border-primary hover:text-primary transition-colors">
+          <Link href="/" className="inline-flex items-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
             <ArrowLeft className="w-4 h-4" />
             BACK TO SITE
           </Link>
@@ -84,24 +84,24 @@ export default function AdminContent() {
   ];
 
   return (
-    <div className="min-h-screen bg-nick-dark">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-nick-dark/95 border-b border-border/30 sticky top-0 z-50 backdrop-blur-md">
+      <header className="bg-background/95 border-b border-border/30 sticky top-0 z-50 backdrop-blur-md">
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center gap-4">
             <Link href="/admin" className="flex items-center gap-2 text-foreground/60 hover:text-primary transition-colors">
               <ArrowLeft className="w-4 h-4" />
-              <span className="font-mono text-xs tracking-wider uppercase hidden sm:inline">Bookings</span>
+              <span className="text-[12px] tracking-wide hidden sm:inline">Bookings</span>
             </Link>
             <div className="h-6 w-px bg-border/30" />
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-primary flex items-center justify-center rounded-sm">
                 <Sparkles className="w-4 h-4 text-primary-foreground" />
               </div>
-              <span className="font-heading font-bold text-primary text-sm tracking-wider">CONTENT MANAGER</span>
+              <span className="font-bold text-primary text-sm tracking-wider">CONTENT MANAGER</span>
             </div>
           </div>
-          <span className="font-mono text-xs text-foreground/40">{user.name || user.email}</span>
+          <span className="text-[12px] text-foreground/40">{user.name || user.email}</span>
         </div>
       </header>
 
@@ -112,7 +112,7 @@ export default function AdminContent() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-6 py-4 font-heading font-bold text-xs tracking-widest uppercase transition-colors border-b-2 ${
+              className={`flex items-center gap-2 px-6 py-4 font-bold text-xs tracking-wide transition-colors border-b-2 ${
                 activeTab === tab.id
                   ? "text-primary border-primary"
                   : "text-foreground/40 border-transparent hover:text-foreground/70"
@@ -166,7 +166,7 @@ function ArticlesPanel({ expandedArticle, setExpandedArticle }: { expandedArticl
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="font-heading font-bold text-2xl text-foreground tracking-wider">AI-GENERATED ARTICLES</h2>
+        <h2 className="font-bold text-2xl text-foreground tracking-wider">AI-GENERATED ARTICLES</h2>
         <button onClick={() => refetch()} className="p-2 text-foreground/50 hover:text-primary transition-colors">
           <RefreshCw className="w-4 h-4" />
         </button>
@@ -178,7 +178,7 @@ function ArticlesPanel({ expandedArticle, setExpandedArticle }: { expandedArticl
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-3 py-2 font-mono text-xs tracking-wider uppercase transition-colors ${
+            className={`px-3 py-2 text-[12px] tracking-wide transition-colors ${
               filter === f
                 ? "bg-primary text-primary-foreground"
                 : "bg-card border border-border/30 text-foreground/60 hover:text-foreground"
@@ -192,8 +192,8 @@ function ArticlesPanel({ expandedArticle, setExpandedArticle }: { expandedArticl
       {filtered.length === 0 ? (
         <div className="text-center py-20 border border-border/30 bg-card">
           <FileText className="w-12 h-12 text-foreground/20 mx-auto mb-4" />
-          <p className="font-heading font-bold text-xl text-foreground/40 tracking-wider">NO ARTICLES</p>
-          <p className="text-foreground/30 font-mono text-sm mt-2">
+          <p className="font-bold text-xl text-foreground/40 tracking-wider">NO ARTICLES</p>
+          <p className="text-foreground/30 text-[13px] mt-2">
             Use the Generate tab to create AI-powered articles.
           </p>
         </div>
@@ -214,16 +214,16 @@ function ArticlesPanel({ expandedArticle, setExpandedArticle }: { expandedArticl
                   <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex flex-wrap items-center gap-3 mb-2">
-                        <h3 className="font-heading font-bold text-lg text-foreground tracking-wider">{article.title}</h3>
-                        <span className={`inline-flex items-center px-3 py-1 border font-mono text-xs tracking-wider ${statusConfig.color} ${statusConfig.bgColor}`}>
+                        <h3 className="font-bold text-lg text-foreground tracking-wider">{article.title}</h3>
+                        <span className={`inline-flex items-center px-3 py-1 border text-[12px] tracking-wider ${statusConfig.color} ${statusConfig.bgColor}`}>
                           {statusConfig.label}
                         </span>
-                        <span className="font-mono text-xs text-foreground/30 bg-nick-dark/50 px-2 py-1 border border-border/20">
+                        <span className="text-[12px] text-foreground/30 bg-background/50 px-2 py-1 border border-border/20">
                           {article.generatedBy === "ai" ? "AI GENERATED" : "MANUAL"}
                         </span>
                       </div>
                       <p className="text-foreground/60 text-sm leading-relaxed">{article.excerpt}</p>
-                      <div className="flex flex-wrap gap-4 mt-3 text-xs font-mono text-foreground/40">
+                      <div className="flex flex-wrap gap-4 mt-3 text-xs text-foreground/40">
                         <span>{article.category}</span>
                         <span>{article.readTime}</span>
                         <span>{article.publishDate}</span>
@@ -237,7 +237,7 @@ function ArticlesPanel({ expandedArticle, setExpandedArticle }: { expandedArticl
                           <button
                             onClick={() => updateStatus.mutate({ id: article.id, status: "published" })}
                             disabled={updateStatus.isPending}
-                            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                            className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-emerald-700 transition-colors disabled:opacity-50"
                           >
                             <CheckCircle2 className="w-4 h-4" />
                             PUBLISH
@@ -245,7 +245,7 @@ function ArticlesPanel({ expandedArticle, setExpandedArticle }: { expandedArticl
                           <button
                             onClick={() => updateStatus.mutate({ id: article.id, status: "rejected" })}
                             disabled={updateStatus.isPending}
-                            className="flex items-center gap-2 border border-red-500/30 text-red-400 px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                            className="flex items-center gap-2 border border-red-500/30 text-red-400 px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-red-500/10 transition-colors disabled:opacity-50"
                           >
                             <XCircle className="w-4 h-4" />
                             REJECT
@@ -256,7 +256,7 @@ function ArticlesPanel({ expandedArticle, setExpandedArticle }: { expandedArticl
                         <button
                           onClick={() => updateStatus.mutate({ id: article.id, status: "draft" })}
                           disabled={updateStatus.isPending}
-                          className="flex items-center gap-2 border border-amber-500/30 text-amber-400 px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:bg-amber-500/10 transition-colors disabled:opacity-50"
+                          className="flex items-center gap-2 border border-amber-500/30 text-amber-400 px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-amber-500/10 transition-colors disabled:opacity-50"
                         >
                           <EyeOff className="w-4 h-4" />
                           UNPUBLISH
@@ -266,7 +266,7 @@ function ArticlesPanel({ expandedArticle, setExpandedArticle }: { expandedArticl
                         <button
                           onClick={() => updateStatus.mutate({ id: article.id, status: "draft" })}
                           disabled={updateStatus.isPending}
-                          className="flex items-center gap-2 border border-border/30 text-foreground/50 px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:text-foreground transition-colors disabled:opacity-50"
+                          className="flex items-center gap-2 border border-border/30 text-foreground/50 px-4 py-2.5 font-bold text-xs tracking-wide hover:text-foreground transition-colors disabled:opacity-50"
                         >
                           <RefreshCw className="w-4 h-4" />
                           RESTORE
@@ -274,7 +274,7 @@ function ArticlesPanel({ expandedArticle, setExpandedArticle }: { expandedArticl
                       )}
                       <button
                         onClick={() => setExpandedArticle(isExpanded ? null : article.id)}
-                        className="flex items-center gap-2 border border-border/30 text-foreground/50 px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:text-foreground transition-colors"
+                        className="flex items-center gap-2 border border-border/30 text-foreground/50 px-4 py-2.5 font-bold text-xs tracking-wide hover:text-foreground transition-colors"
                       >
                         {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                         {isExpanded ? "COLLAPSE" : "PREVIEW"}
@@ -285,11 +285,11 @@ function ArticlesPanel({ expandedArticle, setExpandedArticle }: { expandedArticl
 
                 {/* Expanded Preview */}
                 {isExpanded && sections.length > 0 && (
-                  <div className="border-t border-border/30 p-6 bg-nick-dark/30">
+                  <div className="border-t border-border/30 p-6 bg-background/30">
                     <div className="max-w-3xl space-y-6">
                       {sections.map((section, i) => (
                         <div key={i}>
-                          <h4 className="font-heading font-bold text-foreground tracking-wider text-sm uppercase mb-2">{section.heading}</h4>
+                          <h4 className="font-bold text-foreground tracking-wider text-sm uppercase mb-2">{section.heading}</h4>
                           <p className="text-foreground/70 text-sm leading-relaxed">{section.content}</p>
                         </div>
                       ))}
@@ -337,7 +337,7 @@ function NotificationsPanel() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="font-heading font-bold text-2xl text-foreground tracking-wider">NOTIFICATION MESSAGES</h2>
+        <h2 className="font-bold text-2xl text-foreground tracking-wider">NOTIFICATION MESSAGES</h2>
         <button onClick={() => refetch()} className="p-2 text-foreground/50 hover:text-primary transition-colors">
           <RefreshCw className="w-4 h-4" />
         </button>
@@ -346,8 +346,8 @@ function NotificationsPanel() {
       {!notifications || notifications.length === 0 ? (
         <div className="text-center py-20 border border-border/30 bg-card">
           <Bell className="w-12 h-12 text-foreground/20 mx-auto mb-4" />
-          <p className="font-heading font-bold text-xl text-foreground/40 tracking-wider">NO DYNAMIC NOTIFICATIONS</p>
-          <p className="text-foreground/30 font-mono text-sm mt-2">
+          <p className="font-bold text-xl text-foreground/40 tracking-wider">NO DYNAMIC NOTIFICATIONS</p>
+          <p className="text-foreground/30 text-[13px] mt-2">
             Use the Generate tab to create AI-powered notification messages.
           </p>
         </div>
@@ -357,15 +357,15 @@ function NotificationsPanel() {
             <div key={notif.id} className={`bg-card border p-5 flex items-center justify-between gap-4 ${notif.isActive ? "border-border/30" : "border-border/10 opacity-60"}`}>
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-1">
-                  <span className={`inline-flex items-center px-2 py-0.5 font-mono text-xs tracking-wider ${notif.isActive ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/30" : "text-foreground/40 bg-nick-dark/50 border border-border/20"}`}>
+                  <span className={`inline-flex items-center px-2 py-0.5 text-[12px] tracking-wider ${notif.isActive ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/30" : "text-foreground/40 bg-background/50 border border-border/20"}`}>
                     {notif.isActive ? "ACTIVE" : "INACTIVE"}
                   </span>
-                  <span className="font-mono text-xs text-foreground/30 uppercase">{notif.season}</span>
-                  <span className="font-mono text-xs text-foreground/30">{notif.generatedBy === "ai" ? "AI" : "MANUAL"}</span>
+                  <span className="text-[12px] text-foreground/30 uppercase">{notif.season}</span>
+                  <span className="text-[12px] text-foreground/30">{notif.generatedBy === "ai" ? "AI" : "MANUAL"}</span>
                 </div>
                 <p className="text-foreground/80 text-sm">{notif.message}</p>
                 {notif.ctaText && (
-                  <p className="font-mono text-xs text-primary mt-1">{notif.ctaText} → {notif.ctaHref}</p>
+                  <p className="text-[12px] text-primary mt-1">{notif.ctaText} → {notif.ctaHref}</p>
                 )}
               </div>
               <div className="flex gap-2 shrink-0">
@@ -447,14 +447,14 @@ function GeneratePanel() {
 
   return (
     <div>
-      <h2 className="font-heading font-bold text-2xl text-foreground tracking-wider mb-6">AI CONTENT GENERATOR</h2>
+      <h2 className="font-bold text-2xl text-foreground tracking-[-0.01em] mb-6">AI CONTENT GENERATOR</h2>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Generate All */}
         <div className="bg-card border border-border/30 p-6">
           <div className="flex items-center gap-3 mb-4">
             <Sparkles className="w-6 h-6 text-primary" />
-            <h3 className="font-heading font-bold text-lg text-foreground tracking-wider">GENERATE ALL</h3>
+            <h3 className="font-bold text-lg text-foreground tracking-wider">GENERATE ALL</h3>
           </div>
           <p className="text-foreground/60 text-sm leading-relaxed mb-6">
             Generates one seasonal blog article and three notification bar messages based on the current season and trending auto repair topics for Cleveland.
@@ -462,7 +462,7 @@ function GeneratePanel() {
           <button
             onClick={handleGenerateAll}
             disabled={isGenerating}
-            className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 font-heading font-bold text-sm tracking-wider uppercase hover:bg-primary/90 transition-colors disabled:opacity-50 w-full justify-center"
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 font-bold text-sm tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-50 w-full justify-center"
           >
             {isGenerating ? (
               <>
@@ -482,7 +482,7 @@ function GeneratePanel() {
         <div className="bg-card border border-border/30 p-6">
           <div className="flex items-center gap-3 mb-4">
             <FileText className="w-6 h-6 text-primary" />
-            <h3 className="font-heading font-bold text-lg text-foreground tracking-wider">CUSTOM ARTICLE</h3>
+            <h3 className="font-bold text-lg text-foreground tracking-wider">CUSTOM ARTICLE</h3>
           </div>
           <p className="text-foreground/60 text-sm leading-relaxed mb-4">
             Generate a blog article on a specific topic. The AI will follow the brand voice and content structure.
@@ -492,12 +492,12 @@ function GeneratePanel() {
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             placeholder="e.g., How to prepare your car for winter driving"
-            className="w-full bg-nick-dark border border-border/50 text-foreground px-4 py-3 font-mono text-sm placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 transition-colors mb-4"
+            className="w-full bg-background border border-border/50 text-foreground px-4 py-3 text-[13px] placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 transition-colors mb-4"
           />
           <button
             onClick={handleGenerateArticle}
             disabled={isGenerating || !topic.trim()}
-            className="flex items-center gap-2 border-2 border-primary text-primary px-6 py-3 font-heading font-bold text-sm tracking-wider uppercase hover:bg-primary/10 transition-colors disabled:opacity-50 w-full justify-center"
+            className="flex items-center gap-2 border-2 border-primary text-primary px-6 py-3 font-bold text-sm tracking-wide hover:bg-primary/10 transition-colors disabled:opacity-50 w-full justify-center"
           >
             {isGenerating ? (
               <>
@@ -517,17 +517,17 @@ function GeneratePanel() {
       {/* Generation Result */}
       {result && (
         <div className="mt-8 bg-card border border-border/30 p-6">
-          <h3 className="font-heading font-bold text-lg text-foreground tracking-wider mb-4">GENERATION RESULT</h3>
+          <h3 className="font-bold text-lg text-foreground tracking-[-0.01em] mb-4">GENERATION RESULT</h3>
 
           {result.article && (
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span className="font-heading font-bold text-sm text-emerald-400 tracking-wider">ARTICLE CREATED</span>
+                <span className="font-bold text-sm text-emerald-400 tracking-wider">ARTICLE CREATED</span>
               </div>
               <p className="text-foreground/80 text-sm font-bold">{result.article.title}</p>
               <p className="text-foreground/60 text-sm mt-1">{result.article.excerpt}</p>
-              <p className="font-mono text-xs text-foreground/30 mt-2">Status: Draft — review in the Articles tab to publish</p>
+              <p className="text-[12px] text-foreground/30 mt-2">Status: Draft — review in the Articles tab to publish</p>
             </div>
           )}
 
@@ -535,7 +535,7 @@ function GeneratePanel() {
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span className="font-heading font-bold text-sm text-emerald-400 tracking-wider">{result.notifications.length} NOTIFICATIONS CREATED</span>
+                <span className="font-bold text-sm text-emerald-400 tracking-wider">{result.notifications.length} NOTIFICATIONS CREATED</span>
               </div>
               {result.notifications.map((n, i) => (
                 <p key={i} className="text-foreground/60 text-sm ml-6">• {n.message}</p>
@@ -547,10 +547,10 @@ function GeneratePanel() {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <AlertTriangle className="w-4 h-4 text-red-400" />
-                <span className="font-heading font-bold text-sm text-red-400 tracking-wider">ERRORS</span>
+                <span className="font-bold text-sm text-red-400 tracking-wider">ERRORS</span>
               </div>
               {result.errors.map((e, i) => (
-                <p key={i} className="text-red-400/80 text-sm ml-6 font-mono">• {e}</p>
+                <p key={i} className="text-red-400/80 text-sm ml-6">• {e}</p>
               ))}
             </div>
           )}
@@ -576,7 +576,7 @@ function LogPanel() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="font-heading font-bold text-2xl text-foreground tracking-wider">GENERATION LOG</h2>
+        <h2 className="font-bold text-2xl text-foreground tracking-wider">GENERATION LOG</h2>
         <button onClick={() => refetch()} className="p-2 text-foreground/50 hover:text-primary transition-colors">
           <RefreshCw className="w-4 h-4" />
         </button>
@@ -585,8 +585,8 @@ function LogPanel() {
       {!log || log.length === 0 ? (
         <div className="text-center py-20 border border-border/30 bg-card">
           <BarChart3 className="w-12 h-12 text-foreground/20 mx-auto mb-4" />
-          <p className="font-heading font-bold text-xl text-foreground/40 tracking-wider">NO GENERATION HISTORY</p>
-          <p className="text-foreground/30 font-mono text-sm mt-2">
+          <p className="font-bold text-xl text-foreground/40 tracking-wider">NO GENERATION HISTORY</p>
+          <p className="text-foreground/30 text-[13px] mt-2">
             Content generation events will appear here.
           </p>
         </div>
@@ -596,16 +596,16 @@ function LogPanel() {
             <div key={entry.id} className="bg-card border border-border/30 p-4 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <span className={`w-2 h-2 rounded-full ${entry.status === "success" ? "bg-emerald-400" : "bg-red-400"}`} />
-                <span className="font-mono text-xs text-foreground/60 uppercase tracking-wider">{entry.contentType}</span>
+                <span className="text-[12px] text-foreground/60 uppercase tracking-wider">{entry.contentType}</span>
                 {entry.prompt && (
                   <span className="text-foreground/50 text-sm truncate max-w-md">{entry.prompt}</span>
                 )}
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                <span className={`font-mono text-xs ${entry.status === "success" ? "text-emerald-400" : "text-red-400"}`}>
+                <span className={`text-[12px] ${entry.status === "success" ? "text-emerald-400" : "text-red-400"}`}>
                   {entry.status.toUpperCase()}
                 </span>
-                <span className="font-mono text-xs text-foreground/30">
+                <span className="text-[12px] text-foreground/30">
                   {new Date(entry.createdAt).toLocaleString()}
                 </span>
               </div>

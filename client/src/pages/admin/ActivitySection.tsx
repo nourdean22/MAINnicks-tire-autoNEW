@@ -83,8 +83,8 @@ export default function ActivitySection() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-heading font-bold text-2xl text-foreground tracking-wider">ACTIVITY FEED</h2>
-          <p className="text-foreground/50 font-mono text-xs mt-1">Real-time view of all shop activity</p>
+          <h2 className="font-bold text-2xl text-foreground tracking-wider">ACTIVITY FEED</h2>
+          <p className="text-foreground/50 text-[12px] mt-1">Real-time view of all shop activity</p>
         </div>
         <button
           onClick={() => { refetchBookings(); }}
@@ -98,31 +98,31 @@ export default function ActivitySection() {
       {/* Quick Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-card border border-border/30 p-4">
-          <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">Today's Bookings</span>
-          <span className="font-heading font-bold text-2xl text-blue-400">{stats?.bookings.new ?? 0}</span>
+          <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Today's Bookings</span>
+          <span className="font-bold text-2xl text-blue-400">{stats?.bookings.new ?? 0}</span>
         </div>
         <div className="bg-card border border-border/30 p-4">
-          <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">Active Leads</span>
-          <span className="font-heading font-bold text-2xl text-amber-400">{(stats?.leads.new ?? 0) + (stats?.leads.urgent ?? 0)}</span>
+          <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Active Leads</span>
+          <span className="font-bold text-2xl text-amber-400">{(stats?.leads.new ?? 0) + (stats?.leads.urgent ?? 0)}</span>
         </div>
         <div className="bg-card border border-border/30 p-4">
-          <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">Chat Sessions</span>
-          <span className="font-heading font-bold text-2xl text-emerald-400">{stats?.chat?.totalSessions ?? 0}</span>
+          <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Chat Sessions</span>
+          <span className="font-bold text-2xl text-emerald-400">{stats?.chat?.totalSessions ?? 0}</span>
         </div>
         <div className="bg-card border border-border/30 p-4">
-          <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">This Week</span>
-          <span className="font-heading font-bold text-2xl text-primary">{stats?.bookings?.thisWeek ?? 0}</span>
+          <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">This Week</span>
+          <span className="font-bold text-2xl text-primary">{stats?.bookings?.thisWeek ?? 0}</span>
         </div>
       </div>
 
       {/* Activity Timeline */}
       <div className="bg-card border border-border/30 p-6">
-        <h3 className="font-heading font-bold text-sm text-foreground tracking-wider uppercase mb-6">RECENT ACTIVITY</h3>
+        <h3 className="font-bold text-sm text-foreground tracking-wide mb-6">RECENT ACTIVITY</h3>
 
         {activities.length === 0 ? (
           <div className="text-center py-12">
             <Clock className="w-8 h-8 text-foreground/20 mx-auto mb-3" />
-            <p className="text-foreground/40 font-mono text-xs">No activity yet</p>
+            <p className="text-foreground/40 text-[12px]">No activity yet</p>
           </div>
         ) : (
           <div className="space-y-0">
@@ -142,16 +142,16 @@ export default function ActivitySection() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <span className={`inline-flex items-center px-1.5 py-0.5 text-[9px] font-mono tracking-wider ${config.color} mr-2`}>
+                        <span className={`inline-flex items-center px-1.5 py-0.5 text-[9px] tracking-wider ${config.color} mr-2`}>
                           {config.label}
                         </span>
-                        <span className="font-heading font-bold text-xs text-foreground tracking-wider">{activity.title}</span>
+                        <span className="font-bold text-xs text-foreground tracking-wider">{activity.title}</span>
                       </div>
                       <span className="font-mono text-[10px] text-foreground/30 whitespace-nowrap">{formatTime(activity.time)}</span>
                     </div>
                     <p className="text-foreground/50 text-xs mt-0.5 truncate">{activity.detail}</p>
                     {activity.status && (
-                      <span className={`inline-flex items-center mt-1 px-2 py-0.5 text-[9px] font-mono tracking-wider border ${
+                      <span className={`inline-flex items-center mt-1 px-2 py-0.5 text-[9px] tracking-wider border ${
                         activity.status === "new" ? "text-blue-400 bg-blue-500/10 border-blue-500/20" :
                         activity.status === "confirmed" || activity.status === "booked" ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" :
                         activity.status === "completed" || activity.status === "closed" ? "text-foreground/40 bg-foreground/5 border-border/30" :

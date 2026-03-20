@@ -1,8 +1,7 @@
 /**
- * Lead Capture Popup
- * Smart triggers: exit-intent (desktop), scroll depth (80%), and time delay (25s).
- * Captures name, phone, vehicle, and problem description.
- * Only shows once per session (localStorage flag).
+ * Premium Lead Capture Popup
+ * Smart triggers: exit-intent (desktop), scroll depth (80%), time delay (25s).
+ * Refined glass morphism design.
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -12,8 +11,8 @@ import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 
 const STORAGE_KEY = "nicks_lead_popup_dismissed";
-const DELAY_MS = 25000; // 25 seconds — less aggressive
-const SCROLL_THRESHOLD = 0.8; // 80% scroll — less aggressive
+const DELAY_MS = 25000;
+const SCROLL_THRESHOLD = 0.8;
 
 export default function LeadPopup() {
   const [visible, setVisible] = useState(false);
@@ -43,16 +42,13 @@ export default function LeadPopup() {
     setVisible(true);
   }, []);
 
-  // ─── TRIGGERS ─────────────────────────────────────────
   useEffect(() => {
     try {
       if (sessionStorage.getItem(STORAGE_KEY)) return;
     } catch {}
 
-    // 1. Time delay trigger
     const timer = setTimeout(show, DELAY_MS);
 
-    // 2. Scroll depth trigger
     const onScroll = () => {
       const scrolled = window.scrollY / (document.body.scrollHeight - window.innerHeight);
       if (scrolled >= SCROLL_THRESHOLD) {
@@ -62,7 +58,6 @@ export default function LeadPopup() {
     };
     window.addEventListener("scroll", onScroll, { passive: true });
 
-    // 3. Exit-intent trigger (desktop only)
     const onMouseLeave = (e: MouseEvent) => {
       if (e.clientY <= 5) {
         show();
@@ -81,7 +76,6 @@ export default function LeadPopup() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.phone.trim()) return;
-    // Meta Pixel: Track lead popup submission as a Lead conversion
     if (typeof window !== "undefined" && (window as any).fbq) {
       (window as any).fbq("track", "Lead", { content_name: "lead_popup", content_category: "popup" });
     }
@@ -94,6 +88,9 @@ export default function LeadPopup() {
     });
   };
 
+  const inputCls =
+    "w-full bg-foreground/[0.04] border border-[oklch(0.17_0.004_260)] rounded-lg text-foreground px-4 py-3 text-[13px] placeholder:text-foreground/25 focus:border-primary/30 focus:outline-none transition-all";
+
   return (
     <AnimatePresence>
       {visible && (
@@ -104,35 +101,36 @@ export default function LeadPopup() {
           className="fixed inset-0 z-[100] flex items-center justify-center p-4"
         >
           {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={dismiss} />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={dismiss} />
 
           {/* Popup */}
           <motion.div
-            initial={{ scale: 0.9, y: 20 }}
+            initial={{ scale: 0.95, y: 16 }}
             animate={{ scale: 1, y: 0 }}
-            exit={{ scale: 0.9, y: 20 }}
-            className="relative bg-card/95 backdrop-blur-md border border-nick-yellow/30 rounded-xl w-full max-w-md z-10 overflow-hidden shadow-2xl shadow-nick-yellow/10"
+            exit={{ scale: 0.95, y: 16 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="relative bg-[oklch(0.08_0.004_260/0.97)] backdrop-blur-2xl border border-[oklch(0.17_0.004_260)] rounded-2xl w-full max-w-md z-10 overflow-hidden shadow-2xl shadow-black/40"
           >
-            {/* Yellow top bar with gradient */}
-            <div className="bg-gradient-to-r from-nick-yellow via-nick-gold to-nick-orange px-6 py-3.5 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-nick-dark" />
-                <span className="font-heading font-bold text-nick-dark tracking-wider uppercase text-sm">
+            {/* ─── HEADER ─── */}
+            <div className="bg-primary/[0.06] border-b border-primary/10 px-6 py-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-primary" />
+                <span className="font-semibold text-foreground text-[14px] tracking-[-0.01em]">
                   Car Problem?
                 </span>
               </div>
-              <button onClick={dismiss} className="text-nick-dark/60 hover:text-nick-dark transition-colors">
-                <X className="w-5 h-5" />
+              <button onClick={dismiss} className="text-foreground/25 hover:text-foreground/50 transition-colors p-1">
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="p-6">
               {!submitted ? (
                 <>
-                  <h3 className="font-heading font-bold text-2xl text-foreground tracking-tight">
+                  <h3 className="font-bold text-[22px] text-foreground tracking-[-0.02em]">
                     Tell us what's going on.
                   </h3>
-                  <p className="text-foreground/60 text-sm mt-2 leading-relaxed">
+                  <p className="text-foreground/40 text-[13px] mt-2 leading-relaxed">
                     Describe your vehicle problem and we'll call you with an honest assessment. No obligation.
                   </p>
 
@@ -143,7 +141,7 @@ export default function LeadPopup() {
                       value={form.name}
                       onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                       required
-                      className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-sm font-mono placeholder:text-foreground/30 focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
+                      className={inputCls}
                     />
                     <input
                       type="tel"
@@ -151,50 +149,52 @@ export default function LeadPopup() {
                       value={form.phone}
                       onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                       required
-                      className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-sm font-mono placeholder:text-foreground/30 focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
+                      className={inputCls}
                     />
                     <input
                       type="text"
                       placeholder="Vehicle (year, make, model)"
                       value={form.vehicle}
                       onChange={e => setForm(f => ({ ...f, vehicle: e.target.value }))}
-                      className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-sm font-mono placeholder:text-foreground/30 focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
+                      className={inputCls}
                     />
                     <textarea
                       placeholder="What's going on with your car?"
                       value={form.problem}
                       onChange={e => setForm(f => ({ ...f, problem: e.target.value }))}
                       rows={3}
-                      className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-sm font-mono placeholder:text-foreground/30 focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all resize-none"
+                      className={`${inputCls} resize-none`}
                     />
                     <button
                       type="submit"
                       disabled={submitLead.isPending}
-                      className="w-full bg-nick-yellow text-nick-dark py-3.5 rounded-md font-heading font-bold tracking-wider uppercase text-sm hover:bg-nick-gold transition-colors glow-yellow disabled:opacity-50"
+                      className="w-full bg-primary text-primary-foreground py-3.5 rounded-lg font-semibold text-[14px] tracking-[-0.01em] hover:opacity-90 transition-opacity disabled:opacity-50"
                     >
-                      {submitLead.isPending ? "SUBMITTING..." : "GET A FREE ASSESSMENT"}
+                      {submitLead.isPending ? "Submitting..." : "Get a Free Assessment"}
                     </button>
                   </form>
 
-                  <div className="mt-4 flex items-center justify-center gap-2 text-foreground/40 text-xs">
-                    <Phone className="w-3 h-3 text-nick-teal" />
-                    <span className="font-mono">Or call directly: <a href={BUSINESS.phone.href} className="text-nick-teal hover:text-nick-cyan transition-colors">{BUSINESS.phone.display}</a></span>
+                  <div className="mt-4 flex items-center justify-center gap-2 text-foreground/25 text-[12px]">
+                    <Phone className="w-3 h-3" />
+                    <span>Or call: <a href={BUSINESS.phone.href} className="text-foreground/40 hover:text-foreground/60 transition-colors">{BUSINESS.phone.display}</a></span>
                   </div>
                 </>
               ) : (
                 <div className="text-center py-6">
-                  <CheckCircle className="w-12 h-12 text-nick-teal mx-auto mb-4" />
-                  <h3 className="font-heading font-bold text-2xl text-foreground tracking-tight">
+                  <div className="w-14 h-14 rounded-full bg-nick-teal/10 flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle className="w-7 h-7 text-nick-teal" />
+                  </div>
+                  <h3 className="font-bold text-[22px] text-foreground tracking-[-0.02em]">
                     We got your info.
                   </h3>
-                  <p className="text-foreground/60 text-sm mt-2 leading-relaxed">
-                    One of our team members will call you shortly with an honest assessment. No pressure, no upselling.
+                  <p className="text-foreground/40 text-[13px] mt-2 leading-relaxed max-w-[280px] mx-auto">
+                    One of our team members will call you shortly with an honest assessment. No pressure.
                   </p>
                   <button
                     onClick={dismiss}
-                    className="mt-6 bg-nick-yellow text-nick-dark px-8 py-3 rounded-md font-heading font-bold tracking-wider uppercase text-sm hover:bg-nick-gold transition-colors glow-yellow"
+                    className="mt-6 bg-primary text-primary-foreground px-8 py-3 rounded-lg font-semibold text-[14px] hover:opacity-90 transition-opacity"
                   >
-                    CLOSE
+                    Close
                   </button>
                 </div>
               )}

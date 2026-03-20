@@ -143,7 +143,7 @@ export default function ReviewRequestsSection() {
           <button
             key={t.id}
             onClick={() => { setTab(t.id); if (t.id === "settings") initForm(); }}
-            className={`flex items-center gap-2 px-4 py-2.5 font-mono text-xs tracking-wider uppercase transition-colors border-b-2 -mb-[1px] ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-[12px] tracking-wide transition-colors border-b-2 -mb-[1px] ${
               tab === t.id
                 ? "border-primary text-primary"
                 : "border-transparent text-foreground/50 hover:text-foreground/80"
@@ -158,13 +158,13 @@ export default function ReviewRequestsSection() {
       {tab === "requests" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <span className="font-mono text-xs text-foreground/50 tracking-wider uppercase">
+            <span className="text-[12px] text-foreground/50 tracking-wide">
               {requests?.length ?? 0} review requests
             </span>
             <button
               onClick={() => processQueue.mutate()}
               disabled={processQueue.isPending}
-              className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 font-mono text-xs tracking-wider uppercase hover:bg-primary/90 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 text-[12px] tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               {processQueue.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
               Process Queue
@@ -178,21 +178,21 @@ export default function ReviewRequestsSection() {
           ) : !requests?.length ? (
             <div className="text-center py-12 text-foreground/40">
               <MessageSquare className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="font-mono text-sm">No review requests yet</p>
-              <p className="font-mono text-xs mt-1">Requests are automatically created when bookings are marked as completed</p>
+              <p className="text-[13px]">No review requests yet</p>
+              <p className="text-[12px] mt-1">Requests are automatically created when bookings are marked as completed</p>
             </div>
           ) : (
             <div className="border border-border/30 overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-card/50 border-b border-border/30">
-                    <th className="text-left px-4 py-3 font-mono text-[10px] text-foreground/50 tracking-wider uppercase">Customer</th>
-                    <th className="text-left px-4 py-3 font-mono text-[10px] text-foreground/50 tracking-wider uppercase">Service</th>
-                    <th className="text-left px-4 py-3 font-mono text-[10px] text-foreground/50 tracking-wider uppercase">Status</th>
-                    <th className="text-left px-4 py-3 font-mono text-[10px] text-foreground/50 tracking-wider uppercase">Scheduled</th>
-                    <th className="text-left px-4 py-3 font-mono text-[10px] text-foreground/50 tracking-wider uppercase">Sent</th>
-                    <th className="text-left px-4 py-3 font-mono text-[10px] text-foreground/50 tracking-wider uppercase">Clicked</th>
-                    <th className="text-right px-4 py-3 font-mono text-[10px] text-foreground/50 tracking-wider uppercase">Actions</th>
+                    <th className="text-left px-4 py-3 text-[10px] text-foreground/50 tracking-wide">Customer</th>
+                    <th className="text-left px-4 py-3 text-[10px] text-foreground/50 tracking-wide">Service</th>
+                    <th className="text-left px-4 py-3 text-[10px] text-foreground/50 tracking-wide">Status</th>
+                    <th className="text-left px-4 py-3 text-[10px] text-foreground/50 tracking-wide">Scheduled</th>
+                    <th className="text-left px-4 py-3 text-[10px] text-foreground/50 tracking-wide">Sent</th>
+                    <th className="text-left px-4 py-3 text-[10px] text-foreground/50 tracking-wide">Clicked</th>
+                    <th className="text-right px-4 py-3 text-[10px] text-foreground/50 tracking-wide">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -202,27 +202,27 @@ export default function ReviewRequestsSection() {
                       <tr key={req.id} className="border-b border-border/20 hover:bg-card/30 transition-colors">
                         <td className="px-4 py-3">
                           <div className="font-medium text-foreground">{req.customerName}</div>
-                          <div className="font-mono text-xs text-foreground/40">{req.phone}</div>
+                          <div className="text-[12px] text-foreground/40">{req.phone}</div>
                         </td>
                         <td className="px-4 py-3 text-foreground/70 text-xs">{req.service || "—"}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex items-center gap-1.5 ${sc.color}`}>
                             {sc.icon}
-                            <span className="font-mono text-xs tracking-wider">{sc.label}</span>
+                            <span className="text-[12px] tracking-wider">{sc.label}</span>
                           </span>
                           {req.errorMessage && (
-                            <div className="text-red-400/70 text-[10px] font-mono mt-0.5 truncate max-w-[200px]" title={req.errorMessage}>
+                            <div className="text-red-400/70 text-[10px] mt-0.5 truncate max-w-[200px]" title={req.errorMessage}>
                               {req.errorMessage}
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-3 font-mono text-xs text-foreground/50">
+                        <td className="px-4 py-3 text-[12px] text-foreground/50">
                           {req.scheduledAt ? new Date(req.scheduledAt).toLocaleString() : "—"}
                         </td>
-                        <td className="px-4 py-3 font-mono text-xs text-foreground/50">
+                        <td className="px-4 py-3 text-[12px] text-foreground/50">
                           {req.sentAt ? new Date(req.sentAt).toLocaleString() : "—"}
                         </td>
-                        <td className="px-4 py-3 font-mono text-xs text-foreground/50">
+                        <td className="px-4 py-3 text-[12px] text-foreground/50">
                           {req.clickedAt ? (
                             <span className="text-emerald-400">{new Date(req.clickedAt).toLocaleString()}</span>
                           ) : "—"}
@@ -232,7 +232,7 @@ export default function ReviewRequestsSection() {
                             <button
                               onClick={() => resend.mutate({ id: req.id })}
                               disabled={resend.isPending}
-                              className="text-primary hover:text-primary/80 font-mono text-xs tracking-wider"
+                              className="text-primary hover:text-primary/80 text-[12px] tracking-wider"
                             >
                               Resend
                             </button>
@@ -260,8 +260,8 @@ export default function ReviewRequestsSection() {
               {/* Enable/Disable Toggle */}
               <div className="flex items-center justify-between p-4 bg-card border border-border/30">
                 <div>
-                  <div className="font-heading font-bold text-foreground tracking-wider text-sm uppercase">Auto Review Requests</div>
-                  <div className="font-mono text-xs text-foreground/50 mt-1">Automatically send review request SMS after service completion</div>
+                  <div className="font-bold text-foreground tracking-wider text-sm uppercase">Auto Review Requests</div>
+                  <div className="text-[12px] text-foreground/50 mt-1">Automatically send review request SMS after service completion</div>
                 </div>
                 <button
                   onClick={() => {
@@ -281,7 +281,7 @@ export default function ReviewRequestsSection() {
 
               {/* Delay */}
               <div className="space-y-2">
-                <label className="font-mono text-xs text-foreground/50 tracking-wider uppercase">
+                <label className="text-[12px] text-foreground/50 tracking-wide">
                   Delay After Completion (minutes)
                 </label>
                 <input
@@ -290,7 +290,7 @@ export default function ReviewRequestsSection() {
                   onChange={(e) => setFormDelay(e.target.value)}
                   min={0}
                   max={10080}
-                  className="w-full bg-card border border-border/30 px-4 py-2.5 text-foreground font-mono text-sm focus:outline-none focus:border-primary"
+                  className="w-full bg-card border border-border/30 px-4 py-2.5 text-foreground text-[13px] focus:outline-none focus:border-primary"
                 />
                 <p className="font-mono text-[10px] text-foreground/40">
                   How long to wait after marking a booking as "completed" before sending the review request. Default: 120 minutes (2 hours).
@@ -299,7 +299,7 @@ export default function ReviewRequestsSection() {
 
               {/* Max Per Day */}
               <div className="space-y-2">
-                <label className="font-mono text-xs text-foreground/50 tracking-wider uppercase">
+                <label className="text-[12px] text-foreground/50 tracking-wide">
                   Maximum Requests Per Day
                 </label>
                 <input
@@ -308,7 +308,7 @@ export default function ReviewRequestsSection() {
                   onChange={(e) => setFormMaxPerDay(e.target.value)}
                   min={1}
                   max={100}
-                  className="w-full bg-card border border-border/30 px-4 py-2.5 text-foreground font-mono text-sm focus:outline-none focus:border-primary"
+                  className="w-full bg-card border border-border/30 px-4 py-2.5 text-foreground text-[13px] focus:outline-none focus:border-primary"
                 />
                 <p className="font-mono text-[10px] text-foreground/40">
                   Daily cap to avoid Twilio rate limits and keep messaging natural. Default: 20.
@@ -317,7 +317,7 @@ export default function ReviewRequestsSection() {
 
               {/* Cooldown Days */}
               <div className="space-y-2">
-                <label className="font-mono text-xs text-foreground/50 tracking-wider uppercase">
+                <label className="text-[12px] text-foreground/50 tracking-wide">
                   Cooldown Period (days)
                 </label>
                 <input
@@ -326,7 +326,7 @@ export default function ReviewRequestsSection() {
                   onChange={(e) => setFormCooldown(e.target.value)}
                   min={1}
                   max={365}
-                  className="w-full bg-card border border-border/30 px-4 py-2.5 text-foreground font-mono text-sm focus:outline-none focus:border-primary"
+                  className="w-full bg-card border border-border/30 px-4 py-2.5 text-foreground text-[13px] focus:outline-none focus:border-primary"
                 />
                 <p className="font-mono text-[10px] text-foreground/40">
                   Minimum days between review requests to the same phone number. Prevents annoying repeat customers. Default: 30 days.
@@ -337,7 +337,7 @@ export default function ReviewRequestsSection() {
               <div className="space-y-2">
                 <button
                   onClick={() => setShowTemplate(!showTemplate)}
-                  className="flex items-center gap-2 font-mono text-xs text-foreground/50 tracking-wider uppercase hover:text-foreground/80"
+                  className="flex items-center gap-2 text-[12px] text-foreground/50 tracking-wide hover:text-foreground/80"
                 >
                   {showTemplate ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   Custom Message Template (Optional)
@@ -349,7 +349,7 @@ export default function ReviewRequestsSection() {
                       onChange={(e) => setFormTemplate(e.target.value)}
                       rows={4}
                       placeholder="Hi {firstName}, thanks for trusting us with your {service}! If you have 30 seconds, a Google review helps other Cleveland drivers find honest repair: {reviewUrl}"
-                      className="w-full bg-card border border-border/30 px-4 py-2.5 text-foreground font-mono text-sm focus:outline-none focus:border-primary resize-none"
+                      className="w-full bg-card border border-border/30 px-4 py-2.5 text-foreground text-[13px] focus:outline-none focus:border-primary resize-none"
                     />
                     <p className="font-mono text-[10px] text-foreground/40">
                       Available placeholders: {"{firstName}"}, {"{service}"}, {"{reviewUrl}"}. Leave blank to use the default template.
@@ -362,7 +362,7 @@ export default function ReviewRequestsSection() {
               <button
                 onClick={handleSaveSettings}
                 disabled={updateSettings.isPending}
-                className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 font-mono text-xs tracking-wider uppercase hover:bg-primary/90 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 text-[12px] tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
                 {updateSettings.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                 Save Settings
@@ -381,14 +381,14 @@ export default function ReviewRequestsSection() {
                 <Zap className="w-6 h-6 text-primary" />
               </div>
               <div className="flex-1">
-                <h3 className="font-heading font-bold text-foreground tracking-wider text-lg uppercase">
+                <h3 className="font-bold text-foreground tracking-wider text-lg uppercase">
                   Backfill Review Requests
                 </h3>
                 <p className="text-foreground/60 text-sm mt-2 leading-relaxed">
                   Send review request texts to all customers from the past year who completed service but were never asked for a review.
                   Messages are staggered (2 minutes apart) to avoid Twilio rate limits and feel natural.
                 </p>
-                <p className="text-foreground/40 text-xs mt-2 font-mono">
+                <p className="text-foreground/40 text-xs mt-2">
                   Customers who already received a review request (within the cooldown period) will be automatically skipped.
                 </p>
               </div>
@@ -420,19 +420,19 @@ export default function ReviewRequestsSection() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-card/50 border-b border-border/30">
-                        <th className="text-left px-4 py-3 font-mono text-[10px] text-foreground/50 tracking-wider uppercase">Customer</th>
-                        <th className="text-left px-4 py-3 font-mono text-[10px] text-foreground/50 tracking-wider uppercase">Phone</th>
-                        <th className="text-left px-4 py-3 font-mono text-[10px] text-foreground/50 tracking-wider uppercase">Service</th>
-                        <th className="text-left px-4 py-3 font-mono text-[10px] text-foreground/50 tracking-wider uppercase">Completed</th>
+                        <th className="text-left px-4 py-3 text-[10px] text-foreground/50 tracking-wide">Customer</th>
+                        <th className="text-left px-4 py-3 text-[10px] text-foreground/50 tracking-wide">Phone</th>
+                        <th className="text-left px-4 py-3 text-[10px] text-foreground/50 tracking-wide">Service</th>
+                        <th className="text-left px-4 py-3 text-[10px] text-foreground/50 tracking-wide">Completed</th>
                       </tr>
                     </thead>
                     <tbody>
                       {backfillPreview.bookings.map((b: any) => (
                         <tr key={b.id} className="border-b border-border/20">
                           <td className="px-4 py-2.5 text-foreground">{b.name}</td>
-                          <td className="px-4 py-2.5 font-mono text-xs text-foreground/50">{b.phone}</td>
+                          <td className="px-4 py-2.5 text-[12px] text-foreground/50">{b.phone}</td>
                           <td className="px-4 py-2.5 text-foreground/70 text-xs">{b.service}</td>
-                          <td className="px-4 py-2.5 font-mono text-xs text-foreground/50">
+                          <td className="px-4 py-2.5 text-[12px] text-foreground/50">
                             {new Date(b.createdAt).toLocaleDateString()}
                           </td>
                         </tr>
@@ -447,7 +447,7 @@ export default function ReviewRequestsSection() {
                   <button
                     onClick={() => backfillExecute.mutate()}
                     disabled={backfillExecute.isPending}
-                    className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 font-heading font-bold text-sm tracking-wider uppercase hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 font-bold text-sm tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-50"
                   >
                     {backfillExecute.isPending ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
@@ -457,13 +457,13 @@ export default function ReviewRequestsSection() {
                     Send to {backfillPreview?.count} Customers
                   </button>
                   {backfillExecute.isPending && (
-                    <span className="font-mono text-xs text-foreground/40">Scheduling review requests...</span>
+                    <span className="text-[12px] text-foreground/40">Scheduling review requests...</span>
                   )}
                 </div>
               ) : (
                 <div className="text-center py-8 text-foreground/40">
                   <CheckCircle2 className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                  <p className="font-mono text-sm">All eligible customers have already been contacted</p>
+                  <p className="text-[13px]">All eligible customers have already been contacted</p>
                 </div>
               )}
             </>

@@ -11,7 +11,7 @@ function PageLoader() {
     <div className="min-h-screen bg-nick-dark flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
         <div className="w-10 h-10 border-2 border-nick-yellow border-t-transparent rounded-full animate-spin" />
-        <span className="text-foreground/50 text-sm font-mono tracking-wider">LOADING...</span>
+        <span className="text-foreground/50 text-sm tracking-wider">LOADING...</span>
       </div>
     </div>
   );
@@ -51,6 +51,7 @@ const Fleet = lazy(() => import("./pages/Fleet"));
 const Financing = lazy(() => import("./pages/Financing"));
 const Loyalty = lazy(() => import("./pages/Loyalty"));
 const CustomerPortal = lazy(() => import("./pages/CustomerPortal"));
+const TireFinder = lazy(() => import("./pages/TireFinder"));
 const ServicesOverview = lazy(() => import("./pages/ServicesOverview"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const Terms = lazy(() => import("./pages/Terms"));
@@ -150,6 +151,8 @@ function Router() {
         <Route path={"/rewards"} component={Loyalty} />
         {/* Customer Portal */}
         <Route path={"/portal"} component={CustomerPortal} />
+        {/* Tire Finder */}
+        <Route path={"/tires/search"} component={TireFinder} />
         {/* FAQ page */}
         <Route path={"/faq"} component={FAQ} />
         {/* Blog / Tips */}

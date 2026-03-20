@@ -56,7 +56,7 @@ export default function SmsSection() {
     <div className="space-y-8">
       {/* Status Card */}
       <div className="bg-card border border-border/30 p-6">
-        <h3 className="font-heading font-bold text-lg text-foreground tracking-wider mb-4">TWILIO STATUS</h3>
+        <h3 className="font-bold text-lg text-foreground tracking-[-0.01em] mb-4">TWILIO STATUS</h3>
         <div className="flex items-center gap-3">
           <div className={`w-3 h-3 rounded-full ${smsStatus?.configured ? "bg-emerald-400" : "bg-red-400"}`} />
           <span className="text-foreground/80">
@@ -64,7 +64,7 @@ export default function SmsSection() {
           </span>
         </div>
         {smsStatus?.fromNumber && (
-          <p className="mt-2 text-foreground/50 font-mono text-sm">From: {smsStatus.fromNumber}</p>
+          <p className="mt-2 text-foreground/50 text-[13px]">From: {smsStatus.fromNumber}</p>
         )}
         <div className="mt-4 bg-foreground/5 p-4 border border-border/20">
           <p className="text-foreground/60 text-sm leading-relaxed">
@@ -80,7 +80,7 @@ export default function SmsSection() {
 
       {/* Send Test SMS */}
       <div className="bg-card border border-border/30 p-6">
-        <h3 className="font-heading font-bold text-lg text-foreground tracking-wider mb-4">SEND TEST SMS</h3>
+        <h3 className="font-bold text-lg text-foreground tracking-[-0.01em] mb-4">SEND TEST SMS</h3>
         <p className="text-foreground/50 text-sm mb-4">Send a test message to verify Twilio is working correctly.</p>
         <div className="flex gap-3">
           <input
@@ -93,7 +93,7 @@ export default function SmsSection() {
           <button
             onClick={handleSendTest}
             disabled={sendTest.isPending || !testPhone}
-            className="bg-primary text-primary-foreground px-6 py-2.5 font-heading font-bold text-sm tracking-wider uppercase hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            className="bg-primary text-primary-foreground px-6 py-2.5 font-bold text-sm tracking-wide hover:bg-primary/90 disabled:opacity-50 transition-colors"
           >
             {sendTest.isPending ? "SENDING..." : "SEND TEST"}
           </button>
@@ -102,7 +102,7 @@ export default function SmsSection() {
 
       {/* Send Manual SMS */}
       <div className="bg-card border border-border/30 p-6">
-        <h3 className="font-heading font-bold text-lg text-foreground tracking-wider mb-4">SEND MANUAL SMS</h3>
+        <h3 className="font-bold text-lg text-foreground tracking-[-0.01em] mb-4">SEND MANUAL SMS</h3>
         <p className="text-foreground/50 text-sm mb-4">Send a custom message to any phone number.</p>
         <div className="space-y-3">
           <input
@@ -121,11 +121,11 @@ export default function SmsSection() {
             className="w-full bg-foreground/5 border border-border/30 px-4 py-2.5 text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 resize-none"
           />
           <div className="flex items-center justify-between">
-            <span className="text-foreground/30 text-xs font-mono">{manualMsg.length}/1600</span>
+            <span className="text-foreground/30 text-xs">{manualMsg.length}/1600</span>
             <button
               onClick={handleSendManual}
               disabled={sendManual.isPending || !manualPhone || !manualMsg}
-              className="bg-primary text-primary-foreground px-6 py-2.5 font-heading font-bold text-sm tracking-wider uppercase hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              className="bg-primary text-primary-foreground px-6 py-2.5 font-bold text-sm tracking-wide hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
               {sendManual.isPending ? "SENDING..." : "SEND MESSAGE"}
             </button>
@@ -136,7 +136,7 @@ export default function SmsSection() {
       {/* Last Result */}
       {lastResult && (
         <div className={`p-4 border ${lastResult.success ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5"}`}>
-          <p className={`font-mono text-sm ${lastResult.success ? "text-emerald-400" : "text-red-400"}`}>
+          <p className={`text-[13px] ${lastResult.success ? "text-emerald-400" : "text-red-400"}`}>
             {lastResult.success ? `Sent successfully (SID: ${lastResult.sid})` : `Failed: ${lastResult.error}`}
           </p>
         </div>

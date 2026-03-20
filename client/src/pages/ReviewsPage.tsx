@@ -47,7 +47,7 @@ function StarRating({ rating, size = "md" }: { rating: number; size?: "sm" | "md
       {[1, 2, 3, 4, 5].map((i) => (
         <Star
           key={i}
-          className={`${sizeClass} ${i <= rating ? "fill-nick-yellow text-nick-yellow" : "fill-border/30 text-border/30"}`}
+          className={`${sizeClass} ${i <= rating ? "fill-nick-yellow text-primary" : "fill-border/30 text-border/30"}`}
         />
       ))}
     </div>
@@ -60,16 +60,16 @@ function ReviewCard({ review, featured = false }: { review: { authorName: string
   const isLong = review.text.length > 200;
 
   return (
-    <div className={`${featured ? "col-span-1 lg:col-span-2 bg-gradient-to-br from-nick-yellow/5 via-card/80 to-nick-blue/30 border-nick-yellow/20" : "bg-card/80 border-border/30"} border rounded-lg p-6 lg:p-8 relative group`}>
+    <div className={`${featured ? "col-span-1 lg:col-span-2 bg-gradient-to-br from-nick-yellow/5 via-card/80 to-nick-blue/30 border-primary/20" : "bg-card/80 border-border/30"} border rounded-lg p-6 lg:p-8 relative group`}>
       {featured && (
-        <div className="absolute top-4 right-4 bg-nick-yellow/10 border border-nick-yellow/30 rounded-full px-3 py-1">
-          <span className="font-mono text-[10px] text-nick-yellow tracking-wider uppercase">Featured</span>
+        <div className="absolute top-4 right-4 bg-primary/10 border border-primary/30 rounded-full px-3 py-1">
+          <span className="font-mono text-[10px] text-primary tracking-wide">Featured</span>
         </div>
       )}
 
       <div className="flex items-start gap-4 mb-4">
-        <div className="w-10 h-10 rounded-full bg-nick-yellow/10 flex items-center justify-center shrink-0">
-          <span className="font-semibold font-bold text-nick-yellow text-sm">
+        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+          <span className="font-semibold font-bold text-primary text-sm">
             {review.authorName.charAt(0).toUpperCase()}
           </span>
         </div>
@@ -79,20 +79,20 @@ function ReviewCard({ review, featured = false }: { review: { authorName: string
           </h3>
           <div className="flex items-center gap-2 mt-1">
             <StarRating rating={review.rating} size="sm" />
-            <span className="font-mono text-xs text-foreground/40">{review.relativeTime}</span>
+            <span className="text-[12px] text-foreground/40">{review.relativeTime}</span>
           </div>
         </div>
       </div>
 
       <div className="relative">
-        <Quote className="absolute -top-1 -left-1 w-6 h-6 text-nick-yellow/10" />
+        <Quote className="absolute -top-1 -left-1 w-6 h-6 text-primary/10" />
         <p className={`text-foreground/70 leading-relaxed text-sm pl-6 ${!expanded && isLong ? "line-clamp-4" : ""}`}>
           {review.text}
         </p>
         {isLong && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className="mt-2 pl-6 font-mono text-xs text-nick-blue-light hover:text-nick-yellow transition-colors flex items-center gap-1"
+            className="mt-2 pl-6 text-[12px] text-nick-blue-light hover:text-primary transition-colors flex items-center gap-1"
           >
             {expanded ? "Show less" : "Read more"}
             <ChevronDown className={`w-3 h-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -107,7 +107,7 @@ function ReviewCard({ review, featured = false }: { review: { authorName: string
           className="w-4 h-4"
           loading="lazy"
         />
-        <span className="font-mono text-[10px] text-foreground/30 tracking-wider uppercase">Google Review</span>
+        <span className="font-mono text-[10px] text-foreground/30 tracking-wide">Google Review</span>
       </div>
     </div>
   );
@@ -218,7 +218,7 @@ export default function ReviewsPage() {
                 <div>
                   <span className="font-mono text-nick-blue-light text-sm tracking-wide">Real Customers, Real Words</span>
                   <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.95] tracking-tight mt-2">
-                    WHAT <span className="text-gradient-yellow">CLEVELAND</span><br />
+                    WHAT <span className="text-primary">CLEVELAND</span><br />
                     DRIVERS SAY
                   </h1>
                   <p className="mt-4 text-foreground/60 text-lg max-w-xl leading-relaxed">
@@ -227,21 +227,21 @@ export default function ReviewsPage() {
                 </div>
 
                 {/* Rating Summary Card */}
-                <div className="bg-card/80 border border-nick-yellow/20 rounded-lg p-6 lg:p-8 text-center shrink-0">
-                  <div className="font-semibold font-bold text-6xl text-nick-yellow leading-none">
+                <div className="bg-card/80 border border-primary/20 rounded-lg p-6 lg:p-8 text-center shrink-0">
+                  <div className="font-semibold font-bold text-6xl text-primary leading-none">
                     {reviewData?.rating || "4.9"}
                   </div>
                   <div className="flex justify-center mt-2">
                     <StarRating rating={Math.round(reviewData?.rating || 4.9)} size="lg" />
                   </div>
-                  <p className="font-mono text-sm text-foreground/60 mt-2">
+                  <p className="text-[13px] text-foreground/60 mt-2">
                     {(reviewData?.totalReviews || 1685).toLocaleString()}+ Reviews
                   </p>
                   <a
                     href={GBP_PLACE_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 mt-3 font-mono text-xs text-nick-blue-light hover:text-nick-yellow transition-colors"
+                    className="inline-flex items-center gap-1.5 mt-3 text-[12px] text-nick-blue-light hover:text-primary transition-colors"
                   >
                     <img src="https://www.google.com/favicon.ico" alt="Google" className="w-3.5 h-3.5" loading="lazy" />
                     View on Google
@@ -254,13 +254,13 @@ export default function ReviewsPage() {
         </section>
 
         {/* Leave a Review CTA Banner */}
-        <section className="section-darker">
+        <section className="bg-[oklch(0.055_0.004_260)]">
           
           <div className="container py-8">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-nick-yellow/10 flex items-center justify-center">
-                  <MessageSquare className="w-6 h-6 text-nick-yellow" />
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <MessageSquare className="w-6 h-6 text-primary" />
                 </div>
                 <div>
                   <h2 className="font-semibold font-bold text-foreground tracking-wider text-lg">
@@ -275,7 +275,7 @@ export default function ReviewsPage() {
                 href={GBP_REVIEW_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors shrink-0"
+                className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors shrink-0"
               >
                 <Star className="w-5 h-5" />
                 LEAVE A REVIEW
@@ -286,7 +286,7 @@ export default function ReviewsPage() {
         </section>
 
         {/* Rating Distribution + Filter */}
-        <section className="section-dark py-12">
+        <section className="bg-[oklch(0.065_0.004_260)] py-12">
           <div className="container">
             <FadeIn>
               <div className="flex flex-col lg:flex-row gap-8 items-start">
@@ -306,17 +306,17 @@ export default function ReviewsPage() {
                       <button
                         key={stars}
                         onClick={() => setStarFilter(isActive ? null : stars)}
-                        className={`w-full flex items-center gap-3 py-2 px-2 rounded-md transition-all ${isActive ? "bg-nick-yellow/10 ring-1 ring-nick-yellow/30" : "hover:bg-card/80"}`}
+                        className={`w-full flex items-center gap-3 py-2 px-2 rounded-md transition-all ${isActive ? "bg-primary/10 ring-1 ring-nick-yellow/30" : "hover:bg-card/80"}`}
                       >
-                        <span className="font-mono text-xs text-foreground/60 w-6">{stars}</span>
-                        <Star className="w-3.5 h-3.5 fill-nick-yellow text-nick-yellow shrink-0" />
+                        <span className="text-[12px] text-foreground/60 w-6">{stars}</span>
+                        <Star className="w-3.5 h-3.5 fill-nick-yellow text-primary shrink-0" />
                         <div className="flex-1 h-2 bg-border/20 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-nick-yellow rounded-full transition-all duration-500"
+                            className="h-full bg-primary rounded-full transition-all duration-500"
                             style={{ width: `${pct}%` }}
                           />
                         </div>
-                        <span className="font-mono text-xs text-foreground/40 w-8 text-right">{count}</span>
+                        <span className="text-[12px] text-foreground/40 w-8 text-right">{count}</span>
                       </button>
                     );
                   })}
@@ -324,7 +324,7 @@ export default function ReviewsPage() {
                   {starFilter && (
                     <button
                       onClick={() => setStarFilter(null)}
-                      className="w-full mt-3 py-2 border border-nick-blue/30 rounded-md font-mono text-xs text-nick-blue-light hover:bg-nick-blue/10 transition-colors tracking-wider uppercase"
+                      className="w-full mt-3 py-2 border border-nick-blue/30 rounded-md text-[12px] text-nick-blue-light hover:bg-nick-blue/10 transition-colors tracking-wide"
                     >
                       Clear Filter
                     </button>
@@ -335,10 +335,10 @@ export default function ReviewsPage() {
                 <div className="flex-1 w-full">
                   {starFilter && (
                     <div className="mb-4 flex items-center gap-2">
-                      <span className="font-mono text-xs text-foreground/50 tracking-wider uppercase">
+                      <span className="text-[12px] text-foreground/50 tracking-wide">
                         Showing {starFilter}-star reviews
                       </span>
-                      <span className="font-mono text-xs text-nick-yellow">
+                      <span className="text-[12px] text-primary">
                         ({filtered.length} {filtered.length === 1 ? "review" : "reviews"})
                       </span>
                     </div>
@@ -403,7 +403,7 @@ export default function ReviewsPage() {
                           </p>
                           <button
                             onClick={() => setStarFilter(null)}
-                            className="mt-3 font-mono text-xs text-nick-blue-light hover:text-nick-yellow transition-colors"
+                            className="mt-3 text-[12px] text-nick-blue-light hover:text-primary transition-colors"
                           >
                             Show all reviews
                           </button>
@@ -418,7 +418,7 @@ export default function ReviewsPage() {
         </section>
 
         {/* Trust Stats Section */}
-        <section className="section-darker py-16">
+        <section className="bg-[oklch(0.055_0.004_260)] py-16">
           <div className="container">
             <FadeIn>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
@@ -429,11 +429,11 @@ export default function ReviewsPage() {
                   { value: "Since '18", label: "Serving Cleveland", icon: <MapPin className="w-6 h-6" /> },
                 ].map((stat, _i) => (
                   <div key={stat.label} className="text-center">
-                    <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-nick-yellow/10 flex items-center justify-center text-nick-yellow">
+                    <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                       {stat.icon}
                     </div>
                     <div className="font-semibold font-bold text-3xl lg:text-4xl text-foreground">{stat.value}</div>
-                    <p className="font-mono text-xs text-foreground/50 tracking-wider uppercase mt-1">{stat.label}</p>
+                    <p className="text-[12px] text-foreground/50 tracking-wide mt-1">{stat.label}</p>
                   </div>
                 ))}
               </div>
@@ -442,12 +442,12 @@ export default function ReviewsPage() {
         </section>
 
         {/* Bottom CTA */}
-        <section className="section-dark py-20 lg:py-28">
+        <section className="bg-[oklch(0.065_0.004_260)] py-20 lg:py-28">
           
           <div className="container pt-16 text-center">
             <FadeIn>
               <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
-                READY TO <span className="text-gradient-yellow">EXPERIENCE IT</span>?
+                READY TO <span className="text-primary">EXPERIENCE IT</span>?
               </h2>
               <p className="mt-4 text-foreground/60 text-lg max-w-xl mx-auto">
                 Join thousands of Cleveland drivers who trust Nick's Tire & Auto. Call for a free estimate or book online.
@@ -456,7 +456,7 @@ export default function ReviewsPage() {
                 <a
                   href={BUSINESS.phone.href}
                   onClick={() => trackPhoneClick("reviews-bottom-cta")}
-                  className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-gold transition-colors"
+                  className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
                 >
                   <Phone className="w-5 h-5" />
                   CALL {BUSINESS.phone.display}
@@ -465,7 +465,7 @@ export default function ReviewsPage() {
                   href={GBP_REVIEW_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wider uppercase hover:bg-nick-blue/10 hover:border-nick-blue transition-colors"
+                  className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors"
                 >
                   <Star className="w-5 h-5" />
                   LEAVE A REVIEW

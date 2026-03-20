@@ -27,8 +27,8 @@ export default function AutoFollowUpSection() {
             <Timer className="w-5 h-5 text-emerald-400" />
           </div>
           <div>
-            <h3 className="font-heading font-bold text-lg text-foreground tracking-wider">AUTOMATED FOLLOW-UP SYSTEM</h3>
-            <p className="text-foreground/40 text-xs font-mono tracking-wider">7-DAY POST-INVOICE — RUNS EVERY HOUR</p>
+            <h3 className="font-bold text-lg text-foreground tracking-wider">AUTOMATED FOLLOW-UP SYSTEM</h3>
+            <p className="text-foreground/40 text-xs tracking-wider">7-DAY POST-INVOICE — RUNS EVERY HOUR</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -72,7 +72,7 @@ export default function AutoFollowUpSection() {
       {campaignStats && campaignStats.total > 0 && (
         <div className="bg-card border border-border/30 p-6">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="font-heading font-bold text-sm text-foreground tracking-wider">SMS CAMPAIGN PROGRESS</h4>
+            <h4 className="font-bold text-sm text-foreground tracking-wider">SMS CAMPAIGN PROGRESS</h4>
             <span className="font-mono text-[10px] text-foreground/40 tracking-wider">
               {campaignStats.sent} / {campaignStats.total} SENT ({Math.round((campaignStats.sent / campaignStats.total) * 100)}%)
             </span>
@@ -85,10 +85,10 @@ export default function AutoFollowUpSection() {
           </div>
           <div className="flex items-center justify-between mt-3 text-foreground/40">
             <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-wider">
+              <span className="flex items-center gap-1.5 text-[10px] tracking-wider">
                 <CheckCircle2 className="w-3 h-3 text-emerald-400" /> {campaignStats.sent} Sent
               </span>
-              <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-wider">
+              <span className="flex items-center gap-1.5 text-[10px] tracking-wider">
                 <Clock className="w-3 h-3 text-amber-400" /> {campaignStats.remaining} Remaining
               </span>
             </div>
@@ -103,14 +103,14 @@ export default function AutoFollowUpSection() {
 
       {/* How It Works */}
       <div className="bg-card border border-border/30 p-6">
-        <h4 className="font-heading font-bold text-sm text-foreground tracking-wider mb-4">HOW IT WORKS</h4>
+        <h4 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">HOW IT WORKS</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 bg-primary/10 flex items-center justify-center shrink-0">
-              <span className="font-mono text-xs text-primary font-bold">1</span>
+              <span className="text-[12px] text-primary font-bold">1</span>
             </div>
             <div>
-              <span className="font-heading font-bold text-xs text-foreground tracking-wider block">CUSTOMER VISITS</span>
+              <span className="font-bold text-xs text-foreground tracking-wider block">CUSTOMER VISITS</span>
               <p className="text-foreground/50 text-xs mt-1 leading-relaxed">
                 Customer gets an invoice at Nick's. Their visit date is recorded in the database.
               </p>
@@ -118,10 +118,10 @@ export default function AutoFollowUpSection() {
           </div>
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 bg-primary/10 flex items-center justify-center shrink-0">
-              <span className="font-mono text-xs text-primary font-bold">2</span>
+              <span className="text-[12px] text-primary font-bold">2</span>
             </div>
             <div>
-              <span className="font-heading font-bold text-xs text-foreground tracking-wider block">7 DAYS LATER</span>
+              <span className="font-bold text-xs text-foreground tracking-wider block">7 DAYS LATER</span>
               <p className="text-foreground/50 text-xs mt-1 leading-relaxed">
                 System checks hourly for customers whose last visit was 7 days ago (±1 day window).
               </p>
@@ -129,10 +129,10 @@ export default function AutoFollowUpSection() {
           </div>
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 bg-primary/10 flex items-center justify-center shrink-0">
-              <span className="font-mono text-xs text-primary font-bold">3</span>
+              <span className="text-[12px] text-primary font-bold">3</span>
             </div>
             <div>
-              <span className="font-heading font-bold text-xs text-foreground tracking-wider block">AUTO-TEXT SENT</span>
+              <span className="font-bold text-xs text-foreground tracking-wider block">AUTO-TEXT SENT</span>
               <p className="text-foreground/50 text-xs mt-1 leading-relaxed">
                 Thank you + Google review link + referral link. Max 20 per run to stay within rate limits.
               </p>
@@ -143,7 +143,7 @@ export default function AutoFollowUpSection() {
 
       {/* Recent Follow-Ups */}
       <div>
-        <h4 className="font-heading font-bold text-sm text-foreground/60 tracking-wider uppercase mb-3">RECENT AUTOMATED SENDS</h4>
+        <h4 className="font-bold text-sm text-foreground/60 tracking-wide mb-3">RECENT AUTOMATED SENDS</h4>
         {!recentFollowUps || recentFollowUps.length === 0 ? (
           <div className="bg-card border border-border/30 p-8 text-center">
             <MessageSquare className="w-8 h-8 text-foreground/20 mx-auto mb-3" />
@@ -154,20 +154,20 @@ export default function AutoFollowUpSection() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/20">
-                  <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase">Customer</th>
-                  <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase">Phone</th>
-                  <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase">Segment</th>
-                  <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase hidden sm:table-cell">Last Visit</th>
-                  <th className="text-left p-3 font-mono text-[10px] text-foreground/40 tracking-wider uppercase hidden md:table-cell">Texted</th>
+                  <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide">Customer</th>
+                  <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide">Phone</th>
+                  <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide">Segment</th>
+                  <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide hidden sm:table-cell">Last Visit</th>
+                  <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide hidden md:table-cell">Texted</th>
                 </tr>
               </thead>
               <tbody>
                 {recentFollowUps.map((c: any) => (
                   <tr key={c.id} className="border-b border-border/10">
                     <td className="p-3 text-foreground">{c.firstName} {c.lastName || ""}</td>
-                    <td className="p-3 font-mono text-xs text-foreground/60">{c.phone}</td>
+                    <td className="p-3 text-[12px] text-foreground/60">{c.phone}</td>
                     <td className="p-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono tracking-wider ${
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] tracking-wider ${
                         c.segment === "recent" ? "text-emerald-400 bg-emerald-500/10"
                           : c.segment === "lapsed" ? "text-amber-400 bg-amber-500/10"
                           : "text-foreground/50 bg-foreground/5"
@@ -175,10 +175,10 @@ export default function AutoFollowUpSection() {
                         {c.segment.toUpperCase()}
                       </span>
                     </td>
-                    <td className="p-3 font-mono text-[10px] text-foreground/40 hidden sm:table-cell">
+                    <td className="p-3 text-[10px] text-foreground/40 hidden sm:table-cell">
                       {c.lastVisitDate ? new Date(c.lastVisitDate).toLocaleDateString() : "—"}
                     </td>
-                    <td className="p-3 font-mono text-[10px] text-foreground/40 hidden md:table-cell">
+                    <td className="p-3 text-[10px] text-foreground/40 hidden md:table-cell">
                       {c.smsCampaignDate ? new Date(c.smsCampaignDate).toLocaleDateString() : "—"}
                     </td>
                   </tr>
@@ -191,8 +191,8 @@ export default function AutoFollowUpSection() {
 
       {/* Message Template Preview */}
       <div className="bg-card border border-border/30 p-6">
-        <h4 className="font-heading font-bold text-sm text-foreground tracking-wider mb-4">MESSAGE TEMPLATE</h4>
-        <div className="bg-nick-dark border border-border/20 p-4 font-mono text-xs text-foreground/70 leading-relaxed whitespace-pre-wrap">
+        <h4 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">MESSAGE TEMPLATE</h4>
+        <div className="bg-background border border-border/20 p-4 text-[12px] text-foreground/70 leading-relaxed whitespace-pre-wrap">
 {`Hi [First Name], thank you for choosing Nick's Tire & Auto! We truly appreciate your business.
 
 If you have 30 seconds, a Google review helps other Cleveland drivers find honest repair:

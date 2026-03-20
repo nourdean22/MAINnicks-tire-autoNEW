@@ -105,13 +105,13 @@ export default function Contact() {
       
       
         {/* Hero */}
-        <section className="relative pt-32 lg:pt-40 pb-16 lg:pb-20 section-dark">
+        <section className="relative pt-32 lg:pt-40 pb-16 lg:pb-20 bg-[oklch(0.065_0.004_260)]">
           <div className="container">
             <FadeIn>
               <span className="font-mono text-nick-blue-light text-sm tracking-wide">Get In Touch</span>
               <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground mt-3 tracking-tight leading-[0.95]">
                 CONTACT OUR<br />
-                <span className="text-gradient-yellow">CLEVELAND</span> SHOP
+                <span className="text-primary">CLEVELAND</span> SHOP
               </h1>
               <p className="mt-6 text-lg sm:text-xl text-foreground/70 max-w-2xl leading-relaxed">
                 Call us, stop by, or fill out the form below. Walk-ins are always welcome. We are located on Euclid Avenue in Cleveland, serving drivers across Northeast Ohio.
@@ -122,33 +122,33 @@ export default function Contact() {
 
         
         {/* Contact Info + Booking Form */}
-        <section className="section-darker py-16 lg:py-24">
+        <section className="bg-[oklch(0.055_0.004_260)] py-16 lg:py-24">
           <div className="container">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
               <FadeIn>
                 <div className="space-y-8">
                   <div>
-                    <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-wider mb-6">
-                      SHOP <span className="text-nick-yellow">INFORMATION</span>
+                    <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-[-0.01em] mb-6">
+                      SHOP <span className="text-primary">INFORMATION</span>
                     </h2>
                   </div>
 
                   {/* Phone */}
-                  <div className="card-vibrant bg-card/80 rounded-lg p-6">
+                  <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6">
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 bg-nick-yellow/10 flex items-center justify-center rounded-md">
-                        <Phone className="w-5 h-5 text-nick-yellow" />
+                      <div className="w-10 h-10 bg-primary/10 flex items-center justify-center rounded-md">
+                        <Phone className="w-5 h-5 text-primary" />
                       </div>
                       <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase">Phone</h3>
                     </div>
-                    <a href={BUSINESS.phone.href} className="font-mono text-2xl text-foreground hover:text-nick-yellow transition-colors">
+                    <a href={BUSINESS.phone.href} className="font-mono text-2xl text-foreground hover:text-primary transition-colors">
                       {BUSINESS.phone.display}
                     </a>
                     <p className="text-foreground/50 text-sm mt-2">Call for appointments, quotes, or questions. Walk-ins always welcome.</p>
                   </div>
 
                   {/* Address */}
-                  <div className="card-vibrant bg-card/80 rounded-lg p-6">
+                  <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-10 h-10 bg-nick-blue/10 flex items-center justify-center rounded-md">
                         <MapPin className="w-5 h-5 text-nick-blue-light" />
@@ -169,27 +169,27 @@ export default function Contact() {
                   </div>
 
                   {/* Hours */}
-                  <div className="card-vibrant bg-card/80 rounded-lg p-6">
+                  <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6">
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 bg-nick-yellow/10 flex items-center justify-center rounded-md">
-                        <Clock className="w-5 h-5 text-nick-yellow" />
+                      <div className="w-10 h-10 bg-primary/10 flex items-center justify-center rounded-md">
+                        <Clock className="w-5 h-5 text-primary" />
                       </div>
                       <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase">Hours</h3>
                     </div>
                     <div className="font-mono text-foreground/80 space-y-1">
                       <div className="flex justify-between">
                         <span>Monday – Saturday</span>
-                        <span className="text-nick-yellow">8:00 AM – 6:00 PM</span>
+                        <span className="text-primary">8:00 AM – 6:00 PM</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Sunday</span>
-                        <span className="text-nick-yellow">9:00 AM – 4:00 PM</span>
+                        <span className="text-primary">9:00 AM – 4:00 PM</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Areas Served */}
-                  <div className="card-vibrant bg-card/80 rounded-lg p-6">
+                  <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6">
                     <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase mb-3">Areas We Serve</h3>
                     <p className="text-foreground/60 text-sm leading-relaxed">
                       Cleveland, Euclid, East Cleveland, South Euclid, Richmond Heights, Lyndhurst, Wickliffe, Willoughby, and surrounding Northeast Ohio communities. If you can drive to us, we can help.
@@ -197,20 +197,20 @@ export default function Contact() {
                   </div>
 
                   {/* Google Business Profile */}
-                  <div className="card-vibrant bg-card/80 rounded-lg p-6">
+                  <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6">
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 bg-nick-yellow/10 flex items-center justify-center rounded-md">
-                        <Star className="w-5 h-5 text-nick-yellow" />
+                      <div className="w-10 h-10 bg-primary/10 flex items-center justify-center rounded-md">
+                        <Star className="w-5 h-5 text-primary" />
                       </div>
                       <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase">Google Reviews</h3>
                     </div>
                     <div className="flex items-center gap-2 mb-3">
                       <div className="flex gap-0.5">
                         {[...Array(5)].map((_, i) => (
-                          <Star key={i} className="w-5 h-5 fill-nick-yellow text-nick-yellow" />
+                          <Star key={i} className="w-5 h-5 fill-nick-yellow text-primary" />
                         ))}
                       </div>
-                      <span className="font-mono text-nick-yellow text-lg font-bold">4.9</span>
+                      <span className="font-mono text-primary text-lg font-bold">4.9</span>
                       <span className="text-foreground/50 text-sm">from {BUSINESS.reviews.countDisplay} reviews</span>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3">
@@ -227,7 +227,7 @@ export default function Contact() {
                         href={GBP_REVIEW_URL}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-nick-yellow/10 border border-nick-yellow/30 rounded-md text-nick-yellow hover:bg-nick-yellow/20 transition-colors text-sm font-medium"
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary/10 border border-primary/30 rounded-md text-primary hover:bg-primary/20 transition-colors text-sm font-medium"
                       >
                         <Star className="w-4 h-4" />
                         Leave a Review
@@ -239,8 +239,8 @@ export default function Contact() {
 
               <FadeIn delay={0.15}>
                 <div>
-                  <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-wider mb-6">
-                    REQUEST AN <span className="text-nick-yellow">APPOINTMENT</span>
+                  <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-[-0.01em] mb-6">
+                    REQUEST AN <span className="text-primary">APPOINTMENT</span>
                   </h2>
                   <p className="text-foreground/60 mb-6 leading-relaxed">
                     Fill out the form and we will call you to confirm your appointment. Or call us directly — walk-ins are always welcome.
@@ -253,11 +253,11 @@ export default function Contact() {
         </section>
 
         {/* Google Map */}
-        <section className="section-dark py-16 lg:py-20">
+        <section className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-20">
           <div className="container">
             <FadeIn>
-              <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-wider mb-8">
-                FIND US ON <span className="text-nick-yellow">EUCLID AVE</span>
+              <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-[-0.01em] mb-8">
+                FIND US ON <span className="text-primary">EUCLID AVE</span>
               </h2>
               <div className="w-full aspect-[21/9] bg-card rounded-lg border border-border/50 overflow-hidden">
                 <iframe

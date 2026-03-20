@@ -62,11 +62,11 @@ function Navbar() {
   ];
 
   return (
-    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-nick-dark/90 backdrop-blur-xl" : "bg-transparent"}`}>
+    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-background/90 backdrop-blur-xl" : "bg-transparent"}`}>
       <div className="container flex items-center justify-between h-16">
         {/* Logo — minimal wordmark */}
         <a href="#" className="flex items-center gap-2.5">
-          <span className="text-nick-yellow font-semibold text-lg tracking-tight">Nick's Tire & Auto</span>
+          <span className="text-primary font-semibold text-lg tracking-tight">Nick's Tire & Auto</span>
         </a>
 
         {/* Desktop nav — centered, small text */}
@@ -86,7 +86,7 @@ function Navbar() {
 
         {/* CTA — right side */}
         <div className="hidden lg:flex items-center gap-4">
-          <Link href="/diagnose" className="text-sm font-medium text-nick-yellow hover:text-nick-gold transition-colors">
+          <Link href="/diagnose" className="text-sm font-medium text-primary hover:text-primary transition-colors">
             Diagnose My Car
           </Link>
           <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('navbar')} className="text-sm font-medium bg-foreground text-background px-5 py-2 rounded-full hover:bg-foreground/90 transition-colors" aria-label="Call Nick's Tire and Auto">
@@ -105,7 +105,7 @@ function Navbar() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="lg:hidden fixed inset-0 top-16 bg-nick-dark/98 backdrop-blur-xl z-40"
+          className="lg:hidden fixed inset-0 top-16 bg-background/98 backdrop-blur-xl z-40"
         >
           <div className="container py-12 flex flex-col gap-6">
             {links.map((l) => (
@@ -113,7 +113,7 @@ function Navbar() {
                 {l.label}
               </a>
             ))}
-            <Link href="/diagnose" onClick={() => setMobileOpen(false)} className="text-2xl font-semibold text-nick-yellow tracking-tight">
+            <Link href="/diagnose" onClick={() => setMobileOpen(false)} className="text-2xl font-semibold text-primary tracking-tight">
               Diagnose My Car
             </Link>
             <div className="pt-6 border-t border-border">
@@ -143,7 +143,7 @@ function Hero() {
       {/* Full-bleed background */}
       <div className="absolute inset-0">
         <img src={HERO_IMG} alt="Nick's Tire and Auto repair shop in Cleveland Ohio" className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-nick-dark via-nick-dark/50 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
       </div>
 
       {/* Content — bottom-aligned like Tesla */}
@@ -152,7 +152,7 @@ function Hero() {
           <h1 className="text-5xl sm:text-6xl lg:text-[5.5rem] font-bold text-foreground leading-[0.95] tracking-tight max-w-3xl">
             Cleveland's Trusted
             <br />
-            <span className="text-nick-yellow">Auto Repair</span>
+            <span className="text-primary">Auto Repair</span>
           </h1>
         </FadeIn>
 
@@ -179,7 +179,7 @@ function Hero() {
             <div className="flex items-center gap-1.5">
               <div className="flex gap-0.5">
                 {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-3.5 h-3.5 fill-nick-yellow text-nick-yellow" />
+                  <Star key={i} className="w-3.5 h-3.5 fill-nick-yellow text-primary" />
                 ))}
               </div>
               <span>{rating.toFixed(1)} · {totalReviews.toLocaleString()}+ reviews</span>
@@ -274,7 +274,7 @@ function Services() {
         <div key={s.slug} className="relative min-h-[80vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
             <img src={s.img} alt={`${s.title} service at Nick's Tire and Auto`} className="w-full h-full object-cover" loading="lazy" />
-            <div className="absolute inset-0 bg-gradient-to-t from-nick-dark via-nick-dark/40 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
           </div>
           <div className="relative container pb-20">
             <FadeIn>
@@ -294,7 +294,7 @@ function Services() {
       ))}
 
       {/* More services — compact grid */}
-      <div className="section-dark py-20">
+      <div className="bg-[oklch(0.065_0.004_260)] py-20">
         <div className="container">
           <FadeIn>
             <h2 className="text-3xl lg:text-4xl font-bold text-foreground tracking-tight text-center mb-12">More Services</h2>
@@ -303,9 +303,9 @@ function Services() {
             {moreServices.map((s, i) => (
               <FadeIn key={s.slug} delay={i * 0.1}>
                 <Link href={s.slug} className="group block p-8 border border-border rounded-2xl hover:border-foreground/20 transition-all">
-                  <h3 className="text-xl font-semibold text-foreground tracking-tight group-hover:text-nick-yellow transition-colors">{s.title}</h3>
+                  <h3 className="text-xl font-semibold text-foreground tracking-tight group-hover:text-primary transition-colors">{s.title}</h3>
                   <p className="mt-3 text-foreground/50 text-sm leading-relaxed">{s.desc}</p>
-                  <span className="inline-flex items-center gap-1 mt-5 text-sm text-foreground/40 group-hover:text-nick-yellow transition-colors">
+                  <span className="inline-flex items-center gap-1 mt-5 text-sm text-foreground/40 group-hover:text-primary transition-colors">
                     Learn more <ArrowRight className="w-3.5 h-3.5" />
                   </span>
                 </Link>
@@ -321,7 +321,7 @@ function Services() {
 // ─── WHY US — Split layout ───────────────────────────────
 function WhyUs() {
   return (
-    <section className="section-dark py-24 lg:py-32">
+    <section className="bg-[oklch(0.065_0.004_260)] py-24 lg:py-32">
       <div className="container">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <FadeIn>
@@ -335,7 +335,7 @@ function WhyUs() {
               <h2 className="text-4xl lg:text-5xl font-bold text-foreground tracking-tight leading-[1.1]">
                 We show you the problem
                 <br />
-                <span className="text-nick-yellow">before we fix it.</span>
+                <span className="text-primary">before we fix it.</span>
               </h2>
               <p className="mt-6 text-foreground/50 text-lg leading-relaxed">
                 Most shops hand you a bill and hope you don't ask questions. We walk you through the diagnosis, show you the worn parts, explain your options, and let you decide.
@@ -348,7 +348,7 @@ function WhyUs() {
                   { title: "Warranty on Repairs", text: "We stand behind our work. If something isn't right, we make it right." },
                 ].map((item, _i) => (
                   <div key={item.title} className="flex gap-4">
-                    <div className="w-px bg-nick-yellow shrink-0 mt-1" style={{ minHeight: '2.5rem' }} />
+                    <div className="w-px bg-primary shrink-0 mt-1" style={{ minHeight: '2.5rem' }} />
                     <div>
                       <h4 className="font-semibold text-foreground text-sm tracking-wide">{item.title}</h4>
                       <p className="text-foreground/40 text-sm mt-1 leading-relaxed">{item.text}</p>
@@ -399,7 +399,7 @@ function Reviews() {
               <div className="p-8 border border-border rounded-2xl h-full flex flex-col">
                 <div className="flex gap-0.5 mb-5">
                   {[...Array(r.stars)].map((_, j) => (
-                    <Star key={j} className="w-4 h-4 fill-nick-yellow text-nick-yellow" />
+                    <Star key={j} className="w-4 h-4 fill-nick-yellow text-primary" />
                   ))}
                 </div>
                 <p className="text-foreground/70 leading-relaxed flex-1 text-[0.95rem]">"{r.text}"</p>
@@ -427,7 +427,7 @@ function Reviews() {
 // ─── CONTACT — Clean split ───────────────────────────────
 function Contact() {
   return (
-    <section id="contact" className="section-dark py-24 lg:py-32">
+    <section id="contact" className="bg-[oklch(0.065_0.004_260)] py-24 lg:py-32">
       <div className="container">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16">
           <FadeIn>
@@ -441,7 +441,7 @@ function Contact() {
                 <div>
                   <h3 className="text-xs font-semibold text-foreground/30 uppercase tracking-widest mb-3">Location</h3>
                   <div className="flex items-start gap-3">
-                    <MapPin className="w-4 h-4 text-nick-yellow mt-1 shrink-0" />
+                    <MapPin className="w-4 h-4 text-primary mt-1 shrink-0" />
                     <div className="text-foreground/70">
                       <p>{BUSINESS.address.street}</p>
                       <p>Cleveland, OH 44112</p>
@@ -452,7 +452,7 @@ function Contact() {
                 <div>
                   <h3 className="text-xs font-semibold text-foreground/30 uppercase tracking-widest mb-3">Hours</h3>
                   <div className="flex items-start gap-3">
-                    <Clock className="w-4 h-4 text-nick-yellow mt-1 shrink-0" />
+                    <Clock className="w-4 h-4 text-primary mt-1 shrink-0" />
                     <div className="text-foreground/70">
                       <p>Monday – Saturday: 8 AM – 6 PM</p>
                       <p>Sunday: 9 AM – 4 PM</p>
@@ -463,8 +463,8 @@ function Contact() {
                 <div>
                   <h3 className="text-xs font-semibold text-foreground/30 uppercase tracking-widest mb-3">Phone</h3>
                   <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('contact')} className="flex items-center gap-3 group">
-                    <Phone className="w-4 h-4 text-nick-yellow shrink-0" />
-                    <span className="text-2xl font-semibold text-foreground group-hover:text-nick-yellow transition-colors tracking-tight">{BUSINESS.phone.display}</span>
+                    <Phone className="w-4 h-4 text-primary shrink-0" />
+                    <span className="text-2xl font-semibold text-foreground group-hover:text-primary transition-colors tracking-tight">{BUSINESS.phone.display}</span>
                   </a>
                 </div>
 
@@ -518,7 +518,7 @@ function MobileCTA() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-nick-dark/95 backdrop-blur-xl border-t border-border p-3 flex gap-2">
+    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/95 backdrop-blur-xl border-t border-border p-3 flex gap-2">
       <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('mobile-sticky')} className="flex items-center justify-center gap-2 bg-foreground text-background flex-1 py-3 rounded-full font-medium text-sm" aria-label="Call now">
         <Phone className="w-4 h-4" />
         Call Now
@@ -533,12 +533,12 @@ function MobileCTA() {
 // ─── FOOTER — Minimal ────────────────────────────────────
 function Footer() {
   return (
-    <footer className="section-darker border-t border-border">
+    <footer className="bg-[oklch(0.055_0.004_260)] border-t border-border">
       <div className="container py-16">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
           {/* Brand */}
           <div>
-            <span className="text-nick-yellow font-semibold text-lg tracking-tight">Nick's Tire & Auto</span>
+            <span className="text-primary font-semibold text-lg tracking-tight">Nick's Tire & Auto</span>
             <p className="mt-3 text-foreground/30 text-sm leading-relaxed">
               Honest auto repair for Cleveland, Euclid, and Northeast Ohio.
             </p>

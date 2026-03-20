@@ -41,7 +41,7 @@ export default function CallbackModal() {
       {/* Floating button — bottom-right, above mobile CTA */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-20 lg:bottom-6 right-4 z-40 bg-nick-yellow text-nick-dark w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
+        className="fixed bottom-20 lg:bottom-6 right-4 z-40 bg-primary text-primary-foreground w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
         aria-label="Request a callback"
       >
         <PhoneCall className="w-6 h-6" />
@@ -97,7 +97,7 @@ export default function CallbackModal() {
                   <button
                     type="submit"
                     disabled={mutation.isPending}
-                    className="w-full bg-nick-yellow text-nick-dark py-3 rounded-md font-semibold text-sm hover:bg-nick-gold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="w-full bg-primary text-primary-foreground py-3 rounded-md font-semibold text-sm hover:opacity-90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {mutation.isPending ? (
                       <>

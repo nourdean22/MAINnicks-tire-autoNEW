@@ -86,19 +86,19 @@ export default function CustomerPortal() {
   };
 
   return (
-    <div className="min-h-screen bg-nick-dark">
+    <div className="min-h-screen bg-background">
       <NotificationBar />
       {/* Header */}
-      <nav className="bg-nick-dark/95 border-b border-border/20">
+      <nav className="bg-background/95 border-b border-border/20">
         <div className="container flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-3">
             <div className="w-8 h-8 bg-primary flex items-center justify-center">
-              <span className="font-heading font-bold text-primary-foreground text-sm">N</span>
+              <span className="font-bold text-primary-foreground text-sm">N</span>
             </div>
-            <span className="font-heading font-bold text-primary text-sm tracking-wider">NICK'S TIRE & AUTO</span>
+            <span className="font-bold text-primary text-sm tracking-wider">NICK'S TIRE & AUTO</span>
           </Link>
           {step === "dashboard" && (
-            <button onClick={handleLogout} className="font-mono text-xs text-foreground/40 hover:text-foreground transition-colors">
+            <button onClick={handleLogout} className="text-[12px] text-foreground/40 hover:text-foreground transition-colors">
               LOG OUT
             </button>
           )}
@@ -132,14 +132,14 @@ function PhoneStep({ phone, setPhone, onSubmit, loading }: {
         <div className="w-16 h-16 bg-primary/10 flex items-center justify-center mx-auto mb-4">
           <Shield className="w-8 h-8 text-primary" />
         </div>
-        <h1 className="font-heading font-bold text-3xl text-foreground tracking-tight">CUSTOMER PORTAL</h1>
-        <p className="font-mono text-sm text-foreground/50 mt-2">
+        <h1 className="font-bold text-3xl text-foreground tracking-tight">CUSTOMER PORTAL</h1>
+        <p className="text-[13px] text-foreground/50 mt-2">
           View your vehicle history, service records, and invoices
         </p>
       </div>
 
       <div className="bg-card border border-border/30 p-8">
-        <label className="font-mono text-xs text-foreground/50 tracking-wider uppercase block mb-2">
+        <label className="text-[12px] text-foreground/50 tracking-wide block mb-2">
           PHONE NUMBER
         </label>
         <div className="flex gap-3">
@@ -150,14 +150,14 @@ function PhoneStep({ phone, setPhone, onSubmit, loading }: {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="(216) 555-0123"
-              className="w-full bg-background border border-border/30 pl-10 pr-4 py-3 font-mono text-sm text-foreground placeholder:text-foreground/20 focus:border-primary/50 focus:outline-none"
+              className="w-full bg-background border border-border/30 pl-10 pr-4 py-3 text-[13px] text-foreground placeholder:text-foreground/20 focus:border-primary/50 focus:outline-none"
               onKeyDown={(e) => e.key === "Enter" && onSubmit()}
             />
           </div>
           <button
             onClick={onSubmit}
             disabled={loading}
-            className="px-6 bg-primary text-primary-foreground font-heading font-bold text-sm tracking-wider hover:bg-primary/90 transition-colors disabled:opacity-50"
+            className="px-6 bg-primary text-primary-foreground font-bold text-sm tracking-wider hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "SEND CODE"}
           </button>
@@ -182,7 +182,7 @@ function PhoneStep({ phone, setPhone, onSubmit, loading }: {
       </div>
 
       <div className="mt-8 text-center">
-        <p className="font-mono text-xs text-foreground/30">
+        <p className="text-[12px] text-foreground/30">
           Not a customer yet?{" "}
           <Link href="/contact" className="text-primary hover:underline">Schedule your first visit</Link>
         </p>
@@ -210,19 +210,19 @@ function VerifyStep({ code, setCode, onSubmit, onBack, onResend, loading, phone 
 
   return (
     <div className="container max-w-lg py-20">
-      <button onClick={onBack} className="flex items-center gap-2 font-mono text-xs text-foreground/40 hover:text-foreground mb-8 transition-colors">
+      <button onClick={onBack} className="flex items-center gap-2 text-[12px] text-foreground/40 hover:text-foreground mb-8 transition-colors">
         <ArrowLeft className="w-3 h-3" /> BACK
       </button>
 
       <div className="text-center mb-10">
-        <h1 className="font-heading font-bold text-2xl text-foreground tracking-tight">ENTER VERIFICATION CODE</h1>
-        <p className="font-mono text-sm text-foreground/50 mt-2">
+        <h1 className="font-bold text-2xl text-foreground tracking-tight">ENTER VERIFICATION CODE</h1>
+        <p className="text-[13px] text-foreground/50 mt-2">
           Sent to {phone}
         </p>
       </div>
 
       <div className="bg-card border border-border/30 p-8">
-        <label className="font-mono text-xs text-foreground/50 tracking-wider uppercase block mb-2">
+        <label className="text-[12px] text-foreground/50 tracking-wide block mb-2">
           6-DIGIT CODE
         </label>
         <div className="flex gap-3">
@@ -232,7 +232,7 @@ function VerifyStep({ code, setCode, onSubmit, onBack, onResend, loading, phone 
             onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
             placeholder="000000"
             maxLength={6}
-            className="flex-1 bg-background border border-border/30 px-4 py-3 font-mono text-2xl text-center text-foreground tracking-[0.5em] placeholder:text-foreground/20 focus:border-primary/50 focus:outline-none"
+            className="flex-1 bg-background border border-border/30 px-4 py-3 text-2xl text-center text-foreground tracking-[0.5em] placeholder:text-foreground/20 focus:border-primary/50 focus:outline-none"
             onKeyDown={(e) => e.key === "Enter" && onSubmit()}
             autoFocus
           />
@@ -240,7 +240,7 @@ function VerifyStep({ code, setCode, onSubmit, onBack, onResend, loading, phone 
         <button
           onClick={onSubmit}
           disabled={loading || code.length !== 6}
-          className="w-full mt-4 py-3 bg-primary text-primary-foreground font-heading font-bold text-sm tracking-wider hover:bg-primary/90 transition-colors disabled:opacity-50"
+          className="w-full mt-4 py-3 bg-primary text-primary-foreground font-bold text-sm tracking-wider hover:bg-primary/90 transition-colors disabled:opacity-50"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "VERIFY & LOG IN"}
         </button>
@@ -250,7 +250,7 @@ function VerifyStep({ code, setCode, onSubmit, onBack, onResend, loading, phone 
           <button
             onClick={handleResend}
             disabled={resendCooldown > 0 || loading}
-            className="font-mono text-xs text-foreground/40 hover:text-primary transition-colors disabled:opacity-30 flex items-center gap-1 mx-auto"
+            className="text-[12px] text-foreground/40 hover:text-primary transition-colors disabled:opacity-30 flex items-center gap-1 mx-auto"
           >
             <RefreshCw className="w-3 h-3" />
             {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend Code"}
@@ -277,9 +277,9 @@ function PortalDashboard({ token, onLogout }: { token: string; onLogout: () => v
     return (
       <div className="container max-w-lg py-20 text-center">
         <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto mb-4" />
-        <h2 className="font-heading font-bold text-xl text-foreground mb-2">SESSION EXPIRED</h2>
-        <p className="font-mono text-sm text-foreground/50 mb-6">Please log in again to access your portal.</p>
-        <button onClick={onLogout} className="px-6 py-3 bg-primary text-primary-foreground font-heading font-bold text-sm tracking-wider">
+        <h2 className="font-bold text-xl text-foreground mb-2">SESSION EXPIRED</h2>
+        <p className="text-[13px] text-foreground/50 mb-6">Please log in again to access your portal.</p>
+        <button onClick={onLogout} className="px-6 py-3 bg-primary text-primary-foreground font-bold text-sm tracking-wider">
           LOG IN AGAIN
         </button>
       </div>
@@ -296,10 +296,10 @@ function PortalDashboard({ token, onLogout }: { token: string; onLogout: () => v
     <div className="container max-w-4xl py-8">
       {/* Welcome */}
       <div className="mb-6">
-        <h1 className="font-heading font-bold text-2xl text-foreground tracking-tight">
+        <h1 className="font-bold text-2xl text-foreground tracking-tight">
           {customer ? `WELCOME BACK, ${(customer.firstName || '').toUpperCase()}` : "YOUR PORTAL"}
         </h1>
-        <p className="font-mono text-xs text-foreground/40 mt-1">
+        <p className="text-[12px] text-foreground/40 mt-1">
           Phone: {data?.phone ? `(${data.phone.slice(0, 3)}) ${data.phone.slice(3, 6)}-${data.phone.slice(6)}` : "—"}
           {customer?.totalVisits ? ` · ${customer.totalVisits} visits` : ""}
         </p>
@@ -318,13 +318,13 @@ function PortalDashboard({ token, onLogout }: { token: string; onLogout: () => v
         <div className="mb-6 bg-primary/5 border border-primary/30 p-4">
           <div className="flex items-center gap-2 mb-3">
             <Wrench className="w-4 h-4 text-primary" />
-            <span className="font-heading font-bold text-sm text-foreground tracking-wider">ACTIVE SERVICES ({activeJobs.length})</span>
+            <span className="font-bold text-sm text-foreground tracking-wider">ACTIVE SERVICES ({activeJobs.length})</span>
           </div>
           <div className="space-y-2">
             {activeJobs.map((b: any) => (
               <div key={b.id} className="bg-card border border-border/20 p-3 flex items-center justify-between">
                 <div>
-                  <span className="font-heading font-bold text-xs text-foreground">{b.service}</span>
+                  <span className="font-bold text-xs text-foreground">{b.service}</span>
                   <span className="font-mono text-[10px] text-foreground/40 ml-2">{b.vehicle || ""}</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -353,7 +353,7 @@ function PortalDashboard({ token, onLogout }: { token: string; onLogout: () => v
           <button
             key={t.key}
             onClick={() => setActiveTab(t.key as any)}
-            className={`px-4 py-2.5 font-mono text-xs tracking-wider border-b-2 -mb-[1px] transition-colors ${
+            className={`px-4 py-2.5 text-[12px] tracking-wider border-b-2 -mb-[1px] transition-colors ${
               activeTab === t.key ? "border-primary text-primary" : "border-transparent text-foreground/40 hover:text-foreground/60"
             }`}
           >
@@ -374,7 +374,7 @@ function PortalDashboard({ token, onLogout }: { token: string; onLogout: () => v
                   b.status === "completed" ? "bg-emerald-400" : b.status === "cancelled" ? "bg-red-400" : "bg-blue-400"
                 }`} />
                 <div className="flex-1 min-w-0">
-                  <span className="font-heading font-bold text-xs text-foreground">{b.service}</span>
+                  <span className="font-bold text-xs text-foreground">{b.service}</span>
                   <span className="font-mono text-[10px] text-foreground/30 ml-2">{b.vehicle || ""}</span>
                   {b.referenceCode && <span className="font-mono text-[9px] text-cyan-400/50 ml-2">#{b.referenceCode}</span>}
                 </div>
@@ -403,14 +403,14 @@ function PortalDashboard({ token, onLogout }: { token: string; onLogout: () => v
               <div key={inv.id} className="bg-card border border-border/30 p-4 flex items-center gap-4">
                 <DollarSign className="w-4 h-4 text-primary flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <span className="font-heading font-bold text-xs text-foreground">
+                  <span className="font-bold text-xs text-foreground">
                     {inv.serviceDescription || "Service"}
                   </span>
                   {inv.vehicleInfo && <span className="font-mono text-[10px] text-foreground/30 ml-2">{inv.vehicleInfo}</span>}
                   {inv.invoiceNumber && <span className="font-mono text-[9px] text-foreground/20 ml-2">#{inv.invoiceNumber}</span>}
                 </div>
                 <div className="text-right">
-                  <span className="font-heading font-bold text-sm text-primary">
+                  <span className="font-bold text-sm text-primary">
                     ${(inv.totalAmount / 100).toLocaleString()}
                   </span>
                   <div className="flex items-center gap-2 justify-end mt-0.5">
@@ -440,7 +440,7 @@ function PortalDashboard({ token, onLogout }: { token: string; onLogout: () => v
             historyList.map((h: any) => (
               <div key={h.id} className="bg-card border border-border/30 p-4">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="font-heading font-bold text-xs text-foreground">{h.serviceType}</span>
+                  <span className="font-bold text-xs text-foreground">{h.serviceType}</span>
                   <span className="font-mono text-[10px] text-foreground/30">
                     {new Date(h.completedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                   </span>
@@ -448,7 +448,7 @@ function PortalDashboard({ token, onLogout }: { token: string; onLogout: () => v
                 {h.description && <p className="font-mono text-[10px] text-foreground/50">{h.description}</p>}
                 {h.mileageAtService && <span className="font-mono text-[9px] text-foreground/25 mt-1 block">{h.mileageAtService.toLocaleString()} miles</span>}
                 {h.nextServiceDue && (
-                  <div className="mt-2 flex items-center gap-1 font-mono text-[9px] text-amber-400/60">
+                  <div className="mt-2 flex items-center gap-1 text-[9px] text-amber-400/60">
                     <Clock className="w-3 h-3" />
                     Next due: {new Date(h.nextServiceDue).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                   </div>
@@ -461,13 +461,13 @@ function PortalDashboard({ token, onLogout }: { token: string; onLogout: () => v
 
       {/* CTA */}
       <div className="mt-8 bg-card border border-primary/30 p-6 text-center">
-        <h3 className="font-heading font-bold text-foreground tracking-wider mb-2">NEED SERVICE?</h3>
-        <p className="font-mono text-xs text-foreground/40 mb-4">Schedule your next visit online or call us directly.</p>
+        <h3 className="font-bold text-foreground tracking-[-0.01em] mb-2">NEED SERVICE?</h3>
+        <p className="text-[12px] text-foreground/40 mb-4">Schedule your next visit online or call us directly.</p>
         <div className="flex items-center justify-center gap-3">
-          <Link href="/contact" className="px-6 py-2.5 bg-primary text-primary-foreground font-heading font-bold text-sm tracking-wider hover:bg-primary/90 transition-colors">
+          <Link href="/contact" className="px-6 py-2.5 bg-primary text-primary-foreground font-bold text-sm tracking-wider hover:bg-primary/90 transition-colors">
             BOOK NOW
           </Link>
-          <a href="tel:2168620005" className="px-6 py-2.5 border border-foreground/20 text-foreground font-heading font-bold text-sm tracking-wider hover:border-primary hover:text-primary transition-colors">
+          <a href="tel:2168620005" className="px-6 py-2.5 border border-foreground/20 text-foreground font-bold text-sm tracking-wider hover:border-primary hover:text-primary transition-colors">
             CALL (216) 862-0005
           </a>
         </div>
@@ -505,7 +505,7 @@ function StatCard({ icon, value, label }: { icon: React.ReactNode; value: string
   return (
     <div className="bg-card border border-border/30 p-4">
       {icon}
-      <span className="font-heading font-bold text-2xl text-foreground block mt-2">{value}</span>
+      <span className="font-bold text-2xl text-foreground block mt-2">{value}</span>
       <span className="font-mono text-[10px] text-foreground/40">{label}</span>
     </div>
   );
@@ -516,8 +516,8 @@ function EmptyState({ icon, title, message }: { icon: React.ReactNode; title: st
   return (
     <div className="bg-card border border-border/30 p-8 text-center">
       <div className="text-foreground/20 flex justify-center mb-3">{icon}</div>
-      <h3 className="font-heading font-bold text-sm text-foreground/40 tracking-wider mb-1">{title.toUpperCase()}</h3>
-      <p className="font-mono text-xs text-foreground/30">{message}</p>
+      <h3 className="font-bold text-sm text-foreground/40 tracking-[-0.01em] mb-1">{title.toUpperCase()}</h3>
+      <p className="text-[12px] text-foreground/30">{message}</p>
     </div>
   );
 }

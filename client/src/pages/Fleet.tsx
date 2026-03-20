@@ -80,22 +80,22 @@ export default function Fleet() {
       <LocalBusinessSchema />
 
       {/* Hero */}
-      <section className="section-dark pt-28 pb-16 lg:pt-36 lg:pb-20">
+      <section className="bg-[oklch(0.065_0.004_260)] pt-28 pb-16 lg:pt-36 lg:pb-20">
         <div className="container max-w-4xl">
           <div className="text-center">
-            <span className="font-mono text-nick-teal text-sm tracking-widest uppercase">Commercial Services</span>
-            <h1 className="font-heading font-bold text-4xl lg:text-6xl text-foreground mt-3 tracking-tight">
-              FLEET & <span className="text-gradient-yellow">BUSINESS</span> ACCOUNTS
+            <span className="font-mono text-nick-teal text-sm tracking-wide">Commercial Services</span>
+            <h1 className="font-bold text-4xl lg:text-6xl text-foreground mt-3 tracking-tight">
+              FLEET & <span className="text-primary">BUSINESS</span> ACCOUNTS
             </h1>
             <p className="mt-4 text-foreground/70 text-lg max-w-2xl mx-auto">
               Keep your fleet on the road. Priority service, volume pricing, and dedicated account management for Cleveland businesses.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-              <a href="#fleet-form" className="inline-flex items-center justify-center gap-2 bg-nick-yellow text-nick-dark px-8 py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors">
+              <a href="#fleet-form" className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-bold text-sm tracking-wide hover:opacity-90 transition-colors">
                 REQUEST FLEET ACCOUNT
                 <ChevronRight className="w-4 h-4" />
               </a>
-              <a href={BUSINESS.phone.href} className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:border-nick-yellow hover:text-nick-yellow transition-colors">
+              <a href={BUSINESS.phone.href} className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 rounded-md font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
                 <Phone className="w-4 h-4" />
                 CALL {BUSINESS.phone.display}
               </a>
@@ -105,20 +105,20 @@ export default function Fleet() {
       </section>
 
       {/* Services Grid */}
-      <section className="section-darker py-16 lg:py-20">
+      <section className="bg-[oklch(0.055_0.004_260)] py-16 lg:py-20">
         <div className="container max-w-5xl">
           <div className="text-center mb-12">
-            <h2 className="font-heading font-bold text-3xl lg:text-4xl text-foreground tracking-tight">
+            <h2 className="font-bold text-3xl lg:text-4xl text-foreground tracking-tight">
               FLEET SERVICES
             </h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {FLEET_SERVICES.map((s) => (
               <div key={s.title} className="bg-card/50 border border-border/30 rounded-lg p-6">
-                <div className="w-12 h-12 rounded-md bg-nick-yellow/10 flex items-center justify-center text-nick-yellow mb-4">
+                <div className="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center text-primary mb-4">
                   {s.icon}
                 </div>
-                <h3 className="font-heading font-bold text-foreground tracking-wider text-sm mb-2">{s.title}</h3>
+                <h3 className="font-bold text-foreground tracking-wider text-sm mb-2">{s.title}</h3>
                 <p className="text-foreground/60 text-sm leading-relaxed">{s.desc}</p>
               </div>
             ))}
@@ -127,10 +127,10 @@ export default function Fleet() {
       </section>
 
       {/* Industries */}
-      <section className="section-dark py-16 lg:py-20">
+      <section className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-20">
         <div className="container max-w-4xl">
           <div className="text-center mb-10">
-            <h2 className="font-heading font-bold text-2xl lg:text-3xl text-foreground tracking-tight">
+            <h2 className="font-bold text-2xl lg:text-3xl text-foreground tracking-tight">
               INDUSTRIES WE SERVE
             </h2>
             <p className="text-foreground/60 mt-3">From 3-vehicle operations to 50+ vehicle fleets.</p>
@@ -139,7 +139,7 @@ export default function Fleet() {
             {INDUSTRIES.map((ind) => (
               <div key={ind} className="flex items-center gap-2 bg-card/30 border border-border/20 rounded-md px-3 py-2.5">
                 <Building2 className="w-3.5 h-3.5 text-nick-teal shrink-0" />
-                <span className="font-mono text-xs text-foreground/70">{ind}</span>
+                <span className="text-[12px] text-foreground/70">{ind}</span>
               </div>
             ))}
           </div>
@@ -147,49 +147,49 @@ export default function Fleet() {
       </section>
 
       {/* Form */}
-      <section id="fleet-form" className="section-darker py-16 lg:py-20">
+      <section id="fleet-form" className="bg-[oklch(0.055_0.004_260)] py-16 lg:py-20">
         <div className="container max-w-2xl">
           <div className="text-center mb-10">
-            <h2 className="font-heading font-bold text-3xl text-foreground tracking-tight">
+            <h2 className="font-bold text-3xl text-foreground tracking-tight">
               REQUEST A FLEET ACCOUNT
             </h2>
             <p className="text-foreground/60 mt-3">Fill out the form below and we will contact you within 1 business day.</p>
           </div>
 
           {submitted ? (
-            <div className="card-vibrant bg-card/80 rounded-lg p-8 text-center">
+            <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-8 text-center">
               <CheckCircle className="w-16 h-16 text-nick-teal mx-auto mb-4" />
-              <h3 className="font-heading font-bold text-2xl text-foreground mb-2">Request Received</h3>
+              <h3 className="font-bold text-2xl text-foreground mb-2">Request Received</h3>
               <p className="text-foreground/60 max-w-md mx-auto">
-                We will review your fleet information and contact you within 1 business day to discuss your account. For immediate assistance, call <a href={BUSINESS.phone.href} className="text-nick-yellow hover:underline">{BUSINESS.phone.display}</a>.
+                We will review your fleet information and contact you within 1 business day to discuss your account. For immediate assistance, call <a href={BUSINESS.phone.href} className="text-primary hover:underline">{BUSINESS.phone.display}</a>.
               </p>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="card-vibrant bg-card/80 rounded-lg p-6 lg:p-8 space-y-5">
+            <form onSubmit={handleSubmit} className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 lg:p-8 space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="font-mono text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">Company Name *</label>
-                  <input required type="text" value={form.companyName} onChange={(e) => setForm({ ...form, companyName: e.target.value })} className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 font-mono text-sm focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none" />
+                  <label className="text-[12px] text-foreground/50 uppercase tracking-wider block mb-1.5">Company Name *</label>
+                  <input required type="text" value={form.companyName} onChange={(e) => setForm({ ...form, companyName: e.target.value })} className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none" />
                 </div>
                 <div>
-                  <label className="font-mono text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">Contact Name *</label>
-                  <input required type="text" value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 font-mono text-sm focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none" />
+                  <label className="text-[12px] text-foreground/50 uppercase tracking-wider block mb-1.5">Contact Name *</label>
+                  <input required type="text" value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none" />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="font-mono text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">Phone *</label>
-                  <input required type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 font-mono text-sm focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none" />
+                  <label className="text-[12px] text-foreground/50 uppercase tracking-wider block mb-1.5">Phone *</label>
+                  <input required type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none" />
                 </div>
                 <div>
-                  <label className="font-mono text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">Email</label>
-                  <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 font-mono text-sm focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none" />
+                  <label className="text-[12px] text-foreground/50 uppercase tracking-wider block mb-1.5">Email</label>
+                  <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none" />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="font-mono text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">Fleet Size *</label>
-                  <select required value={form.fleetSize} onChange={(e) => setForm({ ...form, fleetSize: e.target.value })} className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 font-mono text-sm focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none">
+                  <label className="text-[12px] text-foreground/50 uppercase tracking-wider block mb-1.5">Fleet Size *</label>
+                  <select required value={form.fleetSize} onChange={(e) => setForm({ ...form, fleetSize: e.target.value })} className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none">
                     <option value="">Select...</option>
                     <option value="1-5">1–5 vehicles</option>
                     <option value="6-15">6–15 vehicles</option>
@@ -199,15 +199,15 @@ export default function Fleet() {
                   </select>
                 </div>
                 <div>
-                  <label className="font-mono text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">Vehicle Types</label>
-                  <input type="text" placeholder="e.g. Vans, pickups, sedans" value={form.vehicleTypes} onChange={(e) => setForm({ ...form, vehicleTypes: e.target.value })} className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 font-mono text-sm focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none" />
+                  <label className="text-[12px] text-foreground/50 uppercase tracking-wider block mb-1.5">Vehicle Types</label>
+                  <input type="text" placeholder="e.g. Vans, pickups, sedans" value={form.vehicleTypes} onChange={(e) => setForm({ ...form, vehicleTypes: e.target.value })} className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none" />
                 </div>
               </div>
               <div>
-                <label className="font-mono text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">Additional Details</label>
-                <textarea rows={3} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} placeholder="Tell us about your fleet needs..." className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 font-mono text-sm focus:border-nick-yellow focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none resize-none" />
+                <label className="text-[12px] text-foreground/50 uppercase tracking-wider block mb-1.5">Additional Details</label>
+                <textarea rows={3} value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} placeholder="Tell us about your fleet needs..." className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none resize-none" />
               </div>
-              <button type="submit" disabled={submitLead.isPending} className="w-full bg-nick-yellow text-nick-dark py-4 rounded-md font-heading font-bold text-sm tracking-wider uppercase hover:bg-nick-gold transition-colors disabled:opacity-50">
+              <button type="submit" disabled={submitLead.isPending} className="w-full bg-primary text-primary-foreground py-4 rounded-md font-bold text-sm tracking-wide hover:opacity-90 transition-colors disabled:opacity-50">
                 {submitLead.isPending ? "SUBMITTING..." : "SUBMIT FLEET REQUEST"}
               </button>
             </form>

@@ -58,7 +58,7 @@ export default function IntegrationsSection() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 font-bold text-xs tracking-wide transition-colors ${
               tab === t.id
                 ? "bg-primary text-primary-foreground"
                 : "text-foreground/50 hover:text-foreground hover:bg-foreground/5"
@@ -127,7 +127,7 @@ function TireSearchTab() {
         <div className="flex items-center gap-3">
           <div className={`w-2.5 h-2.5 rounded-full ${gatewayStatus?.connected ? "bg-emerald-400" : "bg-amber-400"}`} />
           <div>
-            <span className="font-heading font-bold text-sm tracking-wider text-foreground">GATEWAY TIRE</span>
+            <span className="font-bold text-sm tracking-wider text-foreground">GATEWAY TIRE</span>
             <span className="text-foreground/40 text-xs ml-2">Dunlap & Kyle B2B Portal</span>
           </div>
         </div>
@@ -135,7 +135,7 @@ function TireSearchTab() {
           href="https://b2b.dktire.com"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 text-primary hover:text-primary/80 font-heading font-bold text-xs tracking-wider"
+          className="flex items-center gap-2 text-primary hover:text-primary/80 font-bold text-xs tracking-wider"
         >
           OPEN PORTAL <ExternalLink className="w-3.5 h-3.5" />
         </a>
@@ -145,7 +145,7 @@ function TireSearchTab() {
         {/* Left: Tire Search */}
         <div className="space-y-4">
           <div className="bg-card border border-border/30 p-5">
-            <h3 className="font-heading font-bold text-sm tracking-wider text-foreground mb-4">SEARCH TIRES</h3>
+            <h3 className="font-bold text-sm tracking-wider text-foreground mb-4">SEARCH TIRES</h3>
             <div className="flex gap-2 mb-4">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/30" />
@@ -154,7 +154,7 @@ function TireSearchTab() {
                   value={sizeQuery}
                   onChange={e => setSizeQuery(e.target.value.replace(/[^0-9]/g, ""))}
                   placeholder="Enter tire size (e.g. 2156017)"
-                  className="w-full pl-10 pr-4 py-2.5 bg-nick-dark border border-border/30 text-foreground font-mono text-sm focus:border-primary/50 focus:outline-none"
+                  className="w-full pl-10 pr-4 py-2.5 bg-background border border-border/30 text-foreground text-[13px] focus:border-primary/50 focus:outline-none"
                 />
               </div>
             </div>
@@ -162,13 +162,13 @@ function TireSearchTab() {
             {/* Popular Sizes */}
             {popularData && (
               <div>
-                <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase">POPULAR SIZES</span>
+                <span className="font-mono text-[10px] text-foreground/40 tracking-wide">POPULAR SIZES</span>
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {popularData.sizes.slice(0, 10).map(s => (
                     <button
                       key={s.raw}
                       onClick={() => setSizeQuery(s.raw)}
-                      className={`px-2.5 py-1 font-mono text-xs border transition-colors ${
+                      className={`px-2.5 py-1 text-[12px] border transition-colors ${
                         sizeQuery === s.raw
                           ? "border-primary text-primary bg-primary/10"
                           : "border-border/30 text-foreground/50 hover:text-foreground hover:border-foreground/30"
@@ -194,14 +194,14 @@ function TireSearchTab() {
                   <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-foreground/80 text-sm">
-                      Open Gateway Tire portal to search for <strong className="text-primary font-mono">{sizeQuery}</strong>.
+                      Open Gateway Tire portal to search for <strong className="text-primary">{sizeQuery}</strong>.
                       Then enter the wholesale cost below to calculate your pricing.
                     </p>
                     <a
                       href={searchResults.portalUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 mt-3 text-primary hover:text-primary/80 font-heading font-bold text-xs tracking-wider"
+                      className="inline-flex items-center gap-2 mt-3 text-primary hover:text-primary/80 font-bold text-xs tracking-wider"
                     >
                       SEARCH ON GATEWAY TIRE <ExternalLink className="w-3.5 h-3.5" />
                     </a>
@@ -213,7 +213,7 @@ function TireSearchTab() {
             {searchResults && searchResults.tires.length > 0 && (
               <div className="mt-4 space-y-2">
                 {searchResults.tires.map((tire, i) => (
-                  <div key={i} className="p-3 bg-nick-dark border border-border/30 hover:border-primary/30 transition-colors cursor-pointer"
+                  <div key={i} className="p-3 bg-background border border-border/30 hover:border-primary/30 transition-colors cursor-pointer"
                     onClick={() => {
                       setCostPrice(tire.costPrice.toFixed(2));
                       setFet(tire.fet.toFixed(2));
@@ -221,12 +221,12 @@ function TireSearchTab() {
                   >
                     <div className="flex justify-between items-start">
                       <div>
-                        <span className="font-heading font-bold text-sm text-foreground">{tire.brand}</span>
+                        <span className="font-bold text-sm text-foreground">{tire.brand}</span>
                         <span className="text-foreground/60 text-sm ml-2">{tire.model}</span>
                       </div>
                       <span className="font-mono text-primary font-bold">${tire.costPrice.toFixed(2)}</span>
                     </div>
-                    <div className="flex gap-4 mt-1 text-foreground/40 font-mono text-[10px]">
+                    <div className="flex gap-4 mt-1 text-foreground/40 text-[10px]">
                       <span>LOCAL: {tire.localInventory}</span>
                       <span>REGIONAL: {tire.regionalInventory}</span>
                       <span>ETA: {tire.deliveryDate}</span>
@@ -241,31 +241,31 @@ function TireSearchTab() {
         {/* Right: Margin Calculator */}
         <div className="space-y-4">
           <div className="bg-card border border-border/30 p-5">
-            <h3 className="font-heading font-bold text-sm tracking-wider text-foreground mb-4">
+            <h3 className="font-bold text-sm tracking-wider text-foreground mb-4">
               <Calculator className="w-4 h-4 inline mr-2" />
               TIRE MARGIN CALCULATOR
             </h3>
 
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div>
-                <label className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">WHOLESALE COST ($)</label>
+                <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">WHOLESALE COST ($)</label>
                 <input
                   type="number"
                   step="0.01"
                   value={costPrice}
                   onChange={e => setCostPrice(e.target.value)}
                   placeholder="0.00"
-                  className="w-full px-3 py-2 bg-nick-dark border border-border/30 text-foreground font-mono text-sm focus:border-primary/50 focus:outline-none"
+                  className="w-full px-3 py-2 bg-background border border-border/30 text-foreground text-[13px] focus:border-primary/50 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">QUANTITY</label>
+                <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">QUANTITY</label>
                 <div className="flex gap-1">
                   {[1, 2, 4].map(q => (
                     <button
                       key={q}
                       onClick={() => setQuantity(q)}
-                      className={`flex-1 py-2 font-mono text-sm border transition-colors ${
+                      className={`flex-1 py-2 text-[13px] border transition-colors ${
                         quantity === q
                           ? "border-primary text-primary bg-primary/10"
                           : "border-border/30 text-foreground/50 hover:text-foreground"
@@ -277,31 +277,31 @@ function TireSearchTab() {
                 </div>
               </div>
               <div>
-                <label className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">MARKUP %</label>
+                <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">MARKUP %</label>
                 <input
                   type="number"
                   value={customMarkup}
                   onChange={e => setCustomMarkup(e.target.value)}
                   placeholder="Default (50%)"
-                  className="w-full px-3 py-2 bg-nick-dark border border-border/30 text-foreground font-mono text-sm focus:border-primary/50 focus:outline-none"
+                  className="w-full px-3 py-2 bg-background border border-border/30 text-foreground text-[13px] focus:border-primary/50 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">FET ($)</label>
+                <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">FET ($)</label>
                 <input
                   type="number"
                   step="0.01"
                   value={fet}
                   onChange={e => setFet(e.target.value)}
                   placeholder="0.00"
-                  className="w-full px-3 py-2 bg-nick-dark border border-border/30 text-foreground font-mono text-sm focus:border-primary/50 focus:outline-none"
+                  className="w-full px-3 py-2 bg-background border border-border/30 text-foreground text-[13px] focus:border-primary/50 focus:outline-none"
                 />
               </div>
             </div>
 
             {/* Service Add-ons */}
             <div className="mb-4">
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-2">INCLUDE SERVICES</span>
+              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-2">INCLUDE SERVICES</span>
               <div className="grid grid-cols-2 gap-2">
                 {[
                   { label: "Mounting ($20/ea)", checked: includeMount, set: setIncludeMount },
@@ -316,7 +316,7 @@ function TireSearchTab() {
                       onChange={e => s.set(e.target.checked)}
                       className="accent-primary"
                     />
-                    <span className="font-mono text-xs text-foreground/60">{s.label}</span>
+                    <span className="text-[12px] text-foreground/60">{s.label}</span>
                   </label>
                 ))}
               </div>
@@ -325,7 +325,7 @@ function TireSearchTab() {
             <button
               onClick={handleCalculate}
               disabled={calcMargin.isPending}
-              className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-3 font-heading font-bold text-sm tracking-wider uppercase hover:bg-primary/90 transition-colors disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-3 font-bold text-sm tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               {calcMargin.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />}
               CALCULATE PRICING
@@ -334,12 +334,12 @@ function TireSearchTab() {
             {/* Results */}
             {calcMargin.data && (
               <div className="mt-4 space-y-3">
-                <div className="bg-nick-dark border border-primary/30 p-4">
+                <div className="bg-background border border-primary/30 p-4">
                   <div className="flex justify-between items-center mb-3">
                     <span className="font-mono text-[10px] text-foreground/40 tracking-wider">CUSTOMER PRICE PER TIRE</span>
-                    <span className="font-heading font-bold text-2xl text-primary">${calcMargin.data.perTire.total.toFixed(2)}</span>
+                    <span className="font-bold text-2xl text-primary">${calcMargin.data.perTire.total.toFixed(2)}</span>
                   </div>
-                  <div className="space-y-1 text-xs font-mono">
+                  <div className="space-y-1 text-xs">
                     <div className="flex justify-between text-foreground/50">
                       <span>Tire price ({calcMargin.data.summary.markupUsed}% markup)</span>
                       <span>${calcMargin.data.perTire.tirePrice.toFixed(2)}</span>
@@ -377,27 +377,27 @@ function TireSearchTab() {
                   </div>
                 </div>
 
-                <div className="bg-nick-dark border border-emerald-500/30 p-4">
+                <div className="bg-background border border-emerald-500/30 p-4">
                   <div className="flex justify-between items-center mb-3">
                     <span className="font-mono text-[10px] text-foreground/40 tracking-wider">
                       TOTAL ({calcMargin.data.summary.quantity} TIRES)
                     </span>
-                    <span className="font-heading font-bold text-2xl text-emerald-400">
+                    <span className="font-bold text-2xl text-emerald-400">
                       ${calcMargin.data.summary.totalRevenue.toFixed(2)}
                     </span>
                   </div>
                   <div className="grid grid-cols-3 gap-3 text-center">
                     <div>
                       <span className="font-mono text-[10px] text-foreground/30 block">YOUR COST</span>
-                      <span className="font-mono text-sm text-foreground/60">${calcMargin.data.summary.totalCost.toFixed(2)}</span>
+                      <span className="text-[13px] text-foreground/60">${calcMargin.data.summary.totalCost.toFixed(2)}</span>
                     </div>
                     <div>
                       <span className="font-mono text-[10px] text-foreground/30 block">PROFIT</span>
-                      <span className="font-mono text-sm text-emerald-400">${calcMargin.data.summary.totalProfit.toFixed(2)}</span>
+                      <span className="text-[13px] text-emerald-400">${calcMargin.data.summary.totalProfit.toFixed(2)}</span>
                     </div>
                     <div>
                       <span className="font-mono text-[10px] text-foreground/30 block">MARGIN</span>
-                      <span className="font-mono text-sm text-primary">{calcMargin.data.summary.effectiveMargin.toFixed(1)}%</span>
+                      <span className="text-[13px] text-primary">{calcMargin.data.summary.effectiveMargin.toFixed(1)}%</span>
                     </div>
                   </div>
                 </div>
@@ -409,7 +409,7 @@ function TireSearchTab() {
           <div className="bg-card border border-border/30 p-4">
             <div className="flex items-center justify-between">
               <div>
-                <span className="font-heading font-bold text-xs tracking-wider text-foreground">DEFAULT MARKUP</span>
+                <span className="font-bold text-xs tracking-wider text-foreground">DEFAULT MARKUP</span>
                 <p className="font-mono text-[10px] text-foreground/40 mt-0.5">Applied when no custom markup is entered</p>
               </div>
               <div className="flex items-center gap-2">
@@ -417,15 +417,15 @@ function TireSearchTab() {
                   type="number"
                   value={customMarkup || "50"}
                   onChange={e => setCustomMarkup(e.target.value)}
-                  className="w-20 px-2 py-1.5 bg-nick-dark border border-border/30 text-foreground font-mono text-sm text-center focus:border-primary/50 focus:outline-none"
+                  className="w-20 px-2 py-1.5 bg-background border border-border/30 text-foreground text-[13px] text-center focus:border-primary/50 focus:outline-none"
                 />
-                <span className="text-foreground/40 font-mono text-sm">%</span>
+                <span className="text-foreground/40 text-[13px]">%</span>
                 <button
                   onClick={() => {
                     const val = parseFloat(customMarkup || "50");
                     if (!isNaN(val)) updateMarkup.mutate({ markup: val });
                   }}
-                  className="px-3 py-1.5 bg-foreground/10 text-foreground/60 hover:text-foreground font-heading font-bold text-[10px] tracking-wider transition-colors"
+                  className="px-3 py-1.5 bg-foreground/10 text-foreground/60 hover:text-foreground font-bold text-[10px] tracking-wider transition-colors"
                 >
                   SAVE
                 </button>
@@ -476,7 +476,7 @@ function LaborGuideTab() {
         <div className="flex items-center gap-3">
           <div className={`w-2.5 h-2.5 rounded-full ${laborStatus?.connected ? "bg-emerald-400" : "bg-amber-400"}`} />
           <div>
-            <span className="font-heading font-bold text-sm tracking-wider text-foreground">AUTO LABOR GUIDE</span>
+            <span className="font-bold text-sm tracking-wider text-foreground">AUTO LABOR GUIDE</span>
             <span className="text-foreground/40 text-xs ml-2">ShopDriver Elite</span>
           </div>
         </div>
@@ -484,7 +484,7 @@ function LaborGuideTab() {
           href="https://secure.autolaborexperts.com"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 text-primary hover:text-primary/80 font-heading font-bold text-xs tracking-wider"
+          className="flex items-center gap-2 text-primary hover:text-primary/80 font-bold text-xs tracking-wider"
         >
           OPEN PORTAL <ExternalLink className="w-3.5 h-3.5" />
         </a>
@@ -501,14 +501,14 @@ function LaborGuideTab() {
               value={searchQuery}
               onChange={e => { setSearchQuery(e.target.value); if (e.target.value.length >= 2) setSelectedCategory(null); }}
               placeholder="Search all jobs..."
-              className="w-full pl-10 pr-4 py-2.5 bg-card border border-border/30 text-foreground font-mono text-sm focus:border-primary/50 focus:outline-none"
+              className="w-full pl-10 pr-4 py-2.5 bg-card border border-border/30 text-foreground text-[13px] focus:border-primary/50 focus:outline-none"
             />
           </div>
 
           {/* Categories */}
           <div className="bg-card border border-border/30">
             <div className="p-3 border-b border-border/30">
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase">CATEGORIES</span>
+              <span className="font-mono text-[10px] text-foreground/40 tracking-wide">CATEGORIES</span>
             </div>
             <div className="divide-y divide-border/20">
               {categories?.map(cat => (
@@ -522,7 +522,7 @@ function LaborGuideTab() {
                   }`}
                 >
                   {CATEGORY_ICONS[cat.id] || <Wrench className="w-4 h-4" />}
-                  <span className="font-heading font-bold text-xs tracking-wider uppercase flex-1 text-left">{cat.name}</span>
+                  <span className="font-bold text-xs tracking-wide flex-1 text-left">{cat.name}</span>
                   <span className="font-mono text-[10px] text-foreground/30">{cat.jobCount}</span>
                   <ChevronRight className="w-3.5 h-3.5 text-foreground/20" />
                 </button>
@@ -534,7 +534,7 @@ function LaborGuideTab() {
         {/* Middle: Job List */}
         <div className="space-y-2">
           <div className="flex items-center justify-between mb-2">
-            <span className="font-heading font-bold text-sm tracking-wider text-foreground">
+            <span className="font-bold text-sm tracking-wider text-foreground">
               {searchQuery.length >= 2 ? `RESULTS FOR "${searchQuery.toUpperCase()}"` : selectedCategory ? categoryJobs?.category?.toUpperCase() || "JOBS" : "SELECT A CATEGORY"}
             </span>
             <span className="font-mono text-[10px] text-foreground/30">{displayJobs.length} JOBS</span>
@@ -558,13 +558,13 @@ function LaborGuideTab() {
               onClick={() => handleCalc(job.name, job.avgHours)}
             >
               <div className="flex justify-between items-start mb-2">
-                <span className="font-heading font-bold text-xs tracking-wider text-foreground">{job.name}</span>
+                <span className="font-bold text-xs tracking-wider text-foreground">{job.name}</span>
                 <div className="flex items-center gap-1 text-primary">
                   <Clock className="w-3.5 h-3.5" />
-                  <span className="font-mono text-sm font-bold">{job.avgHours}h</span>
+                  <span className="text-[13px] font-bold">{job.avgHours}h</span>
                 </div>
               </div>
-              <div className="flex items-center gap-4 text-foreground/40 font-mono text-[10px]">
+              <div className="flex items-center gap-4 text-foreground/40 text-[10px]">
                 <span>RANGE: {job.minHours}–{job.maxHours}h</span>
                 {"categoryName" in job && <span className="text-foreground/30">{(job as any).categoryName}</span>}
               </div>
@@ -578,21 +578,21 @@ function LaborGuideTab() {
         {/* Right: Labor Calculator */}
         <div className="space-y-4">
           <div className="bg-card border border-border/30 p-5">
-            <h3 className="font-heading font-bold text-sm tracking-wider text-foreground mb-4">
+            <h3 className="font-bold text-sm tracking-wider text-foreground mb-4">
               <DollarSign className="w-4 h-4 inline mr-2" />
               LABOR CALCULATOR
             </h3>
 
             {calcJob ? (
               <div className="space-y-4">
-                <div className="bg-nick-dark border border-border/30 p-3">
+                <div className="bg-background border border-border/30 p-3">
                   <span className="font-mono text-[10px] text-foreground/40 tracking-wider block mb-1">SELECTED JOB</span>
-                  <span className="font-heading font-bold text-sm text-foreground">{calcJob.name}</span>
+                  <span className="font-bold text-sm text-foreground">{calcJob.name}</span>
                 </div>
 
                 {/* Difficulty */}
                 <div>
-                  <span className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-2">DIFFICULTY</span>
+                  <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-2">DIFFICULTY</span>
                   <div className="flex gap-1">
                     {(["standard", "moderate", "difficult"] as const).map(d => (
                       <button
@@ -601,7 +601,7 @@ function LaborGuideTab() {
                           setDifficulty(d);
                           handleCalc(calcJob.name, calcJob.hours);
                         }}
-                        className={`flex-1 py-2 font-mono text-xs border transition-colors capitalize ${
+                        className={`flex-1 py-2 text-[12px] border transition-colors capitalize ${
                           difficulty === d
                             ? d === "difficult" ? "border-red-500 text-red-400 bg-red-500/10"
                               : d === "moderate" ? "border-amber-500 text-amber-400 bg-amber-500/10"
@@ -620,14 +620,14 @@ function LaborGuideTab() {
 
                 {/* Result */}
                 {calculateLabor.data && (
-                  <div className="bg-nick-dark border border-primary/30 p-4">
+                  <div className="bg-background border border-primary/30 p-4">
                     <div className="flex justify-between items-center mb-3">
                       <span className="font-mono text-[10px] text-foreground/40 tracking-wider">LABOR COST</span>
-                      <span className="font-heading font-bold text-2xl text-primary">
+                      <span className="font-bold text-2xl text-primary">
                         ${calculateLabor.data.laborCost.toFixed(2)}
                       </span>
                     </div>
-                    <div className="space-y-1 text-xs font-mono">
+                    <div className="space-y-1 text-xs">
                       <div className="flex justify-between text-foreground/50">
                         <span>Base hours</span>
                         <span>{calculateLabor.data.baseHours}h</span>
@@ -715,14 +715,14 @@ function QuickEstimateTab() {
         {/* Left: Add Line Items */}
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-card border border-border/30 p-5">
-            <h3 className="font-heading font-bold text-sm tracking-wider text-foreground mb-4">ADD LINE ITEM</h3>
+            <h3 className="font-bold text-sm tracking-wider text-foreground mb-4">ADD LINE ITEM</h3>
 
             <div className="flex gap-1 mb-4">
               {(["labor", "tire", "part"] as const).map(t => (
                 <button
                   key={t}
                   onClick={() => setAddType(t)}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 font-heading font-bold text-xs tracking-wider uppercase transition-colors ${
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 font-bold text-xs tracking-wide transition-colors ${
                     addType === t
                       ? "bg-primary/10 text-primary border border-primary/30"
                       : "text-foreground/50 hover:text-foreground border border-border/30"
@@ -736,53 +736,53 @@ function QuickEstimateTab() {
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               <div className="col-span-2">
-                <label className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">DESCRIPTION</label>
+                <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">DESCRIPTION</label>
                 <input
                   type="text"
                   value={addName}
                   onChange={e => setAddName(e.target.value)}
                   placeholder={addType === "labor" ? "e.g. Front Brake Pads" : addType === "tire" ? "e.g. 215/60R17 Fortune" : "e.g. Brake Rotor"}
-                  className="w-full px-3 py-2 bg-nick-dark border border-border/30 text-foreground font-mono text-sm focus:border-primary/50 focus:outline-none"
+                  className="w-full px-3 py-2 bg-background border border-border/30 text-foreground text-[13px] focus:border-primary/50 focus:outline-none"
                 />
               </div>
               {addType === "labor" && (
                 <div>
-                  <label className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">HOURS</label>
+                  <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">HOURS</label>
                   <input
                     type="number"
                     step="0.1"
                     value={addHours}
                     onChange={e => setAddHours(e.target.value)}
                     placeholder="1.0"
-                    className="w-full px-3 py-2 bg-nick-dark border border-border/30 text-foreground font-mono text-sm focus:border-primary/50 focus:outline-none"
+                    className="w-full px-3 py-2 bg-background border border-border/30 text-foreground text-[13px] focus:border-primary/50 focus:outline-none"
                   />
                 </div>
               )}
               <div>
-                <label className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">QTY</label>
+                <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">QTY</label>
                 <input
                   type="number"
                   value={addQty}
                   onChange={e => setAddQty(e.target.value)}
-                  className="w-full px-3 py-2 bg-nick-dark border border-border/30 text-foreground font-mono text-sm focus:border-primary/50 focus:outline-none"
+                  className="w-full px-3 py-2 bg-background border border-border/30 text-foreground text-[13px] focus:border-primary/50 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="font-mono text-[10px] text-foreground/40 tracking-wider uppercase block mb-1">UNIT PRICE ($)</label>
+                <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">UNIT PRICE ($)</label>
                 <input
                   type="number"
                   step="0.01"
                   value={addCost}
                   onChange={e => setAddCost(e.target.value)}
                   placeholder="0.00"
-                  className="w-full px-3 py-2 bg-nick-dark border border-border/30 text-foreground font-mono text-sm focus:border-primary/50 focus:outline-none"
+                  className="w-full px-3 py-2 bg-background border border-border/30 text-foreground text-[13px] focus:border-primary/50 focus:outline-none"
                 />
               </div>
             </div>
 
             <button
               onClick={addLine}
-              className="flex items-center gap-2 bg-foreground/10 text-foreground/60 hover:text-foreground px-4 py-2 font-heading font-bold text-xs tracking-wider uppercase transition-colors"
+              className="flex items-center gap-2 bg-foreground/10 text-foreground/60 hover:text-foreground px-4 py-2 font-bold text-xs tracking-wide transition-colors"
             >
               <Plus className="w-4 h-4" />
               ADD TO ESTIMATE
@@ -793,7 +793,7 @@ function QuickEstimateTab() {
           {lines.length > 0 && (
             <div className="bg-card border border-border/30">
               <div className="p-4 border-b border-border/30">
-                <span className="font-heading font-bold text-sm tracking-wider text-foreground">ESTIMATE LINES</span>
+                <span className="font-bold text-sm tracking-wider text-foreground">ESTIMATE LINES</span>
               </div>
               <div className="divide-y divide-border/20">
                 {lines.map(line => (
@@ -804,12 +804,12 @@ function QuickEstimateTab() {
                       {line.type === "labor" ? <Wrench className="w-4 h-4" /> : line.type === "tire" ? <CircleDot className="w-4 h-4" /> : <Package className="w-4 h-4" />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="font-heading font-bold text-xs tracking-wider text-foreground block truncate">{line.name}</span>
+                      <span className="font-bold text-xs tracking-wider text-foreground block truncate">{line.name}</span>
                       <span className="font-mono text-[10px] text-foreground/40">
                         {line.type.toUpperCase()} {line.hours ? `• ${line.hours}h` : ""} • QTY {line.quantity}
                       </span>
                     </div>
-                    <span className="font-mono text-sm text-foreground">${line.total.toFixed(2)}</span>
+                    <span className="text-[13px] text-foreground">${line.total.toFixed(2)}</span>
                     <button onClick={() => removeLine(line.id)} className="text-foreground/30 hover:text-red-400 transition-colors">
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -823,7 +823,7 @@ function QuickEstimateTab() {
         {/* Right: Estimate Summary */}
         <div className="space-y-4">
           <div className="bg-card border border-border/30 p-5 sticky top-20">
-            <h3 className="font-heading font-bold text-sm tracking-wider text-foreground mb-4">ESTIMATE SUMMARY</h3>
+            <h3 className="font-bold text-sm tracking-wider text-foreground mb-4">ESTIMATE SUMMARY</h3>
 
             {lines.length === 0 ? (
               <div className="text-center py-8">
@@ -834,26 +834,26 @@ function QuickEstimateTab() {
               <div className="space-y-3">
                 {totals.labor > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-foreground/50 font-mono">Labor</span>
-                    <span className="text-foreground font-mono">${totals.labor.toFixed(2)}</span>
+                    <span className="text-foreground/50">Labor</span>
+                    <span className="text-foreground">${totals.labor.toFixed(2)}</span>
                   </div>
                 )}
                 {totals.tires > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-foreground/50 font-mono">Tires</span>
-                    <span className="text-foreground font-mono">${totals.tires.toFixed(2)}</span>
+                    <span className="text-foreground/50">Tires</span>
+                    <span className="text-foreground">${totals.tires.toFixed(2)}</span>
                   </div>
                 )}
                 {totals.parts > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-foreground/50 font-mono">Parts</span>
-                    <span className="text-foreground font-mono">${totals.parts.toFixed(2)}</span>
+                    <span className="text-foreground/50">Parts</span>
+                    <span className="text-foreground">${totals.parts.toFixed(2)}</span>
                   </div>
                 )}
                 <div className="border-t border-border/30 pt-3">
                   <div className="flex justify-between">
-                    <span className="font-heading font-bold text-sm tracking-wider text-foreground">TOTAL</span>
-                    <span className="font-heading font-bold text-2xl text-primary">${totals.total.toFixed(2)}</span>
+                    <span className="font-bold text-sm tracking-wider text-foreground">TOTAL</span>
+                    <span className="font-bold text-2xl text-primary">${totals.total.toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -864,13 +864,13 @@ function QuickEstimateTab() {
                       navigator.clipboard.writeText(text);
                       toast.success("Estimate copied to clipboard");
                     }}
-                    className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:bg-primary/90 transition-colors"
+                    className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/90 transition-colors"
                   >
                     COPY ESTIMATE
                   </button>
                   <button
                     onClick={() => { setLines([]); }}
-                    className="w-full flex items-center justify-center gap-2 bg-foreground/10 text-foreground/50 hover:text-foreground px-4 py-2 font-heading font-bold text-xs tracking-wider uppercase transition-colors"
+                    className="w-full flex items-center justify-center gap-2 bg-foreground/10 text-foreground/50 hover:text-foreground px-4 py-2 font-bold text-xs tracking-wide transition-colors"
                   >
                     CLEAR ALL
                   </button>

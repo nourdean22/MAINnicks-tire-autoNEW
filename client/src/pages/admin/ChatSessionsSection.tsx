@@ -39,16 +39,16 @@ export default function ChatSessionsSection() {
 
       {/* Conversion Rate */}
       <div className="bg-card border border-border/30 p-6">
-        <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground mb-4">CHAT CONVERSION RATE</h3>
+        <h3 className="font-bold text-sm tracking-wide text-foreground mb-4">CHAT CONVERSION RATE</h3>
         <div className="flex items-end gap-4">
-          <span className="font-heading font-bold text-5xl text-primary">
+          <span className="font-bold text-5xl text-primary">
             {stats.chat.totalSessions > 0 ? Math.round((stats.chat.converted / stats.chat.totalSessions) * 100) : 0}%
           </span>
-          <span className="font-mono text-sm text-foreground/40 pb-2">
+          <span className="text-[13px] text-foreground/40 pb-2">
             {stats.chat.converted} of {stats.chat.totalSessions} sessions converted to leads
           </span>
         </div>
-        <div className="mt-4 h-3 bg-nick-dark/50 overflow-hidden">
+        <div className="mt-4 h-3 bg-background/50 overflow-hidden">
           <div
             className="h-full bg-primary transition-all duration-700"
             style={{ width: `${stats.chat.totalSessions > 0 ? (stats.chat.converted / stats.chat.totalSessions) * 100 : 0}%` }}
@@ -58,7 +58,7 @@ export default function ChatSessionsSection() {
 
       {/* Recent Chat Sessions */}
       <div>
-        <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground mb-4 flex items-center gap-2">
+        <h3 className="font-bold text-sm tracking-wide text-foreground mb-4 flex items-center gap-2">
           <MessageSquare className="w-4 h-4 text-primary" />
           RECENT CHAT SESSIONS
         </h3>
@@ -70,8 +70,8 @@ export default function ChatSessionsSection() {
                   <MessageSquare className="w-5 h-5 text-purple-400" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-heading font-bold text-sm text-foreground tracking-wider">{chat.title}</p>
-                  <p className="font-mono text-xs text-foreground/50 mt-1">{chat.subtitle}</p>
+                  <p className="font-bold text-sm text-foreground tracking-wider">{chat.title}</p>
+                  <p className="text-[12px] text-foreground/50 mt-1">{chat.subtitle}</p>
                   <p className="font-mono text-[10px] text-foreground/25 mt-2">
                     {new Date(chat.timestamp).toLocaleString()}
                   </p>
@@ -82,8 +82,8 @@ export default function ChatSessionsSection() {
         ) : (
           <div className="text-center py-16 border border-border/30 bg-card">
             <MessageSquare className="w-12 h-12 text-foreground/20 mx-auto mb-4" />
-            <p className="font-heading font-bold text-xl text-foreground/40 tracking-wider">NO CHAT SESSIONS</p>
-            <p className="text-foreground/30 font-mono text-sm mt-2">Customer chat sessions will appear here.</p>
+            <p className="font-bold text-xl text-foreground/40 tracking-wider">NO CHAT SESSIONS</p>
+            <p className="text-foreground/30 text-[13px] mt-2">Customer chat sessions will appear here.</p>
           </div>
         )}
       </div>

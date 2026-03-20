@@ -53,18 +53,18 @@ export default function ContentSection() {
         <div className="flex items-center gap-3">
           <Sparkles className="w-5 h-5 text-primary" />
           <div>
-            <p className="font-heading font-bold text-sm text-foreground tracking-wider">FULL CONTENT MANAGER</p>
-            <p className="font-mono text-xs text-foreground/40">Generate articles, manage notifications, view generation logs</p>
+            <p className="font-bold text-sm text-foreground tracking-wider">FULL CONTENT MANAGER</p>
+            <p className="text-[12px] text-foreground/40">Generate articles, manage notifications, view generation logs</p>
           </div>
         </div>
-        <Link href="/admin/content" className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 font-heading font-bold text-xs tracking-wider uppercase hover:bg-primary/90">
+        <Link href="/admin/content" className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/90">
           OPEN <ChevronRight className="w-4 h-4" />
         </Link>
       </div>
 
       {/* Articles List */}
       <div>
-        <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground mb-4 flex items-center gap-2">
+        <h3 className="font-bold text-sm tracking-wide text-foreground mb-4 flex items-center gap-2">
           <FileText className="w-4 h-4 text-primary" />
           ARTICLES ({articles?.length ?? 0})
         </h3>
@@ -75,12 +75,12 @@ export default function ContentSection() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <StatusDot status={article.status} />
-                    <h4 className="font-heading font-bold text-sm text-foreground tracking-wider truncate">{article.title}</h4>
+                    <h4 className="font-bold text-sm text-foreground tracking-wider truncate">{article.title}</h4>
                   </div>
                   <div className="flex items-center gap-3 text-foreground/40">
-                    <span className="font-mono text-xs">{article.category}</span>
-                    <span className="font-mono text-xs">{article.readTime}</span>
-                    <span className="font-mono text-xs">{new Date(article.createdAt).toLocaleDateString()}</span>
+                    <span className="text-[12px]">{article.category}</span>
+                    <span className="text-[12px]">{article.readTime}</span>
+                    <span className="text-[12px]">{new Date(article.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -88,7 +88,7 @@ export default function ContentSection() {
                     <button
                       onClick={() => updateArticle.mutate({ id: article.id, status: "published" })}
                       disabled={updateArticle.isPending}
-                      className="flex items-center gap-1.5 bg-emerald-600 text-white px-3 py-1.5 font-heading font-bold text-[10px] tracking-wider uppercase hover:bg-emerald-700 disabled:opacity-50"
+                      className="flex items-center gap-1.5 bg-emerald-600 text-white px-3 py-1.5 font-bold text-[10px] tracking-wide hover:bg-emerald-700 disabled:opacity-50"
                     >
                       <CheckCircle2 className="w-3 h-3" /> PUBLISH
                     </button>
@@ -97,7 +97,7 @@ export default function ContentSection() {
                     <button
                       onClick={() => updateArticle.mutate({ id: article.id, status: "draft" })}
                       disabled={updateArticle.isPending}
-                      className="flex items-center gap-1.5 border border-amber-500/30 text-amber-400 px-3 py-1.5 font-heading font-bold text-[10px] tracking-wider uppercase hover:bg-amber-500/10 disabled:opacity-50"
+                      className="flex items-center gap-1.5 border border-amber-500/30 text-amber-400 px-3 py-1.5 font-bold text-[10px] tracking-wide hover:bg-amber-500/10 disabled:opacity-50"
                     >
                       UNPUBLISH
                     </button>
@@ -106,7 +106,7 @@ export default function ContentSection() {
                     <button
                       onClick={() => updateArticle.mutate({ id: article.id, status: "draft" })}
                       disabled={updateArticle.isPending}
-                      className="flex items-center gap-1.5 border border-border/30 text-foreground/50 px-3 py-1.5 font-heading font-bold text-[10px] tracking-wider uppercase hover:text-foreground disabled:opacity-50"
+                      className="flex items-center gap-1.5 border border-border/30 text-foreground/50 px-3 py-1.5 font-bold text-[10px] tracking-wide hover:text-foreground disabled:opacity-50"
                     >
                       RESTORE
                     </button>
@@ -118,14 +118,14 @@ export default function ContentSection() {
         ) : (
           <div className="text-center py-12 border border-border/30 bg-card">
             <FileText className="w-10 h-10 text-foreground/20 mx-auto mb-3" />
-            <p className="font-mono text-sm text-foreground/40">No articles generated yet</p>
+            <p className="text-[13px] text-foreground/40">No articles generated yet</p>
           </div>
         )}
       </div>
 
       {/* Notifications List */}
       <div>
-        <h3 className="font-heading font-bold text-sm tracking-wider uppercase text-foreground mb-4 flex items-center gap-2">
+        <h3 className="font-bold text-sm tracking-wide text-foreground mb-4 flex items-center gap-2">
           <Bell className="w-4 h-4 text-primary" />
           NOTIFICATION BAR MESSAGES ({notifications?.length ?? 0})
         </h3>
@@ -135,12 +135,12 @@ export default function ContentSection() {
               <div key={notif.id} className="bg-card border border-border/30 p-3 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${notif.isActive === 1 ? "bg-emerald-400" : "bg-foreground/30"}`} />
-                  <p className="font-mono text-sm text-foreground/70 truncate">{notif.message}</p>
+                  <p className="text-[13px] text-foreground/70 truncate">{notif.message}</p>
                 </div>
                 <button
                   onClick={() => toggleNotif.mutate({ id: notif.id, isActive: notif.isActive === 1 ? 0 : 1 })}
                   disabled={toggleNotif.isPending}
-                  className={`shrink-0 px-3 py-1.5 font-heading font-bold text-[10px] tracking-wider uppercase disabled:opacity-50 ${
+                  className={`shrink-0 px-3 py-1.5 font-bold text-[10px] tracking-wide disabled:opacity-50 ${
                     notif.isActive === 1
                       ? "border border-red-500/30 text-red-400 hover:bg-red-500/10"
                       : "border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
@@ -154,7 +154,7 @@ export default function ContentSection() {
         ) : (
           <div className="text-center py-8 border border-border/30 bg-card">
             <Bell className="w-8 h-8 text-foreground/20 mx-auto mb-2" />
-            <p className="font-mono text-sm text-foreground/40">No notification messages yet</p>
+            <p className="text-[13px] text-foreground/40">No notification messages yet</p>
           </div>
         )}
       </div>
