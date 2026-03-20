@@ -1425,3 +1425,66 @@
 - [x] Write attribution.test.ts (7 tests: sourceAttribution, callTracking, callbacks, UTM schema, CSV format, call event structure)
 - [x] All 7 attribution tests passing
 - [ ] Need GA4 measurement ID for live GA4 tracking (requires Google Analytics property)
+
+## Phase — 10-Point GBP & Brand Upgrade System (March 20, 2026)
+
+### Upgrade 0: Full Entity Cleanup
+- [x] Audit all web listings for business name inconsistencies — documented in entity-cleanup-audit.md
+- [x] Brand consistency monitor with platform-by-platform fix instructions — brand-consistency-monitor.md
+- [x] NAP consistency scoring template and 30+ directory checklist generated
+- [ ] Execute fixes on each platform (BBB, CARFAX, Acima, MapQuest, Google Sites, Facebook, Yelp)
+
+### Upgrade 1: Review Response Automation — Backlog
+- [x] Generated responses for 5 most recent Google reviews (all available via API) — review-responses.md
+- [x] Brand voice: direct, calm, confident, professional with local SEO keywords
+- [x] Ready to copy-paste into Google Business Profile
+- [ ] Daily system (11 AM) handles new reviews going forward
+
+### Upgrade 2: GBP Post Verification System
+- [ ] Add weekly GBP post audit to Sunday report
+- [ ] Check how many GBP posts are currently visible, flag if fewer than 3
+- [ ] Restructure GBP posts to match E-Check post format (service lists, local keywords, CTAs)
+
+### Upgrade 3: Q&A Seeding System
+- [x] Generated 20 Q&A entries covering all target topics — gbp-qa-seeds.md
+- [x] Topics: E-Check, brakes, tires, hours, vehicles, estimates, walk-ins, payment, warranty, used tires, oil, suspension, check engine, AC, timeframes, towing, fleet, financing, breakdown, contact
+- [x] Brand voice with natural local SEO keywords throughout
+- [x] 5-week posting schedule included (3-4 per week)
+
+### Upgrade 4: Weekly Photo Upload Queue
+- [x] Generated 25-photo GBP upload queue with categories, alt text, priority, and shot tips — gbp-photo-queue.md
+- [x] Covers: exterior, interior, team, at_work, product categories
+- [x] Each photo has SEO alt text and specific shooting instructions
+
+### Upgrade 5: Brand Consistency Monitor
+- [x] Monthly audit checklist generated — brand-consistency-monitor.md
+- [x] Platform-by-platform fix instructions with URLs and steps
+- [x] 30+ directory listing checklist with priority ranking
+
+### Upgrade 6: Competitor GBP Monitor
+- [x] Top 10 competitor analysis generated — competitor-monitor.md
+- [x] Competitive advantages and learning opportunities documented
+- [x] Monthly tracking checklist included
+
+### Upgrade 7: Website Content Generator
+- [ ] Already built — nickstire.org with blog, services, reviews, booking ✓
+- [ ] Ensure weekly blog articles auto-populate from content system
+
+### Upgrade 8: Review Keyword Mining
+- [x] Top 20 review keywords identified — local-seo-tracker.md
+- [x] Keyword usage strategy for GBP posts, Q&A, and website content
+- [x] Review encouragement template with natural keyword inclusion
+
+### Upgrade 9: Local SEO Keyword Tracker
+- [x] 30 keywords to track organized by category — local-seo-tracker.md
+- [x] Monthly SEO tracking checklist (weekly, monthly, quarterly tasks)
+- [x] 12-week GBP post schedule with keyword targeting
+- [ ] Set up automated rank tracking (requires Google Search Console access)
+
+### Upgrade 10: "Women Trust This Shop" Content Campaign
+- [x] Full campaign strategy document generated — women-trust-campaign.md
+- [x] 10 social media posts with platform, text, image descriptions, hashtags, timing
+- [x] 5 SEO blog post titles and outlines
+- [x] 3 Google Business Profile posts
+- [x] 3 email/SMS campaign messages
+- [x] Messaging framework built around Nurse Summer's review as social proof
