@@ -57,6 +57,16 @@ export const bookings = mysqlTable("bookings", {
   /** Follow-up tracking */
   followUp24hSent: int("followUp24hSent").default(0).notNull(),
   followUp7dSent: int("followUp7dSent").default(0).notNull(),
+  /** UTM source attribution */
+  utmSource: varchar("utmSource", { length: 100 }),
+  utmMedium: varchar("utmMedium", { length: 100 }),
+  utmCampaign: varchar("utmCampaign", { length: 255 }),
+  utmTerm: varchar("utmTerm", { length: 255 }),
+  utmContent: varchar("utmContent", { length: 255 }),
+  /** Landing page URL that brought the visitor */
+  landingPage: varchar("landingPage", { length: 500 }),
+  /** Referrer URL */
+  referrer: varchar("referrer", { length: 500 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -96,6 +106,12 @@ export const leads = mysqlTable("leads", {
   fleetSize: int("fleetSize"),
   vehicleTypes: text("vehicleTypes"),
   status: mysqlEnum("status", ["new", "contacted", "booked", "closed", "lost"]).default("new").notNull(),
+  /** UTM source attribution */
+  utmSource: varchar("utmSource", { length: 100 }),
+  utmMedium: varchar("utmMedium", { length: 100 }),
+  utmCampaign: varchar("utmCampaign", { length: 255 }),
+  landingPage: varchar("landingPage", { length: 500 }),
+  referrer: varchar("referrer", { length: 500 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -485,6 +501,12 @@ export const callbackRequests = mysqlTable("callback_requests", {
   calledAt: timestamp("calledAt"),
   calledBy: varchar("calledBy", { length: 255 }),
   notes: text("notes"),
+  /** UTM source attribution */
+  utmSource: varchar("utmSource", { length: 100 }),
+  utmMedium: varchar("utmMedium", { length: 100 }),
+  utmCampaign: varchar("utmCampaign", { length: 255 }),
+  landingPage: varchar("landingPage", { length: 500 }),
+  referrer: varchar("referrer", { length: 500 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -1097,3 +1119,32 @@ export const tireOrders = mysqlTable("tire_orders", {
 
 export type TireOrder = typeof tireOrders.$inferSelect;
 export type InsertTireOrder = typeof tireOrders.$inferInsert;
+
+// ─── CALL EVENTS (Phone Click Tracking) ──────────────
+/**
+ * Tracks every phone call click from the website.
+ * Captures source attribution for ad spend ROI analysis.
+ */
+export const callEvents = mysqlTable("call_events", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Phone number clicked */
+  phoneNumber: varchar("phoneNumber", { length: 30 }).notNull(),
+  /** Page where the click happened */
+  sourcePage: varchar("sourcePage", { length: 500 }),
+  /** Button/element that was clicked */
+  clickElement: varchar("clickElement", { length: 100 }),
+  /** UTM source attribution */
+  utmSource: varchar("utmSource", { length: 100 }),
+  utmMedium: varchar("utmMedium", { length: 100 }),
+  utmCampaign: varchar("utmCampaign", { length: 255 }),
+  /** Landing page that brought the visitor */
+  landingPage: varchar("landingPage", { length: 500 }),
+  /** Referrer URL */
+  referrer: varchar("referrer", { length: 500 }),
+  /** User agent for device tracking */
+  userAgent: varchar("userAgent", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CallEvent = typeof callEvents.$inferSelect;
+export type InsertCallEvent = typeof callEvents.$inferInsert;

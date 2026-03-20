@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { trackBookingSubmission, getUserDataForCAPI } from "@/lib/metaPixel";
+import { getUtmData } from "@/lib/utm";
 import {
   Phone, Calendar, Clock, Car, Wrench, CheckCircle, AlertCircle,
   Loader2, Camera, X, ChevronRight, ChevronLeft, User, Mail, MessageSquare, AlertTriangle, Zap,
@@ -120,12 +121,14 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
     });
     const userData = getUserDataForCAPI();
     const photoUrls = photos.filter((p) => p.url).map((p) => p.url!);
+    const utmData = getUtmData();
     mutation.mutate({
       ...formData,
       photoUrls,
       urgency: formData.urgency,
       pixelEventIds: { leadEventId, scheduleEventId },
       pixelUserData: userData,
+      ...utmData,
     });
   };
 

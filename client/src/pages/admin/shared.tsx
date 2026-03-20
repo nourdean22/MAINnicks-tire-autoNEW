@@ -7,11 +7,12 @@ import {
   Phone, Mail, MessageSquare, CalendarClock, Users,
   LayoutDashboard, FileText, Globe, Wrench, Gauge,
   ClipboardList, Trophy, Gift, Send, Star, UserCheck, RotateCcw, Timer,
-  Settings, Upload, DollarSign, Activity, TrendingUp, Plug, ShoppingCart
+  Settings, Upload, DollarSign, Activity, TrendingUp, Plug, ShoppingCart,
+  BarChart3, PhoneCall, Download
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders";
+export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "closed" | "lost";
 
@@ -46,8 +47,11 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Dashboard",
     items: [
       { id: "overview", label: "Overview", icon: <LayoutDashboard className="w-4 h-4" /> },
+      { id: "analyticsView", label: "Analytics", icon: <BarChart3 className="w-4 h-4" /> },
+      { id: "callTrackingView", label: "Call Tracking", icon: <PhoneCall className="w-4 h-4" /> },
       { id: "revenue", label: "Revenue Center", icon: <TrendingUp className="w-4 h-4" /> },
       { id: "health", label: "Site Health", icon: <Globe className="w-4 h-4" /> },
+      { id: "exportView", label: "Export Data", icon: <Download className="w-4 h-4" /> },
     ],
   },
   {
@@ -128,6 +132,9 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   revenue: "Revenue Command Center",
   integrations: "Integrations Hub",
   tireOrders: "Tire Orders",
+  analyticsView: "Analytics & Attribution",
+  callTrackingView: "Call Tracking",
+  exportView: "Export Data",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────

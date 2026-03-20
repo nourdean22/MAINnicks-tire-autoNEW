@@ -44,6 +44,8 @@ import {
   portalRouter,
   gatewayTireRouter,
   autoLaborRouter,
+  callTrackingRouter,
+  exportRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -101,6 +103,10 @@ export const appRouter = router({
   invoices: invoicesRouter,
   kpi: kpiRouter,
   portal: portalRouter,
+
+  // Attribution & Export
+  callTracking: callTrackingRouter,
+  export: exportRouter,
 
   // Business Integrations
   gatewayTire: gatewayTireRouter,

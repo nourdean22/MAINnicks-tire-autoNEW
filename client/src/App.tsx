@@ -1,9 +1,10 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { captureUtmParams } from "@/lib/utm";
 
 // ─── LOADING FALLBACK ─────────────────────────────────
 function PageLoader() {
@@ -170,6 +171,11 @@ function Router() {
 }
 
 function App() {
+  // Capture UTM params on first load for attribution
+  useEffect(() => {
+    captureUtmParams();
+  }, []);
+
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">

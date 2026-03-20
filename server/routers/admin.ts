@@ -1,14 +1,15 @@
 /**
  * Admin router — dashboard stats, analytics, weekly reports, follow-ups.
  */
-import { adminProcedure, router } from "../_core/trpc";
+import { adminProcedure, publicProcedure, router } from "../_core/trpc";
 import { sendNotification, getDeliveryLog } from "../email-notify";
 import { isSheetConfigured, getSpreadsheetUrl } from "../sheets-sync";
 import { getAnalyticsSnapshots, getBookingServiceBreakdown } from "../db";
 import { getDashboardStats, getSiteHealth } from "../admin-stats";
 import { z } from "zod";
 import { eq, desc, gte, sql } from "drizzle-orm";
-import { bookings, leads, callbackRequests, customerNotifications } from "../../drizzle/schema";
+import { bookings, leads, callbackRequests, customerNotifications, callEvents } from "../../drizzle/schema";
+import { sanitizeText, sanitizePhone } from "../sanitize";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -242,5 +243,109 @@ export const weeklyReportRouter = router({
     }).catch(() => {});
 
     return report;
+  }),
+});
+
+// ─── CALL TRACKING ─────────────────────────────────────
+export const callTrackingRouter = router({
+  /** Log a phone click event from the frontend */
+  logCall: publicProcedure
+    .input(z.object({
+      phoneNumber: z.string(),
+      sourcePage: z.string().optional(),
+      clickElement: z.string().optional(),
+      utmSource: z.string().optional(),
+      utmMedium: z.string().optional(),
+      utmCampaign: z.string().optional(),
+      landingPage: z.string().optional(),
+      referrer: z.string().optional(),
+      userAgent: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) return { success: false };
+      try {
+        await d.insert(callEvents).values({
+          phoneNumber: input.phoneNumber,
+          sourcePage: input.sourcePage || null,
+          clickElement: input.clickElement || null,
+          utmSource: input.utmSource || null,
+          utmMedium: input.utmMedium || null,
+          utmCampaign: input.utmCampaign || null,
+          landingPage: input.landingPage || null,
+          referrer: input.referrer || null,
+          userAgent: input.userAgent || null,
+        });
+        return { success: true };
+      } catch (err) {
+        console.error("[CallTracking] Error logging call:", err);
+        return { success: false };
+      }
+    }),
+
+  /** Get all call events (admin) */
+  list: adminProcedure
+    .input(z.object({ limit: z.number().default(100) }).optional())
+    .query(async ({ input }) => {
+      const d = await db();
+      if (!d) return [];
+      return d.select().from(callEvents)
+        .orderBy(desc(callEvents.createdAt))
+        .limit(input?.limit ?? 100);
+    }),
+});
+
+// ─── DATA EXPORT ───────────────────────────────────────
+export const exportRouter = router({
+  bookings: adminProcedure.query(async () => {
+    const d = await db();
+    if (!d) return { csv: "", count: 0 };
+    const rows = await d.select().from(bookings).orderBy(desc(bookings.createdAt));
+    const headers = ["ID", "Name", "Phone", "Email", "Service", "Vehicle", "Status", "Urgency", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
+    const csvRows = rows.map(r => [
+      r.id, r.name, r.phone, r.email || "", r.service, r.vehicle || "", r.status, r.urgency || "",
+      r.utmSource || "", r.utmMedium || "", r.utmCampaign || "", r.landingPage || "", r.referrer || "",
+      new Date(r.createdAt).toISOString(),
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
+  }),
+
+  leads: adminProcedure.query(async () => {
+    const d = await db();
+    if (!d) return { csv: "", count: 0 };
+    const rows = await d.select().from(leads).orderBy(desc(leads.createdAt));
+    const headers = ["ID", "Name", "Phone", "Email", "Source", "Problem", "Urgency Score", "Status", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
+    const csvRows = rows.map(r => [
+      r.id, r.name, r.phone, r.email || "", r.source, r.problem || "", r.urgencyScore ?? "", r.status,
+      r.utmSource || "", r.utmMedium || "", r.utmCampaign || "", r.landingPage || "", r.referrer || "",
+      new Date(r.createdAt).toISOString(),
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
+  }),
+
+  calls: adminProcedure.query(async () => {
+    const d = await db();
+    if (!d) return { csv: "", count: 0 };
+    const rows = await d.select().from(callEvents).orderBy(desc(callEvents.createdAt));
+    const headers = ["ID", "Phone Number", "Source Page", "Click Element", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
+    const csvRows = rows.map(r => [
+      r.id, r.phoneNumber, r.sourcePage || "", r.clickElement || "",
+      r.utmSource || "", r.utmMedium || "", r.utmCampaign || "", r.landingPage || "", r.referrer || "",
+      new Date(r.createdAt).toISOString(),
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
+  }),
+
+  callbacks: adminProcedure.query(async () => {
+    const d = await db();
+    if (!d) return { csv: "", count: 0 };
+    const rows = await d.select().from(callbackRequests).orderBy(desc(callbackRequests.createdAt));
+    const headers = ["ID", "Name", "Phone", "Context", "Source Page", "Status", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
+    const csvRows = rows.map(r => [
+      r.id, r.name, r.phone, r.context || "", r.sourcePage || "", r.status,
+      r.utmSource || "", r.utmMedium || "", r.utmCampaign || "", r.landingPage || "", r.referrer || "",
+      new Date(r.createdAt).toISOString(),
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
   }),
 });

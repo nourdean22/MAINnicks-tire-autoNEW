@@ -156,6 +156,14 @@ export const bookingRouter = router({
           fbc: z.string().optional(),
           fbp: z.string().optional(),
         }).optional(),
+        // UTM source attribution
+        utmSource: z.string().max(100).optional(),
+        utmMedium: z.string().max(100).optional(),
+        utmCampaign: z.string().max(255).optional(),
+        utmTerm: z.string().max(255).optional(),
+        utmContent: z.string().max(255).optional(),
+        landingPage: z.string().max(500).optional(),
+        referrer: z.string().max(500).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -187,6 +195,13 @@ export const bookingRouter = router({
         urgency: input.urgency,
         referenceCode: refCode,
         priority: input.urgency === "emergency" ? 1 : input.urgency === "this-week" ? 5 : 10,
+        utmSource: input.utmSource || null,
+        utmMedium: input.utmMedium || null,
+        utmCampaign: input.utmCampaign || null,
+        utmTerm: input.utmTerm || null,
+        utmContent: input.utmContent || null,
+        landingPage: input.landingPage || null,
+        referrer: input.referrer || null,
       });
 
       syncBookingToSheet({

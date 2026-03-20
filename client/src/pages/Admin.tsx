@@ -41,6 +41,9 @@ const ActivitySection = lazy(() => import("./admin/ActivitySection"));
 const RevenueSection = lazy(() => import("./admin/RevenueSection"));
 const IntegrationsSection = lazy(() => import("./admin/IntegrationsSection"));
 const TireOrdersSection = lazy(() => import("./admin/TireOrdersSection"));
+const AnalyticsSection = lazy(() => import("./admin/AnalyticsSection"));
+const CallTrackingSection = lazy(() => import("./admin/CallTrackingSection"));
+const ExportSection = lazy(() => import("./admin/ExportSection"));
 
 function SectionSpinner() {
   return (
@@ -81,6 +84,9 @@ function SectionContent({ section }: { section: AdminSection }) {
       {section === "revenue" && <RevenueSection />}
       {section === "integrations" && <IntegrationsSection />}
       {section === "tireOrders" && <TireOrdersSection />}
+      {section === "analyticsView" && <AnalyticsSection />}
+      {section === "callTrackingView" && <CallTrackingSection />}
+      {section === "exportView" && <ExportSection />}
     </Suspense>
   );
 }

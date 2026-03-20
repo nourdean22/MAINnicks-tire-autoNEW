@@ -4,8 +4,8 @@
  */
 
 import { getDb } from "./db";
-import { bookings, leads, chatSessions, dynamicArticles, notificationMessages, contentGenerationLog, users } from "../drizzle/schema";
-import { eq, desc } from "drizzle-orm";
+import { bookings, leads, chatSessions, dynamicArticles, notificationMessages, contentGenerationLog, users, callbackRequests, callEvents } from "../drizzle/schema";
+import { eq, desc, gte, sql } from "drizzle-orm";
 
 export interface DashboardStats {
   bookings: {
@@ -49,6 +49,22 @@ export interface DashboardStats {
     admins: number;
   };
   recentActivity: ActivityItem[];
+  sourceAttribution: {
+    bookingsBySource: { source: string; count: number }[];
+    leadsBySource: { source: string; count: number }[];
+    callsBySource: { source: string; count: number }[];
+  };
+  callTracking: {
+    totalCalls: number;
+    thisWeek: number;
+    byPage: { page: string; count: number }[];
+  };
+  callbacks: {
+    total: number;
+    new: number;
+    completed: number;
+    thisWeek: number;
+  };
 }
 
 export interface ActivityItem {
@@ -70,6 +86,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     chat: { totalSessions: 0, converted: 0, thisWeek: 0 },
     users: { total: 0, admins: 0 },
     recentActivity: [],
+    sourceAttribution: { bookingsBySource: [], leadsBySource: [], callsBySource: [] },
+    callTracking: { totalCalls: 0, thisWeek: 0, byPage: [] },
+    callbacks: { total: 0, new: 0, completed: 0, thisWeek: 0 },
   };
 
   if (!d) return defaultStats;
@@ -196,6 +215,50 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       });
     });
 
+    // ─── SOURCE ATTRIBUTION ─────────────────────────
+    const bookingsBySource: Record<string, number> = {};
+    allBookings.forEach(b => {
+      const src = b.utmSource || (b.referrer ? "referral" : "direct");
+      bookingsBySource[src] = (bookingsBySource[src] || 0) + 1;
+    });
+
+    const leadsByUtmSource: Record<string, number> = {};
+    allLeads.forEach(l => {
+      const src = l.utmSource || (l.referrer ? "referral" : "direct");
+      leadsByUtmSource[src] = (leadsByUtmSource[src] || 0) + 1;
+    });
+
+    // ─── CALL TRACKING ────────────────────────────────
+    let callTrackingStats = { totalCalls: 0, thisWeek: 0, byPage: [] as { page: string; count: number }[] };
+    let callsBySource: Record<string, number> = {};
+    try {
+      const allCalls = await d.select().from(callEvents).orderBy(desc(callEvents.createdAt));
+      const callsByPage: Record<string, number> = {};
+      allCalls.forEach(c => {
+        const page = c.sourcePage || "unknown";
+        callsByPage[page] = (callsByPage[page] || 0) + 1;
+        const src = c.utmSource || (c.referrer ? "referral" : "direct");
+        callsBySource[src] = (callsBySource[src] || 0) + 1;
+      });
+      callTrackingStats = {
+        totalCalls: allCalls.length,
+        thisWeek: allCalls.filter(c => new Date(c.createdAt) >= weekAgo).length,
+        byPage: Object.entries(callsByPage).map(([page, count]) => ({ page, count })).sort((a, b) => b.count - a.count),
+      };
+    } catch {}
+
+    // ─── CALLBACKS ─────────────────────────────────────
+    let callbackStats = { total: 0, new: 0, completed: 0, thisWeek: 0 };
+    try {
+      const allCallbacks = await d.select().from(callbackRequests).orderBy(desc(callbackRequests.createdAt));
+      callbackStats = {
+        total: allCallbacks.length,
+        new: allCallbacks.filter(c => c.status === "new").length,
+        completed: allCallbacks.filter(c => c.status === "completed").length,
+        thisWeek: allCallbacks.filter(c => new Date(c.createdAt) >= weekAgo).length,
+      };
+    } catch {}
+
     // Sort by timestamp descending
     recentActivity.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
@@ -206,6 +269,13 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       chat: chatStats,
       users: userStats,
       recentActivity: recentActivity.slice(0, 15),
+      sourceAttribution: {
+        bookingsBySource: Object.entries(bookingsBySource).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count),
+        leadsBySource: Object.entries(leadsByUtmSource).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count),
+        callsBySource: Object.entries(callsBySource).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count),
+      },
+      callTracking: callTrackingStats,
+      callbacks: callbackStats,
     };
   } catch (error) {
     console.error("[AdminStats] Error fetching stats:", error);

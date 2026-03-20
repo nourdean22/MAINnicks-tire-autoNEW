@@ -106,6 +106,13 @@
       "when": 1774016127126,
       "tag": "0014_talented_black_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1774035519931,
+      "tag": "0015_mature_sheva_callister",
+      "breakpoints": true
     }
   ]
 }

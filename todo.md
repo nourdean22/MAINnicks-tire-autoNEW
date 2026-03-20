@@ -1381,3 +1381,47 @@
 - [x] Write meta-capi.test.ts (9 tests: token check, Lead/Schedule/Contact events, hashing, error handling, cookies)
 - [x] All 9 CAPI tests passing
 - [ ] Need META_CAPI_ACCESS_TOKEN env variable for live CAPI (requires Meta Events Manager setup)
+
+
+## Phase — Full Attribution Infrastructure & Admin Dashboard (March 20, 2026)
+### GA4 Conversion & Event Tracking
+- [ ] Set up GA4 measurement ID in environment variables (needs GA4 property creation)
+- [x] Build GA4 event tracking utility (ga4.ts — trackFormSubmission, trackPhoneClick, trackServiceView, trackChatInteraction, trackSearch, trackPageView)
+- [x] Track form submissions as GA4 conversions (booking, lead, callback)
+- [x] Track phone clicks as GA4 conversions (call_click event)
+- [x] Track service page views with custom parameters (service_type, page_section)
+- [x] Capture UTM parameters and store in database for attribution (utm.ts + schema columns)
+- [x] Track user session flow (landing page, referrer captured on all forms)
+- [x] Add call_events table to database for local call logging
+
+### Call Tracking & Source Capture
+- [x] Add UTM source columns to bookings, leads, callbackRequests (utmSource, utmMedium, utmCampaign, landingPage, referrer)
+- [x] Capture referrer on form submission for attribution
+- [x] Track which page/service led to phone click (call_events.sourcePage)
+- [x] Log phone click events to database via callTracking.logCall endpoint
+- [x] Build call attribution report (calls by page, calls by source)
+- [ ] Add call tracking number integration (optional: CallRail or similar)
+
+### Admin Dashboard Infrastructure
+- [x] Admin page already exists at /admin with role-based access control
+- [x] adminProcedure enforces admin-only access on all endpoints
+- [x] Build admin data aggregation with sourceAttribution, callTracking, callbacks in getDashboardStats
+- [x] Analytics funnel endpoint (analytics.funnel — leads → converted → bookings → completed)
+- [x] Service breakdown endpoint (analytics.serviceBreakdown)
+
+### Admin Dashboard UI Components
+- [x] Dashboard Overview: Key metrics (total leads, bookings, calls, revenue estimate) — already existed
+- [x] Analytics Section: NEW — conversion funnel, source attribution charts, service mix, UTM setup guide
+- [x] Leads Tab: Enhanced with source, status, score — already existed
+- [x] Bookings Tab: Status breakdown, service mix, notes field — already existed
+- [x] Call Tracking Tab: NEW — call event log with source page, UTM attribution, summary cards
+- [x] Service Breakdown: Chart in Analytics section showing most requested services
+- [x] Recent Activity Feed: Timeline of leads, bookings, calls — already existed
+- [x] Quick Actions: One-click actions — already existed
+- [x] Export Data Tab: NEW — CSV export for bookings, leads, calls, callbacks with full UTM attribution
+- [x] Settings: Admin preferences — already existed
+
+### Testing & Validation
+- [x] Write attribution.test.ts (7 tests: sourceAttribution, callTracking, callbacks, UTM schema, CSV format, call event structure)
+- [x] All 7 attribution tests passing
+- [ ] Need GA4 measurement ID for live GA4 tracking (requires Google Analytics property)

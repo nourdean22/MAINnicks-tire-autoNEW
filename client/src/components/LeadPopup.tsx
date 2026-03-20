@@ -9,6 +9,7 @@ import { X, Phone, AlertTriangle, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { trackLeadSubmission, getUserDataForCAPI } from "@/lib/metaPixel";
+import { getUtmData } from "@/lib/utm";
 import { BUSINESS } from "@shared/business";
 
 const STORAGE_KEY = "nicks_lead_popup_dismissed";
@@ -80,6 +81,7 @@ export default function LeadPopup() {
     // Meta Pixel + CAPI: Track lead popup submission
     const eventId = trackLeadSubmission({ source: "popup", problem: form.problem.trim() });
     const userData = getUserDataForCAPI();
+    const utmData = getUtmData();
     submitLead.mutate({
       name: form.name.trim(),
       phone: form.phone.trim(),
@@ -88,6 +90,7 @@ export default function LeadPopup() {
       source: "popup",
       pixelEventId: eventId,
       pixelUserData: userData,
+      ...utmData,
     });
   };
 

@@ -31,6 +31,12 @@ export const callbackRouter = router({
         fbc: z.string().optional(),
         fbp: z.string().optional(),
       }).optional(),
+      // UTM source attribution
+      utmSource: z.string().max(100).optional(),
+      utmMedium: z.string().max(100).optional(),
+      utmCampaign: z.string().max(255).optional(),
+      landingPage: z.string().max(500).optional(),
+      referrer: z.string().max(500).optional(),
     }))
     .mutation(async ({ input }) => {
       try {
@@ -44,6 +50,11 @@ export const callbackRouter = router({
         phone,
         context: context || null,
         sourcePage: input.sourcePage || null,
+        utmSource: input.utmSource || null,
+        utmMedium: input.utmMedium || null,
+        utmCampaign: input.utmCampaign || null,
+        landingPage: input.landingPage || null,
+        referrer: input.referrer || null,
       });
 
       const d = await db();
@@ -55,6 +66,11 @@ export const callbackRouter = router({
           problem: input.context || "Callback request from " + (input.sourcePage || "website"),
           urgencyScore: 4,
           urgencyReason: "Customer requested immediate callback",
+          utmSource: input.utmSource || null,
+          utmMedium: input.utmMedium || null,
+          utmCampaign: input.utmCampaign || null,
+          landingPage: input.landingPage || null,
+          referrer: input.referrer || null,
         }).catch(() => {});
       }
 

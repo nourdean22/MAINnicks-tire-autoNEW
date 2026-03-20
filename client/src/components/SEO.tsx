@@ -152,16 +152,41 @@ export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
 
 /**
  * Click-to-call tracking wrapper.
- * Fires a custom event for analytics when a phone link is clicked.
+ * Fires analytics events AND logs to the database for admin dashboard visibility.
  */
 export function trackPhoneClick(source: string) {
   // Fire analytics event if umami is available
   if (typeof window !== "undefined" && (window as any).umami) {
     (window as any).umami.track("phone_click", { source });
   }
-  // Meta Pixel: Track phone call as a Contact conversion event (proper event type)
+  // Meta Pixel: Track phone call as a Contact conversion event
   import("@/lib/metaPixel").then(({ trackPhoneCall }) => {
     trackPhoneCall({ sourcePage: source });
+  });
+  // GA4: Track phone call event
+  import("@/lib/ga4").then(({ trackPhoneClick: ga4PhoneClick }) => {
+    ga4PhoneClick(source, { page: window.location.pathname });
+  });
+  // Log to database via tRPC for admin dashboard call tracking
+  import("@/lib/utm").then(({ getUtmData }) => {
+    const utm = getUtmData();
+    fetch("/api/trpc/callTracking.logCall", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        json: {
+          phoneNumber: "(216) 862-0005",
+          sourcePage: source,
+          sourceElement: "phone_link",
+          utmSource: utm.utmSource || null,
+          utmMedium: utm.utmMedium || null,
+          utmCampaign: utm.utmCampaign || null,
+          landingPage: utm.landingPage || null,
+          referrer: utm.referrer || null,
+        },
+      }),
+    }).catch(() => { /* silent fail — don't block the call */ });
   });
   // Also fire a custom DOM event for any other tracking
   window.dispatchEvent(new CustomEvent("nick_phone_click", { detail: { source } }));

@@ -37,6 +37,12 @@ export const leadRouter = router({
           fbc: z.string().optional(),
           fbp: z.string().optional(),
         }).optional(),
+        // UTM source attribution
+        utmSource: z.string().max(100).optional(),
+        utmMedium: z.string().max(100).optional(),
+        utmCampaign: z.string().max(255).optional(),
+        landingPage: z.string().max(500).optional(),
+        referrer: z.string().max(500).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -74,6 +80,11 @@ export const leadRouter = router({
         companyName: input.companyName || null,
         fleetSize: input.fleetSize || null,
         vehicleTypes: input.vehicleTypes || null,
+        utmSource: input.utmSource || null,
+        utmMedium: input.utmMedium || null,
+        utmCampaign: input.utmCampaign || null,
+        landingPage: input.landingPage || null,
+        referrer: input.referrer || null,
       });
 
       syncLeadToSheet({
