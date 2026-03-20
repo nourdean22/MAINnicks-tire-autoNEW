@@ -7,11 +7,11 @@ import {
   Phone, Mail, MessageSquare, CalendarClock, Users,
   LayoutDashboard, FileText, Globe, Wrench, Gauge,
   ClipboardList, Trophy, Gift, Send, Star, UserCheck, RotateCcw, Timer,
-  Settings, Upload, DollarSign, Activity, TrendingUp, Plug
+  Settings, Upload, DollarSign, Activity, TrendingUp, Plug, ShoppingCart
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations";
+export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "closed" | "lost";
 
@@ -54,6 +54,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Sales Pipeline",
     items: [
       { id: "bookings", label: "Bookings", icon: <CalendarClock className="w-4 h-4" />, badge: "bookings" },
+      { id: "tireOrders", label: "Tire Orders", icon: <ShoppingCart className="w-4 h-4" /> },
       { id: "leads", label: "Leads / CRM", icon: <Users className="w-4 h-4" />, badge: "leads" },
       { id: "chats", label: "Chat Sessions", icon: <MessageSquare className="w-4 h-4" /> },
     ],
@@ -126,6 +127,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   activity: "Activity Feed",
   revenue: "Revenue Command Center",
   integrations: "Integrations Hub",
+  tireOrders: "Tire Orders",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────

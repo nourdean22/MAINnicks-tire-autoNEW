@@ -1028,3 +1028,72 @@ export const portalSessions = mysqlTable("portal_sessions", {
 
 export type PortalSession = typeof portalSessions.$inferSelect;
 export type InsertPortalSession = typeof portalSessions.$inferInsert;
+
+// ─── TIRE ORDERS ──────────────────────────────────────
+/**
+ * Online tire orders placed by customers through the Tire Finder.
+ * Tracks the full lifecycle: received → confirmed → ordered → delivered → installed.
+ * Email notification sent to shop on creation.
+ */
+export const tireOrders = mysqlTable("tire_orders", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Order reference number (e.g. "TO-20260320-001") */
+  orderNumber: varchar("orderNumber", { length: 50 }).notNull().unique(),
+
+  // ─── Customer info ───
+  customerName: varchar("customerName", { length: 255 }).notNull(),
+  customerPhone: varchar("customerPhone", { length: 30 }).notNull(),
+  customerEmail: varchar("customerEmail", { length: 320 }),
+  vehicleInfo: varchar("vehicleInfo", { length: 255 }),
+
+  // ─── Tire details ───
+  tireBrand: varchar("tireBrand", { length: 100 }).notNull(),
+  tireModel: varchar("tireModel", { length: 255 }).notNull(),
+  tireSize: varchar("tireSize", { length: 50 }).notNull(),
+  quantity: int("quantity").default(4).notNull(),
+  pricePerTire: int("pricePerTire").default(0).notNull(), // cents
+  /** Mounting + balancing + disposal per tire (cents) */
+  serviceFeePerTire: int("serviceFeePerTire").default(3500).notNull(), // $35 default
+  /** Federal Excise Tax per tire (cents) */
+  fetPerTire: int("fetPerTire").default(0).notNull(),
+  /** Total order amount (cents) — (pricePerTire + serviceFee + fet) * quantity */
+  totalAmount: int("totalAmount").default(0).notNull(),
+
+  // ─── Order lifecycle ───
+  status: mysqlEnum("status", [
+    "received",     // Customer submitted — awaiting shop review
+    "confirmed",    // Shop confirmed availability & price with customer
+    "ordered",      // Tires ordered from Gateway Tire
+    "in_transit",   // Tires shipped / en route to shop
+    "delivered",    // Tires arrived at shop
+    "scheduled",    // Installation appointment set
+    "installed",    // Job complete
+    "cancelled",    // Order cancelled
+  ]).default("received").notNull(),
+
+  /** Internal notes (admin only) */
+  adminNotes: text("adminNotes"),
+  /** Customer-visible notes */
+  customerNotes: text("customerNotes"),
+
+  /** Gateway Tire PO or reference number */
+  gatewayOrderRef: varchar("gatewayOrderRef", { length: 100 }),
+  /** Expected delivery date */
+  expectedDelivery: timestamp("expectedDelivery"),
+  /** Scheduled installation date */
+  installationDate: timestamp("installationDate"),
+
+  /** Link to imported customer if matched */
+  customerId: int("customerId"),
+  /** Link to booking if one was created for installation */
+  bookingId: int("bookingId"),
+
+  /** Whether the shop email notification was sent */
+  emailSent: int("emailSent").default(0).notNull(),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TireOrder = typeof tireOrders.$inferSelect;
+export type InsertTireOrder = typeof tireOrders.$inferInsert;

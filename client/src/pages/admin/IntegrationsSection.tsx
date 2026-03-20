@@ -112,11 +112,6 @@ function TireSearchTab() {
       costPrice: cost,
       quantity,
       customMarkup: customMarkup ? parseFloat(customMarkup) : undefined,
-      includeFET: fet ? parseFloat(fet) : 0,
-      includeMounting: includeMount,
-      includeBalancing: includeBalance,
-      includeDisposal: includeDisposal,
-      includeTPMS: includeTPMS,
     });
   };
 
@@ -344,36 +339,10 @@ function TireSearchTab() {
                       <span>Tire price ({calcMargin.data.summary.markupUsed}% markup)</span>
                       <span>${calcMargin.data.perTire.tirePrice.toFixed(2)}</span>
                     </div>
-                    {calcMargin.data.perTire.fet > 0 && (
-                      <div className="flex justify-between text-foreground/50">
-                        <span>FET</span>
-                        <span>${calcMargin.data.perTire.fet.toFixed(2)}</span>
-                      </div>
-                    )}
-                    {calcMargin.data.perTire.mounting > 0 && (
-                      <div className="flex justify-between text-foreground/50">
-                        <span>Mounting</span>
-                        <span>${calcMargin.data.perTire.mounting.toFixed(2)}</span>
-                      </div>
-                    )}
-                    {calcMargin.data.perTire.balancing > 0 && (
-                      <div className="flex justify-between text-foreground/50">
-                        <span>Balancing</span>
-                        <span>${calcMargin.data.perTire.balancing.toFixed(2)}</span>
-                      </div>
-                    )}
-                    {calcMargin.data.perTire.disposal > 0 && (
-                      <div className="flex justify-between text-foreground/50">
-                        <span>Disposal</span>
-                        <span>${calcMargin.data.perTire.disposal.toFixed(2)}</span>
-                      </div>
-                    )}
-                    {calcMargin.data.perTire.tpms > 0 && (
-                      <div className="flex justify-between text-foreground/50">
-                        <span>TPMS sensor</span>
-                        <span>${calcMargin.data.perTire.tpms.toFixed(2)}</span>
-                      </div>
-                    )}
+                    <div className="flex justify-between text-foreground/50">
+                      <span>Service fee (mount/balance/disposal)</span>
+                      <span>${calcMargin.data.perTire.serviceFee.toFixed(2)}</span>
+                    </div>
                   </div>
                 </div>
 
@@ -397,7 +366,7 @@ function TireSearchTab() {
                     </div>
                     <div>
                       <span className="font-mono text-[10px] text-foreground/30 block">MARGIN</span>
-                      <span className="text-[13px] text-primary">{calcMargin.data.summary.effectiveMargin.toFixed(1)}%</span>
+                      <span className="text-[13px] text-primary">{((calcMargin.data.summary.totalProfit / calcMargin.data.summary.totalRevenue) * 100).toFixed(1)}%</span>
                     </div>
                   </div>
                 </div>

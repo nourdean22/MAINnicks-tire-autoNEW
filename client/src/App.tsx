@@ -65,7 +65,7 @@ function Router() {
         {/* Services overview page */}
         <Route path={"/services"} component={ServicesOverview} />
         {/* Individual service pages for SEO */}
-        <Route path={"/tires"} component={ServicePage} />
+        <Route path={"/tires"} component={TireFinder} />
         <Route path={"/brakes"} component={ServicePage} />
         <Route path={"/diagnostics"} component={ServicePage} />
         <Route path={"/emissions"} component={ServicePage} />
@@ -151,8 +151,8 @@ function Router() {
         <Route path={"/rewards"} component={Loyalty} />
         {/* Customer Portal */}
         <Route path={"/portal"} component={CustomerPortal} />
-        {/* Tire Finder */}
-        <Route path={"/tires/search"} component={TireFinder} />
+        {/* Tire Info (service page) */}
+        <Route path={"/tires/info"} component={ServicePage} />
         {/* FAQ page */}
         <Route path={"/faq"} component={FAQ} />
         {/* Blog / Tips */}

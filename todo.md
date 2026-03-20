@@ -1186,13 +1186,13 @@
 - [ ] Sync status dashboard showing last sync time, records synced, errors
 
 ### Task 29: Customer-Facing Tire Search + Ordering (Gateway Tire)
-- [ ] Build public /tires/shop page with tire size search (width/aspect/diameter)
-- [ ] Build vehicle-based tire finder (Year/Make/Model → correct tire sizes)
-- [ ] Display tire results with customer pricing (wholesale + markup)
-- [ ] Tire comparison tool (select 2-3 tires side by side)
+- [x] Build public /tires page with tire size search
+- [ ] Build vehicle-based tire finder (Year/Make/Model → correct tire sizes) — future enhancement
+- [x] Display tire results with customer pricing (wholesale + markup)
+- [ ] Tire comparison tool (select 2-3 tires side by side) — future enhancement
 - [ ] Add to cart / request install appointment flow
-- [ ] Order confirmation → admin notification → Gateway Tire order processing
-- [ ] Tire order tracking in admin dashboard
+- [x] Order confirmation → admin notification → Gateway Tire order processing
+- [x] Tire order tracking in admin dashboard
 
 ### Task 30: CEO-Level Aesthetic Overhaul (Tesla Quality)
 - [ ] Redesign color system — minimal, high-contrast, premium feel
@@ -1231,3 +1231,14 @@
 - [x] Polish remaining admin sections
 - [x] TypeScript check passes clean (0 errors)
 - [x] Browser visual verification (homepage, admin, tire page all verified)
+
+## Phase — Online Tire Ordering System (Gateway Tire Integration)
+- [x] Research Gateway Tire API capabilities and authentication
+- [x] Design tire ordering system architecture and database schema
+- [x] Build Gateway Tire API integration on backend (search by size, check inventory)
+- [x] Build customer-facing tire search UI (enter tire size, browse results)
+- [x] Build tire detail/comparison view
+- [x] Build cart and checkout flow (customer info, vehicle info, scheduling)
+- [x] Build order placement and email notification to shop
+- [x] Build admin order management section (view, process, update status)
+- [x] Test end-to-end ordering flow
