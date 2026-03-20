@@ -1,0 +1,16 @@
+{
+  "query": "\nSELECT \n  segment,\n  COUNT(*) as sent_count,\n  MIN(smsCampaignDate) as first_sent,\n  MAX(smsCampaignDate) as last_sent\nFROM customers\nWHERE smsCampaignSent = 1\nGROUP BY segment;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute \nSELECT \n  segment,\n  COUNT(*) as sent_count,\n  MIN(smsCampaignDate) as first_sent,\n  MAX(smsCampaignDate) as last_sent\nFROM customers\nWHERE smsCampaignSent = 1\nGROUP BY segment;\n",
+  "rows": [
+    {
+      "segment": "recent",
+      "sent_count": "250",
+      "first_sent": "2026-03-20 03:29:27",
+      "last_sent": "2026-03-20 03:36:01"
+    }
+  ],
+  "messages": [],
+  "stdout": "segment\tsent_count\tfirst_sent\tlast_sent\nrecent\t250\t2026-03-20 03:29:27\t2026-03-20 03:36:01\n",
+  "stderr": "",
+  "execution_time_ms": 61
+}

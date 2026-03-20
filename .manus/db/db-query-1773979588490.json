@@ -1,0 +1,18 @@
+{
+  "query": "\nSELECT \n  CASE \n    WHEN phone LIKE '+1%' THEN 'E.164 (+1...)'\n    WHEN phone LIKE '1%' AND LENGTH(phone) = 11 THEN '11-digit (1...)'\n    WHEN LENGTH(phone) = 10 THEN '10-digit (no country code)'\n    WHEN phone LIKE '(%' THEN 'Formatted ((xxx)...)'\n    ELSE CONCAT('Other (len=', LENGTH(phone), ')')\n  END as phone_format,\n  COUNT(*) as count\nFROM customers\nWHERE phone IS NOT NULL AND LENGTH(phone) >= 10\nGROUP BY phone_format\nORDER BY count DESC;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute \nSELECT \n  CASE \n    WHEN phone LIKE '+1%' THEN 'E.164 (+1...)'\n    WHEN phone LIKE '1%' AND LENGTH(phone) = 11 THEN '11-digit (1...)'\n    WHEN LENGTH(phone) = 10 THEN '10-digit (no country code)'\n    WHEN phone LIKE '(%' THEN 'Formatted ((xxx)...)'\n    ELSE CONCAT('Other (len=', LENGTH(phone), ')')\n  END as phone_format,\n  COUNT(*) as count\nFROM customers\nWHERE phone IS NOT NULL AND LENGTH(phone) >= 10\nGROUP BY phone_format\nORDER BY count DESC;\n",
+  "rows": [
+    {
+      "phone_format": "E.164 (+1...)",
+      "count": "1879"
+    },
+    {
+      "phone_format": "Formatted ((xxx)...)",
+      "count": "2"
+    }
+  ],
+  "messages": [],
+  "stdout": "phone_format\tcount\nE.164 (+1...)\t1879\nFormatted ((xxx)...)\t2\n",
+  "stderr": "",
+  "execution_time_ms": 70
+}

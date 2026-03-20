@@ -1,0 +1,26 @@
+{
+  "query": "\nSELECT id, firstName, lastName, phone, segment, smsCampaignSent\nFROM customers \nWHERE phone LIKE '(%'\nLIMIT 10;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute \nSELECT id, firstName, lastName, phone, segment, smsCampaignSent\nFROM customers \nWHERE phone LIKE '(%'\nLIMIT 10;\n",
+  "rows": [
+    {
+      "id": "1119",
+      "firstName": "Derrrick",
+      "lastName": "Caldwell",
+      "phone": "(2165) 486-6698",
+      "segment": "unknown",
+      "smsCampaignSent": "0"
+    },
+    {
+      "id": "1300",
+      "firstName": "Krystal",
+      "lastName": "Dobbs",
+      "phone": "(2168) 459-1374",
+      "segment": "unknown",
+      "smsCampaignSent": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tfirstName\tlastName\tphone\tsegment\tsmsCampaignSent\n1119\tDerrrick\tCaldwell\t(2165) 486-6698\tunknown\t0\n1300\tKrystal\tDobbs\t(2168) 459-1374\tunknown\t0\n",
+  "stderr": "",
+  "execution_time_ms": 64
+}

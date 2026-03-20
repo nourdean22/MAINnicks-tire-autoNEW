@@ -13,7 +13,7 @@
  */
 import twilio from "twilio";
 
-import { STORE_PHONE, STORE_NAME, GBP_REVIEW_URL } from "@shared/const";
+import { STORE_PHONE, STORE_NAME } from "@shared/const";
 
 // ─── TWILIO CLIENT ─────────────────────────────────────
 
@@ -138,10 +138,11 @@ export function thankYouSms(name: string, service: string): string {
 
 /**
  * 7-day review request SMS
+ * Optimized: uses short nickstire.org/review URL (189 chars, 2 segments)
  */
 export function reviewRequestSms(name: string): string {
   const firstName = name.split(" ")[0];
-  return `Hi ${firstName}, hope your vehicle is running great! If you have 30 seconds, a Google review helps other Cleveland drivers find honest repair:\n\n${GBP_REVIEW_URL}\n\nThank you! — ${STORE_NAME}`;
+  return `Hi ${firstName}, hope your vehicle is running great! If you have 30 seconds, a Google review helps other Cleveland drivers find honest repair:\n\nnickstire.org/review\n\nThank you! — ${STORE_NAME}`;
 }
 
 /**

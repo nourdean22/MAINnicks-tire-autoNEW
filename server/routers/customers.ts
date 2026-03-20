@@ -237,12 +237,17 @@ export const customersRouter = router({
 
       const batchSize = input?.batchSize ?? 50;
       const { sendSms } = await import("../sms");
-      const { STORE_NAME, STORE_PHONE, GBP_REVIEW_URL } = await import("@shared/const");
+      const { STORE_NAME, STORE_PHONE } = await import("@shared/const");
 
-      // Get untexted customers
+      // Short URLs save ~50 chars → drops from 3 segments to 2 (33% cost savings)
+      const REVIEW_URL = "nickstire.org/review";
+      const REFER_URL = "nickstire.org/refer";
+
+      // Get untexted customers, prioritize recent → lapsed → unknown
       const untexted = await d.select()
         .from(customers)
-        .where(sql`${customers.smsCampaignSent} = 0 AND ${customers.phone} IS NOT NULL AND LENGTH(${customers.phone}) >= 10`)
+        .where(sql`${customers.smsCampaignSent} = 0 AND ${customers.phone} IS NOT NULL AND LENGTH(${customers.phone}) >= 10 AND ${customers.phone} LIKE '+1%'`)
+        .orderBy(sql`FIELD(${customers.segment}, 'recent', 'lapsed', 'unknown'), ${customers.lastVisitDate} DESC`)
         .limit(batchSize);
 
       let sent = 0;
@@ -250,7 +255,10 @@ export const customersRouter = router({
 
       for (const c of untexted) {
         const name = c.firstName || "there";
-        const msg = `Hi ${name}, thank you for choosing ${STORE_NAME}! We truly appreciate your business.\n\nIf you have 30 seconds, a Google review helps other Cleveland drivers find honest repair:\n${GBP_REVIEW_URL}\n\nKnow someone who needs reliable auto service? Refer them to us: nickstire.org/refer\n\nThank you! — Nick's Team\n${STORE_PHONE}`;
+        // Optimized: 2 segments (~252 chars) instead of 3 (~383 chars)
+        const msg = c.segment === "lapsed"
+          ? `Hi ${name}, this is ${STORE_NAME}. Thank you for trusting us with your vehicle!\n\nA quick Google review means a lot to us:\n${REVIEW_URL}\n\nRefer a friend: ${REFER_URL}\nWe'd love to see you again. — Nick's Team ${STORE_PHONE}`
+          : `Hi ${name}, thank you for choosing ${STORE_NAME}! We truly appreciate your business.\n\nGot 30 sec? A Google review helps other Cleveland drivers find honest repair:\n${REVIEW_URL}\n\nRefer a friend: ${REFER_URL}\n— Nick's Team ${STORE_PHONE}`;
 
         const result = await sendSms(c.phone, msg);
         if (result.success) {

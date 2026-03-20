@@ -110,8 +110,14 @@ describe("SMS Module", () => {
     it("review request SMS includes Google review link", () => {
       const msg = reviewRequestSms("Tom Wilson");
       expect(msg).toContain("Tom");
-      expect(msg).toContain("google.com/local/writereview");
+      expect(msg).toContain("nickstire.org/review");
       expect(msg).toContain("Cleveland");
+    });
+
+    it("review request SMS is optimized to 2 segments or less", () => {
+      const msg = reviewRequestSms("A Very Long Customer Name Indeed");
+      // 2 segments = max 306 chars for concatenated SMS
+      expect(msg.length).toBeLessThanOrEqual(306);
     });
 
     it("callback confirmation SMS includes business hours", () => {

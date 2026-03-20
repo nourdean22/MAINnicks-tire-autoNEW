@@ -1,0 +1,34 @@
+{
+  "query": "\nSELECT \n  segment,\n  COUNT(*) as unsent_count,\n  SUM(CASE WHEN phone LIKE '+1%' AND LENGTH(phone) = 12 THEN 1 ELSE 0 END) as valid_e164,\n  SUM(CASE WHEN phone NOT LIKE '+1%' OR LENGTH(phone) != 12 THEN 1 ELSE 0 END) as needs_normalization,\n  SUM(CASE WHEN phone2 IS NOT NULL AND LENGTH(phone2) > 0 THEN 1 ELSE 0 END) as has_phone2,\n  SUM(CASE WHEN email IS NOT NULL AND LENGTH(email) > 0 THEN 1 ELSE 0 END) as has_email\nFROM customers\nWHERE smsCampaignSent = 0\nGROUP BY segment\nORDER BY FIELD(segment, 'recent', 'lapsed', 'unknown');\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute \nSELECT \n  segment,\n  COUNT(*) as unsent_count,\n  SUM(CASE WHEN phone LIKE '+1%' AND LENGTH(phone) = 12 THEN 1 ELSE 0 END) as valid_e164,\n  SUM(CASE WHEN phone NOT LIKE '+1%' OR LENGTH(phone) != 12 THEN 1 ELSE 0 END) as needs_normalization,\n  SUM(CASE WHEN phone2 IS NOT NULL AND LENGTH(phone2) > 0 THEN 1 ELSE 0 END) as has_phone2,\n  SUM(CASE WHEN email IS NOT NULL AND LENGTH(email) > 0 THEN 1 ELSE 0 END) as has_email\nFROM customers\nWHERE smsCampaignSent = 0\nGROUP BY segment\nORDER BY FIELD(segment, 'recent', 'lapsed', 'unknown');\n",
+  "rows": [
+    {
+      "segment": "recent",
+      "unsent_count": "399",
+      "valid_e164": "399",
+      "needs_normalization": "0",
+      "has_phone2": "9",
+      "has_email": "1"
+    },
+    {
+      "segment": "lapsed",
+      "unsent_count": "848",
+      "valid_e164": "848",
+      "needs_normalization": "0",
+      "has_phone2": "12",
+      "has_email": "11"
+    },
+    {
+      "segment": "unknown",
+      "unsent_count": "384",
+      "valid_e164": "382",
+      "needs_normalization": "2",
+      "has_phone2": "2",
+      "has_email": "6"
+    }
+  ],
+  "messages": [],
+  "stdout": "segment\tunsent_count\tvalid_e164\tneeds_normalization\thas_phone2\thas_email\nrecent\t399\t399\t0\t9\t1\nlapsed\t848\t848\t0\t12\t11\nunknown\t384\t382\t2\t2\t6\n",
+  "stderr": "",
+  "execution_time_ms": 61
+}

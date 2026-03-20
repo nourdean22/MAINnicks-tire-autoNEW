@@ -7,6 +7,10 @@
  *
  * Prevents duplicates by checking smsCampaignSent > 0.
  * Tracks all sends in the database.
+ *
+ * OPTIMIZED: Uses short nickstire.org URLs instead of full Google URLs
+ * to keep messages at 2 SMS segments (~252 chars) instead of 3 (~383 chars).
+ * Saves 33% on per-message cost ($0.0158 vs $0.0237).
  */
 
 import { customers } from "../drizzle/schema";
@@ -17,19 +21,20 @@ async function getDatabase() {
   return getDb();
 }
 import { sendSms } from "./sms";
-import { STORE_NAME, STORE_PHONE, GBP_REVIEW_URL } from "@shared/const";
+import { STORE_NAME, STORE_PHONE } from "@shared/const";
 
-// ─── MESSAGE TEMPLATES ─────────────────────────────────
-// Exact same messages used in the mass campaign
+// ─── SHORT URLs (saves ~50 chars → 2 segments instead of 3) ─────
+const REVIEW_URL = "nickstire.org/review";
+const REFER_URL = "nickstire.org/refer";
 
-const REFERRAL_URL = "https://nickstire.org/refer";
+// ─── MESSAGE TEMPLATES (optimized for 2 SMS segments) ────────────
 
 function recentMessage(firstName: string): string {
-  return `Hi ${firstName}, thank you for choosing ${STORE_NAME}! We truly appreciate your business.\n\nIf you have 30 seconds, a Google review helps other Cleveland drivers find honest repair:\n${GBP_REVIEW_URL}\n\nKnow someone who needs reliable auto service? Refer them to us: ${REFERRAL_URL}\n\nThank you! — Nick's Team\n${STORE_PHONE}`;
+  return `Hi ${firstName}, thank you for choosing ${STORE_NAME}! We truly appreciate your business.\n\nGot 30 sec? A Google review helps other Cleveland drivers find honest repair:\n${REVIEW_URL}\n\nRefer a friend: ${REFER_URL}\n— Nick's Team ${STORE_PHONE}`;
 }
 
 function lapsedMessage(firstName: string): string {
-  return `Hi ${firstName}, this is ${STORE_NAME}. Thank you for trusting us with your vehicle. We hope it's running great!\n\nIf you had a good experience, a quick Google review means a lot:\n${GBP_REVIEW_URL}\n\nRefer a friend or family member: ${REFERRAL_URL}\n\nWe'd love to see you again. — Nick's Team\n${STORE_PHONE}`;
+  return `Hi ${firstName}, this is ${STORE_NAME}. Thank you for trusting us with your vehicle!\n\nA quick Google review means a lot to us:\n${REVIEW_URL}\n\nRefer a friend: ${REFER_URL}\nWe'd love to see you again. — Nick's Team ${STORE_PHONE}`;
 }
 
 // ─── PROCESSOR ──────────────────────────────────────────
@@ -47,6 +52,7 @@ export interface FollowUpResult {
  * who haven't been sent a campaign text yet.
  *
  * Sends max 20 per run to stay within rate limits.
+ * Only sends to valid E.164 phone numbers to avoid wasted attempts.
  */
 export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
   const result: FollowUpResult = { processed: 0, sent: 0, failed: 0, skipped: 0 };
@@ -63,7 +69,7 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
     // Query customers:
     // - lastVisitDate between 6 and 8 days ago
     // - smsCampaignSent = 0 (not already texted)
-    // - has a phone number
+    // - has a valid E.164 phone number (starts with +1)
     const db = await getDatabase();
     if (!db) {
       console.error("[PostInvoiceFollowUp] Database not available");
@@ -77,7 +83,7 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
           eq(customers.smsCampaignSent, 0),
           gte(customers.lastVisitDate, sixDaysAgo),
           lte(customers.lastVisitDate, eightDaysAgo),
-          sql`${customers.phone} IS NOT NULL AND ${customers.phone} != ''`
+          sql`${customers.phone} IS NOT NULL AND ${customers.phone} != '' AND ${customers.phone} LIKE '+1%'`
         )
       )
       .limit(20); // Max 20 per run to stay within rate limits

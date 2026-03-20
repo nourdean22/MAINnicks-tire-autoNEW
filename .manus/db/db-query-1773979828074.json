@@ -1,0 +1,14 @@
+{
+  "query": "\nSELECT \n  COUNT(*) as no_first_name,\n  SUM(CASE WHEN smsCampaignSent = 0 THEN 1 ELSE 0 END) as unsent_no_name\nFROM customers\nWHERE firstName IS NULL OR firstName = '' OR firstName = 'there';\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute \nSELECT \n  COUNT(*) as no_first_name,\n  SUM(CASE WHEN smsCampaignSent = 0 THEN 1 ELSE 0 END) as unsent_no_name\nFROM customers\nWHERE firstName IS NULL OR firstName = '' OR firstName = 'there';\n",
+  "rows": [
+    {
+      "no_first_name": "1",
+      "unsent_no_name": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "no_first_name\tunsent_no_name\n1\t0\n",
+  "stderr": "",
+  "execution_time_ms": 65
+}

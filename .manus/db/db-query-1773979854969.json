@@ -1,0 +1,31 @@
+{
+  "query": "\nSELECT \n  segment,\n  COUNT(*) as unsent,\n  ROUND(AVG(totalVisits), 1) as avg_visits,\n  MIN(lastVisitDate) as oldest_visit,\n  MAX(lastVisitDate) as newest_visit\nFROM customers\nWHERE smsCampaignSent = 0\nGROUP BY segment\nORDER BY FIELD(segment, 'recent', 'lapsed', 'unknown');\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute \nSELECT \n  segment,\n  COUNT(*) as unsent,\n  ROUND(AVG(totalVisits), 1) as avg_visits,\n  MIN(lastVisitDate) as oldest_visit,\n  MAX(lastVisitDate) as newest_visit\nFROM customers\nWHERE smsCampaignSent = 0\nGROUP BY segment\nORDER BY FIELD(segment, 'recent', 'lapsed', 'unknown');\n",
+  "rows": [
+    {
+      "segment": "recent",
+      "unsent": "399",
+      "avg_visits": "1.5",
+      "oldest_visit": "2024-04-04 00:00:00",
+      "newest_visit": "2026-01-19 00:00:00"
+    },
+    {
+      "segment": "lapsed",
+      "unsent": "848",
+      "avg_visits": "1.4",
+      "oldest_visit": "2024-01-25 00:00:00",
+      "newest_visit": "2025-09-19 00:00:00"
+    },
+    {
+      "segment": "unknown",
+      "unsent": "384",
+      "avg_visits": "1.0",
+      "oldest_visit": "2024-01-09 00:00:00",
+      "newest_visit": "2024-08-31 00:00:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "segment\tunsent\tavg_visits\toldest_visit\tnewest_visit\nrecent\t399\t1.5\t2024-04-04 00:00:00\t2026-01-19 00:00:00\nlapsed\t848\t1.4\t2024-01-25 00:00:00\t2025-09-19 00:00:00\nunknown\t384\t1.0\t2024-01-09 00:00:00\t2024-08-31 00:00:00\n",
+  "stderr": "",
+  "execution_time_ms": 62
+}

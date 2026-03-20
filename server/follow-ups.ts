@@ -19,7 +19,8 @@ async function getDb() {
   return _getDb();
 }
 
-import { GBP_REVIEW_URL } from "@shared/const";
+// Short URL saves ~50 chars → keeps 7d review message at 2 segments instead of 3
+const REVIEW_URL = "nickstire.org/review";
 
 /**
  * Process 24-hour thank-you follow-ups for completed bookings
@@ -90,7 +91,7 @@ export async function process7dReviewRequests() {
   let processed = 0;
   for (const booking of eligibleBookings) {
     const firstName = booking.name.split(" ")[0];
-    const message = `Hi ${firstName}, it's been about a week since your visit to Nick's Tire & Auto. We hope your ${booking.service.toLowerCase()} is holding up great. If you have a moment, a Google review helps other Cleveland drivers find honest auto repair: ${GBP_REVIEW_URL}\n\nThank you for your trust. — Nick's Tire & Auto`;
+    const message = `Hi ${firstName}, it's been about a week since your visit to Nick's Tire & Auto. We hope your ${booking.service.toLowerCase()} is holding up great. If you have a moment, a Google review helps other Cleveland drivers find honest repair:\n${REVIEW_URL}\n\nThank you for your trust. — Nick's Team`;
 
     const notification = await createCustomerNotification({
       bookingId: booking.id,

@@ -937,3 +937,15 @@
 - [x] Notes indicator — sticky note icon for customers with notes
 - [x] Customer detail modal — full contact info, segment badge, campaign status
 - [x] Updated test suite: 14 customer tests covering all new endpoints (270 total tests)
+
+## Phase 37 — SMS Campaign Audit & Cost Optimization
+- [x] Pull full SMS send logs from database (campaign + automated follow-ups)
+- [x] Analyze delivery rates, failure reasons, and cost per message
+- [x] Identify invalid/landline numbers to exclude from future sends (2 malformed, auto-skipped by normalizer)
+- [x] Optimize message length to reduce segment count (3→2 segments, 33% cost savings)
+- [x] Implement phone validation: campaign retry now filters for valid E.164 numbers only
+- [x] Update campaign retry logic: priority ordering (recent→lapsed→unknown), segment-specific messages
+- [x] Optimize postInvoiceFollowUp.ts: short URLs, E.164 filter
+- [x] Optimize follow-ups.ts: 7d review message uses short URL (3→2 segments)
+- [x] Optimize sms.ts reviewRequestSms: short URL (stays 2 segments, shorter)
+- [x] Add segment length test to sms.test.ts (271 total tests, 270 passing)

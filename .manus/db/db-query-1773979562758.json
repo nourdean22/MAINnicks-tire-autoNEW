@@ -1,0 +1,17 @@
+{
+  "query": "\nSELECT \n  COUNT(*) as total_customers,\n  SUM(CASE WHEN smsCampaignSent = 1 THEN 1 ELSE 0 END) as campaign_sent,\n  SUM(CASE WHEN smsCampaignSent = 0 THEN 1 ELSE 0 END) as campaign_not_sent,\n  MIN(smsCampaignDate) as first_send_date,\n  MAX(smsCampaignDate) as last_send_date\nFROM customers;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute \nSELECT \n  COUNT(*) as total_customers,\n  SUM(CASE WHEN smsCampaignSent = 1 THEN 1 ELSE 0 END) as campaign_sent,\n  SUM(CASE WHEN smsCampaignSent = 0 THEN 1 ELSE 0 END) as campaign_not_sent,\n  MIN(smsCampaignDate) as first_send_date,\n  MAX(smsCampaignDate) as last_send_date\nFROM customers;\n",
+  "rows": [
+    {
+      "total_customers": "1881",
+      "campaign_sent": "250",
+      "campaign_not_sent": "1631",
+      "first_send_date": "2026-03-20 03:29:27",
+      "last_send_date": "2026-03-20 03:36:01"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_customers\tcampaign_sent\tcampaign_not_sent\tfirst_send_date\tlast_send_date\n1881\t250\t1631\t2026-03-20 03:29:27\t2026-03-20 03:36:01\n",
+  "stderr": "",
+  "execution_time_ms": 110
+}

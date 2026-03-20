@@ -1,0 +1,30 @@
+{
+  "query": "\nSELECT \n  'Total with phone' as metric, COUNT(*) as count FROM customers WHERE phone IS NOT NULL AND LENGTH(phone) > 0\nUNION ALL\nSELECT 'Phone >= 10 chars', COUNT(*) FROM customers WHERE phone IS NOT NULL AND LENGTH(phone) >= 10\nUNION ALL\nSELECT 'Phone < 10 chars (invalid)', COUNT(*) FROM customers WHERE phone IS NOT NULL AND LENGTH(phone) > 0 AND LENGTH(phone) < 10\nUNION ALL\nSELECT 'No phone', COUNT(*) FROM customers WHERE phone IS NULL OR LENGTH(phone) = 0\nUNION ALL\nSELECT 'Duplicate phones', COUNT(*) - COUNT(DISTINCT phone) FROM customers WHERE phone IS NOT NULL AND LENGTH(phone) >= 10;\n",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute \nSELECT \n  'Total with phone' as metric, COUNT(*) as count FROM customers WHERE phone IS NOT NULL AND LENGTH(phone) > 0\nUNION ALL\nSELECT 'Phone >= 10 chars', COUNT(*) FROM customers WHERE phone IS NOT NULL AND LENGTH(phone) >= 10\nUNION ALL\nSELECT 'Phone < 10 chars (invalid)', COUNT(*) FROM customers WHERE phone IS NOT NULL AND LENGTH(phone) > 0 AND LENGTH(phone) < 10\nUNION ALL\nSELECT 'No phone', COUNT(*) FROM customers WHERE phone IS NULL OR LENGTH(phone) = 0\nUNION ALL\nSELECT 'Duplicate phones', COUNT(*) - COUNT(DISTINCT phone) FROM customers WHERE phone IS NOT NULL AND LENGTH(phone) >= 10;\n",
+  "rows": [
+    {
+      "metric": "Phone >= 10 chars",
+      "count": "1881"
+    },
+    {
+      "metric": "Phone < 10 chars (invalid)",
+      "count": "0"
+    },
+    {
+      "metric": "No phone",
+      "count": "0"
+    },
+    {
+      "metric": "Total with phone",
+      "count": "1881"
+    },
+    {
+      "metric": "Duplicate phones",
+      "count": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "metric\tcount\nPhone >= 10 chars\t1881\nPhone < 10 chars (invalid)\t0\nNo phone\t0\nTotal with phone\t1881\nDuplicate phones\t0\n",
+  "stderr": "",
+  "execution_time_ms": 69
+}
