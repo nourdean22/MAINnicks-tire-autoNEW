@@ -3,7 +3,7 @@
  */
 import { publicProcedure, adminProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { notifyOwner } from "../_core/notification";
+import { notifyNewLead } from "../email-notify";
 import { scoreLead } from "../gemini";
 import { syncLeadToSheet, getSpreadsheetUrl, isSheetConfigured } from "../sheets-sync";
 import { z } from "zod";
@@ -80,13 +80,21 @@ export const leadRouter = router({
         recommendedService: scoring.recommendedService,
       }).catch(err => console.error("[Sheets] Lead sync failed:", err));
 
-      if (scoring.score >= 4) {
-        const fleetInfo = input.source === "fleet" ? `\nCompany: ${input.companyName || "N/A"}\nFleet Size: ${input.fleetSize || "N/A"}\nVehicle Types: ${input.vehicleTypes || "N/A"}` : "";
-        notifyOwner({
-          title: `URGENT Lead (${scoring.score}/5): ${input.name}`,
-          content: `Phone: ${input.phone}\nVehicle: ${input.vehicle || "Not specified"}\nProblem: ${input.problem || "Not specified"}\nUrgency: ${scoring.reason}\nRecommended: ${scoring.recommendedService}${fleetInfo}`,
-        }).catch(() => {});
-      }
+      // Send email notification for all leads (routing handles urgency)
+      notifyNewLead({
+        name: input.name,
+        phone: input.phone,
+        email: input.email || undefined,
+        source: input.source,
+        vehicle: input.vehicle || undefined,
+        problem: input.problem || undefined,
+        urgencyScore: scoring.score,
+        urgencyReason: scoring.reason,
+        recommendedService: scoring.recommendedService,
+        companyName: input.companyName || undefined,
+        fleetSize: input.fleetSize || undefined,
+        vehicleTypes: input.vehicleTypes || undefined,
+      }).catch(err => console.error("[Lead] Email notification failed:", err));
 
       return {
         success: true,

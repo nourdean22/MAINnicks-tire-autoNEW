@@ -197,3 +197,27 @@ export function getSpreadsheetUrl(): string {
   if (!SPREADSHEET_ID) return "";
   return `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`;
 }
+
+/**
+ * Sync a new callback request to the Callbacks sheet.
+ */
+export async function syncCallbackToSheet(callback: {
+  name: string;
+  phone: string;
+  reason?: string | null;
+  sourcePage?: string | null;
+}): Promise<boolean> {
+  const now = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+  return appendRow("Callbacks", [
+    now,
+    callback.name,
+    callback.phone,
+    callback.reason || "",
+    callback.sourcePage || "",
+    "New",
+    "No",
+    "",
+    "",
+    "",
+  ]);
+}

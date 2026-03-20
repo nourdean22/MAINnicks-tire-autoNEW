@@ -2,7 +2,7 @@
  * Admin router — dashboard stats, analytics, weekly reports, follow-ups.
  */
 import { adminProcedure, router } from "../_core/trpc";
-import { notifyOwner } from "../_core/notification";
+import { sendNotification } from "../email-notify";
 import { getAnalyticsSnapshots, getBookingServiceBreakdown } from "../db";
 import { getDashboardStats, getSiteHealth } from "../admin-stats";
 import { z } from "zod";
@@ -137,9 +137,10 @@ export const weeklyReportRouter = router({
       .map(([s, c]) => `  ${s}: ${c}`)
       .join("\n");
 
-    await notifyOwner({
-      title: `Weekly Report: ${weekBookings.length} bookings, ${weekLeads.length} leads`,
-      content: `NICK'S TIRE & AUTO — WEEKLY INTELLIGENCE REPORT\n${"-".repeat(50)}\nPeriod: ${weekAgo.toLocaleDateString()} — ${now.toLocaleDateString()}\n\nBOOKINGS: ${report.bookings.total} total\n  Completed: ${report.bookings.completed}\n  Emergency: ${report.bookings.emergency}\n  Cancelled: ${report.bookings.cancelled}\n\nTop Services:\n${topServices || "  No bookings this week"}\n\nLEADS: ${report.leads.total} total\n  High Urgency: ${report.leads.highUrgency}\n  Converted to Booking: ${report.leads.converted}\n\nCALLBACKS: ${report.callbacks.total} total\n  Completed: ${report.callbacks.completed}\n  Still Pending: ${report.callbacks.pending}\n\nFOLLOW-UPS SENT: ${report.notifications.sent}\nFOLLOW-UPS PENDING: ${report.notifications.pending}`,
+    sendNotification({
+      category: "weekly_report",
+      subject: `Weekly Report: ${weekBookings.length} bookings, ${weekLeads.length} leads`,
+      body: `NICK'S TIRE & AUTO — WEEKLY INTELLIGENCE REPORT\n${"-".repeat(50)}\nPeriod: ${weekAgo.toLocaleDateString()} — ${now.toLocaleDateString()}\n\nBOOKINGS: ${report.bookings.total} total\n  Completed: ${report.bookings.completed}\n  Emergency: ${report.bookings.emergency}\n  Cancelled: ${report.bookings.cancelled}\n\nTop Services:\n${topServices || "  No bookings this week"}\n\nLEADS: ${report.leads.total} total\n  High Urgency: ${report.leads.highUrgency}\n  Converted to Booking: ${report.leads.converted}\n\nCALLBACKS: ${report.callbacks.total} total\n  Completed: ${report.callbacks.completed}\n  Still Pending: ${report.callbacks.pending}\n\nFOLLOW-UPS SENT: ${report.notifications.sent}\nFOLLOW-UPS PENDING: ${report.notifications.pending}`,
     }).catch(() => {});
 
     return report;

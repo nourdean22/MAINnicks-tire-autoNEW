@@ -2,7 +2,7 @@
  * Content router — public content access and admin content management.
  */
 import { publicProcedure, adminProcedure, router } from "../_core/trpc";
-import { notifyOwner } from "../_core/notification";
+import { sendNotification } from "../email-notify";
 import {
   generateArticle,
   saveGeneratedArticle,
@@ -86,9 +86,10 @@ export const contentAdminRouter = router({
     .mutation(async ({ input: _input }) => {
       const result = await runContentGeneration();
       if (result.article) {
-        await notifyOwner({
-          title: "New AI Content Generated",
-          content: `Article: ${result.article.title}\nNotifications: ${result.notifications.length} generated\nErrors: ${result.errors.length > 0 ? result.errors.join(", ") : "None"}\n\nReview and publish at /admin/content`,
+        sendNotification({
+          category: "content",
+          subject: "New AI Content Generated",
+          body: `Article: ${result.article.title}\nNotifications: ${result.notifications.length} generated\nErrors: ${result.errors.length > 0 ? result.errors.join(", ") : "None"}\n\nReview and publish at /admin/content`,
         }).catch(() => {});
       }
       return result;

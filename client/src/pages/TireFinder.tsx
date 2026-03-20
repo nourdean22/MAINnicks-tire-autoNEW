@@ -32,6 +32,35 @@ function formatSizeForSearch(size: string): string {
 type SortOption = "price-low" | "price-high" | "warranty" | "brand";
 type CategoryFilter = "all" | "budget" | "mid" | "premium";
 
+// ─── BRAND LOGOS ─────────────────────────────────────
+const BRAND_LOGOS: Record<string, string> = {
+  goodyear: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/goodyear_03e6b30e.png",
+  continental: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/continental_8f6621dd.png",
+  hankook: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hankook_8515b228.png",
+  cooper: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/cooper_0ca9fe43.png",
+  nexen: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/nexen_79ee6b44.png",
+  firestone: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/firestone_c2804191.png",
+  general: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/general_523bbb9d.png",
+  fortune: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/fortune_09740f8e.png",
+  americus: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/americus_e1981f7d.png",
+  bridgestone: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/bridgestone_3a002c89.jpg",
+  michelin: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/michelin_f5739757.png",
+  yokohama: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/yokohama_9c6ab122.png",
+  pirelli: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/pirelli_7c895c15.png",
+  toyo: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/toyo_fd6c9c2d.png",
+  falken: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/falken_fcdce9e5.png",
+};
+
+function getBrandLogo(brand: string): string | null {
+  const key = brand.toLowerCase().replace(/[^a-z]/g, "");
+  // Try exact match first, then partial match
+  if (BRAND_LOGOS[key]) return BRAND_LOGOS[key];
+  for (const [k, url] of Object.entries(BRAND_LOGOS)) {
+    if (key.includes(k) || k.includes(key)) return url;
+  }
+  return null;
+}
+
 // ─── NAVBAR ───────────────────────────────────────────
 function TireNavbar() {
   return (
@@ -430,7 +459,7 @@ function TireCard({ tire, quantity, onSelect }: TireCardProps) {
       animate={{ opacity: 1, y: 0 }}
       className="group bg-card border border-border/30 rounded-lg p-5 hover:border-primary/30 transition-all duration-200"
     >
-      {/* Header */}
+      {/* Header with brand logo */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
@@ -443,8 +472,22 @@ function TireCard({ tire, quantity, onSelect }: TireCardProps) {
               </span>
             )}
           </div>
-          <h3 className="text-foreground font-medium leading-snug">{tire.brand}</h3>
-          <p className="text-sm text-muted-foreground">{tire.model}</p>
+          <div className="flex items-center gap-3 mt-1">
+            {getBrandLogo(tire.brand) && (
+              <div className="w-16 h-10 shrink-0 flex items-center justify-center bg-white rounded-md p-1.5 border border-border/20">
+                <img
+                  src={getBrandLogo(tire.brand)!}
+                  alt={`${tire.brand} logo`}
+                  className="max-w-full max-h-full object-contain"
+                  loading="lazy"
+                />
+              </div>
+            )}
+            <div>
+              <h3 className="text-foreground font-medium leading-snug">{tire.brand}</h3>
+              <p className="text-sm text-muted-foreground">{tire.model}</p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -864,7 +907,7 @@ export default function TireFinder() {
                       <div className="flex items-start gap-3">
                         <BadgeCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                         <div>
-                          <p className="text-xs font-medium text-foreground">1,683+ Five-Star Reviews</p>
+                          <p className="text-xs font-medium text-foreground">Thousands of Five-Star Reviews</p>
                           <p className="text-[10px] text-muted-foreground mt-0.5">Cleveland's most trusted tire shop. Real reviews from real drivers.</p>
                         </div>
                       </div>
@@ -1049,7 +1092,7 @@ export default function TireFinder() {
                   {
                     icon: <ThumbsUp className="w-5 h-5" />,
                     title: "Honest Recommendations",
-                    desc: "We will never sell you a tire you do not need. If a flat can be repaired for $15, we repair it. Period. That is how we have earned 1,683+ five-star reviews.",
+                    desc: "We will never sell you a tire you do not need. If a flat can be repaired for $15, we repair it. Period. That is how we have earned thousands of five-star reviews.",
                   },
                   {
                     icon: <ShieldCheck className="w-5 h-5" />,
@@ -1081,7 +1124,7 @@ export default function TireFinder() {
                     <Star key={i} className="w-4 h-4 fill-primary text-primary" />
                   ))}
                 </div>
-                <p className="text-sm text-foreground font-medium">4.9 Stars — 1,683+ Google Reviews</p>
+                <p className="text-sm text-foreground font-medium">4.9 Stars — Thousands of Google Reviews</p>
                 <p className="text-xs text-muted-foreground mt-1">Real reviews from real Cleveland drivers</p>
               </div>
             </motion.div>
@@ -1156,7 +1199,7 @@ export default function TireFinder() {
                   <Star key={i} className="w-5 h-5 fill-primary text-primary" />
                 ))}
               </div>
-              <p className="text-lg text-foreground font-medium mb-1">4.9 Stars — 1,683+ Reviews</p>
+              <p className="text-lg text-foreground font-medium mb-1">4.9 Stars — Thousands of Reviews</p>
               <p className="text-sm text-muted-foreground">
                 Cleveland's most trusted tire shop. Serving Euclid, Lakewood, Parma, and all of Northeast Ohio.
               </p>

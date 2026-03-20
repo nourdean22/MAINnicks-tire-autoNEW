@@ -13,7 +13,7 @@
  * - Admin order management (view, update status, notes)
  */
 import { adminProcedure, publicProcedure, router } from "../_core/trpc";
-import { notifyOwner } from "../_core/notification";
+import { notifyTireOrder } from "../email-notify";
 import { z } from "zod";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { tireOrders, shopSettings, bookings } from "../../drizzle/schema";
@@ -227,56 +227,7 @@ async function syncOrderToGoogleSheet(order: {
   }
 }
 
-// ─── Gmail notification ──────────────────────────────
-async function sendOrderEmail(order: {
-  orderNumber: string;
-  customerName: string;
-  customerPhone: string;
-  customerEmail: string | null;
-  vehicleInfo: string | null;
-  tireBrand: string;
-  tireModel: string;
-  tireSize: string;
-  quantity: number;
-  pricePerTire: number;
-  totalAmount: number;
-  customerNotes: string | null;
-}) {
-  // We use the MCP Gmail tool from the server side via a simple exec
-  // Since MCP is only available from the sandbox CLI, we'll use notifyOwner instead
-  // and format a detailed notification
-  try {
-    await notifyOwner({
-      title: `🔔 New Tire Order: ${order.orderNumber}`,
-      content: [
-        `NEW ONLINE TIRE ORDER`,
-        ``,
-        `Order: ${order.orderNumber}`,
-        `Date: ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`,
-        ``,
-        `CUSTOMER`,
-        `Name: ${order.customerName}`,
-        `Phone: ${order.customerPhone}`,
-        order.customerEmail ? `Email: ${order.customerEmail}` : "",
-        order.vehicleInfo ? `Vehicle: ${order.vehicleInfo}` : "",
-        ``,
-        `ORDER DETAILS`,
-        `${order.quantity}x ${order.tireBrand} ${order.tireModel}`,
-        `Size: ${order.tireSize}`,
-        `Price: $${order.pricePerTire.toFixed(2)}/tire`,
-        `Nick's Premium Installation Package: INCLUDED FREE`,
-        `Total: $${order.totalAmount.toFixed(2)}`,
-        ``,
-        order.customerNotes ? `NOTES: ${order.customerNotes}` : "",
-        ``,
-        `ACTION REQUIRED: Confirm availability and contact customer within 1 hour.`,
-        `Check admin panel → Tire Orders for full details.`,
-      ].filter(Boolean).join("\n"),
-    });
-  } catch (err) {
-    console.error("[TireOrder] Email notification error:", err);
-  }
-}
+// ─── Gmail notification (uses dual-email system) ────
 
 // ─── Curated tire catalog ─────────────────────────────
 interface CatalogTire {
@@ -536,20 +487,20 @@ export const gatewayTireRouter = router({
         status: "received",
       }).catch(err => console.error("[TireOrder] Sheet sync error:", err));
 
-      // Send email/notification (async, don't block)
-      sendOrderEmail({
+      // Send email notification to shop + CEO (async, don't block)
+      notifyTireOrder({
         orderNumber,
         customerName: input.customerName,
         customerPhone: input.customerPhone,
-        customerEmail: input.customerEmail || null,
-        vehicleInfo: input.vehicleInfo || null,
+        customerEmail: input.customerEmail || undefined,
+        vehicleInfo: input.vehicleInfo || undefined,
         tireBrand: input.tireBrand,
         tireModel: input.tireModel,
         tireSize: input.tireSize,
         quantity: input.quantity,
         pricePerTire,
         totalAmount: totalDollars,
-        customerNotes: input.customerNotes || null,
+        notes: input.customerNotes || undefined,
       }).catch(err => console.error("[TireOrder] Notification error:", err));
 
       return {

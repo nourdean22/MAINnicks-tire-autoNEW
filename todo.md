@@ -1269,3 +1269,25 @@
 - [x] Add premium team selling section (best technicians, honest, fastest, most experienced)
 - [x] Emphasize "caught a flat? call us first" urgency messaging
 - [x] Make the shop feel like the obvious first choice for any tire need
+
+## Phase — Email System Optimization (Moeseuclid + Nourdean22)
+- [x] Audit all email references across the website codebase
+- [x] Audit all email references in environment variables and integrations
+- [x] Design optimal email routing: shop ops → Moeseuclid, CEO alerts → Nourdean22
+- [x] Update website backend to route notifications to correct emails
+- [x] Set up Gmail filters for Moeseuclid (shop operations, customer inquiries, vendor comms)
+- [x] Set up Gmail filters for Nourdean22 (revenue alerts, tire orders, weekly reports, strategic)
+- [x] Configure forwarding rules so critical alerts reach both when needed
+- [ ] Test email flows end-to-end
+
+## Phase — Full System Integration & Auto-Sync
+- [x] Finish Gmail labels (Tire Orders, Bookings, Leads, Reports, Callbacks) on nourdean22
+- [x] Wire notification routing to both emails (shop ops → Moeseuclid, CEO → nourdean22)
+- [x] Update all backend routers to use new email notification system
+- [x] Organize Google Sheets — structure CRM with proper tabs (Leads, Bookings, Tire Orders, Callbacks, Dashboard)
+- [ ] Build Auto Labor Guide two-way sync for tire orders
+- [ ] Build Auto Labor Guide two-way sync for bookings
+- [ ] Auto-create invoices in Auto Labor Guide from website orders
+- [x] Add tire brand logos (Goodyear, Continental, Bridgestone, Michelin, etc.) to tire cards — 15 brands with CDN-hosted logos
+- [ ] Make all systems auto-syncing and self-maintaining
+- [ ] Test all sync flows end-to-end

@@ -9,7 +9,7 @@ import {
   createCustomerNotification,
 } from "../db";
 import { storagePut } from "../storage";
-import { notifyOwner } from "../_core/notification";
+import { notifyNewBooking } from "../email-notify";
 import { syncBookingToSheet } from "../sheets-sync";
 import { sendSms, bookingConfirmationSms, statusUpdateSms } from "../sms";
 import { scheduleReviewRequest } from "./reviewRequests";
@@ -92,12 +92,17 @@ export const bookingRouter = router({
         message: input.message,
       }).catch(err => console.error("[Sheets] Booking sync failed:", err));
 
-      const urgencyLabel = input.urgency === "emergency" ? "🔴 EMERGENCY" : input.urgency === "this-week" ? "🟡 This Week" : "Routine";
-      const photoNote = input.photoUrls?.length ? `\nPhotos: ${input.photoUrls.length} attached` : "";
-      await notifyOwner({
-        title: `${urgencyLabel} Booking: ${input.service}`,
-        content: `Name: ${input.name}\nPhone: ${input.phone}\nService: ${input.service}\nVehicle: ${vehicleStr || "Not specified"}\nUrgency: ${urgencyLabel}\nRef: ${refCode}\nPreferred Date: ${input.preferredDate || "Flexible"}\nPreferred Time: ${input.preferredTime}\nMessage: ${input.message || "None"}${photoNote}`,
-      }).catch(() => {});
+      notifyNewBooking({
+        name: input.name,
+        phone: input.phone,
+        service: input.service,
+        vehicle: vehicleStr || undefined,
+        date: input.preferredDate || undefined,
+        time: input.preferredTime,
+        notes: input.message || undefined,
+        urgency: input.urgency,
+        refCode,
+      }).catch(err => console.error("[Booking] Email notification failed:", err));
 
       sendSms(input.phone, bookingConfirmationSms(input.name, input.service, refCode)).catch(err =>
         console.error("[SMS] Booking confirmation failed:", err)

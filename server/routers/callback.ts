@@ -4,8 +4,8 @@
 import { publicProcedure, adminProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { createCallbackRequest, getCallbackRequests, updateCallbackStatus } from "../db";
-import { notifyOwner } from "../_core/notification";
-import { syncLeadToSheet } from "../sheets-sync";
+import { notifyCallbackRequest } from "../email-notify";
+import { syncLeadToSheet, syncCallbackToSheet } from "../sheets-sync";
 import { sendSms, callbackConfirmationSms } from "../sms";
 import { z } from "zod";
 import { leads } from "../../drizzle/schema";
@@ -50,10 +50,12 @@ export const callbackRouter = router({
         }).catch(() => {});
       }
 
-      await notifyOwner({
-        title: `Callback Request: ${input.name}`,
-        content: `Phone: ${input.phone}\nPage: ${input.sourcePage || "Unknown"}\nContext: ${input.context || "None"}\n\nPlease call back ASAP.`,
-      }).catch(() => {});
+      notifyCallbackRequest({
+        name: input.name,
+        phone: input.phone,
+        reason: input.context || undefined,
+        sourcePage: input.sourcePage || undefined,
+      }).catch(err => console.error("[Callback] Email notification failed:", err));
 
       sendSms(input.phone, callbackConfirmationSms(input.name)).catch(err =>
         console.error("[SMS] Callback confirmation failed:", err)
@@ -66,6 +68,13 @@ export const callbackRouter = router({
         problem: "Callback request",
         urgencyScore: 4,
         urgencyReason: "Customer requested callback",
+      }).catch(() => {});
+
+      syncCallbackToSheet({
+        name: input.name,
+        phone: input.phone,
+        reason: input.context || undefined,
+        sourcePage: input.sourcePage || undefined,
       }).catch(() => {});
 
       return result;
