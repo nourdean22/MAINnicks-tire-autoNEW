@@ -1,6 +1,7 @@
 /**
  * CustomerPortal — Public page where customers log in with their phone number
  * to view vehicle history, upcoming maintenance, and invoices.
+ * AUDIT-FIXED: Resend code, loading skeletons, better error states, service history.
  */
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
@@ -9,10 +10,9 @@ import { Link } from "wouter";
 import NotificationBar from "@/components/NotificationBar";
 import {
   Phone, Shield, Car, FileText, Clock, ChevronRight, Loader2,
-  ArrowLeft, Wrench, DollarSign, Calendar, CheckCircle2, AlertTriangle
+  ArrowLeft, Wrench, DollarSign, Calendar, CheckCircle2, AlertTriangle,
+  RefreshCw, History, CreditCard
 } from "lucide-react";
-
-const NICK_YELLOW = "#F5A623";
 
 export default function CustomerPortal() {
   const [step, setStep] = useState<"phone" | "verify" | "dashboard">("phone");
@@ -52,7 +52,7 @@ export default function CustomerPortal() {
       }
       setIsSubmitting(false);
     },
-    onError: (err) => {
+    onError: () => {
       toast.error("Invalid or expired code. Please try again.");
       setIsSubmitting(false);
     },
@@ -106,7 +106,17 @@ export default function CustomerPortal() {
       </nav>
 
       {step === "phone" && <PhoneStep phone={phone} setPhone={setPhone} onSubmit={handleRequestCode} loading={isSubmitting} />}
-      {step === "verify" && <VerifyStep code={code} setCode={setCode} onSubmit={handleVerify} onBack={() => setStep("phone")} loading={isSubmitting} phone={phone} />}
+      {step === "verify" && (
+        <VerifyStep
+          code={code}
+          setCode={setCode}
+          onSubmit={handleVerify}
+          onBack={() => { setStep("phone"); setCode(""); }}
+          onResend={handleRequestCode}
+          loading={isSubmitting}
+          phone={phone}
+        />
+      )}
       {step === "dashboard" && token && <PortalDashboard token={token} onLogout={handleLogout} />}
     </div>
   );
@@ -157,6 +167,20 @@ function PhoneStep({ phone, setPhone, onSubmit, loading }: {
         </p>
       </div>
 
+      {/* Features preview */}
+      <div className="mt-8 grid grid-cols-3 gap-3">
+        {[
+          { icon: <History className="w-5 h-5" />, label: "Service History" },
+          { icon: <CreditCard className="w-5 h-5" />, label: "Invoices" },
+          { icon: <Car className="w-5 h-5" />, label: "Job Status" },
+        ].map(f => (
+          <div key={f.label} className="bg-card/50 border border-border/20 p-3 text-center">
+            <div className="text-primary/40 flex justify-center mb-1">{f.icon}</div>
+            <span className="font-mono text-[9px] text-foreground/30">{f.label}</span>
+          </div>
+        ))}
+      </div>
+
       <div className="mt-8 text-center">
         <p className="font-mono text-xs text-foreground/30">
           Not a customer yet?{" "}
@@ -168,9 +192,22 @@ function PhoneStep({ phone, setPhone, onSubmit, loading }: {
 }
 
 // ─── VERIFY STEP ────────────────────────────────────────
-function VerifyStep({ code, setCode, onSubmit, onBack, loading, phone }: {
-  code: string; setCode: (v: string) => void; onSubmit: () => void; onBack: () => void; loading: boolean; phone: string;
+function VerifyStep({ code, setCode, onSubmit, onBack, onResend, loading, phone }: {
+  code: string; setCode: (v: string) => void; onSubmit: () => void; onBack: () => void; onResend: () => void; loading: boolean; phone: string;
 }) {
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown(c => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
+  const handleResend = () => {
+    setResendCooldown(30);
+    onResend();
+  };
+
   return (
     <div className="container max-w-lg py-20">
       <button onClick={onBack} className="flex items-center gap-2 font-mono text-xs text-foreground/40 hover:text-foreground mb-8 transition-colors">
@@ -207,6 +244,18 @@ function VerifyStep({ code, setCode, onSubmit, onBack, loading, phone }: {
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "VERIFY & LOG IN"}
         </button>
+
+        {/* Resend code */}
+        <div className="mt-4 text-center">
+          <button
+            onClick={handleResend}
+            disabled={resendCooldown > 0 || loading}
+            className="font-mono text-xs text-foreground/40 hover:text-primary transition-colors disabled:opacity-30 flex items-center gap-1 mx-auto"
+          >
+            <RefreshCw className="w-3 h-3" />
+            {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend Code"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -218,13 +267,10 @@ function PortalDashboard({ token, onLogout }: { token: string; onLogout: () => v
     retry: false,
     refetchInterval: 120000,
   });
+  const [activeTab, setActiveTab] = useState<"overview" | "history" | "invoices">("overview");
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-32">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (error) {
@@ -243,11 +289,13 @@ function PortalDashboard({ token, onLogout }: { token: string; onLogout: () => v
   const customer = data?.customer;
   const bookingsList = data?.bookings || [];
   const invoicesList = data?.invoices || [];
+  const historyList = data?.serviceHistory || [];
+  const activeJobs = bookingsList.filter((b: any) => b.status !== "completed" && b.status !== "cancelled");
 
   return (
     <div className="container max-w-4xl py-8">
       {/* Welcome */}
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="font-heading font-bold text-2xl text-foreground tracking-tight">
           {customer ? `WELCOME BACK, ${(customer.firstName || '').toUpperCase()}` : "YOUR PORTAL"}
         </h1>
@@ -258,75 +306,69 @@ function PortalDashboard({ token, onLogout }: { token: string; onLogout: () => v
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-        <div className="bg-card border border-border/30 p-4">
-          <Car className="w-5 h-5 text-primary mb-2" />
-          <span className="font-heading font-bold text-2xl text-foreground">{bookingsList.length}</span>
-          <span className="font-mono text-[10px] text-foreground/40 block">Service Records</span>
-        </div>
-        <div className="bg-card border border-border/30 p-4">
-          <FileText className="w-5 h-5 text-blue-400 mb-2" />
-          <span className="font-heading font-bold text-2xl text-foreground">{invoicesList.length}</span>
-          <span className="font-mono text-[10px] text-foreground/40 block">Invoices</span>
-        </div>
-        <div className="bg-card border border-border/30 p-4">
-          <DollarSign className="w-5 h-5 text-emerald-400 mb-2" />
-          <span className="font-heading font-bold text-2xl text-foreground">
-            ${(invoicesList.reduce((sum: number, inv: any) => sum + (inv.totalAmount || 0), 0) / 100).toLocaleString()}
-          </span>
-          <span className="font-mono text-[10px] text-foreground/40 block">Total Spent</span>
-        </div>
-        <div className="bg-card border border-border/30 p-4">
-          <Calendar className="w-5 h-5 text-amber-400 mb-2" />
-          <span className="font-heading font-bold text-2xl text-foreground">
-            {bookingsList.length > 0 ? new Date(bookingsList[0].createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
-          </span>
-          <span className="font-mono text-[10px] text-foreground/40 block">Last Visit</span>
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <StatCard icon={<Car className="w-5 h-5 text-primary" />} value={bookingsList.length} label="Service Records" />
+        <StatCard icon={<FileText className="w-5 h-5 text-blue-400" />} value={invoicesList.length} label="Invoices" />
+        <StatCard icon={<DollarSign className="w-5 h-5 text-emerald-400" />} value={`$${(invoicesList.reduce((sum: number, inv: any) => sum + (inv.totalAmount || 0), 0) / 100).toLocaleString()}`} label="Total Spent" />
+        <StatCard icon={<Calendar className="w-5 h-5 text-amber-400" />} value={bookingsList.length > 0 ? new Date(bookingsList[0].createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"} label="Last Visit" />
       </div>
 
-      {/* Active Jobs */}
-      {bookingsList.filter((b: any) => b.status !== "completed" && b.status !== "cancelled").length > 0 && (
-        <div className="mb-8">
-          <h2 className="font-heading font-bold text-sm text-foreground tracking-wider mb-3">ACTIVE SERVICES</h2>
+      {/* Active Jobs Alert */}
+      {activeJobs.length > 0 && (
+        <div className="mb-6 bg-primary/5 border border-primary/30 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Wrench className="w-4 h-4 text-primary" />
+            <span className="font-heading font-bold text-sm text-foreground tracking-wider">ACTIVE SERVICES ({activeJobs.length})</span>
+          </div>
           <div className="space-y-2">
-            {bookingsList.filter((b: any) => b.status !== "completed" && b.status !== "cancelled").map((b: any) => (
-              <div key={b.id} className="bg-card border border-primary/30 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-heading font-bold text-sm text-foreground">{b.service}</span>
-                    <span className="font-mono text-xs text-foreground/40 ml-2">{b.vehicle || ""}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`font-mono text-[10px] tracking-wider px-2 py-0.5 ${
-                      b.stage === "ready" ? "bg-emerald-500/20 text-emerald-400" :
-                      b.stage === "in-progress" ? "bg-primary/20 text-primary" :
-                      "bg-blue-500/20 text-blue-400"
-                    }`}>
-                      {(b.stage || "received").toUpperCase().replace("-", " ")}
-                    </span>
-                  </div>
+            {activeJobs.map((b: any) => (
+              <div key={b.id} className="bg-card border border-border/20 p-3 flex items-center justify-between">
+                <div>
+                  <span className="font-heading font-bold text-xs text-foreground">{b.service}</span>
+                  <span className="font-mono text-[10px] text-foreground/40 ml-2">{b.vehicle || ""}</span>
                 </div>
-                {b.referenceCode && (
-                  <p className="font-mono text-[10px] text-cyan-400/60 mt-1">Tracking: #{b.referenceCode}</p>
-                )}
+                <div className="flex items-center gap-2">
+                  <span className={`font-mono text-[10px] tracking-wider px-2 py-0.5 ${
+                    b.stage === "ready" ? "bg-emerald-500/20 text-emerald-400" :
+                    b.stage === "in-progress" ? "bg-primary/20 text-primary" :
+                    b.stage === "quality-check" ? "bg-cyan-500/20 text-cyan-400" :
+                    "bg-blue-500/20 text-blue-400"
+                  }`}>
+                    {(b.stage || "received").toUpperCase().replace(/-/g, " ")}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Service History */}
-      <div className="mb-8">
-        <h2 className="font-heading font-bold text-sm text-foreground tracking-wider mb-3">SERVICE HISTORY</h2>
-        {bookingsList.length === 0 ? (
-          <div className="bg-card border border-border/30 p-8 text-center">
-            <Wrench className="w-8 h-8 mx-auto mb-3 text-foreground/20" />
-            <p className="font-mono text-xs text-foreground/40">No service records found for this phone number.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {bookingsList.slice(0, 10).map((b: any) => (
+      {/* Tabs */}
+      <div className="flex items-center gap-1 mb-4 border-b border-border/20">
+        {[
+          { key: "overview", label: "Service History" },
+          { key: "invoices", label: "Invoices" },
+          ...(historyList.length > 0 ? [{ key: "history", label: "Maintenance Log" }] : []),
+        ].map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setActiveTab(t.key as any)}
+            className={`px-4 py-2.5 font-mono text-xs tracking-wider border-b-2 -mb-[1px] transition-colors ${
+              activeTab === t.key ? "border-primary text-primary" : "border-transparent text-foreground/40 hover:text-foreground/60"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === "overview" && (
+        <div className="space-y-2">
+          {bookingsList.length === 0 ? (
+            <EmptyState icon={<Wrench className="w-8 h-8" />} title="No service records" message="No service records found for this phone number." />
+          ) : (
+            bookingsList.slice(0, 15).map((b: any) => (
               <div key={b.id} className="bg-card border border-border/30 p-4 flex items-center gap-4">
                 <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
                   b.status === "completed" ? "bg-emerald-400" : b.status === "cancelled" ? "bg-red-400" : "bg-blue-400"
@@ -334,27 +376,30 @@ function PortalDashboard({ token, onLogout }: { token: string; onLogout: () => v
                 <div className="flex-1 min-w-0">
                   <span className="font-heading font-bold text-xs text-foreground">{b.service}</span>
                   <span className="font-mono text-[10px] text-foreground/30 ml-2">{b.vehicle || ""}</span>
+                  {b.referenceCode && <span className="font-mono text-[9px] text-cyan-400/50 ml-2">#{b.referenceCode}</span>}
                 </div>
-                <span className="font-mono text-[10px] text-foreground/30">
-                  {new Date(b.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                </span>
+                <div className="text-right">
+                  <span className="font-mono text-[10px] text-foreground/30">
+                    {new Date(b.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  </span>
+                  <span className={`font-mono text-[9px] block mt-0.5 ${
+                    b.status === "completed" ? "text-emerald-400" : b.status === "cancelled" ? "text-red-400" : "text-blue-400"
+                  }`}>
+                    {(b.status || "pending").toUpperCase()}
+                  </span>
+                </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            ))
+          )}
+        </div>
+      )}
 
-      {/* Invoices */}
-      <div className="mb-8">
-        <h2 className="font-heading font-bold text-sm text-foreground tracking-wider mb-3">INVOICES</h2>
-        {invoicesList.length === 0 ? (
-          <div className="bg-card border border-border/30 p-8 text-center">
-            <FileText className="w-8 h-8 mx-auto mb-3 text-foreground/20" />
-            <p className="font-mono text-xs text-foreground/40">No invoices found.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {invoicesList.map((inv: any) => (
+      {activeTab === "invoices" && (
+        <div className="space-y-2">
+          {invoicesList.length === 0 ? (
+            <EmptyState icon={<FileText className="w-8 h-8" />} title="No invoices" message="No invoices found for this phone number." />
+          ) : (
+            invoicesList.map((inv: any) => (
               <div key={inv.id} className="bg-card border border-border/30 p-4 flex items-center gap-4">
                 <DollarSign className="w-4 h-4 text-primary flex-shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -362,23 +407,60 @@ function PortalDashboard({ token, onLogout }: { token: string; onLogout: () => v
                     {inv.serviceDescription || "Service"}
                   </span>
                   {inv.vehicleInfo && <span className="font-mono text-[10px] text-foreground/30 ml-2">{inv.vehicleInfo}</span>}
+                  {inv.invoiceNumber && <span className="font-mono text-[9px] text-foreground/20 ml-2">#{inv.invoiceNumber}</span>}
                 </div>
                 <div className="text-right">
                   <span className="font-heading font-bold text-sm text-primary">
                     ${(inv.totalAmount / 100).toLocaleString()}
                   </span>
-                  <span className="font-mono text-[10px] text-foreground/30 block">
-                    {new Date(inv.invoiceDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                  </span>
+                  <div className="flex items-center gap-2 justify-end mt-0.5">
+                    <span className={`font-mono text-[9px] px-1 py-0.5 ${
+                      inv.paymentStatus === "paid" ? "bg-emerald-500/20 text-emerald-400" :
+                      inv.paymentStatus === "pending" ? "bg-amber-500/20 text-amber-400" :
+                      "bg-foreground/10 text-foreground/40"
+                    }`}>
+                      {inv.paymentStatus?.toUpperCase()}
+                    </span>
+                    <span className="font-mono text-[9px] text-foreground/30">
+                      {new Date(inv.invoiceDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </span>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {activeTab === "history" && (
+        <div className="space-y-2">
+          {historyList.length === 0 ? (
+            <EmptyState icon={<History className="w-8 h-8" />} title="No maintenance log" message="Maintenance records will appear here as services are completed." />
+          ) : (
+            historyList.map((h: any) => (
+              <div key={h.id} className="bg-card border border-border/30 p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-heading font-bold text-xs text-foreground">{h.serviceType}</span>
+                  <span className="font-mono text-[10px] text-foreground/30">
+                    {new Date(h.completedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  </span>
+                </div>
+                {h.description && <p className="font-mono text-[10px] text-foreground/50">{h.description}</p>}
+                {h.mileageAtService && <span className="font-mono text-[9px] text-foreground/25 mt-1 block">{h.mileageAtService.toLocaleString()} miles</span>}
+                {h.nextServiceDue && (
+                  <div className="mt-2 flex items-center gap-1 font-mono text-[9px] text-amber-400/60">
+                    <Clock className="w-3 h-3" />
+                    Next due: {new Date(h.nextServiceDue).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
 
       {/* CTA */}
-      <div className="bg-card border border-primary/30 p-6 text-center">
+      <div className="mt-8 bg-card border border-primary/30 p-6 text-center">
         <h3 className="font-heading font-bold text-foreground tracking-wider mb-2">NEED SERVICE?</h3>
         <p className="font-mono text-xs text-foreground/40 mb-4">Schedule your next visit online or call us directly.</p>
         <div className="flex items-center justify-center gap-3">
@@ -390,6 +472,52 @@ function PortalDashboard({ token, onLogout }: { token: string; onLogout: () => v
           </a>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── DASHBOARD SKELETON ─────────────────────────────────
+function DashboardSkeleton() {
+  return (
+    <div className="container max-w-4xl py-8 animate-pulse">
+      <div className="h-8 w-64 bg-foreground/5 mb-2" />
+      <div className="h-4 w-40 bg-foreground/5 mb-8" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="bg-card border border-border/30 p-4 space-y-2">
+            <div className="h-5 w-5 bg-foreground/5 rounded" />
+            <div className="h-8 w-16 bg-foreground/5" />
+            <div className="h-3 w-20 bg-foreground/5" />
+          </div>
+        ))}
+      </div>
+      <div className="space-y-2">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="bg-card border border-border/30 p-4 h-14" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── STAT CARD ──────────────────────────────────────────
+function StatCard({ icon, value, label }: { icon: React.ReactNode; value: string | number; label: string }) {
+  return (
+    <div className="bg-card border border-border/30 p-4">
+      {icon}
+      <span className="font-heading font-bold text-2xl text-foreground block mt-2">{value}</span>
+      <span className="font-mono text-[10px] text-foreground/40">{label}</span>
+    </div>
+  );
+}
+
+// ─── EMPTY STATE ────────────────────────────────────────
+function EmptyState({ icon, title, message }: { icon: React.ReactNode; title: string; message: string }) {
+  return (
+    <div className="bg-card border border-border/30 p-8 text-center">
+      <div className="text-foreground/20 flex justify-center mb-3">{icon}</div>
+      <h3 className="font-heading font-bold text-sm text-foreground/40 tracking-wider mb-1">{title.toUpperCase()}</h3>
+      <p className="font-mono text-xs text-foreground/30">{message}</p>
     </div>
   );
 }

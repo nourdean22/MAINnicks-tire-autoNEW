@@ -1165,3 +1165,12 @@
 - [ ] View and pay invoices online (Stripe integration — coming in Stripe phase)
 - [ ] View inspection reports
 
+### Task 27: Business Integrations — Gateway Tire + Auto Labor Guide + More
+- [x] Fix Revenue Center duplicate title bug
+- [x] Store Gateway Tire credentials securely (b2b.dktire.com)
+- [x] Store Auto Labor Experts credentials securely (secure.autolaborexperts.com)
+- [x] Build Gateway Tire integration — tire search, pricing, availability in admin
+- [x] Build Auto Labor Guide integration — labor time lookup in admin/estimator
+- [ ] Explore additional integrations (AutoZone Pro, ATD Online, etc.)
+- [x] Add Integrations section to admin sidebar
+- [ ] Tests and checkpoint (in progress)

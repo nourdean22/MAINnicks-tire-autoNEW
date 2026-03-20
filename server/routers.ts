@@ -42,6 +42,8 @@ import {
   invoicesRouter,
   kpiRouter,
   portalRouter,
+  gatewayTireRouter,
+  autoLaborRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -99,6 +101,10 @@ export const appRouter = router({
   invoices: invoicesRouter,
   kpi: kpiRouter,
   portal: portalRouter,
+
+  // Business Integrations
+  gatewayTire: gatewayTireRouter,
+  autoLabor: autoLaborRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -7,11 +7,11 @@ import {
   Phone, Mail, MessageSquare, CalendarClock, Users,
   LayoutDashboard, FileText, Globe, Wrench, Gauge,
   ClipboardList, Trophy, Gift, Send, Star, UserCheck, RotateCcw, Timer,
-  Settings, Upload, DollarSign, Activity, TrendingUp
+  Settings, Upload, DollarSign, Activity, TrendingUp, Plug
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue";
+export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "closed" | "lost";
 
@@ -84,6 +84,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "loyalty", label: "Loyalty", icon: <Trophy className="w-4 h-4" /> },
       { id: "qa", label: "Q&A", icon: <MessageSquare className="w-4 h-4" /> },
       { id: "jobs", label: "Job Board", icon: <Wrench className="w-4 h-4" /> },
+      { id: "integrations", label: "Integrations", icon: <Plug className="w-4 h-4" /> },
     ],
   },
   {
@@ -124,6 +125,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   estimates: "Estimate Log",
   activity: "Activity Feed",
   revenue: "Revenue Command Center",
+  integrations: "Integrations Hub",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────

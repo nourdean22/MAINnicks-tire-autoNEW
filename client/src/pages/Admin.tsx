@@ -39,6 +39,7 @@ const SettingsSection = lazy(() => import("./admin/SettingsSection"));
 const EstimatesSection = lazy(() => import("./admin/EstimatesSection"));
 const ActivitySection = lazy(() => import("./admin/ActivitySection"));
 const RevenueSection = lazy(() => import("./admin/RevenueSection"));
+const IntegrationsSection = lazy(() => import("./admin/IntegrationsSection"));
 
 function SectionSpinner() {
   return (
@@ -74,6 +75,7 @@ function SectionContent({ section }: { section: AdminSection }) {
       {section === "estimates" && <EstimatesSection />}
       {section === "activity" && <ActivitySection />}
       {section === "revenue" && <RevenueSection />}
+      {section === "integrations" && <IntegrationsSection />}
     </Suspense>
   );
 }

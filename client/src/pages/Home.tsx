@@ -575,6 +575,7 @@ function Footer() {
               <Link href="/reviews" className="block hover:text-foreground transition-colors">Reviews</Link>
               <Link href="/specials" className="block hover:text-foreground transition-colors">Specials</Link>
               <Link href="/diagnose" className="block hover:text-foreground transition-colors">Diagnose My Car</Link>
+              <Link href="/portal" className="block hover:text-foreground transition-colors">Customer Portal</Link>
               <Link href="/blog" className="block hover:text-foreground transition-colors">Blog</Link>
               <Link href="/faq" className="block hover:text-foreground transition-colors">FAQ</Link>
               <Link href="/car-care-guide" className="block hover:text-foreground transition-colors">Car Care Guide</Link>

@@ -1,5 +1,6 @@
 /**
  * Advanced Features Router — Job Assignments, Invoices, CLV, KPIs, Customer Portal
+ * AUDIT-FIXED: Rate limiting, session cleanup, invoice CRUD, optimized KPI, auto-stage
  */
 import { adminProcedure, publicProcedure, router } from "../_core/trpc";
 import { z } from "zod";
@@ -16,7 +17,7 @@ async function db() {
 
 // ─── JOB ASSIGNMENTS ────────────────────────────────────
 export const jobAssignmentsRouter = router({
-  /** Assign a technician to a booking */
+  /** Assign a technician to a booking — also auto-updates stage to inspecting */
   assign: adminProcedure
     .input(z.object({
       bookingId: z.number(),
@@ -44,6 +45,16 @@ export const jobAssignmentsRouter = router({
         estimatedHours: input.estimatedHours || null,
         notes: input.notes || null,
       });
+
+      // Auto-update booking stage to "inspecting" if still "received"
+      const [booking] = await d.select().from(bookings).where(eq(bookings.id, input.bookingId)).limit(1);
+      if (booking && booking.stage === "received") {
+        await d.update(bookings).set({
+          stage: "inspecting",
+          stageUpdatedAt: new Date(),
+        }).where(eq(bookings.id, input.bookingId));
+      }
+
       return { success: true, id: Number(result[0].insertId) };
     }),
 
@@ -57,23 +68,45 @@ export const jobAssignmentsRouter = router({
       return { success: true };
     }),
 
-  /** Start timer for a job */
+  /** Start timer for a job — also auto-updates stage to in-progress */
   startTimer: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const d = await db();
       if (!d) throw new Error("Database not available");
-      await d.update(jobAssignments).set({ startedAt: new Date() }).where(eq(jobAssignments.id, input.id));
+      const now = new Date();
+      await d.update(jobAssignments).set({ startedAt: now }).where(eq(jobAssignments.id, input.id));
+
+      // Auto-update booking stage to "in-progress"
+      const [assignment] = await d.select().from(jobAssignments).where(eq(jobAssignments.id, input.id)).limit(1);
+      if (assignment) {
+        await d.update(bookings).set({
+          stage: "in-progress",
+          stageUpdatedAt: now,
+        }).where(eq(bookings.id, assignment.bookingId));
+      }
+
       return { success: true };
     }),
 
-  /** Stop timer for a job */
+  /** Stop timer for a job — also auto-updates stage to quality-check */
   stopTimer: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const d = await db();
       if (!d) throw new Error("Database not available");
-      await d.update(jobAssignments).set({ completedAt: new Date() }).where(eq(jobAssignments.id, input.id));
+      const now = new Date();
+      await d.update(jobAssignments).set({ completedAt: now }).where(eq(jobAssignments.id, input.id));
+
+      // Auto-update booking stage to "quality-check"
+      const [assignment] = await d.select().from(jobAssignments).where(eq(jobAssignments.id, input.id)).limit(1);
+      if (assignment) {
+        await d.update(bookings).set({
+          stage: "quality-check",
+          stageUpdatedAt: now,
+        }).where(eq(bookings.id, assignment.bookingId));
+      }
+
       return { success: true };
     }),
 
@@ -135,6 +168,7 @@ export const invoicesRouter = router({
       offset: z.number().default(0),
       startDate: z.string().optional(),
       endDate: z.string().optional(),
+      search: z.string().optional(),
     }).optional())
     .query(async ({ input }) => {
       const d = await db();
@@ -142,6 +176,9 @@ export const invoicesRouter = router({
       const conditions = [];
       if (input?.startDate) conditions.push(gte(invoices.invoiceDate, new Date(input.startDate)));
       if (input?.endDate) conditions.push(lte(invoices.invoiceDate, new Date(input.endDate)));
+      if (input?.search) {
+        conditions.push(sql`(${invoices.customerName} LIKE ${'%' + input.search + '%'} OR ${invoices.invoiceNumber} LIKE ${'%' + input.search + '%'} OR ${invoices.serviceDescription} LIKE ${'%' + input.search + '%'})`);
+      }
       const where = conditions.length > 0 ? and(...conditions) : undefined;
       const items = await d.select().from(invoices)
         .where(where)
@@ -155,12 +192,12 @@ export const invoicesRouter = router({
   /** Create an invoice */
   create: adminProcedure
     .input(z.object({
-      customerName: z.string(),
+      customerName: z.string().min(1, "Customer name is required"),
       customerPhone: z.string().optional(),
       customerId: z.number().optional(),
       bookingId: z.number().optional(),
       invoiceNumber: z.string().optional(),
-      totalAmount: z.number(),
+      totalAmount: z.number().min(0),
       partsCost: z.number().default(0),
       laborCost: z.number().default(0),
       taxAmount: z.number().default(0),
@@ -179,6 +216,43 @@ export const invoicesRouter = router({
         invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : new Date(),
       });
       return { success: true, id: Number(result[0].insertId) };
+    }),
+
+  /** Update an invoice */
+  update: adminProcedure
+    .input(z.object({
+      id: z.number(),
+      customerName: z.string().optional(),
+      customerPhone: z.string().optional(),
+      totalAmount: z.number().optional(),
+      partsCost: z.number().optional(),
+      laborCost: z.number().optional(),
+      taxAmount: z.number().optional(),
+      serviceDescription: z.string().optional(),
+      vehicleInfo: z.string().optional(),
+      paymentMethod: z.enum(["cash", "card", "check", "financing", "other"]).optional(),
+      paymentStatus: z.enum(["paid", "pending", "partial", "refunded"]).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) throw new Error("Database not available");
+      const { id, ...updates } = input;
+      const cleanUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([_, v]) => v !== undefined)
+      );
+      if (Object.keys(cleanUpdates).length === 0) return { success: true };
+      await d.update(invoices).set(cleanUpdates).where(eq(invoices.id, id));
+      return { success: true };
+    }),
+
+  /** Delete an invoice */
+  delete: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) throw new Error("Database not available");
+      await d.delete(invoices).where(eq(invoices.id, input.id));
+      return { success: true };
     }),
 
   /** Revenue dashboard stats */
@@ -261,7 +335,7 @@ export const invoicesRouter = router({
 
 // ─── KPI COMMAND CENTER ─────────────────────────────────
 export const kpiRouter = router({
-  /** Get current KPIs (computed live) */
+  /** Get current KPIs (computed live) — OPTIMIZED: uses SQL aggregation */
   current: adminProcedure.query(async () => {
     const d = await db();
     if (!d) return null;
@@ -291,22 +365,31 @@ export const kpiRouter = router({
     const conversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0;
 
     // Customer counts
-    const allCustomers = await d.select({ id: customers.id }).from(customers);
-    const newCustomers = await d.select().from(customers).where(gte(customers.createdAt, monthAgo));
+    const [customerCount] = await d.select({ count: sql<number>`count(*)` }).from(customers);
+    const [newCustomerCount] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(gte(customers.createdAt, monthAgo));
 
-    // Booking by day of week (for scheduling heatmap)
-    const allBookings = await d.select().from(bookings);
+    // Booking by day of week (OPTIMIZED: SQL aggregation instead of fetching all rows)
+    const dayOfWeekResults = await d.select({
+      dayOfWeek: sql<number>`DAYOFWEEK(${bookings.createdAt})`,
+      count: sql<number>`count(*)`,
+    }).from(bookings).groupBy(sql`DAYOFWEEK(${bookings.createdAt})`);
+
     const dayOfWeekCounts = [0, 0, 0, 0, 0, 0, 0]; // Sun-Sat
-    allBookings.forEach(b => {
-      const day = new Date(b.createdAt).getDay();
-      dayOfWeekCounts[day]++;
+    dayOfWeekResults.forEach(r => {
+      // MySQL DAYOFWEEK: 1=Sun, 2=Mon, ..., 7=Sat
+      const idx = r.dayOfWeek - 1;
+      if (idx >= 0 && idx < 7) dayOfWeekCounts[idx] = r.count;
     });
 
-    // Booking by hour (for scheduling heatmap)
+    // Booking by hour (OPTIMIZED: SQL aggregation)
+    const hourResults = await d.select({
+      hour: sql<number>`HOUR(${bookings.createdAt})`,
+      count: sql<number>`count(*)`,
+    }).from(bookings).groupBy(sql`HOUR(${bookings.createdAt})`);
+
     const hourCounts = new Array(24).fill(0);
-    allBookings.forEach(b => {
-      const hour = new Date(b.createdAt).getHours();
-      hourCounts[hour]++;
+    hourResults.forEach(r => {
+      if (r.hour >= 0 && r.hour < 24) hourCounts[r.hour] = r.count;
     });
 
     return {
@@ -319,8 +402,8 @@ export const kpiRouter = router({
       conversionRate,
       reviewsSent,
       reviewsClicked,
-      totalCustomers: allCustomers.length,
-      newCustomersThisMonth: newCustomers.length,
+      totalCustomers: customerCount?.count ?? 0,
+      newCustomersThisMonth: newCustomerCount?.count ?? 0,
       dayOfWeekCounts,
       hourCounts,
       completedThisWeek: weekBookings.filter(b => b.status === "completed").length,
@@ -343,13 +426,26 @@ export const kpiRouter = router({
 
 // ─── CUSTOMER PORTAL ────────────────────────────────────
 export const portalRouter = router({
-  /** Request a verification code (public) */
+  /** Request a verification code (public) — with rate limiting */
   requestCode: publicProcedure
     .input(z.object({ phone: z.string().min(10) }))
     .mutation(async ({ input }) => {
       const d = await db();
       if (!d) throw new Error("Database not available");
       const normalized = input.phone.replace(/\D/g, "").slice(-10);
+
+      // Rate limiting: max 3 codes per phone per hour
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      const recentCodes = await d.select({ count: sql<number>`count(*)` })
+        .from(portalSessions)
+        .where(and(
+          eq(portalSessions.phone, normalized),
+          gte(portalSessions.createdAt, oneHourAgo),
+        ));
+      if ((recentCodes[0]?.count ?? 0) >= 3) {
+        throw new Error("Too many code requests. Please wait and try again.");
+      }
+
       // Generate 6-digit code
       const code = String(Math.floor(100000 + Math.random() * 900000));
       const codeExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
@@ -366,12 +462,16 @@ export const portalRouter = router({
         codeExpiresAt,
       });
 
-      // In production, send SMS. For now, return success (code visible in DB for testing)
-      console.log(`[Portal] Verification code for ${normalized}: ${code}`);
+      // In development, log to console. In production, use Twilio SMS.
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[Portal] Verification code for ${normalized}: ${code}`);
+      }
+      // TODO: When Twilio is active, send SMS here
+
       return { success: true, message: "Verification code sent" };
     }),
 
-  /** Verify code and create session (public) */
+  /** Verify code and create session (public) — cleans up expired sessions */
   verifyCode: publicProcedure
     .input(z.object({ phone: z.string(), code: z.string() }))
     .mutation(async ({ input }) => {
@@ -379,6 +479,10 @@ export const portalRouter = router({
       if (!d) throw new Error("Database not available");
       const normalized = input.phone.replace(/\D/g, "").slice(-10);
       const now = new Date();
+
+      // Clean up expired sessions (older than 24 hours)
+      const cleanupCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      await d.delete(portalSessions).where(lte(portalSessions.createdAt, cleanupCutoff));
 
       const [session] = await d.select().from(portalSessions)
         .where(and(
@@ -442,10 +546,20 @@ export const portalRouter = router({
         .orderBy(desc(invoices.invoiceDate))
         .limit(20);
 
+      // Get service history if customer exists
+      let history: any[] = [];
+      if (session.customerId) {
+        history = await d.select().from(serviceHistory)
+          .where(eq(serviceHistory.userId, session.customerId))
+          .orderBy(desc(serviceHistory.completedAt))
+          .limit(20);
+      }
+
       return {
         customer,
         bookings: customerBookings,
         invoices: customerInvoices,
+        serviceHistory: history,
         phone: session.phone,
       };
     }),
