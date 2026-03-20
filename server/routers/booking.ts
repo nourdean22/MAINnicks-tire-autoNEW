@@ -12,6 +12,7 @@ import { storagePut } from "../storage";
 import { notifyNewBooking, notifyInvoiceCreated } from "../email-notify";
 import { syncBookingToSheet, syncInvoiceToSheet } from "../sheets-sync";
 import { sendSms, bookingConfirmationSms, statusUpdateSms } from "../sms";
+import { sendLeadEvent, sendScheduleEvent } from "../meta-capi";
 import { scheduleReviewRequest } from "./reviewRequests";
 import { scheduleRemindersForBooking, getNextInvoiceNumber, createInvoice } from "../db";
 import { shopSettings } from "../../drizzle/schema";
@@ -145,6 +146,16 @@ export const bookingRouter = router({
         message: z.string().max(2000, "Message too long").optional(),
         photoUrls: z.array(z.string()).optional(),
         urgency: z.enum(["emergency", "this-week", "whenever"]).default("whenever"),
+        // Meta Pixel event IDs for server-side CAPI deduplication
+        pixelEventIds: z.object({
+          leadEventId: z.string(),
+          scheduleEventId: z.string(),
+        }).optional(),
+        pixelUserData: z.object({
+          client_user_agent: z.string(),
+          fbc: z.string().optional(),
+          fbp: z.string().optional(),
+        }).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -204,6 +215,32 @@ export const bookingRouter = router({
       sendSms(input.phone, bookingConfirmationSms(input.name, input.service, refCode)).catch(err =>
         console.error("[SMS] Booking confirmation failed:", err)
       );
+
+      // Meta Conversions API: Send server-side Lead + Schedule events
+      if (input.pixelEventIds) {
+        const capiUserData = {
+          phone: input.phone,
+          email: input.email || undefined,
+          name: input.name,
+          userAgent: input.pixelUserData?.client_user_agent,
+          fbc: input.pixelUserData?.fbc,
+          fbp: input.pixelUserData?.fbp,
+        };
+        sendLeadEvent({
+          eventId: input.pixelEventIds.leadEventId,
+          sourceUrl: "https://nickstire.org",
+          contentName: "Booking Form Submission",
+          contentCategory: input.service,
+          ...capiUserData,
+        }).catch(err => console.error("[CAPI] Lead event failed:", err));
+        sendScheduleEvent({
+          eventId: input.pixelEventIds.scheduleEventId,
+          sourceUrl: "https://nickstire.org",
+          service: input.service,
+          vehicle: vehicleStr || undefined,
+          ...capiUserData,
+        }).catch(err => console.error("[CAPI] Schedule event failed:", err));
+      }
 
       return { ...result, referenceCode: refCode };
       } catch (err) {

@@ -1337,3 +1337,46 @@
 - [x] Check all service pages have proper Service schema connected to LocalBusiness — 8 pages updated
 - [ ] Submit all unindexed pages for indexing in GSC
 - [x] Verify sitemap is fully processed in GSC — 68 pages, status: Success
+
+## Phase — Google Search Console Perfect Indexing + Meta Business Suite Integration
+### GSC Page Submission
+- [ ] Submit all unindexed pages for indexing via URL Inspection tool
+- [ ] Verify sitemap is fully processed
+- [ ] Check all enhancements are error-free
+- [ ] Ensure all GSC settings are perfectly configured
+
+### Meta Business Suite Integration
+- [ ] Explore Meta Marketing MCP tools (ads data, campaigns, metrics)
+- [ ] Explore Instagram MCP tools (publishing, insights, account info)
+- [ ] Connect Meta Pixel to website for conversion tracking
+- [ ] Set up Meta Conversions API (server-side) for reliable tracking
+- [ ] Build admin dashboard section for Meta ads performance
+- [ ] Connect Instagram content publishing to website content system
+- [ ] Set up automated ad campaigns or audience targeting
+- [ ] Maximize efficiency across all Meta platforms
+
+### Facebook Page Name Fix
+- [ ] Investigate why Facebook page name change from "Moes" to "Nicks" keeps failing
+- [ ] Attempt name change through Facebook Page settings
+- [ ] If blocked, identify the reason and find workaround
+
+## Phase — Meta Pixel + Conversions API Integration (March 20, 2026)
+### Client-Side Pixel Tracking
+- [x] Create typed metaPixel.ts utility (trackLead, trackSchedule, trackPhoneCall, trackViewContent, trackSearch)
+- [x] Event deduplication with unique event IDs (UUID v4)
+- [x] Cookie capture (fbc, fbp) for cross-device matching
+- [x] Upgrade BookingForm pixel tracking (Lead + Schedule events)
+- [x] Upgrade LeadPopup pixel tracking (Lead event)
+- [x] Upgrade trackPhoneClick to use Contact event type (was using Lead)
+### Server-Side Conversions API (CAPI)
+- [x] Build meta-capi.ts module with SHA-256 PII hashing (email, phone, name)
+- [x] Auto-include Cleveland, OH, US geo data for local matching
+- [x] Support fbc/fbp cookie forwarding for browser-server deduplication
+- [x] Wire CAPI into booking create mutation (Lead + Schedule events)
+- [x] Wire CAPI into lead submit mutation (Lead event)
+- [x] Wire CAPI into callback submit mutation (Lead event)
+- [x] Pixel event ID fields added to booking, lead, callback input schemas
+### Testing
+- [x] Write meta-capi.test.ts (9 tests: token check, Lead/Schedule/Contact events, hashing, error handling, cookies)
+- [x] All 9 CAPI tests passing
+- [ ] Need META_CAPI_ACCESS_TOKEN env variable for live CAPI (requires Meta Events Manager setup)

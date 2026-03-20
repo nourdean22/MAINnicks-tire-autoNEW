@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from "react";
 import { X, Phone, AlertTriangle, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
+import { trackLeadSubmission, getUserDataForCAPI } from "@/lib/metaPixel";
 import { BUSINESS } from "@shared/business";
 
 const STORAGE_KEY = "nicks_lead_popup_dismissed";
@@ -76,15 +77,17 @@ export default function LeadPopup() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.phone.trim()) return;
-    if (typeof window !== "undefined" && (window as any).fbq) {
-      (window as any).fbq("track", "Lead", { content_name: "lead_popup", content_category: "popup" });
-    }
+    // Meta Pixel + CAPI: Track lead popup submission
+    const eventId = trackLeadSubmission({ source: "popup", problem: form.problem.trim() });
+    const userData = getUserDataForCAPI();
     submitLead.mutate({
       name: form.name.trim(),
       phone: form.phone.trim(),
       vehicle: form.vehicle.trim() || undefined,
       problem: form.problem.trim() || undefined,
       source: "popup",
+      pixelEventId: eventId,
+      pixelUserData: userData,
     });
   };
 

@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
+import { trackBookingSubmission, getUserDataForCAPI } from "@/lib/metaPixel";
 import {
   Phone, Calendar, Clock, Car, Wrench, CheckCircle, AlertCircle,
   Loader2, Camera, X, ChevronRight, ChevronLeft, User, Mail, MessageSquare, AlertTriangle, Zap,
@@ -112,12 +113,20 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.phone || !formData.service) return;
-    // Meta Pixel: Track booking form submission as a Schedule conversion
-    if (typeof window !== "undefined" && (window as any).fbq) {
-      (window as any).fbq("track", "Schedule", { content_name: "booking_form", content_category: formData.service });
-    }
+    // Meta Pixel + CAPI: Track booking as Lead + Schedule conversion
+    const { leadEventId, scheduleEventId } = trackBookingSubmission({
+      service: formData.service,
+      vehicle: [formData.vehicleYear, formData.vehicleMake, formData.vehicleModel].filter(Boolean).join(" "),
+    });
+    const userData = getUserDataForCAPI();
     const photoUrls = photos.filter((p) => p.url).map((p) => p.url!);
-    mutation.mutate({ ...formData, photoUrls, urgency: formData.urgency });
+    mutation.mutate({
+      ...formData,
+      photoUrls,
+      urgency: formData.urgency,
+      pixelEventIds: { leadEventId, scheduleEventId },
+      pixelUserData: userData,
+    });
   };
 
   const canGoNext = (s: Step): boolean => {

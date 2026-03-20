@@ -10,6 +10,7 @@ import { z } from "zod";
 import { eq, desc } from "drizzle-orm";
 import { leads } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
+import { sendLeadEvent } from "../meta-capi";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -29,6 +30,13 @@ export const leadRouter = router({
         companyName: z.string().optional(),
         fleetSize: z.number().optional(),
         vehicleTypes: z.string().optional(),
+        // Meta Pixel event ID for server-side CAPI deduplication
+        pixelEventId: z.string().optional(),
+        pixelUserData: z.object({
+          client_user_agent: z.string(),
+          fbc: z.string().optional(),
+          fbp: z.string().optional(),
+        }).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -95,6 +103,23 @@ export const leadRouter = router({
         fleetSize: input.fleetSize || undefined,
         vehicleTypes: input.vehicleTypes || undefined,
       }).catch(err => console.error("[Lead] Email notification failed:", err));
+
+      // Meta Conversions API: Send server-side Lead event
+      if (input.pixelEventId) {
+        const nameParts = (input.name || "").split(" ");
+        sendLeadEvent({
+          eventId: input.pixelEventId,
+          sourceUrl: "https://nickstire.org",
+          phone: input.phone,
+          email: input.email || undefined,
+          name: input.name,
+          userAgent: input.pixelUserData?.client_user_agent,
+          fbc: input.pixelUserData?.fbc,
+          fbp: input.pixelUserData?.fbp,
+          contentName: input.source === "fleet" ? "Fleet Inquiry" : "Lead Form Submission",
+          contentCategory: input.source || "popup",
+        }).catch(err => console.error("[CAPI] Lead event failed:", err));
+      }
 
       return {
         success: true,

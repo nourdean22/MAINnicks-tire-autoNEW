@@ -10,6 +10,7 @@ import { sendSms, callbackConfirmationSms } from "../sms";
 import { z } from "zod";
 import { leads } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone } from "../sanitize";
+import { sendLeadEvent } from "../meta-capi";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -23,6 +24,13 @@ export const callbackRouter = router({
       phone: z.string().min(7).max(20),
       context: z.string().optional(),
       sourcePage: z.string().optional(),
+      // Meta Pixel event ID for server-side CAPI deduplication
+      pixelEventId: z.string().optional(),
+      pixelUserData: z.object({
+        client_user_agent: z.string(),
+        fbc: z.string().optional(),
+        fbp: z.string().optional(),
+      }).optional(),
     }))
     .mutation(async ({ input }) => {
       try {
@@ -76,6 +84,21 @@ export const callbackRouter = router({
         reason: input.context || undefined,
         sourcePage: input.sourcePage || undefined,
       }).catch(() => {});
+
+      // Meta Conversions API: Send server-side Lead event for callback
+      if (input.pixelEventId) {
+        sendLeadEvent({
+          eventId: input.pixelEventId,
+          sourceUrl: "https://nickstire.org",
+          phone: input.phone,
+          name: input.name,
+          userAgent: input.pixelUserData?.client_user_agent,
+          fbc: input.pixelUserData?.fbc,
+          fbp: input.pixelUserData?.fbp,
+          contentName: "Callback Request",
+          contentCategory: input.sourcePage || "website",
+        }).catch(err => console.error("[CAPI] Callback lead event failed:", err));
+      }
 
       return result;
       } catch (err) {
