@@ -12,6 +12,7 @@ import { notifyOwner } from "../_core/notification";
 import { syncBookingToSheet } from "../sheets-sync";
 import { sendSms, bookingConfirmationSms, statusUpdateSms } from "../sms";
 import { scheduleReviewRequest } from "./reviewRequests";
+import { scheduleRemindersForBooking } from "../db";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { bookings } from "../../drizzle/schema";
@@ -131,6 +132,19 @@ export const bookingRouter = router({
                 else console.log(`[ReviewRequest] Skipped for booking #${booking.id}: ${r.reason}`);
               })
               .catch(err => console.error(`[ReviewRequest] Error scheduling for booking #${booking.id}:`, err));
+
+            // Auto-schedule maintenance reminders based on service type
+            scheduleRemindersForBooking({
+              id: booking.id,
+              name: booking.name,
+              phone: booking.phone,
+              service: booking.service,
+              vehicle: booking.vehicle,
+            })
+              .then((ids: number[]) => {
+                if (ids.length > 0) console.log(`[Reminders] Scheduled ${ids.length} reminders for booking #${booking.id}`);
+              })
+              .catch((err: unknown) => console.error(`[Reminders] Error scheduling for booking #${booking.id}:`, err));
           }
         }
       }

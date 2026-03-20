@@ -1,0 +1,23 @@
+CREATE TABLE `customers` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`firstName` varchar(100) NOT NULL,
+	`lastName` varchar(100),
+	`phone` varchar(30) NOT NULL,
+	`phone2` varchar(30),
+	`email` varchar(320),
+	`address` varchar(500),
+	`city` varchar(100),
+	`state` varchar(10),
+	`zip` varchar(20),
+	`customerType` enum('individual','commercial') NOT NULL DEFAULT 'individual',
+	`totalVisits` int NOT NULL DEFAULT 0,
+	`lastVisitDate` timestamp,
+	`balanceDue` int NOT NULL DEFAULT 0,
+	`alsCustomerId` varchar(50),
+	`segment` enum('recent','lapsed','new','unknown') NOT NULL DEFAULT 'unknown',
+	`smsCampaignSent` int NOT NULL DEFAULT 0,
+	`smsCampaignDate` timestamp,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `customers_id` PRIMARY KEY(`id`)
+);

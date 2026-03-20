@@ -10,6 +10,7 @@ import { serveStatic, setupVite } from "./vite";
 import { getPublishedArticles } from "../content-generator";
 import { markReviewRequestClicked } from "../db";
 import { processReviewRequestQueue } from "../routers/reviewRequests";
+import { processReminderQueue } from "../routers/reminders";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -138,6 +139,10 @@ async function startServer() {
       { path: "/rewards", priority: "0.6", changefreq: "monthly" },
       { path: "/car-care-guide", priority: "0.6", changefreq: "monthly" },
       { path: "/refer", priority: "0.5", changefreq: "monthly" },
+      { path: "/status", priority: "0.6", changefreq: "monthly" },
+      { path: "/ask", priority: "0.6", changefreq: "weekly" },
+      { path: "/my-garage", priority: "0.5", changefreq: "monthly" },
+      { path: "/review", priority: "0.6", changefreq: "monthly" },
     ];
 
     const hardcodedBlogSlugs = [
@@ -214,6 +219,19 @@ async function startServer() {
       console.error("[ReviewRequest] Queue processing error:", err);
     }
   }, 5 * 60 * 1000); // Every 5 minutes
+
+  // Periodic maintenance reminder queue processor
+  // Checks every 15 minutes for reminders that are past their nextDueDate
+  setInterval(async () => {
+    try {
+      const result = await processReminderQueue();
+      if (result.processed > 0) {
+        console.log(`[Reminders] Queue processed: ${result.sent} sent, ${result.failed} failed`);
+      }
+    } catch (err) {
+      console.error("[Reminders] Queue processing error:", err);
+    }
+  }, 15 * 60 * 1000); // Every 15 minutes
 
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {

@@ -550,3 +550,218 @@ export const reviewSettings = mysqlTable("review_settings", {
 
 export type ReviewSettings = typeof reviewSettings.$inferSelect;
 export type InsertReviewSettings = typeof reviewSettings.$inferInsert;
+
+// ─── SERVICE REMINDERS ──────────────────────────────────
+/**
+ * Automated maintenance reminders based on service history and mileage intervals.
+ * Tracks when customers are due for their next service and SMS delivery status.
+ */
+export const serviceReminders = mysqlTable("service_reminders", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Link to customer vehicle (optional — may be anonymous booking) */
+  vehicleId: int("vehicleId"),
+  /** Link to the booking that triggered this reminder */
+  bookingId: int("bookingId"),
+  /** Customer name */
+  customerName: varchar("customerName", { length: 255 }).notNull(),
+  /** Customer phone (normalized) */
+  phone: varchar("phone", { length: 30 }).notNull(),
+  /** Vehicle description (e.g. "2019 Toyota Camry") */
+  vehicleInfo: varchar("vehicleInfo", { length: 255 }),
+  /** Service type this reminder is for */
+  serviceType: varchar("serviceType", { length: 100 }).notNull(),
+  /** When the last service was performed */
+  lastServiceDate: timestamp("lastServiceDate").notNull(),
+  /** Mileage at last service (if known) */
+  lastServiceMileage: int("lastServiceMileage"),
+  /** Calculated next due date */
+  nextDueDate: timestamp("nextDueDate").notNull(),
+  /** Calculated next due mileage (if applicable) */
+  nextDueMileage: int("nextDueMileage"),
+  /** Current status */
+  status: mysqlEnum("status", ["scheduled", "sent", "snoozed", "completed", "cancelled"]).default("scheduled").notNull(),
+  /** When the reminder SMS was sent */
+  sentAt: timestamp("sentAt"),
+  /** Twilio message SID */
+  twilioSid: varchar("twilioSid", { length: 64 }),
+  /** Error message if sending failed */
+  errorMessage: text("errorMessage"),
+  /** Snooze until this date (if snoozed) */
+  snoozedUntil: timestamp("snoozedUntil"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ServiceReminder = typeof serviceReminders.$inferSelect;
+export type InsertServiceReminder = typeof serviceReminders.$inferInsert;
+
+// ─── REMINDER SETTINGS ──────────────────────────────────
+/**
+ * Per-service-type reminder interval configuration.
+ * Defines how often each service should be recommended.
+ */
+export const reminderSettings = mysqlTable("reminder_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Service type key (e.g. "oil-change", "brakes", "tires") */
+  serviceType: varchar("serviceType", { length: 100 }).notNull().unique(),
+  /** Human-readable label */
+  serviceLabel: varchar("serviceLabel", { length: 255 }).notNull(),
+  /** Interval in months between services */
+  intervalMonths: int("intervalMonths").notNull(),
+  /** Interval in miles between services (0 = time-based only) */
+  intervalMiles: int("intervalMiles").default(0).notNull(),
+  /** Whether reminders are enabled for this service type */
+  enabled: int("enabled").default(1).notNull(),
+  /** Custom SMS message template (optional — falls back to default) */
+  messageTemplate: text("messageTemplate"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ReminderSetting = typeof reminderSettings.$inferSelect;
+export type InsertReminderSetting = typeof reminderSettings.$inferInsert;
+
+// ─── SMS CONVERSATIONS ──────────────────────────────────
+/**
+ * Two-way SMS conversation threads with customers.
+ * Groups messages by phone number for inbox-style management.
+ */
+export const smsConversations = mysqlTable("sms_conversations", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Customer phone (normalized, unique per conversation) */
+  phone: varchar("phone", { length: 30 }).notNull().unique(),
+  /** Customer name (from booking or manual entry) */
+  customerName: varchar("customerName", { length: 255 }),
+  /** Link to booking if known */
+  bookingId: int("bookingId"),
+  /** Conversation status */
+  status: mysqlEnum("status", ["active", "closed", "archived"]).default("active").notNull(),
+  /** Number of unread inbound messages */
+  unreadCount: int("unreadCount").default(0).notNull(),
+  /** Last message timestamp for sorting */
+  lastMessageAt: timestamp("lastMessageAt").defaultNow().notNull(),
+  /** Last message preview text */
+  lastMessagePreview: varchar("lastMessagePreview", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SmsConversation = typeof smsConversations.$inferSelect;
+export type InsertSmsConversation = typeof smsConversations.$inferInsert;
+
+// ─── SMS MESSAGES ────────────────────────────────────────
+/**
+ * Individual messages within an SMS conversation.
+ */
+export const smsMessages = mysqlTable("sms_messages", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Link to conversation */
+  conversationId: int("conversationId").notNull(),
+  /** Message direction */
+  direction: mysqlEnum("direction", ["inbound", "outbound"]).notNull(),
+  /** Message body */
+  body: text("body").notNull(),
+  /** Twilio message SID */
+  twilioSid: varchar("twilioSid", { length: 64 }),
+  /** Delivery status */
+  status: mysqlEnum("status", ["queued", "sent", "delivered", "failed", "received"]).default("queued").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type SmsMessage = typeof smsMessages.$inferSelect;
+export type InsertSmsMessage = typeof smsMessages.$inferInsert;
+
+// ─── REPAIR GALLERY ──────────────────────────────────────
+/**
+ * Before/after repair photos for the public gallery page.
+ */
+export const repairGallery = mysqlTable("repair_gallery", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Repair title (e.g. "Brake Rotor Replacement") */
+  title: varchar("title", { length: 255 }).notNull(),
+  /** Description of the repair work */
+  description: text("description"),
+  /** Before photo URL (CDN) */
+  beforeImageUrl: varchar("beforeImageUrl", { length: 1000 }).notNull(),
+  /** After photo URL (CDN) */
+  afterImageUrl: varchar("afterImageUrl", { length: 1000 }).notNull(),
+  /** Service category */
+  serviceType: varchar("serviceType", { length: 100 }).notNull(),
+  /** Vehicle info (e.g. "2018 Honda Civic") */
+  vehicleInfo: varchar("vehicleInfo", { length: 255 }),
+  /** Whether visible on public gallery */
+  isPublished: int("isPublished").default(1).notNull(),
+  /** Sort order (lower = first) */
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type RepairGalleryItem = typeof repairGallery.$inferSelect;
+export type InsertRepairGalleryItem = typeof repairGallery.$inferInsert;
+
+// ─── TECHNICIANS ─────────────────────────────────────────
+/**
+ * Technician profiles for the team page and spotlight section.
+ */
+export const technicians = mysqlTable("technicians", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Full name */
+  name: varchar("name", { length: 255 }).notNull(),
+  /** Job title (e.g. "Lead Technician", "Tire Specialist") */
+  title: varchar("title", { length: 255 }).notNull(),
+  /** Short bio */
+  bio: text("bio"),
+  /** Comma-separated specialties */
+  specialties: text("specialties"),
+  /** Years of experience */
+  yearsExperience: int("yearsExperience").default(0).notNull(),
+  /** Comma-separated certifications (e.g. "ASE Master, Ohio E-Check") */
+  certifications: text("certifications"),
+  /** Profile photo URL (CDN) */
+  photoUrl: varchar("photoUrl", { length: 1000 }),
+  /** Whether visible on public team page */
+  isActive: int("isActive").default(1).notNull(),
+  /** Sort order (lower = first) */
+  sortOrder: int("sortOrder").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Technician = typeof technicians.$inferSelect;
+export type InsertTechnician = typeof technicians.$inferInsert;
+
+// ─── IMPORTED CUSTOMERS (from ALS shop management system) ───────────
+/**
+ * Customer records imported from the shop's management software.
+ * Contains contact info, visit history, and segment classification.
+ */
+export const customers = mysqlTable("customers", {
+  id: int("id").autoincrement().primaryKey(),
+  firstName: varchar("firstName", { length: 100 }).notNull(),
+  lastName: varchar("lastName", { length: 100 }),
+  phone: varchar("phone", { length: 30 }).notNull(),
+  phone2: varchar("phone2", { length: 30 }),
+  email: varchar("email", { length: 320 }),
+  address: varchar("address", { length: 500 }),
+  city: varchar("city", { length: 100 }),
+  state: varchar("state", { length: 10 }),
+  zip: varchar("zip", { length: 20 }),
+  /** Individual or Commercial */
+  customerType: mysqlEnum("customerType", ["individual", "commercial"]).default("individual").notNull(),
+  totalVisits: int("totalVisits").default(0).notNull(),
+  lastVisitDate: timestamp("lastVisitDate"),
+  balanceDue: int("balanceDue").default(0).notNull(),
+  /** External ID from ALS shop management system */
+  alsCustomerId: varchar("alsCustomerId", { length: 50 }),
+  /** Customer segment for marketing */
+  segment: mysqlEnum("segment", ["recent", "lapsed", "new", "unknown"]).default("unknown").notNull(),
+  /** Whether this customer was sent the March 2026 SMS campaign */
+  smsCampaignSent: int("smsCampaignSent").default(0).notNull(),
+  smsCampaignDate: timestamp("smsCampaignDate"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Customer = typeof customers.$inferSelect;
+export type InsertCustomer = typeof customers.$inferInsert;

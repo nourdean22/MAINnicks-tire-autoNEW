@@ -20,3 +20,8 @@ export {
   smsRouter,
 } from "./services";
 export { reviewRequestsRouter } from "./reviewRequests";
+export { remindersRouter } from "./reminders";
+export { smsConversationsRouter } from "./smsConversations";
+export { galleryRouter } from "./gallery";
+export { techniciansRouter } from "./technicians";
+export { customersRouter } from "./customers";

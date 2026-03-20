@@ -57,6 +57,20 @@
       "when": 1773961811615,
       "tag": "0007_awesome_vanisher",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1773963483713,
+      "tag": "0008_easy_senator_kelly",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1773965679083,
+      "tag": "0009_smooth_the_executioner",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 /**
  * Lead Capture Popup
- * Smart triggers: exit-intent (desktop), scroll depth (50%), and time delay (20s).
+ * Smart triggers: exit-intent (desktop), scroll depth (80%), and time delay (25s).
  * Captures name, phone, vehicle, and problem description.
  * Only shows once per session (localStorage flag).
  */
@@ -12,8 +12,8 @@ import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 
 const STORAGE_KEY = "nicks_lead_popup_dismissed";
-const DELAY_MS = 20000; // 20 seconds
-const SCROLL_THRESHOLD = 0.5; // 50% scroll
+const DELAY_MS = 25000; // 25 seconds — less aggressive
+const SCROLL_THRESHOLD = 0.8; // 80% scroll — less aggressive
 
 export default function LeadPopup() {
   const [visible, setVisible] = useState(false);

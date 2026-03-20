@@ -623,3 +623,112 @@
 - [x] Click tracking (public endpoint)
 - [x] scheduleReviewRequest unit tests (invalid phone, valid input)
 - [x] Auth guards on all admin endpoints
+
+## Phase 32 — Mega Feature Block (March 19, 2026)
+
+### Feature 1: Seasonal SMS Maintenance Reminders
+- [ ] Database: serviceReminders table (userId, vehicleId, lastServiceDate, nextDueDate, serviceType, status, sentAt)
+- [ ] Server: reminder calculation engine (oil change every 5k mi/6mo, brakes every 30k, tires every 6k rotation, coolant flush every 30k)
+- [ ] Server: daily cron-style check for due reminders → Twilio SMS
+- [ ] Server: reminder scheduling based on service history + mileage intervals
+- [ ] Admin: reminder management panel (view pending, sent, snoozed)
+- [ ] Admin: configurable reminder intervals per service type
+- [ ] Tests: reminder scheduling, SMS sending, duplicate prevention
+
+### Feature 2: Weekly Owner Intelligence Email Report
+- [ ] Server: comprehensive weekly report generator (bookings, leads, revenue, reviews, SMS stats, top services)
+- [ ] Server: automated Monday 8AM delivery via notifyOwner
+- [ ] Server: trend comparison (this week vs last week, % changes)
+- [ ] Server: actionable insights (e.g. "Brake bookings up 40% — consider a brake special")
+- [ ] Admin: manual "Generate Report Now" button
+- [ ] Admin: report history viewer
+- [ ] Tests: report generation, data aggregation
+
+### Feature 3: Customer 2-Way SMS Text Channel
+- [ ] Database: smsConversations table (id, phone, customerName, messages JSON, lastMessageAt, status)
+- [ ] Server: Twilio webhook endpoint for incoming SMS
+- [ ] Server: conversation threading (group messages by phone number)
+- [ ] Server: auto-reply for common keywords (STOP, HELP, STATUS, HOURS)
+- [ ] Admin: SMS inbox UI (conversation list, message thread view, reply composer)
+- [ ] Admin: unread message badge count in sidebar
+- [ ] Admin: quick reply templates (appointment confirmation, directions, hours)
+- [ ] Tests: webhook handling, conversation threading, auto-replies
+
+### Feature 4: QR Code Generator for In-Shop Marketing
+- [ ] Server: QR code generation endpoint (input: URL, output: PNG)
+- [ ] Admin: QR code generator page (review link, booking link, specials, custom URL)
+- [ ] Admin: printable QR code sheets (formatted for counter cards, window stickers)
+- [ ] Admin: QR code with Nick's branding (logo overlay, yellow accent)
+- [ ] Frontend: /qr landing page that redirects based on campaign parameter
+- [ ] Tests: QR generation, redirect tracking
+
+### Feature 5: Before/After Repair Gallery
+- [ ] Database: repairGallery table (id, title, description, beforeImageUrl, afterImageUrl, serviceType, vehicleInfo, createdAt)
+- [ ] Server: gallery CRUD endpoints (admin create/edit/delete, public list)
+- [ ] Frontend: /gallery page with image slider comparison component
+- [ ] Frontend: slider component (drag handle to reveal before/after)
+- [ ] Frontend: filter by service type
+- [ ] Admin: gallery management (upload before/after photos, add descriptions)
+- [ ] SEO: schema markup, meta tags, sitemap entry
+- [ ] Tests: gallery CRUD, public listing
+
+### Feature 6: Technician Spotlight Profiles
+- [ ] Database: technicians table (id, name, title, bio, specialties, yearsExperience, certifications, photoUrl, isActive)
+- [ ] Server: technician CRUD endpoints (admin manage, public list)
+- [ ] Frontend: /team page with technician cards
+- [ ] Frontend: individual technician detail with specialties and certifications
+- [ ] Frontend: "Meet Our Team" section on About page
+- [ ] Admin: technician management panel
+- [ ] SEO: Person schema markup, meta tags, sitemap entry
+- [ ] Tests: technician CRUD, public listing
+
+### Feature 7: Full SEO Title/Description Audit
+- [ ] Audit every page title — ensure 30-60 characters
+- [ ] Audit every meta description — ensure 120-160 characters
+- [ ] Fix all titles that are out of range
+- [ ] Fix all descriptions that are out of range
+- [ ] Verify no duplicate titles across pages
+- [ ] Verify no duplicate descriptions across pages
+
+### Feature 8: Progressive Web App (PWA)
+- [ ] Create service worker with offline caching strategy
+- [ ] Update manifest.json with full PWA configuration (icons, shortcuts, screenshots)
+- [ ] Add install prompt component (banner for mobile users)
+- [ ] Add offline fallback page
+- [ ] Cache critical assets (fonts, hero images, core CSS/JS)
+- [ ] Add "Add to Home Screen" prompt logic (show after 2nd visit)
+- [ ] Tests: service worker registration, manifest validation
+
+### Backfill Execution
+- [x] Run review request backfill — 0 eligible (only 2 bookings: 1 cancelled, 1 confirmed; system ready for when bookings are completed)
+
+## Phase 33 — Customer Database Import & Audit Fixes (March 19, 2026)
+
+### Task 1: Import Customer Database (1,972 records from Google Drive)
+- [x] Create customers table in drizzle schema
+- [x] Push database migration
+- [x] Build import script to parse XLSX and insert records
+- [x] Import all 1,972 customer records
+- [x] Tag lapsed/recent segments (403 recent, 231 lapsed, 1338 unknown)
+- [x] Verify import count and data integrity (1972/1972, 0 errors)
+- [x] Add admin endpoint to view/search customers (list, stats, getById, updateSegment)
+- [ ] Clean up everything thoroughly
+
+### Task 2: Fix Audit Issues
+- [x] Add missing pages to sitemap (/status, /ask, /my-garage, /review added)
+- [x] Adjust lead popup scroll threshold (50% → 80%, delay 20s → 25s)
+- [ ] Verify structured data on all pages
+
+### Task 3: Phase 32 Presentation
+- [ ] Create presentation of all Phase 32 features for owner review
+
+### Task 1B: SMS Campaigns from Google Drive Spreadsheets
+- [ ] Draft win-back message for 238 lapsed customers
+- [ ] Draft loyalty/thank-you message for 377 recent customers
+- [ ] Build Twilio send script reading directly from XLSX files
+- [ ] Validate all phone numbers and Twilio config
+- [ ] Get user approval on messages before sending
+- [ ] Send lapsed customer campaign (238 texts)
+- [ ] Send recent customer campaign (377 texts)
+- [ ] Log all sends (who, when, message, success/fail)
+- [ ] Upload send log to Google Drive

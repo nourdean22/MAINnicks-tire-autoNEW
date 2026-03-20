@@ -30,6 +30,11 @@ import {
   loyaltyRouter,
   smsRouter,
   reviewRequestsRouter,
+  remindersRouter,
+  smsConversationsRouter,
+  galleryRouter,
+  techniciansRouter,
+  customersRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -73,6 +78,11 @@ export const appRouter = router({
   weeklyReport: weeklyReportRouter,
   sms: smsRouter,
   reviewRequests: reviewRequestsRouter,
+  reminders: remindersRouter,
+  smsConversations: smsConversationsRouter,
+  gallery: galleryRouter,
+  technicians: techniciansRouter,
+  customers: customersRouter,
 });
 
 export type AppRouter = typeof appRouter;

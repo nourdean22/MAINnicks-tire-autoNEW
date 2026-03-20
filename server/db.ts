@@ -729,7 +729,7 @@ async function updateLoyaltyTier(userId: number) {
 
 // ─── REVIEW REQUEST QUERIES ──────────────────────────
 
-import { ne, isNull, lt, count as drizzleCount } from "drizzle-orm";
+import { ne, isNull, lt, gt, count as drizzleCount } from "drizzle-orm";
 
 /**
  * Create a new review request record (pending state).
@@ -943,4 +943,307 @@ export async function getCompletedBookingsWithoutReview(lookbackDays = 365) {
     eligible.push(b);
   }
   return eligible;
+}
+
+// ─── SERVICE REMINDERS ──────────────────────────────────
+import {
+  serviceReminders, InsertServiceReminder,
+  reminderSettings, InsertReminderSetting,
+  smsConversations, InsertSmsConversation,
+  smsMessages, InsertSmsMessage,
+  repairGallery, InsertRepairGalleryItem,
+  technicians, InsertTechnician,
+} from "../drizzle/schema";
+
+// ── Reminder Settings ──
+export async function getReminderSettings() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(reminderSettings).orderBy(reminderSettings.serviceType);
+}
+
+export async function upsertReminderSetting(data: InsertReminderSetting) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Check if exists
+  const existing = await db.select().from(reminderSettings)
+    .where(eq(reminderSettings.serviceType, data.serviceType)).limit(1);
+  if (existing.length > 0) {
+    await db.update(reminderSettings).set(data).where(eq(reminderSettings.id, existing[0].id));
+    return { success: true, id: existing[0].id };
+  }
+  const result = await db.insert(reminderSettings).values(data);
+  return { success: true, id: Number(result[0].insertId) };
+}
+
+export async function seedDefaultReminderSettings() {
+  const db = await getDb();
+  if (!db) return;
+  const existing = await db.select().from(reminderSettings);
+  if (existing.length > 0) return; // Already seeded
+  const defaults: InsertReminderSetting[] = [
+    { serviceType: "oil-change", serviceLabel: "Oil Change", intervalMonths: 6, intervalMiles: 5000, enabled: 1 },
+    { serviceType: "brakes", serviceLabel: "Brake Inspection", intervalMonths: 12, intervalMiles: 30000, enabled: 1 },
+    { serviceType: "tires", serviceLabel: "Tire Rotation", intervalMonths: 6, intervalMiles: 6000, enabled: 1 },
+    { serviceType: "coolant", serviceLabel: "Coolant Flush", intervalMonths: 24, intervalMiles: 30000, enabled: 1 },
+    { serviceType: "transmission", serviceLabel: "Transmission Service", intervalMonths: 36, intervalMiles: 60000, enabled: 1 },
+    { serviceType: "alignment", serviceLabel: "Wheel Alignment", intervalMonths: 12, intervalMiles: 12000, enabled: 1 },
+    { serviceType: "battery", serviceLabel: "Battery Check", intervalMonths: 12, intervalMiles: 0, enabled: 1 },
+    { serviceType: "air-filter", serviceLabel: "Air Filter Replacement", intervalMonths: 12, intervalMiles: 15000, enabled: 1 },
+  ];
+  await db.insert(reminderSettings).values(defaults);
+}
+
+// ── Service Reminders CRUD ──
+export async function createServiceReminder(data: InsertServiceReminder) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(serviceReminders).values(data);
+  return { success: true, id: Number(result[0].insertId) };
+}
+
+export async function getServiceReminders(limit = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(serviceReminders).orderBy(desc(serviceReminders.nextDueDate)).limit(limit);
+}
+
+export async function getDueReminders() {
+  const db = await getDb();
+  if (!db) return [];
+  const now = new Date();
+  return db.select().from(serviceReminders)
+    .where(and(
+      eq(serviceReminders.status, "scheduled"),
+      lte(serviceReminders.nextDueDate, now),
+    ))
+    .orderBy(serviceReminders.nextDueDate);
+}
+
+export async function markReminderSent(id: number, twilioSid?: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(serviceReminders).set({
+    status: "sent",
+    sentAt: new Date(),
+    twilioSid: twilioSid || null,
+  }).where(eq(serviceReminders.id, id));
+}
+
+export async function snoozeReminder(id: number, snoozeDays: number) {
+  const db = await getDb();
+  if (!db) return;
+  const snoozedUntil = new Date(Date.now() + snoozeDays * 24 * 60 * 60 * 1000);
+  await db.update(serviceReminders).set({
+    status: "snoozed",
+    snoozedUntil,
+    nextDueDate: snoozedUntil,
+  }).where(eq(serviceReminders.id, id));
+}
+
+export async function getReminderStats() {
+  const db = await getDb();
+  if (!db) return { total: 0, scheduled: 0, sent: 0, snoozed: 0, dueNow: 0 };
+  const all = await db.select().from(serviceReminders);
+  const now = new Date();
+  return {
+    total: all.length,
+    scheduled: all.filter(r => r.status === "scheduled").length,
+    sent: all.filter(r => r.status === "sent").length,
+    snoozed: all.filter(r => r.status === "snoozed").length,
+    dueNow: all.filter(r => r.status === "scheduled" && r.nextDueDate <= now).length,
+  };
+}
+
+/**
+ * Schedule reminders for a completed booking based on the service type.
+ * Matches service keywords to reminder settings and creates future reminders.
+ */
+export async function scheduleRemindersForBooking(booking: {
+  id: number;
+  name: string;
+  phone: string;
+  service: string;
+  vehicle?: string | null;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+  const settings = await getReminderSettings();
+  const enabledSettings = settings.filter(s => s.enabled === 1);
+  const serviceLower = booking.service.toLowerCase();
+  const created: number[] = [];
+
+  for (const setting of enabledSettings) {
+    // Match service type keywords
+    const keywords = getServiceKeywords(setting.serviceType);
+    const matches = keywords.some(kw => serviceLower.includes(kw));
+    if (!matches) continue;
+
+    // Calculate next due date
+    const nextDueDate = new Date();
+    nextDueDate.setMonth(nextDueDate.getMonth() + setting.intervalMonths);
+
+    const result = await createServiceReminder({
+      bookingId: booking.id,
+      customerName: booking.name,
+      phone: booking.phone.replace(/\D/g, "").slice(-10),
+      vehicleInfo: booking.vehicle || undefined,
+      serviceType: setting.serviceType,
+      lastServiceDate: new Date(),
+      lastServiceMileage: undefined,
+      nextDueDate,
+      nextDueMileage: setting.intervalMiles > 0 ? setting.intervalMiles : undefined,
+      status: "scheduled",
+    });
+    created.push(result.id);
+  }
+  return created;
+}
+
+function getServiceKeywords(serviceType: string): string[] {
+  const map: Record<string, string[]> = {
+    "oil-change": ["oil", "lube", "synthetic"],
+    "brakes": ["brake", "rotor", "pad", "caliper"],
+    "tires": ["tire", "rotation", "balance", "mount"],
+    "coolant": ["coolant", "radiator", "cooling", "flush"],
+    "transmission": ["transmission", "trans"],
+    "alignment": ["alignment", "align"],
+    "battery": ["battery", "electrical", "alternator"],
+    "air-filter": ["air filter", "cabin filter", "filter"],
+  };
+  return map[serviceType] || [serviceType];
+}
+
+// ─── SMS CONVERSATIONS ──────────────────────────────────
+export async function getOrCreateConversation(phone: string, customerName?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const normalized = phone.replace(/\D/g, "").slice(-10);
+  const existing = await db.select().from(smsConversations)
+    .where(eq(smsConversations.phone, normalized)).limit(1);
+  if (existing.length > 0) return existing[0];
+  const result = await db.insert(smsConversations).values({
+    phone: normalized,
+    customerName: customerName || null,
+  });
+  const [created] = await db.select().from(smsConversations)
+    .where(eq(smsConversations.id, Number(result[0].insertId)));
+  return created;
+}
+
+export async function addSmsMessage(data: InsertSmsMessage) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(smsMessages).values(data);
+  // Update conversation last message
+  await db.update(smsConversations).set({
+    lastMessageAt: new Date(),
+    lastMessagePreview: (data.body as string).slice(0, 255),
+    unreadCount: data.direction === "inbound"
+      ? sql`${smsConversations.unreadCount} + 1`
+      : sql`${smsConversations.unreadCount}`,
+  }).where(eq(smsConversations.id, data.conversationId));
+  return { success: true, id: Number(result[0].insertId) };
+}
+
+export async function getConversations(limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(smsConversations)
+    .orderBy(desc(smsConversations.lastMessageAt)).limit(limit);
+}
+
+export async function getConversationMessages(conversationId: number, limit = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(smsMessages)
+    .where(eq(smsMessages.conversationId, conversationId))
+    .orderBy(smsMessages.createdAt).limit(limit);
+}
+
+export async function markConversationRead(conversationId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(smsConversations).set({ unreadCount: 0 })
+    .where(eq(smsConversations.id, conversationId));
+}
+
+export async function getUnreadConversationCount() {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db.select().from(smsConversations)
+    .where(gt(smsConversations.unreadCount, 0));
+  return result.length;
+}
+
+// ─── REPAIR GALLERY ──────────────────────────────────────
+export async function getPublicGalleryItems() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(repairGallery)
+    .where(eq(repairGallery.isPublished, 1))
+    .orderBy(repairGallery.sortOrder);
+}
+
+export async function getAllGalleryItems() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(repairGallery).orderBy(desc(repairGallery.createdAt));
+}
+
+export async function createGalleryItem(data: InsertRepairGalleryItem) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(repairGallery).values(data);
+  return { success: true, id: Number(result[0].insertId) };
+}
+
+export async function updateGalleryItem(id: number, data: Partial<InsertRepairGalleryItem>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(repairGallery).set(data).where(eq(repairGallery.id, id));
+  return { success: true };
+}
+
+export async function deleteGalleryItem(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(repairGallery).where(eq(repairGallery.id, id));
+  return { success: true };
+}
+
+// ─── TECHNICIANS ─────────────────────────────────────────
+export async function getActiveTechnicians() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(technicians)
+    .where(eq(technicians.isActive, 1))
+    .orderBy(technicians.sortOrder);
+}
+
+export async function getAllTechnicians() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(technicians).orderBy(desc(technicians.createdAt));
+}
+
+export async function createTechnician(data: InsertTechnician) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(technicians).values(data);
+  return { success: true, id: Number(result[0].insertId) };
+}
+
+export async function updateTechnician(id: number, data: Partial<InsertTechnician>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(technicians).set(data).where(eq(technicians.id, id));
+  return { success: true };
+}
+
+export async function deleteTechnician(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(technicians).where(eq(technicians.id, id));
+  return { success: true };
 }
