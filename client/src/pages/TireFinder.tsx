@@ -1,6 +1,10 @@
 /**
- * TIRE FINDER — Full e-commerce tire search, browse, and order page
- * Customers search by size → browse options → place order → track status
+ * TIRE FINDER — Full e-commerce tire ordering with Nick's Premium Installation Package
+ * 
+ * STRATEGY: 100% markup on wholesale cost. $0 service fee.
+ * Everything is "FREE" via the Nick's Premium Installation Package.
+ * The package is so massive ($289+ value) that customers stop caring about tire price.
+ * The psychology: "I'd be stupid NOT to buy from Nick's."
  */
 
 import { useState, useRef, useEffect, useMemo } from "react";
@@ -8,8 +12,9 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   Phone, Search, ShieldCheck, Truck, Clock, ChevronRight, ArrowLeft,
-  Star, Check, X, Filter, ArrowUpDown, Package, CircleDot, Loader2,
-  CheckCircle2, MapPin, Info,
+  Star, Check, X, Filter, Package, CircleDot, Loader2,
+  CheckCircle2, Info, Gift, Sparkles, BadgeCheck, Wrench, Gauge,
+  CircleCheck, Timer, Heart,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -50,6 +55,114 @@ function TireNavbar() {
   );
 }
 
+// ─── NICK'S PACKAGE BANNER ───────────────────────────
+// This is the genius marketing piece. Shows BEFORE tire results.
+function PackageBanner({ packageData }: { packageData: any }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!packageData) return null;
+
+  const services = packageData.services || [];
+  const packageValue = packageData.packageValuePerSet || 289;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.2 }}
+      className="mb-8"
+    >
+      <div className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-card to-primary/5 border border-primary/20 rounded-xl">
+        {/* Header */}
+        <div className="p-6 sm:p-8">
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
+              <Gift className="w-7 h-7 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-semibold text-primary tracking-[0.15em] uppercase bg-primary/10 px-2.5 py-0.5 rounded-full">
+                  Included Free
+                </span>
+                <span className="text-[10px] font-medium text-green-400 bg-green-500/10 px-2.5 py-0.5 rounded-full">
+                  ${packageValue}+ Value
+                </span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-semibold text-foreground mt-2">
+                Nick's Premium Installation Package
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                Every tire purchase includes our complete installation and protection package at no extra charge. Other shops charge $250+ for these services.
+              </p>
+            </div>
+          </div>
+
+          {/* Quick highlights — always visible */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
+            {[
+              { icon: <Wrench className="w-4 h-4" />, label: "Professional Mounting", sub: "Expert installation" },
+              { icon: <Gauge className="w-4 h-4" />, label: "Computer Balancing", sub: "Vibration-free ride" },
+              { icon: <ShieldCheck className="w-4 h-4" />, label: "Free Flat Repair", sub: "First 12 months" },
+              { icon: <BadgeCheck className="w-4 h-4" />, label: "20-Point Inspection", sub: "$49 value — free" },
+            ].map((item) => (
+              <div key={item.label} className="flex items-start gap-2.5 bg-background/50 rounded-lg p-3">
+                <div className="text-primary mt-0.5">{item.icon}</div>
+                <div>
+                  <p className="text-xs font-medium text-foreground leading-tight">{item.label}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{item.sub}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Expand to see all services */}
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="mt-4 text-xs text-primary hover:text-primary/80 transition-colors flex items-center gap-1 mx-auto"
+          >
+            <Sparkles className="w-3 h-3" />
+            {expanded ? "Show less" : `See all ${services.length} included services`}
+          </button>
+        </div>
+
+        {/* Expanded service list */}
+        <AnimatePresence>
+          {expanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="px-6 sm:px-8 pb-6 sm:pb-8 border-t border-border/20 pt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {services.map((svc: any, i: number) => (
+                    <div key={i} className="flex items-start gap-2.5 py-2">
+                      <CircleCheck className="w-4 h-4 text-green-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-medium text-foreground">{svc.name}</p>
+                        <p className="text-[10px] text-muted-foreground">{svc.desc}</p>
+                        {svc.value > 0 && (
+                          <span className="text-[10px] text-green-400 font-medium">${svc.value} value — FREE</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 pt-4 border-t border-border/20 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    Total package value: <span className="text-primary font-semibold">${packageValue}+</span> — yours free with every tire purchase
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </motion.div>
+  );
+}
+
 // ─── ORDER MODAL ──────────────────────────────────────
 interface OrderModalProps {
   tire: {
@@ -61,11 +174,11 @@ interface OrderModalProps {
     pricePerTireCents: number;
   } | null;
   quantity: number;
-  serviceFee: number;
+  packageValue: number;
   onClose: () => void;
 }
 
-function OrderModal({ tire, quantity, serviceFee, onClose }: OrderModalProps) {
+function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -87,8 +200,6 @@ function OrderModal({ tire, quantity, serviceFee, onClose }: OrderModalProps) {
   if (!tire) return null;
 
   const tireTotal = tire.shopPrice * quantity;
-  const serviceTotal = serviceFee * quantity;
-  const grandTotal = tireTotal + serviceTotal;
 
   // Success state
   if (orderResult) {
@@ -108,12 +219,16 @@ function OrderModal({ tire, quantity, serviceFee, onClose }: OrderModalProps) {
           <p className="text-muted-foreground mb-6 leading-relaxed text-sm">
             We will confirm availability and contact you within 1 business hour to finalize your order and schedule installation.
           </p>
-          <div className="bg-background/50 border border-border/30 rounded-md p-4 mb-6 text-left">
-            <div className="flex justify-between text-sm mb-1">
-              <span className="text-muted-foreground">Total</span>
+          <div className="bg-background/50 border border-border/30 rounded-md p-4 mb-6 text-left space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">{quantity}x {tire.brand} {tire.model}</span>
               <span className="text-foreground font-medium">${orderResult.totalAmount.toFixed(2)}</span>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">No charge until you approve. We confirm pricing and availability first.</p>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Nick's Premium Installation Package</span>
+              <span className="text-green-400 font-medium">FREE</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border/30">No charge until you approve. We confirm pricing and availability first.</p>
           </div>
           <button onClick={onClose} className="w-full bg-primary text-primary-foreground py-3 rounded-md font-medium hover:bg-primary/90 transition-colors">
             Done
@@ -136,21 +251,63 @@ function OrderModal({ tire, quantity, serviceFee, onClose }: OrderModalProps) {
         </button>
 
         <h3 className="text-xl font-semibold text-foreground mb-1">Order Tires</h3>
-        <p className="text-muted-foreground text-sm mb-6">{quantity}x {tire.brand} {tire.model}</p>
+        <p className="text-muted-foreground text-sm mb-6">{quantity}x {tire.brand} {tire.model} ({tire.size})</p>
 
-        {/* Price breakdown */}
+        {/* Price breakdown — the psychology */}
         <div className="bg-background/50 border border-border/30 rounded-md p-4 mb-6">
           <div className="flex justify-between text-sm mb-2">
             <span className="text-muted-foreground">{tire.brand} {tire.model} x{quantity}</span>
-            <span className="text-foreground">${tireTotal.toFixed(2)}</span>
+            <span className="text-foreground font-medium">${tireTotal.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-sm mb-2">
-            <span className="text-muted-foreground">Mounting, Balancing & Disposal x{quantity}</span>
-            <span className="text-foreground">${serviceTotal.toFixed(2)}</span>
+
+          {/* FREE package — this is the genius part */}
+          <div className="border-t border-border/20 mt-2 pt-2 space-y-1.5">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Professional Mounting x{quantity}</span>
+              <span className="text-green-400 font-medium line-through-none">FREE</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Computer Balancing x{quantity}</span>
+              <span className="text-green-400 font-medium">FREE</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">New Valve Stems x{quantity}</span>
+              <span className="text-green-400 font-medium">FREE</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Tire Disposal & Recycling x{quantity}</span>
+              <span className="text-green-400 font-medium">FREE</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">TPMS Sensor Reset</span>
+              <span className="text-green-400 font-medium">FREE</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">20-Point Safety Inspection</span>
+              <span className="text-green-400 font-medium">FREE</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Alignment Check</span>
+              <span className="text-green-400 font-medium">FREE</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">1-Year Free Rotation & Flat Repair</span>
+              <span className="text-green-400 font-medium">FREE</span>
+            </div>
           </div>
-          <div className="border-t border-border/30 mt-3 pt-3 flex justify-between">
-            <span className="font-medium text-foreground">Estimated Total</span>
-            <span className="font-semibold text-primary text-lg">${grandTotal.toFixed(2)}</span>
+
+          <div className="border-t border-border/30 mt-3 pt-3">
+            <div className="flex justify-between text-xs text-muted-foreground mb-1">
+              <span>Installation package value</span>
+              <span className="line-through">${packageValue}+</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-medium text-foreground">Your Total</span>
+              <span className="font-semibold text-primary text-lg">${tireTotal.toFixed(2)}</span>
+            </div>
+            <p className="text-[10px] text-green-400 mt-1 text-right font-medium">
+              You save ${packageValue}+ on installation
+            </p>
           </div>
         </div>
 
@@ -218,12 +375,12 @@ function OrderModal({ tire, quantity, serviceFee, onClose }: OrderModalProps) {
             });
           }}
           disabled={orderMutation.isPending}
-          className="w-full mt-6 bg-primary text-primary-foreground py-3 rounded-md font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full mt-6 bg-primary text-primary-foreground py-3.5 rounded-md font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {orderMutation.isPending ? (
             <><Loader2 className="w-4 h-4 animate-spin" /> Placing Order...</>
           ) : (
-            "Place Order"
+            <>Place Order — ${tireTotal.toFixed(2)}</>
           )}
         </button>
 
@@ -300,7 +457,7 @@ function TireCard({ tire, quantity, onSelect }: TireCardProps) {
 
       {/* Features */}
       {tire.features.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-4">
+        <div className="flex flex-wrap gap-1.5 mb-3">
           {tire.features.map((f) => (
             <span key={f} className="text-[10px] text-muted-foreground border border-border/30 rounded-full px-2 py-0.5">
               {f}
@@ -311,18 +468,29 @@ function TireCard({ tire, quantity, onSelect }: TireCardProps) {
 
       {/* Warranty */}
       {tire.warranty && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
           <ShieldCheck className="w-3.5 h-3.5 text-primary/60" />
           <span>{tire.warranty} warranty</span>
         </div>
       )}
+
+      {/* FREE package callout on every card */}
+      <div className="bg-green-500/5 border border-green-500/10 rounded-md px-3 py-2 mb-4">
+        <div className="flex items-center gap-1.5">
+          <Gift className="w-3.5 h-3.5 text-green-400" />
+          <span className="text-[10px] font-medium text-green-400">FREE Installation Package Included</span>
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-0.5 ml-5">
+          Mounting, balancing, valve stems, disposal, TPMS reset, inspection & more
+        </p>
+      </div>
 
       {/* Price + CTA */}
       <div className="flex items-end justify-between pt-3 border-t border-border/20">
         <div>
           <span className="text-2xl font-semibold text-foreground">${tire.shopPrice.toFixed(2)}</span>
           <span className="text-xs text-muted-foreground ml-1">/tire</span>
-          <p className="text-xs text-muted-foreground mt-0.5">${setPrice} for {quantity}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">${setPrice} for set of {quantity} — installed</p>
         </div>
         <button
           onClick={onSelect}
@@ -401,11 +569,10 @@ function OrderTracker() {
               <p className="text-sm font-medium text-foreground">{order.quantity}x {order.tireBrand} {order.tireModel}</p>
               <p className="text-xs text-muted-foreground">Size: {order.tireSize} — Total: ${order.totalAmount.toFixed(2)}</p>
             </div>
-            <span className={`text-xs font-medium px-3 py-1 rounded-full bg-primary/10 text-primary`}>
+            <span className="text-xs font-medium px-3 py-1 rounded-full bg-primary/10 text-primary">
               {order.statusLabel}
             </span>
           </div>
-          {/* Progress bar */}
           <div className="flex items-center gap-1 mt-4">
             {statusSteps.map((step, i) => {
               const currentIdx = statusSteps.indexOf(order.status);
@@ -446,6 +613,9 @@ export default function TireFinder() {
     { enabled: !!activeSearch }
   );
 
+  // Get the package details
+  const { data: packageData } = trpc.gatewayTire.getPackage.useQuery();
+
   const handleSearch = () => {
     if (searchInput.trim().length < 3) {
       toast.error("Please enter a valid tire size (e.g. 215/60R16).");
@@ -465,7 +635,7 @@ export default function TireFinder() {
       <TireNavbar />
 
       {/* ─── HERO ─── */}
-      <section className="pt-28 pb-12 sm:pt-36 sm:pb-20">
+      <section className="pt-28 pb-12 sm:pt-36 sm:pb-16">
         <div className="container max-w-3xl mx-auto text-center">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
             <span className="text-xs font-medium text-primary tracking-[0.2em] uppercase">Online Tire Shop</span>
@@ -473,8 +643,16 @@ export default function TireFinder() {
               Order Tires Online
             </h1>
             <p className="mt-4 text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
-              Search your tire size. Compare options. Place your order. We handle the rest.
+              Search your size. Pick your tires. We install them with our complete service package — free.
             </p>
+
+            {/* Value proposition callout */}
+            <div className="mt-6 inline-flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-full px-4 py-2">
+              <Gift className="w-4 h-4 text-green-400" />
+              <span className="text-sm text-green-400 font-medium">
+                Free installation package ($289+ value) with every tire purchase
+              </span>
+            </div>
           </motion.div>
 
           {/* Search bar */}
@@ -560,6 +738,9 @@ export default function TireFinder() {
                 </div>
               ) : data?.tires && data.tires.length > 0 ? (
                 <>
+                  {/* Nick's Package Banner — THE KEY PIECE */}
+                  <PackageBanner packageData={packageData} />
+
                   {/* Results header */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                     <div>
@@ -567,7 +748,7 @@ export default function TireFinder() {
                         {data.tires.length} Tires Available
                       </h2>
                       <p className="text-sm text-muted-foreground mt-0.5">
-                        Size: {data.sizeFormatted} — Prices include mounting & balancing (${data.serviceFee}/tire)
+                        Size: {data.sizeFormatted} — All prices include free installation package
                       </p>
                     </div>
 
@@ -635,14 +816,54 @@ export default function TireFinder() {
                   </div>
 
                   {/* Set pricing callout */}
-                  <div className="mt-8 bg-card border border-border/30 rounded-lg p-6 text-center">
+                  <div className="mt-8 bg-gradient-to-br from-primary/5 via-card to-primary/5 border border-primary/20 rounded-xl p-8 text-center">
                     <p className="text-sm text-muted-foreground mb-1">Starting at</p>
-                    <p className="text-3xl font-semibold text-foreground">
-                      ${((Math.min(...data.tires.map(t => t.shopPrice)) + data.serviceFee) * quantity).toFixed(2)}
+                    <p className="text-4xl font-semibold text-foreground">
+                      ${(Math.min(...data.tires.map(t => t.shopPrice)) * quantity).toFixed(2)}
                     </p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      for a set of {quantity} — installed, balanced, and ready to roll
+                      for a set of {quantity} — fully installed with Nick's Premium Package
                     </p>
+                    <div className="mt-4 flex flex-wrap justify-center gap-3 text-xs text-green-400">
+                      <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Mounted</span>
+                      <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Balanced</span>
+                      <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Valve Stems</span>
+                      <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Disposal</span>
+                      <span className="flex items-center gap-1"><Check className="w-3 h-3" /> TPMS Reset</span>
+                      <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Inspection</span>
+                      <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Alignment Check</span>
+                    </div>
+                  </div>
+
+                  {/* Comparison to competitors */}
+                  <div className="mt-6 bg-card border border-border/30 rounded-lg p-6">
+                    <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+                      <Heart className="w-4 h-4 text-primary" />
+                      Why Drivers Choose Nick's Over Big Box Stores
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="flex items-start gap-3">
+                        <Timer className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-medium text-foreground">Fastest in Town</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">Most installs done in under an hour. No waiting for days.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Gift className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-medium text-foreground">$289+ Free Services</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">Big box stores charge extra for everything. We include it all.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <BadgeCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-medium text-foreground">1,683+ Five-Star Reviews</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">Cleveland's most trusted tire shop. Real reviews from real drivers.</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Info note */}
@@ -668,6 +889,9 @@ export default function TireFinder() {
       {!activeSearch && (
         <section className="pb-20">
           <div className="container max-w-4xl mx-auto">
+            {/* Nick's Package preview */}
+            <PackageBanner packageData={packageData} />
+
             {/* How it works */}
             <div className="mb-16">
               <h2 className="text-2xl font-semibold text-foreground text-center mb-10">How It Works</h2>
@@ -676,7 +900,7 @@ export default function TireFinder() {
                   { step: "01", icon: <Search className="w-5 h-5" />, label: "Search your tire size", desc: "Enter your size from the tire sidewall" },
                   { step: "02", icon: <Filter className="w-5 h-5" />, label: "Compare options", desc: "Filter by price, brand, and warranty" },
                   { step: "03", icon: <Package className="w-5 h-5" />, label: "Place your order", desc: "We confirm availability and pricing" },
-                  { step: "04", icon: <Check className="w-5 h-5" />, label: "We install it", desc: "Come in and we handle the rest" },
+                  { step: "04", icon: <Check className="w-5 h-5" />, label: "We install it free", desc: "Full installation package included" },
                 ].map((s) => (
                   <div key={s.step} className="text-center">
                     <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-3 text-primary">
@@ -693,9 +917,9 @@ export default function TireFinder() {
             {/* Trust signals */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-16">
               {[
-                { icon: <ShieldCheck className="w-6 h-6" />, title: "Honest Pricing", desc: "No hidden fees. Prices include professional mounting and balancing." },
-                { icon: <Truck className="w-6 h-6" />, title: "Fast Delivery", desc: "Most tires arrive within 1-2 business days from our regional warehouse." },
-                { icon: <Clock className="w-6 h-6" />, title: "Same-Day Install", desc: "In-stock tires can be installed the same day. Walk-ins welcome." },
+                { icon: <ShieldCheck className="w-6 h-6" />, title: "Everything Included", desc: "Mounting, balancing, valve stems, disposal, TPMS reset, inspection — all free with every tire." },
+                { icon: <Truck className="w-6 h-6" />, title: "Fast Delivery", desc: "Most tires arrive within 1-2 business days from our regional warehouse network." },
+                { icon: <Clock className="w-6 h-6" />, title: "Same-Day Install", desc: "In-stock tires installed the same day. Most jobs done in under an hour." },
               ].map((item) => (
                 <div key={item.title} className="text-center p-6">
                   <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 text-primary">
@@ -754,7 +978,7 @@ export default function TireFinder() {
         <OrderModal
           tire={selectedTire}
           quantity={quantity}
-          serviceFee={data?.serviceFee || 35}
+          packageValue={packageData?.packageValuePerSet || 289}
           onClose={() => { setShowOrder(false); setSelectedTire(null); }}
         />
       )}

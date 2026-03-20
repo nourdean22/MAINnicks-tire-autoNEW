@@ -1242,3 +1242,11 @@
 - [x] Build order placement and email notification to shop
 - [x] Build admin order management section (view, process, update status)
 - [x] Test end-to-end ordering flow
+
+## Phase — Tire Pricing Upgrade & Nick's Premium Package
+- [x] Update pricing to 100% markup on wholesale cost
+- [x] Design Nick's Premium Installation Package with extensive free services (15 services, $289+ value)
+- [x] Upgrade TireFinder UI to showcase the free package as major value proposition
+- [x] Make the free services so compelling customers stop caring about tire price
+- [x] Build Google Sheets auto-sync for online tire orders (Tire Orders tab in CRM sheet)
+- [x] Test end-to-end with new pricing and package display
