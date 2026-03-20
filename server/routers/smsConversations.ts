@@ -9,6 +9,7 @@ import {
   getConversationMessages, markConversationRead, getUnreadConversationCount,
 } from "../db";
 import { sendSms } from "../sms";
+import { sanitizeText, sanitizePhone } from "../sanitize";
 
 export const smsConversationsRouter = router({
   /** Get all conversations sorted by most recent (admin) */
@@ -49,13 +50,16 @@ export const smsConversationsRouter = router({
       customerName: z.string().max(255).optional(),
     }))
     .mutation(async ({ input }) => {
-      const normalized = input.phone.replace(/\D/g, "").slice(-10);
+      const cleanPhone = sanitizePhone(input.phone);
+      const cleanMessage = sanitizeText(input.message);
+      const cleanName = input.customerName ? sanitizeText(input.customerName) : undefined;
+      const normalized = cleanPhone.replace(/\D/g, "").slice(-10);
 
       // Get or create conversation
-      const conversation = await getOrCreateConversation(normalized, input.customerName);
+      const conversation = await getOrCreateConversation(normalized, cleanName);
 
       // Send via Twilio
-      const result = await sendSms(normalized, input.message);
+      const result = await sendSms(normalized, cleanMessage);
 
       // Record the outbound message
       await addSmsMessage({

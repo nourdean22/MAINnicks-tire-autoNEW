@@ -266,8 +266,8 @@ export default function SpecialsPage() {
   return (
     <PageLayout>
       <SEOHead
-        title="Specials & Coupons | Nick's Tire & Auto — Cleveland Auto Repair Deals"
-        description="Save on auto repair at Nick's Tire & Auto in Cleveland. Current specials on brakes, oil changes, diagnostics, tires, and more. Print or show coupons on your phone."
+        title="Specials & Coupons | Nick's Tire & Auto Cleveland"
+        description="Save on auto repair at Nick's Tire & Auto in Cleveland. Current specials on brakes, oil changes, diagnostics, tires, and more."
         canonicalPath="/specials"
       />
       

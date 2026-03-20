@@ -8,6 +8,7 @@ import { getInstagramPosts, getInstagramAccount } from "../instagram";
 import { keywordSearch, aiSearch } from "../search";
 import { runDiagnosis } from "../diagnose";
 import { z } from "zod";
+import { sanitizeText } from "../sanitize";
 
 export const weatherRouter = router({
   current: publicProcedure.query(async () => {
@@ -39,12 +40,12 @@ export const searchRouter = router({
   instant: publicProcedure
     .input(z.object({ query: z.string().min(1).max(200) }))
     .query(({ input }) => {
-      return { results: keywordSearch(input.query) };
+      return { results: keywordSearch(sanitizeText(input.query)) };
     }),
   ai: publicProcedure
     .input(z.object({ query: z.string().min(2).max(500) }))
     .mutation(async ({ input }) => {
-      return aiSearch(input.query);
+      return aiSearch(sanitizeText(input.query));
     }),
 });
 
@@ -61,6 +62,15 @@ export const diagnoseRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      return runDiagnosis(input);
+      const sanitized = {
+        ...input,
+        vehicleYear: sanitizeText(input.vehicleYear),
+        vehicleMake: sanitizeText(input.vehicleMake),
+        vehicleModel: sanitizeText(input.vehicleModel),
+        mileage: sanitizeText(input.mileage),
+        symptoms: input.symptoms.map(s => sanitizeText(s)),
+        additionalInfo: sanitizeText(input.additionalInfo),
+      };
+      return runDiagnosis(sanitized);
     }),
 });

@@ -95,7 +95,7 @@ export async function scheduleReviewRequest(bookingId: number, name: string, pho
       trackingToken,
     });
 
-    console.log(`[ReviewRequest] Scheduled for ${name} (${normalizedPhone}) at ${scheduledAt.toISOString()}`);
+    // Review request scheduled
     return { scheduled: true };
   } catch (error: any) {
     console.error("[ReviewRequest] Failed to schedule:", error.message);
@@ -113,7 +113,7 @@ export async function processReviewRequestQueue() {
 
   const sentToday = await getReviewRequestsSentToday();
   if (sentToday >= settings.maxPerDay) {
-    console.log(`[ReviewRequest] Daily cap reached (${sentToday}/${settings.maxPerDay})`);
+    // Daily cap reached
     return { processed: 0, sent: 0, failed: 0, reason: "Daily cap reached" };
   }
 
@@ -134,7 +134,7 @@ export async function processReviewRequestQueue() {
     if (result.success) {
       await markReviewRequestSent(req.id, result.sid);
       sent++;
-      console.log(`[ReviewRequest] Sent to ${req.customerName} (${req.phone})`);
+      // Review request sent
     } else {
       await markReviewRequestFailed(req.id, result.error || "Unknown error");
       failed++;
@@ -252,7 +252,7 @@ export const reviewRequestsRouter = router({
       scheduled++;
     }
 
-    console.log(`[ReviewRequest] Backfill: ${scheduled} scheduled, ${skipped} skipped`);
+    // Backfill complete
     return { scheduled, skipped, total: eligible.length };
   }),
 

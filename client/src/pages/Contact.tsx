@@ -96,7 +96,7 @@ export default function Contact() {
   return (
     <PageLayout>
       <SEOHead
-        title={`Contact Nick's Tire & Auto | Cleveland Auto Repair Shop | ${BUSINESS.phone.display}`}
+        title="Contact Us | Nick's Tire & Auto Cleveland"
         description={`Contact Nick's Tire & Auto at ${BUSINESS.phone.display}. Located at ${BUSINESS.address.full}. Open ${BUSINESS.hours.display}. Walk-ins welcome.`}
         canonicalPath="/contact"
       />

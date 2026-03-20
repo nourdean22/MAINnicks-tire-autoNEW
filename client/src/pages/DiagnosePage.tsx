@@ -659,8 +659,8 @@ export default function DiagnosePage() {
   return (
     <PageLayout activeHref="/diagnose" showChat={true}>
       <SEOHead
-        title="What's Wrong With My Car? — Free Diagnostic Tool | Nick's Tire & Auto"
-        description="Describe your car's symptoms and get a free preliminary diagnosis from Nick's Tire & Auto in Cleveland. AI-powered symptom checker helps identify potential issues before you visit."
+        title="Free Car Diagnostic Tool | Nick's Tire & Auto"
+        description="Describe your car symptoms and get a free preliminary diagnosis from Nick's Tire & Auto in Cleveland. AI-powered symptom checker identifies potential issues."
         canonicalPath="/diagnose"
       />
       

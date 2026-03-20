@@ -18,9 +18,9 @@ const HOW_IT_WORKS = [
 ];
 
 function LoyaltyDashboard() {
-  const { data: summary, isLoading: summaryLoading } = trpc.loyalty.summary.useQuery();
-  const { data: transactions } = trpc.loyalty.transactions.useQuery();
-  const { data: rewards } = trpc.loyalty.rewards.useQuery();
+  const { data: summary, isLoading: summaryLoading } = trpc.loyalty.summary.useQuery(undefined, { staleTime: 2 * 60 * 1000 });
+  const { data: transactions } = trpc.loyalty.transactions.useQuery(undefined, { staleTime: 2 * 60 * 1000 });
+  const { data: rewards } = trpc.loyalty.rewards.useQuery(undefined, { staleTime: 5 * 60 * 1000 });
   const utils = trpc.useUtils();
 
   const redeemMutation = trpc.loyalty.redeem.useMutation({

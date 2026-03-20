@@ -34,7 +34,7 @@ export default function About() {
   return (
     <PageLayout activeHref="/about">
       <SEOHead
-        title="About Nick's Tire & Auto | Cleveland's Trusted Auto Repair Shop"
+        title="About Us | Nick's Tire & Auto Cleveland"
         description="Learn about Nick's Tire & Auto — honest diagnostics, fair pricing, experienced technicians serving Cleveland, Euclid, and Northeast Ohio."
         canonicalPath="/about"
       />

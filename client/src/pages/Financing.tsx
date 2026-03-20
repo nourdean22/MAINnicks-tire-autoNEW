@@ -48,8 +48,8 @@ export default function Financing() {
   return (
     <PageLayout activeHref="/financing">
       <SEOHead
-        title="Financing & Payment Options | Nick's Tire & Auto — Cleveland, OH"
-        description="Affordable auto repair financing in Cleveland. No-interest payment plans, buy now pay later options, and multiple payment methods. Don't delay repairs because of cost."
+        title="Financing Options | Nick's Tire & Auto Cleveland"
+        description="Affordable auto repair financing in Cleveland. No-interest payment plans, buy now pay later options, and multiple payment methods at Nick's Tire & Auto."
         canonicalPath="/financing"
       />
       <Breadcrumbs items={[{ label: "Financing", href: "/financing" }]} />

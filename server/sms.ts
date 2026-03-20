@@ -67,7 +67,7 @@ export async function sendSms(to: string, body: string): Promise<SmsResult> {
       to: normalized,
     });
 
-    console.log(`[SMS] Sent to ${normalized} — SID: ${message.sid}`);
+    // SMS sent successfully
     return { success: true, sid: message.sid };
   } catch (error: any) {
     console.error(`[SMS] Failed to send to ${normalized}:`, error.message);

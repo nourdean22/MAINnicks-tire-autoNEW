@@ -56,7 +56,7 @@ export default function InspectionReport() {
   if (isLoading) {
     return (
       <PageLayout>
-        <SEOHead title="Vehicle Inspection Report | Nick's Tire & Auto" description="View your digital vehicle inspection report." canonicalPath="/inspection" />
+        <SEOHead title="Vehicle Inspection Report | Nick's Tire & Auto" description="View your digital vehicle inspection report from Nick's Tire & Auto in Cleveland. Detailed condition assessment with photos and technician notes." canonicalPath="/inspection" />
         <section className="section-dark pt-28 pb-20">
           <div className="container max-w-3xl text-center py-20">
             <div className="w-10 h-10 border-2 border-nick-yellow border-t-transparent rounded-full animate-spin mx-auto mb-4" />
@@ -79,7 +79,7 @@ export default function InspectionReport() {
   if (!inspection) {
     return (
       <PageLayout>
-        <SEOHead title="Inspection Not Found | Nick's Tire & Auto" description="This inspection report could not be found." canonicalPath="/inspection" />
+        <SEOHead title="Inspection Not Found | Nick's Tire & Auto" description="This inspection report could not be found. Contact Nick's Tire & Auto in Cleveland for assistance with your vehicle inspection." canonicalPath="/inspection" />
         <section className="section-dark pt-28 pb-20">
           <div className="container max-w-3xl text-center py-20">
             <AlertTriangle className="w-16 h-16 text-nick-yellow/60 mx-auto mb-4" />
@@ -100,7 +100,7 @@ export default function InspectionReport() {
 
   return (
     <PageLayout>
-      <SEOHead title={`Vehicle Inspection — ${inspection.vehicleInfo} | Nick's Tire & Auto`} description="Your digital vehicle inspection report from Nick's Tire & Auto." canonicalPath="/inspection" />
+      <SEOHead title={`Vehicle Inspection — ${inspection.vehicleInfo} | Nick's Tire & Auto`} description="Your digital vehicle inspection report from Nick's Tire & Auto in Cleveland. Detailed condition assessment with technician recommendations." canonicalPath="/inspection" />
       <LocalBusinessSchema />
 
       {/* Header */}

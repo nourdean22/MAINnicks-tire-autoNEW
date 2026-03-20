@@ -132,6 +132,8 @@ export const winbackRouter = router({
       const d = await db();
       if (!d) return { success: false, error: "Database not available" };
 
+      const cleanName = input.name.replace(/<[^>]*>/g, "").trim();
+
       // Count target customers
       const [targetCount] = await d.select({ count: sql<number>`count(*)` })
         .from(customers)
@@ -139,7 +141,7 @@ export const winbackRouter = router({
 
       // Create campaign
       const [result] = await d.insert(winbackCampaigns).values({
-        name: input.name,
+        name: cleanName,
         targetSegment: input.targetSegment,
         targetCount: targetCount?.count ?? 0,
         status: "draft",

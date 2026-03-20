@@ -867,3 +867,67 @@
 - [x] Added routes to App.tsx
 - [x] Added pages to sitemap
 - [x] Added links to site footer
+
+## Phase 35 — Full Backend Sweep (Gemini + Manus Analysis)
+
+### Task 1: Console.log Cleanup
+- [x] Find and remove all console.log statements from production server code (10 removed)
+- [x] Find and remove all console.log statements from production client code
+- [x] Verify no debug output in production
+
+### Task 2: Error Handling (try/catch on all routers)
+- [x] tRPC already handles errors via middleware — verified all routers use proper error propagation
+- [x] Added sanitization error handling to all routers
+
+### Task 3: Rate Limiting
+- [x] General API limiter: 100 req/15min per IP (already existed)
+- [x] Form submission limiter: 10/hr per IP (already existed)
+- [x] Added AI/chat limiter: 30/hr per IP (new)
+- [x] Security headers added (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy, HSTS)
+
+### Task 4: Input Sanitization
+- [x] Created sanitize.ts utility (sanitizeText, sanitizePhone, sanitizeEmail, sanitizeUrl)
+- [x] Applied to: chat, public (search/diagnose), smsConversations, gallery, technicians, winback routers
+
+### Task 5: SEO Title/Description Audit
+- [x] Audited all page titles — fixed 10 that were >60 chars
+- [x] Audited all meta descriptions — fixed 4 short + 4 long
+- [x] All titles/descriptions now within optimal range
+- [x] Verified no duplicate titles/descriptions
+
+### Task 6: Performance Optimization
+- [x] Added AI search in-memory cache (10-min TTL, 100-entry LRU)
+- [x] Added staleTime to ReviewsPage and Loyalty queries
+- [ ] Remove ComponentShowcase from production routing (low priority)
+
+### Task 7: Conversion Optimization
+- [x] Enhanced sticky mobile CTA bar (4 buttons: Call, Book, Diagnose, Directions)
+
+### Task 8: Bug Fixes
+- [x] Verified Google Place IDs unified (ChIJSWRRLdr_MIgRxdlMIMPcqww)
+- [x] Zero browser console errors, zero 4xx/5xx network errors
+- [x] Fixed TypeScript Array.from() compatibility issue in search cache
+
+### Task 9: Database Indexes
+- [x] Added 9 indexes to winback tables (status, segment, campaignId, customerId, messageId, scheduledAt)
+- [x] Verified existing indexes on customers, leads, bookings, callbacks, coupons, inspection_items
+
+### Task 10: Tests
+- [x] Full test suite: 257 tests, 16 files, ALL PASSING
+
+### Task 11: Text All 2025 Invoice Customers
+- [ ] Query all 2025 customers with invoices who haven't been texted yet
+- [ ] Send thank you message + review request + referral link
+- [ ] Log all sends to Google Sheets
+- [ ] Track delivery status
+
+### Task 12: Automated 7-Day Post-Invoice Follow-Up
+- [ ] Build server-side cron/scheduler that checks for invoices 7 days old
+- [ ] Auto-send thank you + review request + referral text
+- [ ] Track sends to prevent duplicates
+- [ ] Admin visibility into automated follow-ups
+
+### Task 13: Admin Dashboard Upgrades
+- [ ] Add more creative features and tools to admin dashboard
+- [ ] Improve admin UX for campaign management
+- [ ] Add analytics/insights to admin overview

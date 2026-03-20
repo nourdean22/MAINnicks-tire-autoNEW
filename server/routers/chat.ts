@@ -6,6 +6,7 @@ import { chatWithAssistant } from "../gemini";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { chatSessions } from "../../drizzle/schema";
+import { sanitizeText } from "../sanitize";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -33,7 +34,8 @@ export const chatRouter = router({
         }
       }
 
-      sessionMessages.push({ role: "user", content: input.message });
+      const cleanMessage = sanitizeText(input.message);
+      sessionMessages.push({ role: "user", content: cleanMessage });
 
       const { reply, extractedInfo } = await chatWithAssistant(sessionMessages);
 

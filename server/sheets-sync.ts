@@ -110,7 +110,7 @@ async function appendRow(sheetName: string, values: string[]): Promise<boolean> 
       return false;
     }
 
-    console.log(`[Sheets] Row appended to ${sheetName}`);
+    // Row appended successfully
     return true;
   } catch (error: any) {
     console.error("[Sheets] Failed to append row:", error?.message || error);

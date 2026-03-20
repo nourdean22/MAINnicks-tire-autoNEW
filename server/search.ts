@@ -165,10 +165,20 @@ export function keywordSearch(query: string): SearchResult[] {
 }
 
 // ─── AI SEARCH (NATURAL LANGUAGE) ──────────────────────
+const aiSearchCache = new Map<string, { result: { results: SearchResult[]; aiSummary: string }; timestamp: number }>();
+const AI_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
 export async function aiSearch(query: string): Promise<{
   results: SearchResult[];
   aiSummary: string;
 }> {
+  // Check cache first
+  const cacheKey = query.toLowerCase().trim();
+  const cached = aiSearchCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < AI_CACHE_TTL) {
+    return cached.result;
+  }
+
   // First get keyword results as a baseline
   const keywordResults = keywordSearch(query);
 
@@ -249,13 +259,23 @@ Be direct and helpful. No hype. No jargon.`,
     const content = typeof rawContent === "string" ? rawContent : JSON.stringify(rawContent);
 
     const parsed = JSON.parse(content);
-    return {
+    const result = {
       aiSummary: parsed.summary,
       results: parsed.results.map((r: any) => ({
         ...r,
         icon: r.type === "service" ? "wrench" : r.type === "blog" ? "book" : r.type === "faq" ? "help" : "link",
       })),
     };
+
+    // Cache the result
+    aiSearchCache.set(cacheKey, { result, timestamp: Date.now() });
+    // Evict old entries to prevent memory leak
+    if (aiSearchCache.size > 100) {
+      const oldest = Array.from(aiSearchCache.entries()).sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
+      if (oldest) aiSearchCache.delete(oldest[0]);
+    }
+
+    return result;
   } catch (err) {
     console.error("[AI Search] Error:", err);
     // Fall back to keyword results

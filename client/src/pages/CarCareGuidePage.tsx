@@ -121,7 +121,7 @@ export default function CarCareGuidePage() {
   return (
     <PageLayout>
       <SEOHead
-        title="Car Care Guide — Seasonal Maintenance Tips | Nick's Tire & Auto Cleveland"
+        title="Car Care Guide | Nick's Tire & Auto Cleveland"
         description="Complete car care guide from Nick's Tire & Auto in Cleveland. Seasonal maintenance tips, mileage milestones, and warning signs every driver should know."
         canonicalPath="/car-care-guide"
       />

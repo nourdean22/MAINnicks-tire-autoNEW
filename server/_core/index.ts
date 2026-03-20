@@ -73,9 +73,22 @@ async function startServer() {
 
   app.use("/api/trpc", apiLimiter);
   // Apply stricter limits to mutation-heavy endpoints
+  // Stricter rate limit for AI/chat endpoints (expensive operations)
+  const aiLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 30, // 30 AI requests per hour per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many AI requests. Please try again later or call us at (216) 862-0005." },
+  });
+
   app.use("/api/trpc/booking.create", formLimiter);
   app.use("/api/trpc/lead.submit", formLimiter);
   app.use("/api/trpc/callback.submit", formLimiter);
+  app.use("/api/trpc/chat", aiLimiter);
+  app.use("/api/trpc/public.diagnose", aiLimiter);
+  app.use("/api/trpc/public.askMechanic", aiLimiter);
+  app.use("/api/trpc/public.aiSearch", aiLimiter);
 
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);

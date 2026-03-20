@@ -1,0 +1,25 @@
+{
+  "query": "SELECT TABLE_NAME, INDEX_NAME, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) as COLUMNS FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('sms_log', 'winback_campaigns', 'winback_messages', 'winback_sends', 'qa_questions', 'vehicles') GROUP BY TABLE_NAME, INDEX_NAME ORDER BY TABLE_NAME;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute SELECT TABLE_NAME, INDEX_NAME, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) as COLUMNS FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('sms_log', 'winback_campaigns', 'winback_messages', 'winback_sends', 'qa_questions', 'vehicles') GROUP BY TABLE_NAME, INDEX_NAME ORDER BY TABLE_NAME;",
+  "rows": [
+    {
+      "TABLE_NAME": "winback_campaigns",
+      "INDEX_NAME": "PRIMARY",
+      "COLUMNS": "id"
+    },
+    {
+      "TABLE_NAME": "winback_messages",
+      "INDEX_NAME": "PRIMARY",
+      "COLUMNS": "id"
+    },
+    {
+      "TABLE_NAME": "winback_sends",
+      "INDEX_NAME": "PRIMARY",
+      "COLUMNS": "id"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\tINDEX_NAME\tCOLUMNS\nwinback_campaigns\tPRIMARY\tid\nwinback_messages\tPRIMARY\tid\nwinback_sends\tPRIMARY\tid\n",
+  "stderr": "",
+  "execution_time_ms": 71
+}

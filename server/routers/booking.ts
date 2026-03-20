@@ -141,8 +141,7 @@ export const bookingRouter = router({
           if (booking && booking.phone) {
             scheduleReviewRequest(booking.id, booking.name, booking.phone, booking.service)
               .then(r => {
-                if (r.scheduled) console.log(`[ReviewRequest] Auto-scheduled for booking #${booking.id}`);
-                else console.log(`[ReviewRequest] Skipped for booking #${booking.id}: ${r.reason}`);
+                // Review request handled
               })
               .catch(err => console.error(`[ReviewRequest] Error scheduling for booking #${booking.id}:`, err));
 
@@ -155,7 +154,7 @@ export const bookingRouter = router({
               vehicle: booking.vehicle,
             })
               .then((ids: number[]) => {
-                if (ids.length > 0) console.log(`[Reminders] Scheduled ${ids.length} reminders for booking #${booking.id}`);
+                // Reminders scheduled
               })
               .catch((err: unknown) => console.error(`[Reminders] Error scheduling for booking #${booking.id}:`, err));
           }

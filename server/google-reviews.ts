@@ -111,7 +111,7 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
     cacheTimestamp = Date.now();
     failCount = 0;
 
-    console.log("[GoogleReviews] Successfully fetched", reviewData.totalReviews, "reviews for", reviewData.name);
+    // Reviews fetched successfully
     return reviewData;
   } catch (error) {
     console.error("[GoogleReviews] Failed to fetch:", error);

@@ -72,7 +72,7 @@ export default function Fleet() {
   return (
     <PageLayout activeHref="/fleet">
       <SEOHead
-        title="Fleet & Commercial Accounts | Nick's Tire & Auto — Cleveland, OH"
+        title="Fleet Services | Nick's Tire & Auto Cleveland"
         description="Fleet maintenance and commercial vehicle service in Cleveland. Priority scheduling, volume pricing, net-30 billing, and detailed reporting for businesses."
         canonicalPath="/fleet"
       />

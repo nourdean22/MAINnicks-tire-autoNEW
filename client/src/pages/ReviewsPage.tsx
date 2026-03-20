@@ -115,7 +115,7 @@ function ReviewCard({ review, featured = false }: { review: { authorName: string
 
 // ─── MAIN PAGE ─────────────────────────────────────────
 export default function ReviewsPage() {
-  const { data: reviewData, isLoading , isError, error } = trpc.reviews.google.useQuery();
+  const { data: reviewData, isLoading , isError, error } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000 });
   const [starFilter, setStarFilter] = useState<number | null>(null);
 
   // Separate featured reviews (5-star, longest text) from the rest
@@ -190,7 +190,7 @@ export default function ReviewsPage() {
     <PageLayout activeHref="/reviews" showChat={true}>
       
       <SEOHead
-        title="Customer Reviews — Nick's Tire & Auto | Cleveland Auto Repair"
+        title="Customer Reviews | Nick's Tire & Auto Cleveland"
         description={`Read real Google reviews from Cleveland drivers. Nick's Tire & Auto is rated 4.9 stars with ${BUSINESS.reviews.countDisplay} reviews. Honest diagnostics, fair prices, and trusted auto repair.`}
         canonicalPath="/reviews"
       />

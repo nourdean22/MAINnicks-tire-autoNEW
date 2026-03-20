@@ -8,6 +8,7 @@ import {
   getActiveTechnicians, getAllTechnicians, createTechnician,
   updateTechnician, deleteTechnician,
 } from "../db";
+import { sanitizeText } from "../sanitize";
 
 export const techniciansRouter = router({
   /** Get active technicians for public display */
@@ -34,7 +35,14 @@ export const techniciansRouter = router({
       sortOrder: z.number().int().min(0).default(0),
     }))
     .mutation(async ({ input }) => {
-      return createTechnician(input);
+      return createTechnician({
+        ...input,
+        name: sanitizeText(input.name),
+        title: sanitizeText(input.title),
+        bio: input.bio ? sanitizeText(input.bio) : undefined,
+        specialties: input.specialties ? sanitizeText(input.specialties) : undefined,
+        certifications: input.certifications ? sanitizeText(input.certifications) : undefined,
+      });
     }),
 
   /** Update a technician profile (admin) */
@@ -53,7 +61,13 @@ export const techniciansRouter = router({
     }))
     .mutation(async ({ input }) => {
       const { id, ...data } = input;
-      return updateTechnician(id, data);
+      const sanitized: Record<string, any> = { ...data };
+      if (data.name) sanitized.name = sanitizeText(data.name);
+      if (data.title) sanitized.title = sanitizeText(data.title);
+      if (data.bio) sanitized.bio = sanitizeText(data.bio);
+      if (data.specialties) sanitized.specialties = sanitizeText(data.specialties);
+      if (data.certifications) sanitized.certifications = sanitizeText(data.certifications);
+      return updateTechnician(id, sanitized);
     }),
 
   /** Delete a technician profile (admin) */

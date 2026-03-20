@@ -8,6 +8,7 @@ import {
   getPublicGalleryItems, getAllGalleryItems, createGalleryItem,
   updateGalleryItem, deleteGalleryItem,
 } from "../db";
+import { sanitizeText } from "../sanitize";
 
 export const galleryRouter = router({
   /** Get published gallery items (public) */
@@ -33,7 +34,13 @@ export const galleryRouter = router({
       sortOrder: z.number().int().min(0).default(0),
     }))
     .mutation(async ({ input }) => {
-      return createGalleryItem(input);
+      return createGalleryItem({
+        ...input,
+        title: sanitizeText(input.title),
+        description: input.description ? sanitizeText(input.description) : undefined,
+        serviceType: sanitizeText(input.serviceType),
+        vehicleInfo: input.vehicleInfo ? sanitizeText(input.vehicleInfo) : undefined,
+      });
     }),
 
   /** Update a gallery item (admin) */
@@ -51,7 +58,12 @@ export const galleryRouter = router({
     }))
     .mutation(async ({ input }) => {
       const { id, ...data } = input;
-      return updateGalleryItem(id, data);
+      const sanitized: Record<string, any> = { ...data };
+      if (data.title) sanitized.title = sanitizeText(data.title);
+      if (data.description) sanitized.description = sanitizeText(data.description);
+      if (data.serviceType) sanitized.serviceType = sanitizeText(data.serviceType);
+      if (data.vehicleInfo) sanitized.vehicleInfo = sanitizeText(data.vehicleInfo);
+      return updateGalleryItem(id, sanitized);
     }),
 
   /** Delete a gallery item (admin) */

@@ -44,8 +44,8 @@ export default function Blog() {
   return (
     <PageLayout activeHref="/blog" showChat={true}>
       <SEOHead
-        title="Auto Repair Tips & Maintenance Blog | Nick's Tire & Auto Cleveland"
-        description="Expert auto repair tips, maintenance guides, and car care advice from Nick's Tire & Auto in Cleveland. Learn about brakes, tires, diagnostics, emissions, and more."
+        title="Auto Repair Blog | Nick's Tire & Auto Cleveland"
+        description="Expert auto repair tips, maintenance guides, and car care advice from Nick's Tire & Auto in Cleveland. Brakes, tires, diagnostics, and more."
         canonicalPath="/blog"
       />
       
