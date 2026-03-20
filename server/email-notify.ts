@@ -23,6 +23,31 @@ import { promisify } from "util";
 
 const execAsync = promisify(exec);
 
+// ─── Delivery Log (in-memory ring buffer, last 100 entries) ───
+interface DeliveryLogEntry {
+  timestamp: string;
+  category: NotifyCategory;
+  subject: string;
+  recipients: string[];
+  emailSent: boolean;
+  pushSent: boolean;
+  retried: boolean;
+  error?: string;
+}
+
+const DELIVERY_LOG: DeliveryLogEntry[] = [];
+const MAX_LOG_SIZE = 100;
+
+function logDelivery(entry: DeliveryLogEntry) {
+  DELIVERY_LOG.push(entry);
+  if (DELIVERY_LOG.length > MAX_LOG_SIZE) DELIVERY_LOG.shift();
+}
+
+/** Get recent delivery log entries (for admin dashboard) */
+export function getDeliveryLog(limit = 50): DeliveryLogEntry[] {
+  return DELIVERY_LOG.slice(-limit).reverse();
+}
+
 // ─── Gmail Label IDs ─────────────────────────────────────
 const GMAIL_LABELS: Record<string, string> = {
   callbacks: "Label_2",
@@ -165,10 +190,17 @@ export async function sendNotification(input: NotifyInput): Promise<{
     }
   }
 
-  // Send email if we have recipients
+  // Send email if we have recipients (with retry)
   let emailSent = false;
+  let retried = false;
   if (recipients.length > 0) {
-    const result = await sendGmailMCP(recipients, input.subject, input.body);
+    let result = await sendGmailMCP(recipients, input.subject, input.body);
+    if (!result.sent) {
+      // Retry once after 2 second delay
+      retried = true;
+      await new Promise(r => setTimeout(r, 2000));
+      result = await sendGmailMCP(recipients, input.subject, input.body);
+    }
     emailSent = result.sent;
 
     // Apply Gmail label to the sent message for organization
@@ -209,8 +241,19 @@ export async function sendNotification(input: NotifyInput): Promise<{
     }
   }
 
+  // Log delivery
+  logDelivery({
+    timestamp: new Date().toISOString(),
+    category: input.category,
+    subject: input.subject,
+    recipients,
+    emailSent,
+    pushSent,
+    retried,
+  });
+
   console.log(
-    `[Notify] category=${input.category} email=${emailSent ? "sent" : "skipped"} push=${pushSent ? "sent" : "skipped"} recipients=${recipients.join(",") || "none"}`
+    `[Notify] category=${input.category} email=${emailSent ? "sent" : "skipped"}${retried ? " (retried)" : ""} push=${pushSent ? "sent" : "skipped"} recipients=${recipients.join(",") || "none"}`
   );
 
   return { emailSent, pushSent, recipients };
@@ -422,6 +465,36 @@ export function notifySystemAlert(details: {
       details.message,
       ``,
       `Time: ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`,
+      ``,
+      `— Nick's Tire & Auto System`,
+    ].join("\n"),
+  });
+}
+
+/** Notify about an auto-generated invoice — CEO only */
+export function notifyInvoiceCreated(details: {
+  invoiceNumber: string;
+  customerName: string;
+  totalAmount: number;
+  source: string;
+  serviceDescription: string;
+}) {
+  return sendNotification({
+    category: "revenue",
+    subject: `Invoice ${details.invoiceNumber}: $${details.totalAmount.toFixed(2)} — ${details.customerName}`,
+    body: [
+      `AUTO-GENERATED INVOICE`,
+      ``,
+      `Invoice: ${details.invoiceNumber}`,
+      `Customer: ${details.customerName}`,
+      `Service: ${details.serviceDescription}`,
+      `Total: $${details.totalAmount.toFixed(2)}`,
+      `Source: ${details.source === "booking" ? "Completed Booking" : "Tire Order Installation"}`,
+      ``,
+      `Time: ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`,
+      ``,
+      `This invoice was auto-generated and synced to Google Sheets.`,
+      `Review in the Invoices tab of your CRM spreadsheet.`,
       ``,
       `— Nick's Tire & Auto System`,
     ].join("\n"),

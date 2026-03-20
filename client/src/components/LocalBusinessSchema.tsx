@@ -48,6 +48,8 @@ export default function LocalBusinessSchema({ pageName, additionalSchema }: Prop
       bestRating: 5,
     },
     priceRange: "$$",
+    sameAs: [...BUSINESS.sameAs],
+    hasMap: BUSINESS.urls.googleBusiness,
     areaServed: BUSINESS.serviceAreas.map((area) => ({
       "@type": "City",
       name: area,

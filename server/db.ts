@@ -1247,3 +1247,31 @@ export async function deleteTechnician(id: number) {
   await db.delete(technicians).where(eq(technicians.id, id));
   return { success: true };
 }
+
+// ─── INVOICE HELPERS ─────────────────────────────────────────
+import { invoices, type InsertInvoice } from "../drizzle/schema";
+
+/** Generate the next invoice number: INV-YYYYMMDD-NNN */
+export async function getNextInvoiceNumber(): Promise<string> {
+  const db = await getDb();
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const prefix = `INV-${dateStr}-`;
+
+  if (db) {
+    const [row] = await db
+      .select({ cnt: sql<number>`COUNT(*)` })
+      .from(invoices)
+      .where(sql`invoiceNumber LIKE ${prefix + "%"}`);
+    const seq = ((row?.cnt ?? 0) + 1).toString().padStart(3, "0");
+    return prefix + seq;
+  }
+  return prefix + "001";
+}
+
+/** Create an invoice record in the database */
+export async function createInvoice(data: InsertInvoice): Promise<{ success: boolean; id: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(invoices).values(data);
+  return { success: true, id: Number(result[0].insertId) };
+}

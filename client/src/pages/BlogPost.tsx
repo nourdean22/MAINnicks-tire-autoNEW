@@ -91,11 +91,7 @@ export default function BlogPost() {
         addressRegion: "OH",
         postalCode: "44112",
       },
-      sameAs: [
-        "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
-        "https://www.instagram.com/nicks_tire_euclid/",
-        "https://www.facebook.com/nickstireeuclid/",
-      ],
+      sameAs: [...BUSINESS.sameAs],
     },
   };
 

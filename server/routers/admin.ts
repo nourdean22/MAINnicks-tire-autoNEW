@@ -2,7 +2,8 @@
  * Admin router — dashboard stats, analytics, weekly reports, follow-ups.
  */
 import { adminProcedure, router } from "../_core/trpc";
-import { sendNotification } from "../email-notify";
+import { sendNotification, getDeliveryLog } from "../email-notify";
+import { isSheetConfigured, getSpreadsheetUrl } from "../sheets-sync";
 import { getAnalyticsSnapshots, getBookingServiceBreakdown } from "../db";
 import { getDashboardStats, getSiteHealth } from "../admin-stats";
 import { z } from "zod";
@@ -20,6 +21,103 @@ export const adminDashboardRouter = router({
   }),
   siteHealth: adminProcedure.query(async () => {
     return getSiteHealth();
+  }),
+
+  /** Get recent notification delivery log */
+  notificationLog: adminProcedure
+    .input(z.object({ limit: z.number().default(50) }).optional())
+    .query(async ({ input }) => {
+      return getDeliveryLog(input?.limit ?? 50);
+    }),
+
+  /** Unified sync health check — shows status of all integrations */
+  syncHealth: adminProcedure.query(async () => {
+    const d = await db();
+    const checks: Array<{
+      name: string;
+      status: "connected" | "degraded" | "disconnected";
+      details: string;
+      lastActivity?: string;
+    }> = [];
+
+    // 1. Database
+    if (d) {
+      try {
+        await d.execute(sql`SELECT 1`);
+        checks.push({ name: "Database", status: "connected", details: "MySQL/TiDB responding" });
+      } catch {
+        checks.push({ name: "Database", status: "degraded", details: "Query failed" });
+      }
+    } else {
+      checks.push({ name: "Database", status: "disconnected", details: "No connection" });
+    }
+
+    // 2. Google Sheets CRM
+    if (isSheetConfigured()) {
+      checks.push({
+        name: "Google Sheets CRM",
+        status: "connected",
+        details: `6 tabs syncing — ${getSpreadsheetUrl()}`,
+      });
+    } else {
+      checks.push({ name: "Google Sheets CRM", status: "disconnected", details: "No spreadsheet ID configured" });
+    }
+
+    // 3. Gmail Notifications
+    const recentLog = getDeliveryLog(5);
+    const recentSuccess = recentLog.filter(l => l.emailSent).length;
+    if (recentLog.length === 0) {
+      checks.push({ name: "Gmail Notifications", status: "connected", details: "No recent sends (idle)" });
+    } else if (recentSuccess > 0) {
+      checks.push({
+        name: "Gmail Notifications",
+        status: "connected",
+        details: `${recentSuccess}/${recentLog.length} recent emails sent successfully`,
+        lastActivity: recentLog[0]?.timestamp,
+      });
+    } else {
+      checks.push({ name: "Gmail Notifications", status: "degraded", details: "Recent sends failed" });
+    }
+
+    // 4. Gateway Tire B2B
+    checks.push({
+      name: "Gateway Tire B2B",
+      status: process.env.GATEWAY_TIRE_USERNAME ? "connected" : "disconnected",
+      details: process.env.GATEWAY_TIRE_USERNAME ? "Credentials configured" : "No credentials",
+    });
+
+    // 5. Twilio SMS
+    checks.push({
+      name: "Twilio SMS",
+      status: process.env.TWILIO_ACCOUNT_SID ? "connected" : "disconnected",
+      details: process.env.TWILIO_ACCOUNT_SID ? "Account configured" : "No credentials",
+    });
+
+    // 6. Stripe Payments
+    checks.push({
+      name: "Stripe Payments",
+      status: process.env.STRIPE_SECRET_KEY ? "connected" : "disconnected",
+      details: process.env.STRIPE_SECRET_KEY ? "Keys configured" : "No keys",
+    });
+
+    // 7. Auto Labor Guide
+    checks.push({
+      name: "Auto Labor Guide",
+      status: process.env.AUTO_LABOR_USERNAME ? "connected" : "disconnected",
+      details: process.env.AUTO_LABOR_USERNAME ? "Credentials configured" : "No credentials",
+    });
+
+    const overallStatus = checks.every(c => c.status === "connected")
+      ? "all_systems_operational"
+      : checks.some(c => c.status === "disconnected")
+        ? "some_systems_offline"
+        : "degraded";
+
+    return {
+      overallStatus,
+      checks,
+      checkedAt: new Date().toISOString(),
+    };
   }),
 });
 

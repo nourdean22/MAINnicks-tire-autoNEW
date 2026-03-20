@@ -121,15 +121,11 @@ function CitySchema({ city }: { city: CityData }) {
     },
     aggregateRating: {
       "@type": "AggregateRating",
-      ratingValue: "4.9",
-      reviewCount: "1683",
+      ratingValue: String(BUSINESS.reviews.rating),
+      reviewCount: String(BUSINESS.reviews.count),
     },
-    hasMap: "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
-    sameAs: [
-      "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
-      "https://www.instagram.com/nicks_tire_euclid/",
-      "https://www.facebook.com/nickstireeuclid/",
-    ],
+    hasMap: BUSINESS.urls.googleBusiness,
+    sameAs: [...BUSINESS.sameAs],
   };
 
   return (

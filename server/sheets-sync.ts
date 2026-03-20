@@ -221,3 +221,47 @@ export async function syncCallbackToSheet(callback: {
     "",
   ]);
 }
+
+/**
+ * Sync an invoice to the Invoices sheet.
+ * Called automatically when bookings are completed or tire orders are installed.
+ */
+export async function syncInvoiceToSheet(invoice: {
+  invoiceNumber: string;
+  customerName: string;
+  customerPhone: string;
+  vehicleInfo?: string | null;
+  serviceDescription: string;
+  laborHours: number;
+  laborRate: number;
+  laborCost: number;
+  partsCost: number;
+  taxAmount: number;
+  totalAmount: number;
+  paymentMethod: string;
+  paymentStatus: string;
+  source: string;
+  orderRef?: string | null;
+  notes?: string | null;
+}): Promise<boolean> {
+  const now = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+  return appendRow("Invoices", [
+    invoice.invoiceNumber,
+    now,
+    invoice.customerName,
+    invoice.customerPhone,
+    invoice.vehicleInfo || "",
+    invoice.serviceDescription,
+    String(invoice.laborHours),
+    `$${invoice.laborRate.toFixed(2)}`,
+    `$${invoice.laborCost.toFixed(2)}`,
+    `$${invoice.partsCost.toFixed(2)}`,
+    `$${invoice.taxAmount.toFixed(2)}`,
+    `$${invoice.totalAmount.toFixed(2)}`,
+    invoice.paymentMethod,
+    invoice.paymentStatus,
+    invoice.source,
+    invoice.orderRef || "",
+    invoice.notes || "",
+  ]);
+}

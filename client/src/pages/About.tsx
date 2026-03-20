@@ -29,7 +29,7 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
 export default function About() {
   const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
   const rating = googleData?.rating ?? 4.9;
-  const totalReviews = googleData?.totalReviews ?? 1683;
+  const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
 
   return (
     <PageLayout activeHref="/about">

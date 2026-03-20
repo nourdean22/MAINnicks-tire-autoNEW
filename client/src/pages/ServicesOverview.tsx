@@ -220,8 +220,8 @@ export default function ServicesOverview() {
             },
             aggregateRating: {
               "@type": "AggregateRating",
-              ratingValue: "4.9",
-              reviewCount: "1683",
+              ratingValue: String(BUSINESS.reviews.rating),
+              reviewCount: String(BUSINESS.reviews.count),
             },
             hasOfferCatalog: {
               "@type": "OfferCatalog",

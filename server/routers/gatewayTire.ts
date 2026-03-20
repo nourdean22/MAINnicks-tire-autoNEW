@@ -13,7 +13,9 @@
  * - Admin order management (view, update status, notes)
  */
 import { adminProcedure, publicProcedure, router } from "../_core/trpc";
-import { notifyTireOrder } from "../email-notify";
+import { notifyTireOrder, notifyInvoiceCreated } from "../email-notify";
+import { getNextInvoiceNumber, createInvoice } from "../db";
+import { syncInvoiceToSheet } from "../sheets-sync";
 import { z } from "zod";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { tireOrders, shopSettings, bookings } from "../../drizzle/schema";
@@ -21,6 +23,76 @@ import { tireOrders, shopSettings, bookings } from "../../drizzle/schema";
 async function db() {
   const { getDb } = await import("../db");
   return getDb();
+}
+
+/** Auto-create an invoice when a tire order is marked as installed */
+async function autoCreateInvoiceFromTireOrder(d: any, orderId: number): Promise<void> {
+  const [order] = await d.select().from(tireOrders).where(eq(tireOrders.id, orderId)).limit(1);
+  if (!order) return;
+
+  const invoiceNumber = await getNextInvoiceNumber();
+
+  // Get labor rate from shop settings
+  let laborRate = 115;
+  try {
+    const [setting] = await d.select().from(shopSettings).where(eq(shopSettings.key, "laborRate")).limit(1);
+    if (setting) laborRate = parseFloat(setting.value);
+  } catch {}
+
+  // Tire installation labor: 0.7 hours for mount + balance (from Auto Labor Guide)
+  const installHours = 0.7;
+  const laborCost = Math.round(installHours * laborRate * 100); // cents
+  const partsCost = order.totalAmount; // tire cost is the "parts" cost
+  const taxRate = 0.08;
+  const taxAmount = Math.round((laborCost + partsCost) * taxRate);
+  const totalAmount = laborCost + partsCost + taxAmount;
+
+  await createInvoice({
+    customerName: order.customerName,
+    customerPhone: order.customerPhone,
+    invoiceNumber,
+    totalAmount,
+    partsCost,
+    laborCost,
+    taxAmount,
+    serviceDescription: `Tire Order & Installation — ${order.quantity}x ${order.tireBrand} ${order.tireModel} (${order.tireSize})`,
+    vehicleInfo: order.vehicleInfo || null,
+    paymentMethod: "card",
+    paymentStatus: "pending",
+    source: "manual",
+    invoiceDate: new Date(),
+  });
+
+  // Sync to Google Sheets
+  await syncInvoiceToSheet({
+    invoiceNumber,
+    customerName: order.customerName,
+    customerPhone: order.customerPhone,
+    vehicleInfo: order.vehicleInfo,
+    serviceDescription: `Tire Install: ${order.quantity}x ${order.tireBrand} ${order.tireModel}`,
+    laborHours: installHours,
+    laborRate,
+    laborCost: laborCost / 100,
+    partsCost: partsCost / 100,
+    taxAmount: taxAmount / 100,
+    totalAmount: totalAmount / 100,
+    paymentMethod: "card",
+    paymentStatus: "pending",
+    source: "tire_order",
+    orderRef: order.orderNumber,
+    notes: `Auto-generated from tire order ${order.orderNumber}`,
+  });
+
+  // Notify CEO about the auto-generated invoice
+  notifyInvoiceCreated({
+    invoiceNumber,
+    customerName: order.customerName,
+    totalAmount: totalAmount / 100,
+    source: "tire_order",
+    serviceDescription: `Tire Install: ${order.quantity}x ${order.tireBrand} ${order.tireModel}`,
+  }).catch(() => {});
+
+  console.log(`[Invoice] Auto-created ${invoiceNumber} for tire order ${order.orderNumber} — $${(totalAmount / 100).toFixed(2)}`);
 }
 
 // ─── Gateway Tire B2B Session ─────────────────────────
@@ -654,6 +726,14 @@ export const gatewayTireRouter = router({
       if (Object.keys(updates).length === 0) return { success: false };
 
       await d.update(tireOrders).set(updates).where(eq(tireOrders.id, input.id));
+
+      // Auto-create invoice when tire order is marked as installed
+      if (input.status === "installed") {
+        autoCreateInvoiceFromTireOrder(d, input.id).catch((err: any) =>
+          console.error(`[Invoice] Error auto-creating for tire order #${input.id}:`, err)
+        );
+      }
+
       return { success: true };
     }),
 

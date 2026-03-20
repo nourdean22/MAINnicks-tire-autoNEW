@@ -136,7 +136,7 @@ function Hero() {
     retry: 1,
   });
   const rating = googleData?.rating ?? 4.9;
-  const totalReviews = googleData?.totalReviews ?? 1683;
+  const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
 
   return (
     <section className="relative min-h-[100svh] flex flex-col justify-end overflow-hidden">
@@ -211,7 +211,7 @@ function TrustNumbers() {
     staleTime: 60 * 60 * 1000,
     retry: 1,
   });
-  const totalReviews = googleData?.totalReviews ?? 1683;
+  const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
 
   const stats = [
     { value: "4.9", label: "Google Rating" },
@@ -633,7 +633,7 @@ function LocalBusinessSchema() {
       { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"], "opens": "08:00", "closes": "18:00" },
       { "@type": "OpeningHoursSpecification", "dayOfWeek": "Sunday", "opens": "09:00", "closes": "16:00" }
     ],
-    "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.9", "reviewCount": "1683", "bestRating": "5" },
+    "aggregateRating": { "@type": "AggregateRating", "ratingValue": String(BUSINESS.reviews.rating), "reviewCount": String(BUSINESS.reviews.count), "bestRating": "5" },
     "areaServed": [
       { "@type": "City", "name": "Cleveland", "sameAs": "https://en.wikipedia.org/wiki/Cleveland" },
       { "@type": "City", "name": "Euclid" },
@@ -641,12 +641,8 @@ function LocalBusinessSchema() {
       { "@type": "City", "name": "South Euclid" },
       { "@type": "City", "name": "Richmond Heights" }
     ],
-    "sameAs": [
-      "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
-      "https://www.instagram.com/nicks_tire_euclid/",
-      "https://www.facebook.com/nickstireeuclid/"
-    ],
-    "hasMap": "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/"
+    "sameAs": [...BUSINESS.sameAs],
+    "hasMap": BUSINESS.urls.googleBusiness
   };
 
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />;

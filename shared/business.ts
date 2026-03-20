@@ -77,7 +77,14 @@ export const BUSINESS = {
     "Lyndhurst", "Richmond Heights", "Willoughby",
   ],
 
-  // ─── SEO ─────────────────────────────────────────────
+   // ─── SOCIAL / SAME-AS (GBP + GSC linking) ──────
+  sameAs: [
+    "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
+    "https://www.instagram.com/nicks_tire_euclid/",
+    "https://www.facebook.com/nickstireeuclid/",
+  ] as readonly string[],
+
+  // ─── SEO ─────────────────────────────────────────
   seo: {
     titleSuffix: " | Nick's Tire & Auto — Cleveland, OH",
     defaultDescription: "Honest auto repair and tire service in Cleveland, OH. Check engine light diagnostics, brake repair, tires, emissions, and more. Serving Cleveland, Euclid, and Northeast Ohio.",

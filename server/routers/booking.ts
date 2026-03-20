@@ -9,15 +9,112 @@ import {
   createCustomerNotification,
 } from "../db";
 import { storagePut } from "../storage";
-import { notifyNewBooking } from "../email-notify";
-import { syncBookingToSheet } from "../sheets-sync";
+import { notifyNewBooking, notifyInvoiceCreated } from "../email-notify";
+import { syncBookingToSheet, syncInvoiceToSheet } from "../sheets-sync";
 import { sendSms, bookingConfirmationSms, statusUpdateSms } from "../sms";
 import { scheduleReviewRequest } from "./reviewRequests";
-import { scheduleRemindersForBooking } from "../db";
+import { scheduleRemindersForBooking, getNextInvoiceNumber, createInvoice } from "../db";
+import { shopSettings } from "../../drizzle/schema";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { bookings } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
+
+// ─── LABOR GUIDE REFERENCE (for auto-invoice labor estimation) ───
+const SERVICE_LABOR_MAP: Record<string, { hours: number; description: string }> = {
+  "oil change": { hours: 0.3, description: "Oil Change Service" },
+  "brake": { hours: 1.5, description: "Brake Service" },
+  "tire": { hours: 0.7, description: "Tire Service" },
+  "diagnostic": { hours: 1.0, description: "Diagnostic Service" },
+  "check engine": { hours: 1.0, description: "Check Engine Light Diagnosis" },
+  "emission": { hours: 2.0, description: "Emissions / E-Check Repair" },
+  "e-check": { hours: 2.0, description: "Ohio E-Check Repair" },
+  "suspension": { hours: 2.5, description: "Suspension Repair" },
+  "alignment": { hours: 1.0, description: "Wheel Alignment" },
+  "ac": { hours: 1.5, description: "AC Service" },
+  "cooling": { hours: 1.5, description: "Cooling System Service" },
+  "exhaust": { hours: 1.5, description: "Exhaust Repair" },
+  "electrical": { hours: 1.5, description: "Electrical Repair" },
+  "starter": { hours: 2.0, description: "Starter Replacement" },
+  "alternator": { hours: 1.5, description: "Alternator Replacement" },
+  "transmission": { hours: 1.0, description: "Transmission Service" },
+  "general": { hours: 1.5, description: "General Repair" },
+};
+
+function estimateLaborFromService(service: string): { hours: number; description: string } {
+  const lower = service.toLowerCase();
+  for (const [key, val] of Object.entries(SERVICE_LABOR_MAP)) {
+    if (lower.includes(key)) return val;
+  }
+  return { hours: 1.0, description: service };
+}
+
+/** Auto-create an invoice when a booking is marked completed */
+async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void> {
+  const invoiceNumber = await getNextInvoiceNumber();
+  const labor = estimateLaborFromService(booking.service || "General Repair");
+
+  // Get labor rate from shop settings
+  let laborRate = 115;
+  try {
+    const [setting] = await d.select().from(shopSettings).where(eq(shopSettings.key, "laborRate")).limit(1);
+    if (setting) laborRate = parseFloat(setting.value);
+  } catch {}
+
+  const laborCost = Math.round(labor.hours * laborRate * 100); // cents
+  const taxRate = 0.08; // 8% Ohio sales tax on labor
+  const taxAmount = Math.round(laborCost * taxRate);
+  const totalAmount = laborCost + taxAmount;
+
+  // Create invoice in database
+  await createInvoice({
+    bookingId: booking.id,
+    customerName: booking.name,
+    customerPhone: booking.phone,
+    invoiceNumber,
+    totalAmount,
+    partsCost: 0, // Parts added manually by shop
+    laborCost,
+    taxAmount,
+    serviceDescription: labor.description,
+    vehicleInfo: booking.vehicle || null,
+    paymentMethod: "card",
+    paymentStatus: "pending",
+    source: "manual",
+    invoiceDate: new Date(),
+  });
+
+  // Sync to Google Sheets
+  await syncInvoiceToSheet({
+    invoiceNumber,
+    customerName: booking.name,
+    customerPhone: booking.phone,
+    vehicleInfo: booking.vehicle,
+    serviceDescription: labor.description,
+    laborHours: labor.hours,
+    laborRate,
+    laborCost: laborCost / 100,
+    partsCost: 0,
+    taxAmount: taxAmount / 100,
+    totalAmount: totalAmount / 100,
+    paymentMethod: "card",
+    paymentStatus: "pending",
+    source: "booking",
+    orderRef: booking.referenceCode || null,
+    notes: `Auto-generated from booking #${booking.id}`,
+  });
+
+  // Notify CEO about the auto-generated invoice
+  notifyInvoiceCreated({
+    invoiceNumber,
+    customerName: booking.name,
+    totalAmount: totalAmount / 100,
+    source: "booking",
+    serviceDescription: labor.description,
+  }).catch(() => {});
+
+  console.log(`[Invoice] Auto-created ${invoiceNumber} for booking #${booking.id} — $${(totalAmount / 100).toFixed(2)}`);
+}
 
 async function db() {
   const { getDb } = await import("../db");
@@ -162,6 +259,11 @@ export const bookingRouter = router({
                 // Reminders scheduled
               })
               .catch((err: unknown) => console.error(`[Reminders] Error scheduling for booking #${booking.id}:`, err));
+
+            // Auto-create invoice from completed booking
+            autoCreateInvoiceFromBooking(d, booking).catch(err =>
+              console.error(`[Invoice] Error auto-creating for booking #${booking.id}:`, err)
+            );
           }
         }
       }

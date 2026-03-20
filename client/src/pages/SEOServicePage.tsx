@@ -223,12 +223,8 @@ export default function SEOServicePage() {
             "addressRegion": "OH",
             "postalCode": "44112"
           },
-          "hasMap": "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
-          "sameAs": [
-            "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
-            "https://www.instagram.com/nicks_tire_euclid/",
-            "https://www.facebook.com/nickstireeuclid/"
-          ]
+          "hasMap": BUSINESS.urls.googleBusiness,
+          "sameAs": [...BUSINESS.sameAs]
         },
         "areaServed": {
           "@type": "City",

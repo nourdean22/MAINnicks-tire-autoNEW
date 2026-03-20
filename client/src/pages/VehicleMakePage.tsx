@@ -260,13 +260,9 @@ export default function VehicleMakePage() {
         "telephone": "+1-" + BUSINESS.phone.dashed,
         "address": { "@type": "PostalAddress", "streetAddress": BUSINESS.address.street, "addressLocality": "Cleveland", "addressRegion": "OH", "postalCode": "44112" },
         "url": `https://nickstire.org/${page.slug}`,
-        "hasMap": "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
-        "sameAs": [
-          "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
-          "https://www.instagram.com/nicks_tire_euclid/",
-          "https://www.facebook.com/nickstireeuclid/"
-        ],
-        "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.9", "reviewCount": "1683", "bestRating": "5" },
+        "hasMap": BUSINESS.urls.googleBusiness,
+        "sameAs": [...BUSINESS.sameAs],
+        "aggregateRating": { "@type": "AggregateRating", "ratingValue": String(BUSINESS.reviews.rating), "reviewCount": String(BUSINESS.reviews.count), "bestRating": "5" },
         "areaServed": { "@type": "City", "name": "Cleveland" }
       })}} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
