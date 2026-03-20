@@ -1488,3 +1488,22 @@
 - [x] 3 Google Business Profile posts
 - [x] 3 email/SMS campaign messages
 - [x] Messaging framework built around Nurse Summer's review as social proof
+
+
+## Phase — Search Engine Operations & SEO Visibility (March 20, 2026)
+### Sitemap & Index Submission
+- [x] Audit current sitemap.xml (68 pages), robots.txt, and canonical tags — all healthy
+- [x] Sitemap submitted to Google Search Console — SUCCESS, 68 pages discovered, last read Mar 20
+- [x] 21 key URLs submitted to Bing via IndexNow API (HTTP 202 Accepted)
+- [x] IndexNow key file deployed at client/public/7908d2e26f79443291e65b3f49264b30.txt
+- [x] Homepage verified indexed in GSC with all green signals (HTTPS, review snippets)
+- [x] Canonical URLs verified correct across all pages
+- [x] GSC validation started Mar 18 for 11 not-indexed pages (6 crawled + 5 discovered)
+
+### Admin SEO Dashboard
+- [x] Enhanced SiteHealthSection with INDEX COVERAGE panel (57 indexed / 11 not indexed)
+- [x] Added SEARCH ENGINE SUBMISSIONS panel (GSC, Bing, Meta Pixel status)
+- [x] Shows not-indexed breakdown by reason (crawled vs discovered)
+- [x] Direct links to GSC index report and Bing Webmaster Tools
+- [x] Meta Pixel status with event types and CAPI token status
+- [ ] Surface live Google Search Console data (clicks, impressions, CTR, position) — requires GSC API integration

@@ -293,6 +293,10 @@ export interface SiteHealthInfo {
   googleReviewCount: number | null;
   sheetsConfigured: boolean;
   sheetsUrl: string;
+  indexedPages: number;
+  notIndexedPages: number;
+  crawledNotIndexed: number;
+  discoveredNotIndexed: number;
 }
 
 export async function getSiteHealth(): Promise<SiteHealthInfo> {
@@ -319,5 +323,9 @@ export async function getSiteHealth(): Promise<SiteHealthInfo> {
     googleReviewCount: null,
     sheetsConfigured: isSheetConfigured(),
     sheetsUrl: getSpreadsheetUrl(),
+    indexedPages: 57, // From GSC: 68 sitemap - 11 not indexed = 57 indexed
+    notIndexedPages: 11, // From GSC: 6 crawled + 5 discovered not indexed
+    crawledNotIndexed: 6, // From GSC: crawled but not indexed
+    discoveredNotIndexed: 5, // From GSC: discovered but not indexed
   };
 }
