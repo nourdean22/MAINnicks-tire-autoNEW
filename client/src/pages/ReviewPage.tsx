@@ -11,6 +11,7 @@ import { Star, ExternalLink, Phone, MapPin, Printer, CheckCircle, ThumbsUp } fro
 import { motion, useInView } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
 import { BUSINESS } from "@shared/business";
+import { GBP_REVIEW_URL } from "@shared/const";
 import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
@@ -24,8 +25,8 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
   );
 }
 
-// Nick's Tire & Auto Google Business Profile review link
-const GOOGLE_REVIEW_URL = "https://search.google.com/local/writereview?placeid=ChIJO7C_qEPvMIgRwSCJPHiGjhE";
+// Use centralized review URL from shared constants
+const GOOGLE_REVIEW_URL = GBP_REVIEW_URL;
 
 
 export default function ReviewPage() {

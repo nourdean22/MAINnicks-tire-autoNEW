@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { QueryError } from "@/components/QueryState";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 const CONDITION_CONFIG = {
   green: { label: "Good", color: "text-nick-teal", bg: "bg-nick-teal/20", border: "border-nick-teal/30", icon: <CheckCircle className="w-5 h-5" /> },
@@ -100,6 +101,7 @@ export default function InspectionReport() {
   return (
     <PageLayout>
       <SEOHead title={`Vehicle Inspection — ${inspection.vehicleInfo} | Nick's Tire & Auto`} description="Your digital vehicle inspection report from Nick's Tire & Auto." canonicalPath="/inspection" />
+      <LocalBusinessSchema />
 
       {/* Header */}
       <section className="section-dark pt-28 pb-12 lg:pt-36 lg:pb-16">
@@ -191,7 +193,7 @@ export default function InspectionReport() {
 
                 {item.photoUrl && (
                   <div className="pl-11 mb-3">
-                    <img src={item.photoUrl} alt={item.component} className="w-full max-w-sm rounded-md border border-border/30 object-contain" />
+                    <img loading="lazy" src={item.photoUrl} alt={item.component} className="w-full max-w-sm rounded-md border border-border/30 object-contain" />
                   </div>
                 )}
 

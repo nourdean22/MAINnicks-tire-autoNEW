@@ -9,6 +9,7 @@ import {
 import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
 import { QueryError } from "@/components/QueryState";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 const STAGES = [
   { key: "received", label: "Received", icon: <Package className="w-5 h-5" />, desc: "Your vehicle is in our queue" },
@@ -66,6 +67,7 @@ export default function StatusTracker() {
         canonicalPath="/status"
       />
       <Breadcrumbs items={[{ label: "Service Status", href: "/status" }]} />
+      <LocalBusinessSchema />
 
       {/* Hero */}
       <section className="section-dark pt-28 pb-16 lg:pt-36 lg:pb-20">

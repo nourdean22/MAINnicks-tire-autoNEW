@@ -32,8 +32,7 @@ import { sendSms } from "../sms";
 import { z } from "zod";
 import crypto from "crypto";
 
-const GOOGLE_REVIEW_URL = "https://search.google.com/local/writereview?placeid=ChIJSWRRLdr_MEiRBZ3NBATPvQo";
-const STORE_NAME = "Nick's Tire & Auto";
+import { GBP_REVIEW_URL as GOOGLE_REVIEW_URL, STORE_NAME } from "@shared/const";
 
 /**
  * Build the personalized review request SMS message.

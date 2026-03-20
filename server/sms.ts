@@ -13,8 +13,7 @@
  */
 import twilio from "twilio";
 
-const STORE_PHONE = "(216) 862-0005";
-const STORE_NAME = "Nick's Tire & Auto";
+import { STORE_PHONE, STORE_NAME, GBP_REVIEW_URL } from "@shared/const";
 
 // ─── TWILIO CLIENT ─────────────────────────────────────
 
@@ -142,7 +141,7 @@ export function thankYouSms(name: string, service: string): string {
  */
 export function reviewRequestSms(name: string): string {
   const firstName = name.split(" ")[0];
-  return `Hi ${firstName}, hope your vehicle is running great! If you have 30 seconds, a Google review helps other Cleveland drivers find honest repair:\n\nhttps://search.google.com/local/writereview?placeid=ChIJSWRRLdr_MEiRBZ3NBATPvQo\n\nThank you! — ${STORE_NAME}`;
+  return `Hi ${firstName}, hope your vehicle is running great! If you have 30 seconds, a Google review helps other Cleveland drivers find honest repair:\n\n${GBP_REVIEW_URL}\n\nThank you! — ${STORE_NAME}`;
 }
 
 /**

@@ -3,6 +3,7 @@ import express from "express";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
+import rateLimit from "express-rate-limit";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -34,6 +35,8 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  // Trust proxy — required for rate limiting behind reverse proxy
+  app.set("trust proxy", 1);
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -50,6 +53,30 @@ async function startServer() {
     }
     next();
   });
+  // Rate limiting for public API endpoints to prevent spam/abuse
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many requests. Please try again later or call us at (216) 862-0005." },
+  });
+
+  // Stricter rate limit for form submissions (booking, lead, callback)
+  const formLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 10, // 10 form submissions per hour per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many submissions. Please call us directly at (216) 862-0005." },
+  });
+
+  app.use("/api/trpc", apiLimiter);
+  // Apply stricter limits to mutation-heavy endpoints
+  app.use("/api/trpc/booking.create", formLimiter);
+  app.use("/api/trpc/lead.submit", formLimiter);
+  app.use("/api/trpc/callback.submit", formLimiter);
+
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // tRPC API
@@ -193,7 +220,7 @@ async function startServer() {
   // When a customer clicks the review link in their SMS, this endpoint:
   // 1. Records the click in the database
   // 2. Redirects them to the actual Google review page
-  const GOOGLE_REVIEW_URL = "https://search.google.com/local/writereview?placeid=ChIJSWRRLdr_MEiRBZ3NBATPvQo";
+  const { GBP_REVIEW_URL: GOOGLE_REVIEW_URL } = await import("@shared/const");
   app.get("/api/review-click/:token", async (req, res) => {
     try {
       const { token } = req.params;

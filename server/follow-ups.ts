@@ -19,7 +19,7 @@ async function getDb() {
   return _getDb();
 }
 
-const GBP_REVIEW_URL = "https://search.google.com/local/writereview?placeid=ChIJSWRRLdr_MEiRBZ3NBATPvQo";
+import { GBP_REVIEW_URL } from "@shared/const";
 
 /**
  * Process 24-hour thank-you follow-ups for completed bookings

@@ -119,7 +119,7 @@ export default function BlogPost() {
       {/* Hero */}
       <section className="relative min-h-[50vh] lg:min-h-[60vh] flex items-end overflow-hidden">
         <div className="absolute inset-0">
-          <img src={article.heroImage} alt={article.title} className="w-full h-full object-cover" />
+          <img loading="lazy" src={article.heroImage} alt={article.title} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-nick-dark via-nick-dark/80 to-nick-dark/40" />
         </div>
 

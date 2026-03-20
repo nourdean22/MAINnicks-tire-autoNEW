@@ -42,7 +42,7 @@ export default function About() {
       {/* Hero */}
       <section className="relative min-h-[60vh] flex items-end overflow-hidden">
         <div className="absolute inset-0">
-          <img src={HERO_IMG} alt="Inside Nick's Tire and Auto" className="w-full h-full object-cover" />
+          <img loading="lazy" src={HERO_IMG} alt="Inside Nick's Tire and Auto" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-nick-dark via-nick-dark/60 to-transparent" />
         </div>
         <div className="relative container pb-16 pt-32">
@@ -65,7 +65,7 @@ export default function About() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <FadeIn>
               <div className="relative rounded-2xl overflow-hidden aspect-[4/3]">
-                <img src={DIAG_IMG} alt="Technician performing diagnostics" className="w-full h-full object-cover" loading="lazy" />
+                <img loading="lazy" src={DIAG_IMG} alt="Technician performing diagnostics" className="w-full h-full object-cover" />
                 <div className="absolute bottom-4 right-4 bg-nick-yellow px-4 py-3 rounded-xl">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-2xl text-nick-dark">{rating.toFixed(1)}</span>

@@ -2,12 +2,14 @@
  * Callback router — handles callback request submissions and admin management.
  */
 import { publicProcedure, adminProcedure, router } from "../_core/trpc";
+import { TRPCError } from "@trpc/server";
 import { createCallbackRequest, getCallbackRequests, updateCallbackStatus } from "../db";
 import { notifyOwner } from "../_core/notification";
 import { syncLeadToSheet } from "../sheets-sync";
 import { sendSms, callbackConfirmationSms } from "../sms";
 import { z } from "zod";
 import { leads } from "../../drizzle/schema";
+import { sanitizeText, sanitizePhone } from "../sanitize";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -23,18 +25,24 @@ export const callbackRouter = router({
       sourcePage: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
+      try {
+      // Sanitize user inputs
+      const name = sanitizeText(input.name);
+      const phone = sanitizePhone(input.phone);
+      const context = sanitizeText(input.context);
+
       const result = await createCallbackRequest({
-        name: input.name,
-        phone: input.phone,
-        context: input.context || null,
+        name,
+        phone,
+        context: context || null,
         sourcePage: input.sourcePage || null,
       });
 
       const d = await db();
       if (d) {
         await d.insert(leads).values({
-          name: input.name,
-          phone: input.phone,
+          name,
+          phone,
           source: "callback",
           problem: input.context || "Callback request from " + (input.sourcePage || "website"),
           urgencyScore: 4,
@@ -61,6 +69,10 @@ export const callbackRouter = router({
       }).catch(() => {});
 
       return result;
+      } catch (err) {
+        console.error("[Callback] Submit failed:", err);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "We couldn't save your callback request. Please call us directly at (216) 862-0005." });
+      }
     }),
 
   list: adminProcedure.query(async () => {

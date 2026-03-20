@@ -27,7 +27,7 @@ describe("Google Business Profile Integration", () => {
     expect(GBP_REVIEW_URL).toBeDefined();
     expect(GBP_REVIEW_URL).toContain("search.google.com/local/writereview");
     expect(GBP_REVIEW_URL).toContain("placeid=");
-    expect(GBP_REVIEW_URL).toContain("ChIJSWRRLdr_MEiRBZ3NBATPvQo");
+    expect(GBP_REVIEW_URL).toContain("ChIJSWRRLdr_MIgRxdlMIMPcqww");
   });
 
   it("should have a valid CID", () => {

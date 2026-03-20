@@ -138,7 +138,7 @@ function ServiceHero({ service }: { service: ServiceData }) {
   return (
     <section className="relative min-h-[60vh] lg:min-h-[70vh] flex items-end overflow-hidden">
       <div className="absolute inset-0">
-        <img src={heroImg} alt={`${service.title} service at Nick's Tire and Auto in Cleveland Ohio`} className="w-full h-full object-cover" />
+        <img loading="lazy" src={heroImg} alt={`${service.title} service at Nick's Tire and Auto in Cleveland Ohio`} className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-nick-dark via-nick-dark/80 to-nick-dark/40" />
       </div>
 

@@ -13,6 +13,7 @@ import { Car, Plus, Trash2, Wrench, Calendar, AlertTriangle, ChevronRight, Gauge
 import { motion, useInView } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import InternalLinks from "@/components/InternalLinks";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import { QueryError } from "@/components/QueryState";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
@@ -196,7 +197,7 @@ export default function MyGaragePage() {
         description="Save your vehicles, track service history, and get personalized maintenance reminders at Nick's Tire & Auto in Cleveland."
         canonicalPath="/my-garage"
       />
-      
+      <LocalBusinessSchema />
       
         {/* Hero */}
         <section className="relative pt-32 lg:pt-40 pb-12 lg:pb-16 bg-background">

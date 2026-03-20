@@ -449,7 +449,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
             <div className="flex flex-wrap gap-3">
               {photos.map((photo) => (
                 <div key={photo.preview} className="relative w-20 h-20 rounded-md overflow-hidden border border-border/50">
-                  <img src={photo.preview} alt="" className="w-full h-full object-cover" />
+                  <img loading="lazy" src={photo.preview} alt="Vehicle photo upload preview" className="w-full h-full object-cover" />
                   {photo.uploading && (
                     <div className="absolute inset-0 bg-nick-dark/70 flex items-center justify-center">
                       <Loader2 className="w-5 h-5 animate-spin text-nick-yellow" />

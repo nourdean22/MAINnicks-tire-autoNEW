@@ -180,7 +180,7 @@ export default function CityPage() {
         {/* Hero */}
         <section className="relative min-h-[60vh] lg:min-h-[70vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
-            <img src={HERO_IMG} alt={`Nick's Tire and Auto serving ${city.name} Ohio drivers`} className="w-full h-full object-cover" />
+            <img loading="lazy" src={HERO_IMG} alt={`Nick's Tire and Auto serving ${city.name} Ohio drivers`} className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/30" />
           </div>
 

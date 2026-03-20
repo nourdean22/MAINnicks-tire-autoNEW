@@ -2,12 +2,14 @@
  * Lead router — handles lead capture, CRM, and AI scoring.
  */
 import { publicProcedure, adminProcedure, router } from "../_core/trpc";
+import { TRPCError } from "@trpc/server";
 import { notifyOwner } from "../_core/notification";
 import { scoreLead } from "../gemini";
 import { syncLeadToSheet, getSpreadsheetUrl, isSheetConfigured } from "../sheets-sync";
 import { z } from "zod";
 import { eq, desc } from "drizzle-orm";
 import { leads } from "../../drizzle/schema";
+import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -30,12 +32,20 @@ export const leadRouter = router({
       })
     )
     .mutation(async ({ input }) => {
+      try {
+      // Sanitize user inputs
+      const name = sanitizeText(input.name);
+      const phone = sanitizePhone(input.phone);
+      const email = input.email ? sanitizeEmail(input.email) : null;
+      const vehicle = sanitizeText(input.vehicle);
+      const problem = sanitizeText(input.problem);
+
       const d = await db();
       if (!d) throw new Error("Database not available");
 
       let scoring = { score: 3, reason: "Manual review recommended", recommendedService: "General Repair" };
-      if (input.problem) {
-        scoring = await scoreLead(input.problem, input.vehicle);
+      if (problem) {
+        scoring = await scoreLead(problem, vehicle);
       }
       if (input.source === "fleet") {
         scoring.score = 5;
@@ -44,11 +54,11 @@ export const leadRouter = router({
       }
 
       await d.insert(leads).values({
-        name: input.name,
-        phone: input.phone,
-        email: input.email || null,
-        vehicle: input.vehicle || null,
-        problem: input.problem || null,
+        name,
+        phone,
+        email: email || null,
+        vehicle: vehicle || null,
+        problem: problem || null,
         source: input.source,
         urgencyScore: scoring.score,
         urgencyReason: scoring.reason,
@@ -83,6 +93,10 @@ export const leadRouter = router({
         urgencyScore: scoring.score,
         recommendedService: scoring.recommendedService,
       };
+      } catch (err) {
+        console.error("[Lead] Submit failed:", err);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "We couldn't save your information. Please call us at (216) 862-0005." });
+      }
     }),
 
   list: adminProcedure.query(async () => {

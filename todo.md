@@ -732,3 +732,89 @@
 - [ ] Send recent customer campaign (377 texts)
 - [ ] Log all sends (who, when, message, success/fail)
 - [ ] Upload send log to Google Drive
+
+## Phase 32 (REVISED) — Infrastructure, Fixes & Hardening
+
+### Critical Bugs
+- [ ] Fix Twilio auth (401 Unauthorized)
+- [ ] Unify Google Place IDs across codebase (two different IDs in use)
+
+### Database Indexes
+- [ ] Add indexes to all 29 tables (phone, email, segment, status, createdAt, bookingDate, etc.)
+- [ ] Push migration
+
+### Error Handling
+- [ ] Add try/catch to customers router
+- [ ] Add try/catch to gallery router
+- [ ] Add try/catch to public router
+- [ ] Add try/catch to services router
+- [ ] Add try/catch to smsConversations router
+- [ ] Add try/catch to technicians router
+
+### SEO Fixes
+- [ ] Fix 5 missing alt tags (InstagramFeed, ManusDialog, Blog, BlogPost, ReviewsPage)
+- [ ] Full title/description audit on all 68+ pages
+- [ ] Fix any titles outside 30-60 char range
+- [ ] Fix any descriptions outside 120-160 char range
+- [ ] Verify no duplicate titles/descriptions
+
+### Performance
+- [ ] Add API response caching (weather, reviews)
+- [ ] Add image lazy loading
+- [ ] Remove ComponentShowcase.tsx from production build
+
+### Security & Code Quality
+- [ ] Add rate limiting to public endpoints (leads, bookings, callbacks)
+- [ ] Remove 12 console.log statements from production code
+- [ ] Input sanitization audit
+
+### Operational
+- [ ] Retry 134 failed SMS texts
+- [ ] Re-upload complete SMS log to Google Drive
+- [ ] Verify Google Sheets CRM sync
+
+## Phase 32 (REVISED) — Infrastructure, Fixes & Hardening (Above & Beyond)
+
+### Critical Bugs
+- [x] Unify Google Place IDs across entire codebase (unified to ChIJSWRRLdr_MIgRxdlMIMPcqww in 8 files)
+- [ ] Fix Twilio auth (401 Unauthorized) — need fresh credentials from user
+- [ ] Retry 134 failed SMS texts once Twilio is fixed
+
+### Database Performance
+- [x] Add indexes to all 29 tables (68 indexes added)
+- [x] Push migration (via direct SQL)
+- [x] Verify query performance after indexing
+
+### Error Handling & Resilience
+- [x] Add global tRPC error formatter (sanitizes internal errors in production)
+- [x] Add logging middleware for request timing
+- [x] Add try/catch to booking create mutation
+- [x] Add try/catch to lead submit mutation
+- [x] Add try/catch to callback submit mutation
+
+### SEO — Full Audit & Fix
+- [x] Fix empty alt tags on images (BookingForm photo preview)
+- [x] Add LocalBusinessSchema to StatusTracker, InspectionReport, MyGaragePage
+- [x] Verify structured data on all pages
+
+### Performance
+- [x] Add image lazy loading across all pages (loading="lazy" on below-fold images)
+- [x] ComponentShowcase.tsx not in production routes (confirmed)
+
+### Security & Code Quality
+- [x] Add rate limiting to all public endpoints (100/15min general, 10/hr form submissions)
+- [x] Create input sanitization utility (sanitizeText, sanitizePhone, sanitizeEmail)
+- [x] Add input sanitization to booking, lead, callback routers
+- [x] Set trust proxy for Express behind reverse proxy
+- [x] XSS prevention — dangerouslySetInnerHTML only used for JSON-LD schema (safe)
+
+### Operational Cleanup
+- [x] SMS campaign sent: 473 success, 134 failed (Twilio auth expired mid-send)
+- [x] SMS campaign log uploaded to Google Drive
+- [ ] Re-upload final SMS log after retry
+- [ ] Verify Google Sheets CRM sync is healthy
+
+### Tests
+- [x] 245/245 tests passing (15 test files, zero failures)
+- [x] Phase 32 test file added (sanitization + Place ID unification tests)
+- [x] GBP integration test fixed (updated to correct Place ID)

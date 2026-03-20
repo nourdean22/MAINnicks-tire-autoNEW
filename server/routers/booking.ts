@@ -2,6 +2,7 @@
  * Booking router — handles appointment creation, admin management, and status tracking.
  */
 import { publicProcedure, adminProcedure, router } from "../_core/trpc";
+import { TRPCError } from "@trpc/server";
 import {
   createBooking, getBookings, updateBookingStatus, updateBookingNotes, updateBookingPriority,
   updateBookingStage, getBookingByPhone, getBookingByRef,
@@ -16,6 +17,7 @@ import { scheduleRemindersForBooking } from "../db";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { bookings } from "../../drizzle/schema";
+import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -49,16 +51,23 @@ export const bookingRouter = router({
       })
     )
     .mutation(async ({ input }) => {
+      try {
+      // Sanitize all user inputs
+      const name = sanitizeText(input.name);
+      const phone = sanitizePhone(input.phone);
+      const email = input.email ? sanitizeEmail(input.email) : null;
+      const service = sanitizeText(input.service);
+      const message = sanitizeText(input.message);
       const vehicleStr = input.vehicleYear && input.vehicleMake
-        ? `${input.vehicleYear} ${input.vehicleMake} ${input.vehicleModel || ""}`.trim()
-        : input.vehicle || null;
+        ? `${sanitizeText(input.vehicleYear)} ${sanitizeText(input.vehicleMake)} ${sanitizeText(input.vehicleModel)}`.trim()
+        : sanitizeText(input.vehicle) || null;
 
       const refCode = generateRefCode();
       const result = await createBooking({
-        name: input.name,
-        phone: input.phone,
-        email: input.email || null,
-        service: input.service,
+        name,
+        phone,
+        email,
+        service,
         vehicle: vehicleStr,
         vehicleYear: input.vehicleYear || null,
         vehicleMake: input.vehicleMake || null,
@@ -95,6 +104,10 @@ export const bookingRouter = router({
       );
 
       return { ...result, referenceCode: refCode };
+      } catch (err) {
+        console.error("[Booking] Create failed:", err);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "We couldn't save your booking. Please call us directly at (216) 862-0005." });
+      }
     }),
 
   uploadPhoto: publicProcedure

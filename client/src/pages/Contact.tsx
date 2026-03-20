@@ -12,6 +12,7 @@ import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, Navigation } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { BUSINESS } from "@shared/business";
+import { GBP_REVIEW_URL } from "@shared/const";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -223,7 +224,7 @@ export default function Contact() {
                         View on Google Maps
                       </a>
                       <a
-                        href="https://search.google.com/local/writereview?placeid=ChIJSWRRLdr_MEiRBZ3NBATPvQo"
+                        href={GBP_REVIEW_URL}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-nick-yellow/10 border border-nick-yellow/30 rounded-md text-nick-yellow hover:bg-nick-yellow/20 transition-colors text-sm font-medium"
