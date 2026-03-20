@@ -27,3 +27,4 @@ export { techniciansRouter } from "./technicians";
 export { customersRouter } from "./customers";
 export { winbackRouter } from "./winback";
 export { shopdriverRouter } from "./shopdriver";
+export { jobAssignmentsRouter, invoicesRouter, kpiRouter, portalRouter } from "./advanced";

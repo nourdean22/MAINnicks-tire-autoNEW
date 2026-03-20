@@ -117,7 +117,7 @@ export default function LaborEstimator() {
           </p>
           <div className="mt-4 flex items-center justify-center gap-2 text-foreground/50 text-sm font-mono">
             <Calculator className="w-4 h-4 text-nick-teal" />
-            <span>Shop labor rate: $115/hour</span>
+            <span>Fair pricing that keeps Cleveland drivers rolling</span>
           </div>
         </div>
       </section>
@@ -364,7 +364,7 @@ export default function LaborEstimator() {
                             <div>
                               <span className="text-foreground/40 text-xs font-mono block">Labor</span>
                               <span className="text-foreground/80 text-sm font-mono">
-                                {item.laborHours}h = ${item.laborCost.toLocaleString()}
+                                {item.laborHours}h — ${item.laborCost > 0 ? `$${item.laborCost.toLocaleString()}` : 'Included'}
                               </span>
                             </div>
                             <div>
@@ -387,7 +387,7 @@ export default function LaborEstimator() {
                     {/* Totals */}
                     <div className="mt-6 pt-4 border-t border-border/30 space-y-2">
                       <div className="flex justify-between text-sm font-mono">
-                        <span className="text-foreground/60">Total Labor ({result.totalLaborHours}h @ $115/hr)</span>
+                        <span className="text-foreground/60">Total Labor ({result.totalLaborHours}h)</span>
                         <span className="text-foreground/80">${result.totalLaborCost.toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-sm font-mono">

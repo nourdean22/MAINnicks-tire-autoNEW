@@ -50,6 +50,7 @@ const InspectionReport = lazy(() => import("./pages/InspectionReport"));
 const Fleet = lazy(() => import("./pages/Fleet"));
 const Financing = lazy(() => import("./pages/Financing"));
 const Loyalty = lazy(() => import("./pages/Loyalty"));
+const CustomerPortal = lazy(() => import("./pages/CustomerPortal"));
 const ServicesOverview = lazy(() => import("./pages/ServicesOverview"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const Terms = lazy(() => import("./pages/Terms"));
@@ -147,6 +148,8 @@ function Router() {
         <Route path={"/financing"} component={Financing} />
         {/* Loyalty Rewards */}
         <Route path={"/rewards"} component={Loyalty} />
+        {/* Customer Portal */}
+        <Route path={"/portal"} component={CustomerPortal} />
         {/* FAQ page */}
         <Route path={"/faq"} component={FAQ} />
         {/* Blog / Tips */}

@@ -872,3 +872,159 @@ export const customerImportLog = mysqlTable("customer_import_log", {
 
 export type CustomerImportLog = typeof customerImportLog.$inferSelect;
 export type InsertCustomerImportLog = typeof customerImportLog.$inferInsert;
+
+// ─── TECHNICIAN ASSIGNMENTS (Job Board Advanced) ────────
+/**
+ * Tracks which technician is assigned to which booking/job.
+ * Enables time tracking and workload balancing.
+ */
+export const jobAssignments = mysqlTable("job_assignments", {
+  id: int("id").autoincrement().primaryKey(),
+  bookingId: int("bookingId").notNull(),
+  technicianId: int("technicianId").notNull(),
+  /** Estimated hours for the job */
+  estimatedHours: varchar("estimatedHours", { length: 10 }),
+  /** When the tech actually started working */
+  startedAt: timestamp("startedAt"),
+  /** When the tech finished */
+  completedAt: timestamp("completedAt"),
+  /** Admin notes about the assignment */
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type JobAssignment = typeof jobAssignments.$inferSelect;
+export type InsertJobAssignment = typeof jobAssignments.$inferInsert;
+
+// ─── CUSTOMER LIFETIME VALUE TRACKING ───────────────────
+/**
+ * Aggregated customer value metrics, computed periodically.
+ * One row per customer (from imported customers table).
+ */
+export const customerMetrics = mysqlTable("customer_metrics", {
+  id: int("id").autoincrement().primaryKey(),
+  customerId: int("customerId").notNull(),
+  /** Total revenue from this customer */
+  totalRevenue: int("totalRevenue").default(0).notNull(),
+  /** Number of completed jobs */
+  totalJobs: int("totalJobs").default(0).notNull(),
+  /** Average spend per visit */
+  avgSpendPerVisit: int("avgSpendPerVisit").default(0).notNull(),
+  /** Days since last visit */
+  daysSinceLastVisit: int("daysSinceLastVisit"),
+  /** Churn risk: low, medium, high */
+  churnRisk: mysqlEnum("churnRisk", ["low", "medium", "high"]).default("low").notNull(),
+  /** Whether flagged as VIP (top 10% revenue) */
+  isVip: int("isVip").default(0).notNull(),
+  /** Predicted next visit date */
+  predictedNextVisit: timestamp("predictedNextVisit"),
+  /** Last computed timestamp */
+  computedAt: timestamp("computedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CustomerMetric = typeof customerMetrics.$inferSelect;
+export type InsertCustomerMetric = typeof customerMetrics.$inferInsert;
+
+// ─── REVENUE TRACKING (from ShopDriver invoices) ────────
+/**
+ * Individual invoice records imported from ShopDriver or manually entered.
+ * Powers the revenue dashboard and CLV calculations.
+ */
+export const invoices = mysqlTable("invoices", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Link to imported customer if matched */
+  customerId: int("customerId"),
+  /** Link to booking if matched */
+  bookingId: int("bookingId"),
+  /** Customer name (denormalized for display) */
+  customerName: varchar("customerName", { length: 255 }).notNull(),
+  customerPhone: varchar("customerPhone", { length: 30 }),
+  /** Invoice number from shop management system */
+  invoiceNumber: varchar("invoiceNumber", { length: 50 }),
+  /** Total amount in cents */
+  totalAmount: int("totalAmount").default(0).notNull(),
+  /** Parts cost in cents */
+  partsCost: int("partsCost").default(0).notNull(),
+  /** Labor cost in cents */
+  laborCost: int("laborCost").default(0).notNull(),
+  /** Tax in cents */
+  taxAmount: int("taxAmount").default(0).notNull(),
+  /** Service description */
+  serviceDescription: text("serviceDescription"),
+  /** Vehicle info */
+  vehicleInfo: varchar("vehicleInfo", { length: 255 }),
+  /** Payment method */
+  paymentMethod: mysqlEnum("paymentMethod", ["cash", "card", "check", "financing", "other"]).default("card").notNull(),
+  /** Payment status */
+  paymentStatus: mysqlEnum("paymentStatus", ["paid", "pending", "partial", "refunded"]).default("paid").notNull(),
+  /** Invoice date */
+  invoiceDate: timestamp("invoiceDate").defaultNow().notNull(),
+  /** Source of the record */
+  source: mysqlEnum("source", ["shopdriver", "manual", "stripe"]).default("manual").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Invoice = typeof invoices.$inferSelect;
+export type InsertInvoice = typeof invoices.$inferInsert;
+
+// ─── KPI SNAPSHOTS (Command Center) ────────────────────
+/**
+ * Weekly KPI snapshots for trend tracking and projections.
+ * Computed every Sunday night or on-demand.
+ */
+export const kpiSnapshots = mysqlTable("kpi_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Week start date (YYYY-MM-DD) */
+  weekStart: varchar("weekStart", { length: 10 }).notNull(),
+  /** Total revenue for the week (cents) */
+  revenue: int("revenue").default(0).notNull(),
+  /** Number of completed jobs */
+  jobsCompleted: int("jobsCompleted").default(0).notNull(),
+  /** New customers acquired */
+  newCustomers: int("newCustomers").default(0).notNull(),
+  /** Average ticket size (cents) */
+  avgTicket: int("avgTicket").default(0).notNull(),
+  /** Lead-to-booking conversion rate (percentage * 100) */
+  conversionRate: int("conversionRate").default(0).notNull(),
+  /** Customer satisfaction score (1-5 * 100) */
+  satisfactionScore: int("satisfactionScore").default(0).notNull(),
+  /** Number of review requests sent */
+  reviewsSent: int("reviewsSent").default(0).notNull(),
+  /** Number of reviews received */
+  reviewsReceived: int("reviewsReceived").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type KpiSnapshot = typeof kpiSnapshots.$inferSelect;
+export type InsertKpiSnapshot = typeof kpiSnapshots.$inferInsert;
+
+// ─── CUSTOMER PORTAL SESSIONS ──────────────────────────
+/**
+ * Phone-based login sessions for the customer portal.
+ * Customers verify via SMS code to access their vehicle history.
+ */
+export const portalSessions = mysqlTable("portal_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Customer phone (normalized) */
+  phone: varchar("phone", { length: 30 }).notNull(),
+  /** Link to imported customer if matched */
+  customerId: int("customerId"),
+  /** 6-digit verification code */
+  verificationCode: varchar("verificationCode", { length: 10 }).notNull(),
+  /** Session token after verification */
+  sessionToken: varchar("sessionToken", { length: 128 }),
+  /** Whether the code has been verified */
+  verified: int("verified").default(0).notNull(),
+  /** Expiry for the verification code */
+  codeExpiresAt: timestamp("codeExpiresAt").notNull(),
+  /** Session expiry */
+  sessionExpiresAt: timestamp("sessionExpiresAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PortalSession = typeof portalSessions.$inferSelect;
+export type InsertPortalSession = typeof portalSessions.$inferInsert;

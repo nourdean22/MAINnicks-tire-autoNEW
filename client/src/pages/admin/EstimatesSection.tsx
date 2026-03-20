@@ -1,5 +1,5 @@
 /**
- * Estimate Log — shows recent AI labor estimate requests from the website.
+ * Estimate Log — shows recent AI repair estimate requests from the website.
  * Helps track which repairs customers are researching (warm leads).
  */
 import { trpc } from "@/lib/trpc";
@@ -28,7 +28,7 @@ export default function EstimatesSection() {
       {/* Header */}
       <div>
         <h2 className="font-heading font-bold text-2xl text-foreground tracking-wider">ESTIMATE LOG</h2>
-        <p className="text-foreground/50 font-mono text-xs mt-1">Track AI labor estimate requests — these are warm leads researching repair costs</p>
+        <p className="text-foreground/50 font-mono text-xs mt-1">Track AI repair estimate requests — these are warm leads researching repair costs</p>
       </div>
 
       {/* Stats */}
@@ -122,7 +122,7 @@ export default function EstimatesSection() {
       <div className="bg-primary/5 border border-primary/20 p-4">
         <h4 className="font-heading font-bold text-xs text-primary tracking-wider uppercase mb-2">HOW ESTIMATES DRIVE BOOKINGS</h4>
         <p className="text-foreground/60 text-xs leading-relaxed">
-          When a customer uses the AI Labor Estimator on your website, they're actively researching repair costs — 
+          When a customer uses the AI Repair Estimator on your website, they're actively researching repair costs — 
           a strong buying signal. Each estimate request is captured as a lead. Follow up with a call or text 
           to convert these warm leads into booked appointments.
         </p>

@@ -38,6 +38,7 @@ const ShopDriverSection = lazy(() => import("./admin/ShopDriverSection"));
 const SettingsSection = lazy(() => import("./admin/SettingsSection"));
 const EstimatesSection = lazy(() => import("./admin/EstimatesSection"));
 const ActivitySection = lazy(() => import("./admin/ActivitySection"));
+const RevenueSection = lazy(() => import("./admin/RevenueSection"));
 
 function SectionSpinner() {
   return (
@@ -72,6 +73,7 @@ function SectionContent({ section }: { section: AdminSection }) {
       {section === "settings" && <SettingsSection />}
       {section === "estimates" && <EstimatesSection />}
       {section === "activity" && <ActivitySection />}
+      {section === "revenue" && <RevenueSection />}
     </Suspense>
   );
 }

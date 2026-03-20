@@ -38,6 +38,10 @@ import {
   customersRouter,
   winbackRouter,
   shopdriverRouter,
+  jobAssignmentsRouter,
+  invoicesRouter,
+  kpiRouter,
+  portalRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -89,6 +93,12 @@ export const appRouter = router({
   customers: customersRouter,
   winback: winbackRouter,
   shopdriver: shopdriverRouter,
+
+  // Advanced features
+  jobAssignments: jobAssignmentsRouter,
+  invoices: invoicesRouter,
+  kpi: kpiRouter,
+  portal: portalRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -1030,9 +1030,9 @@
 - [x] All images have alt text, all admin routes protected
 
 ### Next Phase Roadmap Presentation
-- [ ] Create comprehensive next-phase plan with backend and frontend work
-- [ ] Include creative and clever marketing/feature ideas
-- [ ] Build presentation slides for Nour to review
+- [x] Create comprehensive next-phase plan with backend and frontend work
+- [x] Include creative and clever marketing/feature ideas
+- [x] Build presentation slides for Nour to review (12 slides)
 
 ### Auto-Publish
 - [ ] Save checkpoint and publish updates to live site after all work is complete
@@ -1044,3 +1044,124 @@
 - [x] Add 4 new admin sections: ShopDriver Sync, Settings, Estimates, Activity
 - [x] All admin routes verified using adminProcedure
 - [x] Write shopdriver.test.ts — 11 new tests (286 total, 285 passing)
+
+## Phase 5 — Active Build (March 20, 2026)
+
+### Task 16: Twilio Unsuspension + 10DLC
+- [ ] Unsuspend Twilio account
+- [ ] Complete 10DLC brand registration
+- [ ] Complete 10DLC campaign registration
+- [ ] Verify SMS sending works again
+- [ ] Resume SMS campaign
+
+### Task 17: Stripe Online Payments
+- [ ] Add Stripe integration to the project
+- [ ] Build invoice payment page for customers
+- [ ] Build admin payment tracking in dashboard
+- [ ] Test payment flow end-to-end
+
+### Task 18: Digital Vehicle Inspection Reports
+- [ ] Build inspection form for technicians (tablet-friendly)
+- [ ] Green/Yellow/Red component status system
+- [ ] Photo upload for each inspection item
+- [ ] Generate branded PDF report for customers
+- [ ] "Share with spouse" feature for big repair decisions
+- [ ] Admin view of all inspections
+
+### Task 19: "What's Wrong With My Car?" Quiz
+- [ ] Build interactive 5-question symptom quiz
+- [ ] AI-powered diagnosis from quiz answers
+- [ ] Lead capture (email/phone required for results)
+- [ ] Shareable results page
+- [ ] Connect to booking system
+
+### Task 20: Admin Dashboard Enhancements
+- [ ] Customer growth chart
+- [ ] SMS campaign analytics (delivery rate, cost tracking)
+- [ ] More detailed controls and creative features
+
+### Task 21: SMS Conversation View
+- [ ] Build full text thread view per customer in admin
+- [ ] Two-way messaging from admin panel
+- [ ] Auto-reply templates for common questions
+- [ ] Customer sentiment tracking
+
+### Task 22: Revenue Dashboard with ShopDriver Sync
+- [ ] Build revenue tracking from ShopDriver invoice data
+- [ ] Customer lifetime value calculations
+- [ ] Service category breakdown charts
+- [ ] Month-over-month growth visualization
+
+### Task 23: Predictive Maintenance Alerts
+- [ ] Build maintenance schedule engine based on vehicle mileage/age
+- [ ] Auto-send reminders when service is due
+- [ ] Customer-facing "My Vehicle Health" dashboard
+- [ ] Admin view of upcoming maintenance opportunities
+
+### Task 24: Stripe Online Payments (PRIORITY)
+- [ ] Create invoices table in database schema
+- [ ] Build Stripe checkout session creation endpoint
+- [ ] Build payment success/cancel pages
+- [ ] Build admin invoice management (create, view, send)
+- [ ] Build customer-facing invoice pay page
+- [ ] Add Stripe webhook handler for payment events
+- [ ] Build payment history in admin dashboard
+- [ ] Write tests for payment flows
+
+## Phase 41 — Active Build (March 20, 2026)
+
+### Task 25: Remove Labor Rate Display
+- [x] Find and remove labor rate display from admin/public pages
+- [x] Replace with clever savings/value message about keeping customers rolling
+- [x] Verify no labor rate numbers visible to customers
+
+
+### Task 26: ADVANCED UPGRADES (March 20, 2026)
+
+#### Upgrade 1: Real-Time Job Board
+- [x] Create job_assignments table in schema (technician, booking, status, time tracking)
+- [x] Build admin Job Board page — Kanban columns (Received → Inspecting → Waiting Parts → In Progress → QC → Ready)
+- [x] Technician assignment modal with workload balancing
+- [x] List/Kanban toggle view
+- [x] Public /status page already existed — enhanced with active job tracking
+- [ ] SMS notification when status changes (when Twilio active)
+
+#### Upgrade 2: AI Smart Scheduling
+- [x] Booking density heatmap by day of week in Revenue Command Center
+- [ ] Suggest optimal booking times to customers on booking page
+- [ ] Capacity planning — show available slots vs booked
+
+#### Upgrade 3: Customer Lifetime Value Dashboard
+- [x] Top customers by lifetime revenue in Revenue Command Center
+- [x] customer_metrics table with CLV, churn risk, VIP flags
+- [ ] Churn risk scoring — flag customers who haven't visited in X months
+- [ ] VIP customer alerts — high-value customers get priority treatment
+- [ ] Revenue cohort analysis — new vs returning customer revenue split
+
+#### Upgrade 4: Automated Invoice-to-Review Pipeline
+- [ ] When ShopDriver invoice imported, auto-create review request
+- [ ] Multi-step follow-up sequence (initial → reminder → final)
+- [ ] Smart timing — send at optimal engagement hours
+- [ ] A/B test message templates
+- [ ] Track conversion funnel: invoice → review request → sent → clicked → reviewed
+
+#### Upgrade 5: Advanced Admin Command Center
+- [x] Revenue Command Center with real-time KPIs (revenue, avg ticket, invoices, conversion rate)
+- [x] Revenue trend chart (daily/weekly/monthly)
+- [x] Period-over-period comparison
+- [x] Payment method breakdown pie chart
+- [x] Booking density heatmap by day of week
+- [x] Top customers by revenue
+- [x] kpi_snapshots table for trend tracking
+- [ ] Competitive intelligence — local market positioning
+
+#### Upgrade 6: Customer Portal
+- [x] Customer login (by phone number + verification code)
+- [x] View vehicle service history
+- [x] View invoices with totals
+- [x] Active job status tracking
+- [x] Quick stats (service records, invoices, total spent, last visit)
+- [x] portal_sessions table for session management
+- [ ] View and pay invoices online (Stripe integration — coming in Stripe phase)
+- [ ] View inspection reports
+

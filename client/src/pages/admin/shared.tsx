@@ -7,11 +7,11 @@ import {
   Phone, Mail, MessageSquare, CalendarClock, Users,
   LayoutDashboard, FileText, Globe, Wrench, Gauge,
   ClipboardList, Trophy, Gift, Send, Star, UserCheck, RotateCcw, Timer,
-  Settings, Upload, DollarSign, Activity
+  Settings, Upload, DollarSign, Activity, TrendingUp
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity";
+export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "closed" | "lost";
 
@@ -46,6 +46,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Dashboard",
     items: [
       { id: "overview", label: "Overview", icon: <LayoutDashboard className="w-4 h-4" /> },
+      { id: "revenue", label: "Revenue Center", icon: <TrendingUp className="w-4 h-4" /> },
       { id: "health", label: "Site Health", icon: <Globe className="w-4 h-4" /> },
     ],
   },
@@ -122,6 +123,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   shopdriver: "ShopDriver Sync",
   estimates: "Estimate Log",
   activity: "Activity Feed",
+  revenue: "Revenue Command Center",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────

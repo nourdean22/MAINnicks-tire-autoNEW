@@ -1,6 +1,6 @@
 /**
- * Shop Settings — manage labor rate, contact info, hours, and SMS settings.
- * All settings auto-sync with the labor estimator and other features.
+ * Shop Settings — manage pricing, contact info, hours, and SMS settings.
+ * All settings auto-sync with the estimator and other features.
  */
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
@@ -9,7 +9,7 @@ import { Loader2, Save, CheckCircle2, DollarSign, Phone, Clock, MessageSquare, S
 type SettingCategory = "pricing" | "contact" | "hours" | "sms" | "general";
 
 const CATEGORY_CONFIG: Record<SettingCategory, { label: string; icon: React.ReactNode; description: string }> = {
-  pricing: { label: "Pricing", icon: <DollarSign className="w-4 h-4" />, description: "Labor rate, tax rate, and shop supply fees. Changes auto-sync with the AI Estimator." },
+  pricing: { label: "Pricing", icon: <DollarSign className="w-4 h-4" />, description: "Internal pricing settings. Changes auto-sync with the AI Estimator. Not shown to customers." },
   contact: { label: "Contact Info", icon: <Phone className="w-4 h-4" />, description: "Shop name, phone, address, and email." },
   hours: { label: "Business Hours", icon: <Clock className="w-4 h-4" />, description: "Operating hours displayed on the website." },
   sms: { label: "SMS Settings", icon: <MessageSquare className="w-4 h-4" />, description: "SMS campaign batch size and send controls." },
@@ -150,10 +150,10 @@ export default function SettingsSection() {
 
       {/* Info Box */}
       <div className="bg-primary/5 border border-primary/20 p-4">
-        <h4 className="font-heading font-bold text-xs text-primary tracking-wider uppercase mb-2">AUTO-SYNC WITH LABOR ESTIMATOR</h4>
+        <h4 className="font-heading font-bold text-xs text-primary tracking-wider uppercase mb-2">AUTO-SYNC WITH ESTIMATOR</h4>
         <p className="text-foreground/60 text-xs leading-relaxed">
-          When you change the labor rate here, the AI Labor Estimator on the website automatically uses the new rate for all future estimates.
-          No code changes needed — the estimator reads the rate from this settings table in real time.
+          Changes here auto-sync with the AI Repair Estimator on the website. The estimator uses these settings in real time for all future estimates.
+          The labor rate is used internally for calculations but is not displayed to customers.
         </p>
       </div>
     </div>
