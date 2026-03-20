@@ -1,0 +1,28 @@
+GSC INDEXING PROGRESS - March 20, 2026
+========================================
+
+SITEMAP: Updated and resubmitted - 68 discovered pages, 0 discovered videos
+  - Last read: Mar 20, 2026 (today)
+  - Status: Success
+
+PAGES INDEXED (confirmed via URL Inspection):
+1. https://nickstire.org/ - INDEXED, re-indexing requested ✓
+2. https://nickstire.org/tires - INDEXED, re-indexing requested ✓
+   - Enhancements: HTTPS ✓, Breadcrumbs (1) ✓, FAQ (1) ✓, Review snippets (2) ✓
+3. https://nickstire.org/about - INDEXED, re-indexing requested ✓
+   - Enhancements: HTTPS ✓, Breadcrumbs (1) ✓, Review snippets (1) ✓
+4. https://nickstire.org/contact - INDEXED, re-indexing requested ✓
+   - Enhancements: HTTPS ✓, Review snippets (2) ✓
+5. https://nickstire.org/faq - INDEXED (already on Google)
+   - Enhancements: HTTPS ✓, Breadcrumbs (1) ✓, FAQ (1) ✓
+
+NOT INDEXED (11 pages, 2 reasons):
+- Crawled - currently not indexed: 6 pages (Google systems)
+- Discovered - currently not indexed: 5 pages (Google systems)
+Both have validation "Started"
+
+KEY NOTES:
+- All major pages are indexed and have valid enhancements
+- The 11 not-indexed pages are likely deeper service/area pages
+- Google is actively crawling and will pick them up with the updated sitemap
+- Structured data (FAQ, Review snippets, Breadcrumbs) all valid across pages

@@ -14,7 +14,7 @@ import {
   Phone, Search, ShieldCheck, Truck, Clock, ChevronRight, ArrowLeft,
   Star, Check, X, Filter, Package, CircleDot, Loader2,
   CheckCircle2, Info, Gift, Sparkles, BadgeCheck, Wrench, Gauge,
-  CircleCheck, Timer, Heart,
+  CircleCheck, Timer, Heart, AlertTriangle, Users, Zap, ThumbsUp, Award, MapPin,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -675,9 +675,14 @@ export default function TireFinder() {
               <button
                 onClick={handleSearch}
                 disabled={isLoading}
-                className="bg-primary text-primary-foreground px-6 py-4 font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 shrink-0"
+                className="bg-primary text-primary-foreground px-4 sm:px-6 py-4 font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 shrink-0"
               >
-                {isLoading ? "Searching..." : "Search"}
+                {isLoading ? (
+                  <Loader2 className="w-5 h-5 animate-spin sm:hidden" />
+                ) : (
+                  <Search className="w-5 h-5 sm:hidden" />
+                )}
+                <span className="hidden sm:inline">{isLoading ? "Searching..." : "Search"}</span>
               </button>
             </div>
 
@@ -884,6 +889,205 @@ export default function TireFinder() {
           </section>
         )}
       </AnimatePresence>
+
+      {/* ─── EMERGENCY FLAT REPAIR ─── */}
+      {!activeSearch && (
+        <section className="pb-0">
+          <div className="container max-w-4xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="relative overflow-hidden bg-gradient-to-br from-red-500/5 via-card to-orange-500/5 border border-red-500/20 rounded-xl p-6 sm:p-8 mb-10"
+            >
+              <div className="flex items-start gap-4 sm:gap-6">
+                <div className="w-14 h-14 bg-red-500/10 rounded-xl flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-7 h-7 text-red-400" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-semibold text-red-400 tracking-[0.15em] uppercase bg-red-500/10 px-2.5 py-0.5 rounded-full">
+                      Emergency Service
+                    </span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-semibold text-foreground mt-2">
+                    Caught a Flat? Call Us First.
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+                    Do not pay for a new tire if you do not need one. Most flats can be repaired with a professional plug or patch for just <strong className="text-foreground">$15 – $25</strong>. We have been fixing flats for years — fast, honest, and affordable. Drive in or call us. We will take care of it.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
+                    <div className="flex items-start gap-2.5 bg-background/50 rounded-lg p-3">
+                      <Zap className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs font-medium text-foreground">15-Minute Repair</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">Most flat repairs done while you wait</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2.5 bg-background/50 rounded-lg p-3">
+                      <ShieldCheck className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs font-medium text-foreground">Plug & Patch</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">Industry-standard repair that lasts the life of the tire</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2.5 bg-background/50 rounded-lg p-3">
+                      <ThumbsUp className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs font-medium text-foreground">Honest Assessment</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">We only recommend a new tire when repair is not safe</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 flex flex-col sm:flex-row gap-3">
+                    <a
+                      href="tel:2168620005"
+                      className="inline-flex items-center justify-center gap-2 bg-red-500/10 text-red-400 border border-red-500/20 px-6 py-3 rounded-md text-sm font-medium hover:bg-red-500/20 transition-colors"
+                    >
+                      <Phone className="w-4 h-4" />
+                      Call Now — (216) 862-0005
+                    </a>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <MapPin className="w-3.5 h-3.5" />
+                      <span>Walk-ins welcome — 17625 Euclid Ave, Cleveland</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+      )}
+
+      {/* ─── USED TIRES ─── */}
+      {!activeSearch && (
+        <section className="pb-0">
+          <div className="container max-w-4xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-card border border-border/30 rounded-xl p-6 sm:p-8 mb-10"
+            >
+              <div className="flex items-start gap-4 sm:gap-6">
+                <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
+                  <Award className="w-7 h-7 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] font-semibold text-primary tracking-[0.15em] uppercase bg-primary/10 px-2.5 py-0.5 rounded-full">
+                      Budget-Friendly
+                    </span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-semibold text-foreground mt-2">
+                    Quality Used Tires
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+                    Not everyone needs brand-new tires. We carry a large selection of quality used tires — every one inspected for tread depth, sidewall condition, and safety before it goes on your vehicle. Same professional installation. Same honest service. Just a lower price.
+                  </p>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
+                    {[
+                      { label: "Inspected", desc: "Every tire checked for safety" },
+                      { label: "Affordable", desc: "Fraction of new tire cost" },
+                      { label: "Same Install", desc: "Full premium package included" },
+                      { label: "In Stock", desc: "Large selection available now" },
+                    ].map((item) => (
+                      <div key={item.label} className="bg-background/50 rounded-lg p-3">
+                        <p className="text-xs font-medium text-foreground">{item.label}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <p className="text-sm text-muted-foreground mt-5 leading-relaxed">
+                    Used tire inventory changes daily. <a href="tel:2168620005" className="text-primary hover:underline">Call us</a> or stop by to see what we have in your size. Walk-ins welcome.
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+      )}
+
+      {/* ─── OUR TEAM ─── */}
+      {!activeSearch && (
+        <section className="pb-0">
+          <div className="container max-w-4xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="bg-gradient-to-br from-primary/5 via-card to-primary/5 border border-primary/20 rounded-xl p-6 sm:p-8 mb-10"
+            >
+              <div className="text-center mb-8">
+                <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center mx-auto mb-4">
+                  <Users className="w-7 h-7 text-primary" />
+                </div>
+                <h2 className="text-xl sm:text-2xl font-semibold text-foreground">
+                  Cleveland's Best Tire Team
+                </h2>
+                <p className="text-sm text-muted-foreground mt-2 max-w-2xl mx-auto leading-relaxed">
+                  We do not just sell tires. We have the most experienced, most honest, and fastest tire technicians in Northeast Ohio. Every person on our team takes pride in doing the job right — the first time.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[
+                  {
+                    icon: <Wrench className="w-5 h-5" />,
+                    title: "Expert Technicians",
+                    desc: "Years of experience with every make and model. We know tires inside and out — from performance fitments to heavy-duty truck tires.",
+                  },
+                  {
+                    icon: <Timer className="w-5 h-5" />,
+                    title: "Fastest Service in Town",
+                    desc: "Most tire installations done in under an hour. We respect your time. No waiting around for days like the big box stores.",
+                  },
+                  {
+                    icon: <ThumbsUp className="w-5 h-5" />,
+                    title: "Honest Recommendations",
+                    desc: "We will never sell you a tire you do not need. If a flat can be repaired for $15, we repair it. Period. That is how we have earned 1,683+ five-star reviews.",
+                  },
+                  {
+                    icon: <ShieldCheck className="w-5 h-5" />,
+                    title: "Quality Guaranteed",
+                    desc: "Every installation includes our full premium package — mounting, balancing, valve stems, TPMS reset, alignment check, and a 20-point safety inspection.",
+                  },
+                  {
+                    icon: <Heart className="w-5 h-5" />,
+                    title: "We Treat You Like Family",
+                    desc: "We show you the problem before we fix it. We explain your options. We let you decide. No pressure, no upselling, no games.",
+                  },
+                  {
+                    icon: <MapPin className="w-5 h-5" />,
+                    title: "Cleveland Proud",
+                    desc: "Locally owned and operated. We live here, we work here, and we take care of our neighbors. Serving Cleveland, Euclid, and all of Northeast Ohio.",
+                  },
+                ].map((item) => (
+                  <div key={item.title} className="bg-background/50 rounded-lg p-5">
+                    <div className="text-primary mb-3">{item.icon}</div>
+                    <h3 className="text-sm font-medium text-foreground mb-1.5">{item.title}</h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-8 text-center">
+                <div className="flex justify-center gap-1 mb-2">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-4 h-4 fill-primary text-primary" />
+                  ))}
+                </div>
+                <p className="text-sm text-foreground font-medium">4.9 Stars — 1,683+ Google Reviews</p>
+                <p className="text-xs text-muted-foreground mt-1">Real reviews from real Cleveland drivers</p>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+      )}
 
       {/* ─── TRUST SIGNALS (when no search active) ─── */}
       {!activeSearch && (

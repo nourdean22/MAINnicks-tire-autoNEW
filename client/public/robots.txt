@@ -1,11 +1,39 @@
 User-agent: *
 Allow: /
 
-# Block admin and auth pages from indexing
+# Public pages — crawl freely
+Allow: /tires
+Allow: /tires/info
+Allow: /services/
+Allow: /about
+Allow: /contact
+Allow: /reviews
+Allow: /specials
+Allow: /faq
+Allow: /blog
+Allow: /diagnose
+Allow: /estimate
+Allow: /fleet
+Allow: /financing
+Allow: /car-care-guide
+Allow: /area/
+
+# Block admin, auth, and private pages from indexing
 Disallow: /admin
 Disallow: /admin/
 Disallow: /my-garage
+Disallow: /portal
 Disallow: /api/
+Disallow: /status/
+Disallow: /inspection/
+Disallow: /loyalty
+Disallow: /referral
+
+# Block query parameters
+Disallow: /*?*
+
+# Crawl delay for polite crawling
+Crawl-delay: 1
 
 # Sitemap location
 Sitemap: https://nickstire.org/sitemap.xml

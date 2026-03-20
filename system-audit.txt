@@ -1,0 +1,77 @@
+NICK'S TIRE & AUTO — FULL SYSTEM AUDIT
+=======================================
+Date: March 20, 2026
+
+DOMAINS:
+- nickstire-fqyrztyc.manus.space
+- nickstire.manus.space
+- easy.nickstire.org
+- nickstire.org
+- www.nickstire.org
+
+ALL ROUTES (from App.tsx):
+==========================
+
+PUBLIC PAGES:
+1.  / — Home (eagerly loaded)
+2.  /services — ServicesOverview
+3.  /tires — TireFinder (e-commerce tire ordering)
+4.  /brakes — ServicePage
+5.  /diagnostics — ServicePage
+6.  /emissions — ServicePage
+7.  /oil-change — ServicePage
+8.  /general-repair — ServicePage
+9.  /contact — Contact
+10. /about — About
+11. /reviews — ReviewsPage
+12. /diagnose — DiagnosePage
+13. /specials — SpecialsPage
+14. /my-garage — MyGaragePage
+15. /refer — ReferralPage
+16. /ask — AskMechanicPage
+17. /car-care-guide — CarCareGuidePage
+18. /review — ReviewPage
+19. /status — StatusTracker
+20. /pricing — PriceEstimator
+21. /estimate — LaborEstimator
+22. /inspection/:token — InspectionReport
+23. /fleet — Fleet
+24. /financing — Financing
+25. /rewards — Loyalty
+26. /portal — CustomerPortal
+27. /tires/info — ServicePage (tire info)
+28. /faq — FAQ
+29. /blog — Blog
+30. /blog/:slug — BlogPost
+31. /privacy-policy — PrivacyPolicy
+32. /terms — Terms
+
+CITY PAGES (10):
+33-42. /euclid-auto-repair, /lakewood-auto-repair, /parma-auto-repair, etc.
+
+SEASONAL PAGES (2):
+43-44. /winter-car-care-cleveland, /summer-car-care-cleveland
+
+SEO SERVICE PAGES (6):
+45-50. /brake-repair-cleveland, /check-engine-light-cleveland, etc.
+
+VEHICLE MAKE PAGES (10):
+51-60. /toyota-repair-cleveland, /honda-repair-cleveland, etc.
+
+PROBLEM PAGES (10):
+61-70. /car-shaking-while-driving, /brakes-grinding, etc.
+
+ADMIN:
+71. /admin — Admin dashboard
+72. /admin/content — AdminContent
+
+TOTAL: ~72 routes
+
+KEY INTEGRATIONS:
+- Gateway Tire B2B (search, inventory, ordering)
+- Google Sheets (CRM + Tire Orders auto-sync)
+- Gmail (order notifications)
+- Twilio (SMS)
+- Auto Labor Guide (CRM sync)
+- Stripe (payments)
+- Google Maps

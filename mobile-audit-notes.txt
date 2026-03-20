@@ -1,0 +1,45 @@
+MOBILE AUDIT FINDINGS (iPhone 14 Pro - 393x852)
+=================================================
+
+HOMEPAGE HERO (mobile-hero.png):
++ Hero looks great on mobile - full bleed image, good text hierarchy
++ CTA buttons are full-width and easy to tap
++ Stars and review count visible at bottom
++ "Same-day service" and "Walk-ins welcome" badges visible
+- Notification bar takes up space but is dismissible - OK
+- Chat widget overlaps slightly with the bottom text
+VERDICT: Looks premium. Minor chat widget overlap.
+
+HOMEPAGE SERVICES (mobile-services.png):
++ Stats section (7 Days, Same Day) looks clean
++ Tire service card with image looks great
++ Text is readable
+- Large black gap between stats and tire service image
+- Need to check if this is intentional spacing or a bug
+VERDICT: Good but check the spacing gap.
+
+HOMEPAGE ABOUT SECTION (mobile-contact.png):
++ "We show you the problem before we fix it" headline is strong
++ Shop image looks authentic
+- Large black gap above the image section
+- Chat widget overlaps with body text
+VERDICT: Fix the spacing gaps.
+
+TIRE FINDER PAGE (mobile-tires.png):
++ "Order Tires Online" headline is clear and large
++ Search bar is prominent and easy to use
++ Popular sizes are tappable chips
++ "Free installation package ($289+ value)" green banner is eye-catching
++ Nick's Premium Installation Package card visible
++ Back arrow and phone icon in navbar - clean
+- Search button text is cut off ("Sea..." instead of "Search")
+- Need to add flat repair, used tires, and team selling sections
+VERDICT: Very good. Fix search button truncation. Add new content.
+
+KEY MOBILE FIXES NEEDED:
+1. Fix search button truncation on tire page
+2. Reduce excessive black spacing gaps on homepage
+3. Ensure chat widget doesn't overlap critical text
+4. Add flat repair emergency section to tire page
+5. Add used tires section to tire page
+6. Add premium team selling section to tire page

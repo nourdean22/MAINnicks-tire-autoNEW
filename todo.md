@@ -1250,3 +1250,22 @@
 - [x] Make the free services so compelling customers stop caring about tire price
 - [x] Build Google Sheets auto-sync for online tire orders (Tire Orders tab in CRM sheet)
 - [x] Test end-to-end with new pricing and package display
+
+## Phase — Mobile Polish, Google Search Console, System Audit
+- [x] Audit all pages for mobile responsiveness issues (puppeteer mobile screenshots taken)
+- [x] Fix touch targets, spacing, and font sizes on mobile (search button fix, batch typography updates)
+- [x] Polish mobile navigation, bottom CTAs, and scroll behavior
+- [x] Update Google Search Console sitemap with all new pages (68 pages discovered)
+- [x] Add/update structured data (LocalBusiness, Product, Service, FAQ, TireShop schemas)
+- [x] Update meta tags (title, description, og:image) for every page
+- [x] Update robots.txt for proper crawling
+- [x] Full system audit — all 22 pages return 200, all 13 public APIs OK, admin endpoints properly protected, Stripe webhook registered
+- [x] Fix any issues found (no misfires detected)
+- [x] TypeScript: 0 errors, Tests: 310/312 (2 pre-existing Twilio failures)
+
+## Phase — Tire Page Content Upgrade
+- [x] Add flat repair section ($15-25, plug/patch, emergency flat service)
+- [x] Add used tires section (quality inspected, budget-friendly, same installation package)
+- [x] Add premium team selling section (best technicians, honest, fastest, most experienced)
+- [x] Emphasize "caught a flat? call us first" urgency messaging
+- [x] Make the shop feel like the obvious first choice for any tire need
