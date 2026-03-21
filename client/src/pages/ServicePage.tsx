@@ -6,13 +6,13 @@
 
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRoute, Link } from "wouter";
 import { SERVICES, type ServiceData } from "@shared/services";
 import BookingForm from "@/components/BookingForm";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronRight, ChevronDown, ArrowLeft, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Menu, X } from "lucide-react";
-import { motion, useInView, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { BUSINESS } from "@shared/business";
 
 // CDN images
@@ -35,13 +35,11 @@ const SERVICE_ICONS: Record<string, React.ReactNode> = {
 };
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-60px" });
   return (
     <motion.div
-      ref={ref}
       initial={{ opacity: 0, y: 24 }}
-      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.1 }}
       transition={{ duration: 0.5, delay, ease: "easeOut" }}
       className={className}
     >
@@ -193,6 +191,16 @@ function ServiceHero({ service }: { service: ServiceData }) {
             )}
           </div>
         </FadeIn>
+
+        {/* Urgency alert — only shown for safety-critical services */}
+        {service.urgencyNote && (
+          <FadeIn delay={0.5}>
+            <div className="mt-6 flex items-start gap-3 bg-red-950/40 border border-red-800/40 rounded-md px-5 py-4 max-w-2xl">
+              <span className="text-red-400 text-lg shrink-0 mt-0.5">⚠</span>
+              <p className="text-red-300/90 text-sm leading-relaxed">{service.urgencyNote}</p>
+            </div>
+          </FadeIn>
+        )}
       </div>
     </section>
   );
