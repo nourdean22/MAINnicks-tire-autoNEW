@@ -344,6 +344,7 @@ function WhyUs() {
                   { title: "Honest Diagnostics", text: "We read the codes, test the components, and show you exactly what failed." },
                   { title: "Upfront Pricing", text: "Written estimates before work begins. No hidden fees, no surprise charges." },
                   { title: "Warranty on Repairs", text: "We stand behind our work. If something isn't right, we make it right." },
+                  { title: "Trusted by Women", text: "Many of our regulars are women who say this is the first shop where they felt safe, informed, and never talked down to." },
                 ].map((item, _i) => (
                   <div key={item.title} className="flex gap-4">
                     <div className="w-px bg-primary shrink-0 mt-1" style={{ minHeight: '2.5rem' }} />
@@ -353,6 +354,15 @@ function WhyUs() {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              <div className="mt-10 flex flex-wrap gap-3">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('whyus-cta')} className="inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/90 transition-colors">
+                  Call for Free Estimate
+                </a>
+                <Link href="/booking" className="inline-flex items-center gap-2 border border-foreground/30 text-foreground px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/5 transition-colors">
+                  Book Online
+                </Link>
               </div>
             </div>
           </FadeIn>
@@ -375,6 +385,7 @@ function Reviews() {
     retry: 1,
   });
 
+  const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
   const displayReviews = googleData?.reviews && googleData.reviews.length > 0
     ? googleData.reviews.slice(0, 3).map(r => ({ name: r.authorName, stars: r.rating, text: r.text }))
     : FALLBACK_REVIEWS;
@@ -385,9 +396,9 @@ function Reviews() {
         <FadeIn>
           <div className="text-center mb-16">
             <h2 className="text-4xl lg:text-5xl font-bold text-foreground tracking-tight">
-              Real reviews from real drivers.
+              {totalReviews.toLocaleString()}+ five&#8209;star reviews.
             </h2>
-            <p className="mt-4 text-foreground/40 text-lg">We don't write our own reviews. These are from Google.</p>
+            <p className="mt-4 text-foreground/40 text-lg">Verified by Google. Written by real Cleveland drivers.</p>
           </div>
         </FadeIn>
 
