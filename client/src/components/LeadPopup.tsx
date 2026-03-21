@@ -1,10 +1,11 @@
 /**
  * Premium Lead Capture Popup
- * Smart triggers: exit-intent (desktop), scroll depth (80%), time delay (25s).
+ * Smart triggers: exit-intent (desktop only, 8s guard), scroll depth (80%), time delay (25s).
+ * Mobile: timer-only (30s), no exit-intent.
  * Refined glass morphism design.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { X, Phone, AlertTriangle, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
@@ -13,8 +14,14 @@ import { getUtmData } from "@/lib/utm";
 import { BUSINESS } from "@shared/business";
 
 const STORAGE_KEY = "nicks_lead_popup_dismissed";
-const DELAY_MS = 25000;
-const SCROLL_THRESHOLD = 0.8;
+const DELAY_MS = 25000;          // 25s desktop timer
+const DELAY_MS_MOBILE = 30000;   // 30s mobile timer (longer, less aggressive)
+const SCROLL_THRESHOLD = 0.8;    // 80% scroll depth
+const EXIT_INTENT_GUARD_MS = 8000; // exit-intent cannot fire in first 8s
+
+function isMobile() {
+  return window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent);
+}
 
 export default function LeadPopup() {
   const [visible, setVisible] = useState(false);
@@ -25,6 +32,9 @@ export default function LeadPopup() {
     vehicle: "",
     problem: "",
   });
+
+  // Track how long the user has been on the page
+  const mountTimeRef = useRef(Date.now());
 
   const submitLead = trpc.lead.submit.useMutation({
     onSuccess: () => setSubmitted(true),
@@ -49,10 +59,17 @@ export default function LeadPopup() {
       if (sessionStorage.getItem(STORAGE_KEY)) return;
     } catch {}
 
-    const timer = setTimeout(show, DELAY_MS);
+    const mobile = isMobile();
+    const delay = mobile ? DELAY_MS_MOBILE : DELAY_MS;
 
+    // Timer trigger — works on all devices
+    const timer = setTimeout(show, delay);
+
+    // Scroll depth trigger — works on all devices
     const onScroll = () => {
-      const scrolled = window.scrollY / (document.body.scrollHeight - window.innerHeight);
+      const docHeight = document.body.scrollHeight - window.innerHeight;
+      if (docHeight <= 0) return;
+      const scrolled = window.scrollY / docHeight;
       if (scrolled >= SCROLL_THRESHOLD) {
         show();
         window.removeEventListener("scroll", onScroll);
@@ -60,18 +77,25 @@ export default function LeadPopup() {
     };
     window.addEventListener("scroll", onScroll, { passive: true });
 
-    const onMouseLeave = (e: MouseEvent) => {
-      if (e.clientY <= 5) {
-        show();
-        document.removeEventListener("mouseleave", onMouseLeave);
-      }
-    };
-    document.addEventListener("mouseleave", onMouseLeave);
+    // Exit-intent trigger — desktop ONLY, with time guard so it can't fire in first 8s
+    let exitIntentListener: ((e: MouseEvent) => void) | null = null;
+    if (!mobile) {
+      exitIntentListener = (e: MouseEvent) => {
+        const timeOnPage = Date.now() - mountTimeRef.current;
+        if (e.clientY <= 5 && timeOnPage >= EXIT_INTENT_GUARD_MS) {
+          show();
+          document.removeEventListener("mouseleave", exitIntentListener!);
+        }
+      };
+      document.addEventListener("mouseleave", exitIntentListener);
+    }
 
     return () => {
       clearTimeout(timer);
       window.removeEventListener("scroll", onScroll);
-      document.removeEventListener("mouseleave", onMouseLeave);
+      if (exitIntentListener) {
+        document.removeEventListener("mouseleave", exitIntentListener);
+      }
     };
   }, [show]);
 
@@ -117,7 +141,7 @@ export default function LeadPopup() {
             transition={{ duration: 0.2, ease: "easeOut" }}
             className="relative bg-[oklch(0.08_0.004_260/0.97)] backdrop-blur-2xl border border-[oklch(0.17_0.004_260)] rounded-2xl w-full max-w-md z-10 overflow-hidden shadow-2xl shadow-black/40"
           >
-            {/* ─── HEADER ─── */}
+            {/* HEADER */}
             <div className="bg-primary/[0.06] border-b border-primary/10 px-6 py-3.5 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <AlertTriangle className="w-4 h-4 text-primary" />
@@ -186,20 +210,13 @@ export default function LeadPopup() {
                   </div>
                 </>
               ) : (
-                <div className="text-center py-6">
-                  <div className="w-14 h-14 rounded-full bg-nick-teal/10 flex items-center justify-center mx-auto mb-4">
-                    <CheckCircle className="w-7 h-7 text-nick-teal" />
-                  </div>
-                  <h3 className="font-bold text-[22px] text-foreground tracking-[-0.02em]">
-                    We got your info.
-                  </h3>
-                  <p className="text-foreground/40 text-[13px] mt-2 leading-relaxed max-w-[280px] mx-auto">
-                    One of our team members will call you shortly with an honest assessment. No pressure.
+                <div className="py-8 text-center">
+                  <CheckCircle className="w-12 h-12 text-primary mx-auto mb-4" />
+                  <h3 className="font-bold text-[20px] text-foreground tracking-[-0.02em]">Got it. We'll call you.</h3>
+                  <p className="text-foreground/40 text-[13px] mt-2 leading-relaxed">
+                    Expect a call from (216) 862-0005 soon.
                   </p>
-                  <button
-                    onClick={dismiss}
-                    className="mt-6 bg-primary text-primary-foreground px-8 py-3 rounded-lg font-semibold text-[14px] hover:opacity-90 transition-opacity"
-                  >
+                  <button onClick={dismiss} className="mt-6 text-foreground/30 text-[12px] hover:text-foreground/50 transition-colors">
                     Close
                   </button>
                 </div>
