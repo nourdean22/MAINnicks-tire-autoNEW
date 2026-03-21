@@ -11,12 +11,29 @@ import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { Phone, ChevronDown } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { BUSINESS } from "@shared/business";
-import FadeIn from "@/components/FadeIn";
+
+function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: "-60px" });
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 20 }}
+      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+      transition={{ duration: 0.4, delay, ease: "easeOut" }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 interface FAQItem {
   question: string;
   answer: string;
   category: string;
+}
+
 const FAQ_DATA: FAQItem[] = [
   // General
   {
@@ -181,6 +198,7 @@ function FAQAccordion({ item, index }: { item: FAQItem; index: number }) {
       </div>
     </FadeIn>
   );
+}
 
 // ─── FAQ SCHEMA ───────────────────────────────────────
 function FAQSchema() {
@@ -197,6 +215,11 @@ function FAQSchema() {
     })),
   };
 
+  return (
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />
+  );
+}
+
 // ─── MAIN PAGE ────────────────────────────────────────
 export default function FAQ() {
   const [activeCategory, setActiveCategory] = useState("All");
@@ -209,3 +232,92 @@ export default function FAQ() {
     ? FAQ_DATA
     : FAQ_DATA.filter(f => f.category === activeCategory);
 
+  return (
+    <PageLayout>
+      <SEOHead
+        title="Frequently Asked Questions | Nick's Tire & Auto Cleveland"
+        description="Common questions about auto repair, brakes, tires, diagnostics, emissions, and oil changes answered by Nick's Tire & Auto in Cleveland, Ohio."
+        canonicalPath="/faq"
+      />
+      <FAQSchema />
+      
+      
+        {/* Hero */}
+        <section className="pt-32 pb-12 lg:pt-40 lg:pb-16 bg-[oklch(0.065_0.004_260)]">
+          <div className="container">
+            <FadeIn>
+              <Breadcrumbs items={[{ label: "FAQ" }]} />
+            </FadeIn>
+            <FadeIn delay={0.1}>
+              <span className="font-mono text-nick-blue-light text-sm tracking-wide mt-4 block">Common Questions</span>
+              <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-6xl text-foreground mt-3 tracking-tight leading-[0.95]">
+                FREQUENTLY ASKED<br />
+                <span className="text-primary">QUESTIONS</span>
+              </h1>
+              <p className="mt-6 text-lg text-foreground/70 max-w-2xl leading-relaxed">
+                Find answers to common questions about our auto repair services, pricing, and what to expect when you visit Nick's Tire & Auto in Cleveland.
+              </p>
+            </FadeIn>
+          </div>
+        </section>
+
+        {/* Category Filter */}
+        <section className="py-8 bg-[oklch(0.055_0.004_260)] border-b border-border/50">
+          <div className="container">
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className={`px-4 py-2 rounded-full font-semibold text-xs tracking-wide transition-colors ${
+                    activeCategory === cat
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-card/50 text-foreground/60 hover:text-primary border border-border/50"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* FAQ List */}
+        <section className="py-12 lg:py-20 bg-[oklch(0.065_0.004_260)]">
+          <div className="container max-w-3xl">
+            <div className="flex flex-col gap-3">
+              {filtered.map((item, i) => (
+                <FAQAccordion key={item.question} item={item} index={i} />
+              ))}
+            </div>
+
+            {/* CTA */}
+            <FadeIn delay={0.2}>
+              <div className="mt-12 text-center bg-card/30 border border-border/50 rounded-lg p-8">
+                <h2 className="font-semibold font-bold text-2xl text-foreground tracking-tight mb-3">
+                  STILL HAVE QUESTIONS?
+                </h2>
+                <p className="text-foreground/60 mb-6">
+                  Our team is happy to help. Give us a call or stop by the shop.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('faq-cta')} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+                    <Phone className="w-4 h-4" />
+                    CALL {BUSINESS.phone.display}
+                  </a>
+                  <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
+                    VISIT CONTACT PAGE
+                  </Link>
+                </div>
+              </div>
+            </FadeIn>
+          </div>
+        </section>
+
+
+      {/* Footer */}
+      
+      <InternalLinks title="Related Pages" />
+    </PageLayout>
+  );
+}
