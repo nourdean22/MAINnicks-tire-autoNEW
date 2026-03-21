@@ -14,6 +14,7 @@ import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronRight, ChevronDown, ArrowLeft, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BUSINESS } from "@shared/business";
+import FadeIn from "@/components/FadeIn";
 
 // CDN images
 const HERO_IMAGES: Record<string, string> = {
@@ -34,20 +35,6 @@ const SERVICE_ICONS: Record<string, React.ReactNode> = {
   "general-repair": <Wrench className="w-8 h-8" />,
 };
 
-function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.1 }}
-      transition={{ duration: 0.5, delay, ease: "easeOut" }}
-      className={className}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
 // ─── SERVICE NAVBAR ────────────────────────────────────
 function ServiceNavbar({ service: _service }: { service: ServiceData }) {
   const [scrolled, setScrolled] = useState(false);
@@ -56,77 +43,8 @@ function ServiceNavbar({ service: _service }: { service: ServiceData }) {
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  return (
-    <nav className={`fixed ${scrolled ? "top-0" : "top-[40px]"} left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-background/95 backdrop-blur-md shadow-lg shadow-nick-yellow/5" : "bg-transparent"}`}>
-      <div className="container flex items-center justify-between h-16 lg:h-20">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary flex items-center justify-center rounded-md">
-            <span className="font-semibold font-bold text-primary-foreground text-lg">N</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-semibold font-bold text-primary text-lg leading-tight tracking-wide">NICK'S TIRE & AUTO</span>
-            <span className="text-nick-blue-light/70 text-xs tracking-wide">Cleveland, Ohio</span>
-          </div>
-        </Link>
-
-        <div className="hidden lg:flex items-center gap-6">
-          
-          <Link href="/" className="flex items-center gap-1 font-semibold text-sm tracking-wide text-foreground/60 hover:text-nick-blue-light transition-colors">
-            <ArrowLeft className="w-4 h-4" />
-            Home
-          </Link>
-          <a href="#problems" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">
-            Common Problems
-          </a>
-          <a href="#process" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">
-            Our Process
-          </a>
-          <a href="#booking" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">
-            Book Now
-          </a>
-          <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('service-navbar-desktop')} className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
-            <Phone className="w-4 h-4" />
-            {BUSINESS.phone.display}
-          </a>
-        </div>
-
-        <div className="lg:hidden flex items-center gap-1">
-          
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="text-foreground p-2">
-            {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
-        </div>
-      </div>
-
-      {mobileOpen && (
-        <div className="lg:hidden bg-background/98 backdrop-blur-md border-t border-primary/20">
-          <div className="container py-6 flex flex-col gap-4">
-            <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 font-semibold text-lg tracking-wide text-foreground/60 hover:text-nick-blue-light transition-colors py-2">
-              <ArrowLeft className="w-5 h-5" />
-              Back to Home
-            </Link>
-            <a href="#problems" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">
-              Common Problems
-            </a>
-            <a href="#process" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">
-              Our Process
-            </a>
-            <a href="#booking" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">
-              Book Now
-            </a>
-            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('service-navbar-mobile')} className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wide mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
-              <Phone className="w-4 h-4" />
-              {BUSINESS.phone.display}
-            </a>
-          </div>
-        </div>
-      )}
-    </nav>
-  );
-}
 
 // ─── SERVICE HERO ──────────────────────────────────────
 function ServiceHero({ service }: { service: ServiceData }) {
@@ -204,7 +122,6 @@ function ServiceHero({ service }: { service: ServiceData }) {
       </div>
     </section>
   );
-}
 
 // ─── COMMON PROBLEMS ───────────────────────────────────
 function Problems({ service }: { service: ServiceData }) {
@@ -274,7 +191,6 @@ function Problems({ service }: { service: ServiceData }) {
       </div>
     </section>
   );
-}
 
 // ─── WARNING SIGNS ────────────────────────────────────
 function WarningSigns({ service }: { service: ServiceData }) {
@@ -333,7 +249,6 @@ function WarningSigns({ service }: { service: ServiceData }) {
       </div>
     </section>
   );
-}
 
 // ─── OUR PROCESS ───────────────────────────────────────
 function Process({ service }: { service: ServiceData }) {
@@ -366,7 +281,6 @@ function Process({ service }: { service: ServiceData }) {
       </div>
     </section>
   );
-}
 
 // ─── WHY CHOOSE US ─────────────────────────────────────
 function WhyUs({ service }: { service: ServiceData }) {
@@ -412,7 +326,6 @@ function WhyUs({ service }: { service: ServiceData }) {
       </div>
     </section>
   );
-}
 
 // ─── AEO QUICK ANSWERS ────────────────────────────────
 function QuickAnswers({ service }: { service: ServiceData }) {
@@ -448,7 +361,6 @@ function QuickAnswers({ service }: { service: ServiceData }) {
       </div>
     </section>
   );
-}
 
 // ─── BOOKING SECTION ───────────────────────────────────
 function BookingSection({ service }: { service: ServiceData }) {
@@ -497,7 +409,6 @@ function BookingSection({ service }: { service: ServiceData }) {
       </div>
     </section>
   );
-}
 
 // ─── OTHER SERVICES ────────────────────────────────────
 function OtherServices({ currentSlug }: { currentSlug: string }) {
@@ -533,7 +444,6 @@ function OtherServices({ currentSlug }: { currentSlug: string }) {
       </div>
     </section>
   );
-}
 
 // ─── FOOTER ────────────────────────────────────────────
 
@@ -642,20 +552,6 @@ function ServiceSchema({ service }: { service: ServiceData }) {
     mainEntity: allFAQs,
   };
 
-  return (
-    <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-      />
-    </>
-  );
-}
-
 // ─── MAIN PAGE ─────────────────────────────────────────
 export default function ServicePage() {
   const [, params] = useRoute("/:slug");
@@ -670,45 +566,6 @@ export default function ServicePage() {
   // SEOHead handles title, meta description, and canonical tag
 
   if (!service) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <h1 className="font-semibold font-bold text-4xl text-foreground mb-4">SERVICE NOT FOUND</h1>
-          <p className="text-foreground/60 mb-8">The service page you are looking for does not exist.</p>
-          <Link href="/" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide">
-            <ArrowLeft className="w-4 h-4" />
-            BACK TO HOME
-          </Link>
-        </div>
-      </div>
-    );
   }
 
-  return (
-    <PageLayout>
-      {service && (
-        <SEOHead
-          title={service.metaTitle}
-          description={service.metaDescription}
-          canonicalPath={`/${service.slug}`}
-        />
-      )}
-      <ServiceSchema service={service} />
-      
-      
-      <ServiceNavbar service={service} />
-
-        <ServiceHero service={service} />
-        <Problems service={service} />
-        <WarningSigns service={service} />
-        <Process service={service} />
-        <WhyUs service={service} />
-        <QuickAnswers service={service} />
-        <BookingSection service={service} />
-        <OtherServices currentSlug={service.slug} />
-
-      
-      <InternalLinks title="Related Services" />
-    </PageLayout>
-  );
 }

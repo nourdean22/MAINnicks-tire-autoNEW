@@ -162,6 +162,13 @@ export function maintenanceReminderSms(name: string, service: string, mileageNot
   return `Hi ${firstName}, it may be time for your next ${service.toLowerCase()}.${mileage} Call ${STORE_PHONE} or book online at nickstire.org to schedule.\n\n— ${STORE_NAME}`;
 }
 
+/**
+ * Lead submission confirmation SMS
+ */
+export function leadConfirmationSms(name: string): string {
+  const firstName = name.split(" ")[0];
+  return `Thanks for contacting ${STORE_NAME}! We received your request and will call you shortly. Questions? Call us at ${STORE_PHONE}`;
+}
 // ─── EXPORTS ───────────────────────────────────────────
 
 export { normalizePhone, STORE_PHONE, STORE_NAME };

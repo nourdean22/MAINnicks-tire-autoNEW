@@ -13,6 +13,7 @@ import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { sendLeadEvent } from "../meta-capi";
 import { logIntegrationFailure } from "../integration-failures";
 import { withRetry } from "../retry";
+import { sendSms, leadConfirmationSms } from "../sms";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -178,6 +179,21 @@ export const leadRouter = router({
         });
       }
 
+      // Send SMS confirmation to customer
+      withRetry(
+        () => sendSms(input.phone, leadConfirmationSms(input.name)),
+        { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (lead confirmation)" }
+      ).catch(err => {
+        console.error("[SMS] Lead confirmation failed:", err);
+        logIntegrationFailure({
+          failureType: "sms",
+          entityId: leadId,
+          entityType: "lead",
+          errorMessage: err instanceof Error ? err.message : String(err),
+          errorDetails: err,
+        });
+      });
+
       return {
         success: true,
         urgencyScore: scoring.score,
@@ -199,7 +215,7 @@ export const leadRouter = router({
     .input(
       z.object({
         id: z.number(),
-        status: z.enum(["new", "contacted", "booked", "closed", "lost"]).optional(),
+        status: z.enum(["new", "contacted", "booked", "completed", "closed", "lost"]).optional(),
         contacted: z.number().min(0).max(1).optional(),
         contactedBy: z.string().optional(),
         contactNotes: z.string().optional(),

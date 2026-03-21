@@ -12,9 +12,9 @@ import {
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView";
+export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
-export type LeadStatus = "new" | "contacted" | "booked" | "closed" | "lost";
+export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
 // ─── CONSTANTS ──────────────────────────────────────────
 export const BOOKING_STATUS_CONFIG: Record<BookingStatus, { label: string; color: string; bgColor: string; icon: React.ReactNode }> = {
@@ -28,6 +28,7 @@ export const LEAD_STATUS_CONFIG: Record<LeadStatus, { label: string; color: stri
   new: { label: "New", color: "text-blue-400", bgColor: "bg-blue-500/10" },
   contacted: { label: "Contacted", color: "text-amber-400", bgColor: "bg-amber-500/10" },
   booked: { label: "Booked", color: "text-emerald-400", bgColor: "bg-emerald-500/10" },
+  completed: { label: "Completed", color: "text-emerald-400", bgColor: "bg-emerald-500/10" },
   closed: { label: "Closed", color: "text-foreground/40", bgColor: "bg-foreground/5" },
   lost: { label: "Lost", color: "text-red-400", bgColor: "bg-red-500/10" },
 };
@@ -69,6 +70,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
       { id: "sms", label: "SMS", icon: <Phone className="w-4 h-4" /> },
       { id: "winback", label: "Win-Back", icon: <RotateCcw className="w-4 h-4" /> },
+      { id: "campaigns", label: "Campaigns", icon: <MessageSquare className="w-4 h-4" /> },
       { id: "autoFollowUp", label: "Auto Follow-Up", icon: <Timer className="w-4 h-4" /> },
       { id: "followups", label: "Follow-Ups", icon: <Send className="w-4 h-4" /> },
     ],
@@ -124,6 +126,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   reviewRequests: "Review Requests",
   customers: "Customer Database",
   winback: "Win-Back Campaigns",
+  campaigns: "SMS Campaigns",
   autoFollowUp: "Automated Follow-Ups",
   settings: "Shop Settings",
   shopdriver: "ShopDriver Sync",

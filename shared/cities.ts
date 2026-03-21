@@ -273,6 +273,81 @@ export const CITIES: CityData[] = [
       author: "James H.",
       location: "Garfield Heights, OH"
     }
+  },
+  {
+    slug: "richmond-heights-auto-repair",
+    name: "Richmond Heights",
+    metaTitle: "Auto Repair Near Richmond Heights, OH | Nick's Tire & Auto | (216) 862-0005",
+    metaDescription: "Trusted auto repair serving Richmond Heights, Ohio. Expert brake, tire, diagnostic, and emissions repair. Honest pricing, 4.9 stars. Call (216) 862-0005.",
+    heroHeadline: "TRUSTED AUTO REPAIR\nNEAR RICHMOND HEIGHTS",
+    heroSubline: "Richmond Heights drivers choose Nick's Tire & Auto for honest diagnostics, expert repairs, and transparent pricing. Just minutes from Richmond Heights on Euclid Avenue.",
+    distance: "6 miles",
+    driveTime: "13 minutes",
+    neighborhoods: ["Center Plaza", "Richmond Center", "Gates Mills border", "Peacock Creek", "Emerson Circle"],
+    localContent: "Richmond Heights residents benefit from our convenient location on Euclid Avenue, making us an easy choice for all your auto repair needs. We serve the Richmond Heights community with the same honest, expert service that has earned us a 4.9-star rating and over 1,685 five-star reviews. Our technicians understand Northeast Ohio driving conditions and provide thorough diagnostics using advanced OBD-II equipment. Whether you need an oil change, brake repair, tire service, or complex engine diagnostics, we handle every job with care and integrity.",
+    serviceHighlights: [
+      "Advanced engine diagnostics for all check engine lights",
+      "Complete brake service — pads, rotors, calipers, and ABS",
+      "Tire sales and professional installation from major brands",
+      "Ohio E-Check and emissions system diagnosis and repair",
+      "Suspension and steering repair",
+      "Oil change service — conventional and synthetic options"
+    ],
+    testimonial: {
+      text: "Living just off Euclid Avenue in Richmond Heights, Nick's is super convenient and always honest. They found an issue that saved me money down the road.",
+      author: "Patricia K.",
+      location: "Richmond Heights, OH"
+    }
+  },
+  {
+    slug: "lyndhurst-auto-repair",
+    name: "Lyndhurst",
+    metaTitle: "Auto Repair Near Lyndhurst, OH | Nick's Tire & Auto | (216) 862-0005",
+    metaDescription: "Auto repair serving Lyndhurst, Ohio. Brakes, tires, engine diagnostics, emissions repair, and general service. 4.9 stars. Call (216) 862-0005.",
+    heroHeadline: "AUTO REPAIR NEAR\nLYNDHURST",
+    heroSubline: "Lyndhurst drivers trust Nick's Tire & Auto for quality repairs, honest diagnostics, and fair pricing. Located just minutes away on Euclid Avenue.",
+    distance: "8 miles",
+    driveTime: "16 minutes",
+    neighborhoods: ["Mayfield Road", "Brainard Road", "Euclid Avenue corridor", "Mayfield Heights border", "Baytowne"],
+    localContent: "Lyndhurst residents appreciate quality service and fair pricing, and that is exactly what Nick's Tire & Auto delivers. Our shop on Euclid Avenue is easily accessible from Lyndhurst via Mayfield Road, making us a convenient choice for your auto repair needs. We have earned the trust of Lyndhurst drivers by showing them exactly what is wrong before recommending any repairs, explaining options in plain language, and charging honest prices. From routine maintenance like oil changes and tire rotations to complex diagnostics and Ohio E-Check repairs, we handle all your vehicle needs.",
+    serviceHighlights: [
+      "Engine diagnostic service using advanced OBD-II scanning",
+      "Brake inspection, repair, and replacement",
+      "New and used tire sales with mounting and balancing",
+      "Emissions testing preparation and E-Check repair",
+      "Cooling system service and repair",
+      "General mechanical repair and maintenance"
+    ],
+    testimonial: {
+      text: "Found Nick's when I moved to Lyndhurst. The honesty and quality of work is impressive. They explain everything and never push unnecessary repairs.",
+      author: "Michael D.",
+      location: "Lyndhurst, OH"
+    }
+  },
+  {
+    slug: "willoughby-auto-repair",
+    name: "Willoughby",
+    metaTitle: "Auto Repair Near Willoughby, OH | Nick's Tire & Auto | (216) 862-0005",
+    metaDescription: "Trusted auto repair serving Willoughby, Ohio. Expert brake, tire, diagnostic, and emissions repair. Honest service, 4.9 stars. Call (216) 862-0005.",
+    heroHeadline: "TRUSTED AUTO REPAIR\nFOR WILLOUGHBY DRIVERS",
+    heroSubline: "Willoughby drivers make the drive to Nick's Tire & Auto for expert diagnostics, honest assessments, and quality repairs at fair prices.",
+    distance: "18 miles",
+    driveTime: "27 minutes",
+    neighborhoods: ["Downtown Willoughby", "Willoughby Hills border", "Euclid Creek area", "Riverside", "Willoughby-Eastlake port area"],
+    localContent: "Many Willoughby drivers have discovered that the drive to Nick's Tire & Auto is worth it for the level of service and integrity they receive. While there are closer shops, our reputation for honest diagnostics and fair pricing brings customers from across Lake County. We use the same advanced diagnostic equipment found in dealerships but charge a fraction of the price. Our experienced technicians diagnose problems accurately the first time, which saves you money and gets you back on the road faster. From routine maintenance to complex repairs, Willoughby drivers trust Nick's.",
+    serviceHighlights: [
+      "Complete engine diagnostic service with OBD-II scanning",
+      "Brake system repair — pads, rotors, calipers, and lines",
+      "Tire sales, mounting, balancing, and TPMS service",
+      "Ohio E-Check failure diagnosis and emissions repair",
+      "Suspension and alignment services",
+      "Electrical system diagnosis and repair"
+    ],
+    testimonial: {
+      text: "Work brought me from Willoughby to Cleveland. Nick's reputation is worth the 30-minute drive. They diagnosed a transmission issue that would have cost me thousands elsewhere.",
+      author: "Lisa T.",
+      location: "Willoughby, OH"
+    }
   }
 ];
 

@@ -105,7 +105,7 @@ export const leads = mysqlTable("leads", {
   companyName: varchar("companyName", { length: 255 }),
   fleetSize: int("fleetSize"),
   vehicleTypes: text("vehicleTypes"),
-  status: mysqlEnum("status", ["new", "contacted", "booked", "closed", "lost"]).default("new").notNull(),
+  status: mysqlEnum("status", ["new", "contacted", "booked", "completed", "closed", "lost"]).default("new").notNull(),
   /** UTM source attribution */
   utmSource: varchar("utmSource", { length: 100 }),
   utmMedium: varchar("utmMedium", { length: 100 }),
@@ -1187,3 +1187,64 @@ export const integrationFailures = mysqlTable("integration_failures", {
 
 export type IntegrationFailure = typeof integrationFailures.$inferSelect;
 export type InsertIntegrationFailure = typeof integrationFailures.$inferInsert;
+
+// 📱 SMS CAMPAIGN SYSTEM
+/**
+ * One-off SMS campaigns for targeted customer outreach.
+ * Supports templates and customer segments.
+ */
+export const smsCampaigns = mysqlTable("sms_campaigns", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Campaign name (e.g., "Spring Maintenance Reminder") */
+  name: varchar("name", { length: 255 }).notNull(),
+  /** Template type: maintenance, seasonal, special_offer, winback */
+  template: mysqlEnum("template", ["maintenance", "seasonal", "special_offer", "winback"]).notNull(),
+  /** Target segment: recent (active last 90 days), lapsed (91-365 days), all */
+  segment: mysqlEnum("segment", ["recent", "lapsed", "all"]).notNull(),
+  /** Custom message if not using template */
+  customMessage: text("customMessage"),
+  /** Total count of customers in segment */
+  targetCount: int("targetCount").default(0).notNull(),
+  /** Number of SMS sent */
+  sentCount: int("sentCount").default(0).notNull(),
+  /** Number of SMS failed */
+  failedCount: int("failedCount").default(0).notNull(),
+  /** Campaign status: draft, active (in progress), completed */
+  status: mysqlEnum("status", ["draft", "active", "completed"]).default("draft").notNull(),
+  /** When campaign started sending */
+  startedAt: timestamp("startedAt"),
+  /** When campaign finished */
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SmsCampaign = typeof smsCampaigns.$inferSelect;
+export type InsertSmsCampaign = typeof smsCampaigns.$inferInsert;
+
+/**
+ * Individual SMS sends tracked for each campaign send.
+ */
+export const smsCampaignSends = mysqlTable("sms_campaign_sends", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Reference to the campaign */
+  campaignId: int("campaignId").notNull(),
+  /** Reference to customer */
+  customerId: int("customerId").notNull(),
+  /** Normalized phone number that was sent to */
+  phone: varchar("phone", { length: 20 }).notNull(),
+  /** Actual message body sent */
+  messageBody: text("messageBody").notNull(),
+  /** Twilio message SID for tracking */
+  twilioSid: varchar("twilioSid", { length: 100 }),
+  /** Status: pending, sent, failed */
+  status: mysqlEnum("status", ["pending", "sent", "failed"]).default("pending").notNull(),
+  /** Error message if failed */
+  errorMessage: text("errorMessage"),
+  /** When SMS was actually sent */
+  sentAt: timestamp("sentAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type SmsCampaignSend = typeof smsCampaignSends.$inferSelect;
+export type InsertSmsCampaignSend = typeof smsCampaignSends.$inferInsert;

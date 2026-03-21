@@ -89,6 +89,9 @@ function Router() {
         <Route path={"/strongsville-auto-repair"} component={CityPage} />
         <Route path={"/south-euclid-auto-repair"} component={CityPage} />
         <Route path={"/garfield-heights-auto-repair"} component={CityPage} />
+        <Route path={"/richmond-heights-auto-repair"} component={CityPage} />
+        <Route path={"/lyndhurst-auto-repair"} component={CityPage} />
+        <Route path={"/willoughby-auto-repair"} component={CityPage} />
         {/* Seasonal landing pages */}
         <Route path={"/winter-car-care-cleveland"} component={SeasonalPage} />
         <Route path={"/summer-car-care-cleveland"} component={SeasonalPage} />

@@ -44,6 +44,7 @@ import {
   portalRouter,
   gatewayTireRouter,
   autoLaborRouter,
+  campaignsRouter,
   callTrackingRouter,
   exportRouter,
 } from "./routers/index";
@@ -107,6 +108,9 @@ export const appRouter = router({
   // Attribution & Export
   callTracking: callTrackingRouter,
   export: exportRouter,
+
+  // SMS Campaigns
+  campaigns: campaignsRouter,
 
   // Business Integrations
   gatewayTire: gatewayTireRouter,

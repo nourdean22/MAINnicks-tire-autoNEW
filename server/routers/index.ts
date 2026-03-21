@@ -30,3 +30,4 @@ export { shopdriverRouter } from "./shopdriver";
 export { jobAssignmentsRouter, invoicesRouter, kpiRouter, portalRouter } from "./advanced";
 export { gatewayTireRouter } from "./gatewayTire";
 export { autoLaborRouter } from "./autoLabor";
+export { campaignsRouter } from "./campaigns";

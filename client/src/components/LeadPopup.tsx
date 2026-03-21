@@ -66,9 +66,12 @@ export default function LeadPopup() {
     const timer = setTimeout(show, delay);
 
     // Scroll depth trigger — works on all devices
+    // Guard: don't fire from scroll until at least 10s on page (prevents false triggers during page load)
     const onScroll = () => {
+      const timeOnPage = Date.now() - mountTimeRef.current;
+      if (timeOnPage < 10000) return; // minimum 10s before scroll can trigger
       const docHeight = document.body.scrollHeight - window.innerHeight;
-      if (docHeight <= 0) return;
+      if (docHeight <= 100) return; // page must be tall enough
       const scrolled = window.scrollY / docHeight;
       if (scrolled >= SCROLL_THRESHOLD) {
         show();
