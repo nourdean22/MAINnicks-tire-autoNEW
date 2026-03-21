@@ -54,6 +54,7 @@ export const SERVICES: ServiceData[] = [
     heroCTA: "GET A TIRE QUOTE",
     turnaround: "Most tire installations completed in under an hour. Walk-ins welcome.",
     pricingNote: "Free tire pressure checks · Fair prices on all major brands · Quality used tires available",
+    urgencyNote: "Tires below the legal tread limit triple your stopping distance on wet roads. Cleveland's freeze-thaw cycles and potholes accelerate wear — don't wait for a blowout.",
     signs: [
       "Tread depth below 2/32 of an inch (the penny test)",
       "Visible cracks, bulges, or blisters on the sidewall",
@@ -202,6 +203,7 @@ export const SERVICES: ServiceData[] = [
     heroCTA: "SCHEDULE DIAGNOSTICS",
     turnaround: "Most diagnostic scans completed within the hour. Complex issues may require extended testing.",
     pricingNote: "Diagnostic fee applies toward repair · No charge for code reading · Written estimate before any work",
+    urgencyNote: "Ignoring a check engine light can turn a $200 sensor repair into a $1,500 catalytic converter replacement. Early diagnosis costs far less than delayed damage.",
     signs: [
       "Check engine light or service engine soon light on",
       "Multiple warning lights illuminated at once",
