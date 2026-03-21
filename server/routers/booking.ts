@@ -20,6 +20,8 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { bookings } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
+import { logIntegrationFailure } from "../integration-failures";
+import { withRetry } from "../retry";
 
 // ─── LABOR GUIDE REFERENCE (for auto-invoice labor estimation) ───
 const SERVICE_LABOR_MAP: Record<string, { hours: number; description: string }> = {
@@ -86,33 +88,39 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
   });
 
   // Sync to Google Sheets
-  await syncInvoiceToSheet({
-    invoiceNumber,
-    customerName: booking.name,
-    customerPhone: booking.phone,
-    vehicleInfo: booking.vehicle,
-    serviceDescription: labor.description,
-    laborHours: labor.hours,
-    laborRate,
-    laborCost: laborCost / 100,
-    partsCost: 0,
-    taxAmount: taxAmount / 100,
-    totalAmount: totalAmount / 100,
-    paymentMethod: "card",
-    paymentStatus: "pending",
-    source: "booking",
-    orderRef: booking.referenceCode || null,
-    notes: `Auto-generated from booking #${booking.id}`,
-  });
+  await withRetry(
+    () => syncInvoiceToSheet({
+      invoiceNumber,
+      customerName: booking.name,
+      customerPhone: booking.phone,
+      vehicleInfo: booking.vehicle,
+      serviceDescription: labor.description,
+      laborHours: labor.hours,
+      laborRate,
+      laborCost: laborCost / 100,
+      partsCost: 0,
+      taxAmount: taxAmount / 100,
+      totalAmount: totalAmount / 100,
+      paymentMethod: "card",
+      paymentStatus: "pending",
+      source: "booking",
+      orderRef: booking.referenceCode || null,
+      notes: `Auto-generated from booking #${booking.id}`,
+    }),
+    { maxRetries: 3, baseDelayMs: 1000, label: "syncInvoiceToSheet" }
+  );
 
   // Notify CEO about the auto-generated invoice
-  notifyInvoiceCreated({
-    invoiceNumber,
-    customerName: booking.name,
-    totalAmount: totalAmount / 100,
-    source: "booking",
-    serviceDescription: labor.description,
-  }).catch(() => {});
+  withRetry(
+    () => notifyInvoiceCreated({
+      invoiceNumber,
+      customerName: booking.name,
+      totalAmount: totalAmount / 100,
+      source: "booking",
+      serviceDescription: labor.description,
+    }),
+    { maxRetries: 3, baseDelayMs: 1000, label: "notifyInvoiceCreated" }
+  ).catch(() => {});
 
   console.log(`[Invoice] Auto-created ${invoiceNumber} for booking #${booking.id} — $${(totalAmount / 100).toFixed(2)}`);
 }
@@ -204,32 +212,66 @@ export const bookingRouter = router({
         referrer: input.referrer || null,
       });
 
-      syncBookingToSheet({
-        name: input.name,
-        phone: input.phone,
-        email: input.email,
-        service: input.service,
-        vehicle: vehicleStr || input.vehicle,
-        preferredDate: input.preferredDate,
-        preferredTime: input.preferredTime,
-        message: input.message,
-      }).catch(err => console.error("[Sheets] Booking sync failed:", err));
+      withRetry(
+        () => syncBookingToSheet({
+          name: input.name,
+          phone: input.phone,
+          email: input.email,
+          service: input.service,
+          vehicle: vehicleStr || input.vehicle,
+          preferredDate: input.preferredDate,
+          preferredTime: input.preferredTime,
+          message: input.message,
+        }),
+        { maxRetries: 3, baseDelayMs: 1000, label: "syncBookingToSheet" }
+      ).catch(err => {
+        console.error("[Sheets] Booking sync failed:", err);
+        logIntegrationFailure({
+          failureType: "sheets_sync",
+          entityId: result.id,
+          entityType: "booking",
+          errorMessage: err instanceof Error ? err.message : String(err),
+          errorDetails: err,
+        });
+      });
 
-      notifyNewBooking({
-        name: input.name,
-        phone: input.phone,
-        service: input.service,
-        vehicle: vehicleStr || undefined,
-        date: input.preferredDate || undefined,
-        time: input.preferredTime,
-        notes: input.message || undefined,
-        urgency: input.urgency,
-        refCode,
-      }).catch(err => console.error("[Booking] Email notification failed:", err));
+      withRetry(
+        () => notifyNewBooking({
+          name: input.name,
+          phone: input.phone,
+          service: input.service,
+          vehicle: vehicleStr || undefined,
+          date: input.preferredDate || undefined,
+          time: input.preferredTime,
+          notes: input.message || undefined,
+          urgency: input.urgency,
+          refCode,
+        }),
+        { maxRetries: 3, baseDelayMs: 1000, label: "notifyNewBooking" }
+      ).catch(err => {
+        console.error("[Booking] Email notification failed:", err);
+        logIntegrationFailure({
+          failureType: "email",
+          entityId: result.id,
+          entityType: "booking",
+          errorMessage: err instanceof Error ? err.message : String(err),
+          errorDetails: err,
+        });
+      });
 
-      sendSms(input.phone, bookingConfirmationSms(input.name, input.service, refCode)).catch(err =>
-        console.error("[SMS] Booking confirmation failed:", err)
-      );
+      withRetry(
+        () => sendSms(input.phone, bookingConfirmationSms(input.name, input.service, refCode)),
+        { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (booking confirmation)" }
+      ).catch(err => {
+        console.error("[SMS] Booking confirmation failed:", err);
+        logIntegrationFailure({
+          failureType: "sms",
+          entityId: result.id,
+          entityType: "booking",
+          errorMessage: err instanceof Error ? err.message : String(err),
+          errorDetails: err,
+        });
+      });
 
       // Meta Conversions API: Send server-side Lead + Schedule events
       if (input.pixelEventIds) {
@@ -241,20 +283,44 @@ export const bookingRouter = router({
           fbc: input.pixelUserData?.fbc,
           fbp: input.pixelUserData?.fbp,
         };
-        sendLeadEvent({
-          eventId: input.pixelEventIds.leadEventId,
-          sourceUrl: "https://nickstire.org",
-          contentName: "Booking Form Submission",
-          contentCategory: input.service,
-          ...capiUserData,
-        }).catch(err => console.error("[CAPI] Lead event failed:", err));
-        sendScheduleEvent({
-          eventId: input.pixelEventIds.scheduleEventId,
-          sourceUrl: "https://nickstire.org",
-          service: input.service,
-          vehicle: vehicleStr || undefined,
-          ...capiUserData,
-        }).catch(err => console.error("[CAPI] Schedule event failed:", err));
+        withRetry(
+          () => sendLeadEvent({
+            eventId: input.pixelEventIds.leadEventId,
+            sourceUrl: "https://nickstire.org",
+            contentName: "Booking Form Submission",
+            contentCategory: input.service,
+            ...capiUserData,
+          }),
+          { maxRetries: 3, baseDelayMs: 1000, label: "sendLeadEvent (booking)" }
+        ).catch(err => {
+          console.error("[CAPI] Lead event failed:", err);
+          logIntegrationFailure({
+            failureType: "capi",
+            entityId: result.id,
+            entityType: "booking",
+            errorMessage: err instanceof Error ? err.message : String(err),
+            errorDetails: err,
+          });
+        });
+        withRetry(
+          () => sendScheduleEvent({
+            eventId: input.pixelEventIds.scheduleEventId,
+            sourceUrl: "https://nickstire.org",
+            service: input.service,
+            vehicle: vehicleStr || undefined,
+            ...capiUserData,
+          }),
+          { maxRetries: 3, baseDelayMs: 1000, label: "sendScheduleEvent (booking)" }
+        ).catch(err => {
+          console.error("[CAPI] Schedule event failed:", err);
+          logIntegrationFailure({
+            failureType: "capi",
+            entityId: result.id,
+            entityType: "booking",
+            errorMessage: err instanceof Error ? err.message : String(err),
+            errorDetails: err,
+          });
+        });
       }
 
       return { ...result, referenceCode: refCode };
@@ -297,7 +363,16 @@ export const bookingRouter = router({
               .then(r => {
                 // Review request handled
               })
-              .catch(err => console.error(`[ReviewRequest] Error scheduling for booking #${booking.id}:`, err));
+              .catch(err => {
+                console.error(`[ReviewRequest] Error scheduling for booking #${booking.id}:`, err);
+                logIntegrationFailure({
+                  failureType: "review_request",
+                  entityId: booking.id,
+                  entityType: "booking",
+                  errorMessage: err instanceof Error ? err.message : String(err),
+                  errorDetails: err,
+                });
+              });
 
             // Auto-schedule maintenance reminders based on service type
             scheduleRemindersForBooking({
@@ -310,12 +385,28 @@ export const bookingRouter = router({
               .then((ids: number[]) => {
                 // Reminders scheduled
               })
-              .catch((err: unknown) => console.error(`[Reminders] Error scheduling for booking #${booking.id}:`, err));
+              .catch((err: unknown) => {
+                console.error(`[Reminders] Error scheduling for booking #${booking.id}:`, err);
+                logIntegrationFailure({
+                  failureType: "reminders",
+                  entityId: booking.id,
+                  entityType: "booking",
+                  errorMessage: err instanceof Error ? err.message : String(err),
+                  errorDetails: err,
+                });
+              });
 
             // Auto-create invoice from completed booking
-            autoCreateInvoiceFromBooking(d, booking).catch(err =>
-              console.error(`[Invoice] Error auto-creating for booking #${booking.id}:`, err)
-            );
+            autoCreateInvoiceFromBooking(d, booking).catch(err => {
+              console.error(`[Invoice] Error auto-creating for booking #${booking.id}:`, err);
+              logIntegrationFailure({
+                failureType: "invoice",
+                entityId: booking.id,
+                entityType: "booking",
+                errorMessage: err instanceof Error ? err.message : String(err),
+                errorDetails: err,
+              });
+            });
           }
         }
       }
@@ -365,9 +456,19 @@ export const bookingRouter = router({
           });
 
           if (booking.phone) {
-            sendSms(booking.phone, statusUpdateSms(booking.name, input.stage, booking.referenceCode || undefined)).catch(err =>
-              console.error("[SMS] Status update failed:", err)
-            );
+            withRetry(
+              () => sendSms(booking.phone, statusUpdateSms(booking.name, input.stage, booking.referenceCode || undefined)),
+              { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (status update)" }
+            ).catch(err => {
+              console.error("[SMS] Status update failed:", err);
+              logIntegrationFailure({
+                failureType: "sms",
+                entityId: booking.id,
+                entityType: "booking",
+                errorMessage: err instanceof Error ? err.message : String(err),
+                errorDetails: err,
+              });
+            });
           }
         }
       }

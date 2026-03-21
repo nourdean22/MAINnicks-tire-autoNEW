@@ -63,7 +63,7 @@ function Navbar() {
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-background/90 backdrop-blur-xl" : "bg-transparent"}`}>
       <div className="container flex items-center justify-between h-16">
         {/* Logo — minimal wordmark */}
-        <a href="#" className="flex items-center gap-2.5">
+        <a href="/" className="flex items-center gap-2.5">
           <span className="text-primary font-semibold text-lg tracking-tight">Nick's Tire & Auto</span>
         </a>
 

@@ -1148,3 +1148,42 @@ export const callEvents = mysqlTable("call_events", {
 
 export type CallEvent = typeof callEvents.$inferSelect;
 export type InsertCallEvent = typeof callEvents.$inferInsert;
+
+// 🔴 INTEGRATION FAILURES (Error Tracking)
+/**
+ * Tracks failed integrations (Sheets sync, email, SMS, CAPI, etc.) for visibility
+ * Admin dashboard queries this to surface issues that would otherwise be silent
+ */
+export const integrationFailures = mysqlTable("integration_failures", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Type of integration that failed */
+  failureType: mysqlEnum("failureType", [
+    "sheets_sync",
+    "email",
+    "sms",
+    "capi",
+    "review_request",
+    "reminders",
+    "invoice",
+  ]).notNull(),
+  /** Entity ID (booking ID, lead ID, invoice ID, etc.) */
+  entityId: int("entityId"),
+  /** Type of entity (booking, lead, invoice, reminder, review) */
+  entityType: mysqlEnum("entityType", [
+    "booking",
+    "lead",
+    "invoice",
+    "reminder",
+    "review",
+  ]).notNull(),
+  /** Error message from the failed call */
+  errorMessage: text("errorMessage").notNull(),
+  /** JSON stringified error details for debugging */
+  errorDetails: text("errorDetails"),
+  /** Timestamp when the failure was resolved (null = unresolved) */
+  resolvedAt: timestamp("resolvedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type IntegrationFailure = typeof integrationFailures.$inferSelect;
+export type InsertIntegrationFailure = typeof integrationFailures.$inferInsert;

@@ -4,6 +4,13 @@
  * Integrates with Google Analytics 4 for attribution and reporting
  */
 
+// Extend Window interface to include gtag
+declare global {
+  interface Window {
+    gtag?: (command: string, eventName: string, eventData?: Record<string, unknown>) => void;
+  }
+}
+
 export interface GA4Event {
   event_name: string;
   parameters: Record<string, string | number | boolean>;
@@ -16,7 +23,7 @@ export interface GA4Event {
 export function initGA4() {
   // GA4 is loaded via script tag in index.html
   // Check if gtag is available
-  if (typeof window !== 'undefined' && (window as any).gtag) {
+  if (typeof window !== 'undefined' && window.gtag) {
     console.log('[GA4] Initialized');
   }
 }
@@ -31,11 +38,11 @@ export function trackFormSubmission(formType: 'booking' | 'lead' | 'callback', d
   source?: string;
   eventId?: string;
 }) {
-  if (typeof window === 'undefined' || !(window as any).gtag) return;
+  if (typeof window === 'undefined' || !window.gtag) return;
 
   const eventName = `form_submission_${formType}`;
   
-  (window as any).gtag('event', eventName, {
+  window.gtag('event', eventName, {
     event_category: 'form',
     event_label: formType,
     form_type: formType,
@@ -56,9 +63,9 @@ export function trackPhoneClick(context: string, data?: {
   page?: string;
   eventId?: string;
 }) {
-  if (typeof window === 'undefined' || !(window as any).gtag) return;
+  if (typeof window === 'undefined' || !window.gtag) return;
 
-  (window as any).gtag('event', 'phone_click', {
+  window.gtag('event', 'phone_click', {
     event_category: 'engagement',
     event_label: context,
     source: data?.source || 'direct',
@@ -77,9 +84,9 @@ export function trackServiceView(serviceType: string, data?: {
   section?: string;
   scrollDepth?: number;
 }) {
-  if (typeof window === 'undefined' || !(window as any).gtag) return;
+  if (typeof window === 'undefined' || !window.gtag) return;
 
-  (window as any).gtag('event', 'view_service', {
+  window.gtag('event', 'view_service', {
     event_category: 'content',
     service_type: serviceType,
     section: data?.section || 'overview',
@@ -100,9 +107,9 @@ export function trackChatInteraction(action: 'start' | 'message' | 'convert', da
   messageCount?: number;
   eventId?: string;
 }) {
-  if (typeof window === 'undefined' || !(window as any).gtag) return;
+  if (typeof window === 'undefined' || !window.gtag) return;
 
-  (window as any).gtag('event', `chat_${action}`, {
+  window.gtag('event', `chat_${action}`, {
     event_category: 'engagement',
     event_label: action,
     vehicle_info: data?.vehicleInfo,
@@ -123,9 +130,9 @@ export function trackSearch(query: string, data?: {
   category?: string;
   eventId?: string;
 }) {
-  if (typeof window === 'undefined' || !(window as any).gtag) return;
+  if (typeof window === 'undefined' || !window.gtag) return;
 
-  (window as any).gtag('event', 'search', {
+  window.gtag('event', 'search', {
     event_category: 'engagement',
     search_term: query,
     result_count: data?.resultCount || 0,
@@ -147,9 +154,9 @@ export function trackPageView(pagePath: string, data?: {
   utm_medium?: string;
   utm_campaign?: string;
 }) {
-  if (typeof window === 'undefined' || !(window as any).gtag) return;
+  if (typeof window === 'undefined' || !window.gtag) return;
 
-  (window as any).gtag('event', 'page_view', {
+  window.gtag('event', 'page_view', {
     page_path: pagePath,
     page_title: data?.pageTitle || document.title,
     referrer: data?.referrer || document.referrer,

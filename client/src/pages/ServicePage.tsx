@@ -543,39 +543,78 @@ function OtherServices({ currentSlug }: { currentSlug: string }) {
 
 // ─── JSON-LD SCHEMA ────────────────────────────────────
 function ServiceSchema({ service }: { service: ServiceData }) {
+  // Normalize service names for Google schema
+  const serviceNameMap: Record<string, string> = {
+    tires: "Tire Service",
+    brakes: "Brake Repair Service",
+    diagnostics: "Automotive Diagnostics Service",
+    emissions: "Emissions Testing & Repair Service",
+    "oil-change": "Oil Change Service",
+    "general-repair": "General Automotive Repair Service",
+  };
+
   const schema = {
     "@context": "https://schema.org",
     "@type": "Service",
-    name: service.title === "EMISSIONS & E-CHECK" ? "Ohio E-Check & Emissions Repair" : `${service.title.charAt(0)}${service.title.slice(1).toLowerCase()} Service`,
-    description: service.metaDescription,
+    name: serviceNameMap[service.slug] || `${service.title} Service`,
+    description: service.shortDesc,
     provider: {
-      "@type": "AutoRepair",
-      name: "Nick's Tire & Auto",
+      "@type": ["LocalBusiness", "AutoRepair", "TireShop"],
+      name: BUSINESS.name,
+      image: `${BUSINESS.urls.website}/favicon.ico`,
+      description: BUSINESS.seo.defaultDescription,
       address: {
         "@type": "PostalAddress",
         streetAddress: BUSINESS.address.street,
-        addressLocality: "Cleveland",
-        addressRegion: "OH",
-        postalCode: "44112",
+        addressLocality: BUSINESS.address.city,
+        addressRegion: BUSINESS.address.state,
+        postalCode: BUSINESS.address.zip,
         addressCountry: "US",
       },
+      geo: {
+        "@type": "GeoCoordinates",
+        latitude: BUSINESS.geo.lat,
+        longitude: BUSINESS.geo.lng,
+      },
       telephone: `+1-${BUSINESS.phone.dashed}`,
-      url: "https://nickstire.org",
-      hasMap: BUSINESS.urls.googleBusiness,
-      sameAs: [...BUSINESS.sameAs],
+      url: BUSINESS.urls.website,
+      openingHoursSpecification: {
+        "@type": "OpeningHoursSpecification",
+        dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+        opens: "09:00",
+        closes: "18:00",
+      },
       aggregateRating: {
         "@type": "AggregateRating",
-        ratingValue: String(BUSINESS.reviews.rating),
-        reviewCount: String(BUSINESS.reviews.count),
+        ratingValue: BUSINESS.reviews.rating,
+        reviewCount: BUSINESS.reviews.count,
+        bestRating: 5,
+      },
+      hasMap: BUSINESS.urls.googleBusiness,
+      sameAs: BUSINESS.sameAs,
+    },
+    areaServed: {
+      "@type": "City",
+      name: "Cleveland",
+    },
+    serviceType: `${service.title} Service`,
+    availableAt: {
+      "@type": "Place",
+      name: BUSINESS.name,
+      address: {
+        "@type": "PostalAddress",
+        streetAddress: BUSINESS.address.street,
+        addressLocality: BUSINESS.address.city,
+        addressRegion: BUSINESS.address.state,
+        postalCode: BUSINESS.address.zip,
+        addressCountry: "US",
+      },
+      geo: {
+        "@type": "GeoCoordinates",
+        latitude: BUSINESS.geo.lat,
+        longitude: BUSINESS.geo.lng,
       },
     },
-    areaServed: [
-      { "@type": "City", name: "Cleveland" },
-      { "@type": "City", name: "Euclid" },
-      { "@type": "City", name: "East Cleveland" },
-      { "@type": "City", name: "South Euclid" },
-      { "@type": "City", name: "Richmond Heights" },
-    ],
   };
 
   const allFAQs = [

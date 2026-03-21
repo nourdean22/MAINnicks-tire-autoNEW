@@ -11,6 +11,8 @@ import { eq, desc } from "drizzle-orm";
 import { leads } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { sendLeadEvent } from "../meta-capi";
+import { logIntegrationFailure } from "../integration-failures";
+import { withRetry } from "../retry";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -87,49 +89,93 @@ export const leadRouter = router({
         referrer: input.referrer || null,
       });
 
-      syncLeadToSheet({
-        name: input.name,
-        phone: input.phone,
-        email: input.email,
-        vehicle: input.vehicle,
-        problem: input.problem,
-        source: input.source,
-        urgencyScore: scoring.score,
-        urgencyReason: scoring.reason,
-        recommendedService: scoring.recommendedService,
-      }).catch(err => console.error("[Sheets] Lead sync failed:", err));
+      // Get the lead ID after insert to associate failures with the lead
+      const insertedLead = await d
+        .select()
+        .from(leads)
+        .orderBy(desc(leads.createdAt))
+        .limit(1);
+      const leadId = insertedLead[0]?.id || null;
+
+      withRetry(
+        () => syncLeadToSheet({
+          name: input.name,
+          phone: input.phone,
+          email: input.email,
+          vehicle: input.vehicle,
+          problem: input.problem,
+          source: input.source,
+          urgencyScore: scoring.score,
+          urgencyReason: scoring.reason,
+          recommendedService: scoring.recommendedService,
+        }),
+        { maxRetries: 3, baseDelayMs: 1000, label: "syncLeadToSheet" }
+      ).catch(err => {
+        console.error("[Sheets] Lead sync failed:", err);
+        logIntegrationFailure({
+          failureType: "sheets_sync",
+          entityId: leadId,
+          entityType: "lead",
+          errorMessage: err instanceof Error ? err.message : String(err),
+          errorDetails: err,
+        });
+      });
 
       // Send email notification for all leads (routing handles urgency)
-      notifyNewLead({
-        name: input.name,
-        phone: input.phone,
-        email: input.email || undefined,
-        source: input.source,
-        vehicle: input.vehicle || undefined,
-        problem: input.problem || undefined,
-        urgencyScore: scoring.score,
-        urgencyReason: scoring.reason,
-        recommendedService: scoring.recommendedService,
-        companyName: input.companyName || undefined,
-        fleetSize: input.fleetSize || undefined,
-        vehicleTypes: input.vehicleTypes || undefined,
-      }).catch(err => console.error("[Lead] Email notification failed:", err));
+      withRetry(
+        () => notifyNewLead({
+          name: input.name,
+          phone: input.phone,
+          email: input.email || undefined,
+          source: input.source,
+          vehicle: input.vehicle || undefined,
+          problem: input.problem || undefined,
+          urgencyScore: scoring.score,
+          urgencyReason: scoring.reason,
+          recommendedService: scoring.recommendedService,
+          companyName: input.companyName || undefined,
+          fleetSize: input.fleetSize || undefined,
+          vehicleTypes: input.vehicleTypes || undefined,
+        }),
+        { maxRetries: 3, baseDelayMs: 1000, label: "notifyNewLead" }
+      ).catch(err => {
+        console.error("[Lead] Email notification failed:", err);
+        logIntegrationFailure({
+          failureType: "email",
+          entityId: leadId,
+          entityType: "lead",
+          errorMessage: err instanceof Error ? err.message : String(err),
+          errorDetails: err,
+        });
+      });
 
       // Meta Conversions API: Send server-side Lead event
       if (input.pixelEventId) {
         const nameParts = (input.name || "").split(" ");
-        sendLeadEvent({
-          eventId: input.pixelEventId,
-          sourceUrl: "https://nickstire.org",
-          phone: input.phone,
-          email: input.email || undefined,
-          name: input.name,
-          userAgent: input.pixelUserData?.client_user_agent,
-          fbc: input.pixelUserData?.fbc,
-          fbp: input.pixelUserData?.fbp,
-          contentName: input.source === "fleet" ? "Fleet Inquiry" : "Lead Form Submission",
-          contentCategory: input.source || "popup",
-        }).catch(err => console.error("[CAPI] Lead event failed:", err));
+        withRetry(
+          () => sendLeadEvent({
+            eventId: input.pixelEventId,
+            sourceUrl: "https://nickstire.org",
+            phone: input.phone,
+            email: input.email || undefined,
+            name: input.name,
+            userAgent: input.pixelUserData?.client_user_agent,
+            fbc: input.pixelUserData?.fbc,
+            fbp: input.pixelUserData?.fbp,
+            contentName: input.source === "fleet" ? "Fleet Inquiry" : "Lead Form Submission",
+            contentCategory: input.source || "popup",
+          }),
+          { maxRetries: 3, baseDelayMs: 1000, label: "sendLeadEvent (lead)" }
+        ).catch(err => {
+          console.error("[CAPI] Lead event failed:", err);
+          logIntegrationFailure({
+            failureType: "capi",
+            entityId: leadId,
+            entityType: "lead",
+            errorMessage: err instanceof Error ? err.message : String(err),
+            errorDetails: err,
+          });
+        });
       }
 
       return {

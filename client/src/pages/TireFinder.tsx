@@ -16,6 +16,7 @@ import {
   CheckCircle2, Info, Gift, Sparkles, BadgeCheck, Wrench, Gauge,
   CircleCheck, Timer, Heart, AlertTriangle, Users, Zap, ThumbsUp, Award, MapPin,
 } from "lucide-react";
+import { BUSINESS } from "@shared/business";
 import { motion, AnimatePresence } from "framer-motion";
 
 // ─── HELPERS ──────────────────────────────────────────
@@ -787,6 +788,17 @@ export default function TireFinder() {
               ) : data?.tires && data.tires.length > 0 ? (
                 <>
                   {/* Nick's Package Banner — THE KEY PIECE */}
+
+                  {/* Trust strip — Social proof section */}
+                  <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 py-4 border-y border-foreground/10 text-sm text-foreground/60 mb-8">
+                    <span className="flex items-center gap-1.5 whitespace-nowrap">
+                      <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 flex-shrink-0" />
+                      {BUSINESS.reviews.rating} stars · {BUSINESS.reviews.countDisplay} reviews
+                    </span>
+                    <span className="hidden sm:inline">✓ Fair prices, no pressure</span>
+                    <span className="hidden sm:inline">✓ All major brands</span>
+                    <span className="hidden sm:inline">✓ Same-day installation</span>
+                  </div>
                   <PackageBanner packageData={packageData} />
 
                   {/* Results header */}
@@ -922,10 +934,27 @@ export default function TireFinder() {
                 </>
               ) : (
                 <div className="text-center py-16">
+                  <AlertTriangle className="w-8 h-8 text-orange-500/50 mx-auto mb-4" />
                   <p className="text-muted-foreground mb-2">No tires found for "{activeSearch}"</p>
-                  <p className="text-sm text-muted-foreground">
-                    Try a different size or <a href="tel:2168620005" className="text-primary hover:underline">call us</a> for help.
+                  <p className="text-sm text-muted-foreground mb-6">
+                    Try a different size or we can help you find the right fit.
                   </p>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <a
+                      href="tel:2168620005"
+                      className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+                    >
+                      <Phone className="w-4 h-4" />
+                      Call Us — (216) 862-0005
+                    </a>
+                    <button
+                      onClick={() => setSearchInput("")}
+                      className="inline-flex items-center justify-center gap-2 bg-card border border-border/30 text-foreground px-6 py-3 rounded-md text-sm font-medium hover:bg-card/80 transition-colors"
+                    >
+                      Try Different Size
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-6">Walk-ins welcome • 17625 Euclid Ave • Mon–Sat 9AM–6PM</p>
                 </div>
               )}
             </div>

@@ -9,6 +9,18 @@ import { Instagram, Heart, MessageCircle, Play } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 
+interface InstagramPost {
+  id: string;
+  caption?: string;
+  mediaUrl?: string;
+  thumbnailUrl?: string;
+  type: "IMAGE" | "VIDEO" | "CAROUSEL";
+  likes: number;
+  comments: number;
+  posted: string;
+  link: string;
+}
+
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-80px" });
@@ -114,9 +126,9 @@ export default function InstagramFeed() {
                   >
                     {/* Post image or video thumbnail */}
                     <div className="relative aspect-square bg-background/60 overflow-hidden">
-                      {(post as any).mediaUrl || (post as any).thumbnailUrl ? (
+                      {post.mediaUrl || post.thumbnailUrl ? (
                         <img
-                          src={(post as any).thumbnailUrl || (post as any).mediaUrl}
+                          src={post.thumbnailUrl || post.mediaUrl}
                           alt={post.caption ? truncateCaption(post.caption, 80) : "Instagram post"}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           loading="lazy"

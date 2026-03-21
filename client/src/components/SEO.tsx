@@ -7,6 +7,15 @@ import { useEffect } from "react";
 import { Link } from "wouter";
 import { ChevronRight } from "lucide-react";
 
+// Extend Window interface to include umami
+declare global {
+  interface Window {
+    umami?: {
+      track: (event: string, data?: Record<string, unknown>) => void;
+    };
+  }
+}
+
 const BASE_URL = "https://nickstire.org";
 
 interface BreadcrumbItem {
@@ -156,8 +165,8 @@ export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
  */
 export function trackPhoneClick(source: string) {
   // Fire analytics event if umami is available
-  if (typeof window !== "undefined" && (window as any).umami) {
-    (window as any).umami.track("phone_click", { source });
+  if (typeof window !== "undefined" && window.umami) {
+    window.umami.track("phone_click", { source });
   }
   // Meta Pixel: Track phone call as a Contact conversion event
   import("@/lib/metaPixel").then(({ trackPhoneCall }) => {
