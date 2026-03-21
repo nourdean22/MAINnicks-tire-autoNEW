@@ -11,6 +11,8 @@ import { BUSINESS } from "@shared/business";
 const SERVICES = [
   "Tires — New, Used, Repair",
   "Brake Repair",
+  "Wheel Alignment",
+  "TPMS / Tire Sensors",
   "Check Engine Light / Diagnostics",
   "Ohio E-Check / Emissions Repair",
   "Oil Change",

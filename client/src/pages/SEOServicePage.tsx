@@ -2,22 +2,14 @@ import PageLayout from "@/components/PageLayout";
 import { useParams } from "wouter";
 import { Link } from "wouter";
 import { Phone, ChevronRight, AlertTriangle } from "lucide-react";
-import { useRef } from "react";
-import { motion, useInView } from "framer-motion";
+import { motion } from "framer-motion";
+import FadeIn from "@/components/FadeIn";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { getSEOServiceBySlug } from "@shared/seo-pages";
 import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
 
-function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-80px" });
-  return (
-    <motion.div ref={ref} initial={{ opacity: 0, y: 30 }} animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }} transition={{ duration: 0.5, delay, ease: "easeOut" }} className={className}>
-      {children}
-    </motion.div>
-  );
-}
+
 
 function trackPhoneClick(location: string) {
   if (typeof window !== "undefined" && (window as any).gtag) {
@@ -222,6 +214,12 @@ export default function SEOServicePage() {
             "addressLocality": "Cleveland",
             "addressRegion": "OH",
             "postalCode": "44112"
+          },
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": BUSINESS.reviews.rating,
+            "reviewCount": BUSINESS.reviews.count,
+            "bestRating": "5"
           },
           "hasMap": BUSINESS.urls.googleBusiness,
           "sameAs": [...BUSINESS.sameAs]

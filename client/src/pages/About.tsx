@@ -1,30 +1,20 @@
 /**
- * /about — Tesla-style About page.
- * Clean, minimal, photography-driven.
+ * /about — About Nick's Tire & Auto.
+ * Trust-building page with full story, philosophy, and community focus.
  */
 import InternalLinks from "@/components/InternalLinks";
-import { useRef } from "react";
 import { Link } from "wouter";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
-import { Phone, Star, ArrowRight } from "lucide-react";
-import { motion, useInView } from "framer-motion";
+import { Phone, Star, ArrowRight, CreditCard } from "lucide-react";
+import { motion } from "framer-motion";
+import FadeIn from "@/components/FadeIn";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 const DIAG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp";
-
-function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-60px" });
-  return (
-    <motion.div ref={ref} initial={{ opacity: 0, y: 20 }} animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }} transition={{ duration: 0.6, delay, ease: "easeOut" }} className={className}>
-      {children}
-    </motion.div>
-  );
-}
 
 export default function About() {
   const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
@@ -35,7 +25,7 @@ export default function About() {
     <PageLayout activeHref="/about">
       <SEOHead
         title="About Us | Nick's Tire & Auto Cleveland"
-        description="Learn about Nick's Tire & Auto — honest diagnostics, fair pricing, experienced technicians serving Cleveland, Euclid, and Northeast Ohio."
+        description="Learn about Nick's Tire & Auto — honest diagnostics, fair pricing, experienced technicians serving Cleveland, Euclid, and Northeast Ohio since 2018."
         canonicalPath="/about"
       />
 
@@ -47,14 +37,56 @@ export default function About() {
         </div>
         <div className="relative container pb-16 pt-32">
           <Breadcrumbs items={[{ label: "About" }]} />
-      <LocalBusinessSchema />
+          <LocalBusinessSchema />
           <FadeIn>
             <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold text-foreground tracking-tight leading-[0.95] mt-4">
               About <span className="text-primary">Nick's</span>
             </h1>
             <p className="mt-4 text-lg text-foreground/60 max-w-lg font-light">
-              An independent shop on Euclid Avenue, built on one idea: show drivers the problem before you fix it.
+              Serving East Cleveland since 2018. An independent shop built on one idea: show you the problem before we fix it.
             </p>
+          </FadeIn>
+        </div>
+      </section>
+
+      {/* Nick's Story */}
+      <section className="py-20 bg-nick-dark">
+        <div className="max-w-5xl mx-auto px-6 grid md:grid-cols-2 gap-12 items-center">
+          <FadeIn>
+            <div>
+              <h2 className="text-3xl font-bold text-foreground mb-6">Built from the ground up on Euclid Ave.</h2>
+              <p className="text-foreground/70 mb-4">
+                Nick's Tire & Auto opened in 2018 with a straightforward mission: give East Side Cleveland drivers a shop they could actually trust. No pressure sales. No mystery invoices. Just honest diagnostics, fair prices, and the respect of showing you exactly what's wrong before we touch your car.
+              </p>
+              <p className="text-foreground/70 mb-4">
+                What started as a small independent shop has grown into one of Cleveland's top-rated auto repair shops, with over {totalReviews.toLocaleString()} five-star Google reviews from real customers across the city.
+              </p>
+              <p className="text-foreground/70">
+                We're not a chain. We're not a dealership. We're your neighbors — and we treat your car like it belongs to one.
+              </p>
+            </div>
+          </FadeIn>
+          <FadeIn delay={0.15}>
+            <div className="bg-white/5 rounded-2xl p-8 border border-white/10">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="text-center">
+                  <div className="text-4xl font-black text-primary mb-1">2018</div>
+                  <div className="text-foreground/60 text-sm">Year Founded</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-4xl font-black text-primary mb-1">{totalReviews.toLocaleString()}+</div>
+                  <div className="text-foreground/60 text-sm">5-Star Reviews</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-4xl font-black text-primary mb-1">{rating.toFixed(1)}</div>
+                  <div className="text-foreground/60 text-sm">Google Rating</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-4xl font-black text-primary mb-1">7+</div>
+                  <div className="text-foreground/60 text-sm">Years Serving Cleveland</div>
+                </div>
+              </div>
+            </div>
           </FadeIn>
         </div>
       </section>
@@ -88,13 +120,16 @@ export default function About() {
                 <p className="mt-4 text-foreground/50 text-lg leading-relaxed">
                   The price we quote is the price you pay. That approach has earned us {totalReviews.toLocaleString()}+ five-star reviews from Cleveland drivers who keep coming back.
                 </p>
+                <p className="mt-4 text-foreground/50 text-lg leading-relaxed">
+                  We even built a free AI-powered Diagnose tool so you can describe your car's symptoms before you even come in — no pressure, no obligation.
+                </p>
               </div>
             </FadeIn>
           </div>
         </div>
       </section>
 
-      {/* What sets us apart */}
+      {/* Why Trust Us */}
       <section className="section-elevated py-24 lg:py-32">
         <div className="container">
           <FadeIn>
@@ -102,11 +137,12 @@ export default function About() {
               Why Cleveland drivers trust us.
             </h2>
           </FadeIn>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {[
               { title: "Honest Diagnostics", text: "We use advanced OBD-II scanners and live data analysis. We test before we replace, so you never pay for parts you don't need." },
               { title: "Fair Pricing", text: "No hidden fees. No surprise charges. The price we quote is the price you pay, and we explain every line item." },
               { title: "Full-Service Shop", text: "Tires, brakes, diagnostics, emissions, oil changes, suspension, steering, exhaust — one shop for everything." },
+              { title: "Since 2018", text: "7 years of serving East Cleveland with zero corporate pressure. We answer to our customers, not shareholders." },
             ].map((item, i) => (
               <FadeIn key={item.title} delay={i * 0.1}>
                 <div className="p-8 border border-border rounded-2xl h-full">
@@ -116,6 +152,53 @@ export default function About() {
               </FadeIn>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Rooted in East Cleveland */}
+      <section className="py-16 bg-white/5">
+        <div className="max-w-5xl mx-auto px-6 text-center">
+          <FadeIn>
+            <h2 className="text-2xl font-bold text-foreground mb-4">Rooted in East Cleveland</h2>
+            <p className="text-foreground/70 max-w-2xl mx-auto mb-8">
+              We're located at 17625 Euclid Ave — right in the heart of East Cleveland. We serve drivers from Euclid, East Cleveland, Cleveland Heights, South Euclid, Lyndhurst, Willoughby, and across the East Side. If you're a local, this is your shop.
+            </p>
+            <div className="flex flex-wrap gap-3 justify-center">
+              {["Cleveland", "Euclid", "East Cleveland", "Cleveland Heights", "South Euclid", "Lyndhurst", "Willoughby", "Wickliffe"].map(area => (
+                <FadeIn key={area}>
+                  <span className="px-4 py-2 bg-white/10 rounded-full text-sm text-foreground/70">{area}</span>
+                </FadeIn>
+              ))}
+            </div>
+          </FadeIn>
+        </div>
+      </section>
+
+      {/* Financing + Rewards */}
+      <section className="py-12 bg-nick-dark border-y border-white/10">
+        <div className="max-w-5xl mx-auto px-6 grid md:grid-cols-2 gap-8">
+          <FadeIn>
+            <div className="flex gap-4 items-start">
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                <CreditCard className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-bold text-foreground mb-1">Financing Available</h3>
+                <p className="text-foreground/60 text-sm">Need tires or major repairs but can't pay all at once? We offer financing options so you can get back on the road without the stress. Ask us how.</p>
+              </div>
+            </div>
+          </FadeIn>
+          <FadeIn delay={0.1}>
+            <div className="flex gap-4 items-start">
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                <Star className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-bold text-foreground mb-1">Rewards Program</h3>
+                <p className="text-foreground/60 text-sm">Earn rewards on every visit. Our loyalty program is our way of saying thank you to the drivers who trust us year after year.</p>
+              </div>
+            </div>
+          </FadeIn>
         </div>
       </section>
 

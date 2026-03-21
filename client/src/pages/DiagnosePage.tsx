@@ -6,7 +6,7 @@
 
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Link } from "wouter";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { trpc } from "@/lib/trpc";
@@ -16,27 +16,14 @@ import {
   Shield, Wrench, Car, CheckCircle, ArrowRight, Loader2,
   Volume2, Wind, CircleDot, Activity, RotateCcw
 } from "lucide-react";
-import { motion, useInView, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import FadeIn from "@/components/FadeIn";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp";
 
-function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-80px" });
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 30 }}
-      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-      transition={{ duration: 0.5, delay, ease: "easeOut" }}
-      className={className}
-    >
-      {children}
-    </motion.div>
-  );
-}
+
 
 // ─── SYMPTOM DATA ──────────────────────────────────────
 type SymptomCategory = {
@@ -678,6 +665,36 @@ export default function DiagnosePage() {
               { label: "What's Wrong With My Car?" },
             ]} />
       <LocalBusinessSchema />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "Service",
+        "name": "Automotive Diagnostics Service",
+        "description": "AI-powered diagnostic tool to identify car problems and symptoms",
+        "provider": {
+          "@type": "LocalBusiness",
+          "name": BUSINESS.name,
+          "telephone": `+1-${BUSINESS.phone.dashed}`,
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": BUSINESS.address.street,
+            "addressLocality": BUSINESS.address.city,
+            "addressRegion": BUSINESS.address.state,
+            "postalCode": BUSINESS.address.zip,
+            "addressCountry": "US"
+          },
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": BUSINESS.reviews.rating,
+            "reviewCount": BUSINESS.reviews.count,
+            "bestRating": "5"
+          },
+          "url": BUSINESS.urls.website
+        },
+        "areaServed": {
+          "@type": "City",
+          "name": "Cleveland"
+        }
+      })}} />
 
             <FadeIn>
               <div className="flex items-center gap-3 mb-4">

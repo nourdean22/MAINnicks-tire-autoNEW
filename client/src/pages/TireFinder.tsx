@@ -8,6 +8,8 @@
  */
 
 import { useState, useRef, useEffect, useMemo } from "react";
+import PageLayout from "@/components/PageLayout";
+import { SEOHead } from "@/components/SEO";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -63,27 +65,7 @@ function getBrandLogo(brand: string): string | null {
 }
 
 // ─── NAVBAR ───────────────────────────────────────────
-function TireNavbar() {
-  return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/30">
-      <div className="container flex items-center justify-between h-16">
-        <a href="/" className="flex items-center gap-3 group">
-          <ArrowLeft className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary flex items-center justify-center rounded-sm">
-              <span className="font-semibold text-primary-foreground text-sm">N</span>
-            </div>
-            <span className="font-semibold text-foreground text-sm tracking-wide hidden sm:block">NICK'S TIRE & AUTO</span>
-          </div>
-        </a>
-        <a href="tel:2168620005" className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors text-sm font-medium">
-          <Phone className="w-4 h-4" />
-          <span className="hidden sm:block">(216) 862-0005</span>
-        </a>
-      </div>
-    </nav>
-  );
-}
+// TireNavbar replaced with site-wide PageLayout for consistent navigation
 
 // ─── NICK'S PACKAGE BANNER ───────────────────────────
 // This is the genius marketing piece. Shows BEFORE tire results.
@@ -675,11 +657,16 @@ export default function TireFinder() {
   }, [data]);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <TireNavbar />
+    <PageLayout>
+      <SEOHead
+        title="Tires in Cleveland OH | Nick's Tire & Auto"
+        description="Order tires online and get them installed at Nick's Tire & Auto in Cleveland, OH. Free mounting, balancing, valve stems, TPMS reset, and inspection with every tire."
+        canonicalPath="/tires"
+      />
+      <div className="min-h-screen bg-background text-foreground">
 
       {/* ─── HERO ─── */}
-      <section className="pt-28 pb-12 sm:pt-36 sm:pb-16">
+      <section className="pt-8 pb-12 sm:pt-12 sm:pb-16">
         <div className="container max-w-3xl mx-auto text-center">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
             <span className="text-xs font-medium text-primary tracking-[0.2em] uppercase">Online Tire Shop</span>
@@ -1258,6 +1245,7 @@ export default function TireFinder() {
           onClose={() => { setShowOrder(false); setSelectedTire(null); }}
         />
       )}
-    </div>
+      </div>
+    </PageLayout>
   );
 }

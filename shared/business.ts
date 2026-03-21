@@ -37,17 +37,18 @@ export const BUSINESS = {
 
   // ─── HOURS ───────────────────────────────────────────
   hours: {
-    display: "Mon–Sat 9AM–6PM",
-    shortDisplay: "Mon–Sat 9–6",
-    sunday: "Closed",
+    display: "Mon–Sat 8AM–6PM",
+    shortDisplay: "Mon–Sat 8–6",
+    fullDisplay: "Monday–Saturday: 8:00 AM–6:00 PM | Sunday: 9:00 AM–4:00 PM",
+    sunday: "Sun 9AM–4PM",
     structured: {
-      monday: "09:00-18:00",
-      tuesday: "09:00-18:00",
-      wednesday: "09:00-18:00",
-      thursday: "09:00-18:00",
-      friday: "09:00-18:00",
-      saturday: "09:00-18:00",
-      sunday: "Closed",
+      monday: "08:00-18:00",
+      tuesday: "08:00-18:00",
+      wednesday: "08:00-18:00",
+      thursday: "08:00-18:00",
+      friday: "08:00-18:00",
+      saturday: "08:00-18:00",
+      sunday: "09:00-16:00",
     },
   },
 

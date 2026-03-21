@@ -10,9 +10,13 @@
   <url><loc>https://nickstire.org/blog</loc><lastmod>2026-03-20</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
   <url><loc>https://nickstire.org/diagnose</loc><lastmod>2026-03-20</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://nickstire.org/estimate</loc><lastmod>2026-03-20</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://nickstire.org/status</loc><lastmod>2026-03-20</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://nickstire.org/fleet</loc><lastmod>2026-03-20</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://nickstire.org/financing</loc><lastmod>2026-03-20</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://nickstire.org/car-care-guide</loc><lastmod>2026-03-20</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://nickstire.org/pricing</loc><lastmod>2026-03-20</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://nickstire.org/my-garage</loc><lastmod>2026-03-20</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/rewards</loc><lastmod>2026-03-20</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
 
   <!-- Online Tire Shop (NEW — high priority) -->
   <url><loc>https://nickstire.org/tires</loc><lastmod>2026-03-20</lastmod><changefreq>daily</changefreq><priority>0.95</priority></url>
@@ -24,6 +28,7 @@
   <url><loc>https://nickstire.org/emissions</loc><lastmod>2026-03-20</lastmod><changefreq>monthly</changefreq><priority>0.9</priority></url>
   <url><loc>https://nickstire.org/oil-change</loc><lastmod>2026-03-20</lastmod><changefreq>monthly</changefreq><priority>0.9</priority></url>
   <url><loc>https://nickstire.org/general-repair</loc><lastmod>2026-03-20</lastmod><changefreq>monthly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://nickstire.org/alignment</loc><lastmod>2026-03-20</lastmod><changefreq>monthly</changefreq><priority>0.9</priority></url>
 
   <!-- SEO Service Landing Pages -->
   <url><loc>https://nickstire.org/brake-repair-cleveland</loc><lastmod>2026-03-20</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>

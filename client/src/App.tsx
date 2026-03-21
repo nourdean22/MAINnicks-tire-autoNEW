@@ -54,6 +54,7 @@ const Loyalty = lazy(() => import("./pages/Loyalty"));
 const CustomerPortal = lazy(() => import("./pages/CustomerPortal"));
 const TireFinder = lazy(() => import("./pages/TireFinder"));
 const ServicesOverview = lazy(() => import("./pages/ServicesOverview"));
+const AlignmentPage = lazy(() => import("./pages/AlignmentPage"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const Terms = lazy(() => import("./pages/Terms"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -72,6 +73,7 @@ function Router() {
         <Route path={"/emissions"} component={ServicePage} />
         <Route path={"/oil-change"} component={ServicePage} />
         <Route path={"/general-repair"} component={ServicePage} />
+        <Route path={"/alignment"} component={AlignmentPage} />
         {/* Standalone pages */}
         <Route path={"/contact"} component={Contact} />
         <Route path={"/about"} component={About} />
