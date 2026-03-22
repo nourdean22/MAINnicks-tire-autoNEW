@@ -183,8 +183,8 @@ export default function About() {
                 <CreditCard className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <h3 className="font-bold text-foreground mb-1">Financing Available</h3>
-                <p className="text-foreground/60 text-sm">Need tires or major repairs but can't pay all at once? We offer financing options so you can get back on the road without the stress. Ask us how.</p>
+                <h3 className="font-bold text-foreground mb-1">Payment Options Available</h3>
+                <p className="text-foreground/60 text-sm">Need tires or major repairs but can't pay all at once? We offer lease-to-own and financing options so you can get back on the road without the stress. Ask us how.</p>
               </div>
             </div>
           </FadeIn>

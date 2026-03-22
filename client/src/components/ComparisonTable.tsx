@@ -19,7 +19,7 @@ const ROWS: Row[] = [
   { feature: "Show you the problem first", nicks: "yes", dealership: "partial", chain: "no" },
   { feature: "No upselling pressure", nicks: "yes", dealership: "no", chain: "no" },
   { feature: "Locally owned & operated", nicks: "yes", dealership: "no", chain: "no" },
-  { feature: "Financing options", nicks: "yes", dealership: "yes", chain: "partial" },
+  { feature: "Payment options (lease & finance)", nicks: "yes", dealership: "yes", chain: "partial" },
 ];
 
 function StatusIcon({ status }: { status: "yes" | "no" | "partial" }) {

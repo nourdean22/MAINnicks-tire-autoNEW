@@ -471,7 +471,7 @@ function ServiceDetails({ service }: { service: ServiceData }) {
               Everything included in our {service.title.toLowerCase()} service, plus transparent pricing and timeframe estimates.
             </p>
 
-            {/* Price Anchor & Financing Badge */}
+            {/* Price Anchor & Payment Options Badge */}
             {service.startingPrice && (
               <FadeIn delay={0.1}>
                 <div className="mt-8 flex flex-wrap items-center gap-4">
@@ -481,7 +481,7 @@ function ServiceDetails({ service }: { service: ServiceData }) {
                   </div>
                   <Link href="/financing" className="flex items-center gap-2 bg-nick-teal/5 border border-nick-teal/20 rounded-lg px-4 py-3 text-sm text-nick-teal hover:bg-nick-teal/10 transition-colors">
                     <CreditCard className="w-4 h-4" />
-                    <span>Financing available · No credit needed options →</span>
+                    <span>Payment options available · Lease-to-own &amp; financing →</span>
                   </Link>
                 </div>
               </FadeIn>
