@@ -152,7 +152,7 @@ export default function Financing() {
     <PageLayout activeHref="/financing">
       <SEOHead
         title="Payment Options & Lease-to-Own | Nick's Tire & Auto Cleveland"
-        description="Multiple ways to pay at Nick's Tire & Auto in Cleveland. Acima lease-to-own (no credit history needed), Snap Finance, Koalafi, and Synchrony. Apply in minutes."
+        description="Multiple ways to pay at Nick's Tire & Auto in Cleveland. $10 down, drive today. Acima lease-to-own (no credit history needed), Snap Finance, Koalafi, and Synchrony. Apply in minutes."
         canonicalPath="/financing"
       />
       <Breadcrumbs items={[{ label: "Payment Options", href: "/financing" }]} />

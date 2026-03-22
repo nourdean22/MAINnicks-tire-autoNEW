@@ -162,9 +162,12 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
           <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-nick-teal/10 flex items-center justify-center">
             <CheckCircle className="w-8 h-8 text-nick-teal" />
           </div>
-          <h3 className="font-bold text-[24px] text-foreground tracking-[-0.02em] mb-6 text-center">
+          <h3 className="font-bold text-[24px] text-foreground tracking-[-0.02em] mb-2 text-center">
             ✅ You're booked!
           </h3>
+          <p className="text-primary/80 text-sm font-medium text-center mb-6">
+            {BUSINESS.taglines.meme} We'll see you soon.
+          </p>
 
           {/* Service & Vehicle Info */}
           <div className="bg-background/40 border border-border/30 rounded-md p-5 mb-6 space-y-3">

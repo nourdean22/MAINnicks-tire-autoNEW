@@ -195,7 +195,7 @@ function Hero() {
 
         <FadeIn delay={0.15}>
           <p className="mt-6 text-lg text-foreground/60 max-w-lg font-light leading-relaxed">
-            Cleveland's #1 rated tire & auto shop. Walk-ins welcome.
+            Cleveland's #1 rated tire & auto shop. Walk-ins welcome. <span className="text-emerald-400/80">{BUSINESS.taglines.hookAction}</span>
           </p>
         </FadeIn>
         <FadeIn delay={0.25}>
@@ -824,7 +824,7 @@ export default function Home() {
     <div className="min-h-screen flex flex-col">
       <SEOHead
         title="Nick's Tire & Auto | Cleveland Auto Repair Shop"
-        description={`Trusted auto repair and tire shop serving Cleveland, Euclid, and Northeast Ohio. Brakes, tires, diagnostics, emissions, and more. 4.9 stars, ${BUSINESS.reviews.countDisplay} reviews.`}
+        description={`Trusted auto repair and tire shop serving Cleveland, Euclid, and Northeast Ohio. Brakes, tires, diagnostics, emissions, and more. $10 down, drive today. 4.9 stars, ${BUSINESS.reviews.countDisplay} reviews.`}
         canonicalPath="/"
       />
       <LocalBusinessSchema />

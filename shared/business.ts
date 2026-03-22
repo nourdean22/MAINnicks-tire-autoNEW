@@ -85,10 +85,18 @@ export const BUSINESS = {
     "https://www.facebook.com/nickstireeuclid/",
   ] as readonly string[],
 
+  // ─── BRAND TAGLINES ─────────────────────────────────
+  taglines: {
+    meme: "Nick's got you rolling.",
+    memeShort: "Keep it rolling.",
+    memeCleveland: "We keep Cleveland rolling.",
+    hookAction: "$10 down, drive today.",
+  },
+
   // ─── SEO ─────────────────────────────────────────
   seo: {
     titleSuffix: " | Nick's Tire & Auto — Cleveland, OH",
-    defaultDescription: "Honest auto repair and tire service in Cleveland, OH. Check engine light diagnostics, brake repair, tires, emissions, and more. Serving Cleveland, Euclid, and Northeast Ohio.",
+    defaultDescription: "Honest auto repair and tire service in Cleveland, OH. Check engine light diagnostics, brake repair, tires, emissions, and more. Serving Cleveland, Euclid, and Northeast Ohio. $10 down, drive today.",
   },
 } as const;
 

@@ -18,7 +18,7 @@ export default function SiteFooter() {
               Nick's Tire & Auto
             </span>
             <p className="mt-3 text-foreground/25 text-[13px] leading-relaxed max-w-[240px]">
-              Honest auto repair for Cleveland, Euclid, and Northeast Ohio drivers.
+              {BUSINESS.taglines.meme} Honest auto repair for Cleveland, Euclid, and Northeast Ohio since 2018.
             </p>
             <div className="mt-5 flex gap-3">
               <a

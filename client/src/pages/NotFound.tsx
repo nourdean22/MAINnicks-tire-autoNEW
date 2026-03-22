@@ -75,8 +75,11 @@ export default function NotFound() {
                 PAGE NOT FOUND
               </h1>
 
-              <p className="text-foreground/60 text-lg max-w-md mx-auto mb-8 leading-relaxed">
+              <p className="text-foreground/60 text-lg max-w-md mx-auto mb-4 leading-relaxed">
                 The page you are looking for may have been moved or no longer exists.
+              </p>
+              <p className="text-primary font-semibold text-lg mb-8">
+                Lost? {BUSINESS.taglines.meme}
               </p>
 
               {/* Quick nav buttons */}
@@ -151,7 +154,7 @@ export default function NotFound() {
                   <div className="py-8 text-center">
                     <CheckCircle className="w-12 h-12 text-primary mx-auto mb-4" />
                     <h3 className="font-bold text-[20px] text-foreground tracking-[-0.02em]">
-                      Got it. We'll call you.
+                      {BUSINESS.taglines.meme} We'll call you.
                     </h3>
                     <p className="text-foreground/40 text-[13px] mt-3 leading-relaxed">
                       Expect a call from {BUSINESS.phone.display} soon.
