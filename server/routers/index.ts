@@ -37,3 +37,4 @@ export { campaignsRouter } from "./campaigns";
 export { costEstimatorRouter } from "./costEstimator";
 export { emergencyRouter } from "./emergency";
 export { messengerBotRouter } from "./messengerBot";
+export { financingRouter } from "./financing";

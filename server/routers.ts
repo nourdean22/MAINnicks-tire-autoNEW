@@ -53,6 +53,7 @@ import {
   costEstimatorRouter,
   emergencyRouter,
   messengerBotRouter,
+  financingRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -129,6 +130,9 @@ export const appRouter = router({
   // Phase 5 Features
   emergency: emergencyRouter,
   messengerBot: messengerBotRouter,
+
+  // Financing
+  financing: financingRouter,
 });
 
 export type AppRouter = typeof appRouter;
