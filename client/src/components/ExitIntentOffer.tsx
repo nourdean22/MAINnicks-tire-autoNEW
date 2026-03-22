@@ -11,7 +11,7 @@ import { trpc } from "@/lib/trpc";
 import { trackLeadSubmission, getUserDataForCAPI } from "@/lib/metaPixel";
 import { getUtmData } from "@/lib/utm";
 import { BUSINESS } from "@shared/business";
-import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
+import { ACIMA_COMPACT_DISCLOSURE, ACIMA_SOCIAL_PROOF } from "@/lib/acima";
 
 // Session-level flag to prevent re-fire
 let exitIntentFiredThisSession = false;
@@ -111,6 +111,7 @@ export default function ExitIntentOffer({ serviceName }: { serviceName: string }
                   </p>
                   <p className="text-[11px] text-emerald-400/60 mt-1">
                     Lease-to-own available — $10 down with Acima
+                    <span className="block text-[9px] text-emerald-400/40 mt-0.5">{ACIMA_SOCIAL_PROOF}</span>
                     <span className="block text-[9px] text-foreground/25 mt-0.5">{ACIMA_COMPACT_DISCLOSURE}</span>
                   </p>
 

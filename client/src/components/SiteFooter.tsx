@@ -93,7 +93,7 @@ export default function SiteFooter() {
                 { href: "/status", label: "Check Repair Status" },
                 { href: "/rewards", label: "Rewards Program" },
                 { href: "/fleet", label: "Fleet Accounts" },
-                { href: "/financing", label: "Payment Options" },
+                { href: "/financing?utm_source=site_footer", label: "Payment Options" },
               ].map((l) => (
                 <Link
                   key={l.href}

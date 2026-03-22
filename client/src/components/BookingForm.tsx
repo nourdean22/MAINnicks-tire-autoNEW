@@ -222,7 +222,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
           {/* Payment options callout */}
           <div className="bg-nick-teal/5 border border-nick-teal/20 rounded-md p-4 mb-4 text-center">
             <p className="text-sm text-nick-teal">
-              Need to pay over time? <a href="/financing" className="font-semibold underline hover:no-underline">See lease-to-own &amp; financing options →</a>
+              Need to pay over time? <a href="/financing?utm_source=booking_form" className="font-semibold underline hover:no-underline">See lease-to-own &amp; financing options →</a>
             </p>
           </div>
 

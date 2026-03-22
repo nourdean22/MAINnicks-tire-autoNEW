@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
-import { ACIMA_PROMO_YEAR } from "@/lib/acima";
+import { ACIMA_PROMO_YEAR, ACIMA_SOCIAL_PROOF } from "@/lib/acima";
 
 // ─── ACIMA (Lease-to-Own — NOT financing) ──────────────
 const ACIMA = {
@@ -136,6 +136,13 @@ const FAQ_ITEMS = [
   },
 ];
 
+// Comparison table data (shared between desktop table + mobile cards)
+const COMPARISON_PROVIDERS = [
+  { name: "Snap Finance", type: "BNPL", credit: "All types", payoff: "100-day cash option" },
+  { name: "Koalafi", type: "Lease or Loan", credit: "Wide range", payoff: "90-day purchase" },
+  { name: "Synchrony", type: "Credit Card", credit: "Good/Fair", payoff: "6-mo promo at 0%" },
+];
+
 // Required Acima disclosure
 const ACIMA_DISCLAIMER =
   "Acima is a lease-to-own program. It is not a loan, credit, or financing. You will not own the merchandise until you make all payments under the lease agreement or exercise an early purchase option. Lease payments may be higher than the cash price of the merchandise. Not available in MN, NJ, WI, or WY. See lease for details.";
@@ -168,6 +175,7 @@ export default function Financing() {
               and financing options so there's a solution for nearly every
               situation. Apply in minutes — right at the counter or online.
             </p>
+            <p className="mt-3 text-emerald-400/70 text-sm font-medium">{ACIMA_SOCIAL_PROOF}</p>
           </FadeIn>
 
           <FadeIn delay={0.1}>
@@ -193,81 +201,61 @@ export default function Financing() {
       <section className="bg-[oklch(0.055_0.004_260)] py-12">
         <div className="container max-w-4xl">
           <FadeIn>
-            <div className="overflow-x-auto">
+            {/* Desktop: table layout */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border/20">
-                    <th className="text-left py-3 px-4 text-foreground/40 font-medium text-xs tracking-wider">
-                      PROVIDER
-                    </th>
-                    <th className="text-left py-3 px-4 text-foreground/40 font-medium text-xs tracking-wider">
-                      TYPE
-                    </th>
-                    <th className="text-left py-3 px-4 text-foreground/40 font-medium text-xs tracking-wider">
-                      CREDIT NEEDED
-                    </th>
-                    <th className="text-left py-3 px-4 text-foreground/40 font-medium text-xs tracking-wider">
-                      EARLY PAYOFF
-                    </th>
+                    <th className="text-left py-3 px-4 text-foreground/40 font-medium text-xs tracking-wider">PROVIDER</th>
+                    <th className="text-left py-3 px-4 text-foreground/40 font-medium text-xs tracking-wider">TYPE</th>
+                    <th className="text-left py-3 px-4 text-foreground/40 font-medium text-xs tracking-wider">CREDIT NEEDED</th>
+                    <th className="text-left py-3 px-4 text-foreground/40 font-medium text-xs tracking-wider">EARLY PAYOFF</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {/* Acima row — visually distinct */}
                   <tr className="border-b border-emerald-500/10 bg-emerald-500/[0.03]">
-                    <td className="py-3 px-4 font-medium text-foreground">
-                      Acima{" "}
-                      <span className="text-[10px] text-emerald-400 ml-1 font-normal">
-                        LEASE
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-foreground/60">
-                      Lease-to-Own
-                    </td>
-                    <td className="py-3 px-4 text-foreground/60">
-                      No credit history required
-                    </td>
-                    <td className="py-3 px-4 text-foreground/60">
-                      90-day early purchase
-                    </td>
+                    <td className="py-3 px-4 font-medium text-foreground">Acima <span className="text-[10px] text-emerald-400 ml-1 font-normal">LEASE</span></td>
+                    <td className="py-3 px-4 text-foreground/60">Lease-to-Own</td>
+                    <td className="py-3 px-4 text-foreground/60">No credit history required</td>
+                    <td className="py-3 px-4 text-foreground/60">90-day early purchase</td>
                   </tr>
-                  {/* Financing rows */}
-                  {[
-                    {
-                      name: "Snap Finance",
-                      type: "BNPL",
-                      credit: "All types",
-                      payoff: "100-day cash option",
-                    },
-                    {
-                      name: "Koalafi",
-                      type: "Lease or Loan",
-                      credit: "Wide range",
-                      payoff: "90-day purchase",
-                    },
-                    {
-                      name: "Synchrony",
-                      type: "Credit Card",
-                      credit: "Good/Fair",
-                      payoff: "6-mo promo at 0%",
-                    },
-                  ].map((row) => (
+                  {COMPARISON_PROVIDERS.map((row) => (
                     <tr key={row.name} className="border-b border-border/10">
-                      <td className="py-3 px-4 font-medium text-foreground">
-                        {row.name}
-                      </td>
-                      <td className="py-3 px-4 text-foreground/60">
-                        {row.type}
-                      </td>
-                      <td className="py-3 px-4 text-foreground/60">
-                        {row.credit}
-                      </td>
-                      <td className="py-3 px-4 text-foreground/60">
-                        {row.payoff}
-                      </td>
+                      <td className="py-3 px-4 font-medium text-foreground">{row.name}</td>
+                      <td className="py-3 px-4 text-foreground/60">{row.type}</td>
+                      <td className="py-3 px-4 text-foreground/60">{row.credit}</td>
+                      <td className="py-3 px-4 text-foreground/60">{row.payoff}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile: stacked cards */}
+            <div className="md:hidden space-y-3">
+              {/* Acima card — emerald accent */}
+              <div className="bg-emerald-500/[0.03] border border-emerald-500/10 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="font-medium text-foreground">Acima</span>
+                  <span className="text-[10px] text-emerald-400 font-medium px-1.5 py-0.5 rounded bg-emerald-500/10">LEASE</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-foreground/40 text-xs">Type</span><p className="text-foreground/70">Lease-to-Own</p></div>
+                  <div><span className="text-foreground/40 text-xs">Credit</span><p className="text-foreground/70">No history required</p></div>
+                  <div><span className="text-foreground/40 text-xs">Early Payoff</span><p className="text-foreground/70">90-day purchase</p></div>
+                </div>
+              </div>
+              {/* Financing provider cards */}
+              {COMPARISON_PROVIDERS.map((row) => (
+                <div key={row.name} className="bg-card/30 border border-border/10 rounded-lg p-4">
+                  <span className="font-medium text-foreground text-sm">{row.name}</span>
+                  <div className="grid grid-cols-2 gap-2 text-sm mt-3">
+                    <div><span className="text-foreground/40 text-xs">Type</span><p className="text-foreground/70">{row.type}</p></div>
+                    <div><span className="text-foreground/40 text-xs">Credit</span><p className="text-foreground/70">{row.credit}</p></div>
+                    <div><span className="text-foreground/40 text-xs">Early Payoff</span><p className="text-foreground/70">{row.payoff}</p></div>
+                  </div>
+                </div>
+              ))}
             </div>
           </FadeIn>
         </div>

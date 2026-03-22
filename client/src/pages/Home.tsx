@@ -13,6 +13,7 @@ import NotificationBar from "@/components/NotificationBar";
 import EmergencyBanner from "@/components/EmergencyBanner";
 import StickyTrustBar from "@/components/StickyTrustBar";
 import ComparisonTable from "@/components/ComparisonTable";
+import QuickQuoteWidget from "@/components/QuickQuoteWidget";
 import InternalLinks from "@/components/InternalLinks";
 import { SEOHead, SkipToContent, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronDown, Menu, X, ArrowRight, Wrench, Gauge, Droplets, Wind, Disc, Circle, Ruler, Gift, CreditCard } from "lucide-react";
@@ -835,6 +836,7 @@ export default function Home() {
       <main id="main-content">
         <Hero />
         <TrustNumbers />
+        <QuickQuoteWidget />
         <Services />
         <HowItWorks />
         <div className="container mb-16">

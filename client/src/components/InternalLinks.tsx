@@ -28,7 +28,7 @@ const ALL_LINKS: LinkItem[] = [
   { href: "/faq", label: "FAQ", desc: "Common auto repair questions answered" },
   { href: "/contact", label: "Contact & Booking", desc: "Schedule your appointment today" },
   { href: "/fleet", label: "Fleet Accounts", desc: "Commercial vehicle maintenance" },
-  { href: "/financing", label: "Payment Options", desc: "Lease-to-own & financing available" },
+  { href: "/financing?utm_source=internal_links", label: "Payment Options", desc: "Lease-to-own & financing available" },
   { href: "/rewards", label: "Rewards Program", desc: "Earn points on every service" },
   { href: "/car-care-guide", label: "Car Care Guide", desc: "Seasonal maintenance tips" },
   { href: "/about", label: "About Us", desc: "Cleveland's trusted shop since day one" },

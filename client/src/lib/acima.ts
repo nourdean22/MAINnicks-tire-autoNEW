@@ -14,6 +14,9 @@ export const ACIMA_PROMO_YEAR = 2026;
 export const ACIMA_COMPACT_DISCLOSURE =
   "$10 initial payment. Lease terms and total cost vary by item and payment schedule. 90-day early purchase option available. Not a loan or credit.";
 
+/** Social proof — use on CTAs and hero sections. Individual results vary. */
+export const ACIMA_SOCIAL_PROOF = "Trusted by hundreds of Nick's customers";
+
 /** States where Acima is not available */
 export const ACIMA_STATES_EXCLUDED = "MN, NJ, WI, WY";
 
