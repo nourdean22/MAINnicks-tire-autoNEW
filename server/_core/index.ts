@@ -190,6 +190,27 @@ async function startServer() {
       { path: "/ask", priority: "0.6", changefreq: "weekly" },
       { path: "/my-garage", priority: "0.5", changefreq: "monthly" },
       { path: "/review", priority: "0.6", changefreq: "monthly" },
+      // Phase 5: Cost Estimator
+      { path: "/cost-estimator", priority: "0.8", changefreq: "monthly" },
+      // Phase 5: Neighborhood micro-pages
+      { path: "/east-185th-street-auto-repair", priority: "0.7", changefreq: "monthly" },
+      { path: "/euclid-square-mall-area", priority: "0.7", changefreq: "monthly" },
+      { path: "/richmond-heights-mechanic", priority: "0.7", changefreq: "monthly" },
+      { path: "/collinwood", priority: "0.7", changefreq: "monthly" },
+      { path: "/nottingham", priority: "0.7", changefreq: "monthly" },
+      { path: "/five-points", priority: "0.7", changefreq: "monthly" },
+      { path: "/waterloo-arts-district", priority: "0.7", changefreq: "monthly" },
+      { path: "/shore-cultural-centre", priority: "0.7", changefreq: "monthly" },
+      { path: "/severance-town-center", priority: "0.7", changefreq: "monthly" },
+      { path: "/university-circle", priority: "0.7", changefreq: "monthly" },
+      { path: "/wickliffe", priority: "0.7", changefreq: "monthly" },
+      { path: "/willowick", priority: "0.7", changefreq: "monthly" },
+      { path: "/eastlake", priority: "0.7", changefreq: "monthly" },
+      { path: "/south-euclid-mechanic", priority: "0.7", changefreq: "monthly" },
+      { path: "/lyndhurst-mechanic", priority: "0.7", changefreq: "monthly" },
+      { path: "/mayfield-heights", priority: "0.7", changefreq: "monthly" },
+      { path: "/highland-heights", priority: "0.7", changefreq: "monthly" },
+      { path: "/beachwood", priority: "0.7", changefreq: "monthly" },
       // Legal pages
       { path: "/privacy-policy", priority: "0.4", changefreq: "yearly" },
       { path: "/terms", priority: "0.4", changefreq: "yearly" },
@@ -237,6 +258,20 @@ async function startServer() {
     res.send(
       `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /admin/\nDisallow: /api/\nDisallow: /api\n\nSitemap: ${sitemapUrl}\n`
     );
+  });
+
+  // ─── SMS Bot Webhook (Twilio) ───────────────────────────
+  // Receives inbound SMS messages and returns Twilio XML response
+  const { handleIncomingSMS } = await import("../routers/smsBot");
+  app.post("/api/sms-webhook", express.urlencoded({ extended: false }), async (req, res) => {
+    try {
+      const { Body, From } = req.body;
+      const reply = await handleIncomingSMS(From, Body);
+      res.type("text/xml").send(`<Response><Message>${reply}</Message></Response>`);
+    } catch (err) {
+      console.error("[SMS Webhook] Error:", err);
+      res.type("text/xml").send("<Response></Response>");
+    }
   });
 
   // ─── Review click tracking redirect ───────────────────
@@ -296,6 +331,40 @@ async function startServer() {
       console.error("[PostInvoiceFollowUp] Processing error:", err);
     }
   }, 60 * 60 * 1000); // Every 1 hour
+
+  // ─── Facebook Messenger Webhook ──────────────────────
+  // Webhook verification for Facebook Messenger
+  app.get("/api/messenger-webhook", (req, res) => {
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
+
+    if (mode === "subscribe" && token === process.env.FB_VERIFY_TOKEN) {
+      res.status(200).send(challenge);
+    } else {
+      res.sendStatus(403);
+    }
+  });
+
+  // Incoming Messenger messages
+  app.post("/api/messenger-webhook", express.json(), async (req, res) => {
+    const body = req.body;
+
+    if (body.object === "page") {
+      for (const entry of body.entry || []) {
+        for (const event of entry.messaging || []) {
+          if (event.message?.text) {
+            const { handleMessengerMessage } = await import(
+              "../routers/messengerBot"
+            );
+            await handleMessengerMessage(event.sender.id, event.message.text);
+          }
+        }
+      }
+    }
+
+    res.sendStatus(200);
+  });
 
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {

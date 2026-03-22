@@ -1248,3 +1248,50 @@ export const smsCampaignSends = mysqlTable("sms_campaign_sends", {
 
 export type SmsCampaignSend = typeof smsCampaignSends.$inferSelect;
 export type InsertSmsCampaignSend = typeof smsCampaignSends.$inferInsert;
+
+// ─── Phase 5: New Tables ─────────────────────────────
+
+/** Emergency after-hours service requests */
+export const emergencyRequests = mysqlTable("emergency_requests", {
+  id: int("id").primaryKey().autoincrement(),
+  name: varchar("name", { length: 100 }).notNull(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  vehicle: varchar("vehicle", { length: 200 }),
+  problem: text("problem"),
+  urgency: varchar("urgency", { length: 20 }).default("normal"),
+  status: varchar("status", { length: 20 }).default("new"),
+  source: varchar("source", { length: 50 }).default("after_hours"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+/** AI-generated review reply drafts */
+export const reviewReplies = mysqlTable("review_replies", {
+  id: int("id").primaryKey().autoincrement(),
+  reviewId: varchar("review_id", { length: 200 }).notNull(),
+  reviewerName: varchar("reviewer_name", { length: 100 }),
+  reviewRating: int("review_rating"),
+  reviewText: text("review_text"),
+  reviewDate: timestamp("review_date"),
+  draftReply: text("draft_reply"),
+  finalReply: text("final_reply"),
+  status: varchar("status", { length: 20 }).default("draft"),
+  approvedAt: timestamp("approved_at"),
+  postedAt: timestamp("posted_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+/** Shareable vehicle health/service cards */
+export const shareCards = mysqlTable("share_cards", {
+  id: int("id").primaryKey().autoincrement(),
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  customerName: varchar("customer_name", { length: 100 }),
+  vehicleInfo: varchar("vehicle_info", { length: 200 }),
+  serviceType: varchar("service_type", { length: 100 }),
+  healthScore: int("health_score"),
+  healthDetails: text("health_details"),
+  completedDate: timestamp("completed_date"),
+  inspectionId: int("inspection_id"),
+  views: int("views").default(0),
+  shares: int("shares").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});

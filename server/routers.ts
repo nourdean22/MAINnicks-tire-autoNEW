@@ -33,6 +33,9 @@ import {
   reviewRequestsRouter,
   remindersRouter,
   smsConversationsRouter,
+  smsBotRouter,
+  reviewRepliesRouter,
+  shareCardsRouter,
   galleryRouter,
   techniciansRouter,
   customersRouter,
@@ -47,6 +50,9 @@ import {
   campaignsRouter,
   callTrackingRouter,
   exportRouter,
+  costEstimatorRouter,
+  emergencyRouter,
+  messengerBotRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -67,6 +73,7 @@ export const appRouter = router({
   search: searchRouter,
   diagnose: diagnoseRouter,
   laborEstimate: laborEstimateRouter,
+  costEstimator: costEstimatorRouter,
   content: contentRouter,
 
   // Customer-facing features
@@ -93,6 +100,9 @@ export const appRouter = router({
   reviewRequests: reviewRequestsRouter,
   reminders: remindersRouter,
   smsConversations: smsConversationsRouter,
+  smsBot: smsBotRouter,
+  reviewReplies: reviewRepliesRouter,
+  shareCards: shareCardsRouter,
   gallery: galleryRouter,
   technicians: techniciansRouter,
   customers: customersRouter,
@@ -115,6 +125,10 @@ export const appRouter = router({
   // Business Integrations
   gatewayTire: gatewayTireRouter,
   autoLabor: autoLaborRouter,
+
+  // Phase 5 Features
+  emergency: emergencyRouter,
+  messengerBot: messengerBotRouter,
 });
 
 export type AppRouter = typeof appRouter;

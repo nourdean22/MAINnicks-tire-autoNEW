@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect } from "react";
+import EmergencyMode from "./components/EmergencyMode";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Route, Switch } from "wouter";
@@ -58,6 +59,12 @@ const AlignmentPage = lazy(() => import("./pages/AlignmentPage"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const Terms = lazy(() => import("./pages/Terms"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+
+// ─── Phase 5 Pages ──────────────────────────────────
+const CostEstimator = lazy(() => import("./pages/CostEstimator"));
+const LandingPage = lazy(() => import("./pages/LandingPage"));
+const SharePage = lazy(() => import("./pages/SharePage"));
+const NeighborhoodPage = lazy(() => import("./pages/NeighborhoodPage"));
 
 function Router() {
   return (
@@ -164,6 +171,34 @@ function Router() {
         {/* Blog / Tips */}
         <Route path={"/blog"} component={Blog} />
         <Route path={"/blog/:slug"} component={BlogPost} />
+        {/* Phase 5: Cost Estimator */}
+        <Route path={"/cost-estimator"} component={CostEstimator} />
+        {/* Phase 5: Google Ads Landing Pages (no nav, conversion-only) */}
+        <Route path={"/lp/brakes"} component={LandingPage} />
+        <Route path={"/lp/tires"} component={LandingPage} />
+        <Route path={"/lp/diagnostics"} component={LandingPage} />
+        <Route path={"/lp/emergency"} component={LandingPage} />
+        {/* Phase 5: Share My Repair card */}
+        <Route path={"/share/:token"} component={SharePage} />
+        {/* Phase 5: Neighborhood micro-pages (hyper-local SEO) */}
+        <Route path={"/east-185th-street-auto-repair"} component={NeighborhoodPage} />
+        <Route path={"/euclid-square-mall-area"} component={NeighborhoodPage} />
+        <Route path={"/richmond-heights-mechanic"} component={NeighborhoodPage} />
+        <Route path={"/collinwood"} component={NeighborhoodPage} />
+        <Route path={"/nottingham"} component={NeighborhoodPage} />
+        <Route path={"/five-points"} component={NeighborhoodPage} />
+        <Route path={"/waterloo-arts-district"} component={NeighborhoodPage} />
+        <Route path={"/shore-cultural-centre"} component={NeighborhoodPage} />
+        <Route path={"/severance-town-center"} component={NeighborhoodPage} />
+        <Route path={"/university-circle"} component={NeighborhoodPage} />
+        <Route path={"/wickliffe"} component={NeighborhoodPage} />
+        <Route path={"/willowick"} component={NeighborhoodPage} />
+        <Route path={"/eastlake"} component={NeighborhoodPage} />
+        <Route path={"/south-euclid-mechanic"} component={NeighborhoodPage} />
+        <Route path={"/lyndhurst-mechanic"} component={NeighborhoodPage} />
+        <Route path={"/mayfield-heights"} component={NeighborhoodPage} />
+        <Route path={"/highland-heights"} component={NeighborhoodPage} />
+        <Route path={"/beachwood"} component={NeighborhoodPage} />
         {/* Legal pages */}
         <Route path={"/privacy-policy"} component={PrivacyPolicy} />
         <Route path={"/terms"} component={Terms} />
@@ -187,6 +222,7 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Router />
+          <EmergencyMode />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

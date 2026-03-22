@@ -22,6 +22,9 @@ export {
 export { reviewRequestsRouter } from "./reviewRequests";
 export { remindersRouter } from "./reminders";
 export { smsConversationsRouter } from "./smsConversations";
+export { smsBotRouter } from "./smsBot";
+export { reviewRepliesRouter } from "./reviewReplies";
+export { shareCardsRouter } from "./shareCards";
 export { galleryRouter } from "./gallery";
 export { techniciansRouter } from "./technicians";
 export { customersRouter } from "./customers";
@@ -31,3 +34,6 @@ export { jobAssignmentsRouter, invoicesRouter, kpiRouter, portalRouter } from ".
 export { gatewayTireRouter } from "./gatewayTire";
 export { autoLaborRouter } from "./autoLabor";
 export { campaignsRouter } from "./campaigns";
+export { costEstimatorRouter } from "./costEstimator";
+export { emergencyRouter } from "./emergency";
+export { messengerBotRouter } from "./messengerBot";
