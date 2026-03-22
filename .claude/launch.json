@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Nick's Tire Dev Server",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev"],
+      "port": 3000
+    },
+    {
+      "name": "Nick's Tire Production",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["start"],
+      "port": 3000
+    },
+    {
+      "name": "Prerender (after build)",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/prerender.mjs"],
+      "port": 4173
+    }
+  ]
+}

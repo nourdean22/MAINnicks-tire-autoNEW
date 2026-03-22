@@ -60,13 +60,22 @@ export default function SiteFooter() {
             <div className="space-y-3">
               {[
                 { href: "/services", label: "All Services" },
-                { href: "/tires", label: "Tires" },
+                { href: "/tires", label: "Tires (New & Used)" },
                 { href: "/brakes", label: "Brakes" },
                 { href: "/diagnostics", label: "Diagnostics" },
-                { href: "/emissions", label: "Emissions" },
+                { href: "/emissions", label: "Emissions / E-Check" },
                 { href: "/oil-change", label: "Oil Change" },
                 { href: "/general-repair", label: "General Repair" },
                 { href: "/alignment", label: "Wheel Alignment" },
+                { href: "/ac-repair", label: "AC & Heating" },
+                { href: "/transmission", label: "Transmission" },
+                { href: "/electrical", label: "Electrical" },
+                { href: "/exhaust", label: "Exhaust & Muffler" },
+                { href: "/cooling", label: "Cooling & Radiator" },
+                { href: "/battery", label: "Battery Service" },
+                { href: "/starter-alternator", label: "Starter & Alternator" },
+                { href: "/belts-hoses", label: "Belts & Hoses" },
+                { href: "/pre-purchase-inspection", label: "Pre-Purchase Inspection" },
               ].map((l) => (
                 <Link key={l.href} href={l.href} className={LINK_CLASS}>{l.label}</Link>
               ))}

@@ -37,8 +37,9 @@ if (portIdx !== -1 && args[portIdx + 1]) {
 async function loadRoutes() {
   const { execSync } = await import("child_process");
   try {
+    // Load full route data (path + title + description) for SEO injection
     const result = execSync(
-      `node --import tsx/esm -e "import { PRERENDER_ROUTES } from './shared/routes.ts'; console.log(JSON.stringify(PRERENDER_ROUTES.map(r => r.path)));"`,
+      `node --import tsx/esm -e "import { PRERENDER_ROUTES } from './shared/routes.ts'; console.log(JSON.stringify(PRERENDER_ROUTES.map(r => ({ path: r.path, title: r.title, description: r.description }))));"`,
       { cwd: ROOT, encoding: "utf-8", timeout: 15000 }
     );
     return JSON.parse(result.trim());
@@ -98,7 +99,13 @@ function startServer() {
 // ─── Main prerender loop ─────────────────────────────────
 async function main() {
   console.log("[prerender] Loading route registry...");
-  const routes = await loadRoutes();
+  const routeData = await loadRoutes();
+  // routeData is either [{path, title, description}] or ["/path1", "/path2"] (fallback)
+  const routes = routeData.map(r => typeof r === "string" ? r : r.path);
+  const routeMap = new Map();
+  routeData.forEach(r => {
+    if (typeof r === "object") routeMap.set(r.path, r);
+  });
   console.log(`[prerender] Found ${routes.length} routes to prerender.`);
 
   // Clean and create output directory
@@ -147,18 +154,70 @@ async function main() {
             timeout: 30000,
           });
 
-          // Wait a bit for React effects (SEOHead, JSON-LD injection)
-          await page.evaluate(() => new Promise((r) => setTimeout(r, 500)));
+          // Wait for React effects (SEOHead useEffect sets title, meta, canonical)
+          // The SEOHead component runs in useEffect which fires after render
+          await page.evaluate(() => new Promise((r) => setTimeout(r, 1500)));
 
-          // Wait for the main content to be present
-          await page.waitForSelector("#root", { timeout: 5000 }).catch(() => {});
+          // Wait for title to change from the default (indicates SEOHead ran)
+          await page.waitForFunction(
+            () => !document.title.includes("Cleveland Auto Repair & Tire Shop"),
+            { timeout: 3000 }
+          ).catch(() => {});
 
           // Get the full HTML
           let html = await page.content();
 
-          // Remove any client-side only scripts that would cause re-hydration issues
-          // Keep the main bundle for SPA functionality after initial render
-          // But add a marker so Express knows this is prerendered
+          // Inject correct SEO tags from route registry if React's useEffect didn't update them
+          const routeInfo = routeMap.get(routePath);
+          if (routeInfo) {
+            const BASE_URL = "https://nickstire.org";
+            const canonicalUrl = `${BASE_URL}${routePath === "/" ? "" : routePath}`;
+
+            // Fix title if it's still the default
+            if (html.includes("Cleveland Auto Repair &amp; Tire Shop") || html.includes("Cleveland&#x27;s #1")) {
+              html = html.replace(/<title>[^<]*<\/title>/, `<title>${routeInfo.title}</title>`);
+            }
+
+            // Fix meta description if it's still the default
+            if (routeInfo.description) {
+              html = html.replace(
+                /(<meta\s+name="description"\s+content=")[^"]*(")/,
+                `$1${routeInfo.description}$2`
+              );
+            }
+
+            // Fix canonical URL
+            html = html.replace(
+              /(<link\s+rel="canonical"\s+href=")[^"]*(")/,
+              `$1${routePath === "/" ? BASE_URL + "/" : canonicalUrl}$2`
+            );
+
+            // Fix OG tags
+            html = html.replace(
+              /(<meta\s+property="og:title"\s+content=")[^"]*(")/,
+              `$1${routeInfo.title}$2`
+            );
+            html = html.replace(
+              /(<meta\s+property="og:description"\s+content=")[^"]*(")/,
+              `$1${routeInfo.description}$2`
+            );
+            html = html.replace(
+              /(<meta\s+property="og:url"\s+content=")[^"]*(")/,
+              `$1${canonicalUrl}$2`
+            );
+
+            // Fix Twitter tags
+            html = html.replace(
+              /(<meta\s+name="twitter:title"\s+content=")[^"]*(")/,
+              `$1${routeInfo.title}$2`
+            );
+            html = html.replace(
+              /(<meta\s+name="twitter:description"\s+content=")[^"]*(")/,
+              `$1${routeInfo.description}$2`
+            );
+          }
+
+          // Add prerendered marker
           html = html.replace("</head>", '  <meta name="prerendered" content="true" />\n  </head>');
 
           // Determine output path

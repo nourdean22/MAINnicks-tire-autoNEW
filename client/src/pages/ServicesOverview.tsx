@@ -7,7 +7,7 @@ import { Link } from "wouter";
 import PageLayout from "@/components/PageLayout";
 import InternalLinks from "@/components/InternalLinks";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
-import { Phone, ChevronRight, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Star, MapPin } from "lucide-react";
+import { Phone, ChevronRight, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Star, MapPin, Snowflake, Settings, Battery, Wind, Thermometer, ClipboardCheck, Cable, CircleDot } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 
 const SERVICES_LIST = [
@@ -52,6 +52,69 @@ const SERVICES_LIST = [
     icon: <Wrench className="w-8 h-8" />,
     shortDesc: "Suspension, steering, exhaust, cooling systems, belts, hoses, and more.",
     problems: ["Car pulling to one side", "Unusual noises", "Fluid leaks under vehicle"],
+  },
+  {
+    slug: "ac-repair",
+    title: "AC & Heating",
+    icon: <Snowflake className="w-8 h-8" />,
+    shortDesc: "AC recharge, compressor, condenser, evaporator, heater core, and blower motor.",
+    problems: ["AC blowing warm air", "Weak airflow", "Heater not working"],
+  },
+  {
+    slug: "transmission",
+    title: "Transmission",
+    icon: <Settings className="w-8 h-8" />,
+    shortDesc: "Transmission fluid service, diagnostics, solenoid repair, and rebuilds.",
+    problems: ["Transmission slipping", "Hard shifting", "Burning smell"],
+  },
+  {
+    slug: "electrical",
+    title: "Electrical",
+    icon: <Zap className="w-8 h-8" />,
+    shortDesc: "Battery, alternator, starter, wiring, fuses, power windows.",
+    problems: ["Car won't start", "Battery dies overnight", "Dimming lights"],
+  },
+  {
+    slug: "battery",
+    title: "Battery Service",
+    icon: <Battery className="w-8 h-8" />,
+    shortDesc: "Free battery testing and same-day replacement. Don't get stranded.",
+    problems: ["Slow cranking", "Battery light on", "Needed a jump start"],
+  },
+  {
+    slug: "exhaust",
+    title: "Exhaust & Muffler",
+    icon: <Wind className="w-8 h-8" />,
+    shortDesc: "Muffler, catalytic converter, exhaust pipe, manifold, and resonator.",
+    problems: ["Loud exhaust", "Failed E-Check", "Exhaust smell inside car"],
+  },
+  {
+    slug: "cooling",
+    title: "Cooling System",
+    icon: <Thermometer className="w-8 h-8" />,
+    shortDesc: "Radiator, water pump, thermostat, coolant flush, and hose replacement.",
+    problems: ["Engine overheating", "Coolant leak", "Temperature gauge high"],
+  },
+  {
+    slug: "pre-purchase-inspection",
+    title: "Pre-Purchase Inspection",
+    icon: <ClipboardCheck className="w-8 h-8" />,
+    shortDesc: "150+ point used car inspection with written report. Know before you buy.",
+    problems: ["Buying a used car", "Unknown service history", "Too good to be true price"],
+  },
+  {
+    slug: "belts-hoses",
+    title: "Belts & Hoses",
+    icon: <Cable className="w-8 h-8" />,
+    shortDesc: "Serpentine belt, timing belt, radiator hoses, and heater hoses.",
+    problems: ["Squealing on startup", "Visible belt cracks", "Coolant leak from hose"],
+  },
+  {
+    slug: "starter-alternator",
+    title: "Starter & Alternator",
+    icon: <CircleDot className="w-8 h-8" />,
+    shortDesc: "Starter motor and alternator diagnostics and same-day replacement.",
+    problems: ["Clicking no-start", "Battery keeps dying", "Charging system light"],
   },
 ];
 

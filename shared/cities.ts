@@ -348,6 +348,33 @@ export const CITIES: CityData[] = [
       author: "Lisa T.",
       location: "Willoughby, OH"
     }
+  },
+  {
+    slug: "cleveland-auto-repair",
+    name: "Cleveland",
+    metaTitle: "Auto Repair Cleveland OH | Nick's Tire & Auto | (216) 862-0005",
+    metaDescription: "Cleveland's #1 auto repair shop and tire specialist. 1,685+ Google reviews, 4.9 stars. Tires, brakes, diagnostics, emissions, oil changes. Walk-ins 7 days. $10 down financing.",
+    heroHeadline: "CLEVELAND'S #1 AUTO\nREPAIR & TIRE SHOP",
+    heroSubline: "Nick's Tire & Auto is Cleveland's top-rated shop for a reason. With over 1,685 five-star reviews, honest diagnostics, and the largest new and used tire selection in the area, we are the shop Cleveland trusts.",
+    distance: "0 miles",
+    driveTime: "You're here",
+    neighborhoods: ["Downtown Cleveland", "East Side", "West Side", "Collinwood", "Nottingham", "Five Points", "University Circle", "Tremont", "Ohio City", "Slavic Village", "Glenville", "Hough"],
+    localContent: "Nick's Tire & Auto is located at 17625 Euclid Avenue in the heart of Cleveland's East Side. Since 2018, we have built a reputation as the most trusted auto repair shop in Cleveland. Our secret is simple: honest diagnostics, transparent pricing, and quality work. We never sell you services you don't need. We show you the problem, explain your options, and let you decide. That approach has earned us 1,685+ five-star Google reviews and a 4.9-star rating — the highest of any independent shop in Cleveland. Whether you need new tires, brake repair, engine diagnostics, emissions testing, or any other service, Nick's is the shop Cleveland trusts. Walk-ins welcome 7 days a week, and we offer $10 down financing through Acima, Koalafi, Snap Finance, and American First Finance.",
+    serviceHighlights: [
+      "Cleveland's largest new and used tire selection with free premium installation",
+      "Expert brake repair — pads, rotors, calipers, ABS diagnostics",
+      "Advanced engine diagnostics with OBD-II and factory-level scanners",
+      "Ohio E-Check and emissions repair — we get you passing",
+      "Quick oil changes — conventional and synthetic",
+      "Transmission, suspension, electrical, and general repair",
+      "$10 down auto repair financing — all credit welcome",
+      "Walk-ins welcome 7 days a week, Monday through Sunday"
+    ],
+    testimonial: {
+      text: "I have been going to Nick's for five years. They have worked on every car in my family. Honest, fast, and the prices are always fair. Best shop in Cleveland, hands down.",
+      author: "James W.",
+      location: "Cleveland, OH"
+    }
   }
 ];
 

@@ -180,10 +180,29 @@ const SERVICE_PAGES: RouteEntry[] = [
     sitemap: true,
     prerender: true,
   },
+  { path: "/ac-repair", priority: 0.8, changefreq: "monthly", title: "AC Repair Cleveland OH — Nick's Tire & Auto", description: "Auto AC and heating repair in Cleveland. Recharge, compressor, condenser, evaporator, heater core. Same-day service. Walk-ins welcome.", group: "service", sitemap: true, prerender: true },
+  { path: "/transmission", priority: 0.8, changefreq: "monthly", title: "Transmission Repair Cleveland OH — Nick's Tire & Auto", description: "Transmission repair and service in Cleveland. Fluid changes, diagnostics, solenoid repair, rebuilds. Honest diagnosis. Walk-ins welcome.", group: "service", sitemap: true, prerender: true },
+  { path: "/electrical", priority: 0.8, changefreq: "monthly", title: "Auto Electrical Repair Cleveland — Nick's Tire & Auto", description: "Auto electrical repair in Cleveland. Battery, alternator, starter, wiring, power windows. Expert diagnostics. Walk-ins welcome.", group: "service", sitemap: true, prerender: true },
+  { path: "/battery", priority: 0.8, changefreq: "monthly", title: "Battery Testing & Replacement Cleveland — Nick's Tire", description: "Free car battery testing in Cleveland. Same-day replacement. Charging system check included. All makes and models. Walk-ins welcome.", group: "service", sitemap: true, prerender: true },
+  { path: "/exhaust", priority: 0.8, changefreq: "monthly", title: "Exhaust & Muffler Repair Cleveland — Nick's Tire & Auto", description: "Exhaust and muffler repair in Cleveland. Catalytic converter, exhaust pipe, manifold. Pass Ohio E-Check. Same-day service.", group: "service", sitemap: true, prerender: true },
+  { path: "/cooling", priority: 0.8, changefreq: "monthly", title: "Cooling System Repair Cleveland — Nick's Tire & Auto", description: "Cooling system and radiator repair in Cleveland. Water pump, thermostat, coolant flush, hoses. Don't risk overheating. Walk-ins welcome.", group: "service", sitemap: true, prerender: true },
+  { path: "/pre-purchase-inspection", priority: 0.8, changefreq: "monthly", title: "Pre-Purchase Car Inspection Cleveland — Nick's Tire", description: "Used car inspection in Cleveland before you buy. 150+ point check. Written report with photos. Know what you're buying.", group: "service", sitemap: true, prerender: true },
+  { path: "/belts-hoses", priority: 0.7, changefreq: "monthly", title: "Belt & Hose Replacement Cleveland — Nick's Tire & Auto", description: "Serpentine belt, timing belt, and hose replacement in Cleveland. Prevent breakdowns. Fair prices. Walk-ins welcome.", group: "service", sitemap: true, prerender: true },
+  { path: "/starter-alternator", priority: 0.8, changefreq: "monthly", title: "Starter & Alternator Repair Cleveland — Nick's Tire", description: "Starter and alternator repair in Cleveland. Free charging system test. Same-day replacement. All makes and models.", group: "service", sitemap: true, prerender: true },
 ];
 
 // ─── CITY/AREA PAGES ─────────────────────────────────────
 const CITY_PAGES: RouteEntry[] = [
+  {
+    path: "/cleveland-auto-repair",
+    priority: 0.9,
+    changefreq: "weekly",
+    title: "Auto Repair Cleveland OH — Nick's Tire & Auto",
+    description: "Cleveland's #1 auto repair shop and tire specialist. 1,685+ reviews, 4.9 stars. Tires, brakes, diagnostics, emissions. Walk-ins 7 days. $10 down financing.",
+    group: "city",
+    sitemap: true,
+    prerender: true,
+  },
   {
     path: "/euclid-auto-repair",
     priority: 0.8,

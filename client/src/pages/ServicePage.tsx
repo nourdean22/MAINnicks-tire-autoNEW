@@ -648,7 +648,8 @@ function ServiceSchema({ service }: { service: ServiceData }) {
 // ─── MAIN PAGE ─────────────────────────────────────────
 export default function ServicePage() {
   const [, params] = useRoute("/:slug");
-  const slug = params?.slug || "";
+  // Fallback: extract slug from pathname if useRoute doesn't match (e.g., during prerendering)
+  const slug = params?.slug || (typeof window !== "undefined" ? window.location.pathname.replace(/^\//, "").split("/")[0] : "");
   const service = SERVICES.find((s) => s.slug === slug);
 
   // Scroll to top on route change

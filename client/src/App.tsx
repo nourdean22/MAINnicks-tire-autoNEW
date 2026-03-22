@@ -80,6 +80,15 @@ function Router() {
         <Route path={"/emissions"} component={ServicePage} />
         <Route path={"/oil-change"} component={ServicePage} />
         <Route path={"/general-repair"} component={ServicePage} />
+        <Route path={"/ac-repair"} component={ServicePage} />
+        <Route path={"/transmission"} component={ServicePage} />
+        <Route path={"/electrical"} component={ServicePage} />
+        <Route path={"/battery"} component={ServicePage} />
+        <Route path={"/exhaust"} component={ServicePage} />
+        <Route path={"/cooling"} component={ServicePage} />
+        <Route path={"/pre-purchase-inspection"} component={ServicePage} />
+        <Route path={"/belts-hoses"} component={ServicePage} />
+        <Route path={"/starter-alternator"} component={ServicePage} />
         <Route path={"/alignment"} component={AlignmentPage} />
         {/* Standalone pages */}
         <Route path={"/contact"} component={Contact} />
@@ -88,6 +97,7 @@ function Router() {
         <Route path={"/admin"} component={Admin} />
         <Route path={"/admin/content"} component={AdminContent} />
         {/* City-specific landing pages for local SEO */}
+        <Route path={"/cleveland-auto-repair"} component={CityPage} />
         <Route path={"/euclid-auto-repair"} component={CityPage} />
         <Route path={"/lakewood-auto-repair"} component={CityPage} />
         <Route path={"/parma-auto-repair"} component={CityPage} />
