@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
-import { ACIMA_PROMO_YEAR, ACIMA_SOCIAL_PROOF } from "@/lib/acima";
+import { ACIMA_PROMO_YEAR, ACIMA_SOCIAL_PROOF, buildAcimaUrl } from "@/lib/acima";
 
 // ─── ACIMA (Lease-to-Own — NOT financing) ──────────────
 const ACIMA = {
@@ -33,7 +33,7 @@ const ACIMA = {
     "Apply online or in-store in minutes",
   ],
   idealFor: "Ideal if you have limited or no credit history and need service today",
-  applyUrl: "https://www.acima.com/apply",
+  applyUrl: buildAcimaUrl("financing_hero"),
 };
 
 // ─── FINANCING PROVIDERS (separate from Acima) ────────────
@@ -152,7 +152,7 @@ export default function Financing() {
     <PageLayout activeHref="/financing">
       <SEOHead
         title="Payment Options & Lease-to-Own | Nick's Tire & Auto Cleveland"
-        description="Multiple ways to pay at Nick's Tire & Auto in Cleveland. $10 down, drive today. Acima lease-to-own (no credit history needed), Snap Finance, Koalafi, and Synchrony. Apply in minutes."
+        description={`Multiple ways to pay at Nick's Tire & Auto in Cleveland. ${BUSINESS.taglines.hookAction} Acima lease-to-own (no credit history needed), Snap Finance, Koalafi, and Synchrony. Apply in minutes.`}
         canonicalPath="/financing"
       />
       <Breadcrumbs items={[{ label: "Payment Options", href: "/financing" }]} />

@@ -14,6 +14,7 @@ import EmergencyBanner from "@/components/EmergencyBanner";
 import StickyTrustBar from "@/components/StickyTrustBar";
 import ComparisonTable from "@/components/ComparisonTable";
 import QuickQuoteWidget from "@/components/QuickQuoteWidget";
+import CustomerStories from "@/components/CustomerStories";
 import InternalLinks from "@/components/InternalLinks";
 import { SEOHead, SkipToContent, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronDown, Menu, X, ArrowRight, Wrench, Gauge, Droplets, Wind, Disc, Circle, Ruler, Gift, CreditCard } from "lucide-react";
@@ -708,7 +709,7 @@ function Footer() {
           <div>
             <span className="text-primary font-semibold text-lg tracking-tight">Nick's Tire & Auto</span>
             <p className="mt-3 text-foreground/30 text-sm leading-relaxed">
-              Honest auto repair for Cleveland, Euclid, and Northeast Ohio.
+              {BUSINESS.taglines.meme} {BUSINESS.taglines.hookSince} Honest auto repair for Cleveland, Euclid, and Northeast Ohio.
             </p>
             <div className="mt-4 flex gap-3">
               <a href="https://www.instagram.com/nicks_tire_euclid/" target="_blank" rel="noopener noreferrer" className="text-foreground/20 hover:text-foreground/50 transition-colors" aria-label="Instagram">
@@ -843,6 +844,7 @@ export default function Home() {
           <AskMechanicCTA />
         </div>
         <WhyUs />
+        <CustomerStories />
         <Reviews />
         <ComparisonTable />
         <Contact />

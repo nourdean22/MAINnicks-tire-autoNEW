@@ -25,6 +25,14 @@ export const ACIMA_FULL_DISCLAIMER =
   `Acima is a lease-to-own program. It is not a loan, credit, or financing. You will not own the merchandise until you make all payments under the lease agreement or exercise an early purchase option. Lease payments may be higher than the cash price of the merchandise. Not available in ${ACIMA_STATES_EXCLUDED}. See lease for details.`;
 
 /**
+ * Build Acima apply URL with UTM tracking parameters.
+ * Every external Acima link should use this to ensure consistent attribution.
+ */
+export function buildAcimaUrl(source: string): string {
+  return `https://www.acima.com/apply?utm_source=nickstire&utm_medium=website&utm_campaign=acima_leasetoown&utm_content=${source}`;
+}
+
+/**
  * Track Acima CTA clicks via GA4
  * Follows existing trackPhoneClick pattern from ga4.ts
  */

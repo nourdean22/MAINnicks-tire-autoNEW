@@ -690,7 +690,7 @@ export default function TireFinder() {
     <PageLayout>
       <SEOHead
         title="Tires in Cleveland OH | Nick's Tire & Auto"
-        description="Order tires online and get them installed at Nick's Tire & Auto in Cleveland, OH. Free mounting, balancing, valve stems, TPMS reset, and inspection with every tire."
+        description={`Order tires online and get them installed at Nick's Tire & Auto in Cleveland, OH. ${BUSINESS.taglines.hookAction} Free mounting, balancing, valve stems, TPMS reset, and inspection with every tire.`}
         canonicalPath="/tires"
       />
       <div className="min-h-screen bg-background text-foreground">

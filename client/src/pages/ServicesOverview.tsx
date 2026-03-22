@@ -60,7 +60,7 @@ export default function ServicesOverview() {
     <PageLayout>
       <SEOHead
         title="Auto Repair Services | Nick's Tire & Auto Cleveland"
-        description={`Complete auto repair services in Cleveland, Ohio. Tires, brakes, diagnostics, emissions, oil changes, and general repair. Honest diagnostics, fair prices. Call ${BUSINESS.phone.display}.`}
+        description={`Complete auto repair services in Cleveland, Ohio. Tires, brakes, diagnostics, emissions, oil changes, and general repair. ${BUSINESS.taglines.hookAction} Honest diagnostics, fair prices. Call ${BUSINESS.phone.display}.`}
         canonicalPath="/services"
       />
       <Breadcrumbs items={[{ label: "Services", href: "/services" }]} />

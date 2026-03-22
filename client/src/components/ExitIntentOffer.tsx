@@ -1,30 +1,26 @@
 /**
- * ExitIntentOffer — Service pages only.
- * Detects mouse leaving viewport (desktop) and shows a quick lead capture modal.
- * Name + Phone only. One-time per session (React state).
+ * ExitIntentOffer — Acima lease-to-own CTA popup.
+ * Detects mouse leaving viewport (desktop) and shows Acima apply prompt.
+ * One-time per session (module-level flag).
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { X, CheckCircle, Phone } from "lucide-react";
+import { X, Phone } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { trpc } from "@/lib/trpc";
-import { trackLeadSubmission, getUserDataForCAPI } from "@/lib/metaPixel";
-import { getUtmData } from "@/lib/utm";
 import { BUSINESS } from "@shared/business";
-import { ACIMA_COMPACT_DISCLOSURE, ACIMA_SOCIAL_PROOF } from "@/lib/acima";
+import {
+  ACIMA_COMPACT_DISCLOSURE,
+  ACIMA_STATES_EXCLUDED,
+  buildAcimaUrl,
+  trackAcimaClick,
+} from "@/lib/acima";
 
 // Session-level flag to prevent re-fire
 let exitIntentFiredThisSession = false;
 
 export default function ExitIntentOffer({ serviceName }: { serviceName: string }) {
   const [visible, setVisible] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [form, setForm] = useState({ name: "", phone: "" });
   const mountTimeRef = useRef(Date.now());
-
-  const submitLead = trpc.lead.submit.useMutation({
-    onSuccess: () => setSubmitted(true),
-  });
 
   const show = useCallback(() => {
     if (exitIntentFiredThisSession) return;
@@ -53,28 +49,6 @@ export default function ExitIntentOffer({ serviceName }: { serviceName: string }
     return () => document.removeEventListener("mouseleave", onMouseLeave);
   }, [show]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.name.trim() || !form.phone.trim()) return;
-
-    const eventId = trackLeadSubmission({ source: "exit-intent", problem: serviceName });
-    const userData = getUserDataForCAPI();
-    const utmData = getUtmData();
-
-    submitLead.mutate({
-      name: form.name.trim(),
-      phone: form.phone.trim(),
-      problem: `Exit intent — interested in ${serviceName}`,
-      source: "popup",
-      pixelEventId: eventId,
-      pixelUserData: userData,
-      ...utmData,
-    });
-  };
-
-  const inputCls =
-    "w-full bg-foreground/[0.04] border border-[oklch(0.17_0.004_260)] rounded-lg text-foreground px-4 py-3 text-[14px] placeholder:text-foreground/25 focus:border-primary/30 focus:outline-none transition-all";
-
   return (
     <AnimatePresence>
       {visible && (
@@ -96,70 +70,47 @@ export default function ExitIntentOffer({ serviceName }: { serviceName: string }
             <button
               onClick={dismiss}
               className="absolute top-4 right-4 text-foreground/25 hover:text-foreground/50 transition-colors p-1 z-10"
+              aria-label="Close popup"
             >
               <X className="w-4 h-4" />
             </button>
 
             <div className="p-6">
-              {!submitted ? (
-                <>
-                  <h3 className="font-bold text-[20px] text-foreground tracking-[-0.02em]">
-                    Before you go — get a free estimate.
-                  </h3>
-                  <p className="text-foreground/40 text-[13px] mt-2 leading-relaxed">
-                    No obligation. We'll text you a price in 15 minutes.
-                  </p>
-                  <p className="text-[11px] text-emerald-400/60 mt-1">
-                    Lease-to-own available — $10 down with Acima
-                    <span className="block text-[9px] text-emerald-400/40 mt-0.5">{ACIMA_SOCIAL_PROOF}</span>
-                    <span className="block text-[9px] text-foreground/25 mt-0.5">{ACIMA_COMPACT_DISCLOSURE}</span>
-                  </p>
+              <h3 className="font-bold text-[20px] text-foreground tracking-[-0.02em]">
+                Before you go —
+              </h3>
+              <p className="text-foreground/50 text-[13px] mt-2 leading-relaxed">
+                Get approved for lease-to-own in 60 seconds. $10 initial payment, no credit history needed.
+              </p>
 
-                  <form onSubmit={handleSubmit} className="mt-5 space-y-3">
-                    <input
-                      type="text"
-                      placeholder="Your name"
-                      value={form.name}
-                      onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                      required
-                      className={inputCls}
-                    />
-                    <input
-                      type="tel"
-                      placeholder="Phone number"
-                      value={form.phone}
-                      onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                      required
-                      className={inputCls}
-                    />
-                    <button
-                      type="submit"
-                      disabled={submitLead.isPending}
-                      className="w-full bg-primary text-primary-foreground py-3.5 rounded-lg font-semibold text-[14px] hover:opacity-90 transition-opacity disabled:opacity-50"
-                    >
-                      {submitLead.isPending ? "Submitting..." : "Get My Free Estimate"}
-                    </button>
-                  </form>
+              <a
+                href={buildAcimaUrl("exit_intent")}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => trackAcimaClick("exit_intent_cta")}
+                className="mt-5 w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-3.5 rounded-lg font-semibold text-[14px] hover:bg-emerald-500 transition-colors"
+              >
+                Check If I Qualify →
+              </a>
 
-                  <button
-                    onClick={dismiss}
-                    className="block mx-auto mt-3 text-foreground/25 text-[12px] hover:text-foreground/40 transition-colors"
-                  >
-                    No thanks, maybe later
-                  </button>
-                </>
-              ) : (
-                <div className="py-6 text-center">
-                  <CheckCircle className="w-10 h-10 text-primary mx-auto mb-3" />
-                  <h3 className="font-bold text-[18px] text-foreground">We'll text you shortly.</h3>
-                  <p className="text-foreground/40 text-[13px] mt-2">
-                    Expect a text from {BUSINESS.phone.display}.
-                  </p>
-                  <button onClick={dismiss} className="mt-4 text-foreground/30 text-[12px] hover:text-foreground/50 transition-colors">
-                    Close
-                  </button>
-                </div>
-              )}
+              <a
+                href={BUSINESS.phone.href}
+                className="flex items-center justify-center gap-2 mt-3 text-foreground/40 text-[13px] hover:text-foreground/60 transition-colors"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                Or call us: {BUSINESS.phone.display}
+              </a>
+
+              <p className="text-[9px] text-foreground/25 mt-4 leading-relaxed">
+                {ACIMA_COMPACT_DISCLOSURE} Not available in {ACIMA_STATES_EXCLUDED}.
+              </p>
+
+              <button
+                onClick={dismiss}
+                className="block mx-auto mt-3 text-foreground/25 text-[12px] hover:text-foreground/40 transition-colors"
+              >
+                No thanks, maybe later
+              </button>
             </div>
           </motion.div>
         </motion.div>

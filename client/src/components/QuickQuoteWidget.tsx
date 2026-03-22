@@ -5,18 +5,22 @@
  */
 
 import { useState } from "react";
-import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Phone, CreditCard } from "lucide-react";
 import { BUSINESS } from "@shared/business";
-import { ACIMA_COMPACT_DISCLOSURE, ACIMA_SOCIAL_PROOF, trackAcimaClick } from "@/lib/acima";
+import { ACIMA_COMPACT_DISCLOSURE, ACIMA_SOCIAL_PROOF, trackAcimaClick, buildAcimaUrl } from "@/lib/acima";
 
 const SERVICES = [
-  { label: "Oil Change", low: 40, high: 90 },
-  { label: "Brake Pads & Rotors", low: 250, high: 550 },
-  { label: "Tire Set (4 tires, installed)", low: 400, high: 900 },
-  { label: "Wheel Alignment", low: 80, high: 120 },
-  { label: "Diagnostics", low: 49, high: 120 },
+  { label: "Oil Change", low: 39, high: 89 },
+  { label: "Brake Repair", low: 189, high: 449 },
+  { label: "4 New Tires (installed)", low: 400, high: 1200 },
+  { label: "Wheel Alignment", low: 89, high: 129 },
+  { label: "Check Engine Diagnostics", low: 89, high: 129 },
+  { label: "Battery Replacement", low: 149, high: 289 },
+  { label: "Alternator Replacement", low: 349, high: 649 },
+  { label: "Starter Replacement", low: 299, high: 599 },
+  { label: "Struts/Shocks (pair)", low: 399, high: 899 },
+  { label: "A/C Repair", low: 149, high: 699 },
   { label: "Emissions / E-Check Repair", low: 150, high: 600 },
   { label: "General Repair", low: 100, high: 800 },
   { label: "TPMS Sensors", low: 50, high: 200 },
@@ -33,10 +37,10 @@ export default function QuickQuoteWidget() {
       <div className="container max-w-lg mx-auto">
         <div className="bg-card/40 border border-border/20 rounded-2xl p-6 sm:p-8">
           <h3 className="text-lg font-bold text-foreground tracking-tight text-center">
-            Quick Price Estimate
+            What Would This Cost?
           </h3>
           <p className="text-sm text-foreground/50 text-center mt-1">
-            Select a service to see approximate pricing
+            Get an instant estimate — no call, no appointment
           </p>
 
           {/* Service dropdown */}
@@ -95,7 +99,13 @@ export default function QuickQuoteWidget() {
                 </div>
 
                 {/* Acima callout */}
-                <div className="mt-4 bg-emerald-500/5 border border-emerald-500/15 rounded-lg p-3 text-center">
+                <a
+                  href={buildAcimaUrl("quick_quote_widget")}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => trackAcimaClick("quick_quote_widget")}
+                  className="block mt-4 bg-emerald-500/5 border border-emerald-500/15 rounded-lg p-3 text-center hover:bg-emerald-500/10 transition-colors"
+                >
                   <div className="flex items-center justify-center gap-1.5">
                     <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
                     <span className="text-sm font-medium text-emerald-400">
@@ -104,25 +114,28 @@ export default function QuickQuoteWidget() {
                   </div>
                   <p className="text-[9px] text-emerald-400/50 mt-1">{ACIMA_SOCIAL_PROOF}</p>
                   <p className="text-[9px] text-foreground/25 mt-0.5">{ACIMA_COMPACT_DISCLOSURE}</p>
-                </div>
+                </a>
 
                 {/* CTA buttons */}
-                <div className="mt-4 flex gap-2">
+                <div className="mt-4 flex flex-col sm:flex-row gap-2">
+                  <a
+                    href="#booking"
+                    className="flex-1 flex items-center justify-center gap-2 bg-foreground text-background py-3 rounded-lg font-medium text-sm hover:bg-foreground/90 transition-colors"
+                  >
+                    Book Now
+                  </a>
                   <a
                     href={BUSINESS.phone.href}
-                    className="flex-1 flex items-center justify-center gap-2 bg-foreground text-background py-3 rounded-lg font-medium text-sm hover:bg-foreground/90 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-2 border border-foreground/20 text-foreground py-3 rounded-lg font-medium text-sm hover:bg-foreground/5 transition-colors"
                   >
                     <Phone className="w-4 h-4" />
                     Get Exact Quote
                   </a>
-                  <Link
-                    href="/financing?utm_source=quick_quote"
-                    onClick={() => trackAcimaClick("quick_quote")}
-                    className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-lg font-medium text-sm hover:bg-emerald-500 transition-colors"
-                  >
-                    $10 Down Options
-                  </Link>
                 </div>
+
+                <p className="text-[11px] text-foreground/30 text-center mt-3">
+                  Estimates based on typical jobs. Final price depends on vehicle and parts needed.
+                </p>
               </motion.div>
             )}
           </AnimatePresence>

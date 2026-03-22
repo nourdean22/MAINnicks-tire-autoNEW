@@ -91,6 +91,7 @@ export const BUSINESS = {
     memeShort: "Keep it rolling.",
     memeCleveland: "We keep Cleveland rolling.",
     hookAction: "$10 down, drive today.",
+    hookSince: "Since 2018.",
   },
 
   // ─── SEO ─────────────────────────────────────────
