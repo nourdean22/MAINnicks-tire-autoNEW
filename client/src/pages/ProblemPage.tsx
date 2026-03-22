@@ -8,6 +8,7 @@ import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { getProblemBySlug } from "@shared/seo-pages";
 import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
+import FinancingCTA from "@/components/FinancingCTA";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -266,6 +267,9 @@ export default function ProblemPage() {
         }))
       })}} />
     
+      <section className="container pb-8">
+        <FinancingCTA variant="banner" />
+      </section>
       <InternalLinks />
 </PageLayout>
   );

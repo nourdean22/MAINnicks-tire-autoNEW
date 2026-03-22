@@ -7,6 +7,7 @@
 import PageLayout from "@/components/PageLayout";
 import SEOHead from "@/components/SEO";
 import BookingForm from "@/components/BookingForm";
+import FinancingCTA from "@/components/FinancingCTA";
 import FadeIn from "@/components/FadeIn";
 import { BUSINESS } from "@shared/business";
 import { Phone, CheckCircle, AlertTriangle, Clock, MapPin } from "lucide-react";
@@ -295,6 +296,7 @@ function BookingSection() {
 
           <FadeIn delay={0.1}>
             <BookingForm defaultService="Alignment" />
+            <FinancingCTA variant="banner" className="mt-6" />
           </FadeIn>
         </div>
       </div>

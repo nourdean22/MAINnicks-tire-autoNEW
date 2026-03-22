@@ -10,6 +10,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead } from "@/components/SEO";
+import FinancingCTA from "@/components/FinancingCTA";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -1223,6 +1224,11 @@ export default function TireFinder() {
           </div>
         </section>
       )}
+
+      {/* ─── FINANCING CTA ─── */}
+      <section className="container py-8">
+        <FinancingCTA variant="banner" />
+      </section>
 
       {/* ─── FOOTER ─── */}
       <footer className="border-t border-border/30 py-8">

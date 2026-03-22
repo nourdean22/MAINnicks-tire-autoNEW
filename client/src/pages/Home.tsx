@@ -7,6 +7,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import BookingForm from "@/components/BookingForm";
+import FinancingCTA from "@/components/FinancingCTA";
 import LeadPopup from "@/components/LeadPopup";
 import ChatWidget from "@/components/ChatWidget";
 import NotificationBar from "@/components/NotificationBar";
@@ -491,6 +492,7 @@ function Contact() {
 
           <FadeIn delay={0.15}>
             <BookingForm />
+            <FinancingCTA variant="banner" className="mt-6" />
           </FadeIn>
         </div>
 

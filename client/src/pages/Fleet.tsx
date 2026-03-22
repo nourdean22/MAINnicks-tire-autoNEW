@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
+import FinancingCTA from "@/components/FinancingCTA";
 
 const FLEET_SERVICES = [
   { icon: <Wrench className="w-6 h-6" />, title: "Preventive Maintenance", desc: "Scheduled oil changes, tire rotations, brake inspections, and fluid services to keep your fleet running." },
@@ -213,6 +214,9 @@ export default function Fleet() {
             </form>
           )}
         </div>
+      </section>
+      <section className="container pb-12">
+        <FinancingCTA variant="banner" />
       </section>
       <InternalLinks title="Our Services" />
     </PageLayout>

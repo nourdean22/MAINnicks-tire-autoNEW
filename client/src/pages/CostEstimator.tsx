@@ -9,6 +9,7 @@ import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import PageLayout from "@/components/PageLayout";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import InternalLinks from "@/components/InternalLinks";
+import FinancingCTA from "@/components/FinancingCTA";
 import { BUSINESS } from "@shared/business";
 import { SERVICE_TYPES, SERVICE_CATEGORIES } from "@shared/serviceTypes";
 import { trpc } from "@/lib/trpc";
@@ -451,6 +452,8 @@ export default function CostEstimator() {
                         Call for Exact Quote: {BUSINESS.phone.display}
                       </button>
                     </a>
+
+                    <FinancingCTA variant="card" />
                   </div>
 
                   <button

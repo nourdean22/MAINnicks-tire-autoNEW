@@ -15,6 +15,7 @@ import { Phone, MapPin, Clock, Star, ChevronRight, ChevronDown, ArrowLeft, Wrenc
 import { AnimatePresence } from "framer-motion";
 import { BUSINESS } from "@shared/business";
 import FadeIn from "@/components/FadeIn";
+import FinancingCTA from "@/components/FinancingCTA";
 
 // CDN images
 const HERO_IMAGES: Record<string, string> = {
@@ -479,6 +480,7 @@ function BookingSection({ service }: { service: ServiceData }) {
 
           <FadeIn delay={0.15}>
             <BookingForm defaultService={service.title === "EMISSIONS & E-CHECK" ? "Ohio E-Check / Emissions Repair" : service.title === "DIAGNOSTICS" ? "Check Engine Light / Diagnostics" : service.title === "OIL CHANGE" ? "Oil Change" : service.title === "GENERAL REPAIR" ? "General Repair / Other" : service.title === "TIRES" ? "Tires — New, Used, Repair" : "Brake Repair"} />
+            <FinancingCTA variant="banner" className="mt-6" />
           </FadeIn>
         </div>
       </div>
