@@ -615,4 +615,10 @@ export const BLOG_SLUGS = [
   "when-to-replace-tires",
   "spring-car-maintenance-checklist",
   "synthetic-vs-conventional-oil",
+  "echeck-emissions-guide-cleveland",
+  "winter-tires-cleveland",
+  "how-much-brake-repair-cost-cleveland",
+  "used-tires-cleveland-guide",
+  "transmission-problems-warning-signs",
+  "car-wont-start-common-causes",
 ];

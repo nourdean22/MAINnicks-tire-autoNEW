@@ -256,6 +256,257 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     ],
     relatedServices: ["/oil-change"],
     tags: ["oil change", "synthetic oil", "conventional oil", "Cleveland oil change", "engine maintenance"]
+  },
+  // ─── PHASE 2D: NEW HIGH-VALUE BLOG POSTS ─────────────────
+  {
+    slug: "echeck-emissions-guide-cleveland",
+    title: "Ohio E-Check Guide — Everything Cleveland Drivers Need to Know (2026)",
+    metaTitle: "Ohio E-Check Guide Cleveland 2026 | Nick's Tire & Auto",
+    metaDescription: "Complete Ohio E-Check guide for Cleveland drivers. Which counties require it, how to pass, what happens if you fail, repair costs, and exemptions. Expert advice.",
+    category: "Emissions",
+    publishDate: "2026-03-20",
+    readTime: "8 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
+    excerpt: "If you live in Cuyahoga County or one of Ohio's other E-Check counties, you need to pass an emissions test to register your vehicle. Here is everything you need to know about Ohio E-Check in 2026.",
+    sections: [
+      {
+        heading: "What Is Ohio E-Check?",
+        content: "Ohio E-Check is a vehicle emissions testing program required in seven Ohio counties: Cuyahoga, Geauga, Lake, Lorain, Medina, Portage, and Summit. If your vehicle is registered in one of these counties, it must pass an E-Check inspection every two years as part of the registration renewal process. The test measures your vehicle's tailpipe emissions and checks the onboard diagnostic (OBD-II) system for emissions-related problems."
+      },
+      {
+        heading: "Which Vehicles Need E-Check?",
+        content: "Most gasoline-powered vehicles registered in the seven E-Check counties need testing. Exemptions include: vehicles less than 4 years old (model year), vehicles over 25 years old, diesel vehicles, electric and hybrid vehicles, motorcycles, and vehicles with fewer than 7,500 miles since the last test. If you recently moved to an E-Check county, your vehicle will need testing at your next registration renewal."
+      },
+      {
+        heading: "What Does the E-Check Test?",
+        content: "The E-Check test plugs into your vehicle's OBD-II port (the diagnostic connector under the dash) and reads the onboard computer. It checks for stored emissions-related trouble codes, verifies that all emissions monitors have completed their drive cycles, and checks that the check engine light is not illuminated. If the OBD-II system reports a problem or if monitors are incomplete, the vehicle fails."
+      },
+      {
+        heading: "Common Reasons for E-Check Failure",
+        content: "The most common failure reasons are: check engine light on (any emissions-related code causes failure), incomplete drive cycle monitors (if the battery was recently disconnected or codes were recently cleared, the monitors reset and need to complete before testing), catalytic converter efficiency codes (P0420/P0430), oxygen sensor failures, EVAP system leaks (loose gas cap is the simplest cause), and EGR system problems. At Nick's Tire & Auto, we see these failures every day and know exactly how to diagnose and repair each one."
+      },
+      {
+        heading: "What to Do If You Fail E-Check",
+        content: "If your vehicle fails, you have 30 days to make repairs and retest at no additional cost. Do NOT simply clear the codes and try again — the monitors will be incomplete and you will fail for that reason instead. The key is to diagnose the actual problem, repair it, then drive the vehicle through the specific drive cycle needed for all monitors to complete. At Nick's Tire & Auto, we specialize in E-Check failures and know the exact drive cycles for every vehicle. We fix the root cause so you pass the first time back."
+      },
+      {
+        heading: "How Much Does E-Check Repair Cost?",
+        content: "E-Check repair costs vary widely depending on the problem. A loose gas cap is free to fix. An oxygen sensor replacement runs $150 to $400. Catalytic converter replacement costs $500 to $2,000 depending on the vehicle. EVAP system repairs range from $100 to $600. At Nick's Tire & Auto, we diagnose the specific failure cause and give you a written estimate before any work. We also offer financing through Acima, Koalafi, Snap Finance, and American First Finance if the repair is more than expected."
+      },
+      {
+        heading: "Pro Tips for Passing E-Check",
+        content: "1. Drive your vehicle for at least 50-100 miles before testing if the battery was recently disconnected or codes were cleared. 2. Make sure your gas cap clicks when you tighten it. 3. If your check engine light is on, get it diagnosed before going to the E-Check station — clearing codes without fixing the problem guarantees a failure. 4. Keep up with regular maintenance — a well-maintained engine produces fewer emissions. 5. If you are not sure about your vehicle's readiness, bring it to Nick's Tire & Auto for a free E-Check readiness scan."
+      }
+    ],
+    relatedServices: ["/emissions", "/diagnostics"],
+    tags: ["Ohio E-Check", "emissions test Cleveland", "E-Check failure repair", "Cuyahoga County emissions", "pass E-Check Ohio"]
+  },
+  {
+    slug: "winter-tires-cleveland",
+    title: "Do You Need Winter Tires in Cleveland? A Local Mechanic's Honest Answer",
+    metaTitle: "Winter Tires Cleveland — Do You Need Them? | Nick's Tire & Auto",
+    metaDescription: "Do Cleveland drivers need winter tires? A local mechanic breaks down when they're worth it, all-season vs snow tires, and the best options for Northeast Ohio winters.",
+    category: "Tires",
+    publishDate: "2026-03-18",
+    readTime: "6 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "Cleveland gets 54 inches of snow per year. Should you invest in winter tires? Here is the honest answer from a mechanic who sees what happens when Cleveland drivers skip them.",
+    sections: [
+      {
+        heading: "Cleveland's Winter Driving Reality",
+        content: "Cleveland averages 54 inches of snow per year, with temperatures regularly dropping below 20°F from December through February. Lake effect snow can dump 6-12 inches overnight with little warning. The city's hilly terrain — especially in neighborhoods like Tremont, Ohio City, and the East Side — adds another layer of difficulty. These conditions push all-season tires to their limits and beyond."
+      },
+      {
+        heading: "All-Season vs. Winter Tires — The Real Difference",
+        content: "All-season tires are a compromise. They work acceptably in mild conditions but lose significant grip below 45°F. The rubber compound in all-season tires hardens in cold weather, reducing traction on dry roads, wet roads, and especially snow and ice. Winter tires use a softer rubber compound that stays flexible below freezing and have tread patterns designed to grip snow and channel slush. In braking tests, winter tires stop 30-40% shorter than all-season tires on snow and ice. That difference can be the margin between stopping safely and hitting the car in front of you."
+      },
+      {
+        heading: "When Winter Tires Are Worth It",
+        content: "Winter tires are worth it if: you commute daily in Cleveland (especially before roads are plowed), you drive in hilly areas, you have a rear-wheel-drive vehicle, or you drive a car with limited ground clearance. They are also smart for anyone who cannot afford to miss work due to bad roads. At around $400-$800 for a set installed, winter tires are cheaper than one accident or one missed day of work."
+      },
+      {
+        heading: "When All-Season Tires Are Fine",
+        content: "Good-quality all-season tires with adequate tread depth are acceptable if: you have a short commute on main roads that get plowed early, you drive an all-wheel-drive vehicle, you can stay home on the worst snow days, or you are on a tight budget and your current tires have good tread. The key word is 'good tread' — all-season tires with less than 4/32\" of tread are dangerous in winter regardless."
+      },
+      {
+        heading: "The Budget Option: Quality Used Winter Tires",
+        content: "New winter tires are the best option, but if budget is tight, quality used winter tires are a smart alternative. At Nick's Tire & Auto, we carry inspected used tires including winter options. Every used tire we sell is checked for tread depth, sidewall condition, and age. Used winter tires with 6/32\" or more tread will outperform brand-new all-season tires in snow and cold."
+      },
+      {
+        heading: "Our Recommendation for Cleveland Drivers",
+        content: "As mechanics who fix the aftermath of winter accidents every season, our honest recommendation is: if you can afford winter tires, get them. Mount them in November, swap back to all-seasons in April. If you keep them on separate wheels ($50-$75 per wheel), the swap is fast and inexpensive each season. And your all-season tires last longer because they are not wearing down all winter. Come see us at Nick's Tire & Auto — we will help you find the right winter tires for your vehicle and budget, new or used."
+      }
+    ],
+    relatedServices: ["/tires", "/alignment"],
+    tags: ["winter tires Cleveland", "snow tires Ohio", "all-season vs winter tires", "Cleveland winter driving", "used winter tires"]
+  },
+  {
+    slug: "how-much-brake-repair-cost-cleveland",
+    title: "How Much Does Brake Repair Cost in Cleveland? (2026 Price Guide)",
+    metaTitle: "Brake Repair Cost Cleveland 2026 — Price Guide | Nick's Tire & Auto",
+    metaDescription: "How much does brake repair cost in Cleveland? Complete 2026 price guide: brake pads $150-$300, rotors $250-$500, calipers $300-$800. Honest pricing from Nick's Tire.",
+    category: "Brake Repair",
+    publishDate: "2026-03-15",
+    readTime: "7 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-brakes-nKAKuxmW2WAmNrbCFRD9zL.webp",
+    excerpt: "Brake repair is one of the most common auto repairs, but prices vary wildly. Here is an honest breakdown of what brake work costs in Cleveland in 2026, straight from a shop that does it every day.",
+    sections: [
+      {
+        heading: "Brake Pad Replacement: $150–$300 Per Axle",
+        content: "Replacing brake pads on one axle (front or rear) costs $150 to $300 at most independent shops in Cleveland. This includes the pads themselves, labor, and hardware. Ceramic pads cost more than semi-metallic but produce less dust and noise. Dealerships charge $250 to $450 for the same job. At Nick's Tire & Auto, front brake pad replacement starts at $150 per axle, and we use quality ceramic pads."
+      },
+      {
+        heading: "Brake Pads + Rotors: $250–$500 Per Axle",
+        content: "If your rotors are scored, warped, or below minimum thickness, they need to be replaced along with the pads. This is the most common brake job we perform. Parts and labor for pads and rotors on one axle runs $250 to $500. The price depends on the vehicle — a Honda Civic is on the lower end, a Ford F-150 is on the higher end because the parts are larger and more expensive."
+      },
+      {
+        heading: "Caliper Replacement: $300–$800 Per Caliper",
+        content: "A sticking or leaking caliper needs replacement. Parts run $100 to $300 per caliper depending on the vehicle, plus 1-2 hours of labor. Total cost per caliper including pads is $300 to $800. Most vehicles only need one caliper replaced at a time — we do not replace calipers that are working correctly."
+      },
+      {
+        heading: "Complete Brake Job (All Four Wheels): $500–$1,200",
+        content: "A full brake job — all four wheels with pads, rotors, and hardware — costs $500 to $1,200 for most vehicles. This covers you for 30,000 to 70,000 miles depending on your driving habits. At Nick's Tire & Auto, a complete four-wheel brake job with premium ceramic pads and new rotors typically runs $600 to $900 for most cars and $800 to $1,100 for trucks and SUVs."
+      },
+      {
+        heading: "Brake Fluid Flush: $80–$150",
+        content: "Brake fluid absorbs moisture over time, which lowers its boiling point and can cause brake fade. A brake fluid flush — draining the old fluid and replacing it with fresh fluid — costs $80 to $150. Manufacturers recommend this every 2-3 years. It is a good preventive maintenance item that extends the life of your brake components."
+      },
+      {
+        heading: "Why Prices Vary So Much",
+        content: "Brake repair prices vary based on: the vehicle (European cars cost more than domestic), the type of pads (ceramic vs. semi-metallic), whether rotors need replacement, caliper condition, and shop overhead. Dealerships charge 30-50% more than independent shops for the same work with the same parts. Chain shops may quote low but upsell aggressively once your car is on the lift."
+      },
+      {
+        heading: "How to Avoid Overpaying for Brake Repair",
+        content: "1. Get a written estimate before authorizing work. 2. Ask what is actually worn — not every brake job needs rotors. 3. Compare independent shop prices to dealerships. 4. Do not ignore brake noise — catching worn pads early prevents rotor damage and saves $200+. 5. Ask about financing — at Nick's Tire & Auto, we offer $10 down financing through four providers so you do not have to drive on unsafe brakes because of cost."
+      }
+    ],
+    relatedServices: ["/brakes", "/financing"],
+    tags: ["brake repair cost Cleveland", "how much brakes cost", "brake job price 2026", "Cleveland brake repair pricing", "brake pads and rotors cost"]
+  },
+  {
+    slug: "used-tires-cleveland-guide",
+    title: "Buying Used Tires in Cleveland — What You Need to Know",
+    metaTitle: "Used Tires Cleveland — Buying Guide | Nick's Tire & Auto",
+    metaDescription: "Buying used tires in Cleveland? What to look for, what to avoid, tread depth minimums, age limits, and where to find quality inspected used tires. Expert guide.",
+    category: "Tires",
+    publishDate: "2026-03-12",
+    readTime: "5 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "Used tires can save you 50-70% compared to new — but only if you know what to look for. Here is a mechanic's guide to buying safe, quality used tires in Cleveland.",
+    sections: [
+      {
+        heading: "Why Buy Used Tires?",
+        content: "New tires cost $80 to $250+ each depending on the size and brand. A full set with installation can run $400 to $1,200. For many Cleveland drivers, that is a major expense. Quality used tires with good tread can cost $30 to $80 each — saving you hundreds while still providing safe, reliable grip. The key is knowing what to look for and where to buy."
+      },
+      {
+        heading: "What to Look For in Used Tires",
+        content: "Tread depth: A new tire has 10/32\" of tread. Legal minimum is 2/32\", but you should not buy a used tire with less than 5/32\" — it will not last long enough to be worth the money. Sidewall condition: Look for cracks, bulges, or cuts on the sidewall. Any sidewall damage means the tire is unsafe and should not be used. Age: Check the DOT date code on the sidewall (4-digit number — e.g., 2223 means week 22 of 2023). Tires older than 6 years should be avoided regardless of tread depth, as the rubber degrades."
+      },
+      {
+        heading: "What to Avoid",
+        content: "Never buy used tires with: visible patches on the sidewall (plug repairs are OK, sidewall patches are not), uneven wear patterns (indicates alignment or suspension problems from the previous vehicle), exposed belt wires or cords, cracking in the tread grooves (dry rot), or any tire older than 6 years. Also avoid buying used tires from sellers who cannot tell you the tread depth or let you inspect the tires before buying."
+      },
+      {
+        heading: "Where to Buy Quality Used Tires in Cleveland",
+        content: "At Nick's Tire & Auto, every used tire we sell is inspected by a technician. We check tread depth, sidewall condition, age, and overall safety before putting any used tire on a customer's vehicle. We do not sell anything we would not put on our own car. Our used tire selection changes daily as we receive trade-ins and take-offs. Walk in or call (216) 862-0005 to ask what we have in your size."
+      },
+      {
+        heading: "Used Tires + Free Installation at Nick's",
+        content: "When you buy used tires from Nick's Tire & Auto, you get the same premium installation package that comes with new tires: professional mounting, computer balancing, new valve stems, TPMS reset, and a safety inspection. No other used tire shop in Cleveland includes all of this. That is why Cleveland drivers choose Nick's for both new and used tires."
+      }
+    ],
+    relatedServices: ["/tires"],
+    tags: ["used tires Cleveland", "buy used tires Cleveland", "cheap tires Cleveland", "quality used tires", "used tire inspection"]
+  },
+  {
+    slug: "transmission-problems-warning-signs",
+    title: "7 Warning Signs of Transmission Problems (Don't Ignore These)",
+    metaTitle: "Transmission Problems Warning Signs | Nick's Tire & Auto Cleveland",
+    metaDescription: "7 warning signs your transmission is failing. Slipping, hard shifts, burning smell, fluid leak, grinding. Catch it early to avoid a $3,000 rebuild. Expert advice.",
+    category: "Transmission",
+    publishDate: "2026-03-10",
+    readTime: "6 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
+    excerpt: "Transmission repair is one of the most expensive fixes in auto repair. Catching problems early can mean the difference between a $200 fluid service and a $3,000 rebuild.",
+    sections: [
+      {
+        heading: "1. Transmission Slipping Between Gears",
+        content: "If your vehicle briefly loses power during a gear change — like the engine revs up but the car does not accelerate — the transmission is slipping. This can feel like driving over ice for a split second. Slipping is caused by worn clutch packs, low fluid, or a failing torque converter. Early slipping can often be addressed with a fluid change. Ignored slipping leads to a full rebuild."
+      },
+      {
+        heading: "2. Hard, Delayed, or Rough Shifts",
+        content: "Healthy transmissions shift smoothly and almost invisibly. If you feel a hard jolt, a noticeable delay, or a rough 'clunk' when shifting, something is wrong. Common causes include dirty transmission fluid, a failing shift solenoid, or worn internal components. A fluid and filter change fixes many shift quality issues when caught early."
+      },
+      {
+        heading: "3. Burning Smell",
+        content: "A burning smell coming from under your vehicle — especially after driving — often indicates overheated transmission fluid. Transmission fluid should be bright red. If it is dark brown or black and smells burnt, the fluid has broken down and is no longer protecting the internal components. A fluid change at this point may help, but the damage may already be done depending on how long it has been this way."
+      },
+      {
+        heading: "4. Transmission Fluid Leak",
+        content: "Transmission fluid is bright red when new and dark red to brown when old. If you see red or brown fluid under your vehicle (usually toward the center or front), you have a transmission fluid leak. Common sources include the pan gasket, cooler lines, and axle seals. Low fluid causes slipping, overheating, and eventually total failure. Fixing a leak is always cheaper than replacing a transmission."
+      },
+      {
+        heading: "5. Check Engine Light with Transmission Codes",
+        content: "Modern transmissions are computer-controlled. The check engine light illuminates when the transmission control module detects abnormal behavior. Common transmission codes include P0700 (general transmission fault), P0730 (incorrect gear ratio), and P0750-P0770 (shift solenoid issues). These codes tell a trained technician exactly where to look."
+      },
+      {
+        heading: "6. Grinding or Shaking During Gear Changes",
+        content: "In an automatic transmission, grinding or shaking during shifts indicates worn clutch plates or a failing torque converter. In a manual transmission, grinding when shifting usually means the synchronizers are worn. Either way, the internal components are not engaging smoothly and the problem will get progressively worse."
+      },
+      {
+        heading: "7. Vehicle Won't Move or Engage in Gear",
+        content: "If you shift into Drive or Reverse and nothing happens — or the engine revs but the vehicle barely moves — the transmission has a serious internal failure. This could be a broken input shaft, stripped gears, or total clutch pack failure. At this point, the transmission needs to be removed and rebuilt or replaced."
+      },
+      {
+        heading: "What to Do If You Notice These Signs",
+        content: "The single best thing you can do is get a diagnosis early. At Nick's Tire & Auto, we scan for transmission codes, check fluid condition and level, road test for shift quality, and give you an honest assessment. Many transmission problems caught early can be fixed with a fluid service or solenoid replacement for a few hundred dollars. The same problems ignored for months turn into $2,000-$3,500 rebuilds. Transmission diagnostics at Nick's are included with any repair — bring your vehicle in at the first sign of trouble."
+      }
+    ],
+    relatedServices: ["/transmission", "/diagnostics"],
+    tags: ["transmission problems", "transmission slipping", "transmission repair Cleveland", "transmission warning signs", "hard shifting fix"]
+  },
+  {
+    slug: "car-wont-start-common-causes",
+    title: "Car Won't Start? Here Are the 6 Most Common Causes",
+    metaTitle: "Car Won't Start? Common Causes & Fixes | Nick's Tire & Auto Cleveland",
+    metaDescription: "Car won't start? 6 most common causes: dead battery, bad starter, alternator failure, fuel pump, ignition switch, security system. Expert diagnosis in Cleveland.",
+    category: "Electrical",
+    publishDate: "2026-03-08",
+    readTime: "5 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
+    excerpt: "A no-start condition is one of the most common reasons drivers call for help. The good news: most causes are fixable the same day once diagnosed. Here are the top 6 reasons your car won't start.",
+    sections: [
+      {
+        heading: "1. Dead or Weak Battery (Most Common)",
+        content: "A dead battery is the #1 cause of no-start conditions, especially in Cleveland where winter temperatures kill batteries. Signs: slow cranking, clicking sound when turning the key, or complete silence. Batteries last 3-5 years in Ohio's climate. If your battery is over 3 years old and you had to jump-start it, replacement is likely the answer. At Nick's Tire & Auto, we test batteries for free — walk in anytime."
+      },
+      {
+        heading: "2. Failing Starter Motor",
+        content: "If you hear a single loud click (not rapid clicking) when turning the key, the starter motor may be failing. The starter is an electric motor that physically cranks the engine. They wear out over time. A failing starter may work intermittently — sometimes starting fine, sometimes just clicking. Starter replacement costs $250 to $500 for most vehicles and is typically done same-day."
+      },
+      {
+        heading: "3. Alternator Not Charging",
+        content: "The alternator keeps the battery charged while the engine runs. If the alternator fails, the battery drains and eventually the car won't start. Warning signs before total failure: dimming headlights, battery warning light on the dashboard, or needing frequent jump starts. We test alternator output as part of every battery test."
+      },
+      {
+        heading: "4. Fuel Pump Failure",
+        content: "If the engine cranks normally (sounds like it is trying to start) but won't fire up, the fuel pump may have failed. Listen carefully when you turn the key to the ON position — you should hear a brief whirring sound from the fuel tank. No sound usually means the fuel pump is not priming. Fuel pump replacement costs $400 to $800 for most vehicles."
+      },
+      {
+        heading: "5. Ignition Switch or Key Problem",
+        content: "If nothing happens at all when you turn the key — no click, no crank, no dashboard lights — the ignition switch may have failed. This is different from a dead battery because a dead battery usually still shows some dashboard lights. In vehicles with push-button start, a weak key fob battery can prevent starting."
+      },
+      {
+        heading: "6. Security System Lockout",
+        content: "Modern anti-theft systems can prevent the engine from starting if they detect something wrong — a damaged key, a dead key fob battery, or a glitch in the immobilizer system. The security light on the dashboard usually flashes when this happens. Sometimes simply locking and unlocking the vehicle with the key fob resets the system."
+      },
+      {
+        heading: "What to Do When Your Car Won't Start",
+        content: "First, check the obvious: is the battery dead (jump start test), is there fuel in the tank, are you in Park or Neutral? If a jump start gets the car running, drive straight to Nick's Tire & Auto for a free battery and charging system test. If the car won't jump start, you need a tow to a shop for diagnosis. We accept walk-ins 7 days a week and can usually diagnose a no-start condition within 30 minutes."
+      }
+    ],
+    relatedServices: ["/electrical", "/battery", "/starter-alternator", "/diagnostics"],
+    tags: ["car won't start", "dead battery Cleveland", "starter motor repair", "alternator failure", "no start diagnosis Cleveland"]
   }
 ];
 
