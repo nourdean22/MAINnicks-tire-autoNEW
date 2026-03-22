@@ -8,6 +8,7 @@ import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { getSEOServiceBySlug } from "@shared/seo-pages";
 import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
+import FinancingCTA from "@/components/FinancingCTA";
 
 
 
@@ -243,6 +244,9 @@ export default function SEOServicePage() {
         }))
       })}} />
     
+      <section className="container pb-8">
+        <FinancingCTA variant="banner" />
+      </section>
       <InternalLinks />
 </PageLayout>
   );

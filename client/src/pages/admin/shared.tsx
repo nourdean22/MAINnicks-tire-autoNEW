@@ -8,11 +8,11 @@ import {
   LayoutDashboard, FileText, Globe, Wrench, Gauge,
   ClipboardList, Trophy, Gift, Send, Star, UserCheck, RotateCcw, Timer,
   Settings, Upload, DollarSign, Activity, TrendingUp, Plug, ShoppingCart,
-  BarChart3, PhoneCall, Download
+  BarChart3, PhoneCall, Download, CreditCard,
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView";
+export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -61,6 +61,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "bookings", label: "Bookings", icon: <CalendarClock className="w-4 h-4" />, badge: "bookings" },
       { id: "tireOrders", label: "Tire Orders", icon: <ShoppingCart className="w-4 h-4" /> },
       { id: "leads", label: "Leads / CRM", icon: <Users className="w-4 h-4" />, badge: "leads" },
+      { id: "financing", label: "Financing", icon: <CreditCard className="w-4 h-4" /> },
       { id: "chats", label: "Chat Sessions", icon: <MessageSquare className="w-4 h-4" /> },
     ],
   },
@@ -138,6 +139,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   analyticsView: "Analytics & Attribution",
   callTrackingView: "Call Tracking",
   exportView: "Export Data",
+  financing: "Financing Providers",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────

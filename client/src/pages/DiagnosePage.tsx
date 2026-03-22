@@ -20,7 +20,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import FadeIn from "@/components/FadeIn";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
-import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
+import FinancingCTA from "@/components/FinancingCTA";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp";
 
@@ -552,14 +552,6 @@ function ResultsStep({ result, vehicle, onReset, onBook: _onBook }: {
         </Link>
       </div>
 
-      {/* Acima Lease-to-Own Callout */}
-      <div className="mt-6 text-center">
-        <p className="text-sm text-foreground/60">
-          Worried about the cost? <Link href="/financing?utm_source=diagnose" className="text-emerald-400 hover:text-emerald-300">Lease-to-own from $10 down →</Link>
-        </p>
-        <p className="text-[9px] text-foreground/30 mt-1">{ACIMA_COMPACT_DISCLOSURE}</p>
-      </div>
-
       <button
         onClick={onReset}
         className="flex items-center gap-2 text-foreground/40 hover:text-foreground/60 text-[12px] tracking-wide transition-colors mx-auto"
@@ -820,6 +812,9 @@ export default function DiagnosePage() {
       </main>
 
       
+      <section className="container pb-8">
+        <FinancingCTA variant="banner" />
+      </section>
       <InternalLinks title="Related Services" />
     </PageLayout>
   );

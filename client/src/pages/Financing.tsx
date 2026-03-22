@@ -1,437 +1,347 @@
-/**
- * Financing — Payment options page.
- * COMPLIANCE: Acima (lease-to-own) is SEPARATED from financing providers.
- * Acima is a rental purchase agreement, NOT financing/credit/loan.
- * Per Acima merchant guidelines: must not be presented alongside or commingled with credit/financing products.
- */
-
+import { useState, useCallback } from "react";
+import { trpc } from "@/lib/trpc";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import InternalLinks from "@/components/InternalLinks";
-import FadeIn from "@/components/FadeIn";
 import {
-  DollarSign, Phone, CheckCircle, CreditCard, ShieldCheck,
-  ChevronRight, AlertCircle, Calculator, Clock, Users,
-  Banknote, BadgeCheck, Zap, ArrowRight, Package,
+  DollarSign, Phone, CheckCircle, CreditCard,
+  ChevronRight, AlertCircle, Calculator, Shield,
+  Clock, ArrowRight, ChevronDown, ExternalLink,
+  BadgeCheck, Wallet, Zap, Star, HelpCircle,
 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
+import { FINANCING_PROVIDERS, PAYMENT_METHODS, FINANCING_FAQ, type FinancingProvider } from "@shared/financing";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
-import { ACIMA_PROMO_YEAR, ACIMA_SOCIAL_PROOF, buildAcimaUrl } from "@/lib/acima";
+import FadeIn from "@/components/FadeIn";
 
-// ─── ACIMA (Lease-to-Own — NOT financing) ──────────────
-const ACIMA = {
-  title: "ACIMA LEASING",
-  type: "Lease-to-Own",
-  highlight: "No traditional credit check — lease what you need today",
-  description:
-    "Acima offers a lease-to-own option that lets you get the auto services you need today and make payments over time. This is a rental purchase agreement — not a loan or financing. You lease the merchandise and own it at the end of the agreement, or you can exercise an early purchase option to save on total cost. Does not hit the Big 3 credit bureaus.",
-  features: [
-    "No traditional credit check — does not hit the Big 3 bureaus",
-    "90-day early purchase option available",
-    "Flexible payment schedules (weekly, bi-weekly, monthly)",
-    "Early purchase options to reduce total cost",
-    "Apply online or in-store in minutes",
-  ],
-  idealFor: "Ideal if you need service today — everyone welcome to apply",
-  applyUrl: buildAcimaUrl("financing_hero"),
-};
+/* ── Badge icon mapping ────────────────────────────────────── */
+function ProviderBadge({ badge }: { badge?: string }) {
+  if (!badge) return null;
+  const icon =
+    badge === "No Credit Needed" ? <Shield className="w-3.5 h-3.5" /> :
+    badge === "Highest Amount" ? <Star className="w-3.5 h-3.5" /> :
+    badge === "0% Interest" ? <Zap className="w-3.5 h-3.5" /> :
+    <BadgeCheck className="w-3.5 h-3.5" />;
+  return (
+    <span className="inline-flex items-center gap-1.5 bg-primary/15 text-primary text-[11px] font-bold tracking-wide px-2.5 py-1 rounded-full">
+      {icon} {badge}
+    </span>
+  );
+}
 
-// ─── PAYMENT PROVIDERS (separate from Acima) ────────────
-const FINANCING_OPTIONS = [
-  {
-    title: "SNAP FINANCE",
-    type: "Buy Now, Pay Later",
-    highlight: "Everyone welcome — up to $5,000 spending power",
-    description:
-      "Snap Finance makes it easy to get the auto service you need today and pay over time. With spending power up to $5,000, you can cover major repairs like tire sets, brake jobs, or engine work without paying everything upfront. No traditional credit check required.",
-    features: [
-      "No traditional credit check — does not hit the Big 3 bureaus",
-      "Up to $5,000 spending power",
-      "100-day cash payoff option",
-      "12-month payment plans available",
-      "Quick 30-second application",
-    ],
-    idealFor: "Best for larger repairs ($500+) when you need flexible terms",
-    applyUrl: "https://getsnap.snapfinance.com/lease/en-US/consumer/apply/instant-identity-verification",
-    color: "text-blue-400 bg-blue-500/10 border-blue-500/20",
-    iconColor: "text-blue-400",
-  },
-  {
-    title: "KOALAFI",
-    type: "Lease-to-Own",
-    highlight: "Multiple plan options — flexible lease-to-own terms",
-    description:
-      "Koalafi (formerly West Creek Financial) offers flexible lease-to-own options so you can get your car fixed today and pay over time. One simple application, multiple payment plans presented to you. No traditional credit check required.",
-    features: [
-      "No traditional credit check — does not hit the Big 3 bureaus",
-      "One application, multiple payment options",
-      "Lease-to-own plans available",
-      "Transparent terms — no hidden fees",
-      "90-day purchase option on lease plans",
-    ],
-    idealFor: "Best if you want to compare multiple plan types",
-    applyUrl: "https://s.koalafi.com/GWPaPM",
-    color: "text-violet-400 bg-violet-500/10 border-violet-500/20",
-    iconColor: "text-violet-400",
-  },
-  {
-    title: "AMERICAN FIRST FINANCE",
-    type: "Lease-to-Own / BNPL",
-    highlight: "No traditional credit check — high approval, flexible plans",
-    description:
-      "American First Finance offers lease-to-own and buy now, pay later options designed for everyone. Get approved in minutes and pay over time on a schedule that works for you. No traditional credit check required — does not report to the Big 3 bureaus.",
-    features: [
-      "No traditional credit check — does not hit the Big 3 bureaus",
-      "Lease-to-own and BNPL options",
-      "High approval rates",
-      "Flexible payment schedules",
-      "Apply online or at the counter in minutes",
-    ],
-    idealFor: "Best if other options haven't worked — very high approval rates",
-    applyUrl: "https://americanfirstfinance.com/app/?dealer=25207&loc=1&src=UA&usetextpin=Y",
-    color: "text-amber-400 bg-amber-500/10 border-amber-500/20",
-    iconColor: "text-amber-400",
-  },
-];
+/* ── Provider card ─────────────────────────────────────────── */
+function ProviderCard({ provider, index, onApplyClick }: { provider: FinancingProvider; index: number; onApplyClick: (id: string) => void }) {
+  return (
+    <FadeIn delay={index * 0.1}>
+      <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 lg:p-8 flex flex-col h-full hover:border-primary/30 transition-colors group">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-11 h-11 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+              style={{ backgroundColor: provider.color }}
+            >
+              {provider.type === "credit-card" ? (
+                <CreditCard className="w-5 h-5" />
+              ) : (
+                <Wallet className="w-5 h-5" />
+              )}
+            </div>
+            <div>
+              <h3 className="font-bold text-foreground tracking-wide text-[15px]">{provider.name}</h3>
+              <span className="text-[12px] text-foreground/40 font-medium">{provider.typeLabel}</span>
+            </div>
+          </div>
+          <ProviderBadge badge={provider.badge} />
+        </div>
 
-const PAYMENT_METHODS = [
-  "Cash",
-  "Visa / Mastercard / Discover / Amex",
-  "Debit Cards",
-  "Apple Pay / Google Pay",
-  "Acima Leasing",
-  "Snap Finance",
-  "Koalafi",
-  "American First Finance",
-];
+        {/* Highlight */}
+        <div className="bg-primary/8 border border-primary/15 rounded-lg p-3 mb-5">
+          <p className="font-bold text-primary text-sm text-center">{provider.highlight}</p>
+        </div>
 
-const FAQ_ITEMS = [
-  {
-    q: "Will applying hit my credit score?",
-    a: "No. None of our payment partners run a traditional credit check through the Big 3 bureaus (Equifax, Experian, TransUnion). Acima, Snap Finance, Koalafi, and American First Finance all use alternative methods to determine eligibility. Your credit score will not be affected by applying.",
-  },
-  {
-    q: "What is the difference between lease-to-own and buy now, pay later?",
-    a: "With lease-to-own (Acima, Koalafi, American First Finance), you lease the merchandise and own it after completing all payments or exercising an early purchase option. Buy now, pay later (Snap Finance) lets you split the cost into scheduled payments. Both let you drive away today and pay over time. Details vary by provider — terms are disclosed before you sign.",
-  },
-  {
-    q: "How fast is the approval process?",
-    a: "Most applications take under 60 seconds. You can apply on your phone while you wait, or our team will help you at the counter.",
-  },
-  {
-    q: "Can I pay off early?",
-    a: "Yes. All providers offer early payoff options. Acima has a 90-day early purchase option. Snap offers a 100-day cash payoff. Early payoff can significantly reduce the total amount you pay.",
-  },
-  {
-    q: "What is the total cost if I use Acima?",
-    a: "The total cost of your lease-to-own agreement depends on the payment schedule you choose and when you exercise your purchase option. The 90-day early purchase option costs the least. Your full cost, payment schedule, and purchase options will be clearly disclosed before you sign. You are not obligated to complete the lease — you may return the merchandise at any time.",
-  },
-  {
-    q: "What services can I use these options for?",
-    a: "All of our services — tires, brakes, engine work, diagnostics, oil changes, suspension, and more. Any repair or maintenance we perform can be covered through our payment partners.",
-  },
-  {
-    q: "Can I apply before I come in?",
-    a: "Yes. Each provider has an online application. You can get pre-approved before your visit so you know your options ahead of time.",
-  },
-];
+        {/* Quick stats */}
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <div className="bg-[oklch(0.06_0.004_260/0.5)] rounded-lg p-3 text-center">
+            <span className="block text-[11px] text-foreground/40 font-medium mb-1">MAX AMOUNT</span>
+            <span className="font-bold text-foreground text-sm">{provider.maxAmount}</span>
+          </div>
+          <div className="bg-[oklch(0.06_0.004_260/0.5)] rounded-lg p-3 text-center">
+            <span className="block text-[11px] text-foreground/40 font-medium mb-1">APPROVAL</span>
+            <span className="font-bold text-foreground text-sm">{provider.approvalTime}</span>
+          </div>
+        </div>
 
-// Comparison table data (shared between desktop table + mobile cards)
-const COMPARISON_PROVIDERS = [
-  { name: "Snap Finance", type: "BNPL", credit: "No traditional check", payoff: "100-day cash option" },
-  { name: "Koalafi", type: "Lease-to-Own", credit: "No traditional check", payoff: "90-day purchase" },
-  { name: "American First Finance", type: "Lease / BNPL", credit: "No traditional check", payoff: "Early payoff available" },
-];
+        {/* Features */}
+        <ul className="space-y-2 mb-6 flex-1">
+          {provider.features.slice(0, 4).map((f) => (
+            <li key={f} className="flex items-start gap-2 text-sm text-foreground/70">
+              <CheckCircle className="w-4 h-4 text-nick-teal shrink-0 mt-0.5" />
+              {f}
+            </li>
+          ))}
+        </ul>
 
-// Required Acima disclosure
-const ACIMA_DISCLAIMER =
-  "Acima is a lease-to-own program. It is not a loan, credit, or financing. You will not own the merchandise until you make all payments under the lease agreement or exercise an early purchase option. Lease payments may be higher than the cash price of the merchandise. Not available in MN, NJ, WI, or WY. See lease for details. Snap Finance, Koalafi, and American First Finance are lease-to-own or buy now, pay later programs with their own terms and conditions. None of the payment partners listed on this page perform a traditional credit check through Equifax, Experian, or TransUnion. Alternative underwriting methods are used. Individual approval and terms vary.";
+        {/* Ideal for */}
+        <p className="text-[12px] text-foreground/50 mb-4 italic">
+          Best for: {provider.idealFor}
+        </p>
 
+        {/* CTAs */}
+        <div className="flex gap-3">
+          <a
+            href={provider.applyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => onApplyClick(provider.id)}
+            className="flex-1 inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-3 rounded-lg font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
+          >
+            APPLY NOW
+            <ArrowRight className="w-4 h-4" />
+          </a>
+          {provider.prequalifyUrl && (
+            <a
+              href={provider.prequalifyUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 bg-transparent border border-primary/40 text-primary px-4 py-3 rounded-lg font-bold text-[12px] tracking-wide hover:bg-primary/10 transition-colors"
+            >
+              PRE-QUALIFY
+            </a>
+          )}
+        </div>
+      </div>
+    </FadeIn>
+  );
+}
+
+/* ── Comparison table ──────────────────────────────────────── */
+function ComparisonTable() {
+  return (
+    <div className="overflow-x-auto -mx-4 px-4">
+      <table className="w-full min-w-[600px] text-sm">
+        <thead>
+          <tr className="border-b border-border/20">
+            <th className="text-left py-3 px-4 text-foreground/50 font-medium text-[12px] tracking-wide">FEATURE</th>
+            {FINANCING_PROVIDERS.map((p) => (
+              <th key={p.id} className="text-center py-3 px-3 text-foreground font-bold text-[13px]">
+                {p.shortName}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="text-foreground/70">
+          <tr className="border-b border-border/10">
+            <td className="py-3 px-4 font-medium text-foreground/60">Type</td>
+            {FINANCING_PROVIDERS.map((p) => (
+              <td key={p.id} className="text-center py-3 px-3">{p.typeLabel}</td>
+            ))}
+          </tr>
+          <tr className="border-b border-border/10">
+            <td className="py-3 px-4 font-medium text-foreground/60">Max Amount</td>
+            {FINANCING_PROVIDERS.map((p) => (
+              <td key={p.id} className="text-center py-3 px-3 font-semibold text-foreground">{p.maxAmount}</td>
+            ))}
+          </tr>
+          <tr className="border-b border-border/10">
+            <td className="py-3 px-4 font-medium text-foreground/60">Credit Check</td>
+            {FINANCING_PROVIDERS.map((p) => (
+              <td key={p.id} className="text-center py-3 px-3">{p.creditCheck}</td>
+            ))}
+          </tr>
+          <tr className="border-b border-border/10">
+            <td className="py-3 px-4 font-medium text-foreground/60">Approval Speed</td>
+            {FINANCING_PROVIDERS.map((p) => (
+              <td key={p.id} className="text-center py-3 px-3">{p.approvalTime}</td>
+            ))}
+          </tr>
+          <tr className="border-b border-border/10">
+            <td className="py-3 px-4 font-medium text-foreground/60">Terms</td>
+            {FINANCING_PROVIDERS.map((p) => (
+              <td key={p.id} className="text-center py-3 px-3">{p.termRange}</td>
+            ))}
+          </tr>
+          <tr>
+            <td className="py-3 px-4 font-medium text-foreground/60">Apply</td>
+            {FINANCING_PROVIDERS.map((p) => (
+              <td key={p.id} className="text-center py-3 px-3">
+                <a
+                  href={p.applyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-primary font-bold text-[12px] hover:underline"
+                >
+                  Apply <ExternalLink className="w-3 h-3" />
+                </a>
+              </td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ── FAQ Accordion ─────────────────────────────────────────── */
+function FAQItem({ item, isOpen, onToggle }: { item: typeof FINANCING_FAQ[number]; isOpen: boolean; onToggle: () => void }) {
+  return (
+    <div className="border-b border-border/15 last:border-b-0">
+      <button
+        onClick={onToggle}
+        className="flex items-center justify-between w-full py-4 text-left group"
+      >
+        <span className="font-semibold text-foreground text-sm pr-4">{item.q}</span>
+        <ChevronDown className={`w-5 h-5 text-foreground/40 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+      {isOpen && (
+        <div className="pb-4 pr-8">
+          <p className="text-foreground/60 text-sm leading-relaxed">{item.a}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Financing Application Schema (JSON-LD) ────────────────── */
+function FinancingSchema() {
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "FinancialProduct",
+    "name": "Auto Repair Financing at Nick's Tire & Auto",
+    "description": "Flexible financing options for auto repairs including lease-to-own and credit card options with no credit needed.",
+    "provider": {
+      "@type": "AutoRepair",
+      "name": BUSINESS.name,
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": BUSINESS.address.street,
+        "addressLocality": BUSINESS.address.city,
+        "addressRegion": BUSINESS.address.state,
+        "postalCode": BUSINESS.address.zip,
+      },
+      "telephone": BUSINESS.phone.display,
+    },
+    "offers": FINANCING_PROVIDERS.map((p) => ({
+      "@type": "Offer",
+      "name": p.name,
+      "description": p.description,
+      "url": p.applyUrl,
+    })),
+  };
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+    />
+  );
+}
+
+/* ── Main Financing Page ───────────────────────────────────── */
 export default function Financing() {
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const trackMutation = trpc.financing.trackApplication.useMutation();
+
+  const handleApplyClick = useCallback((providerId: string) => {
+    trackMutation.mutate({
+      provider: providerId as "acima" | "snap" | "koalafi" | "synchrony",
+      sourcePage: "/financing",
+    });
+  }, [trackMutation]);
+
   return (
     <PageLayout activeHref="/financing">
       <SEOHead
-        title="Payment Options & Lease-to-Own | Nick's Tire & Auto Cleveland"
-        description={`Multiple ways to pay at Nick's Tire & Auto in Cleveland. ${BUSINESS.taglines.hookAction} Acima, Snap Finance, Koalafi, and American First Finance — no traditional credit check, everyone welcome. Apply in minutes.`}
+        title="Financing Options | Nick's Tire & Auto Cleveland OH"
+        description="4 flexible auto repair financing options in Cleveland. No credit needed lease-to-own from Acima, Snap Finance, Koalafi, plus 0% interest Synchrony Car Care. Apply online in minutes."
         canonicalPath="/financing"
       />
-      <Breadcrumbs items={[{ label: "Payment Options", href: "/financing" }]} />
-      <LocalBusinessSchema additionalSchema={{
-        paymentAccepted: "Cash, Visa, Mastercard, Discover, American Express, Debit Cards, Apple Pay, Google Pay, Acima, Snap Finance, Koalafi, American First Finance",
-      }} />
+      <Breadcrumbs items={[{ label: "Financing", href: "/financing" }]} />
+      <LocalBusinessSchema />
+      <FinancingSchema />
 
-      {/* Hero */}
+      {/* ─── Hero ─────────────────────────────────────────── */}
       <section className="bg-[oklch(0.065_0.004_260)] pt-28 pb-16 lg:pt-36 lg:pb-20">
         <div className="container max-w-4xl text-center">
-          <FadeIn>
-            <span className="font-mono text-nick-teal text-sm tracking-wide">
-              Multiple Ways to Pay
+          <span className="font-mono text-nick-teal text-sm tracking-wide">Payment Options</span>
+          <h1 className="font-bold text-4xl lg:text-6xl text-foreground mt-3 tracking-tight">
+            FIX YOUR CAR <span className="text-primary">TODAY</span>, PAY OVER TIME
+          </h1>
+          <p className="mt-4 text-foreground/70 text-lg max-w-2xl mx-auto">
+            Do not delay repairs because of cost. We partner with 4 financing providers so you can get approved in seconds — no matter your credit situation.
+          </p>
+
+          {/* Quick trust signals */}
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-6 text-sm text-foreground/50">
+            <span className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-nick-teal" />
+              No credit needed options
             </span>
-            <h1 className="font-bold text-4xl lg:text-6xl text-foreground mt-3 tracking-tight">
-              DON'T DELAY <span className="text-primary">REPAIRS</span>
-            </h1>
-            <p className="mt-4 text-foreground/70 text-lg max-w-2xl mx-auto leading-relaxed">
-              Get your car fixed today and pay over time. None of our payment
-              partners run a traditional credit check — everyone is welcome to
-              apply. Lease-to-own and buy now, pay later options available.
-              Apply in minutes — right at the counter or online.
-            </p>
-            <p className="mt-3 text-emerald-400/70 text-sm font-medium">{ACIMA_SOCIAL_PROOF}</p>
-          </FadeIn>
+            <span className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-nick-teal" />
+              Approved in seconds
+            </span>
+            <span className="flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-nick-teal" />
+              Up to $7,500
+            </span>
+          </div>
 
-          <FadeIn delay={0.1}>
-            <div className="mt-8 flex flex-wrap justify-center gap-4">
-              <div className="flex items-center gap-2 bg-nick-teal/10 border border-nick-teal/20 rounded-full px-4 py-2 text-sm text-nick-teal">
-                <ShieldCheck className="w-4 h-4" />
-                No traditional credit check
-              </div>
-              <div className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-2 text-sm text-primary">
-                <Zap className="w-4 h-4" />
-                60-second approvals
-              </div>
-              <div className="flex items-center gap-2 bg-nick-blue/10 border border-nick-blue/20 rounded-full px-4 py-2 text-sm text-nick-blue-light">
-                <Banknote className="w-4 h-4" />
-                Flexible payment schedules
-              </div>
-            </div>
-          </FadeIn>
-        </div>
-      </section>
-
-      {/* Quick comparison */}
-      <section className="bg-[oklch(0.055_0.004_260)] py-12">
-        <div className="container max-w-4xl">
-          <FadeIn>
-            {/* Desktop: table layout */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/20">
-                    <th className="text-left py-3 px-4 text-foreground/40 font-medium text-xs tracking-wider">PROVIDER</th>
-                    <th className="text-left py-3 px-4 text-foreground/40 font-medium text-xs tracking-wider">TYPE</th>
-                    <th className="text-left py-3 px-4 text-foreground/40 font-medium text-xs tracking-wider">APPROVAL</th>
-                    <th className="text-left py-3 px-4 text-foreground/40 font-medium text-xs tracking-wider">EARLY PAYOFF</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="border-b border-emerald-500/10 bg-emerald-500/[0.03]">
-                    <td className="py-3 px-4 font-medium text-foreground">Acima <span className="text-[10px] text-emerald-400 ml-1 font-normal">LEASE</span></td>
-                    <td className="py-3 px-4 text-foreground/60">Lease-to-Own</td>
-                    <td className="py-3 px-4 text-foreground/60">No traditional check</td>
-                    <td className="py-3 px-4 text-foreground/60">90-day early purchase</td>
-                  </tr>
-                  {COMPARISON_PROVIDERS.map((row) => (
-                    <tr key={row.name} className="border-b border-border/10">
-                      <td className="py-3 px-4 font-medium text-foreground">{row.name}</td>
-                      <td className="py-3 px-4 text-foreground/60">{row.type}</td>
-                      <td className="py-3 px-4 text-foreground/60">{row.credit}</td>
-                      <td className="py-3 px-4 text-foreground/60">{row.payoff}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile: stacked cards */}
-            <div className="md:hidden space-y-3">
-              {/* Acima card — emerald accent */}
-              <div className="bg-emerald-500/[0.03] border border-emerald-500/10 rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="font-medium text-foreground">Acima</span>
-                  <span className="text-[10px] text-emerald-400 font-medium px-1.5 py-0.5 rounded bg-emerald-500/10">LEASE</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div><span className="text-foreground/40 text-xs">Type</span><p className="text-foreground/70">Lease-to-Own</p></div>
-                  <div><span className="text-foreground/40 text-xs">Approval</span><p className="text-foreground/70">No traditional check</p></div>
-                  <div><span className="text-foreground/40 text-xs">Early Payoff</span><p className="text-foreground/70">90-day purchase</p></div>
-                </div>
-              </div>
-              {/* Financing provider cards */}
-              {COMPARISON_PROVIDERS.map((row) => (
-                <div key={row.name} className="bg-card/30 border border-border/10 rounded-lg p-4">
-                  <span className="font-medium text-foreground text-sm">{row.name}</span>
-                  <div className="grid grid-cols-2 gap-2 text-sm mt-3">
-                    <div><span className="text-foreground/40 text-xs">Type</span><p className="text-foreground/70">{row.type}</p></div>
-                    <div><span className="text-foreground/40 text-xs">Approval</span><p className="text-foreground/70">{row.credit}</p></div>
-                    <div><span className="text-foreground/40 text-xs">Early Payoff</span><p className="text-foreground/70">{row.payoff}</p></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </FadeIn>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════
-          SECTION 1: ACIMA LEASE-TO-OWN (separate from financing)
-          ═══════════════════════════════════════════════════════ */}
-      <section className="bg-[oklch(0.055_0.004_260)] py-16 lg:py-20">
-        <div className="container max-w-5xl">
-          <FadeIn>
-            <div className="text-center mb-12">
-              <span className="inline-block bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold tracking-wider px-3 py-1 rounded-full mb-4">
-                LEASE-TO-OWN
-              </span>
-              <h2 className="font-bold text-3xl text-foreground tracking-tight">
-                ACIMA — <span className="text-emerald-400">EVERYONE WELCOME</span>
-              </h2>
-              <p className="text-foreground/60 mt-3 max-w-xl mx-auto">
-                Acima is a lease-to-own program — not a loan or line of credit.
-                Get the auto service you need today and make flexible payments
-                over time.
-              </p>
-            </div>
-          </FadeIn>
-
-          <FadeIn delay={0.08}>
-            <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-emerald-500/20 rounded-2xl p-6 lg:p-8 max-w-2xl mx-auto">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-md flex items-center justify-center text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
-                  <Package className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-foreground tracking-wider text-sm">
-                    {ACIMA.title}
-                  </h3>
-                  <span className="text-[12px] text-emerald-400/70">
-                    {ACIMA.type}
-                  </span>
-                </div>
-              </div>
-
-              <div className="border rounded-md p-3 mb-4 text-emerald-400 bg-emerald-500/10 border-emerald-500/20">
-                <p className="font-bold text-sm text-center">
-                  {ACIMA.highlight}
-                </p>
-              </div>
-
-              <p className="text-foreground/60 text-sm leading-relaxed mb-4">
-                {ACIMA.description}
-              </p>
-
-              <ul className="space-y-2 mb-4">
-                {ACIMA.features.map((f) => (
-                  <li
-                    key={f}
-                    className="flex items-start gap-2 text-sm text-foreground/70"
-                  >
-                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-
-              <div className="bg-foreground/[0.03] border border-border/10 rounded-md px-3 py-2 mb-5">
-                <p className="text-xs text-foreground/50 italic">
-                  {ACIMA.idealFor}
-                </p>
-              </div>
-
+          {/* Quick apply bar */}
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            {FINANCING_PROVIDERS.map((p) => (
               <a
-                href={ACIMA.applyUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-md font-bold text-sm tracking-wide hover:opacity-90 transition-colors w-full sm:w-auto"
+                key={p.id}
+                href={`#${p.id}`}
+                className="inline-flex items-center gap-2 bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] px-4 py-2.5 rounded-lg text-sm font-medium text-foreground/70 hover:text-foreground hover:border-primary/30 transition-colors"
               >
-                START LEASE APPLICATION
-                <ChevronRight className="w-4 h-4" />
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
+                {p.shortName}
               </a>
-
-              {/* Required Acima disclosure */}
-              <p className="text-[10px] text-foreground/30 mt-4 leading-relaxed">
-                {ACIMA_DISCLAIMER}
-              </p>
-            </div>
-          </FadeIn>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════
-          SECTION 2: FINANCING OPTIONS (credit-based products)
-          ═══════════════════════════════════════════════════════ */}
-      <section className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-20">
-        <div className="container max-w-5xl">
-          <FadeIn>
-            <div className="text-center mb-12">
-              <span className="inline-block bg-primary/10 border border-primary/20 text-primary text-xs font-bold tracking-wider px-3 py-1 rounded-full mb-4">
-                PAYMENT PARTNERS
-              </span>
-              <h2 className="font-bold text-3xl text-foreground tracking-tight">
-                PAY OVER <span className="text-primary">TIME</span>
-              </h2>
-              <p className="text-foreground/60 mt-3 max-w-xl mx-auto">
-                Lease-to-own and buy now, pay later options for auto repairs.
-                No traditional credit check with any of our partners — everyone
-                is welcome to apply.
-              </p>
-            </div>
-          </FadeIn>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {FINANCING_OPTIONS.map((opt, i) => (
-              <FadeIn key={opt.title} delay={i * 0.08}>
-                <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 flex flex-col h-full">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div
-                      className={`w-10 h-10 rounded-md flex items-center justify-center ${opt.color}`}
-                    >
-                      <CreditCard className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-foreground tracking-wider text-sm">
-                        {opt.title}
-                      </h3>
-                      <span className="text-[12px] text-foreground/40">
-                        {opt.type}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className={`border rounded-md p-3 mb-4 ${opt.color}`}>
-                    <p className="font-bold text-sm text-center">
-                      {opt.highlight}
-                    </p>
-                  </div>
-
-                  <p className="text-foreground/60 text-sm leading-relaxed mb-4">
-                    {opt.description}
-                  </p>
-
-                  <ul className="space-y-2 mb-4 flex-1">
-                    {opt.features.map((f) => (
-                      <li
-                        key={f}
-                        className="flex items-start gap-2 text-sm text-foreground/70"
-                      >
-                        <CheckCircle className="w-4 h-4 text-nick-teal shrink-0 mt-0.5" />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-
-                  <div className="bg-foreground/[0.03] border border-border/10 rounded-md px-3 py-2 mb-5">
-                    <p className="text-xs text-foreground/50 italic">
-                      {opt.idealFor}
-                    </p>
-                  </div>
-
-                  <a
-                    href={opt.applyUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-md font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
-                  >
-                    APPLY NOW
-                    <ChevronRight className="w-4 h-4" />
-                  </a>
-                </div>
-              </FadeIn>
             ))}
           </div>
         </div>
       </section>
 
-      {/* How It Works */}
+      {/* ─── Provider Cards ───────────────────────────────── */}
+      <section className="bg-[oklch(0.055_0.004_260)] py-16 lg:py-20">
+        <div className="container max-w-5xl">
+          <FadeIn>
+            <div className="text-center mb-12">
+              <h2 className="font-bold text-3xl text-foreground tracking-tight">
+                4 WAYS TO PAY OVER TIME
+              </h2>
+              <p className="text-foreground/60 mt-3 max-w-xl mx-auto">
+                Apply online or at the shop counter. Most approvals take under 60 seconds. Choose the option that works best for your budget.
+              </p>
+            </div>
+          </FadeIn>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {FINANCING_PROVIDERS.map((provider, i) => (
+              <div key={provider.id} id={provider.id}>
+                <ProviderCard provider={provider} index={i} onApplyClick={handleApplyClick} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Comparison Table ─────────────────────────────── */}
+      <section className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-20">
+        <div className="container max-w-4xl">
+          <FadeIn>
+            <h2 className="font-bold text-2xl lg:text-3xl text-foreground tracking-tight text-center mb-10">
+              COMPARE OPTIONS AT A GLANCE
+            </h2>
+            <div className="bg-[oklch(0.08_0.004_260/0.6)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-4 lg:p-6">
+              <ComparisonTable />
+            </div>
+          </FadeIn>
+        </div>
+      </section>
+
+      {/* ─── How It Works ─────────────────────────────────── */}
       <section className="bg-[oklch(0.055_0.004_260)] py-16 lg:py-20">
         <div className="container max-w-3xl">
           <FadeIn>
@@ -439,38 +349,20 @@ export default function Financing() {
               HOW IT WORKS
             </h2>
           </FadeIn>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
             {[
-              {
-                num: "01",
-                icon: <Calculator className="w-6 h-6" />,
-                title: "Get Your Estimate",
-                desc: "We diagnose the issue and give you a clear repair estimate with no hidden fees.",
-              },
-              {
-                num: "02",
-                icon: <CreditCard className="w-6 h-6" />,
-                title: "Choose Your Option",
-                desc: "Apply for a lease or financing right at the counter or on your phone. Most approvals take under 60 seconds.",
-              },
-              {
-                num: "03",
-                icon: <CheckCircle className="w-6 h-6" />,
-                title: "Drive Away Today",
-                desc: "We complete the repair and you make payments over time on a schedule that works for you.",
-              },
+              { num: "01", icon: <Calculator className="w-6 h-6" />, title: "Get Your Estimate", desc: "We diagnose the issue and give you a clear repair estimate." },
+              { num: "02", icon: <CreditCard className="w-6 h-6" />, title: "Choose a Provider", desc: "Pick the financing option that fits your budget and credit." },
+              { num: "03", icon: <Zap className="w-6 h-6" />, title: "Apply & Get Approved", desc: "Apply online or at the counter. Get approved in seconds." },
+              { num: "04", icon: <CheckCircle className="w-6 h-6" />, title: "Drive Away Today", desc: "We fix your car today. You pay with easy monthly payments." },
             ].map((step, i) => (
               <FadeIn key={step.num} delay={i * 0.1}>
                 <div className="text-center">
-                  <span className="font-bold text-4xl text-border/40">
-                    {step.num}
-                  </span>
-                  <div className="w-12 h-12 mx-auto mt-3 mb-3 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                  <span className="font-bold text-3xl text-border/30">{step.num}</span>
+                  <div className="w-12 h-12 mx-auto mt-2 mb-3 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                     {step.icon}
                   </div>
-                  <h3 className="font-bold text-foreground tracking-wider text-sm mb-2">
-                    {step.title}
-                  </h3>
+                  <h3 className="font-bold text-foreground tracking-wider text-sm mb-2">{step.title}</h3>
                   <p className="text-foreground/60 text-sm">{step.desc}</p>
                 </div>
               </FadeIn>
@@ -479,46 +371,59 @@ export default function Financing() {
         </div>
       </section>
 
-      {/* FAQ Section */}
+      {/* ─── FAQ ──────────────────────────────────────────── */}
       <section className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-20">
         <div className="container max-w-3xl">
           <FadeIn>
-            <h2 className="font-bold text-2xl lg:text-3xl text-foreground tracking-tight text-center mb-10">
-              PAYMENT <span className="text-primary">FAQ</span>
-            </h2>
+            <div className="flex items-center gap-3 mb-8">
+              <HelpCircle className="w-6 h-6 text-primary" />
+              <h2 className="font-bold text-2xl text-foreground tracking-tight">
+                FINANCING FAQ
+              </h2>
+            </div>
+            <div className="bg-[oklch(0.08_0.004_260/0.6)] border border-[oklch(0.17_0.004_260)] rounded-2xl px-6">
+              {FINANCING_FAQ.map((item, i) => (
+                <FAQItem
+                  key={i}
+                  item={item}
+                  isOpen={openFaq === i}
+                  onToggle={() => setOpenFaq(openFaq === i ? null : i)}
+                />
+              ))}
+            </div>
           </FadeIn>
-          <div className="space-y-4">
-            {FAQ_ITEMS.map((faq, i) => (
-              <FadeIn key={i} delay={i * 0.05}>
-                <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-xl p-5 lg:p-6">
-                  <h3 className="font-bold text-foreground text-sm tracking-[-0.01em] mb-2">
-                    {faq.q}
-                  </h3>
-                  <p className="text-foreground/60 text-sm leading-relaxed">
-                    {faq.a}
-                  </p>
-                </div>
-              </FadeIn>
-            ))}
-          </div>
+
+          {/* FAQ Schema */}
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify({
+                "@context": "https://schema.org",
+                "@type": "FAQPage",
+                "mainEntity": FINANCING_FAQ.map((item) => ({
+                  "@type": "Question",
+                  "name": item.q,
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": item.a,
+                  },
+                })),
+              }),
+            }}
+          />
         </div>
       </section>
 
-      {/* Payment Methods */}
+      {/* ─── Payment Methods ──────────────────────────────── */}
       <section className="bg-[oklch(0.055_0.004_260)] py-16 lg:py-20">
         <div className="container max-w-3xl">
           <FadeIn>
             <h2 className="font-bold text-2xl text-foreground tracking-tight text-center mb-8">
-              ALL ACCEPTED PAYMENT METHODS
+              ACCEPTED PAYMENT METHODS
             </h2>
-          </FadeIn>
-          <FadeIn delay={0.1}>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {PAYMENT_METHODS.map((m) => (
-                <div
-                  key={m}
-                  className="flex items-center gap-2 bg-card/50 border border-border/20 rounded-md px-4 py-3"
-                >
+                <div key={m} className="flex items-center gap-2 bg-card/50 border border-border/20 rounded-lg px-4 py-3">
                   <DollarSign className="w-4 h-4 text-nick-teal shrink-0" />
                   <span className="text-[13px] text-foreground/70">{m}</span>
                 </div>
@@ -528,93 +433,32 @@ export default function Financing() {
         </div>
       </section>
 
-      {/* Safety Callout + CTA */}
+      {/* ─── Safety CTA ───────────────────────────────────── */}
       <section className="bg-[oklch(0.065_0.004_260)] py-12 lg:py-16">
         <div className="container max-w-3xl">
           <FadeIn>
-            <div className="flex items-start gap-4 bg-primary/5 border border-primary/20 rounded-md p-5">
+            <div className="flex items-start gap-4 bg-primary/5 border border-primary/20 rounded-xl p-6">
               <AlertCircle className="w-6 h-6 text-primary shrink-0 mt-0.5" />
               <div>
-                <h3 className="font-bold text-foreground text-sm tracking-[-0.01em] mb-2">
-                  DO NOT DELAY SAFETY REPAIRS
-                </h3>
+                <h3 className="font-bold text-foreground text-sm tracking-[-0.01em] mb-2">DO NOT DELAY SAFETY REPAIRS</h3>
                 <p className="text-foreground/70 text-sm leading-relaxed">
-                  Brakes, tires, and suspension problems get worse and more
-                  expensive over time. If cost is a concern, talk to us about
-                  payment options before you leave. We would rather help you pay
-                  over time than have you driving with a safety issue.
+                  Brakes, tires, and suspension problems get worse and more expensive over time. If cost is a concern, talk to us about financing before you leave. We would rather help you pay over time than have you driving with a safety issue.
                 </p>
               </div>
             </div>
           </FadeIn>
 
-          <FadeIn delay={0.1}>
-            <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-              <a
-                href={BUSINESS.phone.href}
-                className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
-              >
-                <Phone className="w-4 h-4" />
-                CALL US — {BUSINESS.phone.display}
-              </a>
-              <a
-                href="/book"
-                className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-bold text-sm tracking-wide hover:bg-nick-blue/10 transition-colors"
-              >
-                BOOK APPOINTMENT
-                <ArrowRight className="w-4 h-4" />
-              </a>
-            </div>
-          </FadeIn>
-
-          {/* Acima disclaimer at page bottom */}
-          <div className="mt-12 border-t border-border/10 pt-6">
-            <p className="text-[10px] text-foreground/25 leading-relaxed max-w-2xl mx-auto text-center">
-              {ACIMA_DISCLAIMER}
-            </p>
+          <div className="mt-8 text-center">
+            <a
+              href={BUSINESS.phone.href}
+              className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-lg font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
+            >
+              <Phone className="w-4 h-4" />
+              CALL TO DISCUSS OPTIONS — {BUSINESS.phone.display}
+            </a>
           </div>
         </div>
       </section>
-
-      {/* JSON-LD FAQ Schema */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "FAQPage",
-            mainEntity: FAQ_ITEMS.map((faq) => ({
-              "@type": "Question",
-              name: faq.q,
-              acceptedAnswer: { "@type": "Answer", text: faq.a },
-            })),
-          }),
-        }}
-      />
-
-      {/* FinancialProduct schema for Acima lease-to-own */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "FinancialProduct",
-            name: "Acima Lease-to-Own",
-            description: "Lease-to-own program for auto repair and tire services. No credit history required. 90-day early purchase option available.",
-            provider: {
-              "@type": "Organization",
-              name: "Acima",
-              url: "https://www.acima.com",
-            },
-            feesAndCommissionsSpecification: "$10 initial payment required. Lease terms and total cost vary by item and payment schedule.",
-            annualPercentageRate: "N/A — this is a lease, not a loan",
-            areaServed: {
-              "@type": "Country",
-              name: "US",
-            },
-          }),
-        }}
-      />
 
       <InternalLinks title="Related Services" />
     </PageLayout>

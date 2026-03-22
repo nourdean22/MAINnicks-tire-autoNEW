@@ -265,3 +265,33 @@ export async function syncInvoiceToSheet(invoice: {
     invoice.notes || "",
   ]);
 }
+
+/**
+ * Sync a financing application click/submission to the Financing sheet.
+ * Tracks which provider was selected, from which page, and customer info if available.
+ */
+export async function syncFinancingToSheet(application: {
+  provider: string;
+  providerType: string;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  customerEmail?: string | null;
+  sourcePage: string;
+  estimatedAmount?: string | null;
+  status: string;
+  notes?: string | null;
+}): Promise<boolean> {
+  const now = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+  return appendRow("Financing", [
+    now,
+    application.provider,
+    application.providerType,
+    application.customerName || "",
+    application.customerPhone || "",
+    application.customerEmail || "",
+    application.sourcePage,
+    application.estimatedAmount || "",
+    application.status,
+    application.notes || "",
+  ]);
+}

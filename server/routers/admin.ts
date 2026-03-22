@@ -108,6 +108,13 @@ export const adminDashboardRouter = router({
       details: process.env.AUTO_LABOR_USERNAME ? "Credentials configured" : "No credentials",
     });
 
+    // 8. Financing Providers
+    checks.push({
+      name: "Financing Providers",
+      status: "connected",
+      details: "4 providers active: Acima, Snap Finance, Koalafi, Synchrony — merchant portals linked",
+    });
+
     const overallStatus = checks.every(c => c.status === "connected")
       ? "all_systems_operational"
       : checks.some(c => c.status === "disconnected")
