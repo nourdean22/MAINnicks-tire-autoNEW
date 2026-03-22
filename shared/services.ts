@@ -39,6 +39,14 @@ export interface ServiceData {
     question: string;
     answer: string;
   }[];
+  /** Items included in this service */
+  includedItems?: string[];
+  /** Pricing tiers for transparency */
+  pricingTiers?: { label: string; range: string }[];
+  /** Estimated duration range */
+  duration?: string;
+  /** Starting price anchor for the service page hero */
+  startingPrice?: string;
 }
 
 export const SERVICES: ServiceData[] = [
@@ -116,6 +124,23 @@ export const SERVICES: ServiceData[] = [
         answer: "Uneven tire wear is caused by misalignment, worn suspension components, improper tire pressure, or lack of rotation. Inner-edge wear indicates a camber problem. Outer-edge wear suggests toe misalignment. Center wear means overinflation. A qualified technician can diagnose the root cause by reading the wear pattern."
       }
     ],
+    includedItems: [
+      "Tire mounting on your wheels",
+      "Computer spin balancing",
+      "New valve stems",
+      "TPMS sensor reset",
+      "Old tire disposal",
+      "Torque to manufacturer spec",
+    ],
+    pricingTiers: [
+      { label: "New tires (each)", range: "$80–$250" },
+      { label: "Used tires (each)", range: "$40–$80" },
+      { label: "Flat repair", range: "$15–$25" },
+      { label: "TPMS sensor", range: "$45–$85" },
+    ],
+    duration: "30-60 min",
+    startingPrice: "See tire prices",
+
   },
   {
     slug: "brakes",
@@ -190,6 +215,24 @@ export const SERVICES: ServiceData[] = [
         answer: "Squealing brakes are a warning sign that should not be ignored. A high-pitched squeal usually means the brake pad wear indicators are contacting the rotor, indicating the pads are nearly worn through. Continued driving can damage the rotors and calipers, increasing repair cost significantly. Have your brakes inspected as soon as possible."
       }
     ],
+    includedItems: [
+      "Brake pad replacement (front or rear)",
+      "Rotor inspection (resurface or replace if needed)",
+      "Brake fluid check",
+      "Caliper inspection",
+      "Road test after service",
+      "Written estimate before any work begins",
+    ],
+    pricingTiers: [
+      { label: "Brake inspection", range: "FREE" },
+      { label: "Front brake pads", range: "$149–$299" },
+      { label: "Rear brake pads", range: "$149–$299" },
+      { label: "Rotor replacement (per axle)", range: "$200–$400" },
+      { label: "Full brake job (pads + rotors)", range: "$349–$599" },
+    ],
+    duration: "1-3 hours",
+    startingPrice: "FREE inspection",
+
   },
   {
     slug: "diagnostics",
@@ -264,6 +307,22 @@ export const SERVICES: ServiceData[] = [
         answer: "OBD-II stands for On-Board Diagnostics, second generation. It is a standardized system in all vehicles made after 1996 that monitors engine performance and emissions. A diagnostic scan tool connects to the OBD-II port under the dashboard and reads trouble codes stored by the vehicle's computer, helping technicians identify the source of a problem."
       }
     ],
+    includedItems: [
+      "Full OBD-II system scan",
+      "Live sensor data analysis",
+      "Component-level testing",
+      "Root cause identification",
+      "Written diagnostic report",
+      "Clear codes and verify after repair",
+    ],
+    pricingTiers: [
+      { label: "Basic code read", range: "FREE" },
+      { label: "Full diagnostic evaluation", range: "$59.99" },
+      { label: "Diagnostic fee credited toward repair", range: "Yes" },
+    ],
+    duration: "30-60 min",
+    startingPrice: "$59.99 (credited toward repair)",
+
   },
   {
     slug: "emissions",
@@ -338,6 +397,23 @@ export const SERVICES: ServiceData[] = [
         answer: "Ohio E-Check emissions testing is required in seven Northeast Ohio counties: Cuyahoga, Geauga, Lake, Lorain, Medina, Portage, and Summit. Vehicles model year 1996 and newer that are registered in these counties must pass the E-Check every two years. The test is an OBD-II scan that checks for emissions-related trouble codes and monitor readiness."
       }
     ],
+    includedItems: [
+      "E-Check report review",
+      "Full emissions diagnostic scan",
+      "Oxygen sensor testing",
+      "EVAP system inspection",
+      "Catalytic converter evaluation",
+      "Drive cycle completion and monitor verification",
+    ],
+    pricingTiers: [
+      { label: "E-Check test", range: "$24.99" },
+      { label: "Oxygen sensor replacement", range: "$150–$350" },
+      { label: "EVAP leak repair", range: "$150–$400" },
+      { label: "Catalytic converter", range: "$800–$1,500" },
+    ],
+    duration: "20-40 min (test) / 1-2 days (repair)",
+    startingPrice: "From $24.99",
+
   },
   {
     slug: "oil-change",
@@ -412,6 +488,22 @@ export const SERVICES: ServiceData[] = [
         answer: "Skipping oil changes allows old oil to break down and form sludge inside the engine. Sludge restricts oil flow, increases friction, and causes accelerated wear on internal components. Over time, this can lead to overheating, reduced fuel economy, and eventually catastrophic engine failure. Regular oil changes are the single most important maintenance for engine longevity."
       }
     ],
+    includedItems: [
+      "Drain old oil completely",
+      "Quality oil filter replacement",
+      "Fill with correct weight oil",
+      "Multi-point vehicle inspection",
+      "Fluid level check",
+      "Oil life monitor reset",
+    ],
+    pricingTiers: [
+      { label: "Conventional oil change", range: "$39.99" },
+      { label: "Synthetic blend", range: "$54.99" },
+      { label: "Full synthetic", range: "$69.99–$89.99" },
+    ],
+    duration: "15-30 min",
+    startingPrice: "From $39.99",
+
   },
   {
     slug: "general-repair",
@@ -486,6 +578,21 @@ export const SERVICES: ServiceData[] = [
         answer: "Strange vehicle noises indicate specific problems. Squealing from the front usually means worn brake pads or a loose belt. Grinding suggests metal-on-metal contact in brakes or transmission. Clunking over bumps points to worn suspension components. Humming at highway speed often indicates a wheel bearing issue. A diagnostic inspection can identify the exact source."
       }
     ],
+    includedItems: [
+      "Visual and hands-on inspection",
+      "Diagnostic testing as needed",
+      "Written estimate before work",
+      "Quality replacement parts",
+      "Post-repair road test",
+      "Repair warranty included",
+    ],
+    pricingTiers: [
+      { label: "Diagnostic inspection", range: "FREE with repair" },
+      { label: "Repair costs", range: "Varies by service" },
+    ],
+    duration: "Varies — we'll call with estimate",
+    startingPrice: "FREE estimates",
+
   },
 ];
 

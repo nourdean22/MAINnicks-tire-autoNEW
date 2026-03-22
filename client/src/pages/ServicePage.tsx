@@ -5,16 +5,18 @@
  */
 
 import InternalLinks from "@/components/InternalLinks";
+import ExitIntentOffer from "@/components/ExitIntentOffer";
 import PageLayout from "@/components/PageLayout";
 import { useState, useEffect } from "react";
 import { useRoute, Link } from "wouter";
 import { SERVICES, type ServiceData } from "@shared/services";
 import BookingForm from "@/components/BookingForm";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
-import { Phone, MapPin, Clock, Star, ChevronRight, ChevronDown, ArrowLeft, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Menu, X } from "lucide-react";
-import { AnimatePresence } from "framer-motion";
+import { Phone, MapPin, Clock, Star, ChevronRight, ChevronDown, ArrowLeft, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Menu, X, CreditCard } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { BUSINESS } from "@shared/business";
 import FadeIn from "@/components/FadeIn";
+import ServiceDetailsAccordion from "@/components/ServiceDetailsAccordion";
 
 // CDN images
 const HERO_IMAGES: Record<string, string> = {
@@ -147,9 +149,12 @@ function ServiceHero({ service }: { service: ServiceData }) {
             {service.heroSubline}
           </p>
         </FadeIn>
-
         <FadeIn delay={0.3}>
-          <div className="mt-8 flex flex-col sm:flex-row gap-4">
+          <div className="mt-6 flex items-center gap-2 bg-nick-teal/10 border border-nick-teal/30 rounded-md px-4 py-3 w-fit mb-4">
+            <div className="w-2 h-2 rounded-full bg-nick-teal animate-pulse" />
+            <span className="text-sm font-medium text-nick-teal">Walk-ins welcome! Same-day appointments available.</span>
+          </div>
+          <div className="mt-4 flex flex-col sm:flex-row gap-4">
             <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('service-hero-cta')} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
               <Phone className="w-5 h-5" />
               {service.heroCTA || "CALL NOW"}
@@ -182,9 +187,30 @@ function ServiceHero({ service }: { service: ServiceData }) {
         {/* Urgency alert — only shown for safety-critical services */}
         {service.urgencyNote && (
           <FadeIn delay={0.5}>
-            <div className="mt-6 flex items-start gap-3 bg-red-950/40 border border-red-800/40 rounded-md px-5 py-4 max-w-2xl">
-              <span className="text-red-400 text-lg shrink-0 mt-0.5">⚠</span>
-              <p className="text-red-300/90 text-sm leading-relaxed">{service.urgencyNote}</p>
+            <div className="mt-6 space-y-4">
+              <div className="flex items-start gap-3 bg-red-950/40 border border-red-800/40 rounded-md px-5 py-4 max-w-2xl">
+                <span className="text-red-400 text-lg shrink-0 mt-0.5">⚠</span>
+                <p className="text-red-300/90 text-sm leading-relaxed">{service.urgencyNote}</p>
+              </div>
+
+              {/* Urgent callout */}
+              <div className="flex items-start gap-3 bg-amber-950/40 border border-amber-800/40 rounded-md px-5 py-4 max-w-2xl">
+                <span className="text-amber-400 text-lg shrink-0 mt-0.5">⚡</span>
+                <div>
+                  <p className="text-amber-200/90 text-sm font-semibold mb-2">Is this urgent?</p>
+                  <p className="text-amber-200/70 text-sm leading-relaxed">
+                    Call us — we prioritize same-day emergencies.
+                  </p>
+                  <a
+                    href={BUSINESS.phone.href}
+                    onClick={() => trackPhoneClick('service-urgent-cta')}
+                    className="inline-flex items-center gap-2 mt-3 text-amber-400 hover:text-amber-300 font-semibold text-sm transition-colors"
+                  >
+                    <Phone className="w-4 h-4" />
+                    {BUSINESS.phone.display}
+                  </a>
+                </div>
+              </div>
             </div>
           </FadeIn>
         )}
@@ -396,6 +422,89 @@ function WhyUs({ service }: { service: ServiceData }) {
             </div>
           </FadeIn>
         </div>
+      </div>
+    </section>
+  );
+}
+
+
+// ─── SERVICE DETAILS ACCORDION (WHAT'S INCLUDED) ─────────
+function ServiceDetails({ service }: { service: ServiceData }) {
+  // Build accordion sections from service data
+  const sections = [];
+  
+  if (service.includedItems && service.includedItems.length > 0) {
+    sections.push({
+      title: `What's included in ${service.title.toLowerCase()}`,
+      items: service.includedItems,
+    });
+  }
+  
+  if (service.pricingTiers && service.pricingTiers.length > 0) {
+    // For pricing, we'll render as content with formatted list
+    const pricingContent = service.pricingTiers.map((tier) => `${tier.label}: ${tier.range}`).join(" · ");
+    sections.push({
+      title: `How much does it cost?`,
+      content: pricingContent,
+    });
+  }
+  
+  if (service.duration) {
+    sections.push({
+      title: `How long does it take?`,
+      content: service.duration,
+    });
+  }
+
+  if (sections.length === 0) return null;
+
+  return (
+    <section className="bg-[oklch(0.065_0.004_260)] py-20 lg:py-28">
+      <div className="container">
+        <FadeIn>
+          <div className="max-w-3xl">
+            <span className="font-mono text-nick-blue-light text-sm tracking-wide">What to Expect</span>
+            <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+              SERVICE <span className="text-primary">DETAILS</span>
+            </h2>
+            <p className="mt-4 text-foreground/60 text-lg">
+              Everything included in our {service.title.toLowerCase()} service, plus transparent pricing and timeframe estimates.
+            </p>
+
+            {/* Price Anchor & Financing Badge */}
+            {service.startingPrice && (
+              <FadeIn delay={0.1}>
+                <div className="mt-8 flex flex-wrap items-center gap-4">
+                  <div className="bg-primary/5 border border-primary/20 rounded-lg px-6 py-4">
+                    <div className="text-sm text-foreground/60 mb-1">Starting at</div>
+                    <div className="font-bold text-2xl text-primary">{service.startingPrice}</div>
+                  </div>
+                  <div className="flex items-center gap-2 bg-nick-teal/5 border border-nick-teal/20 rounded-lg px-4 py-3 text-sm text-nick-teal">
+                    <CreditCard className="w-4 h-4" />
+                    <span>4 payments · 0% interest available</span>
+                  </div>
+                </div>
+              </FadeIn>
+            )}
+
+            {/* Duration Info */}
+            {service.duration && (
+              <FadeIn delay={0.15}>
+                <div className="mt-6 flex items-center gap-3 text-foreground/60">
+                  <Clock className="w-5 h-5 text-nick-blue-light" />
+                  <span>Estimated time: <strong className="text-foreground">{service.duration}</strong></span>
+                </div>
+              </FadeIn>
+            )}
+          </div>
+        </FadeIn>
+
+        {/* Accordion */}
+        <FadeIn delay={0.2}>
+          <div className="mt-12 max-w-3xl">
+            <ServiceDetailsAccordion sections={sections} />
+          </div>
+        </FadeIn>
       </div>
     </section>
   );
@@ -686,6 +795,7 @@ export default function ServicePage() {
       <ServiceNavbar service={service} />
 
         <ServiceHero service={service} />
+        <ServiceDetails service={service} />
         <Problems service={service} />
         <WarningSigns service={service} />
         <Process service={service} />
@@ -696,6 +806,7 @@ export default function ServicePage() {
 
       
       <InternalLinks title="Related Services" />
+      <ExitIntentOffer serviceName={service.title} />
     </PageLayout>
   );
 }

@@ -4,16 +4,18 @@
  * Photography-driven, maximum whitespace, single-decision-per-fold
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import BookingForm from "@/components/BookingForm";
 import LeadPopup from "@/components/LeadPopup";
 import ChatWidget from "@/components/ChatWidget";
 import NotificationBar from "@/components/NotificationBar";
+import EmergencyBanner from "@/components/EmergencyBanner";
+import StickyTrustBar from "@/components/StickyTrustBar";
 import ComparisonTable from "@/components/ComparisonTable";
 import InternalLinks from "@/components/InternalLinks";
 import { SEOHead, SkipToContent, trackPhoneClick } from "@/components/SEO";
-import { Phone, MapPin, Clock, Star, ChevronDown, Menu, X, ArrowRight } from "lucide-react";
+import { Phone, MapPin, Clock, Star, ChevronDown, Menu, X, ArrowRight, Wrench, Gauge, Droplets, Wind, Disc, Circle, Ruler, Gift, CreditCard } from "lucide-react";
 import { motion } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
@@ -38,6 +40,41 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
       {children}
     </motion.div>
   );
+}
+
+// ─── ANIMATED COUNTER HOOK ────────────────────────────────
+function useAnimatedCounter(target: number, duration = 1500) {
+  const [count, setCount] = useState(0);
+  const [started, setStarted] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setStarted(true); },
+      { threshold: 0.3 }
+    );
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!started) return;
+    let frame: number;
+    const start = Date.now();
+    const tick = () => {
+      const elapsed = Date.now() - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // Ease out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.floor(eased * target));
+      if (progress < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [started, target, duration]);
+
+  return { count, ref };
 }
 
 // ─── NAVIGATION — Tesla-style minimal ────────────────────
@@ -135,12 +172,13 @@ function Hero() {
   });
   const rating = googleData?.rating ?? 4.9;
   const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
+  const { count: animatedCount, ref: counterRef } = useAnimatedCounter(totalReviews);
 
   return (
-    <section className="relative min-h-[100svh] flex flex-col justify-end overflow-hidden">
+    <section ref={counterRef} className="relative min-h-[100svh] flex flex-col justify-end overflow-hidden">
       {/* Full-bleed background */}
       <div className="absolute inset-0">
-        <img src={HERO_IMG} alt="Nick's Tire and Auto repair shop in Cleveland Ohio" className="w-full h-full object-cover" />
+        <img src={HERO_IMG} alt="Nick's Tire and Auto repair shop in Cleveland Ohio" className="w-full h-full object-cover" loading="eager" fetchPriority="high" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
       </div>
 
@@ -156,13 +194,16 @@ function Hero() {
 
         <FadeIn delay={0.15}>
           <p className="mt-6 text-lg text-foreground/60 max-w-lg font-light leading-relaxed">
-            Honest diagnostics. Fair prices. We show you the problem before we fix it.
+            Cleveland's #1 rated tire & auto shop. Walk-ins welcome.
           </p>
         </FadeIn>
-
         <FadeIn delay={0.25}>
-          <div className="mt-8 flex flex-col sm:flex-row gap-3">
-            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('hero')} className="inline-flex items-center justify-center gap-2 bg-foreground text-background px-8 py-3.5 rounded-full font-medium text-base hover:bg-foreground/90 transition-colors" aria-label="Call for free estimate">
+          <div className="mt-6 flex items-center gap-2 bg-nick-teal/10 border border-nick-teal/30 rounded-md px-4 py-3 w-fit mb-4">
+            <div className="w-2 h-2 rounded-full bg-nick-teal animate-pulse" />
+            <span className="text-sm font-medium text-nick-teal">Walk-ins welcome! Same-day appointments available.</span>
+          </div>
+          <div className="mt-4 flex flex-col sm:flex-row gap-3">
+            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('hero')} className="inline-flex items-center justify-center gap-2 bg-foreground text-background px-8 py-3.5 rounded-full font-medium text-base hover:bg-foreground/90 hover:shadow-[0_0_20px_oklch(0.82_0.14_85/0.3)] transition-all" aria-label="Call for free estimate">
               Call for Free Estimate
             </a>
             <a href="#services" className="inline-flex items-center justify-center gap-2 border border-foreground/30 text-foreground px-8 py-3.5 rounded-full font-medium text-base hover:bg-foreground/5 transition-colors">
@@ -180,7 +221,7 @@ function Hero() {
                   <Star key={i} className="w-3.5 h-3.5 fill-nick-yellow text-primary" />
                 ))}
               </div>
-              <span>{rating.toFixed(1)} · {totalReviews.toLocaleString()}+ reviews</span>
+              <span>{rating.toFixed(1)} · {animatedCount.toLocaleString()}+ reviews</span>
             </div>
             <span className="hidden sm:block w-px h-4 bg-foreground/15" />
             <span>Same-day service</span>
@@ -259,14 +300,14 @@ const services = [
 ];
 
 const moreServices = [
-  { title: "Emissions & E-Check", slug: "/emissions", desc: "Failed Ohio E-Check? We diagnose and repair emissions problems." },
-  { title: "Oil Change", slug: "/oil-change", desc: "Conventional and synthetic oil changes. Quick, affordable, done right." },
-  { title: "General Repair", slug: "/general-repair", desc: "Suspension, steering, exhaust, cooling systems, belts, hoses, and more." },
+  { title: "Emissions & E-Check", slug: "/emissions", desc: "Failed Ohio E-Check? We diagnose and repair emissions problems.", icon: Wind, badge: "Required", price: "From $24.99" },
+  { title: "Oil Change", slug: "/oil-change", desc: "Conventional and synthetic oil changes. Quick, affordable, done right.", icon: Droplets, badge: "Quick Service", price: "From $39.99" },
+  { title: "General Repair", slug: "/general-repair", desc: "Suspension, steering, exhaust, cooling systems, belts, hoses, and more.", icon: Wrench, price: "FREE Estimates" },
 ];
 
 function Services() {
   return (
-    <section id="services">
+    <section id="services" className="section-breathing">
       {/* Featured services — large image tiles */}
       {services.map((s, _i) => (
         <div key={s.slug} className="relative min-h-[80vh] flex items-end overflow-hidden">
@@ -298,17 +339,31 @@ function Services() {
             <h2 className="text-3xl lg:text-4xl font-bold text-foreground tracking-tight text-center mb-12">More Services</h2>
           </FadeIn>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {moreServices.map((s, i) => (
-              <FadeIn key={s.slug} delay={i * 0.1}>
-                <Link href={s.slug} className="group block p-8 border border-border rounded-2xl hover:border-foreground/20 transition-all">
-                  <h3 className="text-xl font-semibold text-foreground tracking-tight group-hover:text-primary transition-colors">{s.title}</h3>
-                  <p className="mt-3 text-foreground/50 text-sm leading-relaxed">{s.desc}</p>
-                  <span className="inline-flex items-center gap-1 mt-5 text-sm text-foreground/40 group-hover:text-primary transition-colors">
-                    Learn more <ArrowRight className="w-3.5 h-3.5" />
-                  </span>
-                </Link>
-              </FadeIn>
-            ))}
+            {moreServices.map((s, i) => {
+              const Icon = s.icon;
+              return (
+                <FadeIn key={s.slug} delay={i * 0.1}>
+                  <Link href={s.slug} className="group block p-8 border border-border rounded-2xl hover:border-foreground/20 hover:scale-[1.02] transition-all surface-raised-card">
+                    <div className="flex items-center justify-between mb-4">
+                      <Icon className="w-6 h-6 text-nick-blue-light group-hover:text-primary transition-colors" />
+                      {s.badge && (
+                        <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                          {s.badge}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-xl font-semibold text-foreground tracking-tight group-hover:text-primary transition-colors">{s.title}</h3>
+                    <p className="mt-3 text-foreground/50 text-sm leading-relaxed">{s.desc}</p>
+                    {s.price && (
+                      <span className="inline-block mt-3 text-xs font-semibold text-primary/80">{s.price}</span>
+                    )}
+                    <span className="flex items-center gap-1 mt-4 text-sm text-foreground/40 group-hover:text-primary transition-colors">
+                      Learn more <ArrowRight className="w-3.5 h-3.5" />
+                    </span>
+                  </Link>
+                </FadeIn>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -316,10 +371,98 @@ function Services() {
   );
 }
 
+// ─── HOW IT WORKS ─────────────────────────────────────
+function HowItWorks() {
+  const steps = [
+    {
+      number: "1",
+      icon: "📅",
+      title: "Book Online or Walk In",
+      desc: "Pick your service and preferred time. Same-day appointments available.",
+    },
+    {
+      number: "2",
+      icon: "🔍",
+      title: "Free Inspection",
+      desc: "We inspect your vehicle and give you an honest written estimate. No surprises.",
+    },
+    {
+      number: "3",
+      icon: "🔧",
+      title: "Expert Service",
+      desc: "Our technicians handle the job. We call you when it's done.",
+    },
+    {
+      number: "4",
+      icon: "✅",
+      title: "Drive with Confidence",
+      desc: "Leave with a vehicle you can trust. Warranty included on all work.",
+    },
+  ];
+
+  return (
+    <section className="bg-[oklch(0.065_0.004_260)] py-20 lg:py-28">
+      <div className="container">
+        <FadeIn>
+          <h2 className="text-4xl lg:text-5xl font-bold text-foreground tracking-tight text-center mb-16">
+            HOW IT <span className="text-primary">WORKS</span>
+          </h2>
+        </FadeIn>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-4">
+          {steps.map((step, i) => (
+            <FadeIn key={i} delay={i * 0.1}>
+              <div className="relative bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 lg:p-8 h-full flex flex-col">
+                {/* Step number circle */}
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 shrink-0">
+                  <span className="text-primary font-bold text-lg">{step.number}</span>
+                </div>
+
+                {/* Icon + Title */}
+                <div className="flex items-start gap-3 mb-4">
+                  <span className="text-2xl">{step.icon}</span>
+                  <h3 className="font-semibold text-lg text-foreground tracking-tight">{step.title}</h3>
+                </div>
+
+                {/* Description */}
+                <p className="text-foreground/60 text-sm leading-relaxed">{step.desc}</p>
+
+                {/* Connector line (desktop only) */}
+                {i < steps.length - 1 && (
+                  <div className="hidden lg:block absolute top-1/2 -right-3 w-6 h-0.5 bg-gradient-to-r from-[oklch(0.17_0.004_260)] to-transparent" />
+                )}
+              </div>
+            </FadeIn>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── ASK A MECHANIC CALLOUT ───────────────────────────
+function AskMechanicCTA() {
+  return (
+    <FadeIn>
+      <section className="bg-primary/5 border border-primary/15 rounded-2xl p-8 lg:p-12 text-center max-w-2xl mx-auto mb-16">
+        <h3 className="text-2xl lg:text-3xl font-bold text-foreground tracking-tight mb-3">
+          Got a car question?
+        </h3>
+        <p className="text-foreground/70 text-lg leading-relaxed mb-6">
+          Our mechanics answer questions for free. No appointment needed.
+        </p>
+        <Link href="/ask-mechanic" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-full font-semibold text-sm hover:opacity-90 transition-colors">
+          Ask a Mechanic <ArrowRight className="w-4 h-4" />
+        </Link>
+      </section>
+    </FadeIn>
+  );
+}
+
 // ─── WHY US — Split layout ───────────────────────────────
 function WhyUs() {
   return (
-    <section className="bg-[oklch(0.065_0.004_260)] py-24 lg:py-32">
+    <section className="bg-[oklch(0.065_0.004_260)] py-24 lg:py-32 section-breathing">
       <div className="container">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <FadeIn>
@@ -422,9 +565,13 @@ function Reviews() {
         </div>
 
         <FadeIn delay={0.4}>
-          <div className="mt-12 text-center">
+          <div className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8">
             <Link href="/reviews" className="inline-flex items-center gap-2 text-sm font-medium text-foreground/50 hover:text-foreground transition-colors">
               See all reviews <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+            <Link href="/refer" className="inline-flex items-center gap-2 text-sm font-medium text-primary/70 hover:text-primary transition-colors">
+              <Gift className="w-3.5 h-3.5" />
+              Love Nick's? Refer a friend — earn $20
             </Link>
           </div>
         </FadeIn>
@@ -588,6 +735,7 @@ function Footer() {
               <Link href="/blog" className="block hover:text-foreground transition-colors">Blog</Link>
               <Link href="/faq" className="block hover:text-foreground transition-colors">FAQ</Link>
               <Link href="/car-care-guide" className="block hover:text-foreground transition-colors">Car Care Guide</Link>
+              <Link href="/refer" className="block hover:text-foreground transition-colors">Refer a Friend — Earn $20</Link>
             </div>
           </div>
 
@@ -670,20 +818,22 @@ export default function Home() {
       <SkipToContent />
       <NotificationBar />
       <Navbar />
+      <StickyTrustBar />
+      <EmergencyBanner />
       <main id="main-content">
         <Hero />
         <TrustNumbers />
         <Services />
+        <HowItWorks />
+        <div className="container mb-16">
+          <AskMechanicCTA />
+        </div>
         <WhyUs />
         <Reviews />
         <ComparisonTable />
         <Contact />
         <InternalLinks title="Explore More" />
       </main>
-      <Footer />
-      <MobileCTA />
-      <LeadPopup />
-      <ChatWidget />
     </div>
   );
 }

@@ -172,6 +172,12 @@ export default function Contact() {
                       </div>
                       <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase">Hours</h3>
                     </div>
+
+                    <div className="mt-4 p-3 bg-primary/10 border border-primary/20 rounded-md">
+                      <p className="text-foreground/70 text-[13px] leading-relaxed">
+                        <span className="text-primary font-semibold">After hours?</span> Leave a message and we'll call first thing.
+                      </p>
+                    </div>
                     <div className="font-mono text-foreground/80 space-y-1">
                       <div className="flex justify-between">
                         <span>Monday – Saturday</span>

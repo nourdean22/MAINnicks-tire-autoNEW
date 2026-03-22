@@ -492,11 +492,19 @@ function TireCard({ tire, quantity, onSelect }: TireCardProps) {
         </div>
       )}
 
-      {/* Warranty */}
+      {/* Warranty badge */}
       {tire.warranty && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
-          <ShieldCheck className="w-3.5 h-3.5 text-primary/60" />
-          <span>{tire.warranty} warranty</span>
+        <div className="flex items-center gap-1.5 text-xs mb-3 bg-blue-500/5 border border-blue-500/15 rounded-md px-3 py-1.5">
+          <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
+          <span className="text-blue-300 font-medium">{tire.warranty} warranty</span>
+        </div>
+      )}
+
+      {/* Scarcity indicator */}
+      {tire.inStock && tire.category === "budget" && (
+        <div className="flex items-center gap-1.5 text-[10px] text-amber-400 mb-3">
+          <AlertTriangle className="w-3 h-3" />
+          <span>Popular size — limited stock available</span>
         </div>
       )}
 
@@ -717,6 +725,17 @@ export default function TireFinder() {
               </button>
             </div>
 
+            {/* Tire size explainer */}
+            <div className="mt-6 bg-card/60 border border-border/30 rounded-lg p-4 text-left max-w-md mx-auto">
+              <p className="text-xs font-medium text-foreground mb-2 flex items-center gap-1.5">
+                <Info className="w-3.5 h-3.5 text-primary" />
+                Where to find your tire size
+              </p>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Check the sidewall of your tire for numbers like <strong className="text-foreground">215/60R16</strong>. You can also find it on the sticker inside your driver's door jamb or in your owner's manual.
+              </p>
+            </div>
+
             {/* Quick sizes */}
             <div className="mt-4 flex flex-wrap justify-center gap-2">
               <span className="text-xs text-muted-foreground mr-1 self-center">Popular:</span>
@@ -862,7 +881,7 @@ export default function TireFinder() {
                     ))}
                   </div>
 
-                  {/* Set pricing callout */}
+                  {/* Inline order summary / Set pricing callout */}
                   <div className="mt-8 bg-gradient-to-br from-primary/5 via-card to-primary/5 border border-primary/20 rounded-xl p-8 text-center">
                     <p className="text-sm text-muted-foreground mb-1">Starting at</p>
                     <p className="text-4xl font-semibold text-foreground">

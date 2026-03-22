@@ -117,27 +117,62 @@ export default function ChatWidget() {
             {/* ─── MESSAGES ─── */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.length === 0 && (
-                <div className="text-center py-8">
-                  <div className="w-12 h-12 rounded-full bg-foreground/[0.04] flex items-center justify-center mx-auto mb-3">
-                    <Wrench className="w-5 h-5 text-foreground/15" />
+                <div className="text-center py-6 space-y-4">
+                  {/* Greeting */}
+                  <div>
+                    <div className="w-12 h-12 rounded-full bg-foreground/[0.04] flex items-center justify-center mx-auto mb-3">
+                      <Wrench className="w-5 h-5 text-foreground/15" />
+                    </div>
+                    <p className="text-foreground/70 text-[13px] font-medium">Hi! I'm Nick's AI assistant.</p>
+                    <p className="text-foreground/50 text-[12px] leading-relaxed max-w-[280px] mx-auto mt-1">
+                      I can help with:
+                    </p>
                   </div>
-                  <p className="text-foreground/40 text-[13px] leading-relaxed max-w-[260px] mx-auto">
-                    Tell me what's going on with your car. I'll help figure out what might be wrong.
-                  </p>
-                  <div className="mt-5 space-y-2">
-                    {["Check engine light is on", "Brakes are squealing", "Car shakes at highway speed"].map(q => (
-                      <button
-                        key={q}
-                        onClick={() => {
-                          setInput("");
-                          setMessages([{ role: "user", content: q }]);
-                          sendMessage.mutate({ message: q });
-                        }}
-                        className="block w-full text-left text-[12px] text-foreground/35 hover:text-foreground/60 border border-[oklch(0.17_0.004_260)] rounded-lg px-3 py-2.5 hover:border-foreground/15 hover:bg-foreground/[0.03] transition-all"
-                      >
-                        "{q}"
-                      </button>
-                    ))}
+
+                  {/* Quick Action Buttons */}
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => {
+                        const prompt = "I need help diagnosing a car problem";
+                        setInput(prompt);
+                        setMessages([{ role: "user", content: prompt }]);
+                        sendMessage.mutate({ message: prompt });
+                      }}
+                      className="w-full text-left text-[12px] text-foreground/60 hover:text-foreground border border-[oklch(0.17_0.004_260)] rounded-lg px-3 py-2.5 hover:border-foreground/15 hover:bg-foreground/[0.03] transition-all"
+                    >
+                      🔧 Diagnose a car problem
+                    </button>
+                    <button
+                      onClick={() => {
+                        const prompt = "I'd like a price estimate for";
+                        setInput(prompt);
+                        setMessages([{ role: "user", content: prompt }]);
+                        sendMessage.mutate({ message: prompt });
+                      }}
+                      className="w-full text-left text-[12px] text-foreground/60 hover:text-foreground border border-[oklch(0.17_0.004_260)] rounded-lg px-3 py-2.5 hover:border-foreground/15 hover:bg-foreground/[0.03] transition-all"
+                    >
+                      💰 Get a price estimate
+                    </button>
+                    <button
+                      onClick={() => {
+                        const prompt = "I'd like to book an appointment";
+                        setInput(prompt);
+                        setMessages([{ role: "user", content: prompt }]);
+                        sendMessage.mutate({ message: prompt });
+                      }}
+                      className="w-full text-left text-[12px] text-foreground/60 hover:text-foreground border border-[oklch(0.17_0.004_260)] rounded-lg px-3 py-2.5 hover:border-foreground/15 hover:bg-foreground/[0.03] transition-all"
+                    >
+                      📅 Book an appointment
+                    </button>
+                    <button
+                      onClick={() => {
+                        const inputEl = document.querySelector("[placeholder='Describe your problem...']") as HTMLInputElement;
+                        inputEl?.focus();
+                      }}
+                      className="w-full text-left text-[12px] text-foreground/60 hover:text-foreground border border-[oklch(0.17_0.004_260)] rounded-lg px-3 py-2.5 hover:border-foreground/15 hover:bg-foreground/[0.03] transition-all"
+                    >
+                      ❓ Answer a question
+                    </button>
                   </div>
                 </div>
               )}

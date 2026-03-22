@@ -5,7 +5,7 @@
  */
 
 import PageLayout from "@/components/PageLayout";
-import SEOHead from "@/components/SEO";
+import { SEOHead } from "@/components/SEO";
 import BookingForm from "@/components/BookingForm";
 import FadeIn from "@/components/FadeIn";
 import { BUSINESS } from "@shared/business";

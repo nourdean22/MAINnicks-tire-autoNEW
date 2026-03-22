@@ -14,6 +14,7 @@ const NAV_LINKS = [
   { label: "Reviews", href: "/reviews" },
   { label: "Specials", href: "/specials" },
   { label: "About", href: "/about" },
+  { label: "Ask a Mechanic", href: "/ask-mechanic" },
   { label: "Contact", href: "/contact" },
 ];
 

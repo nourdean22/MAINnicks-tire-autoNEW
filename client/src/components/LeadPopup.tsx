@@ -14,9 +14,9 @@ import { getUtmData } from "@/lib/utm";
 import { BUSINESS } from "@shared/business";
 
 const STORAGE_KEY = "nicks_lead_popup_dismissed";
-const DELAY_MS = 25000;          // 25s desktop timer
-const DELAY_MS_MOBILE = 30000;   // 30s mobile timer (longer, less aggressive)
-const SCROLL_THRESHOLD = 0.8;    // 80% scroll depth
+const DELAY_MS = 45000;          // 45s desktop timer
+const DELAY_MS_MOBILE = 60000;   // 60s mobile timer (longer, less aggressive)
+const SCROLL_THRESHOLD = 0.6;    // 60% scroll depth — user has shown intent
 const EXIT_INTENT_GUARD_MS = 8000; // exit-intent cannot fire in first 8s
 
 function isMobile() {
@@ -59,33 +59,45 @@ export default function LeadPopup() {
       if (sessionStorage.getItem(STORAGE_KEY)) return;
     } catch {}
 
+    // Suppress on conversion pages
+    const path = window.location.pathname;
+    if (path === "/contact" || path === "/book" || path === "/booking") return;
+
     const mobile = isMobile();
     const delay = mobile ? DELAY_MS_MOBILE : DELAY_MS;
 
+    // Require BOTH timer elapsed AND scroll depth reached
+    let timerReady = false;
+    let scrollReady = false;
+
+    const tryShow = () => {
+      if (timerReady && scrollReady) show();
+    };
+
     // Timer trigger — works on all devices
-    const timer = setTimeout(show, delay);
+    const timer = setTimeout(() => {
+      timerReady = true;
+      tryShow();
+    }, delay);
 
     // Scroll depth trigger — works on all devices
-    // Guard: don't fire from scroll until at least 10s on page (prevents false triggers during page load)
     const onScroll = () => {
-      const timeOnPage = Date.now() - mountTimeRef.current;
-      if (timeOnPage < 10000) return; // minimum 10s before scroll can trigger
       const docHeight = document.body.scrollHeight - window.innerHeight;
-      if (docHeight <= 100) return; // page must be tall enough
+      if (docHeight <= 100) return;
       const scrolled = window.scrollY / docHeight;
       if (scrolled >= SCROLL_THRESHOLD) {
-        show();
-        window.removeEventListener("scroll", onScroll);
+        scrollReady = true;
+        tryShow();
       }
     };
     window.addEventListener("scroll", onScroll, { passive: true });
 
-    // Exit-intent trigger — desktop ONLY, with time guard so it can't fire in first 8s
+    // Exit-intent trigger — desktop ONLY, requires timer ready
     let exitIntentListener: ((e: MouseEvent) => void) | null = null;
     if (!mobile) {
       exitIntentListener = (e: MouseEvent) => {
         const timeOnPage = Date.now() - mountTimeRef.current;
-        if (e.clientY <= 5 && timeOnPage >= EXIT_INTENT_GUARD_MS) {
+        if (e.clientY <= 5 && timeOnPage >= EXIT_INTENT_GUARD_MS && scrollReady) {
           show();
           document.removeEventListener("mouseleave", exitIntentListener!);
         }

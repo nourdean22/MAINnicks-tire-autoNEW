@@ -38,7 +38,7 @@ export default function NotFound() {
       name: form.name.trim(),
       phone: form.phone.trim(),
       problem: form.problem.trim() || undefined,
-      source: "404-page",
+      source: "popup",
       pixelEventId: eventId,
       pixelUserData: userData,
       ...utmData,

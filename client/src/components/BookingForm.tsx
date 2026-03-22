@@ -4,9 +4,10 @@ import { trackBookingSubmission, getUserDataForCAPI } from "@/lib/metaPixel";
 import { getUtmData } from "@/lib/utm";
 import {
   Phone, Calendar, Clock, Car, Wrench, CheckCircle, AlertCircle,
-  Loader2, Camera, X, ChevronRight, ChevronLeft, User, Mail, MessageSquare, AlertTriangle, Zap,
+  Loader2, Camera, X, ChevronRight, ChevronLeft, User, Mail, MessageSquare, AlertTriangle, Zap, HelpCircle, MapPin,
 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
+import { SERVICES as SERVICES_DATA } from "@shared/services";
 
 const SERVICES = [
   "Tires — New, Used, Repair",
@@ -22,7 +23,7 @@ const SERVICES = [
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = Array.from({ length: 35 }, (_, i) => String(CURRENT_YEAR + 1 - i));
+const YEARS = Array.from({ length: 27 }, (_, i) => String(CURRENT_YEAR + 1 - i));
 
 const MAKES = [
   "Acura", "Audi", "BMW", "Buick", "Cadillac", "Chevrolet", "Chrysler",
@@ -31,7 +32,16 @@ const MAKES = [
   "Ram", "Subaru", "Tesla", "Toyota", "Volkswagen", "Volvo", "Other",
 ];
 
-type Step = 1 | 2 | 3;
+// Upsell mapping based on selected service
+const UPSELL_MAP: Record<string, { suggestion: string; price: string; note: string }[]> = {
+  "Oil Change": [{ suggestion: "Tire Rotation", price: "$29.99", note: "Usually $49.99 with oil change" }],
+  "Brake Repair": [{ suggestion: "Alignment Check", price: "$39.99", note: "Recommended after brake work" }],
+  "Tires — New, Used, Repair": [{ suggestion: "Wheel Alignment", price: "$79.99", note: "Required for even tire wear" }],
+  "Ohio E-Check / Emissions Repair": [{ suggestion: "Oil Change", price: "$39.99", note: "Keep your engine clean" }],
+  "Check Engine Light / Diagnostics": [{ suggestion: "Code Scan Report", price: "FREE", note: "We'll email you the full report" }],
+};
+
+type Step = 1 | 2;
 
 interface PhotoFile {
   file: File;
@@ -44,6 +54,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
   const [step, setStep] = useState<Step>(1);
   const [submitted, setSubmitted] = useState(false);
   const [photos, setPhotos] = useState<PhotoFile[]>([]);
+  const [notSureMode, setNotSureMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
@@ -74,7 +85,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
     const newPhotos: PhotoFile[] = [];
     for (let i = 0; i < Math.min(files.length, 3 - photos.length); i++) {
       const file = files[i];
-      if (file.size > 5 * 1024 * 1024) continue; // 5MB limit
+      if (file.size > 5 * 1024 * 1024) continue;
       newPhotos.push({
         file,
         preview: URL.createObjectURL(file),
@@ -83,7 +94,6 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
     }
     setPhotos((prev) => [...prev, ...newPhotos]);
 
-    // Upload each photo
     for (const photo of newPhotos) {
       try {
         const reader = new FileReader();
@@ -116,7 +126,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.phone || !formData.service) return;
-    // Meta Pixel + CAPI: Track booking as Lead + Schedule conversion
+    
     const { leadEventId, scheduleEventId } = trackBookingSubmission({
       service: formData.service,
       vehicle: [formData.vehicleYear, formData.vehicleMake, formData.vehicleModel].filter(Boolean).join(" "),
@@ -124,6 +134,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
     const userData = getUserDataForCAPI();
     const photoUrls = photos.filter((p) => p.url).map((p) => p.url!);
     const utmData = getUtmData();
+    
     mutation.mutate({
       ...formData,
       photoUrls,
@@ -142,35 +153,122 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
 
   // ─── SUCCESS STATE ────────────────────────────────────
   if (submitted) {
+    const upsells = UPSELL_MAP[formData.service] || [];
+    
     return (
-      <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-8 lg:p-12 text-center">
-        <div className="w-16 h-16 mx-auto mb-5 rounded-full bg-nick-teal/10 flex items-center justify-center">
-          <CheckCircle className="w-8 h-8 text-nick-teal" />
+      <div className="space-y-6">
+        {/* Rich Confirmation Card */}
+        <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-8 lg:p-12">
+          <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-nick-teal/10 flex items-center justify-center">
+            <CheckCircle className="w-8 h-8 text-nick-teal" />
+          </div>
+          <h3 className="font-bold text-[24px] text-foreground tracking-[-0.02em] mb-6 text-center">
+            ✅ You're booked!
+          </h3>
+
+          {/* Service & Vehicle Info */}
+          <div className="bg-background/40 border border-border/30 rounded-md p-5 mb-6 space-y-3">
+            <div className="flex items-start gap-3">
+              <Wrench className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="text-foreground/40 text-xs uppercase font-semibold tracking-wide">Service</div>
+                <div className="text-foreground text-base font-semibold">{formData.service}</div>
+              </div>
+            </div>
+            {formData.vehicleYear && formData.vehicleMake && (
+              <div className="flex items-start gap-3">
+                <Car className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-foreground/40 text-xs uppercase font-semibold tracking-wide">Vehicle</div>
+                  <div className="text-foreground text-base font-semibold">
+                    {formData.vehicleYear} {formData.vehicleMake} {formData.vehicleModel}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Location & Contact Info */}
+          <div className="space-y-2 mb-6 text-sm">
+            <div className="flex items-center gap-2 text-foreground/60">
+              <MapPin className="w-4 h-4 text-primary" />
+              <span>{BUSINESS.address.full}</span>
+            </div>
+            <div className="flex items-center gap-2 text-foreground/60">
+              <Phone className="w-4 h-4 text-primary" />
+              <span>{BUSINESS.phone.display}</span>
+            </div>
+          </div>
+
+          {/* What Happens Next */}
+          <div className="bg-primary/5 border border-primary/10 rounded-md p-5 mb-6">
+            <h4 className="font-semibold text-foreground mb-3 text-sm">What happens next:</h4>
+            <ol className="space-y-2 text-sm text-foreground/70">
+              <li className="flex gap-2">
+                <span className="font-semibold text-primary">1.</span>
+                <span>We'll send you a text confirmation shortly</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="font-semibold text-primary">2.</span>
+                <span>You'll get a reminder before your appointment</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="font-semibold text-primary">3.</span>
+                <span>When you arrive, pull into any open bay</span>
+              </li>
+            </ol>
+          </div>
+
+          <p className="text-foreground/40 text-xs text-center mb-6">
+            Need to change something? Just reply to our text or call us.
+          </p>
+
+          <a
+            href={BUSINESS.phone.href}
+            className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-3.5 rounded-lg font-semibold text-[14px] hover:opacity-90 transition-opacity w-full"
+          >
+            <Phone className="w-4 h-4" />
+            Call {BUSINESS.phone.display}
+          </a>
         </div>
-        <h3 className="font-bold text-[22px] text-foreground tracking-[-0.02em] mb-3">
-          Request Received
-        </h3>
-        <p className="text-foreground/50 text-[14px] leading-relaxed max-w-md mx-auto">
-          We got your request for <span className="text-primary font-semibold">{formData.service}</span>.
-          {formData.urgency === "emergency" ? (
-            <span className="block mt-2 text-red-400 font-semibold">Emergency flagged — we will prioritize your vehicle.</span>
-          ) : (
-            <span className="block mt-1">Our team operates first-come, first-served.</span>
-          )}
-          We will reach out to{" "}
-          <span className="text-primary">{formData.phone}</span> when
-          we are ready for your vehicle.
-        </p>
-        <p className="text-foreground/30 text-[13px] mt-3">
-          Need immediate help? Call us directly.
-        </p>
-        <a
-          href={BUSINESS.phone.href}
-          className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-3.5 rounded-lg font-semibold text-[14px] mt-6 hover:opacity-90 transition-opacity"
-        >
-          <Phone className="w-4 h-4" />
-          Call {BUSINESS.phone.display}
-        </a>
+
+        {/* Upsell Section */}
+        {upsells.length > 0 && (
+          <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 lg:p-8">
+            <h4 className="font-semibold text-foreground mb-4 text-sm">
+              Customers who book {formData.service} also add:
+            </h4>
+            <div className="space-y-3">
+              {upsells.map((upsell, idx) => (
+                <div key={idx} className="flex items-start justify-between gap-4 p-4 bg-background/40 border border-border/30 rounded-md">
+                  <div>
+                    <div className="font-semibold text-foreground text-sm">{upsell.suggestion}</div>
+                    <div className="text-foreground/50 text-xs mt-1">{upsell.note}</div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                    <div className="text-primary font-bold text-sm">{upsell.price}</div>
+                    <button
+                      type="button"
+                      className="text-xs bg-primary/20 text-primary px-3 py-1.5 rounded hover:bg-primary/30 transition-colors font-medium whitespace-nowrap"
+                    >
+                      Add to appointment
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Referral Callout */}
+        <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 text-center">
+          <p className="text-foreground/60 text-sm">
+            Know someone who needs car help?{" "}
+            <a href="/refer" className="text-primary font-semibold hover:underline">
+              Refer a friend and earn $20 →
+            </a>
+          </p>
+        </div>
       </div>
     );
   }
@@ -179,9 +277,8 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
   const StepIndicator = () => (
     <div className="flex items-center justify-center gap-2 mb-8">
       {[
-        { num: 1, label: "Service" },
-        { num: 2, label: "Contact" },
-        { num: 3, label: "Details" },
+        { num: 1, label: "Service & Vehicle" },
+        { num: 2, label: "Contact Info" },
       ].map((s, i) => (
         <div key={s.num} className="flex items-center gap-2">
           <button
@@ -200,7 +297,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
             </span>
             <span className="hidden sm:inline">{s.label}</span>
           </button>
-          {i < 2 && <div className={`w-8 h-px ${step > s.num ? "bg-nick-teal/30" : "bg-foreground/[0.06]"}`} />}
+          {i < 1 && <div className={`w-8 h-px ${step > s.num ? "bg-nick-teal/30" : "bg-foreground/[0.06]"}`} />}
         </div>
       ))}
     </div>
@@ -212,7 +309,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
         Book an Appointment
       </h3>
       <p className="text-foreground/40 text-[13px] mb-5">
-        First come, first served. We will call you when we are ready for your vehicle.
+        Walk-ins welcome! Same-day appointments available.
       </p>
 
       <StepIndicator />
@@ -224,29 +321,134 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
         </div>
       )}
 
-      {/* ─── STEP 1: SERVICE ─────────────────────────────── */}
+      {/* ─── STEP 1: SERVICE + VEHICLE + PHOTO + MESSAGE ─── */}
       {step === 1 && (
         <div className="space-y-5">
+          {/* Service Selection or "Not Sure" Textarea */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[12px] font-medium text-foreground/40 tracking-wide block">
+                What do you need? *
+              </label>
+              <button
+                type="button"
+                onClick={() => setNotSureMode(!notSureMode)}
+                className="text-[11px] text-nick-teal/60 hover:text-nick-teal flex items-center gap-1 transition-colors"
+              >
+                <HelpCircle className="w-3.5 h-3.5" />
+                {notSureMode ? "Pick a service" : "Not sure?"}
+              </button>
+            </div>
+
+            {notSureMode ? (
+              <textarea
+                value={formData.message}
+                onChange={(e) => update("message", e.target.value)}
+                rows={4}
+                className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all resize-none"
+                placeholder="Describe what's going on with your vehicle or what service you need..."
+              />
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {SERVICES.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => update("service", s)}
+                    className={`flex items-center gap-3 px-4 py-3.5 border rounded-md text-[13px] text-left transition-all ${
+                      formData.service === s
+                        ? "border-primary bg-primary/10 text-primary ring-1 ring-nick-yellow/30"
+                        : "border-border/50 text-foreground/70 hover:border-nick-teal/40 hover:text-nick-teal"
+                    }`}
+                  >
+                    <Wrench className="w-4 h-4 shrink-0" />
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Vehicle Information */}
           <div>
             <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
-              What do you need? *
+              Vehicle Information (Optional)
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {SERVICES.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => update("service", s)}
-                  className={`flex items-center gap-3 px-4 py-3.5 border rounded-md text-[13px] text-left transition-all ${
-                    formData.service === s
-                      ? "border-primary bg-primary/10 text-primary ring-1 ring-nick-yellow/30"
-                      : "border-border/50 text-foreground/70 hover:border-nick-teal/40 hover:text-nick-teal"
-                  }`}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="relative">
+                <Car className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-nick-teal/40" />
+                <select
+                  value={formData.vehicleYear}
+                  onChange={(e) => update("vehicleYear", e.target.value)}
+                  className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-2 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all appearance-none"
                 >
-                  <Wrench className="w-4 h-4 shrink-0" />
-                  {s}
-                </button>
+                  <option value="">Year</option>
+                  {YEARS.map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+              <select
+                value={formData.vehicleMake}
+                onChange={(e) => update("vehicleMake", e.target.value)}
+                className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-3 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all appearance-none"
+              >
+                <option value="">Make</option>
+                {MAKES.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={formData.vehicleModel}
+                onChange={(e) => update("vehicleModel", e.target.value)}
+                className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-3 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
+                placeholder="Model"
+              />
+            </div>
+          </div>
+
+          {/* Photo Upload */}
+          <div>
+            <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
+              Photos of the Problem (Optional — up to 3)
+            </label>
+            <div className="flex flex-wrap gap-3">
+              {photos.map((photo) => (
+                <div key={photo.preview} className="relative w-20 h-20 rounded-md overflow-hidden border border-border/50">
+                  <img loading="lazy" src={photo.preview} alt="Vehicle photo upload preview" className="w-full h-full object-cover" />
+                  {photo.uploading && (
+                    <div className="absolute inset-0 bg-background/70 flex items-center justify-center">
+                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(photo.preview)}
+                    className="absolute top-0.5 right-0.5 w-5 h-5 bg-background/80 rounded-full flex items-center justify-center text-foreground/80 hover:text-red-400"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
               ))}
+              {photos.length < 3 && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-20 h-20 border-2 border-dashed border-border/40 rounded-md flex flex-col items-center justify-center text-foreground/30 hover:border-nick-teal/40 hover:text-nick-teal transition-colors"
+                >
+                  <Camera className="w-5 h-5" />
+                  <span className="text-[10px] mt-1">ADD</span>
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => handlePhotoAdd(e.target.files)}
+              />
             </div>
           </div>
 
@@ -294,9 +496,16 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
         </div>
       )}
 
-      {/* ─── STEP 2: CONTACT INFO ────────────────────────── */}
+      {/* ─── STEP 2: CONTACT INFO + DATE/TIME ──────────── */}
       {step === 2 && (
         <div className="space-y-5">
+          {/* Same-Day Available Badge */}
+          <div className="flex items-center gap-2 bg-nick-teal/10 border border-nick-teal/30 rounded-md px-4 py-3">
+            <div className="w-2 h-2 rounded-full bg-nick-teal animate-pulse" />
+            <span className="text-sm font-medium text-nick-teal">Walk-ins welcome! Same-day appointments available.</span>
+          </div>
+
+          {/* Contact Info */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
               <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-1.5">
@@ -349,68 +558,6 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
             </div>
           </div>
 
-          <div className="flex justify-between pt-2">
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              className="flex items-center gap-2 border border-[oklch(0.17_0.004_260)] text-foreground/40 px-6 py-3 rounded-lg font-semibold text-[13px] hover:text-foreground/60 transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" /> Back
-            </button>
-            <button
-              type="button"
-              disabled={!canGoNext(2)}
-              onClick={() => setStep(3)}
-              className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-lg font-semibold text-[13px] hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              Next <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ─── STEP 3: VEHICLE & DETAILS ───────────────────── */}
-      {step === 3 && (
-        <div className="space-y-5">
-          {/* Vehicle Year / Make / Model */}
-          <div>
-            <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
-              Vehicle Information (Optional)
-            </label>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="relative">
-                <Car className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-nick-teal/40" />
-                <select
-                  value={formData.vehicleYear}
-                  onChange={(e) => update("vehicleYear", e.target.value)}
-                  className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-2 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all appearance-none"
-                >
-                  <option value="">Year</option>
-                  {YEARS.map((y) => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-              </div>
-              <select
-                value={formData.vehicleMake}
-                onChange={(e) => update("vehicleMake", e.target.value)}
-                className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-3 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all appearance-none"
-              >
-                <option value="">Make</option>
-                {MAKES.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-              <input
-                type="text"
-                value={formData.vehicleModel}
-                onChange={(e) => update("vehicleModel", e.target.value)}
-                className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-3 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
-                placeholder="Model"
-              />
-            </div>
-          </div>
-
           {/* Preferred Date & Time */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
@@ -455,67 +602,6 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
             </div>
           </div>
 
-          {/* Photo Upload */}
-          <div>
-            <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
-              Photos of the Problem (Optional — up to 3)
-            </label>
-            <div className="flex flex-wrap gap-3">
-              {photos.map((photo) => (
-                <div key={photo.preview} className="relative w-20 h-20 rounded-md overflow-hidden border border-border/50">
-                  <img loading="lazy" src={photo.preview} alt="Vehicle photo upload preview" className="w-full h-full object-cover" />
-                  {photo.uploading && (
-                    <div className="absolute inset-0 bg-background/70 flex items-center justify-center">
-                      <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => removePhoto(photo.preview)}
-                    className="absolute top-0.5 right-0.5 w-5 h-5 bg-background/80 rounded-full flex items-center justify-center text-foreground/80 hover:text-red-400"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
-              {photos.length < 3 && (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-20 h-20 border-2 border-dashed border-border/40 rounded-md flex flex-col items-center justify-center text-foreground/30 hover:border-nick-teal/40 hover:text-nick-teal transition-colors"
-                >
-                  <Camera className="w-5 h-5" />
-                  <span className="text-[10px] mt-1">ADD</span>
-                </button>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={(e) => handlePhotoAdd(e.target.files)}
-              />
-            </div>
-          </div>
-
-          {/* Message */}
-          <div>
-            <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-1.5">
-              Describe the Problem (Optional)
-            </label>
-            <div className="relative">
-              <MessageSquare className="absolute left-3 top-3 w-4 h-4 text-nick-teal/40" />
-              <textarea
-                value={formData.message}
-                onChange={(e) => update("message", e.target.value)}
-                rows={3}
-                className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all resize-none"
-                placeholder="Tell us what's going on with your vehicle..."
-              />
-            </div>
-          </div>
-
           {/* Summary Bar */}
           <div className="bg-background/40 border border-border/30 rounded-md p-4 flex flex-wrap items-center gap-4 text-sm">
             <div className="flex items-center gap-2 text-primary">
@@ -542,7 +628,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
           <div className="flex justify-between pt-2">
             <button
               type="button"
-              onClick={() => setStep(2)}
+              onClick={() => setStep(1)}
               className="flex items-center gap-2 border border-[oklch(0.17_0.004_260)] text-foreground/40 px-6 py-3 rounded-lg font-semibold text-[13px] hover:text-foreground/60 transition-colors"
             >
               <ChevronLeft className="w-4 h-4" /> Back
@@ -550,7 +636,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
             <button
               type="submit"
               disabled={mutation.isPending || photos.some((p) => p.uploading)}
-              className="flex items-center gap-2 bg-primary text-primary-foreground px-8 py-3.5 rounded-lg font-semibold text-[14px] hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="flex items-center gap-2 bg-primary text-primary-foreground px-8 py-3.5 rounded-lg font-semibold text-[14px] hover:opacity-90 transition-opacity disabled:opacity-50 md:px-8 min-h-[44px]"
             >
               {mutation.isPending ? (
                 <>
@@ -560,14 +646,14 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
               ) : (
                 <>
                   <CheckCircle className="w-5 h-5" />
-                  Submit Request
+                  Book Today
                 </>
               )}
             </button>
           </div>
 
           <p className="text-foreground/25 text-[12px] text-center">
-            First come, first served. Walk-ins also welcome. {BUSINESS.hours.display}.
+            {BUSINESS.hours.display}. Walk-ins also welcome.
           </p>
         </div>
       )}
