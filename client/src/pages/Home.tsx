@@ -495,7 +495,7 @@ function WhyUs() {
                   { title: "Upfront Pricing", text: "Written estimates before work begins. No hidden fees, no surprise charges." },
                   { title: "Warranty on Repairs", text: "We stand behind our work. If something isn't right, we make it right." },
                   { title: "Trusted by Women", text: "Many of our regulars are women who say this is the first shop where they felt safe, informed, and never talked down to." },
-                  { title: "Flexible Payment Options", text: "Acima lease-to-own from $10 down (no credit history needed), plus Snap Finance, Koalafi, and Synchrony financing. Individual results vary.", emerald: true },
+                  { title: "Flexible Payment Options", text: "Acima, Snap Finance, Koalafi, and American First Finance — no traditional credit check with any option. Lease-to-own and buy now, pay later available. Individual results vary.", emerald: true },
                 ].map((item, _i) => (
                   <div key={item.title} className="flex gap-4">
                     <div className={`w-px shrink-0 mt-1 ${'emerald' in item && item.emerald ? 'bg-emerald-500' : 'bg-primary'}`} style={{ minHeight: '2.5rem' }} />

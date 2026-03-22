@@ -22,73 +22,73 @@ import { ACIMA_PROMO_YEAR, ACIMA_SOCIAL_PROOF, buildAcimaUrl } from "@/lib/acima
 const ACIMA = {
   title: "ACIMA LEASING",
   type: "Lease-to-Own",
-  highlight: "No credit history required — lease what you need today",
+  highlight: "No traditional credit check — lease what you need today",
   description:
-    "Acima offers a lease-to-own option that lets you get the auto services you need today and make payments over time. This is a rental purchase agreement — not a loan, not financing, and not a credit transaction. You lease the merchandise and own it at the end of the agreement, or you can exercise an early purchase option to save on total cost.",
+    "Acima offers a lease-to-own option that lets you get the auto services you need today and make payments over time. This is a rental purchase agreement — not a loan or financing. You lease the merchandise and own it at the end of the agreement, or you can exercise an early purchase option to save on total cost. Does not hit the Big 3 credit bureaus.",
   features: [
-    "No credit history required to apply",
+    "No traditional credit check — does not hit the Big 3 bureaus",
     "90-day early purchase option available",
     "Flexible payment schedules (weekly, bi-weekly, monthly)",
     "Early purchase options to reduce total cost",
     "Apply online or in-store in minutes",
   ],
-  idealFor: "Ideal if you have limited or no credit history and need service today",
+  idealFor: "Ideal if you need service today — everyone welcome to apply",
   applyUrl: buildAcimaUrl("financing_hero"),
 };
 
-// ─── FINANCING PROVIDERS (separate from Acima) ────────────
+// ─── PAYMENT PROVIDERS (separate from Acima) ────────────
 const FINANCING_OPTIONS = [
   {
     title: "SNAP FINANCE",
     type: "Buy Now, Pay Later",
-    highlight: "All credit types welcome — up to $5,000 spending power",
+    highlight: "Everyone welcome — up to $5,000 spending power",
     description:
-      "Snap Finance specializes in approving customers that other lenders may decline. With spending power up to $5,000, you can cover major repairs like tire sets, brake jobs, or engine work without paying everything upfront.",
+      "Snap Finance makes it easy to get the auto service you need today and pay over time. With spending power up to $5,000, you can cover major repairs like tire sets, brake jobs, or engine work without paying everything upfront. No traditional credit check required.",
     features: [
-      "All credit types welcome — high approval rates",
+      "No traditional credit check — does not hit the Big 3 bureaus",
       "Up to $5,000 spending power",
       "100-day cash payoff option",
       "12-month payment plans available",
       "Quick 30-second application",
     ],
     idealFor: "Best for larger repairs ($500+) when you need flexible terms",
-    applyUrl: "https://www.snapfinance.com",
+    applyUrl: "https://getsnap.snapfinance.com/lease/en-US/consumer/apply/instant-identity-verification",
     color: "text-blue-400 bg-blue-500/10 border-blue-500/20",
     iconColor: "text-blue-400",
   },
   {
     title: "KOALAFI",
-    type: "Flexible Financing",
-    highlight: "Multiple plan options — lease-to-own or loan, you choose",
+    type: "Lease-to-Own",
+    highlight: "Multiple plan options — flexible lease-to-own terms",
     description:
-      "Koalafi (formerly West Creek Financial) gives you the flexibility to choose between lease-to-own and traditional loan options depending on what you qualify for. One simple application, multiple options presented to you.",
+      "Koalafi (formerly West Creek Financial) offers flexible lease-to-own options so you can get your car fixed today and pay over time. One simple application, multiple payment plans presented to you. No traditional credit check required.",
     features: [
-      "One application, multiple financing options",
-      "Lease-to-own and loan options available",
-      "Approval for a wide range of credit profiles",
+      "No traditional credit check — does not hit the Big 3 bureaus",
+      "One application, multiple payment options",
+      "Lease-to-own plans available",
       "Transparent terms — no hidden fees",
       "90-day purchase option on lease plans",
     ],
     idealFor: "Best if you want to compare multiple plan types",
-    applyUrl: "https://www.koalafi.com",
+    applyUrl: "https://s.koalafi.com/GWPaPM",
     color: "text-violet-400 bg-violet-500/10 border-violet-500/20",
     iconColor: "text-violet-400",
   },
   {
-    title: "SYNCHRONY CAR CARE",
-    type: "Credit Card",
-    highlight: "6 months promotional financing on purchases of $199+",
+    title: "AMERICAN FIRST FINANCE",
+    type: "Lease-to-Own / BNPL",
+    highlight: "No traditional credit check — high approval, flexible plans",
     description:
-      "The Synchrony Car Care credit card is accepted at thousands of auto shops nationwide. Get promotional financing on qualifying purchases and use it for ongoing maintenance, not just today's repair.",
+      "American First Finance offers lease-to-own and buy now, pay later options designed for everyone. Get approved in minutes and pay over time on a schedule that works for you. No traditional credit check required — does not report to the Big 3 bureaus.",
     features: [
-      "6-month promotional financing on $199+ purchases",
-      "No annual fee",
-      "Accepted at thousands of auto locations nationwide",
-      "Easy online account management",
-      "Reusable credit line for future repairs",
+      "No traditional credit check — does not hit the Big 3 bureaus",
+      "Lease-to-own and BNPL options",
+      "High approval rates",
+      "Flexible payment schedules",
+      "Apply online or at the counter in minutes",
     ],
-    idealFor: "Best if you have good credit and want a reusable card",
-    applyUrl: "https://www.mysynchrony.com/car-care",
+    idealFor: "Best if other options haven't worked — very high approval rates",
+    applyUrl: "https://americanfirstfinance.com/app/?dealer=25207&loc=1&src=UA&usetextpin=Y",
     color: "text-amber-400 bg-amber-500/10 border-amber-500/20",
     iconColor: "text-amber-400",
   },
@@ -99,20 +99,20 @@ const PAYMENT_METHODS = [
   "Visa / Mastercard / Discover / Amex",
   "Debit Cards",
   "Apple Pay / Google Pay",
-  "Synchrony Car Care Card",
   "Acima Leasing",
   "Snap Finance",
   "Koalafi",
+  "American First Finance",
 ];
 
 const FAQ_ITEMS = [
   {
-    q: "What is Acima and how is it different from financing?",
-    a: "Acima is a lease-to-own program — it is not a loan or credit. You lease the merchandise (in this case, auto parts and service) and own it at the end of the agreement. No credit history is required to apply. Financing options like Snap Finance, Koalafi, and Synchrony are separate credit products with their own terms.",
+    q: "Will applying hit my credit score?",
+    a: "No. None of our payment partners run a traditional credit check through the Big 3 bureaus (Equifax, Experian, TransUnion). Acima, Snap Finance, Koalafi, and American First Finance all use alternative methods to determine eligibility. Your credit score will not be affected by applying.",
   },
   {
-    q: "Do I need good credit to get approved?",
-    a: "It depends on the option. Acima's lease-to-own program does not require credit history. Snap Finance welcomes all credit types. Koalafi offers options for a wide range of credit profiles. Synchrony typically requires fair to good credit. We have options for nearly every situation.",
+    q: "What is the difference between lease-to-own and buy now, pay later?",
+    a: "With lease-to-own (Acima, Koalafi, American First Finance), you lease the merchandise and own it after completing all payments or exercising an early purchase option. Buy now, pay later (Snap Finance) lets you split the cost into scheduled payments. Both let you drive away today and pay over time. Details vary by provider — terms are disclosed before you sign.",
   },
   {
     q: "How fast is the approval process?",
@@ -138,26 +138,26 @@ const FAQ_ITEMS = [
 
 // Comparison table data (shared between desktop table + mobile cards)
 const COMPARISON_PROVIDERS = [
-  { name: "Snap Finance", type: "BNPL", credit: "All types", payoff: "100-day cash option" },
-  { name: "Koalafi", type: "Lease or Loan", credit: "Wide range", payoff: "90-day purchase" },
-  { name: "Synchrony", type: "Credit Card", credit: "Good/Fair", payoff: "6-mo promo at 0%" },
+  { name: "Snap Finance", type: "BNPL", credit: "No traditional check", payoff: "100-day cash option" },
+  { name: "Koalafi", type: "Lease-to-Own", credit: "No traditional check", payoff: "90-day purchase" },
+  { name: "American First Finance", type: "Lease / BNPL", credit: "No traditional check", payoff: "Early payoff available" },
 ];
 
 // Required Acima disclosure
 const ACIMA_DISCLAIMER =
-  "Acima is a lease-to-own program. It is not a loan, credit, or financing. You will not own the merchandise until you make all payments under the lease agreement or exercise an early purchase option. Lease payments may be higher than the cash price of the merchandise. Not available in MN, NJ, WI, or WY. See lease for details.";
+  "Acima is a lease-to-own program. It is not a loan, credit, or financing. You will not own the merchandise until you make all payments under the lease agreement or exercise an early purchase option. Lease payments may be higher than the cash price of the merchandise. Not available in MN, NJ, WI, or WY. See lease for details. Snap Finance, Koalafi, and American First Finance are lease-to-own or buy now, pay later programs with their own terms and conditions. None of the payment partners listed on this page perform a traditional credit check through Equifax, Experian, or TransUnion. Alternative underwriting methods are used. Individual approval and terms vary.";
 
 export default function Financing() {
   return (
     <PageLayout activeHref="/financing">
       <SEOHead
         title="Payment Options & Lease-to-Own | Nick's Tire & Auto Cleveland"
-        description={`Multiple ways to pay at Nick's Tire & Auto in Cleveland. ${BUSINESS.taglines.hookAction} Acima lease-to-own (no credit history needed), Snap Finance, Koalafi, and Synchrony. Apply in minutes.`}
+        description={`Multiple ways to pay at Nick's Tire & Auto in Cleveland. ${BUSINESS.taglines.hookAction} Acima, Snap Finance, Koalafi, and American First Finance — no traditional credit check, everyone welcome. Apply in minutes.`}
         canonicalPath="/financing"
       />
       <Breadcrumbs items={[{ label: "Payment Options", href: "/financing" }]} />
       <LocalBusinessSchema additionalSchema={{
-        paymentAccepted: "Cash, Visa, Mastercard, Discover, American Express, Debit Cards, Apple Pay, Google Pay",
+        paymentAccepted: "Cash, Visa, Mastercard, Discover, American Express, Debit Cards, Apple Pay, Google Pay, Acima, Snap Finance, Koalafi, American First Finance",
       }} />
 
       {/* Hero */}
@@ -171,9 +171,10 @@ export default function Financing() {
               DON'T DELAY <span className="text-primary">REPAIRS</span>
             </h1>
             <p className="mt-4 text-foreground/70 text-lg max-w-2xl mx-auto leading-relaxed">
-              Get your car fixed today and pay over time. We offer lease-to-own
-              and financing options so there's a solution for nearly every
-              situation. Apply in minutes — right at the counter or online.
+              Get your car fixed today and pay over time. None of our payment
+              partners run a traditional credit check — everyone is welcome to
+              apply. Lease-to-own and buy now, pay later options available.
+              Apply in minutes — right at the counter or online.
             </p>
             <p className="mt-3 text-emerald-400/70 text-sm font-medium">{ACIMA_SOCIAL_PROOF}</p>
           </FadeIn>
@@ -182,7 +183,7 @@ export default function Financing() {
             <div className="mt-8 flex flex-wrap justify-center gap-4">
               <div className="flex items-center gap-2 bg-nick-teal/10 border border-nick-teal/20 rounded-full px-4 py-2 text-sm text-nick-teal">
                 <ShieldCheck className="w-4 h-4" />
-                No credit history needed options
+                No traditional credit check
               </div>
               <div className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-2 text-sm text-primary">
                 <Zap className="w-4 h-4" />
@@ -208,7 +209,7 @@ export default function Financing() {
                   <tr className="border-b border-border/20">
                     <th className="text-left py-3 px-4 text-foreground/40 font-medium text-xs tracking-wider">PROVIDER</th>
                     <th className="text-left py-3 px-4 text-foreground/40 font-medium text-xs tracking-wider">TYPE</th>
-                    <th className="text-left py-3 px-4 text-foreground/40 font-medium text-xs tracking-wider">CREDIT NEEDED</th>
+                    <th className="text-left py-3 px-4 text-foreground/40 font-medium text-xs tracking-wider">APPROVAL</th>
                     <th className="text-left py-3 px-4 text-foreground/40 font-medium text-xs tracking-wider">EARLY PAYOFF</th>
                   </tr>
                 </thead>
@@ -216,7 +217,7 @@ export default function Financing() {
                   <tr className="border-b border-emerald-500/10 bg-emerald-500/[0.03]">
                     <td className="py-3 px-4 font-medium text-foreground">Acima <span className="text-[10px] text-emerald-400 ml-1 font-normal">LEASE</span></td>
                     <td className="py-3 px-4 text-foreground/60">Lease-to-Own</td>
-                    <td className="py-3 px-4 text-foreground/60">No credit history required</td>
+                    <td className="py-3 px-4 text-foreground/60">No traditional check</td>
                     <td className="py-3 px-4 text-foreground/60">90-day early purchase</td>
                   </tr>
                   {COMPARISON_PROVIDERS.map((row) => (
@@ -241,7 +242,7 @@ export default function Financing() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div><span className="text-foreground/40 text-xs">Type</span><p className="text-foreground/70">Lease-to-Own</p></div>
-                  <div><span className="text-foreground/40 text-xs">Credit</span><p className="text-foreground/70">No history required</p></div>
+                  <div><span className="text-foreground/40 text-xs">Approval</span><p className="text-foreground/70">No traditional check</p></div>
                   <div><span className="text-foreground/40 text-xs">Early Payoff</span><p className="text-foreground/70">90-day purchase</p></div>
                 </div>
               </div>
@@ -251,7 +252,7 @@ export default function Financing() {
                   <span className="font-medium text-foreground text-sm">{row.name}</span>
                   <div className="grid grid-cols-2 gap-2 text-sm mt-3">
                     <div><span className="text-foreground/40 text-xs">Type</span><p className="text-foreground/70">{row.type}</p></div>
-                    <div><span className="text-foreground/40 text-xs">Credit</span><p className="text-foreground/70">{row.credit}</p></div>
+                    <div><span className="text-foreground/40 text-xs">Approval</span><p className="text-foreground/70">{row.credit}</p></div>
                     <div><span className="text-foreground/40 text-xs">Early Payoff</span><p className="text-foreground/70">{row.payoff}</p></div>
                   </div>
                 </div>
@@ -272,7 +273,7 @@ export default function Financing() {
                 LEASE-TO-OWN
               </span>
               <h2 className="font-bold text-3xl text-foreground tracking-tight">
-                ACIMA — <span className="text-emerald-400">NO CREDIT HISTORY NEEDED</span>
+                ACIMA — <span className="text-emerald-400">EVERYONE WELCOME</span>
               </h2>
               <p className="text-foreground/60 mt-3 max-w-xl mx-auto">
                 Acima is a lease-to-own program — not a loan or line of credit.
@@ -353,14 +354,15 @@ export default function Financing() {
           <FadeIn>
             <div className="text-center mb-12">
               <span className="inline-block bg-primary/10 border border-primary/20 text-primary text-xs font-bold tracking-wider px-3 py-1 rounded-full mb-4">
-                FINANCING
+                PAYMENT PARTNERS
               </span>
               <h2 className="font-bold text-3xl text-foreground tracking-tight">
-                FINANCING <span className="text-primary">OPTIONS</span>
+                PAY OVER <span className="text-primary">TIME</span>
               </h2>
               <p className="text-foreground/60 mt-3 max-w-xl mx-auto">
-                Traditional financing and credit options for auto repairs. Each
-                provider has different terms, approval criteria, and benefits.
+                Lease-to-own and buy now, pay later options for auto repairs.
+                No traditional credit check with any of our partners — everyone
+                is welcome to apply.
               </p>
             </div>
           </FadeIn>

@@ -85,7 +85,7 @@ const FAQ_ITEMS = [
   {
     question: "Do you offer payment plans?",
     answer:
-      "Yes — Acima (lease-to-own from $10 initial payment, no credit history needed), Snap Finance, Koalafi, and Synchrony Car Care. Apply at the counter or online in minutes.",
+      "Yes — Acima, Snap Finance, Koalafi, and American First Finance. No traditional credit check with any option. Lease-to-own and buy now, pay later available. Apply at the counter or online in minutes.",
   },
   {
     question: "What if I need emergency service?",
