@@ -7,31 +7,24 @@
  * See API examples below the type definitions for usage patterns.
  */
 
-import { ENV } from "./env";
-
 // ============================================================================
-// Configuration
+// Configuration — Direct Google Maps API (no proxy)
 // ============================================================================
 
 type MapsConfig = {
-  baseUrl: string;
   apiKey: string;
 };
 
 function getMapsConfig(): MapsConfig {
-  const baseUrl = ENV.forgeApiUrl;
-  const apiKey = ENV.forgeApiKey;
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
 
-  if (!baseUrl || !apiKey) {
+  if (!apiKey) {
     throw new Error(
-      "Google Maps proxy credentials missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY"
+      "Google Maps API key missing: set GOOGLE_MAPS_API_KEY environment variable"
     );
   }
 
-  return {
-    baseUrl: baseUrl.replace(/\/+$/, ""),
-    apiKey,
-  };
+  return { apiKey };
 }
 
 // ============================================================================
@@ -56,10 +49,10 @@ export async function makeRequest<T = unknown>(
   params: Record<string, unknown> = {},
   options: RequestOptions = {}
 ): Promise<T> {
-  const { baseUrl, apiKey } = getMapsConfig();
+  const { apiKey } = getMapsConfig();
 
-  // Construct full URL: baseUrl + /v1/maps/proxy + endpoint
-  const url = new URL(`${baseUrl}/v1/maps/proxy${endpoint}`);
+  // Direct Google Maps API call (no proxy)
+  const url = new URL(`https://maps.googleapis.com${endpoint}`);
 
   // Add API key as query parameter (standard Google Maps API authentication)
   url.searchParams.append("key", apiKey);

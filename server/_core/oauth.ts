@@ -10,17 +10,20 @@ function getQueryParam(req: Request, key: string): string | undefined {
 }
 
 export function registerOAuthRoutes(app: Express) {
+  // Google OAuth callback
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
-    const state = getQueryParam(req, "state");
 
-    if (!code || !state) {
-      res.status(400).json({ error: "code and state are required" });
+    if (!code) {
+      res.status(400).json({ error: "Authorization code is required" });
       return;
     }
 
     try {
-      const tokenResponse = await sdk.exchangeCodeForToken(code, state);
+      // Build the redirect URI (must match what was sent in the login URL)
+      const redirectUri = `${req.protocol}://${req.get("host")}/api/oauth/callback`;
+
+      const tokenResponse = await sdk.exchangeCodeForToken(code, redirectUri);
       const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
 
       if (!userInfo.openId) {
@@ -28,11 +31,14 @@ export function registerOAuthRoutes(app: Express) {
         return;
       }
 
+      // Check if this is the owner (first admin)
+      const ownerOpenId = process.env.OWNER_OPEN_ID;
+
       await db.upsertUser({
         openId: userInfo.openId,
         name: userInfo.name || null,
         email: userInfo.email ?? null,
-        loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
+        loginMethod: userInfo.loginMethod ?? null,
         lastSignedIn: new Date(),
       });
 

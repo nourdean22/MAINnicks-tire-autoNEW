@@ -1,10 +1,7 @@
 /**
- * Quick example (matches curl usage):
- *   await callDataApi("Youtube/search", {
- *     query: { gl: "US", hl: "en", q: "manus" },
- *   })
+ * External API caller (replaces Manus Forge WebDevService/CallApi proxy)
+ * For YouTube search, etc. — calls APIs directly with appropriate API keys.
  */
-import { ENV } from "./env";
 
 export type DataApiCallOptions = {
   query?: Record<string, unknown>;
@@ -17,48 +14,44 @@ export async function callDataApi(
   apiId: string,
   options: DataApiCallOptions = {}
 ): Promise<unknown> {
-  if (!ENV.forgeApiUrl) {
-    throw new Error("BUILT_IN_FORGE_API_URL is not configured");
-  }
-  if (!ENV.forgeApiKey) {
-    throw new Error("BUILT_IN_FORGE_API_KEY is not configured");
+  // Route to the correct direct API based on apiId
+  if (apiId.startsWith("Youtube/")) {
+    return callYouTubeApi(apiId, options);
   }
 
-  // Build the full URL by appending the service path to the base URL
-  const baseUrl = ENV.forgeApiUrl.endsWith("/") ? ENV.forgeApiUrl : `${ENV.forgeApiUrl}/`;
-  const fullUrl = new URL("webdevtoken.v1.WebDevService/CallApi", baseUrl).toString();
+  console.warn(`[DataApi] Unsupported API: ${apiId}. This was previously proxied through Manus Forge.`);
+  throw new Error(`Data API "${apiId}" is not supported outside Manus. Implement a direct integration.`);
+}
 
-  const response = await fetch(fullUrl, {
-    method: "POST",
-    headers: {
-      accept: "application/json",
-      "content-type": "application/json",
-      "connect-protocol-version": "1",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify({
-      apiId,
-      query: options.query,
-      body: options.body,
-      path_params: options.pathParams,
-      multipart_form_data: options.formData,
-    }),
-  });
+async function callYouTubeApi(
+  apiId: string,
+  options: DataApiCallOptions
+): Promise<unknown> {
+  const apiKey = process.env.YOUTUBE_API_KEY;
+  if (!apiKey) {
+    throw new Error("YOUTUBE_API_KEY is not configured");
+  }
+
+  const endpoint = apiId.replace("Youtube/", "");
+  const url = new URL(`https://www.googleapis.com/youtube/v3/${endpoint}`);
+
+  url.searchParams.set("key", apiKey);
+  if (options.query) {
+    for (const [key, value] of Object.entries(options.query)) {
+      if (value !== undefined && value !== null) {
+        url.searchParams.set(key, String(value));
+      }
+    }
+  }
+
+  const response = await fetch(url.toString());
 
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
     throw new Error(
-      `Data API request failed (${response.status} ${response.statusText})${detail ? `: ${detail}` : ""}`
+      `YouTube API request failed (${response.status} ${response.statusText})${detail ? `: ${detail}` : ""}`
     );
   }
 
-  const payload = await response.json().catch(() => ({}));
-  if (payload && typeof payload === "object" && "jsonData" in payload) {
-    try {
-      return JSON.parse((payload as Record<string, string>).jsonData ?? "{}");
-    } catch {
-      return (payload as Record<string, unknown>).jsonData;
-    }
-  }
-  return payload;
+  return response.json();
 }
