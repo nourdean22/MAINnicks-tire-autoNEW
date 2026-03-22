@@ -227,6 +227,8 @@ function Hero() {
             <span>Same-day service</span>
             <span className="hidden sm:block w-px h-4 bg-foreground/15" />
             <span>Walk-ins welcome</span>
+            <span className="hidden sm:block w-px h-4 bg-foreground/15" />
+            <Link href="/financing?utm_source=home_trust" className="text-emerald-400/60 hover:text-emerald-400/80 transition-colors">Lease-to-own from $10*</Link>
           </div>
         </FadeIn>
       </div>
@@ -365,6 +367,9 @@ function Services() {
               );
             })}
           </div>
+          <p className="text-center text-sm text-foreground/40 mt-8">
+            Payment options available on all services — <Link href="/financing?utm_source=home_services" className="text-emerald-400 hover:text-emerald-300 transition-colors">lease-to-own from $10 down</Link>
+          </p>
         </div>
       </div>
     </section>
@@ -488,9 +493,10 @@ function WhyUs() {
                   { title: "Upfront Pricing", text: "Written estimates before work begins. No hidden fees, no surprise charges." },
                   { title: "Warranty on Repairs", text: "We stand behind our work. If something isn't right, we make it right." },
                   { title: "Trusted by Women", text: "Many of our regulars are women who say this is the first shop where they felt safe, informed, and never talked down to." },
+                  { title: "Flexible Payment Options", text: "Acima lease-to-own from $10 down (no credit history needed), plus Snap Finance, Koalafi, and Synchrony financing. Individual results vary.", emerald: true },
                 ].map((item, _i) => (
                   <div key={item.title} className="flex gap-4">
-                    <div className="w-px bg-primary shrink-0 mt-1" style={{ minHeight: '2.5rem' }} />
+                    <div className={`w-px shrink-0 mt-1 ${'emerald' in item && item.emerald ? 'bg-emerald-500' : 'bg-primary'}`} style={{ minHeight: '2.5rem' }} />
                     <div>
                       <h4 className="font-semibold text-foreground text-sm tracking-wide">{item.title}</h4>
                       <p className="text-foreground/40 text-sm mt-1 leading-relaxed">{item.text}</p>
@@ -674,14 +680,19 @@ function MobileCTA() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/95 backdrop-blur-xl border-t border-border p-3 flex gap-2">
-      <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('mobile-sticky')} className="flex items-center justify-center gap-2 bg-foreground text-background flex-1 py-3 rounded-full font-medium text-sm" aria-label="Call now">
-        <Phone className="w-4 h-4" />
-        Call Now
-      </a>
-      <a href="#contact" className="flex items-center justify-center gap-2 border border-foreground/30 text-foreground flex-1 py-3 rounded-full font-medium text-sm" aria-label="Book online">
-        Book Online
-      </a>
+    <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/95 backdrop-blur-xl border-t border-border p-3">
+      <div className="flex gap-2">
+        <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('mobile-sticky')} className="flex items-center justify-center gap-2 bg-foreground text-background flex-1 py-3 rounded-full font-medium text-sm" aria-label="Call now">
+          <Phone className="w-4 h-4" />
+          Call Now
+        </a>
+        <a href="#contact" className="flex items-center justify-center gap-2 border border-foreground/30 text-foreground flex-1 py-3 rounded-full font-medium text-sm" aria-label="Book online">
+          Book Online
+        </a>
+      </div>
+      <Link href="/financing?utm_source=home_mobile_cta" className="flex items-center justify-center gap-1 text-emerald-400 text-xs font-medium py-1 mt-1">
+        $10 Down · Lease-to-Own
+      </Link>
     </div>
   );
 }
@@ -736,6 +747,7 @@ function Footer() {
               <Link href="/faq" className="block hover:text-foreground transition-colors">FAQ</Link>
               <Link href="/car-care-guide" className="block hover:text-foreground transition-colors">Car Care Guide</Link>
               <Link href="/refer" className="block hover:text-foreground transition-colors">Refer a Friend — Earn $20</Link>
+              <Link href="/financing?utm_source=home_footer" className="block hover:text-foreground transition-colors">Payment Options</Link>
             </div>
           </div>
 

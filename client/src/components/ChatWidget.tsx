@@ -206,6 +206,9 @@ export default function ChatWidget() {
               {/* Lead capture */}
               {showLeadCapture && !leadSubmitted && (
                 <div className="bg-foreground/[0.03] border border-primary/15 rounded-xl p-3.5 space-y-2.5">
+                  <p className="text-[11px] text-emerald-400/70 text-center mb-2">
+                    We also offer lease-to-own starting at $10 down — ask us about it!
+                  </p>
                   <p className="text-foreground/50 text-[12px]">
                     Want us to call you with a free assessment?
                   </p>

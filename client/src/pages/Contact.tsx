@@ -12,6 +12,7 @@ import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, Navigation } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { BUSINESS } from "@shared/business";
+import { Link } from "wouter";
 import { GBP_REVIEW_URL } from "@shared/const";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
@@ -197,6 +198,10 @@ export default function Contact() {
                       Cleveland, Euclid, East Cleveland, South Euclid, Richmond Heights, Lyndhurst, Wickliffe, Willoughby, and surrounding Northeast Ohio communities. If you can drive to us, we can help.
                     </p>
                   </div>
+
+                  <p className="text-sm text-foreground/60 mt-4">
+                    We accept all major cards, Apple Pay, Google Pay, and offer <Link href="/financing?utm_source=contact" className="text-emerald-400">lease-to-own &amp; financing options</Link>.
+                  </p>
 
                   {/* Google Business Profile */}
                   <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6">

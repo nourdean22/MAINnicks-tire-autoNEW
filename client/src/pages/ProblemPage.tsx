@@ -8,6 +8,7 @@ import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { getProblemBySlug } from "@shared/seo-pages";
 import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
+import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -155,6 +156,13 @@ export default function ProblemPage() {
                   </div>
                 </FadeIn>
               ))}
+            </div>
+
+            <div className="mt-8 text-center">
+              <p className="text-sm text-foreground/60">
+                Worried about unexpected repair costs? <Link href="/financing?utm_source=problem_page" className="text-emerald-400 hover:text-emerald-300">We offer lease-to-own from $10 down →</Link>
+              </p>
+              <p className="text-[9px] text-foreground/30 mt-1">{ACIMA_COMPACT_DISCLOSURE}</p>
             </div>
           </div>
         </section>

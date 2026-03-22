@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
+import { ACIMA_PROMO_YEAR } from "@/lib/acima";
 
 // ─── ACIMA (Lease-to-Own — NOT financing) ──────────────
 const ACIMA = {
@@ -148,7 +149,9 @@ export default function Financing() {
         canonicalPath="/financing"
       />
       <Breadcrumbs items={[{ label: "Payment Options", href: "/financing" }]} />
-      <LocalBusinessSchema />
+      <LocalBusinessSchema additionalSchema={{
+        paymentAccepted: "Cash, Visa, Mastercard, Discover, American Express, Debit Cards, Apple Pay, Google Pay",
+      }} />
 
       {/* Hero */}
       <section className="bg-[oklch(0.065_0.004_260)] pt-28 pb-16 lg:pt-36 lg:pb-20">
@@ -595,6 +598,30 @@ export default function Financing() {
               name: faq.q,
               acceptedAnswer: { "@type": "Answer", text: faq.a },
             })),
+          }),
+        }}
+      />
+
+      {/* FinancialProduct schema for Acima lease-to-own */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "FinancialProduct",
+            name: "Acima Lease-to-Own",
+            description: "Lease-to-own program for auto repair and tire services. No credit history required. 90-day early purchase option available.",
+            provider: {
+              "@type": "Organization",
+              name: "Acima",
+              url: "https://www.acima.com",
+            },
+            feesAndCommissionsSpecification: "$10 initial payment required. Lease terms and total cost vary by item and payment schedule.",
+            annualPercentageRate: "N/A — this is a lease, not a loan",
+            areaServed: {
+              "@type": "Country",
+              name: "US",
+            },
           }),
         }}
       />

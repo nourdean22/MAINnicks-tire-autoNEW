@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
+import { Link } from "wouter";
 
 const FLEET_SERVICES = [
   { icon: <Wrench className="w-6 h-6" />, title: "Preventive Maintenance", desc: "Scheduled oil changes, tire rotations, brake inspections, and fluid services to keep your fleet running." },
@@ -123,6 +124,9 @@ export default function Fleet() {
               </div>
             ))}
           </div>
+          <p className="text-sm text-foreground/60 mt-4">
+            Fleet payment options available — lease-to-own and financing for businesses. <Link href="/financing?utm_source=fleet" className="text-emerald-400">View options →</Link>
+          </p>
         </div>
       </section>
 

@@ -159,6 +159,22 @@ const FAQ_DATA: FAQItem[] = [
     question: "Do you work on Chevy and GM vehicles?",
     answer: "Yes. We service all Chevrolet and GM models including Silverado, Equinox, Malibu, Cruze, Traverse, and Tahoe. We are experienced with common GM issues like AFM lifter failures, transmission problems on 8-speed automatics, and electrical gremlins. Visit our Chevy repair Cleveland page for more information."
   },
+  // Acima Lease-to-Own
+  {
+    category: "Pricing & Warranty",
+    question: "What is Acima lease-to-own?",
+    answer: "Acima is a rental purchase agreement — not a loan, credit, or financing. At Nick's Tire & Auto, you can lease the auto services you need with a $10 initial payment and no credit history required. A 90-day early purchase option is available to reduce your total cost. Not available in MN, NJ, WI, or WY."
+  },
+  {
+    category: "Pricing & Warranty",
+    question: "How does the $10 initial payment work?",
+    answer: "Apply online or in-store in minutes. Once approved, make a $10 initial payment and get your service done the same day. You then pay the remainder over your lease term. $10 initial payment. Lease terms and total cost vary by item and payment schedule. 90-day early purchase option available. Not a loan or credit."
+  },
+  {
+    category: "Pricing & Warranty",
+    question: "Can I use Acima again after paying off my first lease?",
+    answer: "Yes — returning customers often qualify for increased spending power. Individual results vary. Contact us or visit the financing page to apply."
+  },
 ];
 
 const CATEGORIES = ["All", ...Array.from(new Set(FAQ_DATA.map(f => f.category)))];

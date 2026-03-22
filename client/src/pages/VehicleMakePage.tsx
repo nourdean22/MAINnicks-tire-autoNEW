@@ -133,6 +133,10 @@ export default function VehicleMakePage() {
                 </FadeIn>
               ))}
             </div>
+
+            <p className="text-sm text-foreground/50 mt-6">
+              Payment options available for all services — <Link href="/financing?utm_source=vehicle_make" className="text-emerald-400">learn more</Link>
+            </p>
           </div>
         </section>
 

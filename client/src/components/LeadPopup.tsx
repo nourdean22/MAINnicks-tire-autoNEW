@@ -17,7 +17,8 @@ const STORAGE_KEY = "nicks_lead_popup_dismissed";
 const DELAY_MS = 45000;          // 45s desktop timer
 const DELAY_MS_MOBILE = 60000;   // 60s mobile timer (longer, less aggressive)
 const SCROLL_THRESHOLD = 0.6;    // 60% scroll depth — user has shown intent
-const EXIT_INTENT_GUARD_MS = 8000; // exit-intent cannot fire in first 8s
+const EXIT_INTENT_GUARD_MS = 15000; // exit-intent cannot fire in first 15s
+const EXIT_SCROLL_THRESHOLD = 0.3; // exit-intent requires 30% scroll depth
 
 function isMobile() {
   return window.innerWidth < 768 || /Mobi|Android/i.test(navigator.userAgent);
@@ -97,7 +98,9 @@ export default function LeadPopup() {
     if (!mobile) {
       exitIntentListener = (e: MouseEvent) => {
         const timeOnPage = Date.now() - mountTimeRef.current;
-        if (e.clientY <= 5 && timeOnPage >= EXIT_INTENT_GUARD_MS && scrollReady) {
+        const docHeight = document.body.scrollHeight - window.innerHeight;
+        const scrollPct = docHeight > 100 ? window.scrollY / docHeight : 0;
+        if (e.clientY <= 5 && timeOnPage >= EXIT_INTENT_GUARD_MS && scrollReady && scrollPct >= EXIT_SCROLL_THRESHOLD) {
           show();
           document.removeEventListener("mouseleave", exitIntentListener!);
         }
@@ -177,6 +180,9 @@ export default function LeadPopup() {
                   </h3>
                   <p className="text-foreground/40 text-[13px] mt-2 leading-relaxed">
                     Describe your vehicle problem and we'll call you with an honest assessment. No obligation.
+                  </p>
+                  <p className="text-[11px] text-emerald-400/70 mt-1">
+                    Payment options available including lease-to-own from $10 down.
                   </p>
 
                   <form onSubmit={handleSubmit} className="mt-5 space-y-3">

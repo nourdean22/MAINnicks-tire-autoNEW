@@ -14,6 +14,7 @@ import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import { QueryError } from "@/components/QueryState";
+import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -311,6 +312,18 @@ export default function SpecialsPage() {
             </div>
           </section>
         )}
+
+        {/* Acima Lease-to-Own Cross-Sell */}
+        <div className="container">
+          <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-6 text-center my-8">
+            <p className="text-lg font-bold text-emerald-400">Combine any special with Acima lease-to-own</p>
+            <p className="text-sm text-foreground/60 mt-1">$10 down, drive today</p>
+            <p className="text-[10px] text-foreground/30 mt-2">{ACIMA_COMPACT_DISCLOSURE}</p>
+            <Link href="/financing?utm_source=specials" className="inline-block mt-3 text-sm text-emerald-400 hover:text-emerald-300 underline">
+              Learn about payment options →
+            </Link>
+          </div>
+        </div>
 
         {/* All Specials Grid */}
         <section className="py-12 lg:py-16 bg-[oklch(0.055_0.004_260)]">

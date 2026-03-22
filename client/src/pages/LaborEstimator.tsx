@@ -17,6 +17,7 @@ import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import { motion, useInView } from "framer-motion";
 import { Link } from "wouter";
+import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -437,6 +438,19 @@ export default function LaborEstimator() {
                   <p className="text-foreground/50 text-xs leading-relaxed">
                     {result.disclaimer}
                   </p>
+                </div>
+              </FadeIn>
+
+              {/* Acima Lease-to-Own Callout */}
+              <FadeIn delay={0.22}>
+                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4 text-center">
+                  <p className="text-sm text-emerald-400 font-medium">
+                    This estimate could be yours for $10 down with Acima lease-to-own
+                  </p>
+                  <p className="text-[10px] text-foreground/40 mt-1">{ACIMA_COMPACT_DISCLOSURE}</p>
+                  <Link href="/financing?utm_source=labor_estimator" className="inline-block mt-2 text-xs text-emerald-400 hover:text-emerald-300 underline">
+                    View all payment options →
+                  </Link>
                 </div>
               </FadeIn>
 

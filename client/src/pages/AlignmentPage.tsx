@@ -9,7 +9,9 @@ import { SEOHead } from "@/components/SEO";
 import BookingForm from "@/components/BookingForm";
 import FadeIn from "@/components/FadeIn";
 import { BUSINESS } from "@shared/business";
-import { Phone, CheckCircle, AlertTriangle, Clock, MapPin } from "lucide-react";
+import { Phone, CheckCircle, AlertTriangle, Clock, MapPin, CreditCard } from "lucide-react";
+import { Link } from "wouter";
+import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -78,6 +80,13 @@ function AlignmentHero() {
               <span className="text-foreground/80 text-[12px]">Alignment typically $80–$120 per vehicle</span>
             </div>
           </div>
+          <div className="flex items-center gap-2 bg-emerald-500/5 border border-emerald-500/20 rounded-md px-4 py-2">
+            <CreditCard className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span className="text-foreground/80 text-[12px]">
+              Payment options available — <Link href="/financing?utm_source=alignment" className="text-emerald-400 hover:text-emerald-300">lease-to-own from $10 down</Link>
+            </span>
+          </div>
+          <p className="text-[9px] text-foreground/25 mt-1 ml-6">{ACIMA_COMPACT_DISCLOSURE}</p>
         </FadeIn>
       </div>
     </section>

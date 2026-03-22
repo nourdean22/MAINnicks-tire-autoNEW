@@ -17,6 +17,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { BUSINESS } from "@shared/business";
 import FadeIn from "@/components/FadeIn";
 import ServiceDetailsAccordion from "@/components/ServiceDetailsAccordion";
+import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
 
 // CDN images
 const HERO_IMAGES: Record<string, string> = {
@@ -479,10 +480,13 @@ function ServiceDetails({ service }: { service: ServiceData }) {
                     <div className="text-sm text-foreground/60 mb-1">Starting at</div>
                     <div className="font-bold text-2xl text-primary">{service.startingPrice}</div>
                   </div>
-                  <Link href="/financing" className="flex items-center gap-2 bg-nick-teal/5 border border-nick-teal/20 rounded-lg px-4 py-3 text-sm text-nick-teal hover:bg-nick-teal/10 transition-colors">
-                    <CreditCard className="w-4 h-4" />
-                    <span>Payment options available · Lease-to-own &amp; financing →</span>
-                  </Link>
+                  <div>
+                    <Link href="/financing?utm_source=service_page" className="flex items-center gap-2 bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-4 py-3 text-sm text-emerald-400 hover:bg-emerald-500/10 transition-colors">
+                      <CreditCard className="w-4 h-4" />
+                      <span>Lease-to-own from $10 down · Payment options available →</span>
+                    </Link>
+                    <p className="text-[9px] text-foreground/30 mt-1 px-1">{ACIMA_COMPACT_DISCLOSURE}</p>
+                  </div>
                 </div>
               </FadeIn>
             )}

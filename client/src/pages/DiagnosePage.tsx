@@ -20,6 +20,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import FadeIn from "@/components/FadeIn";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
+import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp";
 
@@ -549,6 +550,14 @@ function ResultsStep({ result, vehicle, onReset, onBook: _onBook }: {
           BOOK APPOINTMENT
           <ArrowRight className="w-5 h-5" />
         </Link>
+      </div>
+
+      {/* Acima Lease-to-Own Callout */}
+      <div className="mt-6 text-center">
+        <p className="text-sm text-foreground/60">
+          Worried about the cost? <Link href="/financing?utm_source=diagnose" className="text-emerald-400 hover:text-emerald-300">Lease-to-own from $10 down →</Link>
+        </p>
+        <p className="text-[9px] text-foreground/30 mt-1">{ACIMA_COMPACT_DISCLOSURE}</p>
       </div>
 
       <button

@@ -37,10 +37,17 @@ export default function LocalBusinessSchema({ pageName, additionalSchema }: Prop
       {
         "@type": "OpeningHoursSpecification",
         dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-        opens: "09:00",
+        opens: "08:00",
         closes: "18:00",
       },
+      {
+        "@type": "OpeningHoursSpecification",
+        dayOfWeek: "Sunday",
+        opens: "09:00",
+        closes: "16:00",
+      },
     ],
+    paymentAccepted: "Cash, Visa, Mastercard, Discover, American Express, Debit Cards, Apple Pay, Google Pay",
     aggregateRating: {
       "@type": "AggregateRating",
       ratingValue: BUSINESS.reviews.rating,

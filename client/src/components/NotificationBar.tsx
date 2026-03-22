@@ -16,10 +16,11 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { X, Phone, Star, Clock, AlertTriangle, Shield, MapPin, Zap, Snowflake, CloudRain, CloudLightning, Wind, Sun, Thermometer, Cloud, Wrench, Gauge } from "lucide-react";
+import { X, Phone, Star, Clock, AlertTriangle, Shield, MapPin, Zap, Snowflake, CloudRain, CloudLightning, Wind, Sun, Thermometer, Cloud, Wrench, Gauge, CreditCard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
+import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
 
 // ─── STRATEGY TYPES ────────────────────────────────────
 type Strategy = "urgency" | "social_proof" | "scarcity" | "seasonal" | "authority" | "loss_aversion" | "local_identity" | "value_anchor" | "weather" | "dynamic";
@@ -34,6 +35,7 @@ interface Notification {
   seasons?: ("spring" | "summer" | "fall" | "winter")[];
   timeOfDay?: ("morning" | "afternoon" | "evening")[];
   daysOfWeek?: number[]; // 0=Sun, 6=Sat
+  disclosure?: string;
 }
 
 // ─── ICON MAP ────────────────────────────────────────────
@@ -210,6 +212,34 @@ const ALL_NOTIFICATIONS: Notification[] = [
     ctaHref: BUSINESS.phone.href,
     icon: <Zap className="w-4 h-4" />,
   },
+
+  // ── ACIMA LEASE-TO-OWN ──
+  {
+    id: "acima-1",
+    strategy: "loss_aversion",
+    text: "Unexpected repair? $10 down with Acima lease-to-own — drive today, pay over time.",
+    disclosure: ACIMA_COMPACT_DISCLOSURE,
+    cta: "Learn More",
+    ctaHref: "/financing?utm_source=notification_bar",
+    icon: <CreditCard className="w-4 h-4" />,
+  },
+  {
+    id: "acima-2",
+    strategy: "value_anchor",
+    text: "Need tires? $10 initial payment with Acima — no credit history needed.",
+    disclosure: ACIMA_COMPACT_DISCLOSURE,
+    cta: "Learn More",
+    ctaHref: "/financing?utm_source=notification_bar",
+    icon: <CreditCard className="w-4 h-4" />,
+  },
+  {
+    id: "acima-3",
+    strategy: "social_proof",
+    text: "Returning Acima customer? You may qualify for increased spending power. Individual results vary.",
+    cta: "Apply",
+    ctaHref: "/financing?utm_source=notification_bar",
+    icon: <CreditCard className="w-4 h-4" />,
+  },
 ];
 
 // ─── FILTER LOGIC ────────────────────────────────────────
@@ -371,6 +401,9 @@ export default function NotificationBar() {
             <span className="text-white/80 shrink-0">{current.icon}</span>
             <span className="text-white/90 text-[12px] sm:text-[13px] font-medium tracking-[-0.005em]">
               {current.text}
+              {current.disclosure && (
+                <span className="hidden sm:inline text-white/40 text-[9px] ml-1">{current.disclosure}</span>
+              )}
             </span>
             {current.cta && current.ctaHref && (
               <a

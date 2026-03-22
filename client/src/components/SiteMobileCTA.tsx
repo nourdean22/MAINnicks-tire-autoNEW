@@ -5,6 +5,7 @@
 import { Phone, Navigation, Calendar, MessageCircle, MessageSquare } from "lucide-react";
 import { trackPhoneClick } from "@/components/SEO";
 import { BUSINESS } from "@shared/business";
+import { Link } from "wouter";
 
 export default function SiteMobileCTA() {
   return (
@@ -64,6 +65,9 @@ export default function SiteMobileCTA() {
             <span className="text-[10px] font-semibold tracking-wide">Directions</span>
           </a>
         </div>
+        <Link href="/financing?utm_source=site_mobile_cta" className="block text-center text-emerald-400/70 text-[10px] mt-1 pb-1">
+          Payment options available →
+        </Link>
       </div>
     </div>
   );

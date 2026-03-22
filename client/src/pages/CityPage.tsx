@@ -293,6 +293,10 @@ export default function CityPage() {
                 </div>
               </div>
             </FadeIn>
+
+            <p className="text-sm text-foreground/50 mt-6 text-center">
+              Payment options available — <Link href="/financing?utm_source=city_page" className="text-emerald-400">lease-to-own from $10 down</Link>
+            </p>
           </div>
         </section>
 

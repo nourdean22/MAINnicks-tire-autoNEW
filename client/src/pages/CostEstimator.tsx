@@ -11,6 +11,7 @@ import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import InternalLinks from "@/components/InternalLinks";
 import { BUSINESS } from "@shared/business";
 import { SERVICE_TYPES, SERVICE_CATEGORIES } from "@shared/serviceTypes";
+import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
 import { trpc } from "@/lib/trpc";
 import { motion } from "framer-motion";
 import {
@@ -84,7 +85,7 @@ const FAQ_ITEMS = [
   {
     question: "Do you offer payment plans?",
     answer:
-      "Yes—Synchrony Car Care (6 months 0% on $199+) and Sunbit (up to 72 months). Ask at the counter.",
+      "Yes — Acima (lease-to-own from $10 initial payment, no credit history needed), Snap Finance, Koalafi, and Synchrony Car Care. Apply at the counter or online in minutes.",
   },
   {
     question: "What if I need emergency service?",
@@ -435,6 +436,17 @@ export default function CostEstimator() {
                   {/* Disclaimer */}
                   <div className="bg-white/5 border border-white/10 rounded-lg p-4 text-xs text-white/70 text-left">
                     {estimate.data.disclaimer}
+                  </div>
+
+                  {/* Acima Lease-to-Own Callout */}
+                  <div className="mt-6 bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4 text-center">
+                    <p className="text-sm text-emerald-400 font-medium">
+                      This estimate could be yours for $10 down with Acima lease-to-own
+                    </p>
+                    <p className="text-[10px] text-foreground/40 mt-1">{ACIMA_COMPACT_DISCLOSURE}</p>
+                    <Link href="/financing?utm_source=cost_estimator" className="inline-block mt-2 text-xs text-emerald-400 hover:text-emerald-300 underline">
+                      View all payment options →
+                    </Link>
                   </div>
 
                   {/* CTAs */}

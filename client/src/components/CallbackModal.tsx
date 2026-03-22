@@ -69,6 +69,9 @@ export default function CallbackModal() {
                 <p className="text-foreground/50 text-sm mt-2">
                   Expect a call from {BUSINESS.phone.display} shortly.
                 </p>
+                <p className="text-[11px] text-emerald-400/60 mt-2">
+                  Payment options available including lease-to-own from $10 down
+                </p>
               </div>
             ) : (
               <>

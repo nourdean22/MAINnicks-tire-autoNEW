@@ -17,8 +17,11 @@ import {
   Star, Check, X, Filter, Package, CircleDot, Loader2,
   CheckCircle2, Info, Gift, Sparkles, BadgeCheck, Wrench, Gauge,
   CircleCheck, Timer, Heart, AlertTriangle, Users, Zap, ThumbsUp, Award, MapPin,
+  CreditCard,
 } from "lucide-react";
+import { Link } from "wouter";
 import { BUSINESS } from "@shared/business";
+import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
 import { motion, AnimatePresence } from "framer-motion";
 
 // ─── HELPERS ──────────────────────────────────────────
@@ -367,6 +370,14 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
           </div>
         </div>
 
+        {/* Acima lease-to-own option */}
+        <Link href="/financing?utm_source=tirefinder_order" className="block text-center text-sm text-emerald-400 hover:text-emerald-300 mt-4 mb-2 transition-colors">
+          Need to pay over time? Lease-to-own available from $10 down →
+        </Link>
+        <p className="text-[9px] text-muted-foreground/50 text-center mb-4">
+          {ACIMA_COMPACT_DISCLOSURE}
+        </p>
+
         <button
           onClick={() => {
             if (!name.trim() || !phone.trim()) {
@@ -516,6 +527,17 @@ function TireCard({ tire, quantity, onSelect }: TireCardProps) {
         </div>
         <p className="text-[10px] text-muted-foreground mt-0.5 ml-5">
           Mounting, balancing, valve stems, disposal, TPMS reset, inspection & more
+        </p>
+      </div>
+
+      {/* Acima lease-to-own badge */}
+      <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-md px-3 py-2 mb-4">
+        <div className="flex items-center gap-1.5">
+          <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="text-[10px] font-medium text-emerald-400">$10 Initial Payment with Acima Lease-to-Own</span>
+        </div>
+        <p className="text-[9px] text-muted-foreground/60 mt-0.5 ml-5">
+          {ACIMA_COMPACT_DISCLOSURE}
         </p>
       </div>
 
