@@ -1,19 +1,22 @@
 /**
  * Premium Footer — Clean, structured, minimal.
- * 4-column grid, subtle typography, refined spacing.
+ * 5-column grid on desktop, comprehensive internal linking for SEO.
  */
 import { Link } from "wouter";
 import { Star } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { GBP_REVIEW_URL } from "@shared/const";
 
+const LINK_CLASS = "block text-[13px] text-foreground/30 hover:text-foreground/60 transition-colors duration-200";
+const HEADING_CLASS = "text-[11px] font-semibold text-foreground/20 uppercase tracking-[0.1em] mb-5";
+
 export default function SiteFooter() {
   return (
     <footer className="bg-[oklch(0.055_0.004_260)] border-t border-[oklch(0.12_0.004_260)]">
       <div className="container py-16 lg:py-20">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-10 lg:gap-8">
           {/* ─── BRAND ─── */}
-          <div>
+          <div className="col-span-2 md:col-span-3 lg:col-span-1">
             <span className="text-primary font-bold text-[17px] tracking-[-0.02em]">
               Nick's Tire & Auto
             </span>
@@ -53,79 +56,64 @@ export default function SiteFooter() {
 
           {/* ─── SERVICES ─── */}
           <div>
-            <h4 className="text-[11px] font-semibold text-foreground/20 uppercase tracking-[0.1em] mb-5">
-              Services
-            </h4>
+            <h4 className={HEADING_CLASS}>Services</h4>
             <div className="space-y-3">
               {[
+                { href: "/services", label: "All Services" },
                 { href: "/tires", label: "Tires" },
                 { href: "/brakes", label: "Brakes" },
                 { href: "/diagnostics", label: "Diagnostics" },
                 { href: "/emissions", label: "Emissions" },
                 { href: "/oil-change", label: "Oil Change" },
                 { href: "/general-repair", label: "General Repair" },
+                { href: "/alignment", label: "Wheel Alignment" },
               ].map((l) => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  className="block text-[13px] text-foreground/30 hover:text-foreground/60 transition-colors duration-200"
-                >
-                  {l.label}
-                </Link>
+                <Link key={l.href} href={l.href} className={LINK_CLASS}>{l.label}</Link>
               ))}
             </div>
           </div>
 
-          {/* ─── RESOURCES ─── */}
+          {/* ─── TOOLS & RESOURCES ─── */}
           <div>
-            <h4 className="text-[11px] font-semibold text-foreground/20 uppercase tracking-[0.1em] mb-5">
-              Resources
-            </h4>
+            <h4 className={HEADING_CLASS}>Resources</h4>
             <div className="space-y-3">
               {[
                 { href: "/reviews", label: "Reviews" },
-                { href: "/specials", label: "Specials" },
-                { href: "/diagnose", label: "Diagnose My Car" },
+                { href: "/specials", label: "Specials & Coupons" },
+                { href: "/diagnose", label: "AI Diagnostic Tool" },
+                { href: "/estimate", label: "Cost Estimator" },
+                { href: "/financing", label: "Financing" },
+                { href: "/rewards", label: "Rewards Program" },
+                { href: "/fleet", label: "Fleet Accounts" },
                 { href: "/blog", label: "Blog" },
                 { href: "/faq", label: "FAQ" },
                 { href: "/car-care-guide", label: "Car Care Guide" },
-                { href: "/pricing", label: "Price Estimator" },
-                { href: "/status", label: "Check Repair Status" },
-                { href: "/rewards", label: "Rewards Program" },
-                { href: "/fleet", label: "Fleet Accounts" },
-                { href: "/financing?utm_source=site_footer", label: "Payment Options" },
               ].map((l) => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  className="block text-[13px] text-foreground/30 hover:text-foreground/60 transition-colors duration-200"
-                >
-                  {l.label}
-                </Link>
+                <Link key={l.href} href={l.href} className={LINK_CLASS}>{l.label}</Link>
               ))}
             </div>
           </div>
 
           {/* ─── AREAS SERVED ─── */}
           <div>
-            <h4 className="text-[11px] font-semibold text-foreground/20 uppercase tracking-[0.1em] mb-5">
-              Areas Served
-            </h4>
+            <h4 className={HEADING_CLASS}>Areas Served</h4>
             <div className="space-y-3">
-              <span className="block text-[13px] text-foreground/30">Cleveland, OH</span>
               {[
-                { href: "/euclid-auto-repair", label: "Euclid, OH" },
-                { href: "/east-cleveland-auto-repair", label: "East Cleveland, OH" },
-                { href: "/lakewood-auto-repair", label: "Lakewood, OH" },
-                { href: "/parma-auto-repair", label: "Parma, OH" },
+                { href: "/euclid-auto-repair", label: "Euclid" },
+                { href: "/east-cleveland-auto-repair", label: "East Cleveland" },
+                { href: "/lakewood-auto-repair", label: "Lakewood" },
+                { href: "/parma-auto-repair", label: "Parma" },
+                { href: "/shaker-heights-auto-repair", label: "Shaker Heights" },
+                { href: "/cleveland-heights-auto-repair", label: "Cleveland Heights" },
+                { href: "/south-euclid-auto-repair", label: "South Euclid" },
+                { href: "/garfield-heights-auto-repair", label: "Garfield Heights" },
+                { href: "/mentor-auto-repair", label: "Mentor" },
+                { href: "/strongsville-auto-repair", label: "Strongsville" },
+                { href: "/richmond-heights-auto-repair", label: "Richmond Heights" },
+                { href: "/lyndhurst-auto-repair", label: "Lyndhurst" },
+                { href: "/willoughby-auto-repair", label: "Willoughby" },
               ].map((l) => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  className="block text-[13px] text-foreground/30 hover:text-foreground/60 transition-colors duration-200"
-                >
-                  {l.label}
-                </Link>
+                <Link key={l.href} href={l.href} className={LINK_CLASS}>{l.label}</Link>
               ))}
             </div>
           </div>
@@ -136,7 +124,13 @@ export default function SiteFooter() {
           <p className="text-foreground/15 text-[12px]">
             &copy; {new Date().getFullYear()} Nick's Tire & Auto. All rights reserved.
           </p>
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-5 flex-wrap justify-center">
+            <Link href="/about" className="text-foreground/15 text-[12px] hover:text-foreground/30 transition-colors duration-200">
+              About
+            </Link>
+            <Link href="/contact" className="text-foreground/15 text-[12px] hover:text-foreground/30 transition-colors duration-200">
+              Contact
+            </Link>
             <Link href="/privacy-policy" className="text-foreground/15 text-[12px] hover:text-foreground/30 transition-colors duration-200">
               Privacy
             </Link>

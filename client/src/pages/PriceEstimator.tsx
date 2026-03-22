@@ -60,11 +60,11 @@ export default function PriceEstimator() {
   return (
     <PageLayout activeHref="/pricing">
       <SEOHead
-        title="Price Estimator | Nick's Tire & Auto — Cleveland, OH"
-        description="Get a ballpark estimate for common auto repairs. Oil changes, brakes, tires, diagnostics, and more. Honest pricing from Cleveland's trusted shop."
-        canonicalPath="/pricing"
+        title="Auto Repair Pricing — Nick's Tire & Auto Cleveland"
+        description="Transparent auto repair pricing at Nick's Tire & Auto, Cleveland. Get estimates for brakes, tires, oil changes, diagnostics, and more."
+        canonicalPath="/estimate"
       />
-      <Breadcrumbs items={[{ label: "Price Estimator", href: "/pricing" }]} />
+      <Breadcrumbs items={[{ label: "Cost Estimator", href: "/estimate" }]} />
       <LocalBusinessSchema />
 
       {/* Hero */}

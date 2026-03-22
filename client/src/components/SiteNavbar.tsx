@@ -10,11 +10,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { BUSINESS } from "@shared/business";
 
 const NAV_LINKS = [
-  { label: "Services", href: "/#services" },
+  { label: "Services", href: "/services" },
+  { label: "Financing", href: "/financing" },
   { label: "Reviews", href: "/reviews" },
   { label: "Specials", href: "/specials" },
   { label: "About", href: "/about" },
-  { label: "Ask a Mechanic", href: "/ask-mechanic" },
   { label: "Contact", href: "/contact" },
 ];
 

@@ -2,12 +2,15 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import path from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import rateLimit from "express-rate-limit";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { createPrerenderMiddleware } from "../prerender-middleware";
+import { SITEMAP_ROUTES, BLOG_SLUGS } from "@shared/routes";
 import { getPublishedArticles } from "../content-generator";
 import { markReviewRequestClicked } from "../db";
 import { processReviewRequestQueue } from "../routers/reviewRequests";
@@ -105,125 +108,10 @@ async function startServer() {
       },
     })
   );
-  // Sitemap.xml (dynamic — includes published AI articles from DB)
+  // Sitemap.xml — powered by shared/routes.ts route registry + dynamic blog articles from DB
   app.get("/sitemap.xml", async (_req, res) => {
     const baseUrl = "https://nickstire.org";
-    const now = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format per sitemap spec
-
-    // Page definitions with SEO priority and change frequency
-    const pages: { path: string; priority: string; changefreq: string }[] = [
-      { path: "/", priority: "1.0", changefreq: "daily" },
-      { path: "/tires", priority: "0.9", changefreq: "weekly" },
-      { path: "/brakes", priority: "0.9", changefreq: "weekly" },
-      { path: "/diagnostics", priority: "0.9", changefreq: "weekly" },
-      { path: "/emissions", priority: "0.9", changefreq: "weekly" },
-      { path: "/oil-change", priority: "0.8", changefreq: "weekly" },
-      { path: "/general-repair", priority: "0.8", changefreq: "weekly" },
-      { path: "/about", priority: "0.7", changefreq: "monthly" },
-      { path: "/contact", priority: "0.8", changefreq: "monthly" },
-      { path: "/blog", priority: "0.7", changefreq: "daily" },
-      { path: "/faq", priority: "0.7", changefreq: "monthly" },
-      // City-specific landing pages
-      { path: "/euclid-auto-repair", priority: "0.8", changefreq: "monthly" },
-      { path: "/lakewood-auto-repair", priority: "0.8", changefreq: "monthly" },
-      { path: "/parma-auto-repair", priority: "0.8", changefreq: "monthly" },
-      { path: "/east-cleveland-auto-repair", priority: "0.8", changefreq: "monthly" },
-      // Seasonal landing pages
-      { path: "/winter-car-care-cleveland", priority: "0.7", changefreq: "monthly" },
-      { path: "/summer-car-care-cleveland", priority: "0.7", changefreq: "monthly" },
-      // Dedicated SEO service pages
-      { path: "/brake-repair-cleveland", priority: "0.8", changefreq: "monthly" },
-      { path: "/check-engine-light-cleveland", priority: "0.8", changefreq: "monthly" },
-      { path: "/tire-repair-cleveland", priority: "0.8", changefreq: "monthly" },
-      { path: "/suspension-repair-cleveland", priority: "0.8", changefreq: "monthly" },
-      { path: "/ac-repair-cleveland", priority: "0.8", changefreq: "monthly" },
-      { path: "/diagnostics-cleveland", priority: "0.8", changefreq: "monthly" },
-      { path: "/tire-shop-cleveland", priority: "0.8", changefreq: "monthly" },
-      { path: "/oil-change-cleveland", priority: "0.8", changefreq: "monthly" },
-      { path: "/echeck-repair-cleveland", priority: "0.8", changefreq: "monthly" },
-      // Vehicle make pages
-      { path: "/toyota-repair-cleveland", priority: "0.7", changefreq: "monthly" },
-      { path: "/honda-repair-cleveland", priority: "0.7", changefreq: "monthly" },
-      { path: "/ford-repair-cleveland", priority: "0.7", changefreq: "monthly" },
-      { path: "/chevy-repair-cleveland", priority: "0.7", changefreq: "monthly" },
-      // Problem-specific pages
-      { path: "/car-shaking-while-driving", priority: "0.7", changefreq: "monthly" },
-      { path: "/brakes-grinding", priority: "0.7", changefreq: "monthly" },
-      { path: "/check-engine-light-flashing", priority: "0.7", changefreq: "monthly" },
-      { path: "/car-overheating", priority: "0.7", changefreq: "monthly" },
-      // Services overview
-      { path: "/services", priority: "0.9", changefreq: "weekly" },
-      // New city landing pages
-      { path: "/shaker-heights-auto-repair", priority: "0.8", changefreq: "monthly" },
-      { path: "/cleveland-heights-auto-repair", priority: "0.8", changefreq: "monthly" },
-      { path: "/mentor-auto-repair", priority: "0.8", changefreq: "monthly" },
-      { path: "/strongsville-auto-repair", priority: "0.8", changefreq: "monthly" },
-      { path: "/south-euclid-auto-repair", priority: "0.8", changefreq: "monthly" },
-      { path: "/garfield-heights-auto-repair", priority: "0.8", changefreq: "monthly" },
-      // New vehicle make pages
-      { path: "/nissan-repair-cleveland", priority: "0.7", changefreq: "monthly" },
-      { path: "/hyundai-repair-cleveland", priority: "0.7", changefreq: "monthly" },
-      { path: "/kia-repair-cleveland", priority: "0.7", changefreq: "monthly" },
-      { path: "/jeep-repair-cleveland", priority: "0.7", changefreq: "monthly" },
-      { path: "/bmw-repair-cleveland", priority: "0.7", changefreq: "monthly" },
-      { path: "/dodge-ram-repair-cleveland", priority: "0.7", changefreq: "monthly" },
-      // New problem pages
-      { path: "/car-wont-start", priority: "0.7", changefreq: "monthly" },
-      { path: "/steering-wheel-shaking", priority: "0.7", changefreq: "monthly" },
-      { path: "/car-pulling-to-one-side", priority: "0.7", changefreq: "monthly" },
-      { path: "/transmission-slipping", priority: "0.7", changefreq: "monthly" },
-      { path: "/ac-not-blowing-cold", priority: "0.7", changefreq: "monthly" },
-      { path: "/battery-keeps-dying", priority: "0.7", changefreq: "monthly" },
-      // Utility pages
-      { path: "/reviews", priority: "0.7", changefreq: "weekly" },
-      { path: "/diagnose", priority: "0.7", changefreq: "monthly" },
-      { path: "/specials", priority: "0.7", changefreq: "weekly" },
-      { path: "/pricing", priority: "0.7", changefreq: "monthly" },
-      { path: "/estimate", priority: "0.8", changefreq: "monthly" },
-      { path: "/book", priority: "0.9", changefreq: "monthly" },
-      { path: "/fleet", priority: "0.7", changefreq: "monthly" },
-      { path: "/financing", priority: "0.7", changefreq: "monthly" },
-      { path: "/rewards", priority: "0.6", changefreq: "monthly" },
-      { path: "/car-care-guide", priority: "0.6", changefreq: "monthly" },
-      { path: "/refer", priority: "0.5", changefreq: "monthly" },
-      { path: "/status", priority: "0.6", changefreq: "monthly" },
-      { path: "/ask", priority: "0.6", changefreq: "weekly" },
-      { path: "/my-garage", priority: "0.5", changefreq: "monthly" },
-      { path: "/review", priority: "0.6", changefreq: "monthly" },
-      // Phase 5: Cost Estimator
-      { path: "/cost-estimator", priority: "0.8", changefreq: "monthly" },
-      // Phase 5: Neighborhood micro-pages
-      { path: "/east-185th-street-auto-repair", priority: "0.7", changefreq: "monthly" },
-      { path: "/euclid-square-mall-area", priority: "0.7", changefreq: "monthly" },
-      { path: "/richmond-heights-mechanic", priority: "0.7", changefreq: "monthly" },
-      { path: "/collinwood", priority: "0.7", changefreq: "monthly" },
-      { path: "/nottingham", priority: "0.7", changefreq: "monthly" },
-      { path: "/five-points", priority: "0.7", changefreq: "monthly" },
-      { path: "/waterloo-arts-district", priority: "0.7", changefreq: "monthly" },
-      { path: "/shore-cultural-centre", priority: "0.7", changefreq: "monthly" },
-      { path: "/severance-town-center", priority: "0.7", changefreq: "monthly" },
-      { path: "/university-circle", priority: "0.7", changefreq: "monthly" },
-      { path: "/wickliffe", priority: "0.7", changefreq: "monthly" },
-      { path: "/willowick", priority: "0.7", changefreq: "monthly" },
-      { path: "/eastlake", priority: "0.7", changefreq: "monthly" },
-      { path: "/south-euclid-mechanic", priority: "0.7", changefreq: "monthly" },
-      { path: "/lyndhurst-mechanic", priority: "0.7", changefreq: "monthly" },
-      { path: "/mayfield-heights", priority: "0.7", changefreq: "monthly" },
-      { path: "/highland-heights", priority: "0.7", changefreq: "monthly" },
-      { path: "/beachwood", priority: "0.7", changefreq: "monthly" },
-      // Legal pages
-      { path: "/privacy-policy", priority: "0.4", changefreq: "yearly" },
-      { path: "/terms", priority: "0.4", changefreq: "yearly" },
-    ];
-
-    const hardcodedBlogSlugs = [
-      "5-signs-brakes-need-replacing",
-      "check-engine-light-common-causes",
-      "ohio-echeck-what-to-know",
-      "when-to-replace-tires",
-      "spring-car-maintenance-checklist",
-      "synthetic-vs-conventional-oil",
-    ];
+    const now = new Date().toISOString().split("T")[0];
 
     // Fetch published dynamic articles from DB
     let dynamicSlugs: string[] = [];
@@ -232,10 +120,10 @@ async function startServer() {
       dynamicSlugs = published.map((a: any) => a.slug);
     } catch {}
 
-    const allBlogSlugs = Array.from(new Set([...hardcodedBlogSlugs, ...dynamicSlugs]));
+    const allBlogSlugs = Array.from(new Set([...BLOG_SLUGS, ...dynamicSlugs]));
 
     const urls = [
-      ...pages.map(p =>
+      ...SITEMAP_ROUTES.map(p =>
         `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
       ),
       ...allBlogSlugs.map(s =>
@@ -244,19 +132,16 @@ async function startServer() {
     ];
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>`;
-    res.setHeader("Content-Type", "application/xml");
-    res.setHeader("Cache-Control", "public, max-age=3600"); // Cache for 1 hour
+    res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=3600");
     res.send(xml);
   });
 
-  // Robots.txt — dynamically uses the request host for correct sitemap reference
-  app.get("/robots.txt", (req, res) => {
-    const host = req.get("host") || "nickstire.org";
-    const protocol = req.protocol || "https";
-    const sitemapUrl = `https://nickstire.org/sitemap.xml`;
+  // Robots.txt — controls crawler access
+  app.get("/robots.txt", (_req, res) => {
     res.setHeader("Content-Type", "text/plain");
     res.send(
-      `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /admin/\nDisallow: /api/\nDisallow: /api\n\nSitemap: ${sitemapUrl}\n`
+      `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /admin/\nDisallow: /portal\nDisallow: /portal/\nDisallow: /status\nDisallow: /api/\n\nSitemap: https://nickstire.org/sitemap.xml\n`
     );
   });
 
@@ -365,6 +250,16 @@ async function startServer() {
 
     res.sendStatus(200);
   });
+
+  // Prerender middleware — serve static HTML to bots for SEO
+  // In production, prerendered files live in dist/prerendered/
+  // In development, they may exist in dist/prerendered/ from a prior build
+  {
+    const prerenderedDir = process.env.NODE_ENV === "production"
+      ? path.resolve(import.meta.dirname, "prerendered")
+      : path.resolve(import.meta.dirname, "../..", "dist", "prerendered");
+    app.use(createPrerenderMiddleware(prerenderedDir));
+  }
 
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {

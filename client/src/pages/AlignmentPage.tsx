@@ -6,6 +6,7 @@
 
 import PageLayout from "@/components/PageLayout";
 import { SEOHead } from "@/components/SEO";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import BookingForm from "@/components/BookingForm";
 import FadeIn from "@/components/FadeIn";
 import { BUSINESS } from "@shared/business";
@@ -320,6 +321,7 @@ export default function AlignmentPage() {
         description="Professional wheel alignment and tire balancing in Cleveland. We fix pulling, uneven tire wear, and crooked steering wheels. Same-day service. Call (216) 862-0005."
         canonicalPath="/alignment"
       />
+      <LocalBusinessSchema additionalSchema={{ "hasOfferCatalog": { "@type": "OfferCatalog", "name": "Wheel Alignment", "itemListElement": [{ "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Wheel Alignment", "serviceType": "Wheel Alignment" } }] } }} />
 
       <AlignmentHero />
       <SignsSection />

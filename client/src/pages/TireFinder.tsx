@@ -10,6 +10,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead } from "@/components/SEO";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -689,10 +690,11 @@ export default function TireFinder() {
   return (
     <PageLayout>
       <SEOHead
-        title="Tires in Cleveland OH | Nick's Tire & Auto"
-        description={`Order tires online and get them installed at Nick's Tire & Auto in Cleveland, OH. ${BUSINESS.taglines.hookAction} Free mounting, balancing, valve stems, TPMS reset, and inspection with every tire.`}
+        title="Tire Shop Cleveland OH — New & Used Tires | Nick's Tire"
+        description="Cleveland's #1 new & used tire shop. Buy tires online — free premium installation ($289 value). Flat repair $15. Every tire inspected. Walk-ins 7 days. $10 down financing."
         canonicalPath="/tires"
       />
+      <LocalBusinessSchema />
       <div className="min-h-screen bg-background text-foreground">
 
       {/* ─── HERO ─── */}

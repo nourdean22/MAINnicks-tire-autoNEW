@@ -61,6 +61,21 @@ export default function LocalBusinessSchema({ pageName, additionalSchema }: Prop
       "@type": "City",
       name: area,
     })),
+    description: "Cleveland's #1 new and used tire specialist and full-service auto repair. Buy tires online with free premium installation package ($289+ value). Flat tire repair from $15. Expert brake, diagnostic, emissions, and general repair. 4.9 stars, 1,685+ reviews. Walk-ins welcome 7 days. $10 down financing available.",
+    knowsAbout: [
+      "New tire sales and installation",
+      "Used tire sales and installation",
+      "Flat tire repair",
+      "Tire mounting and balancing",
+      "TPMS sensor service",
+      "Wheel alignment",
+      "Brake repair",
+      "Engine diagnostics",
+      "Ohio E-Check emissions repair",
+      "Oil change service",
+      "Suspension repair",
+      "Auto financing",
+    ],
     ...additionalSchema,
   };
 
