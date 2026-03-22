@@ -219,6 +219,13 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
             </ol>
           </div>
 
+          {/* Financing callout */}
+          <div className="bg-nick-teal/5 border border-nick-teal/20 rounded-md p-4 mb-4 text-center">
+            <p className="text-sm text-nick-teal">
+              Need financing? <a href="/financing" className="font-semibold underline hover:no-underline">See payment plan options →</a>
+            </p>
+          </div>
+
           <p className="text-foreground/40 text-xs text-center mb-6">
             Need to change something? Just reply to our text or call us.
           </p>

@@ -479,10 +479,10 @@ function ServiceDetails({ service }: { service: ServiceData }) {
                     <div className="text-sm text-foreground/60 mb-1">Starting at</div>
                     <div className="font-bold text-2xl text-primary">{service.startingPrice}</div>
                   </div>
-                  <div className="flex items-center gap-2 bg-nick-teal/5 border border-nick-teal/20 rounded-lg px-4 py-3 text-sm text-nick-teal">
+                  <Link href="/financing" className="flex items-center gap-2 bg-nick-teal/5 border border-nick-teal/20 rounded-lg px-4 py-3 text-sm text-nick-teal hover:bg-nick-teal/10 transition-colors">
                     <CreditCard className="w-4 h-4" />
-                    <span>4 payments · 0% interest available</span>
-                  </div>
+                    <span>Financing available · No credit needed options →</span>
+                  </Link>
                 </div>
               </FadeIn>
             )}
