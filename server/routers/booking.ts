@@ -3,6 +3,7 @@
  */
 import { publicProcedure, adminProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { SITE_URL } from "@shared/business";
 import {
   createBooking, getBookings, updateBookingStatus, updateBookingNotes, updateBookingPriority,
   updateBookingStage, getBookingByPhone, getBookingByRef,
@@ -286,7 +287,7 @@ export const bookingRouter = router({
         withRetry(
           () => sendLeadEvent({
             eventId: input.pixelEventIds.leadEventId,
-            sourceUrl: "https://nickstire.org",
+            sourceUrl: SITE_URL,
             contentName: "Booking Form Submission",
             contentCategory: input.service,
             ...capiUserData,
@@ -305,7 +306,7 @@ export const bookingRouter = router({
         withRetry(
           () => sendScheduleEvent({
             eventId: input.pixelEventIds.scheduleEventId,
-            sourceUrl: "https://nickstire.org",
+            sourceUrl: SITE_URL,
             service: input.service,
             vehicle: vehicleStr || undefined,
             ...capiUserData,

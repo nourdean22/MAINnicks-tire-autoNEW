@@ -8,6 +8,7 @@ import { router, adminProcedure, publicProcedure } from "../_core/trpc";
 import { eq } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { TRPCError } from "@trpc/server";
+import { SITE_URL } from "@shared/business";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -52,7 +53,7 @@ export const shareCardsRouter = router({
         shares: 0,
       });
 
-      const shareUrl = `https://nickstire.org/share/${token}`;
+      const shareUrl = `${SITE_URL}/share/${token}`;
 
       return {
         token,

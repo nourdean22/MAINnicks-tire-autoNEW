@@ -6,6 +6,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
 import { getRouteByPath } from "../../shared/routes";
+import { SITE_URL } from "../../shared/business";
 
 /**
  * Inject route-specific meta tags (title, description, canonical, OG) into the HTML template.
@@ -16,7 +17,7 @@ function injectRouteMeta(html: string, url: string): string {
   const route = getRouteByPath(url.split("?")[0]);
   if (!route) return html;
 
-  const baseUrl = "https://nickstire.org";
+  const baseUrl = SITE_URL;
   const fullUrl = `${baseUrl}${route.path}`;
   const escapedTitle = route.title.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
   const escapedDesc = route.description.replace(/&/g, "&amp;").replace(/"/g, "&quot;");

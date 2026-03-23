@@ -14,6 +14,7 @@ import { sendLeadEvent } from "../meta-capi";
 import { logIntegrationFailure } from "../integration-failures";
 import { withRetry } from "../retry";
 import { sendSms, leadConfirmationSms } from "../sms";
+import { SITE_URL } from "@shared/business";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -156,7 +157,7 @@ export const leadRouter = router({
         withRetry(
           () => sendLeadEvent({
             eventId: input.pixelEventId,
-            sourceUrl: "https://nickstire.org",
+            sourceUrl: SITE_URL,
             phone: input.phone,
             email: input.email || undefined,
             name: input.name,

@@ -16,6 +16,7 @@ import { markReviewRequestClicked } from "../db";
 import { processReviewRequestQueue } from "../routers/reviewRequests";
 import { processReminderQueue } from "../routers/reminders";
 import { processPostInvoiceFollowUps } from "../postInvoiceFollowUp";
+import { SITE_URL } from "@shared/business";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -110,7 +111,7 @@ async function startServer() {
   );
   // Sitemap.xml — powered by shared/routes.ts route registry + dynamic blog articles from DB
   app.get("/sitemap.xml", async (_req, res) => {
-    const baseUrl = "https://nickstire.org";
+    const baseUrl = SITE_URL;
     const now = new Date().toISOString().split("T")[0];
 
     // Fetch published dynamic articles from DB
@@ -141,7 +142,7 @@ async function startServer() {
   app.get("/robots.txt", (_req, res) => {
     res.setHeader("Content-Type", "text/plain");
     res.send(
-      `User-agent: *\nAllow: /\nAllow: /favicon.ico\n\n# Public pages — crawl freely\nAllow: /tires\nAllow: /tires/info\nAllow: /services/\nAllow: /about\nAllow: /contact\nAllow: /reviews\nAllow: /specials\nAllow: /faq\nAllow: /blog\nAllow: /diagnose\nAllow: /estimate\nAllow: /fleet\nAllow: /financing\nAllow: /car-care-guide\nAllow: /area/\n\n# Block admin, auth, and private pages from indexing\nDisallow: /admin\nDisallow: /admin/\nDisallow: /my-garage\nDisallow: /portal\nDisallow: /api/\nDisallow: /status/\nDisallow: /inspection/\nDisallow: /loyalty\nDisallow: /referral\n\n# Block query parameters\nDisallow: /*?*\n\n# Crawl delay for polite crawling\nCrawl-delay: 1\n\nSitemap: https://nickstire.org/sitemap.xml\n`
+      `User-agent: *\nAllow: /\nAllow: /favicon.ico\n\n# Public pages — crawl freely\nAllow: /tires\nAllow: /tires/info\nAllow: /services/\nAllow: /about\nAllow: /contact\nAllow: /reviews\nAllow: /specials\nAllow: /faq\nAllow: /blog\nAllow: /diagnose\nAllow: /estimate\nAllow: /fleet\nAllow: /financing\nAllow: /car-care-guide\nAllow: /area/\n\n# Block admin, auth, and private pages from indexing\nDisallow: /admin\nDisallow: /admin/\nDisallow: /my-garage\nDisallow: /portal\nDisallow: /api/\nDisallow: /status/\nDisallow: /inspection/\nDisallow: /loyalty\nDisallow: /referral\n\n# Block query parameters\nDisallow: /*?*\n\n# Crawl delay for polite crawling\nCrawl-delay: 1\n\nSitemap: ${SITE_URL}/sitemap.xml\n`
     );
   });
 

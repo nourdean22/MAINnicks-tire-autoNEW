@@ -11,6 +11,7 @@
  * - Processing queue that sends pending requests
  */
 import { publicProcedure, adminProcedure, router } from "../_core/trpc";
+import { SITE_URL } from "@shared/business";
 import {
   createReviewRequest,
   getReviewRequests,
@@ -126,7 +127,7 @@ export async function processReviewRequestQueue() {
 
   for (const req of batch) {
     // Build tracking URL — uses the public redirect endpoint
-    const trackingUrl = `https://nickstire.org/api/review-click/${req.trackingToken}`;
+    const trackingUrl = `${SITE_URL}/api/review-click/${req.trackingToken}`;
     const message = buildReviewMessage(req.customerName, req.service, trackingUrl, settings.messageTemplate);
 
     const result = await sendSms(`+1${req.phone}`, message);

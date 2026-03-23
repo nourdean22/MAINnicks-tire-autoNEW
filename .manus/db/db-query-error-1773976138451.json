@@ -1,8 +1,0 @@
-{
-  "query": "CREATE INDEX idx_winback_campaigns_status ON winback_campaigns(status);\nCREATE INDEX idx_winback_campaigns_segment ON winback_campaigns(targetSegment);\nCREATE INDEX idx_winback_messages_campaign ON winback_messages(campaignId);\nCREATE INDEX idx_winback_sends_campaign ON winback_sends(campaignId);\nCREATE INDEX idx_winback_sends_customer ON winback_sends(customerId);\nCREATE INDEX idx_winback_sends_status ON winback_sends(status);\nCREATE INDEX idx_winback_sends_scheduled ON winback_sends(scheduledFor);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute CREATE INDEX idx_winback_campaigns_status ON winback_campaigns(status);\nCREATE INDEX idx_winback_campaigns_segment ON winback_campaigns(targetSegment);\nCREATE INDEX idx_winback_messages_campaign ON winback_messages(campaignId);\nCREATE INDEX idx_winback_sends_campaign ON winback_sends(campaignId);\nCREATE INDEX idx_winback_sends_customer ON winback_sends(customerId);\nCREATE INDEX idx_winback_sends_status ON winback_sends(status);\nCREATE INDEX idx_winback_sends_scheduled ON winback_sends(scheduledFor);",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1072 (42000) at line 7: column does not exist: scheduledFor"
-  ]
-}

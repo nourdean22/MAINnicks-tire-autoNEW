@@ -11,6 +11,7 @@ import { z } from "zod";
 import { leads } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone } from "../sanitize";
 import { sendLeadEvent } from "../meta-capi";
+import { SITE_URL } from "@shared/business";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -105,7 +106,7 @@ export const callbackRouter = router({
       if (input.pixelEventId) {
         sendLeadEvent({
           eventId: input.pixelEventId,
-          sourceUrl: "https://nickstire.org",
+          sourceUrl: SITE_URL,
           phone: input.phone,
           name: input.name,
           userAgent: input.pixelUserData?.client_user_agent,
