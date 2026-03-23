@@ -67,7 +67,7 @@ export function EmergencyMode() {
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="fixed top-0 left-0 right-0 z-40 bg-gradient-to-r from-red-950 to-orange-900 border-b border-red-500/50 backdrop-blur-md"
+        className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-red-950 to-orange-900 border-b border-red-500/50 backdrop-blur-md"
       >
         <div className="container flex items-center justify-between py-4 px-4">
           <div className="flex items-center gap-3">

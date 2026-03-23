@@ -11,8 +11,8 @@ import { useRoute, Link } from "wouter";
 import { SERVICES, type ServiceData } from "@shared/services";
 import BookingForm from "@/components/BookingForm";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
-import { Phone, MapPin, Clock, Star, ChevronRight, ChevronDown, ArrowLeft, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Menu, X } from "lucide-react";
-import { AnimatePresence } from "framer-motion";
+import { Phone, MapPin, Clock, Star, ChevronRight, ChevronDown, ArrowLeft, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Snowflake, Menu, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { BUSINESS } from "@shared/business";
 import FadeIn from "@/components/FadeIn";
 import FinancingCTA from "@/components/FinancingCTA";
@@ -25,6 +25,7 @@ const HERO_IMAGES: Record<string, string> = {
   emissions: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
   "oil-change": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
   "general-repair": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+  "ac-repair": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
 };
 
 const SERVICE_ICONS: Record<string, React.ReactNode> = {
@@ -34,10 +35,11 @@ const SERVICE_ICONS: Record<string, React.ReactNode> = {
   emissions: <ThermometerSun className="w-8 h-8" />,
   "oil-change": <Droplets className="w-8 h-8" />,
   "general-repair": <Wrench className="w-8 h-8" />,
+  "ac-repair": <Snowflake className="w-8 h-8" />,
 };
 
 // ─── SERVICE NAVBAR ────────────────────────────────────
-function ServiceNavbar({ service: _service }: { service: ServiceData }) {
+function ServiceNavbar({ service }: { service: ServiceData }) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -69,9 +71,19 @@ function ServiceNavbar({ service: _service }: { service: ServiceData }) {
           <a href="#problems" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">
             Common Problems
           </a>
+          {service.costBreakdown && (
+            <a href="#costs" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">
+              Costs
+            </a>
+          )}
           <a href="#process" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">
             Our Process
           </a>
+          {service.faq && (
+            <a href="#faq" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">
+              FAQ
+            </a>
+          )}
           <a href="#booking" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">
             Book Now
           </a>
@@ -99,9 +111,19 @@ function ServiceNavbar({ service: _service }: { service: ServiceData }) {
             <a href="#problems" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">
               Common Problems
             </a>
+            {service.costBreakdown && (
+              <a href="#costs" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">
+                Costs
+              </a>
+            )}
             <a href="#process" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">
               Our Process
             </a>
+            {service.faq && (
+              <a href="#faq" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">
+                FAQ
+              </a>
+            )}
             <a href="#booking" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">
               Book Now
             </a>
@@ -217,6 +239,7 @@ function Problems({ service }: { service: ServiceData }) {
                 {service.slug === "emissions" && "Ohio E-Check failures are stressful, but most emissions problems have straightforward solutions. Here is what Cleveland drivers ask us most."}
                 {service.slug === "oil-change" && "Oil changes are the most important routine maintenance for your engine. Here are the questions Cleveland drivers ask us about oil service."}
                 {service.slug === "general-repair" && "From strange noises to overheating, these are the general repair concerns Cleveland drivers bring to us most often."}
+                {service.slug === "ac-repair" && "These are the AC and heating problems Cleveland drivers bring to us most often. Knowing the symptoms helps you get the right repair — not just a refrigerant top-off that won't fix the real issue."}
               </p>
               <div className="mt-8 flex items-center gap-3 text-foreground/50">
                 <div className="flex gap-0.5">
@@ -380,6 +403,7 @@ function WhyUs({ service }: { service: ServiceData }) {
                 {service.slug === "emissions" && "We specialize in Ohio E-Check failures and know the exact drive cycles to get your monitors to complete. We fix the root cause — not just clear codes — so you pass inspection the first time back."}
                 {service.slug === "oil-change" && "We use the correct oil weight per your manufacturer specification and quality filters. Every oil change includes a free multi-point inspection so we can catch small problems before they become expensive ones."}
                 {service.slug === "general-repair" && "From suspension and steering to exhaust and cooling systems, we diagnose the root cause and explain every repair in plain language. Written estimates before any work begins — no surprises on the bill."}
+                {service.slug === "ac-repair" && "We diagnose before we repair. Too many shops just dump refrigerant in and send you on your way — then it blows warm again in two weeks because the leak was never fixed. We find the actual problem, explain it, and give you a written estimate before we touch anything."}
               </p>
             </div>
           </FadeIn>
@@ -438,6 +462,188 @@ function QuickAnswers({ service }: { service: ServiceData }) {
   );
 }
 
+// ─── PILLAR INTRO (extended guide intro + seasonal CTA) ──
+function PillarIntro({ service }: { service: ServiceData }) {
+  if (!service.pillarIntro) return null;
+
+  return (
+    <section className="bg-[oklch(0.055_0.004_260)] py-20 lg:py-28">
+      <div className="container">
+        <div className="max-w-4xl mx-auto">
+          <FadeIn>
+            <span className="font-mono text-nick-blue-light text-sm tracking-wide">Complete Guide</span>
+            <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight leading-[1.05]">
+              HOW YOUR CAR'S <span className="text-primary">AC SYSTEM</span> WORKS
+            </h2>
+            <p className="mt-8 text-foreground/70 leading-relaxed text-lg">
+              {service.pillarIntro}
+            </p>
+          </FadeIn>
+
+          {service.seasonalCTA && (
+            <FadeIn delay={0.15}>
+              <div className="mt-10 bg-primary/10 border-l-4 border-primary rounded-r-lg p-6 lg:p-8">
+                <div className="flex items-start gap-4">
+                  <ThermometerSun className="w-6 h-6 text-primary shrink-0 mt-1" />
+                  <div>
+                    <h3 className="font-semibold font-bold text-lg text-primary tracking-wide mb-2">
+                      SEASONAL REMINDER
+                    </h3>
+                    <p className="text-foreground/80 leading-relaxed">
+                      {service.seasonalCTA}
+                    </p>
+                    <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('pillar-seasonal-cta')} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors mt-4" aria-label="Call Nick's Tire and Auto">
+                      <Phone className="w-4 h-4" />
+                      SCHEDULE SPRING AC CHECK
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </FadeIn>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── COST BREAKDOWN ──────────────────────────────────────
+function CostBreakdown({ service }: { service: ServiceData }) {
+  if (!service.costBreakdown || service.costBreakdown.length === 0) return null;
+
+  return (
+    <section id="costs" className="bg-[oklch(0.065_0.004_260)] py-20 lg:py-28">
+      <div className="container">
+        <FadeIn>
+          <span className="font-mono text-primary text-sm tracking-wide">Pricing Transparency</span>
+          <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+            AC REPAIR COSTS IN <span className="text-primary">CLEVELAND</span>
+          </h2>
+          <p className="mt-4 text-foreground/60 text-lg max-w-2xl">
+            Real pricing from our shop. No hidden fees. Written estimate before any work begins.
+          </p>
+        </FadeIn>
+
+        <div className="mt-12 space-y-4">
+          {service.costBreakdown.map((item, i) => (
+            <FadeIn key={i} delay={i * 0.08}>
+              <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 lg:p-8">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                  <h3 className="font-semibold font-bold text-lg lg:text-xl text-foreground tracking-wide">
+                    {item.service}
+                  </h3>
+                  <span className="font-semibold font-bold text-xl lg:text-2xl text-primary whitespace-nowrap">
+                    {item.range}
+                  </span>
+                </div>
+                <p className="text-foreground/60 leading-relaxed text-sm lg:text-base">
+                  {item.description}
+                </p>
+              </div>
+            </FadeIn>
+          ))}
+        </div>
+
+        <FadeIn delay={0.4}>
+          <p className="mt-8 text-foreground/50 text-sm italic">
+            Prices reflect typical ranges for the Cleveland area as of 2024-2025. Your actual cost depends on your specific vehicle and the components that need replacement. We always provide a written estimate before starting work.
+          </p>
+        </FadeIn>
+      </div>
+    </section>
+  );
+}
+
+// ─── COMPREHENSIVE FAQ ───────────────────────────────────
+function PillarFAQ({ service }: { service: ServiceData }) {
+  if (!service.faq || service.faq.length === 0) return null;
+
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+  return (
+    <section id="faq" className="bg-[oklch(0.055_0.004_260)] py-20 lg:py-28">
+      <div className="container">
+        <FadeIn>
+          <span className="font-mono text-nick-blue-light text-sm tracking-wide">FAQ</span>
+          <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+            FREQUENTLY ASKED <span className="text-primary">QUESTIONS</span>
+          </h2>
+          <p className="mt-4 text-foreground/60 text-lg max-w-2xl">
+            In-depth answers to the questions Cleveland drivers ask us about AC repair.
+          </p>
+        </FadeIn>
+
+        <div className="mt-12 max-w-3xl">
+          {service.faq.map((item, i) => (
+            <FadeIn key={i} delay={i * 0.05}>
+              <button
+                onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                className="w-full text-left border-b border-nick-blue/15 py-6 group"
+              >
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold font-bold text-base lg:text-lg text-foreground tracking-wider group-hover:text-primary transition-colors pr-4">
+                    {item.question}
+                  </h3>
+                  <ChevronDown className={`w-5 h-5 text-nick-blue-light transition-transform duration-200 shrink-0 ${openFaq === i ? "rotate-180" : ""}`} />
+                </div>
+                <AnimatePresence>
+                  {openFaq === i && (
+                    <motion.p
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="mt-4 text-foreground/70 leading-relaxed text-base overflow-hidden"
+                    >
+                      {item.answer}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </button>
+            </FadeIn>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── RELATED LINKS ───────────────────────────────────────
+function RelatedLinks({ service }: { service: ServiceData }) {
+  if (!service.relatedLinks || service.relatedLinks.length === 0) return null;
+
+  return (
+    <section className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-20">
+      <div className="container">
+        <FadeIn>
+          <span className="font-mono text-primary text-sm tracking-wide">Related Pages</span>
+          <h2 className="font-semibold font-bold text-2xl lg:text-4xl text-foreground mt-3 tracking-tight">
+            LEARN MORE ABOUT <span className="text-primary">YOUR AC</span>
+          </h2>
+        </FadeIn>
+
+        <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6">
+          {service.relatedLinks.map((link, i) => (
+            <FadeIn key={i} delay={i * 0.1}>
+              <Link
+                href={link.href}
+                className="block bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 lg:p-8 group hover:border-primary/40 transition-colors"
+              >
+                <h3 className="font-semibold font-bold text-lg text-foreground tracking-wide group-hover:text-primary transition-colors flex items-center gap-2">
+                  {link.label}
+                  <ChevronRight className="w-5 h-5 text-nick-blue-light group-hover:text-primary transition-colors" />
+                </h3>
+                <p className="mt-3 text-foreground/60 leading-relaxed text-sm">
+                  {link.description}
+                </p>
+              </Link>
+            </FadeIn>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ─── BOOKING SECTION ───────────────────────────────────
 function BookingSection({ service }: { service: ServiceData }) {
   return (
@@ -479,7 +685,7 @@ function BookingSection({ service }: { service: ServiceData }) {
           </FadeIn>
 
           <FadeIn delay={0.15}>
-            <BookingForm defaultService={service.title === "EMISSIONS & E-CHECK" ? "Ohio E-Check / Emissions Repair" : service.title === "DIAGNOSTICS" ? "Check Engine Light / Diagnostics" : service.title === "OIL CHANGE" ? "Oil Change" : service.title === "GENERAL REPAIR" ? "General Repair / Other" : service.title === "TIRES" ? "Tires — New, Used, Repair" : "Brake Repair"} />
+            <BookingForm defaultService={service.title === "EMISSIONS & E-CHECK" ? "Ohio E-Check / Emissions Repair" : service.title === "DIAGNOSTICS" ? "Check Engine Light / Diagnostics" : service.title === "OIL CHANGE" ? "Oil Change" : service.title === "GENERAL REPAIR" ? "General Repair / Other" : service.title === "TIRES" ? "Tires — New, Used, Repair" : service.title === "AC & HEATING" ? "AC / Heating Repair" : "Brake Repair"} />
             <FinancingCTA variant="banner" className="mt-6" />
           </FadeIn>
         </div>
@@ -540,6 +746,7 @@ function ServiceSchema({ service }: { service: ServiceData }) {
     emissions: "Emissions Testing & Repair Service",
     "oil-change": "Oil Change Service",
     "general-repair": "General Automotive Repair Service",
+    "ac-repair": "Auto AC & Heating Repair Service",
   };
 
   const schema = {
@@ -623,6 +830,14 @@ function ServiceSchema({ service }: { service: ServiceData }) {
         text: qa.answer,
       },
     })),
+    ...(service.faq || []).map((fq) => ({
+      "@type": "Question" as const,
+      name: fq.question,
+      acceptedAnswer: {
+        "@type": "Answer" as const,
+        text: fq.answer,
+      },
+    })),
   ];
 
   const faqSchema = {
@@ -686,14 +901,16 @@ export default function ServicePage() {
       <ServiceSchema service={service} />
       
       
-      <ServiceNavbar service={service} />
-
         <ServiceHero service={service} />
+        <PillarIntro service={service} />
         <Problems service={service} />
         <WarningSigns service={service} />
+        <CostBreakdown service={service} />
         <Process service={service} />
         <WhyUs service={service} />
         <QuickAnswers service={service} />
+        <PillarFAQ service={service} />
+        <RelatedLinks service={service} />
         <BookingSection service={service} />
         <OtherServices currentSlug={service.slug} />
 

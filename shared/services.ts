@@ -47,6 +47,29 @@ export interface ServiceData {
   duration?: string;
   /** Starting price anchor for the service page hero */
   startingPrice?: string;
+
+  // ─── PILLAR PAGE FIELDS (for comprehensive service guides) ───
+  /** Extended intro paragraph for pillar pages */
+  pillarIntro?: string;
+  /** Seasonal urgency callout */
+  seasonalCTA?: string;
+  /** Detailed cost breakdown with descriptions */
+  costBreakdown?: {
+    service: string;
+    range: string;
+    description: string;
+  }[];
+  /** Comprehensive FAQ beyond quickAnswers */
+  faq?: {
+    question: string;
+    answer: string;
+  }[];
+  /** Internal link callouts to related pages */
+  relatedLinks?: {
+    href: string;
+    label: string;
+    description: string;
+  }[];
 }
 
 export const SERVICES: ServiceData[] = [
@@ -600,54 +623,161 @@ export const SERVICES: ServiceData[] = [
     num: "07",
     title: "AC & HEATING",
     shortDesc: "AC recharge, compressor, condenser, evaporator, heater core, and blower motor repair. Stay comfortable year-round.",
-    metaTitle: "AC Repair Cleveland OH | Auto AC & Heating | Nick's Tire & Auto",
-    metaDescription: "Auto AC and heating repair in Cleveland. Recharge, compressor, condenser, evaporator, heater core. Stay comfortable year-round. Walk-ins welcome. (216) 862-0005.",
-    heroHeadline: "AC & HEATING REPAIR",
-    heroSubline: "Cleveland summers are brutal and winters are worse. We diagnose and repair your vehicle's climate system so you stay comfortable no matter the season.",
+    metaTitle: "AC Repair Cleveland OH | Complete Auto AC Guide | Nick's Tire & Auto",
+    metaDescription: "Complete guide to auto AC repair in Cleveland. Costs, common problems, symptoms, and expert diagnosis. Recharge from $149. Walk-ins welcome. (216) 862-0005.",
+    heroHeadline: "CLEVELAND'S COMPLETE GUIDE TO AUTO AC REPAIR",
+    heroSubline: "Everything you need to know about your car's air conditioning system — common problems, repair costs, and when to get service. From the technicians Cleveland drivers trust.",
     heroCTA: "FIX MY AC",
     turnaround: "Most AC repairs completed same day. Recharges done in 30-60 minutes.",
     pricingNote: "AC inspection with repair · No charge for leak check with service",
+    urgencyNote: "Don't wait until July — Cleveland summers are brutal. AC systems that sit all winter often develop leaks from dried-out seals. Get your AC checked in spring before the first heat wave hits and every shop in town is backed up.",
     signs: [
       "AC blowing warm or hot air",
       "Weak airflow from vents",
       "Strange smell when AC is on (musty or sweet)",
       "AC cycles on and off rapidly",
+      "AC works sometimes but not consistently",
+      "Hissing or bubbling sounds from the dash area",
       "Heater not producing warm air",
       "Foggy windshield that won't clear",
+      "Water dripping inside the car on the passenger side",
+      "AC compressor making a loud clunk when engaging",
     ],
     problems: [
-      { question: "AC blowing warm air?", answer: "The most common cause is low refrigerant from a leak. We perform a leak test using UV dye and electronic detection. If the system is simply low, a recharge may fix it. But if there is a leak in the compressor, condenser, or evaporator, we identify and repair the source before recharging." },
-      { question: "Weak airflow from vents?", answer: "Weak airflow usually points to a clogged cabin air filter, a failing blower motor, or a stuck blend door actuator. We start with the cabin filter since it is cheap and common, then test the blower motor and check the actuators if the filter is not the issue." },
-      { question: "Heater not working?", answer: "No heat usually means low coolant, a stuck thermostat, a clogged heater core, or a failed blend door actuator. We check coolant level and thermostat operation first. A clogged heater core can sometimes be flushed; a failed one needs replacement." },
-      { question: "AC makes a clicking or grinding noise?", answer: "Clicking when the AC engages often means the compressor clutch is failing. Grinding indicates internal compressor damage. Both require compressor replacement. We also check the system for metal debris which can damage other components." },
+      {
+        question: "AC blows warm air?",
+        answer: "This is the number one AC complaint we hear. The most common cause is low refrigerant from a slow leak — often from deteriorated O-rings, a pinhole in the condenser, or a leaking evaporator core. We perform a comprehensive leak test using UV dye injection and an electronic refrigerant sniffer. If the system is simply low, a recharge brings it back to cold. But if there is a leak — and there usually is if your system lost refrigerant — we locate and repair the source before recharging. Other causes include compressor failure (the pump that pressurizes refrigerant), a blocked condenser (the radiator-like component in front of your car), or a failed expansion valve. We test each component systematically so you only pay for what is actually broken.",
+      },
+      {
+        question: "AC works intermittently — cold sometimes, warm others?",
+        answer: "Intermittent AC is one of the trickier problems because it works fine when you bring it to the shop. Common causes include a cycling compressor clutch (the electromagnetic clutch engages and disengages the compressor — when it starts to fail, it cuts in and out), an electrical issue like a bad relay or pressure switch, or a failing blend door actuator. The blend door controls whether air flows through the heater core or evaporator. When the actuator motor fails, the door can get stuck in a halfway position, mixing hot and cold air unpredictably. We test the compressor clutch engagement, check the electrical circuits, and verify blend door operation to find the intermittent cause.",
+      },
+      {
+        question: "Strange noise when AC is on?",
+        answer: "Noises that only happen when the AC is running point to specific components. A squealing or screeching sound usually means the serpentine belt is slipping — the AC compressor adds load to the belt, and a worn or loose belt cannot handle it. A grinding or growling noise indicates a failing compressor bearing — the internal bearings are wearing out and the compressor needs replacement before it seizes and sends metal debris through your entire AC system. A rattling sound can be debris caught in the blower fan or a loose condenser mounting bracket. We identify the noise source and fix it before it causes collateral damage.",
+      },
+      {
+        question: "Musty smell from the vents?",
+        answer: "That musty, gym-locker smell coming from your vents is mold and bacteria growing on the evaporator core. The evaporator sits behind your dashboard and gets wet every time the AC runs — condensation forms on its cold surface. Normally this moisture drains out through a tube under the car. But if the drain gets clogged or the evaporator stays damp, mold colonizes the surface and every time you turn on the fan, you breathe it in. The first fix is replacing the cabin air filter — a dirty filter traps moisture and feeds mold. If that does not solve it, we treat the evaporator with an antimicrobial spray and clear the condensate drain. Regular cabin filter changes prevent this from coming back.",
+      },
+      {
+        question: "AC doesn't turn on at all?",
+        answer: "When you press the AC button and nothing happens — no click from the compressor, no change in engine sound — the issue is usually electrical. We start with the simple stuff: a blown AC fuse or a failed AC relay. These are cheap fixes. If the fuse and relay are good, we check the AC pressure switch (the system will not engage the compressor if refrigerant is too low or too high — a safety feature). Next we test the compressor clutch coil itself and verify power and ground signals. On newer vehicles, the AC system is controlled by the body control module, so we also check for diagnostic codes that might disable the system.",
+      },
+      {
+        question: "Weak airflow from vents?",
+        answer: "Weak airflow usually points to a clogged cabin air filter, a failing blower motor, or a stuck blend door actuator. We start with the cabin filter since it is cheap and common — a severely clogged filter can reduce airflow by 50% or more. Then we test the blower motor and check the actuators if the filter is not the issue. A blower motor resistor failure can also cause the fan to only work on certain speeds.",
+      },
     ],
     process: [
-      { step: "Test & Inspect", detail: "Check refrigerant pressure, test compressor engagement, measure vent temperatures, inspect all components." },
-      { step: "Leak Detection", detail: "UV dye test and electronic sniffer to find any refrigerant leaks in the system." },
-      { step: "Diagnose", detail: "Identify the failed component — compressor, condenser, evaporator, blend door, or blower motor." },
-      { step: "Repair & Recharge", detail: "Replace the failed part, evacuate the system, recharge with correct refrigerant amount, verify cold air." },
+      { step: "Test & Inspect", detail: "Check refrigerant pressure on both high and low sides, test compressor engagement, measure vent temperatures at every vent, inspect belts, hoses, and all visible AC components." },
+      { step: "Leak Detection", detail: "UV dye injection and electronic refrigerant sniffer to find any leaks in the system. We check the compressor shaft seal, condenser, evaporator, hose connections, and service ports." },
+      { step: "Diagnose", detail: "Identify the exact failed component — compressor, condenser, evaporator, expansion valve, blend door actuator, or blower motor. We explain what failed and why." },
+      { step: "Written Estimate", detail: "You get a written estimate with the exact cost before we touch anything. No surprises." },
+      { step: "Repair & Recharge", detail: "Replace the failed part, evacuate the system, pull a vacuum to remove moisture, recharge with the exact manufacturer-specified refrigerant amount, and verify cold air output at every vent." },
     ],
     whyUs: [
-      "Full AC system diagnostics",
-      "Compressor, condenser, evaporator replacement",
-      "AC recharge and leak repair",
+      "Full AC system diagnostics — not just a recharge and hope for the best",
+      "Compressor, condenser, evaporator, and expansion valve replacement",
+      "AC recharge with proper leak detection first",
       "Heater core and blower motor service",
-      "Cabin air filter replacement",
-      "Climate control diagnostics",
+      "Cabin air filter replacement and evaporator cleaning",
+      "Climate control and blend door actuator diagnostics",
+      "Written estimates before any work — no surprises",
+      "Same-day service for most AC repairs",
     ],
-    keywords: ["AC repair Cleveland", "auto AC recharge Cleveland", "car heater repair", "AC not blowing cold Cleveland", "auto climate control repair"],
+    keywords: ["AC repair Cleveland", "auto AC recharge Cleveland", "car heater repair", "AC not blowing cold Cleveland", "auto climate control repair", "car AC cost Cleveland", "AC compressor replacement Cleveland", "auto AC leak repair"],
     quickAnswers: [
-      { question: "How much does car AC repair cost in Cleveland?", answer: "AC repair costs depend on the problem. A simple recharge runs $100 to $200. Compressor replacement is $500 to $1,200. Condenser or evaporator replacement ranges from $400 to $900. At Nick's Tire & Auto we diagnose the issue first and give you a written estimate before any work." },
-      { question: "Why is my car AC blowing warm air?", answer: "The most common reason is low refrigerant from a leak. Other causes include a failed compressor, clogged condenser, bad expansion valve, or electrical issue. A proper diagnosis requires checking refrigerant pressure and testing each component in the system." },
+      { question: "How much does car AC repair cost in Cleveland?", answer: "AC repair costs in Cleveland depend on the problem. A refrigerant recharge runs $149 to $199. Compressor replacement costs $499 to $899. Condenser replacement is $399 to $699. Evaporator replacement ranges from $599 to $999. AC hose repair runs $149 to $299. At Nick's Tire & Auto we diagnose the issue first and give you a written estimate before any work begins." },
+      { question: "Why is my car AC blowing warm air?", answer: "The most common reason is low refrigerant from a leak. Other causes include a failed compressor, clogged condenser, bad expansion valve, or electrical issue. A proper diagnosis requires checking refrigerant pressure on both high and low sides and testing each component in the system. Do not just add refrigerant — find out why it is low first." },
     ],
-    includedItems: ["AC system pressure test", "Vent temperature measurement", "Leak detection", "Written estimate before work", "Refrigerant recharge with repair"],
+    includedItems: ["AC system pressure test (high and low side)", "Vent temperature measurement at every vent", "UV dye leak detection", "Electronic refrigerant sniffer test", "Written estimate before work", "Refrigerant recharge included with repair", "Post-repair verification of cold air output"],
     pricingTiers: [
-      { label: "AC recharge", range: "$100–$200" },
-      { label: "Compressor replacement", range: "$500–$1,200" },
-      { label: "Condenser/evaporator", range: "$400–$900" },
+      { label: "Refrigerant recharge", range: "$149–$199" },
+      { label: "Compressor replacement", range: "$499–$899" },
+      { label: "Condenser replacement", range: "$399–$699" },
+      { label: "Evaporator replacement", range: "$599–$999" },
+      { label: "AC hose repair", range: "$149–$299" },
     ],
-    duration: "1–4 hours depending on repair",
-    startingPrice: "From $100",
+    duration: "Recharge: 30-60 min. Component repair: 2-4 hours. Evaporator: 4-8 hours.",
+    startingPrice: "From $149",
+
+    // ─── PILLAR PAGE CONTENT ───────────────────────────────
+    pillarIntro: "Your car's air conditioning system is more complex than most drivers realize. It is a sealed loop of high-pressure refrigerant that cycles between liquid and gas states to absorb heat from your cabin and release it outside. The system includes a compressor (the pump), a condenser (releases heat outside), an evaporator (absorbs heat inside the cabin), an expansion valve (controls refrigerant flow), and a network of hoses, O-rings, and sensors. When any one of these components fails, the whole system stops working. Cleveland's climate is especially hard on AC systems — freezing winters cause O-ring seals to dry out and crack, and humid summers push the system to its limits. This guide covers every common AC problem, what causes it, what it costs to fix, and how to tell if your shop is giving you an honest diagnosis.",
+
+    seasonalCTA: "Don't wait until July — Cleveland summers are brutal. The first 90-degree day, every AC shop in Northeast Ohio is booked solid. Get your system checked in spring while we can get you in same-day. AC seals dry out over winter and small leaks become big problems once you start using the system daily.",
+
+    costBreakdown: [
+      {
+        service: "Refrigerant Recharge",
+        range: "$149–$199",
+        description: "Includes leak test, system evacuation, and recharge with R-134a or R-1234yf refrigerant to manufacturer spec. If we find a leak, we quote the repair separately. A recharge without a leak test is a waste of money — the refrigerant will just leak out again.",
+      },
+      {
+        service: "Compressor Replacement",
+        range: "$499–$899",
+        description: "The compressor is the heart of the AC system. Replacement includes the compressor, new refrigerant oil, system flush to remove debris, new receiver/drier, evacuation, and recharge. Price varies by vehicle — some compressors are easy to access, others require removing other components.",
+      },
+      {
+        service: "Condenser Replacement",
+        range: "$399–$699",
+        description: "The condenser sits in front of your radiator and is vulnerable to road debris. Replacement includes the new condenser, receiver/drier, evacuation, and recharge. Rock damage and corrosion from Cleveland road salt are the most common causes of condenser leaks.",
+      },
+      {
+        service: "Evaporator Replacement",
+        range: "$599–$999",
+        description: "The evaporator is buried behind your dashboard, making it the most labor-intensive AC repair. The dashboard often needs to come apart to access it. The wide price range reflects the huge variation in labor between vehicles. We quote your specific vehicle before starting.",
+      },
+      {
+        service: "AC Hose Repair",
+        range: "$149–$299",
+        description: "AC hoses carry refrigerant between components. They develop leaks at crimped fittings and where they flex near the compressor. Hose replacement includes new O-rings, evacuation, and recharge.",
+      },
+    ],
+
+    faq: [
+      {
+        question: "How often should I service my car's AC system?",
+        answer: "Unlike oil changes, AC systems do not need regular scheduled service. A properly sealed AC system can go the entire life of the vehicle without needing refrigerant. If your AC is blowing cold, leave it alone. If it starts blowing warm, that means refrigerant has leaked out and you need a diagnosis — not just a top-off. The one maintenance item is your cabin air filter, which should be replaced every 15,000 to 20,000 miles or once a year.",
+      },
+      {
+        question: "Is it worth repairing AC on an older car?",
+        answer: "It depends on the repair. A $149 recharge on a car worth $3,000 makes sense. A $900 evaporator replacement on that same car might not. We give you an honest assessment based on the repair cost versus the value of your vehicle. We will never push an expensive repair on a car that is not worth it.",
+      },
+      {
+        question: "Can I just add refrigerant myself with a can from the auto parts store?",
+        answer: "Those DIY recharge kits can actually cause more harm than good. They do not measure how much refrigerant is already in the system, so you can easily overcharge it — which damages the compressor. They also contain stop-leak sealant that can clog your expansion valve and contaminate the system. If your AC is low on refrigerant, there is a leak, and adding more just delays the real repair while the leak gets worse.",
+      },
+      {
+        question: "Why does my AC smell bad when I first turn it on?",
+        answer: "That musty smell is mold growing on the evaporator core. The evaporator gets wet from condensation every time the AC runs. If moisture does not drain properly or the cabin air filter is dirty, mold and bacteria thrive. Replace your cabin air filter and we can treat the evaporator with an antimicrobial spray. Running the fan on high without AC for the last few minutes of your drive helps dry the evaporator and prevents mold growth.",
+      },
+      {
+        question: "What is the difference between R-134a and R-1234yf refrigerant?",
+        answer: "R-134a has been the standard automotive refrigerant for decades. Starting around 2015, manufacturers began switching to R-1234yf because it has a much lower environmental impact. The two are not interchangeable — your vehicle uses one or the other. R-1234yf is more expensive per pound, which is one reason newer vehicle AC repairs cost a bit more. We stock both and use whatever your vehicle requires.",
+      },
+      {
+        question: "How long does an AC repair take?",
+        answer: "A refrigerant recharge takes 30 to 60 minutes. Compressor, condenser, or hose replacement is typically 2 to 4 hours. Evaporator replacement is the longest at 4 to 8 hours because of dashboard removal. We complete most AC repairs same-day. For evaporator jobs, we may need your vehicle overnight.",
+      },
+      {
+        question: "My AC works fine on the highway but blows warm in stop-and-go traffic. Why?",
+        answer: "At highway speed, air flows through the condenser and helps cool the refrigerant. In stop-and-go traffic, the condenser fan is supposed to do that job. If the condenser fan motor has failed, the fan relay is bad, or the condenser is partially blocked with debris, the system cannot shed heat at low speeds. We check condenser fan operation, clean debris from the condenser, and test the fan circuit.",
+      },
+    ],
+
+    relatedLinks: [
+      {
+        href: "/car-ac-not-blowing-cold",
+        label: "Car AC Not Blowing Cold Air?",
+        description: "Detailed symptom guide covering every reason your AC might not be cooling — from low refrigerant to compressor failure. Includes diagnostic steps you can check yourself before bringing it in.",
+      },
+      {
+        href: "/diagnostics",
+        label: "Diagnostic Services",
+        description: "Our full diagnostic process for all vehicle systems, including AC. We use advanced scan tools and live data to pinpoint problems accurately.",
+      },
+    ],
   },
   {
     slug: "transmission",

@@ -28,30 +28,56 @@ interface SEOHeadProps {
   description: string;
   canonicalPath: string; // e.g. "/tires" or "/" or "/blog/my-article"
   ogImage?: string;
+  ogTitle?: string;
+  ogDescription?: string;
+  ogUrl?: string;
+  twitterCard?: "summary" | "summary_large_image";
+  twitterTitle?: string;
+  twitterDescription?: string;
+  twitterImage?: string;
 }
 
 /**
  * Sets document title, meta description, and canonical link tag.
  * Call once per page in a useEffect or at the top of the page component.
  */
-export function SEOHead({ title, description, canonicalPath, ogImage }: SEOHeadProps) {
+export function SEOHead({
+  title,
+  description,
+  canonicalPath,
+  ogImage,
+  ogTitle,
+  ogDescription,
+  ogUrl,
+  twitterCard = "summary_large_image",
+  twitterTitle,
+  twitterDescription,
+  twitterImage,
+}: SEOHeadProps) {
   useEffect(() => {
+    const canonicalUrl = ogUrl || `${BASE_URL}${canonicalPath}`;
+    const defaultOgImage = ogImage || `${BASE_URL}/og-default.png`;
+
     // Title
     document.title = title;
 
-    // Meta description
-    const metaDesc = document.querySelector('meta[name="description"]');
-    if (metaDesc) {
-      metaDesc.setAttribute("content", description);
-    } else {
-      const meta = document.createElement("meta");
-      meta.name = "description";
-      meta.content = description;
-      document.head.appendChild(meta);
+    // Helper: upsert a <meta> tag by selector
+    function upsertMeta(selector: string, attr: "name" | "property", attrValue: string, content: string) {
+      let el = document.querySelector(selector);
+      if (el) {
+        el.setAttribute("content", content);
+      } else {
+        el = document.createElement("meta");
+        el.setAttribute(attr, attrValue);
+        el.setAttribute("content", content);
+        document.head.appendChild(el);
+      }
     }
 
+    // Meta description
+    upsertMeta('meta[name="description"]', "name", "description", description);
+
     // Canonical link
-    const canonicalUrl = `${BASE_URL}${canonicalPath}`;
     let canonicalLink = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
     if (canonicalLink) {
       canonicalLink.href = canonicalUrl;
@@ -62,50 +88,26 @@ export function SEOHead({ title, description, canonicalPath, ogImage }: SEOHeadP
       document.head.appendChild(canonicalLink);
     }
 
-    // OG URL
-    const ogUrl = document.querySelector('meta[property="og:url"]');
-    if (ogUrl) {
-      ogUrl.setAttribute("content", canonicalUrl);
-    }
+    // Open Graph tags
+    upsertMeta('meta[property="og:type"]', "property", "og:type", "website");
+    upsertMeta('meta[property="og:url"]', "property", "og:url", canonicalUrl);
+    upsertMeta('meta[property="og:title"]', "property", "og:title", ogTitle || title);
+    upsertMeta('meta[property="og:description"]', "property", "og:description", ogDescription || description);
+    upsertMeta('meta[property="og:image"]', "property", "og:image", defaultOgImage);
+    upsertMeta('meta[property="og:site_name"]', "property", "og:site_name", "Nick's Tire & Auto");
 
-    // OG Title
-    const ogTitle = document.querySelector('meta[property="og:title"]');
-    if (ogTitle) {
-      ogTitle.setAttribute("content", title);
-    }
-
-    // OG Description
-    const ogDesc = document.querySelector('meta[property="og:description"]');
-    if (ogDesc) {
-      ogDesc.setAttribute("content", description);
-    }
-
-    // OG Image (if provided)
-    if (ogImage) {
-      const ogImg = document.querySelector('meta[property="og:image"]');
-      if (ogImg) {
-        ogImg.setAttribute("content", ogImage);
-      }
-    }
-
-    // Twitter Title
-    const twTitle = document.querySelector('meta[name="twitter:title"]');
-    if (twTitle) {
-      twTitle.setAttribute("content", title);
-    }
-
-    // Twitter Description
-    const twDesc = document.querySelector('meta[name="twitter:description"]');
-    if (twDesc) {
-      twDesc.setAttribute("content", description);
-    }
+    // Twitter Card tags
+    upsertMeta('meta[name="twitter:card"]', "name", "twitter:card", twitterCard);
+    upsertMeta('meta[name="twitter:title"]', "name", "twitter:title", twitterTitle || ogTitle || title);
+    upsertMeta('meta[name="twitter:description"]', "name", "twitter:description", twitterDescription || ogDescription || description);
+    upsertMeta('meta[name="twitter:image"]', "name", "twitter:image", twitterImage || defaultOgImage);
 
     // Cleanup: remove canonical on unmount so next page can set its own
     return () => {
       const link = document.querySelector('link[rel="canonical"]');
       if (link) link.remove();
     };
-  }, [title, description, canonicalPath, ogImage]);
+  }, [title, description, canonicalPath, ogImage, ogTitle, ogDescription, ogUrl, twitterCard, twitterTitle, twitterDescription, twitterImage]);
 
   return null;
 }

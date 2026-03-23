@@ -1,18 +1,45 @@
 /**
- * StickyTrustBar — Appears below navbar after scrolling past hero.
- * Shows key trust signals: rating, reviews, established year, same-day.
- * Dismissable on mobile.
+ * StickyTrustBar (Phase 1.3) — Always-visible trust bar below header, above hero.
+ * Shows: star rating, Google review count, live open/closed status, financing CTA.
  */
 
 import { useState, useEffect } from "react";
-import { X, Star } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { Star, DollarSign } from "lucide-react";
+import { motion } from "framer-motion";
 import { BUSINESS } from "@shared/business";
 import { trpc } from "@/lib/trpc";
 
+/** Return whether the shop is currently open, plus a human-readable label. */
+function getOpenStatus(): { isOpen: boolean; label: string } {
+  const now = new Date();
+  const day = now.getDay(); // 0 = Sunday
+  const minutes = now.getHours() * 60 + now.getMinutes();
+
+  // Sunday: 9 AM - 4 PM
+  if (day === 0) {
+    const open = 9 * 60;
+    const close = 16 * 60;
+    if (minutes >= open && minutes < close) return { isOpen: true, label: "Open Now" };
+    if (minutes < open) return { isOpen: false, label: "Opens at 9 AM" };
+    return { isOpen: false, label: "Opens at 8 AM" };
+  }
+
+  // Monday-Saturday: 8 AM - 6 PM
+  if (day >= 1 && day <= 6) {
+    const open = 8 * 60;
+    const close = 18 * 60;
+    if (minutes >= open && minutes < close) return { isOpen: true, label: "Open Now" };
+    if (minutes < open) return { isOpen: false, label: "Opens at 8 AM" };
+    // After closing — next day
+    if (day === 6) return { isOpen: false, label: "Opens at 9 AM" }; // Saturday -> Sunday
+    return { isOpen: false, label: "Opens at 8 AM" };
+  }
+
+  return { isOpen: false, label: "Opens at 8 AM" };
+}
+
 export default function StickyTrustBar() {
-  const [visible, setVisible] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  const [status, setStatus] = useState(getOpenStatus);
 
   const { data: googleData } = trpc.reviews.google.useQuery(undefined, {
     staleTime: 60 * 60 * 1000,
@@ -20,54 +47,89 @@ export default function StickyTrustBar() {
   });
   const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
 
+  // Re-check open status every 60 s
   useEffect(() => {
-    const onScroll = () => {
-      // Show after scrolling past hero (~100vh)
-      setVisible(window.scrollY > window.innerHeight * 0.8);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    const id = setInterval(() => setStatus(getOpenStatus()), 60_000);
+    return () => clearInterval(id);
   }, []);
 
-  if (dismissed) return null;
-
   return (
-    <AnimatePresence>
-      {visible && (
-        <motion.div
-          initial={{ y: -40, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: -40, opacity: 0 }}
-          transition={{ duration: 0.25, ease: "easeOut" }}
-          className="fixed top-[60px] left-0 right-0 z-40 bg-[oklch(0.09_0.005_260/0.95)] backdrop-blur-xl border-b border-primary/10"
-        >
-          <div className="container flex items-center justify-between h-10">
-            <div className="flex items-center gap-4 sm:gap-6 text-xs sm:text-sm overflow-x-auto">
-              <div className="flex items-center gap-1.5 shrink-0">
-                <Star className="w-3.5 h-3.5 fill-nick-yellow text-primary" />
-                <span className="text-foreground/70 font-medium">
-                  {BUSINESS.reviews.rating} Stars
-                </span>
-              </div>
-              <span className="w-px h-3.5 bg-foreground/10 shrink-0" />
-              <span className="text-foreground/50 shrink-0">{totalReviews.toLocaleString()}+ Reviews</span>
-              <span className="w-px h-3.5 bg-foreground/10 shrink-0 hidden sm:block" />
-              <span className="text-foreground/50 shrink-0 hidden sm:block">Est. 2018</span>
-              <span className="w-px h-3.5 bg-foreground/10 shrink-0 hidden sm:block" />
-              <span className="text-foreground/50 shrink-0 hidden sm:block">Same-Day Service</span>
-            </div>
+    <motion.div
+      initial={{ y: -40, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      className="w-full bg-[#141414] border-b border-[#2A2A2A]"
+    >
+      {/* Desktop layout */}
+      <div className="hidden sm:flex items-center justify-between h-10 px-4 max-w-7xl mx-auto text-[13px] font-sans font-medium text-[#F5F5F5]">
+        {/* Left: Stars + rating */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {[...Array(5)].map((_, i) => (
+            <Star key={i} className="w-3.5 h-3.5 fill-[#FDB913] text-[#FDB913]" />
+          ))}
+          <span className="ml-1">{BUSINESS.reviews.rating} Stars</span>
+        </div>
 
-            {/* Dismiss on mobile */}
-            <button
-              onClick={() => setDismissed(true)}
-              className="lg:hidden text-foreground/25 hover:text-foreground/50 p-1 shrink-0 ml-2"
-              aria-label="Dismiss trust bar"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        {/* Center-left: Review count */}
+        <div className="shrink-0 text-[#F5F5F5]/70">
+          {totalReviews.toLocaleString()}+ Google Reviews
+        </div>
+
+        {/* Center-right: Open/Closed status */}
+        <div className="flex items-center gap-2 shrink-0">
+          {status.isOpen ? (
+            <>
+              <span className="pulse-dot inline-block w-2 h-2 rounded-full bg-green-500" />
+              <span className="text-green-400">{status.label}</span>
+            </>
+          ) : (
+            <span className="text-red-400">{status.label}</span>
+          )}
+        </div>
+
+        {/* Right: Financing */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <DollarSign className="w-3.5 h-3.5 text-[#FDB913]" />
+          <span>$0 Down Financing Available</span>
+        </div>
+      </div>
+
+      {/* Mobile layout — horizontal scroll, show rating + status */}
+      <div className="flex sm:hidden items-center gap-4 h-9 px-4 overflow-x-auto text-[13px] font-sans font-medium text-[#F5F5F5] scrollbar-none">
+        {/* Stars + rating */}
+        <div className="flex items-center gap-1 shrink-0">
+          {[...Array(5)].map((_, i) => (
+            <Star key={i} className="w-3 h-3 fill-[#FDB913] text-[#FDB913]" />
+          ))}
+          <span className="ml-1">{BUSINESS.reviews.rating}</span>
+        </div>
+
+        <span className="w-px h-3.5 bg-[#F5F5F5]/10 shrink-0" />
+
+        {/* Review count */}
+        <span className="text-[#F5F5F5]/70 shrink-0">
+          {totalReviews.toLocaleString()}+ Reviews
+        </span>
+
+        <span className="w-px h-3.5 bg-[#F5F5F5]/10 shrink-0" />
+
+        {/* Open status */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {status.isOpen ? (
+            <>
+              <span className="pulse-dot inline-block w-2 h-2 rounded-full bg-green-500" />
+              <span className="text-green-400">{status.label}</span>
+            </>
+          ) : (
+            <span className="text-red-400">{status.label}</span>
+          )}
+        </div>
+
+        <span className="w-px h-3.5 bg-[#F5F5F5]/10 shrink-0" />
+
+        {/* Financing */}
+        <span className="shrink-0">$0 Down Financing</span>
+      </div>
+    </motion.div>
   );
 }

@@ -1,20 +1,19 @@
 /**
  * "What's Wrong With My Car?" — AI-Powered Diagnostic Tool
- * Interactive symptom checker that demonstrates Nick's diagnostic expertise.
- * Guides users through symptom selection, provides AI analysis, and converts to leads.
+ * Phase 1.11: Interactive car silhouette with clickable zones,
+ * severity-coded result cards, and scan animation.
  */
 
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link } from "wouter";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { trpc } from "@/lib/trpc";
 import {
-  Phone, ChevronRight, ChevronLeft,
-  AlertTriangle, Gauge, ThermometerSun, Eye, Zap,
-  Shield, Wrench, Car, CheckCircle, ArrowRight, Loader2,
-  Volume2, Wind, CircleDot, Activity, RotateCcw
+  Phone, AlertTriangle, Zap,
+  Shield, Wrench, Car, ArrowRight, Loader2,
+  Activity, RotateCcw, CircleDot, ChevronRight
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import FadeIn from "@/components/FadeIn";
@@ -24,105 +23,44 @@ import FinancingCTA from "@/components/FinancingCTA";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp";
 
-
-
-// ─── SYMPTOM DATA ──────────────────────────────────────
-type SymptomCategory = {
+// ─── CAR ZONES ────────────────────────────────────────
+type CarZone = {
   id: string;
   label: string;
-  icon: React.ReactNode;
-  color: string;
-  symptoms: { id: string; label: string; detail: string }[];
+  description: string;
+  prefilledSymptom: string;
 };
 
-const SYMPTOM_CATEGORIES: SymptomCategory[] = [
+const CAR_ZONES: CarZone[] = [
   {
-    id: "sounds",
-    label: "Unusual Sounds",
-    icon: <Volume2 className="w-6 h-6" />,
-    color: "text-blue-400",
-    symptoms: [
-      { id: "squealing-brakes", label: "Squealing when braking", detail: "High-pitched noise when you press the brake pedal" },
-      { id: "grinding-brakes", label: "Grinding when braking", detail: "Metal-on-metal grinding sound during braking" },
-      { id: "clicking-turning", label: "Clicking when turning", detail: "Rhythmic clicking noise during turns" },
-      { id: "knocking-engine", label: "Knocking from engine", detail: "Knocking or pinging sound from the engine bay" },
-      { id: "whining-steering", label: "Whining when steering", detail: "Whining or groaning noise when turning the wheel" },
-      { id: "rumbling-exhaust", label: "Loud exhaust rumble", detail: "Louder than normal exhaust noise" },
-      { id: "humming-driving", label: "Humming while driving", detail: "Constant humming that changes with speed" },
-      { id: "rattling-idle", label: "Rattling at idle", detail: "Rattling or vibrating noise when the car is idling" },
-    ],
+    id: "front",
+    label: "Engine / Starting",
+    description: "Engine bay, starting issues, check engine light",
+    prefilledSymptom: "Engine / Starting Issues: My car is having problems with the engine area — hard starting, stalling, rough idle, knocking, check engine light, or reduced power.",
   },
   {
-    id: "warning-lights",
-    label: "Warning Lights",
-    icon: <AlertTriangle className="w-6 h-6" />,
-    color: "text-red-400",
-    symptoms: [
-      { id: "check-engine", label: "Check engine light", detail: "The check engine / MIL light is on" },
-      { id: "check-engine-flashing", label: "Check engine light flashing", detail: "The check engine light is blinking or flashing" },
-      { id: "abs-light", label: "ABS warning light", detail: "Anti-lock braking system warning is illuminated" },
-      { id: "battery-light", label: "Battery warning light", detail: "Battery or charging system warning light" },
-      { id: "oil-light", label: "Oil pressure warning", detail: "Low oil pressure warning light" },
-      { id: "temp-light", label: "Temperature warning", detail: "Engine overheating warning light" },
-      { id: "tpms-light", label: "Tire pressure light (TPMS)", detail: "Tire pressure monitoring system alert" },
-      { id: "brake-light", label: "Brake warning light", detail: "Brake system warning indicator" },
-    ],
+    id: "front-wheels",
+    label: "Brakes / Tires",
+    description: "Brake noise, tire wear, pulling to one side",
+    prefilledSymptom: "Brakes / Tires: I'm experiencing brake or tire issues — squealing or grinding when braking, uneven tire wear, vibration, pulling to one side, or TPMS light.",
   },
   {
-    id: "performance",
-    label: "Performance Issues",
-    icon: <Gauge className="w-6 h-6" />,
-    color: "text-amber-400",
-    symptoms: [
-      { id: "hard-starting", label: "Hard to start", detail: "Engine cranks but takes multiple attempts to start" },
-      { id: "stalling", label: "Engine stalling", detail: "Engine dies while driving or at idle" },
-      { id: "rough-idle", label: "Rough idle", detail: "Engine vibrates or runs unevenly at idle" },
-      { id: "poor-acceleration", label: "Poor acceleration", detail: "Sluggish response when pressing the gas" },
-      { id: "poor-fuel-economy", label: "Poor fuel economy", detail: "Getting fewer miles per gallon than usual" },
-      { id: "transmission-slipping", label: "Transmission slipping", detail: "RPMs rise but car does not accelerate properly" },
-      { id: "shaking-driving", label: "Shaking while driving", detail: "Vibration felt through steering wheel or seat" },
-      { id: "pulling-side", label: "Pulling to one side", detail: "Vehicle drifts left or right while driving straight" },
-    ],
+    id: "cabin",
+    label: "AC / Heating / Electrical",
+    description: "Climate control, electronics, interior comfort",
+    prefilledSymptom: "AC / Heating / Electrical: There's a problem with interior comfort or electronics — AC blowing warm, heater not working, windows fogging, musty smell from vents, or electrical issues.",
   },
   {
-    id: "smells",
-    label: "Unusual Smells",
-    icon: <Wind className="w-6 h-6" />,
-    color: "text-emerald-400",
-    symptoms: [
-      { id: "burning-rubber", label: "Burning rubber smell", detail: "Smell of burning rubber from the engine or wheels" },
-      { id: "burning-oil", label: "Burning oil smell", detail: "Acrid smell of burning engine oil" },
-      { id: "sweet-smell", label: "Sweet/coolant smell", detail: "Sweet, syrupy smell from the engine area" },
-      { id: "rotten-eggs", label: "Rotten egg smell", detail: "Sulfur or rotten egg odor from exhaust" },
-      { id: "gas-smell", label: "Gasoline smell", detail: "Strong fuel odor inside or outside the vehicle" },
-      { id: "musty-ac", label: "Musty smell from AC", detail: "Mold or mildew smell when AC is running" },
-    ],
+    id: "rear",
+    label: "Exhaust / Emissions",
+    description: "Exhaust noise, smoke, smells from rear",
+    prefilledSymptom: "Exhaust / Emissions: I'm noticing exhaust-related symptoms — loud rumble, white/blue/black smoke from tailpipe, rotten egg smell, or emissions warning.",
   },
   {
-    id: "visual",
-    label: "Visual Signs",
-    icon: <Eye className="w-6 h-6" />,
-    color: "text-purple-400",
-    symptoms: [
-      { id: "fluid-leak", label: "Fluid leaking underneath", detail: "Puddles or spots under the parked vehicle" },
-      { id: "white-smoke", label: "White smoke from exhaust", detail: "Thick white smoke from the tailpipe" },
-      { id: "blue-smoke", label: "Blue smoke from exhaust", detail: "Blue-tinted smoke from the tailpipe" },
-      { id: "black-smoke", label: "Black smoke from exhaust", detail: "Dark black smoke from the tailpipe" },
-      { id: "uneven-tire-wear", label: "Uneven tire wear", detail: "Tires wearing unevenly on one side or in patches" },
-      { id: "rust-damage", label: "Visible rust or damage", detail: "Rust spots or physical damage on body or undercarriage" },
-    ],
-  },
-  {
-    id: "comfort",
-    label: "Comfort & Climate",
-    icon: <ThermometerSun className="w-6 h-6" />,
-    color: "text-orange-400",
-    symptoms: [
-      { id: "ac-warm", label: "AC blowing warm air", detail: "Air conditioning is not cooling properly" },
-      { id: "heat-not-working", label: "Heater not working", detail: "No warm air from the heating system" },
-      { id: "windows-fogging", label: "Windows fogging up", detail: "Excessive interior fogging that won't clear" },
-      { id: "bumpy-ride", label: "Bumpy or bouncy ride", detail: "Excessive bouncing or harsh ride quality" },
-    ],
+    id: "underneath",
+    label: "Suspension / Steering",
+    description: "Ride quality, vibrations, steering feel",
+    prefilledSymptom: "Suspension / Steering / Vibration: I'm feeling ride quality issues — bumpy or bouncy ride, shaking while driving, whining when steering, clicking during turns, or fluid leaks underneath.",
   },
 ];
 
@@ -135,272 +73,229 @@ const MAKES = [
   "Ram", "Subaru", "Tesla", "Toyota", "Volkswagen", "Volvo", "Other"
 ];
 
-// ─── NAVIGATION ────────────────────────────────────────
+// ─── CAR SVG SILHOUETTE ────────────────────────────────
 
-// ─── STEP COMPONENTS ───────────────────────────────────
-
-function StepIndicator({ currentStep, totalSteps }: { currentStep: number; totalSteps: number }) {
-  return (
-    <div className="flex items-center gap-2 mb-8">
-      {Array.from({ length: totalSteps }, (_, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold font-bold text-sm transition-all ${
-            i < currentStep
-              ? "bg-primary text-primary-foreground"
-              : i === currentStep
-              ? "bg-primary/20 text-primary border-2 border-primary"
-              : "bg-card border border-border/30 text-foreground/30"
-          }`}>
-            {i < currentStep ? <CheckCircle className="w-4 h-4" /> : i + 1}
-          </div>
-          {i < totalSteps - 1 && (
-            <div className={`w-8 h-0.5 ${i < currentStep ? "bg-primary" : "bg-border/30"}`} />
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function VehicleStep({ vehicle, setVehicle, onNext }: {
-  vehicle: { year: string; make: string; model: string; mileage: string };
-  setVehicle: (v: { year: string; make: string; model: string; mileage: string }) => void;
-  onNext: () => void;
+function CarSilhouette({
+  activeZone,
+  hoveredZone,
+  onZoneClick,
+  onZoneHover,
+  onZoneLeave,
+}: {
+  activeZone: string | null;
+  hoveredZone: string | null;
+  onZoneClick: (id: string) => void;
+  onZoneHover: (id: string) => void;
+  onZoneLeave: () => void;
 }) {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-2">
-          TELL US ABOUT YOUR VEHICLE
-        </h3>
-        <p className="text-foreground/60 text-sm">
-          This helps our technicians narrow down the most likely causes for your symptoms.
-        </p>
-      </div>
+  const zoneColor = (id: string) => {
+    if (activeZone === id) return "#FDB913";
+    if (hoveredZone === id) return "rgba(253,185,19,0.45)";
+    return "rgba(255,255,255,0.08)";
+  };
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-[12px] text-foreground/50 tracking-wide mb-2">Year</label>
-          <select
-            value={vehicle.year}
-            onChange={(e) => setVehicle({ ...vehicle, year: e.target.value })}
-            className="w-full bg-card border border-border/50 text-foreground px-4 py-3 text-[13px] focus:outline-none focus:border-primary/50 rounded-md"
-          >
-            <option value="">Select Year</option>
-            {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-[12px] text-foreground/50 tracking-wide mb-2">Make</label>
-          <select
-            value={vehicle.make}
-            onChange={(e) => setVehicle({ ...vehicle, make: e.target.value })}
-            className="w-full bg-card border border-border/50 text-foreground px-4 py-3 text-[13px] focus:outline-none focus:border-primary/50 rounded-md"
-          >
-            <option value="">Select Make</option>
-            {MAKES.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-[12px] text-foreground/50 tracking-wide mb-2">Model</label>
-          <input
-            type="text"
-            value={vehicle.model}
-            onChange={(e) => setVehicle({ ...vehicle, model: e.target.value })}
-            placeholder="e.g., Camry, Civic, F-150"
-            className="w-full bg-card border border-border/50 text-foreground px-4 py-3 text-[13px] placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 rounded-md"
-          />
-        </div>
-        <div>
-          <label className="block text-[12px] text-foreground/50 tracking-wide mb-2">Approx. Mileage</label>
-          <input
-            type="text"
-            value={vehicle.mileage}
-            onChange={(e) => setVehicle({ ...vehicle, mileage: e.target.value })}
-            placeholder="e.g., 85,000"
-            className="w-full bg-card border border-border/50 text-foreground px-4 py-3 text-[13px] placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 rounded-md"
-          />
-        </div>
-      </div>
-
-      <div className="flex justify-end">
-        <button
-          onClick={onNext}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
-        >
-          NEXT: SELECT SYMPTOMS
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function SymptomsStep({ selectedSymptoms, toggleSymptom, onNext, onBack }: {
-  selectedSymptoms: string[];
-  toggleSymptom: (id: string) => void;
-  onNext: () => void;
-  onBack: () => void;
-}) {
-  const [expandedCategory, setExpandedCategory] = useState<string | null>("sounds");
+  const zoneStroke = (id: string) => {
+    if (activeZone === id || hoveredZone === id) return "#FDB913";
+    return "rgba(255,255,255,0.2)";
+  };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-2">
-          WHAT SYMPTOMS ARE YOU EXPERIENCING?
-        </h3>
-        <p className="text-foreground/60 text-sm">
-          Select all that apply. The more details you provide, the more accurate our preliminary assessment will be.
-        </p>
-        {selectedSymptoms.length > 0 && (
-          <p className="text-[12px] text-primary mt-2">
-            {selectedSymptoms.length} symptom{selectedSymptoms.length !== 1 ? "s" : ""} selected
-          </p>
-        )}
-      </div>
-
-      <div className="space-y-3">
-        {SYMPTOM_CATEGORIES.map((cat) => (
-          <div key={cat.id} className="border border-border/30 rounded-lg overflow-hidden">
-            <button
-              onClick={() => setExpandedCategory(expandedCategory === cat.id ? null : cat.id)}
-              className="w-full flex items-center justify-between p-4 hover:bg-card/50 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <span className={cat.color}>{cat.icon}</span>
-                <span className="font-semibold font-bold text-foreground tracking-wider text-sm">{cat.label}</span>
-                {cat.symptoms.filter(s => selectedSymptoms.includes(s.id)).length > 0 && (
-                  <span className="bg-primary/20 text-primary px-2 py-0.5 text-[10px] tracking-wider rounded">
-                    {cat.symptoms.filter(s => selectedSymptoms.includes(s.id)).length} SELECTED
-                  </span>
-                )}
-              </div>
-              <ChevronRight className={`w-4 h-4 text-foreground/40 transition-transform ${expandedCategory === cat.id ? "rotate-90" : ""}`} />
-            </button>
-
-            <AnimatePresence>
-              {expandedCategory === cat.id && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="overflow-hidden"
-                >
-                  <div className="p-4 pt-0 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {cat.symptoms.map((symptom) => {
-                      const isSelected = selectedSymptoms.includes(symptom.id);
-                      return (
-                        <button
-                          key={symptom.id}
-                          onClick={() => toggleSymptom(symptom.id)}
-                          className={`text-left p-3 rounded-md border transition-all ${
-                            isSelected
-                              ? "border-primary/50 bg-primary/10"
-                              : "border-border/20 hover:border-border/40 bg-card/30"
-                          }`}
-                        >
-                          <div className="flex items-start gap-2">
-                            <div className={`w-4 h-4 mt-0.5 rounded-sm border flex items-center justify-center shrink-0 ${
-                              isSelected ? "bg-primary border-primary" : "border-foreground/30"
-                            }`}>
-                              {isSelected && <CheckCircle className="w-3 h-3 text-primary-foreground" />}
-                            </div>
-                            <div>
-                              <p className={`text-[13px] ${isSelected ? "text-primary" : "text-foreground/80"}`}>
-                                {symptom.label}
-                              </p>
-                              <p className="text-[12px] text-foreground/40 mt-0.5">{symptom.detail}</p>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex justify-between">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 border border-border/30 text-foreground/60 px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:text-foreground transition-colors"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          BACK
-        </button>
-        <button
-          onClick={onNext}
-          disabled={selectedSymptoms.length === 0}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          NEXT: ADD DETAILS
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function DetailsStep({ additionalInfo, setAdditionalInfo, onAnalyze, onBack, isAnalyzing }: {
-  additionalInfo: string;
-  setAdditionalInfo: (s: string) => void;
-  onAnalyze: () => void;
-  onBack: () => void;
-  isAnalyzing: boolean;
-}) {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-2">
-          ANYTHING ELSE WE SHOULD KNOW?
-        </h3>
-        <p className="text-foreground/60 text-sm">
-          When did the problem start? Does it happen all the time or only in certain conditions? Any recent repairs or maintenance?
-        </p>
-      </div>
-
-      <textarea
-        value={additionalInfo}
-        onChange={(e) => setAdditionalInfo(e.target.value)}
-        rows={5}
-        placeholder="Example: The squealing started about a week ago and gets worse when I brake going downhill. I had the oil changed last month but nothing else recently..."
-        className="w-full bg-card border border-border/50 text-foreground px-4 py-3 text-[13px] placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 rounded-md resize-none"
+    <svg
+      viewBox="0 0 800 320"
+      className="w-full max-w-2xl mx-auto select-none"
+      aria-label="Interactive car diagram — click a zone to select a symptom area"
+    >
+      {/* Car body outline */}
+      <path
+        d="M120,200 L120,170 Q120,160 130,155 L200,130 Q220,123 250,115 L330,100 Q370,95 420,93 L500,93 Q540,95 560,100 L620,115 Q650,125 670,140 L700,160 Q710,168 710,178 L710,200"
+        fill="none"
+        stroke="rgba(255,255,255,0.3)"
+        strokeWidth="2.5"
       />
+      {/* Roof line */}
+      <path
+        d="M280,100 Q290,60 350,50 L480,50 Q530,52 560,70 L600,100"
+        fill="none"
+        stroke="rgba(255,255,255,0.25)"
+        strokeWidth="2"
+      />
+      {/* Window */}
+      <path
+        d="M290,98 Q298,65 355,55 L475,55 Q525,57 550,73 L590,98"
+        fill="rgba(255,255,255,0.04)"
+        stroke="rgba(255,255,255,0.15)"
+        strokeWidth="1.5"
+      />
+      {/* Bottom line */}
+      <line x1="140" y1="210" x2="690" y2="210" stroke="rgba(255,255,255,0.2)" strokeWidth="2" />
 
-      <div className="flex justify-between">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 border border-border/30 text-foreground/60 px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:text-foreground transition-colors"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          BACK
-        </button>
-        <button
-          onClick={onAnalyze}
-          disabled={isAnalyzing}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-8 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors disabled:opacity-70"
-        >
-          {isAnalyzing ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              ANALYZING...
-            </>
-          ) : (
-            <>
-              <Zap className="w-4 h-4" />
-              ANALYZE MY SYMPTOMS
-            </>
-          )}
-        </button>
+      {/* Front wheel */}
+      <circle cx="220" cy="210" r="35" fill="#0A0A0A" stroke="rgba(255,255,255,0.25)" strokeWidth="2.5" />
+      <circle cx="220" cy="210" r="22" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
+      <circle cx="220" cy="210" r="8" fill="rgba(255,255,255,0.1)" />
+
+      {/* Rear wheel */}
+      <circle cx="610" cy="210" r="35" fill="#0A0A0A" stroke="rgba(255,255,255,0.25)" strokeWidth="2.5" />
+      <circle cx="610" cy="210" r="22" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
+      <circle cx="610" cy="210" r="8" fill="rgba(255,255,255,0.1)" />
+
+      {/* Headlight */}
+      <ellipse cx="130" cy="165" rx="12" ry="8" fill="rgba(253,185,19,0.15)" stroke="rgba(253,185,19,0.3)" strokeWidth="1" />
+      {/* Taillight */}
+      <ellipse cx="700" cy="165" rx="8" ry="8" fill="rgba(244,67,54,0.2)" stroke="rgba(244,67,54,0.4)" strokeWidth="1" />
+
+      {/* ── CLICKABLE ZONES ── */}
+
+      {/* Zone 1: Front (engine) */}
+      <g
+        className="cursor-pointer"
+        onClick={() => onZoneClick("front")}
+        onMouseEnter={() => onZoneHover("front")}
+        onMouseLeave={onZoneLeave}
+      >
+        <rect
+          x="110" y="110" width="140" height="95"
+          rx="8"
+          fill={zoneColor("front")}
+          stroke={zoneStroke("front")}
+          strokeWidth="1.5"
+          fillOpacity={activeZone === "front" ? 0.18 : 0.6}
+        />
+        <text x="180" y="158" textAnchor="middle" fill={activeZone === "front" || hoveredZone === "front" ? "#FDB913" : "rgba(255,255,255,0.5)"} fontSize="12" fontWeight="600">
+          ENGINE
+        </text>
+      </g>
+
+      {/* Zone 2: Front wheels (brakes/tires) */}
+      <g
+        className="cursor-pointer"
+        onClick={() => onZoneClick("front-wheels")}
+        onMouseEnter={() => onZoneHover("front-wheels")}
+        onMouseLeave={onZoneLeave}
+      >
+        <rect
+          x="170" y="210" width="100" height="50"
+          rx="8"
+          fill={zoneColor("front-wheels")}
+          stroke={zoneStroke("front-wheels")}
+          strokeWidth="1.5"
+          fillOpacity={activeZone === "front-wheels" ? 0.18 : 0.6}
+        />
+        <text x="220" y="240" textAnchor="middle" fill={activeZone === "front-wheels" || hoveredZone === "front-wheels" ? "#FDB913" : "rgba(255,255,255,0.5)"} fontSize="11" fontWeight="600">
+          BRAKES/TIRES
+        </text>
+      </g>
+
+      {/* Zone 3: Cabin (AC/heating/electrical) */}
+      <g
+        className="cursor-pointer"
+        onClick={() => onZoneClick("cabin")}
+        onMouseEnter={() => onZoneHover("cabin")}
+        onMouseLeave={onZoneLeave}
+      >
+        <rect
+          x="270" y="48" width="290" height="90"
+          rx="8"
+          fill={zoneColor("cabin")}
+          stroke={zoneStroke("cabin")}
+          strokeWidth="1.5"
+          fillOpacity={activeZone === "cabin" ? 0.18 : 0.6}
+        />
+        <text x="415" y="98" textAnchor="middle" fill={activeZone === "cabin" || hoveredZone === "cabin" ? "#FDB913" : "rgba(255,255,255,0.5)"} fontSize="12" fontWeight="600">
+          AC / ELECTRICAL
+        </text>
+      </g>
+
+      {/* Zone 4: Rear (exhaust) */}
+      <g
+        className="cursor-pointer"
+        onClick={() => onZoneClick("rear")}
+        onMouseEnter={() => onZoneHover("rear")}
+        onMouseLeave={onZoneLeave}
+      >
+        <rect
+          x="580" y="110" width="135" height="95"
+          rx="8"
+          fill={zoneColor("rear")}
+          stroke={zoneStroke("rear")}
+          strokeWidth="1.5"
+          fillOpacity={activeZone === "rear" ? 0.18 : 0.6}
+        />
+        <text x="647" y="158" textAnchor="middle" fill={activeZone === "rear" || hoveredZone === "rear" ? "#FDB913" : "rgba(255,255,255,0.5)"} fontSize="12" fontWeight="600">
+          EXHAUST
+        </text>
+      </g>
+
+      {/* Zone 5: Underneath (suspension) */}
+      <g
+        className="cursor-pointer"
+        onClick={() => onZoneClick("underneath")}
+        onMouseEnter={() => onZoneHover("underneath")}
+        onMouseLeave={onZoneLeave}
+      >
+        <rect
+          x="280" y="210" width="320" height="50"
+          rx="8"
+          fill={zoneColor("underneath")}
+          stroke={zoneStroke("underneath")}
+          strokeWidth="1.5"
+          fillOpacity={activeZone === "underneath" ? 0.18 : 0.6}
+        />
+        <text x="440" y="240" textAnchor="middle" fill={activeZone === "underneath" || hoveredZone === "underneath" ? "#FDB913" : "rgba(255,255,255,0.5)"} fontSize="12" fontWeight="600">
+          SUSPENSION / STEERING
+        </text>
+      </g>
+
+      {/* Tooltip for hovered zone */}
+      {hoveredZone && !activeZone && (() => {
+        const zone = CAR_ZONES.find(z => z.id === hoveredZone);
+        if (!zone) return null;
+        return (
+          <g>
+            <rect x="250" y="280" width="300" height="32" rx="6" fill="#1a1a1a" stroke="#FDB913" strokeWidth="1" />
+            <text x="400" y="301" textAnchor="middle" fill="#FDB913" fontSize="12" fontWeight="500">
+              {zone.label} — {zone.description}
+            </text>
+          </g>
+        );
+      })()}
+    </svg>
+  );
+}
+
+// ─── SCAN ANIMATION ────────────────────────────────────
+
+function ScanAnimation() {
+  return (
+    <div className="relative w-full max-w-2xl mx-auto my-12">
+      {/* Car outline ghost */}
+      <div className="relative h-48 bg-[#141414] rounded-xl border border-[#2A2A2A] overflow-hidden flex items-center justify-center">
+        <Car className="w-24 h-24 text-white/10" />
+        {/* Sweeping gold line */}
+        <motion.div
+          className="absolute top-0 left-0 w-1 h-full"
+          style={{ background: "linear-gradient(180deg, transparent, #FDB913, transparent)", boxShadow: "0 0 20px 4px rgba(253,185,19,0.3)" }}
+          animate={{ x: [0, 600, 0] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+        />
+        {/* Horizontal scan line */}
+        <motion.div
+          className="absolute left-0 right-0 h-0.5"
+          style={{ background: "linear-gradient(90deg, transparent 0%, #FDB913 30%, #FDB913 70%, transparent 100%)", boxShadow: "0 0 12px 2px rgba(253,185,19,0.4)" }}
+          animate={{ y: [-80, 80, -80] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
+          <Loader2 className="w-8 h-8 text-[#FDB913] animate-spin mb-3" />
+          <p className="text-[#FDB913] font-heading text-sm tracking-widest uppercase">Scanning your vehicle...</p>
+          <p className="text-white/40 text-xs mt-1">Our AI is analyzing your symptoms</p>
+        </div>
       </div>
     </div>
   );
 }
+
+// ─── RESULT TYPES ──────────────────────────────────────
 
 type DiagnosisResult = {
   urgency: "low" | "moderate" | "high" | "critical";
@@ -414,206 +309,102 @@ type DiagnosisResult = {
   nextSteps: string[];
 };
 
-function ResultsStep({ result, vehicle, onReset, onBook: _onBook }: {
-  result: DiagnosisResult;
-  vehicle: { year: string; make: string; model: string; mileage: string };
-  onReset: () => void;
-  onBook: () => void;
-}) {
-  const urgencyConfig = {
-    low: { label: "ROUTINE", color: "text-foreground/60", bg: "bg-foreground/5 border-foreground/20", barColor: "bg-foreground/30" },
-    moderate: { label: "MODERATE", color: "text-amber-400", bg: "bg-amber-500/10 border-amber-500/30", barColor: "bg-amber-400" },
-    high: { label: "HIGH PRIORITY", color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/30", barColor: "bg-orange-400" },
-    critical: { label: "URGENT — SAFETY CONCERN", color: "text-red-400", bg: "bg-red-500/10 border-red-500/30", barColor: "bg-red-400" },
-  };
-
-  const uc = urgencyConfig[result.urgency];
-  const vehicleStr = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ");
-
-  return (
-    <div className="space-y-6">
-      {/* Urgency Banner */}
-      <div className={`border rounded-lg p-5 ${uc.bg}`}>
-        <div className="flex items-center gap-3 mb-3">
-          {(result.urgency === "high" || result.urgency === "critical") && (
-            <AlertTriangle className={`w-5 h-5 ${uc.color}`} />
-          )}
-          <span className={`font-semibold font-bold text-sm tracking-wider ${uc.color}`}>{uc.label}</span>
-        </div>
-        <div className="flex items-center gap-2 mb-2">
-          <div className="flex-1 h-2 bg-background/50 rounded-full overflow-hidden">
-            <div className={`h-full rounded-full ${uc.barColor}`} style={{ width: `${result.urgencyScore * 20}%` }} />
-          </div>
-          <span className={`text-[12px] ${uc.color}`}>{result.urgencyScore}/5</span>
-        </div>
-        {result.safetyNote && (
-          <p className={`text-[12px] ${uc.color} mt-2`}>{result.safetyNote}</p>
-        )}
-      </div>
-
-      {/* Diagnosis Title */}
-      <div>
-        <h3 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-2">
-          {result.title}
-        </h3>
-        {vehicleStr && (
-          <p className="text-[12px] text-foreground/40">
-            <Car className="w-3.5 h-3.5 inline mr-1" />
-            Analysis for: {vehicleStr}{vehicle.mileage ? ` — ${vehicle.mileage} miles` : ""}
-          </p>
-        )}
-        <p className="text-foreground/70 text-sm mt-3 leading-relaxed">{result.summary}</p>
-      </div>
-
-      {/* Likely Causes */}
-      <div>
-        <h4 className="font-semibold font-bold text-sm text-nick-blue-light tracking-wide mb-4">
-          MOST LIKELY CAUSES
-        </h4>
-        <div className="space-y-3">
-          {result.likelyCauses.map((cause, i) => (
-            <div key={i} className="bg-card/50 border border-border/20 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h5 className="font-semibold font-bold text-foreground tracking-wider text-sm">{cause.cause}</h5>
-                <span className={`font-mono text-[10px] tracking-wider px-2 py-0.5 rounded ${
-                  cause.likelihood === "High" ? "bg-primary/20 text-primary" :
-                  cause.likelihood === "Medium" ? "bg-nick-blue/20 text-nick-blue-light" :
-                  "bg-foreground/10 text-foreground/50"
-                }`}>
-                  {cause.likelihood.toUpperCase()} LIKELIHOOD
-                </span>
-              </div>
-              <p className="text-foreground/60 text-sm leading-relaxed">{cause.explanation}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Recommended Service & Cost */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-card/50 border border-primary/20 rounded-lg p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <Wrench className="w-4 h-4 text-primary" />
-            <span className="text-[12px] text-foreground/50 tracking-wide">Recommended Service</span>
-          </div>
-          <p className="font-semibold font-bold text-foreground tracking-wider">{result.recommendedService}</p>
-        </div>
-        <div className="bg-card/50 border border-nick-blue/20 rounded-lg p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <CircleDot className="w-4 h-4 text-nick-blue-light" />
-            <span className="text-[12px] text-foreground/50 tracking-wide">Estimated Cost Range</span>
-          </div>
-          <p className="font-semibold font-bold text-foreground tracking-wider">{result.estimatedCostRange}</p>
-          <p className="font-mono text-[10px] text-foreground/40 mt-1">*Actual cost determined after in-person diagnosis</p>
-        </div>
-      </div>
-
-      {/* Next Steps */}
-      <div>
-        <h4 className="font-semibold font-bold text-sm text-nick-blue-light tracking-wide mb-3">
-          RECOMMENDED NEXT STEPS
-        </h4>
-        <ol className="space-y-2">
-          {result.nextSteps.map((step, i) => (
-            <li key={i} className="flex items-start gap-3">
-              <span className="w-6 h-6 bg-primary/20 text-primary rounded-full flex items-center justify-center text-[12px] shrink-0 mt-0.5">
-                {i + 1}
-              </span>
-              <span className="text-foreground/70 text-sm leading-relaxed">{step}</span>
-            </li>
-          ))}
-        </ol>
-      </div>
-
-      {/* Disclaimer */}
-      <div className="bg-card/30 border border-border/20 rounded-lg p-4">
-        <p className="text-[12px] text-foreground/40 leading-relaxed">
-          <Shield className="w-3.5 h-3.5 inline mr-1 text-foreground/30" />
-          This is a preliminary assessment based on the symptoms you described. A proper diagnosis requires an in-person inspection by our certified technicians using professional diagnostic equipment. Costs may vary based on the actual findings.
-        </p>
-      </div>
-
-      {/* CTAs */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <a
-          href={BUSINESS.phone.href}
-          onClick={() => trackPhoneClick("diagnose-results")}
-          className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-base tracking-wide hover:opacity-90 transition-colors flex-1"
-        >
-          <Phone className="w-5 h-5" />
-          CALL {BUSINESS.phone.display}
-        </a>
-        <Link
-          href="/contact"
-          className="flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-base tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors flex-1"
-        >
-          BOOK APPOINTMENT
-          <ArrowRight className="w-5 h-5" />
-        </Link>
-      </div>
-
-      <button
-        onClick={onReset}
-        className="flex items-center gap-2 text-foreground/40 hover:text-foreground/60 text-[12px] tracking-wide transition-colors mx-auto"
-      >
-        <RotateCcw className="w-3.5 h-3.5" />
-        START OVER
-      </button>
-    </div>
-  );
+// Map urgency to severity card style
+function getSeverityStyle(urgency: string) {
+  switch (urgency) {
+    case "low":
+      return {
+        border: "border-[#4CAF50]/40",
+        bg: "bg-[#4CAF50]/8",
+        badge: "bg-[#4CAF50]/20 text-[#4CAF50]",
+        badgeText: "LOW RISK — MONITOR",
+        icon: "text-[#4CAF50]",
+        dot: "#4CAF50",
+      };
+    case "moderate":
+      return {
+        border: "border-[#FF9800]/40",
+        bg: "bg-[#FF9800]/8",
+        badge: "bg-[#FF9800]/20 text-[#FF9800]",
+        badgeText: "NEEDS ATTENTION SOON",
+        icon: "text-[#FF9800]",
+        dot: "#FF9800",
+      };
+    case "high":
+    case "critical":
+      return {
+        border: "border-[#F44336]/40",
+        bg: "bg-[#F44336]/8",
+        badge: "bg-[#F44336]/20 text-[#F44336]",
+        badgeText: "URGENT — ADDRESS IMMEDIATELY",
+        icon: "text-[#F44336]",
+        dot: "#F44336",
+      };
+    default:
+      return {
+        border: "border-[#FF9800]/40",
+        bg: "bg-[#FF9800]/8",
+        badge: "bg-[#FF9800]/20 text-[#FF9800]",
+        badgeText: "NEEDS ATTENTION",
+        icon: "text-[#FF9800]",
+        dot: "#FF9800",
+      };
+  }
 }
 
 // ─── MAIN PAGE ─────────────────────────────────────────
 
 export default function DiagnosePage() {
-  const [step, setStep] = useState(0); // 0=vehicle, 1=symptoms, 2=details, 3=results
+  const [selectedZone, setSelectedZone] = useState<string | null>(null);
+  const [hoveredZone, setHoveredZone] = useState<string | null>(null);
   const [vehicle, setVehicle] = useState({ year: "", make: "", model: "", mileage: "" });
-  const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
-  const [additionalInfo, setAdditionalInfo] = useState("");
+  const [symptomText, setSymptomText] = useState("");
   const [result, setResult] = useState<DiagnosisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+
+  const formRef = useRef<HTMLDivElement>(null);
 
   const diagnoseMutation = trpc.diagnose.analyze.useMutation();
 
-  const toggleSymptom = (id: string) => {
-    setSelectedSymptoms(prev =>
-      prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
-    );
-  };
-
-  // Build symptom labels from selected IDs
-  const getSymptomLabels = () => {
-    return selectedSymptoms.map(id => {
-      for (const cat of SYMPTOM_CATEGORIES) {
-        const found = cat.symptoms.find(s => s.id === id);
-        if (found) return `${cat.label}: ${found.label} (${found.detail})`;
-      }
-      return id;
-    });
+  const handleZoneClick = (zoneId: string) => {
+    setSelectedZone(zoneId);
+    const zone = CAR_ZONES.find(z => z.id === zoneId);
+    if (zone) {
+      setSymptomText(zone.prefilledSymptom);
+    }
+    // Scroll to form
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
   };
 
   const handleAnalyze = async () => {
+    if (!symptomText.trim()) return;
     setIsAnalyzing(true);
+    setShowResults(false);
+    setResult(null);
+
     try {
-      const symptomLabels = getSymptomLabels();
+      const symptoms = [symptomText.trim()];
       const response = await diagnoseMutation.mutateAsync({
         vehicleYear: vehicle.year || undefined,
         vehicleMake: vehicle.make || undefined,
         vehicleModel: vehicle.model || undefined,
         mileage: vehicle.mileage || undefined,
-        symptoms: symptomLabels,
-        additionalInfo: additionalInfo || undefined,
+        symptoms,
+        additionalInfo: undefined,
       });
 
       setResult(response as DiagnosisResult);
-      setStep(3);
+      setShowResults(true);
     } catch (error) {
       console.error("Diagnosis failed:", error);
       setResult({
         urgency: "moderate",
         urgencyScore: 3,
         title: "We Need to Take a Closer Look",
-        summary: "Based on the symptoms you described, we recommend bringing your vehicle in for a professional diagnostic inspection. Our technicians use advanced OBD-II diagnostic equipment to pinpoint the exact cause of the issue.",
+        summary: "Based on the symptoms you described, we recommend bringing your vehicle in for a professional diagnostic inspection. Our technicians use advanced OBD-II diagnostic equipment to pinpoint the exact cause.",
         likelyCauses: [
           {
             cause: "Professional diagnosis required",
@@ -630,19 +421,23 @@ export default function DiagnosePage() {
           "We will explain the findings and provide a repair estimate before any work begins",
         ],
       });
-      setStep(3);
+      setShowResults(true);
     } finally {
       setIsAnalyzing(false);
     }
   };
 
   const handleReset = () => {
-    setStep(0);
+    setSelectedZone(null);
     setVehicle({ year: "", make: "", model: "", mileage: "" });
-    setSelectedSymptoms([]);
-    setAdditionalInfo("");
+    setSymptomText("");
     setResult(null);
+    setShowResults(false);
+    setIsAnalyzing(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  const severity = result ? getSeverityStyle(result.urgency) : null;
 
   return (
     <PageLayout activeHref="/diagnose" showChat={true}>
@@ -651,132 +446,414 @@ export default function DiagnosePage() {
         description="Describe your car symptoms and get a free preliminary diagnosis from Nick's Tire & Auto in Cleveland. AI-powered symptom checker identifies potential issues."
         canonicalPath="/diagnose"
       />
-      
 
       <main id="main-content">
         {/* Hero */}
         <section className="relative pt-32 pb-12 overflow-hidden">
           <div className="absolute inset-0">
             <img loading="lazy" src={HERO_IMG} alt="Technician performing vehicle diagnostics" className="w-full h-full object-cover opacity-20" />
-            <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/95 to-background" />
+            <div className="absolute inset-0 bg-gradient-to-b from-[#0A0A0A]/80 via-[#0A0A0A]/95 to-[#0A0A0A]" />
           </div>
 
           <div className="relative container">
             <Breadcrumbs items={[
               { label: "What's Wrong With My Car?" },
             ]} />
-      <LocalBusinessSchema />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
-        "@context": "https://schema.org",
-        "@type": "Service",
-        "name": "Automotive Diagnostics Service",
-        "description": "AI-powered diagnostic tool to identify car problems and symptoms",
-        "provider": {
-          "@type": "LocalBusiness",
-          "name": BUSINESS.name,
-          "telephone": `+1-${BUSINESS.phone.dashed}`,
-          "address": {
-            "@type": "PostalAddress",
-            "streetAddress": BUSINESS.address.street,
-            "addressLocality": BUSINESS.address.city,
-            "addressRegion": BUSINESS.address.state,
-            "postalCode": BUSINESS.address.zip,
-            "addressCountry": "US"
-          },
-          "aggregateRating": {
-            "@type": "AggregateRating",
-            "ratingValue": BUSINESS.reviews.rating,
-            "reviewCount": BUSINESS.reviews.count,
-            "bestRating": "5"
-          },
-          "url": BUSINESS.urls.website
-        },
-        "areaServed": {
-          "@type": "City",
-          "name": "Cleveland"
-        }
-      })}} />
+            <LocalBusinessSchema />
+            <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Service",
+              "name": "Automotive Diagnostics Service",
+              "description": "AI-powered diagnostic tool to identify car problems and symptoms",
+              "provider": {
+                "@type": "LocalBusiness",
+                "name": BUSINESS.name,
+                "telephone": `+1-${BUSINESS.phone.dashed}`,
+                "address": {
+                  "@type": "PostalAddress",
+                  "streetAddress": BUSINESS.address.street,
+                  "addressLocality": BUSINESS.address.city,
+                  "addressRegion": BUSINESS.address.state,
+                  "postalCode": BUSINESS.address.zip,
+                  "addressCountry": "US"
+                },
+                "aggregateRating": {
+                  "@type": "AggregateRating",
+                  "ratingValue": BUSINESS.reviews.rating,
+                  "reviewCount": BUSINESS.reviews.count,
+                  "bestRating": "5"
+                },
+                "url": BUSINESS.urls.website
+              },
+              "areaServed": {
+                "@type": "City",
+                "name": "Cleveland"
+              }
+            })}} />
 
             <FadeIn>
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 bg-primary/20 rounded-lg flex items-center justify-center">
-                  <Activity className="w-6 h-6 text-primary" />
+                <div className="w-12 h-12 bg-[#FDB913]/20 rounded-lg flex items-center justify-center">
+                  <Activity className="w-6 h-6 text-[#FDB913]" />
                 </div>
-                <span className="font-mono text-nick-blue-light text-xs tracking-wide">Free Diagnostic Tool</span>
+                <span className="font-mono text-[#FDB913]/70 text-xs tracking-wide">AI-Powered Diagnostic Tool</span>
               </div>
-              <h1 className="font-semibold font-bold text-4xl lg:text-6xl text-foreground tracking-tight leading-[0.95]">
+              <h1 className="font-heading text-4xl lg:text-6xl text-white tracking-tight leading-[0.95]">
                 WHAT'S WRONG WITH<br />
-                <span className="text-primary">MY CAR</span>?
+                <span className="text-[#FDB913]">MY CAR</span>?
               </h1>
-              <p className="mt-4 text-foreground/60 text-lg max-w-2xl">
-                Describe your vehicle's symptoms and our AI-powered diagnostic tool will provide a preliminary assessment. This is not a replacement for professional diagnosis — but it can help you understand what might be going on before you visit.
+              <p className="mt-4 text-white/60 text-lg max-w-2xl">
+                Tap an area on the car below to select the problem zone, describe your symptoms, and our AI will provide a preliminary diagnosis in seconds.
               </p>
             </FadeIn>
           </div>
         </section>
 
-        {/* Diagnostic Tool */}
-        <section className="bg-[oklch(0.065_0.004_260)] py-12 lg:py-16">
-          <div className="container max-w-3xl">
+        {/* Interactive Car Silhouette */}
+        <section className="bg-[#0A0A0A] py-12 lg:py-16">
+          <div className="container max-w-4xl">
             <FadeIn>
-              <StepIndicator currentStep={step} totalSteps={4} />
+              <div className="text-center mb-8">
+                <h2 className="font-heading text-2xl text-white tracking-tight mb-2">
+                  TAP THE <span className="text-[#FDB913]">PROBLEM AREA</span>
+                </h2>
+                <p className="text-white/50 text-sm">Click a zone on the car to get started</p>
+              </div>
 
-              <div className="bg-card/50 border border-border/30 rounded-xl p-6 lg:p-8">
-                <AnimatePresence mode="wait">
-                  {step === 0 && (
-                    <motion.div key="vehicle" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                      <VehicleStep vehicle={vehicle} setVehicle={setVehicle} onNext={() => setStep(1)} />
-                    </motion.div>
-                  )}
-                  {step === 1 && (
-                    <motion.div key="symptoms" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                      <SymptomsStep selectedSymptoms={selectedSymptoms} toggleSymptom={toggleSymptom} onNext={() => setStep(2)} onBack={() => setStep(0)} />
-                    </motion.div>
-                  )}
-                  {step === 2 && (
-                    <motion.div key="details" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                      <DetailsStep additionalInfo={additionalInfo} setAdditionalInfo={setAdditionalInfo} onAnalyze={handleAnalyze} onBack={() => setStep(1)} isAnalyzing={isAnalyzing} />
-                    </motion.div>
-                  )}
-                  {step === 3 && result && (
-                    <motion.div key="results" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                      <ResultsStep result={result} vehicle={vehicle} onReset={handleReset} onBook={() => {}} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+              <CarSilhouette
+                activeZone={selectedZone}
+                hoveredZone={hoveredZone}
+                onZoneClick={handleZoneClick}
+                onZoneHover={setHoveredZone}
+                onZoneLeave={() => setHoveredZone(null)}
+              />
+
+              {/* Zone pills */}
+              <div className="flex flex-wrap justify-center gap-2 mt-6">
+                {CAR_ZONES.map((zone) => (
+                  <button
+                    key={zone.id}
+                    onClick={() => handleZoneClick(zone.id)}
+                    className={`px-4 py-2 rounded-full text-xs font-heading tracking-wider transition-all border ${
+                      selectedZone === zone.id
+                        ? "bg-[#FDB913]/15 border-[#FDB913] text-[#FDB913]"
+                        : "bg-[#141414] border-[#2A2A2A] text-white/50 hover:border-[#FDB913]/50 hover:text-[#FDB913]/70"
+                    }`}
+                  >
+                    {zone.label}
+                  </button>
+                ))}
               </div>
             </FadeIn>
           </div>
         </section>
 
+        {/* Symptom Input & Vehicle Info */}
+        <section ref={formRef} className="bg-[#0A0A0A] py-12 lg:py-16">
+          <div className="container max-w-3xl">
+            <FadeIn>
+              <div className="bg-[#141414] border border-[#2A2A2A] rounded-xl p-6 lg:p-8 space-y-6">
+                {/* Vehicle Info (collapsible) */}
+                <div>
+                  <h3 className="font-heading text-lg text-white tracking-tight mb-1">
+                    VEHICLE DETAILS <span className="text-white/30 text-xs font-normal">(optional)</span>
+                  </h3>
+                  <p className="text-white/40 text-xs mb-4">Helps narrow down the most likely causes</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <select
+                      value={vehicle.year}
+                      onChange={(e) => setVehicle({ ...vehicle, year: e.target.value })}
+                      className="bg-[#0A0A0A] border border-[#2A2A2A] text-white px-3 py-2.5 text-sm rounded-md focus:outline-none focus:border-[#FDB913]/50"
+                    >
+                      <option value="">Year</option>
+                      {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                    <select
+                      value={vehicle.make}
+                      onChange={(e) => setVehicle({ ...vehicle, make: e.target.value })}
+                      className="bg-[#0A0A0A] border border-[#2A2A2A] text-white px-3 py-2.5 text-sm rounded-md focus:outline-none focus:border-[#FDB913]/50"
+                    >
+                      <option value="">Make</option>
+                      {MAKES.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                    <input
+                      type="text"
+                      value={vehicle.model}
+                      onChange={(e) => setVehicle({ ...vehicle, model: e.target.value })}
+                      placeholder="Model"
+                      className="bg-[#0A0A0A] border border-[#2A2A2A] text-white px-3 py-2.5 text-sm rounded-md placeholder:text-white/25 focus:outline-none focus:border-[#FDB913]/50"
+                    />
+                    <input
+                      type="text"
+                      value={vehicle.mileage}
+                      onChange={(e) => setVehicle({ ...vehicle, mileage: e.target.value })}
+                      placeholder="Mileage"
+                      className="bg-[#0A0A0A] border border-[#2A2A2A] text-white px-3 py-2.5 text-sm rounded-md placeholder:text-white/25 focus:outline-none focus:border-[#FDB913]/50"
+                    />
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-[#2A2A2A]" />
+
+                {/* Symptom text area */}
+                <div>
+                  <h3 className="font-heading text-lg text-white tracking-tight mb-1">
+                    DESCRIBE YOUR SYMPTOMS
+                  </h3>
+                  <p className="text-white/40 text-xs mb-4">
+                    {selectedZone
+                      ? "We've pre-filled based on your selection. Edit or add more detail below."
+                      : "What's happening with your car? Be as specific as possible."}
+                  </p>
+                  <textarea
+                    value={symptomText}
+                    onChange={(e) => setSymptomText(e.target.value)}
+                    rows={5}
+                    placeholder="Example: My brakes are squealing loudly when I slow down, especially going downhill. It started about a week ago and seems to be getting worse..."
+                    className="w-full bg-[#0A0A0A] border border-[#2A2A2A] text-white px-4 py-3 text-sm rounded-md placeholder:text-white/25 focus:outline-none focus:border-[#FDB913]/50 resize-none leading-relaxed"
+                  />
+                </div>
+
+                {/* Scan button */}
+                <button
+                  onClick={handleAnalyze}
+                  disabled={isAnalyzing || !symptomText.trim()}
+                  className="w-full flex items-center justify-center gap-3 bg-[#FDB913] text-black px-8 py-4 rounded-md font-heading text-base tracking-wider hover:bg-[#FDB913]/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      SCANNING...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-5 h-5" />
+                      SCAN MY CAR
+                    </>
+                  )}
+                </button>
+              </div>
+            </FadeIn>
+          </div>
+        </section>
+
+        {/* Scan Animation (while analyzing) */}
+        <AnimatePresence>
+          {isAnalyzing && (
+            <motion.section
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="bg-[#0A0A0A] overflow-hidden"
+            >
+              <div className="container max-w-3xl">
+                <ScanAnimation />
+              </div>
+            </motion.section>
+          )}
+        </AnimatePresence>
+
+        {/* Results */}
+        <AnimatePresence>
+          {showResults && result && severity && (
+            <motion.section
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.5 }}
+              className="bg-[#0A0A0A] py-12 lg:py-16"
+            >
+              <div className="container max-w-3xl space-y-6">
+                {/* Severity banner */}
+                <div className={`${severity.bg} ${severity.border} border rounded-xl p-5`}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: severity.dot }} />
+                    <span className={`font-heading text-sm tracking-wider ${severity.badge.split(" ")[1]}`}>
+                      {severity.badgeText}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex-1 h-2 bg-black/30 rounded-full overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: severity.dot }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${result.urgencyScore * 20}%` }}
+                        transition={{ duration: 1, ease: "easeOut" }}
+                      />
+                    </div>
+                    <span className="text-xs" style={{ color: severity.dot }}>{result.urgencyScore}/5</span>
+                  </div>
+                  {result.safetyNote && (
+                    <p className="text-xs mt-2" style={{ color: severity.dot }}>
+                      <AlertTriangle className="w-3.5 h-3.5 inline mr-1" />
+                      {result.safetyNote}
+                    </p>
+                  )}
+                </div>
+
+                {/* Diagnosis title */}
+                <div>
+                  <h2 className="font-heading text-3xl text-white tracking-tight mb-2">
+                    {result.title}
+                  </h2>
+                  {(vehicle.year || vehicle.make || vehicle.model) && (
+                    <p className="text-xs text-white/40">
+                      <Car className="w-3.5 h-3.5 inline mr-1" />
+                      Analysis for: {[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ")}
+                      {vehicle.mileage ? ` — ${vehicle.mileage} miles` : ""}
+                    </p>
+                  )}
+                  <p className="text-white/70 text-sm mt-3 leading-relaxed">{result.summary}</p>
+                </div>
+
+                {/* Likely Causes as severity-coded cards */}
+                <div className="space-y-3">
+                  <h3 className="font-heading text-sm text-[#FDB913] tracking-wider">POSSIBLE CAUSES</h3>
+                  {result.likelyCauses.map((cause, i) => {
+                    // Assign severity color per cause based on likelihood
+                    const causeStyle = cause.likelihood === "High"
+                      ? { border: "border-[#F44336]/30", bg: "bg-[#F44336]/5", dot: "#F44336" }
+                      : cause.likelihood === "Medium"
+                      ? { border: "border-[#FF9800]/30", bg: "bg-[#FF9800]/5", dot: "#FF9800" }
+                      : { border: "border-[#4CAF50]/30", bg: "bg-[#4CAF50]/5", dot: "#4CAF50" };
+
+                    return (
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 + i * 0.15 }}
+                        className={`${causeStyle.bg} ${causeStyle.border} border rounded-xl p-5`}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: causeStyle.dot }} />
+                            <h4 className="font-heading text-white tracking-wider text-sm">{cause.cause}</h4>
+                          </div>
+                          <span className="text-[10px] tracking-wider px-2 py-0.5 rounded" style={{ color: causeStyle.dot, backgroundColor: `${causeStyle.dot}20` }}>
+                            {cause.likelihood.toUpperCase()} LIKELIHOOD
+                          </span>
+                        </div>
+                        <p className="text-white/60 text-sm leading-relaxed ml-[18px]">{cause.explanation}</p>
+
+                        {/* Book This Repair CTA */}
+                        <div className="mt-3 ml-[18px]">
+                          <Link
+                            href="/contact"
+                            className="inline-flex items-center gap-1.5 text-[#FDB913] text-xs font-heading tracking-wider hover:text-[#FDB913]/80 transition-colors"
+                          >
+                            BOOK THIS REPAIR
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </Link>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+
+                {/* Service & Cost */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-[#141414] border border-[#FDB913]/20 rounded-xl p-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Wrench className="w-4 h-4 text-[#FDB913]" />
+                      <span className="text-xs text-white/50 tracking-wide">Recommended Service</span>
+                    </div>
+                    <p className="font-heading text-white tracking-wider">{result.recommendedService}</p>
+                  </div>
+                  <div className="bg-[#141414] border border-[#2A2A2A] rounded-xl p-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CircleDot className="w-4 h-4 text-white/40" />
+                      <span className="text-xs text-white/50 tracking-wide">Estimated Cost Range</span>
+                    </div>
+                    <p className="font-heading text-white tracking-wider">{result.estimatedCostRange}</p>
+                    <p className="text-[10px] text-white/30 mt-1">*Actual cost determined after in-person diagnosis</p>
+                  </div>
+                </div>
+
+                {/* Next Steps */}
+                <div>
+                  <h3 className="font-heading text-sm text-[#FDB913] tracking-wider mb-3">RECOMMENDED NEXT STEPS</h3>
+                  <ol className="space-y-2">
+                    {result.nextSteps.map((step, i) => (
+                      <li key={i} className="flex items-start gap-3">
+                        <span className="w-6 h-6 bg-[#FDB913]/20 text-[#FDB913] rounded-full flex items-center justify-center text-xs shrink-0 mt-0.5">
+                          {i + 1}
+                        </span>
+                        <span className="text-white/70 text-sm leading-relaxed">{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+
+                {/* Disclaimer */}
+                <div className="bg-[#141414]/50 border border-[#2A2A2A] rounded-xl p-4">
+                  <p className="text-xs text-white/40 leading-relaxed">
+                    <Shield className="w-3.5 h-3.5 inline mr-1 text-white/30" />
+                    This is a preliminary assessment based on the symptoms you described. A proper diagnosis requires an in-person inspection by our certified technicians using professional diagnostic equipment. Costs may vary based on actual findings.
+                  </p>
+                </div>
+
+                {/* CTAs */}
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <a
+                    href={BUSINESS.phone.href}
+                    onClick={() => trackPhoneClick("diagnose-results")}
+                    className="flex items-center justify-center gap-2 bg-[#FDB913] text-black px-8 py-4 rounded-md font-heading text-base tracking-wider hover:bg-[#FDB913]/90 transition-colors flex-1"
+                  >
+                    <Phone className="w-5 h-5" />
+                    CALL {BUSINESS.phone.display}
+                  </a>
+                  <Link
+                    href="/contact"
+                    className="flex items-center justify-center gap-2 border-2 border-[#FDB913]/40 text-[#FDB913] px-8 py-4 rounded-md font-heading text-base tracking-wider hover:bg-[#FDB913]/10 hover:border-[#FDB913] transition-colors flex-1"
+                  >
+                    BOOK APPOINTMENT
+                    <ArrowRight className="w-5 h-5" />
+                  </Link>
+                </div>
+
+                <button
+                  onClick={handleReset}
+                  className="flex items-center gap-2 text-white/40 hover:text-white/60 text-xs tracking-wider transition-colors mx-auto"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  START OVER
+                </button>
+              </div>
+            </motion.section>
+          )}
+        </AnimatePresence>
+
         {/* Trust Section */}
-        <section className="bg-[oklch(0.065_0.004_260)] py-16">
+        <section className="bg-[#0A0A0A] py-16">
           <div className="container max-w-3xl text-center">
             <FadeIn>
-              <h2 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-4">
-                WHY USE THIS <span className="text-primary">TOOL</span>?
+              <h2 className="font-heading text-2xl text-white tracking-tight mb-4">
+                WHY USE THIS <span className="text-[#FDB913]">TOOL</span>?
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-8">
                 <div className="text-center">
-                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-3">
-                    <Shield className="w-6 h-6 text-primary" />
+                  <div className="w-12 h-12 bg-[#FDB913]/10 rounded-lg flex items-center justify-center mx-auto mb-3">
+                    <Shield className="w-6 h-6 text-[#FDB913]" />
                   </div>
-                  <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm mb-2">UNDERSTAND FIRST</h3>
-                  <p className="text-foreground/50 text-sm">Know what might be wrong before you visit any shop. No surprises.</p>
+                  <h3 className="font-heading text-white tracking-wider text-sm mb-2">UNDERSTAND FIRST</h3>
+                  <p className="text-white/50 text-sm">Know what might be wrong before you visit any shop. No surprises.</p>
                 </div>
                 <div className="text-center">
-                  <div className="w-12 h-12 bg-nick-blue/10 rounded-lg flex items-center justify-center mx-auto mb-3">
-                    <Zap className="w-6 h-6 text-nick-blue-light" />
+                  <div className="w-12 h-12 bg-[#FDB913]/10 rounded-lg flex items-center justify-center mx-auto mb-3">
+                    <Zap className="w-6 h-6 text-[#FDB913]" />
                   </div>
-                  <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm mb-2">FAST & FREE</h3>
-                  <p className="text-foreground/50 text-sm">Get a preliminary assessment in under 60 seconds. No cost, no obligation.</p>
+                  <h3 className="font-heading text-white tracking-wider text-sm mb-2">FAST & FREE</h3>
+                  <p className="text-white/50 text-sm">Get a preliminary assessment in under 60 seconds. No cost, no obligation.</p>
                 </div>
                 <div className="text-center">
-                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mx-auto mb-3">
-                    <Wrench className="w-6 h-6 text-primary" />
+                  <div className="w-12 h-12 bg-[#FDB913]/10 rounded-lg flex items-center justify-center mx-auto mb-3">
+                    <Wrench className="w-6 h-6 text-[#FDB913]" />
                   </div>
-                  <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm mb-2">EXPERT BACKED</h3>
-                  <p className="text-foreground/50 text-sm">Built on real diagnostic knowledge from professional auto technicians.</p>
+                  <h3 className="font-heading text-white tracking-wider text-sm mb-2">EXPERT BACKED</h3>
+                  <p className="text-white/50 text-sm">Built on real diagnostic knowledge from professional auto technicians.</p>
                 </div>
               </div>
             </FadeIn>
@@ -784,34 +861,29 @@ export default function DiagnosePage() {
         </section>
 
         {/* CTA */}
-        <section className="bg-[oklch(0.065_0.004_260)] py-16">
-          
+        <section className="bg-[#0A0A0A] py-16">
           <div className="container pt-12 text-center">
             <FadeIn>
-              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground tracking-tight">
-                PREFER TO <span className="text-primary">TALK</span>?
+              <h2 className="font-heading text-3xl lg:text-4xl text-white tracking-tight">
+                PREFER TO <span className="text-[#FDB913]">TALK</span>?
               </h2>
-              <p className="mt-4 text-foreground/60 text-lg max-w-xl mx-auto">
+              <p className="mt-4 text-white/60 text-lg max-w-xl mx-auto">
                 Our technicians are happy to discuss your vehicle's symptoms over the phone. Call us for a free consultation.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("diagnose-cta")} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("diagnose-cta")} className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-black px-8 py-4 rounded-md font-heading text-lg tracking-wider hover:bg-[#FDB913]/90 transition-colors">
                   <Phone className="w-5 h-5" />
                   CALL {BUSINESS.phone.display}
                 </a>
-                <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
+                <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-[#FDB913]/40 text-[#FDB913] px-8 py-4 rounded-md font-heading text-lg tracking-wider hover:bg-[#FDB913]/10 hover:border-[#FDB913] transition-colors">
                   BOOK ONLINE
                 </Link>
               </div>
             </FadeIn>
           </div>
         </section>
-
-        {/* Footer */}
-        
       </main>
 
-      
       <section className="container pb-8">
         <FinancingCTA variant="banner" />
       </section>

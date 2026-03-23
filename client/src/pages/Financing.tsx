@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
@@ -8,201 +8,153 @@ import {
   ChevronRight, AlertCircle, Calculator, Shield,
   Clock, ArrowRight, ChevronDown, ExternalLink,
   BadgeCheck, Wallet, Zap, Star, HelpCircle,
+  FileText, Wrench, Car,
 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { FINANCING_PROVIDERS, PAYMENT_METHODS, FINANCING_FAQ, type FinancingProvider } from "@shared/financing";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
 
-/* ── Badge icon mapping ────────────────────────────────────── */
-function ProviderBadge({ badge }: { badge?: string }) {
-  if (!badge) return null;
-  const icon =
-    badge === "No Credit Needed" ? <Shield className="w-3.5 h-3.5" /> :
-    badge === "Highest Amount" ? <Star className="w-3.5 h-3.5" /> :
-    badge === "0% Interest" ? <Zap className="w-3.5 h-3.5" /> :
-    <BadgeCheck className="w-3.5 h-3.5" />;
+/* ── Provider card data (static, inline) ──────────────────── */
+const PROVIDERS = [
+  {
+    id: "sunbit",
+    name: "Sunbit",
+    primary: true,
+    tagline: "90% approval rate, 3-month 0% APR, 30-second application",
+    features: ["90% of customers approved", "0% APR for first 3 months", "Apply in 30 seconds at the counter", "No hard credit check"],
+  },
+  {
+    id: "koalafi",
+    name: "Koalafi",
+    primary: false,
+    tagline: "Lease-to-own up to $7,500, no credit score requirement",
+    features: ["Lease-to-own up to $7,500", "No credit score requirement", "Flexible payment schedules", "Early buyout option available"],
+  },
+  {
+    id: "snap",
+    name: "Snap Finance",
+    primary: false,
+    tagline: "Up to $3,000 for tires and wheels, 100-day early payoff",
+    features: ["Up to $3,000 for tires & wheels", "100-day early payoff option", "All credit types accepted", "Quick online application"],
+  },
+  {
+    id: "acima",
+    name: "Acima",
+    primary: false,
+    tagline: "Lease-to-own, no credit needed, early buyout available",
+    features: ["Lease-to-own, no credit needed", "Early buyout saves you money", "90-day purchase option", "Flexible payment schedule"],
+  },
+];
+
+/* ── Monthly Payment Calculator ───────────────────────────── */
+function PaymentCalculator() {
+  const [amount, setAmount] = useState(1500);
+  const terms = [6, 12, 18, 24];
+
+  const payments = useMemo(() => {
+    // Simple estimated monthly (no interest for illustration)
+    // Using a modest illustrative rate
+    const rate = 0.099 / 12; // ~9.9% APR illustrative
+    return terms.map((months) => {
+      const monthly = (amount * rate * Math.pow(1 + rate, months)) / (Math.pow(1 + rate, months) - 1);
+      return { months, monthly: Math.round(monthly) };
+    });
+  }, [amount]);
+
   return (
-    <span className="inline-flex items-center gap-1.5 bg-primary/15 text-primary text-[11px] font-bold tracking-wide px-2.5 py-1 rounded-full">
-      {icon} {badge}
-    </span>
-  );
-}
+    <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl p-6 lg:p-8">
+      <h3 className="font-heading text-2xl font-bold text-white uppercase tracking-wide mb-2">
+        Monthly Payment Calculator
+      </h3>
+      <p className="text-white/50 text-sm mb-6">
+        Estimate your monthly payment. Actual rates vary by provider and credit.
+      </p>
 
-/* ── Provider card ─────────────────────────────────────────── */
-function ProviderCard({ provider, index, onApplyClick }: { provider: FinancingProvider; index: number; onApplyClick: (id: string) => void }) {
-  return (
-    <FadeIn delay={index * 0.1}>
-      <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 lg:p-8 flex flex-col h-full hover:border-primary/30 transition-colors group">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-11 h-11 rounded-lg flex items-center justify-center text-white font-bold text-sm"
-              style={{ backgroundColor: provider.color }}
-            >
-              {provider.type === "credit-card" ? (
-                <CreditCard className="w-5 h-5" />
-              ) : (
-                <Wallet className="w-5 h-5" />
-              )}
-            </div>
-            <div>
-              <h3 className="font-bold text-foreground tracking-wide text-[15px]">{provider.name}</h3>
-              <span className="text-[12px] text-foreground/40 font-medium">{provider.typeLabel}</span>
-            </div>
-          </div>
-          <ProviderBadge badge={provider.badge} />
+      {/* Slider */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-3">
+          <label className="text-white/60 text-sm font-medium">Repair Amount</label>
+          <span className="font-heading text-3xl font-bold text-[#FDB913]">
+            ${amount.toLocaleString()}
+          </span>
         </div>
-
-        {/* Highlight */}
-        <div className="bg-primary/8 border border-primary/15 rounded-lg p-3 mb-5">
-          <p className="font-bold text-primary text-sm text-center">{provider.highlight}</p>
-        </div>
-
-        {/* Quick stats */}
-        <div className="grid grid-cols-2 gap-3 mb-5">
-          <div className="bg-[oklch(0.06_0.004_260/0.5)] rounded-lg p-3 text-center">
-            <span className="block text-[11px] text-foreground/40 font-medium mb-1">MAX AMOUNT</span>
-            <span className="font-bold text-foreground text-sm">{provider.maxAmount}</span>
-          </div>
-          <div className="bg-[oklch(0.06_0.004_260/0.5)] rounded-lg p-3 text-center">
-            <span className="block text-[11px] text-foreground/40 font-medium mb-1">APPROVAL</span>
-            <span className="font-bold text-foreground text-sm">{provider.approvalTime}</span>
-          </div>
-        </div>
-
-        {/* Features */}
-        <ul className="space-y-2 mb-6 flex-1">
-          {provider.features.slice(0, 4).map((f) => (
-            <li key={f} className="flex items-start gap-2 text-sm text-foreground/70">
-              <CheckCircle className="w-4 h-4 text-nick-teal shrink-0 mt-0.5" />
-              {f}
-            </li>
-          ))}
-        </ul>
-
-        {/* Ideal for */}
-        <p className="text-[12px] text-foreground/50 mb-4 italic">
-          Best for: {provider.idealFor}
-        </p>
-
-        {/* CTAs */}
-        <div className="flex gap-3">
-          <a
-            href={provider.applyUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => onApplyClick(provider.id)}
-            className="flex-1 inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-3 rounded-lg font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
-          >
-            APPLY NOW
-            <ArrowRight className="w-4 h-4" />
-          </a>
-          {provider.prequalifyUrl && (
-            <a
-              href={provider.prequalifyUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-2 bg-transparent border border-primary/40 text-primary px-4 py-3 rounded-lg font-bold text-[12px] tracking-wide hover:bg-primary/10 transition-colors"
-            >
-              PRE-QUALIFY
-            </a>
-          )}
+        <input
+          type="range"
+          min={100}
+          max={5000}
+          step={50}
+          value={amount}
+          onChange={(e) => setAmount(Number(e.target.value))}
+          className="w-full h-2 bg-[#2A2A2A] rounded-full appearance-none cursor-pointer accent-[#FDB913]"
+        />
+        <div className="flex justify-between text-xs text-white/30 mt-2">
+          <span>$100</span>
+          <span>$5,000</span>
         </div>
       </div>
-    </FadeIn>
-  );
-}
 
-/* ── Comparison table ──────────────────────────────────────── */
-function ComparisonTable() {
-  return (
-    <div className="overflow-x-auto -mx-4 px-4">
-      <table className="w-full min-w-[600px] text-sm">
-        <thead>
-          <tr className="border-b border-border/20">
-            <th className="text-left py-3 px-4 text-foreground/50 font-medium text-[12px] tracking-wide">FEATURE</th>
-            {FINANCING_PROVIDERS.map((p) => (
-              <th key={p.id} className="text-center py-3 px-3 text-foreground font-bold text-[13px]">
-                {p.shortName}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="text-foreground/70">
-          <tr className="border-b border-border/10">
-            <td className="py-3 px-4 font-medium text-foreground/60">Type</td>
-            {FINANCING_PROVIDERS.map((p) => (
-              <td key={p.id} className="text-center py-3 px-3">{p.typeLabel}</td>
-            ))}
-          </tr>
-          <tr className="border-b border-border/10">
-            <td className="py-3 px-4 font-medium text-foreground/60">Max Amount</td>
-            {FINANCING_PROVIDERS.map((p) => (
-              <td key={p.id} className="text-center py-3 px-3 font-semibold text-foreground">{p.maxAmount}</td>
-            ))}
-          </tr>
-          <tr className="border-b border-border/10">
-            <td className="py-3 px-4 font-medium text-foreground/60">Credit Check</td>
-            {FINANCING_PROVIDERS.map((p) => (
-              <td key={p.id} className="text-center py-3 px-3">{p.creditCheck}</td>
-            ))}
-          </tr>
-          <tr className="border-b border-border/10">
-            <td className="py-3 px-4 font-medium text-foreground/60">Approval Speed</td>
-            {FINANCING_PROVIDERS.map((p) => (
-              <td key={p.id} className="text-center py-3 px-3">{p.approvalTime}</td>
-            ))}
-          </tr>
-          <tr className="border-b border-border/10">
-            <td className="py-3 px-4 font-medium text-foreground/60">Terms</td>
-            {FINANCING_PROVIDERS.map((p) => (
-              <td key={p.id} className="text-center py-3 px-3">{p.termRange}</td>
-            ))}
-          </tr>
-          <tr>
-            <td className="py-3 px-4 font-medium text-foreground/60">Apply</td>
-            {FINANCING_PROVIDERS.map((p) => (
-              <td key={p.id} className="text-center py-3 px-3">
-                <a
-                  href={p.applyUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-primary font-bold text-[12px] hover:underline"
-                >
-                  Apply <ExternalLink className="w-3 h-3" />
-                </a>
-              </td>
-            ))}
-          </tr>
-        </tbody>
-      </table>
+      {/* Results grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {payments.map(({ months, monthly }) => (
+          <div
+            key={months}
+            className="bg-[#141414] border border-[#2A2A2A] rounded-xl p-4 text-center"
+          >
+            <span className="block text-white/40 text-xs font-medium mb-1">{months} MONTHS</span>
+            <span className="font-heading text-2xl font-bold text-white">${monthly}</span>
+            <span className="block text-white/40 text-xs">/mo</span>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-white/30 text-xs mt-4 text-center">
+        *Estimates are illustrative. Actual APR and terms depend on provider and approval.
+      </p>
     </div>
   );
 }
 
 /* ── FAQ Accordion ─────────────────────────────────────────── */
-function FAQItem({ item, isOpen, onToggle }: { item: typeof FINANCING_FAQ[number]; isOpen: boolean; onToggle: () => void }) {
+const FAQ_ITEMS = [
+  {
+    q: "Will applying hurt my credit score?",
+    a: "No. Our financing partners use a soft credit check for pre-qualification, which does not affect your credit score. A hard inquiry only occurs if you choose to proceed with a full application.",
+  },
+  {
+    q: "What happens if I get declined by one provider?",
+    a: "You can apply with a different provider immediately. Each provider has different approval criteria, and many of our customers who are declined by one are approved by another. We have four options specifically so more people can get approved.",
+  },
+  {
+    q: "Can I pay off my balance early?",
+    a: "Yes! All of our financing providers allow early payoff. Snap Finance offers a 100-day early payoff option, and Acima has a 90-day purchase option that can save you money on fees.",
+  },
+  {
+    q: "What services can I finance?",
+    a: "You can finance any service we offer — tires, brakes, engine repair, transmission work, diagnostics, and more. If we can fix it, you can finance it.",
+  },
+];
+
+function FAQItem({ item, isOpen, onToggle }: { item: typeof FAQ_ITEMS[number]; isOpen: boolean; onToggle: () => void }) {
   return (
-    <div className="border-b border-border/15 last:border-b-0">
+    <div className="border-b border-[#2A2A2A] last:border-b-0">
       <button
         onClick={onToggle}
-        className="flex items-center justify-between w-full py-4 text-left group"
+        className="flex items-center justify-between w-full py-5 text-left group"
       >
-        <span className="font-semibold text-foreground text-sm pr-4">{item.q}</span>
-        <ChevronDown className={`w-5 h-5 text-foreground/40 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+        <span className="font-semibold text-white text-sm pr-4">{item.q}</span>
+        <ChevronDown className={`w-5 h-5 text-white/40 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
       </button>
       {isOpen && (
-        <div className="pb-4 pr-8">
-          <p className="text-foreground/60 text-sm leading-relaxed">{item.a}</p>
+        <div className="pb-5 pr-8">
+          <p className="text-white/60 text-sm leading-relaxed">{item.a}</p>
         </div>
       )}
     </div>
   );
 }
 
-/* ── Financing Application Schema (JSON-LD) ────────────────── */
+/* ── Financing Schema (JSON-LD) ────────────────────────────── */
 function FinancingSchema() {
   const schema = {
     "@context": "https://schema.org",
@@ -221,12 +173,6 @@ function FinancingSchema() {
       },
       "telephone": BUSINESS.phone.display,
     },
-    "offers": FINANCING_PROVIDERS.map((p) => ({
-      "@type": "Offer",
-      "name": p.name,
-      "description": p.description,
-      "url": p.applyUrl,
-    })),
   };
 
   return (
@@ -253,7 +199,7 @@ export default function Financing() {
     <PageLayout activeHref="/financing">
       <SEOHead
         title="Financing Options | Nick's Tire & Auto Cleveland OH"
-        description="4 flexible auto repair financing options in Cleveland. No credit needed lease-to-own from Acima, Snap Finance, Koalafi, plus 0% interest Synchrony Car Care. Apply online in minutes."
+        description="$0 down auto repair financing in Cleveland. Instant approval, no hard credit check. Sunbit, Koalafi, Snap Finance, Acima. Apply online in minutes."
         canonicalPath="/financing"
       />
       <Breadcrumbs items={[{ label: "Financing", href: "/financing" }]} />
@@ -261,109 +207,144 @@ export default function Financing() {
       <FinancingSchema />
 
       {/* ─── Hero ─────────────────────────────────────────── */}
-      <section className="bg-[oklch(0.065_0.004_260)] pt-28 pb-16 lg:pt-36 lg:pb-20">
+      <section className="bg-[#141414] pt-28 pb-16 lg:pt-36 lg:pb-24">
         <div className="container max-w-4xl text-center">
-          <span className="font-mono text-nick-teal text-sm tracking-wide">Payment Options</span>
-          <h1 className="font-bold text-4xl lg:text-6xl text-foreground mt-3 tracking-tight">
-            FIX YOUR CAR <span className="text-primary">TODAY</span>, PAY OVER TIME
+          <h1 className="font-heading text-5xl lg:text-7xl font-bold text-white tracking-tight uppercase">
+            Don't Let Cost Keep You{" "}
+            <span className="text-[#FDB913]">Off the Road</span>
           </h1>
-          <p className="mt-4 text-foreground/70 text-lg max-w-2xl mx-auto">
-            Do not delay repairs because of cost. We partner with 4 financing providers so you can get approved in seconds — no matter your credit situation.
+          <p className="mt-5 text-white/70 text-xl lg:text-2xl max-w-2xl mx-auto font-medium">
+            $0 Down. Instant Approval. No Hard Credit Check.
           </p>
 
-          {/* Quick trust signals */}
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-6 text-sm text-foreground/50">
+          <div className="mt-8">
+            <a
+              href="#providers"
+              className="inline-flex items-center gap-2 bg-[#FDB913] text-black px-8 py-4 rounded-lg font-bold text-base tracking-wide hover:bg-[#FDB913]/90 transition-colors"
+            >
+              Check Your Rate
+              <ArrowRight className="w-5 h-5" />
+            </a>
+          </div>
+
+          {/* Trust signals */}
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-6 text-sm text-white/50">
             <span className="flex items-center gap-2">
-              <Shield className="w-4 h-4 text-nick-teal" />
+              <Shield className="w-4 h-4 text-[#FDB913]" />
               No credit needed options
             </span>
             <span className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-nick-teal" />
+              <Clock className="w-4 h-4 text-[#FDB913]" />
               Approved in seconds
             </span>
             <span className="flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-nick-teal" />
+              <DollarSign className="w-4 h-4 text-[#FDB913]" />
               Up to $7,500
             </span>
-          </div>
-
-          {/* Quick apply bar */}
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            {FINANCING_PROVIDERS.map((p) => (
-              <a
-                key={p.id}
-                href={`#${p.id}`}
-                className="inline-flex items-center gap-2 bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] px-4 py-2.5 rounded-lg text-sm font-medium text-foreground/70 hover:text-foreground hover:border-primary/30 transition-colors"
-              >
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
-                {p.shortName}
-              </a>
-            ))}
           </div>
         </div>
       </section>
 
       {/* ─── Provider Cards ───────────────────────────────── */}
-      <section className="bg-[oklch(0.055_0.004_260)] py-16 lg:py-20">
+      <section id="providers" className="bg-[#111111] py-16 lg:py-24">
         <div className="container max-w-5xl">
           <FadeIn>
             <div className="text-center mb-12">
-              <h2 className="font-bold text-3xl text-foreground tracking-tight">
-                4 WAYS TO PAY OVER TIME
+              <h2 className="font-heading text-3xl lg:text-4xl font-bold text-white tracking-tight uppercase">
+                Our Financing Partners
               </h2>
-              <p className="text-foreground/60 mt-3 max-w-xl mx-auto">
-                Apply online or at the shop counter. Most approvals take under 60 seconds. Choose the option that works best for your budget.
+              <p className="text-white/50 mt-3 max-w-xl mx-auto">
+                Choose the option that fits your budget. Apply online or at the counter.
               </p>
             </div>
           </FadeIn>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {FINANCING_PROVIDERS.map((provider, i) => (
-              <div key={provider.id} id={provider.id}>
-                <ProviderCard provider={provider} index={i} onApplyClick={handleApplyClick} />
-              </div>
+            {PROVIDERS.map((provider, i) => (
+              <FadeIn key={provider.id} delay={i * 0.1}>
+                <div
+                  className={`bg-[#1A1A1A] border rounded-2xl p-6 lg:p-8 flex flex-col h-full transition-colors ${
+                    provider.primary
+                      ? "border-[#FDB913] shadow-[0_0_20px_rgba(253,185,19,0.08)]"
+                      : "border-[#2A2A2A] hover:border-white/20"
+                  }`}
+                >
+                  {/* Header */}
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-heading text-2xl font-bold text-white uppercase tracking-wide">
+                      {provider.name}
+                    </h3>
+                    {provider.primary && (
+                      <span className="text-xs font-bold tracking-wider bg-[#FDB913]/15 text-[#FDB913] px-3 py-1 rounded-full uppercase">
+                        Primary
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Tagline */}
+                  <p className="text-[#FDB913] font-semibold text-sm mb-5">
+                    {provider.tagline}
+                  </p>
+
+                  {/* Features */}
+                  <ul className="space-y-2.5 mb-6 flex-1">
+                    {provider.features.map((f) => (
+                      <li key={f} className="flex items-start gap-2.5 text-sm text-white/70">
+                        <CheckCircle className="w-4 h-4 text-[#FDB913] shrink-0 mt-0.5" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* CTA */}
+                  <a
+                    href={FINANCING_PROVIDERS.find((p) => p.id === provider.id)?.applyUrl || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => handleApplyClick(provider.id)}
+                    className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-black px-5 py-3 rounded-lg font-bold text-sm tracking-wide hover:bg-[#FDB913]/90 transition-colors"
+                  >
+                    APPLY NOW
+                    <ArrowRight className="w-4 h-4" />
+                  </a>
+                </div>
+              </FadeIn>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ─── Comparison Table ─────────────────────────────── */}
-      <section className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-20">
-        <div className="container max-w-4xl">
+      {/* ─── Monthly Payment Calculator ───────────────────── */}
+      <section className="bg-[#141414] py-16 lg:py-24">
+        <div className="container max-w-3xl">
           <FadeIn>
-            <h2 className="font-bold text-2xl lg:text-3xl text-foreground tracking-tight text-center mb-10">
-              COMPARE OPTIONS AT A GLANCE
-            </h2>
-            <div className="bg-[oklch(0.08_0.004_260/0.6)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-4 lg:p-6">
-              <ComparisonTable />
-            </div>
+            <PaymentCalculator />
           </FadeIn>
         </div>
       </section>
 
       {/* ─── How It Works ─────────────────────────────────── */}
-      <section className="bg-[oklch(0.055_0.004_260)] py-16 lg:py-20">
+      <section className="bg-[#111111] py-16 lg:py-24">
         <div className="container max-w-3xl">
           <FadeIn>
-            <h2 className="font-bold text-2xl lg:text-3xl text-foreground tracking-tight text-center mb-10">
-              HOW IT WORKS
+            <h2 className="font-heading text-3xl lg:text-4xl font-bold text-white tracking-tight uppercase text-center mb-12">
+              How It Works
             </h2>
           </FadeIn>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
             {[
-              { num: "01", icon: <Calculator className="w-6 h-6" />, title: "Get Your Estimate", desc: "We diagnose the issue and give you a clear repair estimate." },
-              { num: "02", icon: <CreditCard className="w-6 h-6" />, title: "Choose a Provider", desc: "Pick the financing option that fits your budget and credit." },
-              { num: "03", icon: <Zap className="w-6 h-6" />, title: "Apply & Get Approved", desc: "Apply online or at the counter. Get approved in seconds." },
-              { num: "04", icon: <CheckCircle className="w-6 h-6" />, title: "Drive Away Today", desc: "We fix your car today. You pay with easy monthly payments." },
+              { num: "01", icon: <FileText className="w-7 h-7" />, title: "Get Your Estimate", desc: "We diagnose the issue and give you a clear, honest repair estimate." },
+              { num: "02", icon: <CreditCard className="w-7 h-7" />, title: "Pick a Plan & Apply", desc: "Choose a financing provider and apply in seconds — online or at the counter." },
+              { num: "03", icon: <Car className="w-7 h-7" />, title: "Drive Away Today", desc: "We fix your car today. You pay with easy monthly payments that fit your budget." },
             ].map((step, i) => (
-              <FadeIn key={step.num} delay={i * 0.1}>
+              <FadeIn key={step.num} delay={i * 0.12}>
                 <div className="text-center">
-                  <span className="font-bold text-3xl text-border/30">{step.num}</span>
-                  <div className="w-12 h-12 mx-auto mt-2 mb-3 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                  <span className="font-heading text-4xl font-bold text-[#2A2A2A]">{step.num}</span>
+                  <div className="w-14 h-14 mx-auto mt-3 mb-4 rounded-full bg-[#FDB913]/10 flex items-center justify-center text-[#FDB913]">
                     {step.icon}
                   </div>
-                  <h3 className="font-bold text-foreground tracking-wider text-sm mb-2">{step.title}</h3>
-                  <p className="text-foreground/60 text-sm">{step.desc}</p>
+                  <h3 className="font-heading text-lg font-bold text-white uppercase tracking-wide mb-2">{step.title}</h3>
+                  <p className="text-white/50 text-sm leading-relaxed">{step.desc}</p>
                 </div>
               </FadeIn>
             ))}
@@ -372,17 +353,14 @@ export default function Financing() {
       </section>
 
       {/* ─── FAQ ──────────────────────────────────────────── */}
-      <section className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-20">
+      <section className="bg-[#141414] py-16 lg:py-24">
         <div className="container max-w-3xl">
           <FadeIn>
-            <div className="flex items-center gap-3 mb-8">
-              <HelpCircle className="w-6 h-6 text-primary" />
-              <h2 className="font-bold text-2xl text-foreground tracking-tight">
-                FINANCING FAQ
-              </h2>
-            </div>
-            <div className="bg-[oklch(0.08_0.004_260/0.6)] border border-[oklch(0.17_0.004_260)] rounded-2xl px-6">
-              {FINANCING_FAQ.map((item, i) => (
+            <h2 className="font-heading text-3xl font-bold text-white tracking-tight uppercase text-center mb-10">
+              Frequently Asked Questions
+            </h2>
+            <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl px-6">
+              {FAQ_ITEMS.map((item, i) => (
                 <FAQItem
                   key={i}
                   item={item}
@@ -400,7 +378,7 @@ export default function Financing() {
               __html: JSON.stringify({
                 "@context": "https://schema.org",
                 "@type": "FAQPage",
-                "mainEntity": FINANCING_FAQ.map((item) => ({
+                "mainEntity": FAQ_ITEMS.map((item) => ({
                   "@type": "Question",
                   "name": item.q,
                   "acceptedAnswer": {
@@ -414,49 +392,24 @@ export default function Financing() {
         </div>
       </section>
 
-      {/* ─── Payment Methods ──────────────────────────────── */}
-      <section className="bg-[oklch(0.055_0.004_260)] py-16 lg:py-20">
-        <div className="container max-w-3xl">
+      {/* ─── Bottom CTA ───────────────────────────────────── */}
+      <section className="bg-[#111111] py-12 lg:py-16">
+        <div className="container max-w-3xl text-center">
           <FadeIn>
-            <h2 className="font-bold text-2xl text-foreground tracking-tight text-center mb-8">
-              ACCEPTED PAYMENT METHODS
+            <h2 className="font-heading text-2xl lg:text-3xl font-bold text-white uppercase tracking-wide mb-4">
+              Ready to Get Started?
             </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {PAYMENT_METHODS.map((m) => (
-                <div key={m} className="flex items-center gap-2 bg-card/50 border border-border/20 rounded-lg px-4 py-3">
-                  <DollarSign className="w-4 h-4 text-nick-teal shrink-0" />
-                  <span className="text-[13px] text-foreground/70">{m}</span>
-                </div>
-              ))}
-            </div>
-          </FadeIn>
-        </div>
-      </section>
-
-      {/* ─── Safety CTA ───────────────────────────────────── */}
-      <section className="bg-[oklch(0.065_0.004_260)] py-12 lg:py-16">
-        <div className="container max-w-3xl">
-          <FadeIn>
-            <div className="flex items-start gap-4 bg-primary/5 border border-primary/20 rounded-xl p-6">
-              <AlertCircle className="w-6 h-6 text-primary shrink-0 mt-0.5" />
-              <div>
-                <h3 className="font-bold text-foreground text-sm tracking-[-0.01em] mb-2">DO NOT DELAY SAFETY REPAIRS</h3>
-                <p className="text-foreground/70 text-sm leading-relaxed">
-                  Brakes, tires, and suspension problems get worse and more expensive over time. If cost is a concern, talk to us about financing before you leave. We would rather help you pay over time than have you driving with a safety issue.
-                </p>
-              </div>
-            </div>
-          </FadeIn>
-
-          <div className="mt-8 text-center">
+            <p className="text-white/50 text-sm mb-6 max-w-lg mx-auto">
+              Call us or stop by. We will help you find the financing option that works best for your budget.
+            </p>
             <a
               href={BUSINESS.phone.href}
-              className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-lg font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
+              className="inline-flex items-center gap-2 bg-[#FDB913] text-black px-8 py-4 rounded-lg font-bold text-sm tracking-wide hover:bg-[#FDB913]/90 transition-colors"
             >
               <Phone className="w-4 h-4" />
-              CALL TO DISCUSS OPTIONS — {BUSINESS.phone.display}
+              CALL {BUSINESS.phone.display}
             </a>
-          </div>
+          </FadeIn>
         </div>
       </section>
 

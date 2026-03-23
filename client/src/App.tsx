@@ -2,7 +2,8 @@ import { Suspense, lazy, useEffect } from "react";
 import EmergencyMode from "./components/EmergencyMode";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
+import { AnimatePresence, motion } from "framer-motion";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { captureUtmParams } from "@/lib/utm";
@@ -10,10 +11,10 @@ import { captureUtmParams } from "@/lib/utm";
 // ─── LOADING FALLBACK ─────────────────────────────────
 function PageLoader() {
   return (
-    <div className="min-h-screen bg-nick-dark flex items-center justify-center">
+    <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
-        <div className="w-10 h-10 border-2 border-nick-yellow border-t-transparent rounded-full animate-spin" />
-        <span className="text-foreground/50 text-sm tracking-wider">LOADING...</span>
+        <div className="w-10 h-10 border-2 border-[#FDB913] border-t-transparent rounded-full animate-spin" />
+        <span className="text-[#A0A0A0] text-sm tracking-wider">LOADING...</span>
       </div>
     </div>
   );
@@ -67,9 +68,19 @@ const SharePage = lazy(() => import("./pages/SharePage"));
 const NeighborhoodPage = lazy(() => import("./pages/NeighborhoodPage"));
 
 function Router() {
+  const [location] = useLocation();
+
   return (
-    <Suspense fallback={<PageLoader />}>
-      <Switch>
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        transition={{ duration: 0.2 }}
+      >
+        <Suspense fallback={<PageLoader />}>
+          <Switch>
         <Route path={"/"} component={Home} />
         {/* Services overview page */}
         <Route path={"/services"} component={ServicesOverview} />
@@ -111,6 +122,9 @@ function Router() {
         <Route path={"/richmond-heights-auto-repair"} component={CityPage} />
         <Route path={"/lyndhurst-auto-repair"} component={CityPage} />
         <Route path={"/willoughby-auto-repair"} component={CityPage} />
+        <Route path={"/maple-heights-auto-repair"} component={CityPage} />
+        <Route path={"/bedford-auto-repair"} component={CityPage} />
+        <Route path={"/warrensville-heights-auto-repair"} component={CityPage} />
         {/* Seasonal landing pages */}
         <Route path={"/winter-car-care-cleveland"} component={SeasonalPage} />
         <Route path={"/summer-car-care-cleveland"} component={SeasonalPage} />
@@ -143,6 +157,9 @@ function Router() {
         <Route path={"/transmission-slipping"} component={ProblemPage} />
         <Route path={"/ac-not-blowing-cold"} component={ProblemPage} />
         <Route path={"/battery-keeps-dying"} component={ProblemPage} />
+        <Route path={"/oil-leak-under-car"} component={ProblemPage} />
+        <Route path={"/grinding-noise-when-braking"} component={ProblemPage} />
+        <Route path={"/check-engine-light-on"} component={ProblemPage} />
         {/* Reviews page */}
         <Route path={"/reviews"} component={ReviewsPage} />
         {/* Diagnostic tool */}
@@ -216,7 +233,9 @@ function Router() {
         {/* Final fallback route */}
         <Route component={NotFound} />
       </Switch>
-    </Suspense>
+        </Suspense>
+      </motion.div>
+    </AnimatePresence>
   );
 }
 

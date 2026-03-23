@@ -333,6 +333,36 @@ const CITY_PAGES: RouteEntry[] = [
     sitemap: true,
     prerender: true,
   },
+  {
+    path: "/maple-heights-auto-repair",
+    priority: 0.8,
+    changefreq: "monthly",
+    title: "Auto Repair Near Maple Heights OH — Nick's Tire & Auto",
+    description: "Top-rated auto repair near Maple Heights, OH. Nick's Tire & Auto — 4.9 stars, 1,685+ reviews. Tires, brakes, diagnostics. 15 min via Dunham Rd.",
+    group: "city",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/bedford-auto-repair",
+    priority: 0.8,
+    changefreq: "monthly",
+    title: "Auto Repair Near Bedford OH — Nick's Tire & Auto",
+    description: "Top-rated auto repair near Bedford, OH. Nick's Tire & Auto — 4.9 stars, 1,685+ reviews. Tires, brakes, diagnostics. 18 min via Rockside Rd & I-480.",
+    group: "city",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/warrensville-heights-auto-repair",
+    priority: 0.8,
+    changefreq: "monthly",
+    title: "Auto Repair Warrensville Heights OH — Nick's Tire & Auto",
+    description: "Top-rated auto repair near Warrensville Heights, OH. Nick's Tire & Auto — 4.9 stars, 1,685+ reviews. Tires, brakes, diagnostics. 12 min drive.",
+    group: "city",
+    sitemap: true,
+    prerender: true,
+  },
 ];
 
 // ─── NEIGHBORHOOD MICRO-PAGES ────────────────────────────
@@ -393,6 +423,9 @@ const PROBLEM_PAGES: RouteEntry[] = [
   { path: "/transmission-slipping", priority: 0.7, changefreq: "monthly", title: "Transmission Slipping? — Nick's Tire & Auto", description: "Transmission slipping or jerking? Don't ignore it — early repair saves thousands. Expert diagnostics in Cleveland. Call (216) 862-0005.", group: "problem", sitemap: true, prerender: true },
   { path: "/ac-not-blowing-cold", priority: 0.7, changefreq: "monthly", title: "AC Not Blowing Cold? — Nick's Tire & Auto Cleveland", description: "AC not blowing cold? Refrigerant, compressor, or condenser issue. Auto AC repair at Nick's Tire & Auto, Cleveland. Walk-ins welcome.", group: "problem", sitemap: true, prerender: true },
   { path: "/battery-keeps-dying", priority: 0.7, changefreq: "monthly", title: "Battery Keeps Dying? — Nick's Tire & Auto Cleveland", description: "Battery keeps dying? Alternator, parasitic drain, or old battery. Expert electrical diagnostics at Nick's Tire & Auto, Cleveland.", group: "problem", sitemap: true, prerender: true },
+  { path: "/grinding-noise-when-braking", priority: 0.7, changefreq: "monthly", title: "Grinding Noise When Braking? — Nick's Tire & Auto", description: "Grinding noise when braking? Worn pads, damaged rotors, or debris. Expert brake diagnosis at Nick's Tire & Auto, Cleveland. Walk-ins welcome.", group: "problem", sitemap: true, prerender: true },
+  { path: "/oil-leak-under-car", priority: 0.7, changefreq: "monthly", title: "Oil Leak Under Car? — Nick's Tire & Auto Cleveland", description: "Oil leak under your car? Valve cover gasket, oil pan, or drain plug. Expert leak diagnosis at Nick's Tire & Auto, Cleveland. Walk-ins welcome.", group: "problem", sitemap: true, prerender: true },
+  { path: "/check-engine-light-on", priority: 0.7, changefreq: "monthly", title: "Check Engine Light On? — Nick's Tire & Auto Cleveland", description: "Check engine light on? Could be O2 sensor, catalytic converter, or gas cap. Expert OBD-II diagnostics at Nick's Tire & Auto, Cleveland.", group: "problem", sitemap: true, prerender: true },
 ];
 
 // ─── SEASONAL PAGES ──────────────────────────────────────

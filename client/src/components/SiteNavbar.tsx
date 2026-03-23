@@ -8,6 +8,7 @@ import { trackPhoneClick } from "@/components/SEO";
 import { Phone, Menu, X, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BUSINESS } from "@shared/business";
+import { useBusinessHours } from "@/hooks/useBusinessHours";
 
 const NAV_LINKS = [
   { label: "Services", href: "/services" },
@@ -21,6 +22,8 @@ const NAV_LINKS = [
 export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { isOpen } = useBusinessHours();
+  const hasEmergencyBanner = !isOpen;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -40,7 +43,9 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+      className={`fixed left-0 right-0 z-50 transition-all duration-500 ${
+        hasEmergencyBanner ? "top-[56px] sm:top-[48px]" : "top-0"
+      } ${
         scrolled
           ? "bg-[oklch(0.06_0.004_260/0.92)] backdrop-blur-2xl shadow-[0_1px_0_oklch(0.17_0.004_260/0.5)]"
           : "bg-transparent"

@@ -6,9 +6,12 @@ import { useEffect } from "react";
 import SiteNavbar from "@/components/SiteNavbar";
 import SiteFooter from "@/components/SiteFooter";
 import SiteMobileCTA from "@/components/SiteMobileCTA";
+import StickyTrustBar from "@/components/StickyTrustBar";
+import FomoTicker from "@/components/FomoTicker";
 import ChatWidget from "@/components/ChatWidget";
 import CallbackModal from "@/components/CallbackModal";
 import NotificationBar from "@/components/NotificationBar";
+import ReviewCTA from "@/components/ReviewCTA";
 import { SkipToContent } from "@/components/SEO";
 
 interface PageLayoutProps {
@@ -27,11 +30,14 @@ export default function PageLayout({ children, activeHref, showChat = false }: P
       <SkipToContent />
       <NotificationBar />
       <SiteNavbar activeHref={activeHref} />
+      <StickyTrustBar />
       <main id="main-content" className="flex-1">
         {children}
       </main>
+      <ReviewCTA />
       <SiteFooter />
       <SiteMobileCTA />
+      <FomoTicker />
       <CallbackModal />
       {showChat && <ChatWidget />}
     </div>

@@ -1,0 +1,20 @@
+# Nick's Tire & Auto
+> Cleveland's highest-rated independent auto repair shop. 1,688+ Google reviews at 4.9 stars. Located at 17625 Euclid Ave, Cleveland, OH 44112. Open 7 days a week. Full-service tire shop and auto repair with $0-down financing.
+
+## Services
+- [Tires](https://nickstire.org/tires): New and used tires, mounting, balancing, rotation, TPMS, flat repair. Online tire ordering with free installation.
+- [Brakes](https://nickstire.org/brakes): Pads, rotors, calipers, brake lines, ABS diagnostics.
+- [Oil Change](https://nickstire.org/oil-change): Conventional and synthetic oil changes.
+- [Diagnostics](https://nickstire.org/diagnostics): Check engine light, OBD-II scanning, computer diagnostics.
+- [Emissions](https://nickstire.org/emissions): Ohio E-Check testing and emissions repair.
+- [AC Repair](https://nickstire.org/ac-repair): Auto air conditioning service and repair.
+- [Suspension](https://nickstire.org/suspension-repair): Shocks, struts, alignment, steering repair.
+- [Transmission](https://nickstire.org/transmission): Transmission service and repair.
+- [General Repair](https://nickstire.org/general-repair): Engine, electrical, exhaust, cooling, belts, hoses.
+
+## Key Info
+- Phone: (216) 862-0005
+- Hours: Mon-Sat 8AM-6PM, Sun 9AM-4PM
+- Financing: $0 down, instant approval through Sunbit, Koalafi, Snap Finance, Acima
+- AI Diagnostic Tool: https://nickstire.org/diagnose
+- Reviews: https://nickstire.org/reviews

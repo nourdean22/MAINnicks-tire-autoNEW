@@ -1,14 +1,14 @@
 /**
  * Reviews Showcase Page — /reviews
- * Pulls live Google reviews, displays with star filters, featured highlights,
- * and prominent "Leave a Review" CTA linking to GBP.
+ * Pulls live Google reviews, displays in masonry grid with filters,
+ * gold initial avatars, keyword highlighting, and sort options.
  */
 
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
-import { Phone, MapPin, Star, ExternalLink, Filter, MessageSquare, ThumbsUp, Quote, ChevronDown } from "lucide-react";
+import { Phone, Star, ExternalLink, MessageSquare, ChevronDown } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { GBP_REVIEW_URL, GBP_PLACE_URL } from "@shared/const";
@@ -17,6 +17,54 @@ import { QueryError } from "@/components/QueryState";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
+// Service-related keywords to highlight in gold
+const SERVICE_KEYWORDS = [
+  "tires", "tire", "brakes", "brake", "oil change", "oil changes",
+  "diagnostics", "diagnostic", "check engine", "emissions", "e-check",
+  "alignment", "transmission", "electrical", "exhaust", "muffler",
+  "ac repair", "a/c", "battery", "alternator", "starter",
+  "general repair", "repair", "mechanic", "inspection",
+  "honest", "fair price", "affordable", "trust", "trustworthy",
+];
+
+const SERVICE_TYPES = ["All", "Tires", "Brakes", "Oil Change", "Diagnostics", "Other"] as const;
+type ServiceType = (typeof SERVICE_TYPES)[number];
+
+const RECENCY_OPTIONS = ["Most Recent", "Last 30 Days", "Last 90 Days"] as const;
+type RecencyOption = (typeof RECENCY_OPTIONS)[number];
+
+const SORT_OPTIONS = ["Most Recent", "Highest Rated"] as const;
+type SortOption = (typeof SORT_OPTIONS)[number];
+
+// ─── SERVICE TYPE DETECTION ───────────────────────────
+function detectServiceType(text: string): ServiceType {
+  const lower = text.toLowerCase();
+  if (/\btires?\b|tire\s*(change|install|replacement|mount|balance|rotation|flat)/i.test(lower)) return "Tires";
+  if (/\bbrakes?\b|brake\s*(pad|rotor|service|repair|job)/i.test(lower)) return "Brakes";
+  if (/\boil\s*change/i.test(lower)) return "Oil Change";
+  if (/\bdiagnostic|check\s*engine|e-?check|emission|code\s*read/i.test(lower)) return "Diagnostics";
+  return "Other";
+}
+
+// ─── KEYWORD HIGHLIGHTING ─────────────────────────────
+function highlightKeywords(text: string): React.ReactNode[] {
+  const escapedKeywords = SERVICE_KEYWORDS.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = new RegExp(`(${escapedKeywords.join("|")})`, "gi");
+  const parts = text.split(pattern);
+
+  return parts.map((part, i) => {
+    if (pattern.test(part)) {
+      return (
+        <span key={i} className="text-[#FDB913] font-medium">
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
+}
+
+// ─── FADE IN ──────────────────────────────────────────
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-60px" });
@@ -33,13 +81,7 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
   );
 }
 
-// ─── NAVBAR ────────────────────────────────────────────
-
-
-// ─── MOBILE CTA ────────────────────────────────────────
-
-
-// ─── STAR RATING DISPLAY ───────────────────────────────
+// ─── STAR RATING DISPLAY ──────────────────────────────
 function StarRating({ rating, size = "md" }: { rating: number; size?: "sm" | "md" | "lg" }) {
   const sizeClass = size === "sm" ? "w-4 h-4" : size === "lg" ? "w-6 h-6" : "w-5 h-5";
   return (
@@ -47,52 +89,71 @@ function StarRating({ rating, size = "md" }: { rating: number; size?: "sm" | "md
       {[1, 2, 3, 4, 5].map((i) => (
         <Star
           key={i}
-          className={`${sizeClass} ${i <= rating ? "fill-nick-yellow text-primary" : "fill-border/30 text-border/30"}`}
+          className={`${sizeClass} ${i <= rating ? "fill-[#FDB913] text-[#FDB913]" : "fill-border/30 text-border/30"}`}
         />
       ))}
     </div>
   );
 }
 
-// ─── REVIEW CARD ───────────────────────────────────────
-function ReviewCard({ review, featured = false }: { review: { authorName: string; rating: number; text: string; relativeTime: string }; featured?: boolean }) {
+// ─── PILL TOGGLE BUTTON ───────────────────────────────
+function PillButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap ${
+        active
+          ? "bg-[#FDB913] text-black"
+          : "bg-white/5 text-foreground/50 hover:bg-white/10 hover:text-foreground/70 border border-white/10"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ─── REVIEW CARD ──────────────────────────────────────
+function ReviewCard({ review }: { review: { authorName: string; rating: number; text: string; relativeTime: string } }) {
   const [expanded, setExpanded] = useState(false);
   const isLong = review.text.length > 200;
 
   return (
-    <div className={`${featured ? "col-span-1 lg:col-span-2 bg-gradient-to-br from-nick-yellow/5 via-card/80 to-nick-blue/30 border-primary/20" : "bg-card/80 border-border/30"} border rounded-lg p-6 lg:p-8 relative group`}>
-      {featured && (
-        <div className="absolute top-4 right-4 bg-primary/10 border border-primary/30 rounded-full px-3 py-1">
-          <span className="font-mono text-[10px] text-primary tracking-wide">Featured</span>
-        </div>
-      )}
-
-      <div className="flex items-start gap-4 mb-4">
-        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-          <span className="font-semibold font-bold text-primary text-sm">
+    <div className="bg-card/80 border border-border/30 rounded-lg p-6 break-inside-avoid mb-4">
+      {/* Avatar + Name + Rating */}
+      <div className="flex items-start gap-3 mb-4">
+        <div className="w-10 h-10 rounded-full bg-[#FDB913] flex items-center justify-center shrink-0">
+          <span className="font-bold text-white text-sm leading-none">
             {review.authorName.charAt(0).toUpperCase()}
           </span>
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm truncate">
-            {review.authorName.toUpperCase()}
+          <h3 className="font-semibold text-foreground text-sm truncate">
+            {review.authorName}
           </h3>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-0.5">
             <StarRating rating={review.rating} size="sm" />
             <span className="text-[12px] text-foreground/40">{review.relativeTime}</span>
           </div>
         </div>
       </div>
 
+      {/* Review Text with keyword highlighting */}
       <div className="relative">
-        <Quote className="absolute -top-1 -left-1 w-6 h-6 text-primary/10" />
-        <p className={`text-foreground/70 leading-relaxed text-sm pl-6 ${!expanded && isLong ? "line-clamp-4" : ""}`}>
-          {review.text}
+        <p className={`text-foreground/70 leading-relaxed text-sm ${!expanded && isLong ? "line-clamp-4" : ""}`}>
+          {highlightKeywords(review.text)}
         </p>
         {isLong && (
           <button
             onClick={() => setExpanded(!expanded)}
-            className="mt-2 pl-6 text-[12px] text-nick-blue-light hover:text-primary transition-colors flex items-center gap-1"
+            className="mt-2 text-[12px] text-[#FDB913] hover:text-[#FDB913]/80 transition-colors flex items-center gap-1"
           >
             {expanded ? "Show less" : "Read more"}
             <ChevronDown className={`w-3 h-3 transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -100,62 +161,68 @@ function ReviewCard({ review, featured = false }: { review: { authorName: string
         )}
       </div>
 
+      {/* Google badge */}
       <div className="mt-4 pt-3 border-t border-border/20 flex items-center gap-2">
-        <img
-          src="https://www.google.com/favicon.ico"
-          alt="Google"
-          className="w-4 h-4"
-          loading="lazy"
-        />
+        <img src="https://www.google.com/favicon.ico" alt="Google" className="w-4 h-4" loading="lazy" />
         <span className="font-mono text-[10px] text-foreground/30 tracking-wide">Google Review</span>
       </div>
     </div>
   );
 }
 
-// ─── MAIN PAGE ─────────────────────────────────────────
+// ─── MAIN PAGE ────────────────────────────────────────
 export default function ReviewsPage() {
-  const { data: reviewData, isLoading , isError, error } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000 });
+  const { data: reviewData, isLoading, isError } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000 });
+
+  const [serviceFilter, setServiceFilter] = useState<ServiceType>("All");
   const [starFilter, setStarFilter] = useState<number | null>(null);
+  const [recencyFilter, setRecencyFilter] = useState<RecencyOption>("Most Recent");
+  const [sortBy, setSortBy] = useState<SortOption>("Most Recent");
 
-  // Separate featured reviews (5-star, longest text) from the rest
-  const { featured, filtered } = useMemo(() => {
-    if (!reviewData?.reviews) return { featured: [], filtered: [] };
+  const totalCount = reviewData?.totalReviews ?? 1685;
+  const avgRating = reviewData?.rating ?? 4.9;
 
-    const allReviews = [...reviewData.reviews];
+  // Filter and sort reviews
+  const filteredReviews = useMemo(() => {
+    if (!reviewData?.reviews) return [];
+    let reviews = [...reviewData.reviews];
 
-    // Sort by text length for featured selection (longest 5-star reviews)
-    const fiveStarReviews = allReviews
-      .filter((r) => r.rating === 5)
-      .sort((a, b) => b.text.length - a.text.length);
+    // Service type filter
+    if (serviceFilter !== "All") {
+      reviews = reviews.filter((r) => detectServiceType(r.text) === serviceFilter);
+    }
 
-    const featuredReviews = fiveStarReviews.slice(0, 2);
-    const featuredTexts = new Set(featuredReviews.map((r) => r.text));
+    // Star filter
+    if (starFilter !== null) {
+      reviews = reviews.filter((r) => r.rating === starFilter);
+    }
 
-    const remaining = allReviews.filter((r) => !featuredTexts.has(r.text));
+    // Recency filter (approximate from relativeTime string)
+    if (recencyFilter === "Last 30 Days") {
+      reviews = reviews.filter((r) => {
+        const t = r.relativeTime.toLowerCase();
+        return t.includes("day") || t.includes("hour") || t.includes("minute") || t.includes("a week") || t.includes("weeks");
+      });
+    } else if (recencyFilter === "Last 90 Days") {
+      reviews = reviews.filter((r) => {
+        const t = r.relativeTime.toLowerCase();
+        return (
+          t.includes("day") || t.includes("hour") || t.includes("minute") ||
+          t.includes("week") || t.includes("a month") || t.includes("2 month")
+        );
+      });
+    }
 
-    // Apply star filter
-    const filteredReviews = starFilter
-      ? remaining.filter((r) => r.rating === starFilter)
-      : remaining;
+    // Sort
+    if (sortBy === "Highest Rated") {
+      reviews.sort((a, b) => b.rating - a.rating || b.text.length - a.text.length);
+    }
+    // "Most Recent" is the default API order
 
-    return {
-      featured: starFilter ? [] : featuredReviews,
-      filtered: filteredReviews,
-    };
-  }, [reviewData, starFilter]);
+    return reviews;
+  }, [reviewData, serviceFilter, starFilter, recencyFilter, sortBy]);
 
-  // Rating distribution
-  const distribution = useMemo(() => {
-    if (!reviewData?.reviews) return {};
-    const dist: Record<number, number> = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
-    reviewData.reviews.forEach((r) => {
-      dist[r.rating] = (dist[r.rating] || 0) + 1;
-    });
-    return dist;
-  }, [reviewData]);
-
-  // JSON-LD for reviews page
+  // JSON-LD schema
   const reviewSchema = {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
@@ -173,8 +240,8 @@ export default function ReviewsPage() {
     url: "https://nickstire.org",
     aggregateRating: {
       "@type": "AggregateRating",
-      ratingValue: reviewData?.rating || 4.9,
-      reviewCount: reviewData?.totalReviews || 1685,
+      ratingValue: avgRating,
+      reviewCount: totalCount,
       bestRating: 5,
       worstRating: 1,
     },
@@ -188,7 +255,6 @@ export default function ReviewsPage() {
 
   return (
     <PageLayout activeHref="/reviews" showChat={true}>
-      
       <SEOHead
         title="Customer Reviews | Nick's Tire & Auto Cleveland"
         description={`Read real Google reviews from Cleveland drivers. Nick's Tire & Auto is rated 4.9 stars with ${BUSINESS.reviews.countDisplay} reviews. Honest diagnostics, fair prices, and trusted auto repair.`}
@@ -199,9 +265,8 @@ export default function ReviewsPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(reviewSchema) }}
       />
 
-      
       <main id="main-content">
-        {/* Hero Section */}
+        {/* ─── HERO ─── */}
         <section className="relative min-h-[50vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
             <img src={HERO_IMG} alt="Nick's Tire & Auto shop" className="w-full h-full object-cover" loading="eager" />
@@ -214,245 +279,184 @@ export default function ReviewsPage() {
             </FadeIn>
 
             <FadeIn delay={0.1}>
-              <div className="mt-6 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
-                <div>
-                  <span className="font-mono text-nick-blue-light text-sm tracking-wide">Real Customers, Real Words</span>
-                  <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.95] tracking-tight mt-2">
-                    WHAT <span className="text-primary">CLEVELAND</span><br />
-                    DRIVERS SAY
-                  </h1>
-                  <p className="mt-4 text-foreground/60 text-lg max-w-xl leading-relaxed">
-                    We do not write our own reviews. Every word below comes directly from Google — real drivers sharing their real experiences at our shop.
-                  </p>
-                </div>
-
-                {/* Rating Summary Card */}
-                <div className="bg-card/80 border border-primary/20 rounded-lg p-6 lg:p-8 text-center shrink-0">
-                  <div className="font-semibold font-bold text-6xl text-primary leading-none">
-                    {reviewData?.rating ?? 4.9}
-                  </div>
-                  <div className="flex justify-center mt-2">
-                    <StarRating rating={Math.round(reviewData?.rating ?? 4.9)} size="lg" />
-                  </div>
-                  <p className="text-[13px] text-foreground/60 mt-2">
-                    {(reviewData?.totalReviews ?? 1685).toLocaleString()}+ Reviews
-                  </p>
-                  {reviewData?.lastUpdated && (
-                    <p className="text-[11px] text-foreground/40 mt-2">
-                      Updated {new Date(reviewData.lastUpdated).toLocaleDateString()}
-                    </p>
-                  )}
-                  <a
-                    href={GBP_PLACE_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 mt-3 text-[12px] text-nick-blue-light hover:text-primary transition-colors"
-                  >
-                    <img src="https://www.google.com/favicon.ico" alt="Google" className="w-3.5 h-3.5" loading="lazy" />
-                    View on Google
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-              </div>
+              <h1 className="font-heading text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.95] tracking-tight mt-6 uppercase">
+                Real Reviews from Real<br />
+                <span className="text-[#FDB913]">Cleveland Drivers</span>
+              </h1>
+              <p className="mt-4 text-foreground/50 text-lg font-heading tracking-wide uppercase">
+                {totalCount.toLocaleString()}+ reviews | {avgRating} average
+              </p>
             </FadeIn>
           </div>
         </section>
 
-        {/* Leave a Review CTA Banner */}
-        <section className="bg-[oklch(0.055_0.004_260)]">
-          
-          <div className="container py-8">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  <MessageSquare className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <h2 className="font-semibold font-bold text-foreground tracking-wider text-lg">
-                    HAD A GREAT EXPERIENCE?
-                  </h2>
-                  <p className="text-foreground/50 text-sm">
-                    Your review helps other Cleveland drivers find honest auto repair.
-                  </p>
-                </div>
+        {/* ─── FILTER BAR ─── */}
+        <section className="bg-[oklch(0.06_0.004_260)] border-y border-border/20 sticky top-0 z-30">
+          <div className="container py-4">
+            {/* Service type pills */}
+            <div className="flex flex-wrap gap-2 mb-3">
+              {SERVICE_TYPES.map((type) => (
+                <PillButton
+                  key={type}
+                  active={serviceFilter === type}
+                  onClick={() => setServiceFilter(type)}
+                >
+                  {type}
+                </PillButton>
+              ))}
+            </div>
+
+            {/* Star rating + recency + sort */}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Star filter */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[12px] text-foreground/40 mr-1">Stars:</span>
+                {[5, 4, 3, 2, 1].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStarFilter(starFilter === s ? null : s)}
+                    className={`flex items-center gap-0.5 px-2.5 py-1 rounded-full text-xs transition-all ${
+                      starFilter === s
+                        ? "bg-[#FDB913] text-black font-medium"
+                        : "bg-white/5 text-foreground/40 hover:bg-white/10 border border-white/10"
+                    }`}
+                  >
+                    {s} <Star className="w-3 h-3 fill-current" />
+                  </button>
+                ))}
               </div>
-              <a
-                href={GBP_REVIEW_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors shrink-0"
-              >
-                <Star className="w-5 h-5" />
-                LEAVE A REVIEW
-                <ExternalLink className="w-4 h-4" />
-              </a>
+
+              <div className="h-5 w-px bg-border/20 hidden sm:block" />
+
+              {/* Recency */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[12px] text-foreground/40 mr-1">Time:</span>
+                {RECENCY_OPTIONS.map((opt) => (
+                  <PillButton
+                    key={opt}
+                    active={recencyFilter === opt}
+                    onClick={() => setRecencyFilter(opt)}
+                  >
+                    {opt}
+                  </PillButton>
+                ))}
+              </div>
+
+              <div className="h-5 w-px bg-border/20 hidden sm:block" />
+
+              {/* Sort */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[12px] text-foreground/40 mr-1">Sort:</span>
+                {SORT_OPTIONS.map((opt) => (
+                  <PillButton
+                    key={opt}
+                    active={sortBy === opt}
+                    onClick={() => setSortBy(opt)}
+                  >
+                    {opt}
+                  </PillButton>
+                ))}
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Rating Distribution + Filter */}
-        <section className="bg-[oklch(0.065_0.004_260)] py-12">
+        {/* ─── REVIEWS MASONRY GRID ─── */}
+        <section className="bg-[oklch(0.065_0.004_260)] py-12 lg:py-16">
           <div className="container">
-            <FadeIn>
-              <div className="flex flex-col lg:flex-row gap-8 items-start">
-                {/* Rating Distribution Bars */}
-                <div className="w-full lg:w-80 bg-card/60 border border-border/30 rounded-lg p-6 shrink-0">
-                  <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase mb-4 flex items-center gap-2">
-                    <Filter className="w-4 h-4 text-nick-blue-light" />
-                    Rating Breakdown
-                  </h3>
-                  {[5, 4, 3, 2, 1].map((stars) => {
-                    const count = distribution[stars] || 0;
-                    const total = reviewData?.reviews?.length || 1;
-                    const pct = Math.round((count / total) * 100);
-                    const isActive = starFilter === stars;
+            {/* Results count */}
+            <div className="mb-6 flex items-center justify-between">
+              <p className="text-sm text-foreground/50">
+                {isLoading ? "Loading reviews..." : `${filteredReviews.length} reviews`}
+                {(serviceFilter !== "All" || starFilter !== null || recencyFilter !== "Most Recent") && (
+                  <button
+                    onClick={() => {
+                      setServiceFilter("All");
+                      setStarFilter(null);
+                      setRecencyFilter("Most Recent");
+                    }}
+                    className="ml-3 text-[#FDB913] text-xs hover:underline"
+                  >
+                    Clear all filters
+                  </button>
+                )}
+              </p>
+              <a
+                href={GBP_REVIEW_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-[#FDB913] text-black px-5 py-2.5 rounded-md font-semibold text-sm tracking-wide hover:opacity-90 transition-colors"
+              >
+                <Star className="w-4 h-4" />
+                Leave a Review
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
 
-                    return (
-                      <button
-                        key={stars}
-                        onClick={() => setStarFilter(isActive ? null : stars)}
-                        className={`w-full flex items-center gap-3 py-2 px-2 rounded-md transition-all ${isActive ? "bg-primary/10 ring-1 ring-nick-yellow/30" : "hover:bg-card/80"}`}
-                      >
-                        <span className="text-[12px] text-foreground/60 w-6">{stars}</span>
-                        <Star className="w-3.5 h-3.5 fill-nick-yellow text-primary shrink-0" />
-                        <div className="flex-1 h-2 bg-border/20 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary rounded-full transition-all duration-500"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <span className="text-[12px] text-foreground/40 w-8 text-right">{count}</span>
-                      </button>
-                    );
-                  })}
-
-                  {starFilter && (
-                    <button
-                      onClick={() => setStarFilter(null)}
-                      className="w-full mt-3 py-2 border border-nick-blue/30 rounded-md text-[12px] text-nick-blue-light hover:bg-nick-blue/10 transition-colors tracking-wide"
-                    >
-                      Clear Filter
-                    </button>
-                  )}
-                </div>
-
-                {/* Reviews Grid */}
-                <div className="flex-1 w-full">
-                  {starFilter && (
-                    <div className="mb-4 flex items-center gap-2">
-                      <span className="text-[12px] text-foreground/50 tracking-wide">
-                        Showing {starFilter}-star reviews
-                      </span>
-                      <span className="text-[12px] text-primary">
-                        ({filtered.length} {filtered.length === 1 ? "review" : "reviews"})
-                      </span>
-                    </div>
-                  )}
-
-                  {isError ? (
-              <QueryError message="Failed to load data. Please try again." onRetry={() => window.location.reload()} />
+            {isError ? (
+              <QueryError message="Failed to load reviews. Please try again." onRetry={() => window.location.reload()} />
             ) : isLoading ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      {[1, 2, 3, 4].map((i) => (
-                        <div key={i} className="bg-card/40 border border-border/20 rounded-lg p-8 animate-pulse">
-                          <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 rounded-full bg-border/20" />
-                            <div className="space-y-2 flex-1">
-                              <div className="h-3 bg-border/20 rounded w-1/3" />
-                              <div className="h-2 bg-border/20 rounded w-1/4" />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <div className="h-2 bg-border/20 rounded w-full" />
-                            <div className="h-2 bg-border/20 rounded w-5/6" />
-                            <div className="h-2 bg-border/20 rounded w-2/3" />
-                          </div>
-                        </div>
-                      ))}
+              <div className="columns-1 md:columns-2 lg:columns-3 gap-4">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={i} className="bg-card/40 border border-border/20 rounded-lg p-6 mb-4 break-inside-avoid animate-pulse">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-full bg-border/20" />
+                      <div className="space-y-2 flex-1">
+                        <div className="h-3 bg-border/20 rounded w-1/3" />
+                        <div className="h-2 bg-border/20 rounded w-1/4" />
+                      </div>
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      {/* Featured Reviews */}
-                      <AnimatePresence>
-                        {featured.map((review, i) => (
-                          <motion.div
-                            key={`featured-${review.authorName}-${i}`}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ delay: i * 0.1 }}
-                          >
-                            <ReviewCard review={review} featured />
-                          </motion.div>
-                        ))}
-
-                        {/* Regular Reviews */}
-                        {filtered.map((review, i) => (
-                          <motion.div
-                            key={`review-${review.authorName}-${i}`}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ delay: (featured.length + i) * 0.05 }}
-                          >
-                            <ReviewCard review={review} />
-                          </motion.div>
-                        ))}
-                      </AnimatePresence>
-
-                      {filtered.length === 0 && !isLoading && (
-                        <div className="col-span-2 text-center py-12">
-                          <Star className="w-12 h-12 text-border/30 mx-auto mb-4" />
-                          <p className="font-semibold text-foreground/40 tracking-wider">
-                            No {starFilter}-star reviews to show
-                          </p>
-                          <button
-                            onClick={() => setStarFilter(null)}
-                            className="mt-3 text-[12px] text-nick-blue-light hover:text-primary transition-colors"
-                          >
-                            Show all reviews
-                          </button>
-                        </div>
-                      )}
+                    <div className="space-y-2">
+                      <div className="h-2 bg-border/20 rounded w-full" />
+                      <div className="h-2 bg-border/20 rounded w-5/6" />
+                      <div className="h-2 bg-border/20 rounded w-2/3" />
                     </div>
-                  )}
-                </div>
-              </div>
-            </FadeIn>
-          </div>
-        </section>
-
-        {/* Trust Stats Section */}
-        <section className="bg-[oklch(0.055_0.004_260)] py-16">
-          <div className="container">
-            <FadeIn>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                {[
-                  { value: reviewData?.rating?.toFixed(1) ?? "4.9", label: "Google Rating", icon: <Star className="w-6 h-6" /> },
-                  { value: `${((reviewData?.totalReviews ?? 1685) / 1000).toFixed(1)}K+`, label: "Total Reviews", icon: <MessageSquare className="w-6 h-6" /> },
-                  { value: "Same Day", label: "Most Repairs", icon: <ThumbsUp className="w-6 h-6" /> },
-                  { value: "Since '18", label: "Serving Cleveland", icon: <MapPin className="w-6 h-6" /> },
-                ].map((stat, _i) => (
-                  <div key={stat.label} className="text-center">
-                    <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                      {stat.icon}
-                    </div>
-                    <div className="font-semibold font-bold text-3xl lg:text-4xl text-foreground">{stat.value}</div>
-                    <p className="text-[12px] text-foreground/50 tracking-wide mt-1">{stat.label}</p>
                   </div>
                 ))}
               </div>
-            </FadeIn>
+            ) : filteredReviews.length === 0 ? (
+              <div className="text-center py-16">
+                <Star className="w-12 h-12 text-border/30 mx-auto mb-4" />
+                <p className="font-semibold text-foreground/40 tracking-wider">
+                  No reviews match your filters
+                </p>
+                <button
+                  onClick={() => {
+                    setServiceFilter("All");
+                    setStarFilter(null);
+                    setRecencyFilter("Most Recent");
+                  }}
+                  className="mt-3 text-sm text-[#FDB913] hover:underline"
+                >
+                  Clear all filters
+                </button>
+              </div>
+            ) : (
+              <div className="columns-1 md:columns-2 lg:columns-3 gap-4">
+                <AnimatePresence>
+                  {filteredReviews.map((review, i) => (
+                    <motion.div
+                      key={`review-${review.authorName}-${i}`}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ delay: Math.min(i * 0.03, 0.5) }}
+                    >
+                      <ReviewCard review={review} />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
           </div>
         </section>
 
-        {/* Bottom CTA */}
-        <section className="bg-[oklch(0.065_0.004_260)] py-20 lg:py-28">
-          
-          <div className="container pt-16 text-center">
+        {/* ─── BOTTOM CTA ─── */}
+        <section className="bg-[oklch(0.055_0.004_260)] py-20 lg:py-28">
+          <div className="container text-center">
             <FadeIn>
-              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
-                READY TO <span className="text-primary">EXPERIENCE IT</span>?
+              <h2 className="font-heading text-3xl lg:text-5xl text-foreground tracking-tight uppercase">
+                Ready to <span className="text-[#FDB913]">Experience It</span>?
               </h2>
               <p className="mt-4 text-foreground/60 text-lg max-w-xl mx-auto">
                 Join thousands of Cleveland drivers who trust Nick's Tire & Auto. Call for a free estimate or book online.
@@ -461,7 +465,7 @@ export default function ReviewsPage() {
                 <a
                   href={BUSINESS.phone.href}
                   onClick={() => trackPhoneClick("reviews-bottom-cta")}
-                  className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
+                  className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-black px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
                 >
                   <Phone className="w-5 h-5" />
                   CALL {BUSINESS.phone.display}
@@ -470,7 +474,7 @@ export default function ReviewsPage() {
                   href={GBP_REVIEW_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors"
+                  className="inline-flex items-center justify-center gap-2 border-2 border-foreground/20 text-foreground/70 px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:bg-foreground/5 transition-colors"
                 >
                   <Star className="w-5 h-5" />
                   LEAVE A REVIEW
@@ -479,12 +483,8 @@ export default function ReviewsPage() {
             </FadeIn>
           </div>
         </section>
-
-        {/* Footer */}
-        
       </main>
 
-      
       <InternalLinks title="Explore Our Services" />
     </PageLayout>
   );

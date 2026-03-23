@@ -375,7 +375,82 @@ export const CITIES: CityData[] = [
       author: "James W.",
       location: "Cleveland, OH"
     }
-  }
+  },
+  {
+    slug: "maple-heights-auto-repair",
+    name: "Maple Heights",
+    metaTitle: "Auto Repair Near Maple Heights, OH | Nick's Tire & Auto | (216) 862-0005",
+    metaDescription: "Trusted auto repair serving Maple Heights, Ohio. Brakes, tires, diagnostics, emissions, oil changes. Just 15 minutes via Dunham Rd or Broadway Ave. Call (216) 862-0005.",
+    heroHeadline: "AUTO REPAIR NEAR\nMAPLE HEIGHTS",
+    heroSubline: "Maple Heights drivers trust Nick's Tire & Auto for honest diagnostics, expert repairs, and fair pricing. Located just 15 minutes away via Dunham Road or Broadway Avenue.",
+    distance: "8 miles",
+    driveTime: "15 minutes",
+    neighborhoods: ["Dunham Road", "Broadway Avenue", "Libby Road", "Warrensville Center", "Maple Heights Center"],
+    localContent: "Maple Heights residents are just a quick 15-minute drive from Nick's Tire & Auto, easily accessible via Dunham Road or Broadway Avenue. We have earned the trust of Maple Heights drivers by providing honest diagnostics, transparent pricing, and quality repairs on every visit. Our technicians use advanced OBD-II diagnostic equipment to identify problems accurately, explain everything in plain language, and only recommend repairs that are truly necessary. Whether you need brake service, new tires, an oil change, or complex engine diagnostics, we treat every vehicle with care and integrity. Many Maple Heights drivers have made us their go-to shop after experiencing our commitment to honest, affordable auto repair.",
+    serviceHighlights: [
+      "Complete brake service — pads, rotors, calipers, and ABS diagnostics",
+      "Tire sales and professional installation from major brands",
+      "Check engine light diagnosis and repair",
+      "Ohio E-Check and emissions system repair",
+      "Oil change service — conventional and synthetic options",
+      "Suspension and steering repair for Northeast Ohio roads"
+    ],
+    testimonial: {
+      text: "I drive from Maple Heights because Nick's is honest and fair. They diagnosed an issue that another shop wanted to charge me double for. Trustworthy team.",
+      author: "Denise P.",
+      location: "Maple Heights, OH"
+    }
+  },
+  {
+    slug: "bedford-auto-repair",
+    name: "Bedford",
+    metaTitle: "Auto Repair Near Bedford, OH | Nick's Tire & Auto | (216) 862-0005",
+    metaDescription: "Reliable auto repair serving Bedford, Ohio. Brakes, tires, diagnostics, emissions, and general repair. Easy access via Rockside Rd and I-480. Call (216) 862-0005.",
+    heroHeadline: "TRUSTED AUTO REPAIR\nFOR BEDFORD DRIVERS",
+    heroSubline: "Bedford drivers choose Nick's Tire & Auto for expert diagnostics, honest assessments, and fair pricing. Easy access via Rockside Road and I-480 — just 18 minutes away.",
+    distance: "12 miles",
+    driveTime: "18 minutes",
+    neighborhoods: ["Rockside Road", "Broadway Avenue", "Northfield Road", "Bedford Commons", "Ellenwood"],
+    localContent: "Bedford drivers benefit from easy access to Nick's Tire & Auto via Rockside Road and I-480, making us just an 18-minute drive away. We have built a strong reputation among Bedford residents for honest, transparent auto repair. Our technicians diagnose problems accurately using advanced OBD-II equipment, show you exactly what is wrong before recommending any repairs, and charge fair prices. From routine oil changes and tire rotations to complex engine diagnostics and Ohio E-Check failures, our experienced team handles it all. Bedford drivers who value integrity and quality workmanship choose Nick's because we earn their trust on every visit.",
+    serviceHighlights: [
+      "Advanced engine diagnostics for check engine and warning lights",
+      "Complete brake service with quality OEM-grade parts",
+      "New and used tire sales with mounting and balancing",
+      "Emissions testing preparation and E-Check repair",
+      "Exhaust system diagnosis and repair",
+      "General mechanical repair and maintenance"
+    ],
+    testimonial: {
+      text: "Easy drive from Bedford via I-480. Nick's diagnosed a problem that two shops in Bedford missed completely. Fair price, honest people. They earned my trust.",
+      author: "Kevin R.",
+      location: "Bedford, OH"
+    }
+  },
+  {
+    slug: "warrensville-heights-auto-repair",
+    name: "Warrensville Heights",
+    metaTitle: "Auto Repair Near Warrensville Heights, OH | Nick's Tire & Auto | (216) 862-0005",
+    metaDescription: "Trusted auto repair serving Warrensville Heights, Ohio. Brakes, tires, diagnostics, emissions. Just 12 minutes away, between Cleveland Heights and Garfield Heights. Call (216) 862-0005.",
+    heroHeadline: "AUTO REPAIR NEAR\nWARRENSVILLE HEIGHTS",
+    heroSubline: "Warrensville Heights drivers are just 12 minutes from Nick's Tire & Auto. Located between Cleveland Heights and Garfield Heights, we provide expert auto repair with honest diagnostics and fair pricing.",
+    distance: "7 miles",
+    driveTime: "12 minutes",
+    neighborhoods: ["Warrensville Center Road", "Emery Road", "Miles Road", "Harvard Road", "Chagrin Highlands"],
+    localContent: "Warrensville Heights sits conveniently between Cleveland Heights and Garfield Heights, making Nick's Tire & Auto an easy 12-minute drive for residents. We have earned the trust of drivers throughout this community by consistently delivering honest diagnostics and quality repairs at fair prices. Our technicians use advanced diagnostic equipment to pinpoint problems accurately the first time, which saves you money and gets you back on the road faster. Whether you are dealing with a check engine light, need new brakes, or failed your Ohio E-Check, our team delivers the same transparent, high-quality service that has earned us over 1,685 five-star reviews from drivers across the Cleveland metro area.",
+    serviceHighlights: [
+      "Full diagnostic service for all dashboard warning lights",
+      "Brake inspection, repair, and replacement",
+      "Tire sales and professional installation from major brands",
+      "Ohio E-Check and emissions system diagnosis and repair",
+      "Oil change — conventional and full synthetic options",
+      "Cooling system service and radiator repair"
+    ],
+    testimonial: {
+      text: "Living in Warrensville Heights, Nick's is the closest honest shop I have found. They show me exactly what is wrong and never push unnecessary work. Great team.",
+      author: "Tamika J.",
+      location: "Warrensville Heights, OH"
+    }
+  },
 ];
 
 export function getCityBySlug(slug: string): CityData | undefined {

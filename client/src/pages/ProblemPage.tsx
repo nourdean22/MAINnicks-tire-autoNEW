@@ -1,5 +1,5 @@
 import PageLayout from "@/components/PageLayout";
-import { useParams } from "wouter";
+import { useParams, useRoute } from "wouter";
 import { Link } from "wouter";
 import { Phone, ChevronRight, AlertOctagon } from "lucide-react";
 import { useRef } from "react";
@@ -40,7 +40,9 @@ function LikelihoodBadge({ likelihood }: { likelihood: string }) {
 }
 
 export default function ProblemPage() {
-  const { slug } = useParams<{ slug: string }>();
+  const { slug: paramSlug } = useParams<{ slug: string }>();
+  // Fallback: extract slug from pathname if useParams doesn't match (static routes)
+  const slug = paramSlug || (typeof window !== "undefined" ? window.location.pathname.replace(/^\//, "").split("/")[0] : "");
   const page = slug ? getProblemBySlug(slug) : undefined;
 
   if (!page) {
