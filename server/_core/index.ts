@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import compression from "compression";
 import { createServer } from "http";
 import net from "net";
 import path from "path";
@@ -17,6 +18,8 @@ import { processReviewRequestQueue } from "../routers/reviewRequests";
 import { processReminderQueue } from "../routers/reminders";
 import { processPostInvoiceFollowUps } from "../postInvoiceFollowUp";
 import { SITE_URL } from "@shared/business";
+import { requestLogger } from "../middleware/request-logger";
+import { serverCache } from "../cache";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -40,23 +43,75 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  const startTime = Date.now();
+
   // Trust proxy — required for rate limiting behind reverse proxy
   app.set("trust proxy", 1);
+
+  // ─── GZIP / BROTLI Compression ────────────────────────
+  // Compresses all responses > 1KB. Cuts payload size 60-80%.
+  app.use(compression({
+    level: 6,
+    threshold: 1024,
+    filter: (req, res) => {
+      if (req.headers["x-no-compression"]) return false;
+      return compression.filter(req, res);
+    },
+  }));
+
+  // ─── Request timing & structured logging ──────────────
+  app.use(requestLogger);
+
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-  // Security headers
+  // ─── Security headers (CSP + hardened) ────────────────
   app.use((_req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "SAMEORIGIN");
     res.setHeader("X-XSS-Protection", "1; mode=block");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)");
+    // Content Security Policy — restrict resource origins
+    res.setHeader("Content-Security-Policy", [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://maps.googleapis.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https://d2xsxph8kpxj0f.cloudfront.net https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.ggpht.com https://lh3.googleusercontent.com",
+      "connect-src 'self' https://d2xsxph8kpxj0f.cloudfront.net https://www.google-analytics.com https://maps.googleapis.com https://api.openai.com",
+      "frame-src 'self' https://www.google.com https://maps.google.com",
+      "media-src 'self' https://d2xsxph8kpxj0f.cloudfront.net",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; "));
     if (process.env.NODE_ENV === "production") {
-      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
     }
     next();
+  });
+
+  // ─── Health check & readiness endpoints ───────────────
+  app.get("/api/health", (_req, res) => {
+    res.json({
+      status: "ok",
+      uptime: Math.floor((Date.now() - startTime) / 1000),
+      timestamp: new Date().toISOString(),
+      cache: serverCache.stats(),
+    });
+  });
+
+  app.get("/api/ready", async (_req, res) => {
+    try {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new Error("Database not connected");
+      res.json({ status: "ready", database: "connected" });
+    } catch (err: any) {
+      res.status(503).json({ status: "not_ready", database: err.message });
+    }
   });
   // Rate limiting for public API endpoints to prevent spam/abuse
   const apiLimiter = rateLimit({
@@ -109,30 +164,32 @@ async function startServer() {
       },
     })
   );
-  // Sitemap.xml — powered by shared/routes.ts route registry + dynamic blog articles from DB
+  // Sitemap.xml — cached server-side (1 hour) to avoid DB query on every crawler hit
   app.get("/sitemap.xml", async (_req, res) => {
-    const baseUrl = SITE_URL;
-    const now = new Date().toISOString().split("T")[0];
+    const xml = await serverCache.getOrSet("sitemap:xml", 60 * 60 * 1000, async () => {
+      const baseUrl = SITE_URL;
+      const now = new Date().toISOString().split("T")[0];
 
-    // Fetch published dynamic articles from DB
-    let dynamicSlugs: string[] = [];
-    try {
-      const published = await getPublishedArticles();
-      dynamicSlugs = published.map((a: any) => a.slug);
-    } catch {}
+      let dynamicSlugs: string[] = [];
+      try {
+        const published = await getPublishedArticles();
+        dynamicSlugs = published.map((a: any) => a.slug);
+      } catch {}
 
-    const allBlogSlugs = Array.from(new Set([...BLOG_SLUGS, ...dynamicSlugs]));
+      const allBlogSlugs = Array.from(new Set([...BLOG_SLUGS, ...dynamicSlugs]));
 
-    const urls = [
-      ...SITEMAP_ROUTES.map(p =>
-        `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
-      ),
-      ...allBlogSlugs.map(s =>
-        `  <url>\n    <loc>${baseUrl}/blog/${s}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>`
-      ),
-    ];
+      const urls = [
+        ...SITEMAP_ROUTES.map(p =>
+          `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
+        ),
+        ...allBlogSlugs.map(s =>
+          `  <url>\n    <loc>${baseUrl}/blog/${s}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>`
+        ),
+      ];
 
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>`;
+      return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>`;
+    });
+
     res.setHeader("Content-Type", "application/xml; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=3600");
     res.send(xml);
@@ -278,7 +335,25 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    console.log(`[Perf] Server started in ${Date.now() - startTime}ms`);
   });
+
+  // ─── Graceful shutdown ─────────────────────────────────
+  const shutdown = async (signal: string) => {
+    console.log(`\n[${signal}] Shutting down gracefully...`);
+    server.close(async () => {
+      try {
+        const { closeDb } = await import("../db");
+        await closeDb();
+      } catch {}
+      console.log("[Shutdown] Complete.");
+      process.exit(0);
+    });
+    // Force exit after 10s if graceful shutdown hangs
+    setTimeout(() => process.exit(1), 10_000);
+  };
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
 startServer().catch(console.error);
