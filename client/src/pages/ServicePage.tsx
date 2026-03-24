@@ -6,6 +6,8 @@
 
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
+import ScrollProgress from "@/components/ScrollProgress";
+import ShareButtons from "@/components/ShareButtons";
 import { useState, useEffect } from "react";
 import { useRoute, Link } from "wouter";
 import { SERVICES, type ServiceData } from "@shared/services";
@@ -181,6 +183,12 @@ function ServiceHero({ service }: { service: ServiceData }) {
               BOOK ONLINE
               <ChevronRight className="w-5 h-5" />
             </a>
+          </div>
+        </FadeIn>
+
+        <FadeIn delay={0.35}>
+          <div className="mt-6">
+            <ShareButtons title={service.title} path={`/${service.slug}`} />
           </div>
         </FadeIn>
 
@@ -891,6 +899,7 @@ export default function ServicePage() {
 
   return (
     <PageLayout>
+      <ScrollProgress />
       {service && (
         <SEOHead
           title={service.metaTitle}
