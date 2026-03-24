@@ -21,7 +21,20 @@ injectPreconnect("https://d2xsxph8kpxj0f.cloudfront.net");
 injectPreconnect("https://fonts.googleapis.com");
 injectPreconnect("https://fonts.gstatic.com");
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Stale-while-revalidate: serve cached data instantly, refetch in background
+      staleTime: 2 * 60 * 1000, // 2 minutes — data is "fresh" for 2 min
+      gcTime: 10 * 60 * 1000,   // 10 minutes — keep in cache even after unmount
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+    mutations: {
+      retry: 0,
+    },
+  },
+});
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;

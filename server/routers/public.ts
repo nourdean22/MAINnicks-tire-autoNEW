@@ -1,5 +1,6 @@
 /**
  * Public router — weather, reviews, Instagram, search, and diagnostics.
+ * Expensive external API calls are cached server-side to reduce latency & costs.
  */
 import { publicProcedure, router } from "../_core/trpc";
 import { getWeather, getWeatherAlert } from "../weather";
@@ -10,19 +11,22 @@ import { runDiagnosis } from "../diagnose";
 import { generateLaborEstimate } from "../laborEstimate";
 import { z } from "zod";
 import { sanitizeText } from "../sanitize";
+import { serverCache, CACHE_TTL } from "../cache";
 
 export const weatherRouter = router({
   current: publicProcedure.query(async () => {
-    const weather = await getWeather();
-    if (!weather) return { alert: null, weather: null };
-    const alert = getWeatherAlert(weather);
-    return { alert, weather };
+    return serverCache.getOrSet("weather:current", CACHE_TTL.WEATHER, async () => {
+      const weather = await getWeather();
+      if (!weather) return { alert: null, weather: null };
+      const alert = getWeatherAlert(weather);
+      return { alert, weather };
+    });
   }),
 });
 
 export const reviewsRouter = router({
   google: publicProcedure.query(async () => {
-    return getGoogleReviews();
+    return serverCache.getOrSet("reviews:google", CACHE_TTL.REVIEWS, () => getGoogleReviews());
   }),
 });
 
@@ -30,10 +34,11 @@ export const instagramRouter = router({
   posts: publicProcedure
     .input(z.object({ limit: z.number().min(1).max(20).default(6) }).optional())
     .query(async ({ input }) => {
-      return getInstagramPosts(input?.limit ?? 6);
+      const limit = input?.limit ?? 6;
+      return serverCache.getOrSet(`instagram:posts:${limit}`, CACHE_TTL.INSTAGRAM, () => getInstagramPosts(limit));
     }),
   account: publicProcedure.query(async () => {
-    return getInstagramAccount();
+    return serverCache.getOrSet("instagram:account", CACHE_TTL.INSTAGRAM, () => getInstagramAccount());
   }),
 });
 
