@@ -11,10 +11,12 @@ import LeadPopup from "@/components/LeadPopup";
 import ComparisonTable from "@/components/ComparisonTable";
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
+import SiteSearchSchema from "@/components/SiteSearchSchema";
 import { SEOHead, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { trpc } from "@/lib/trpc";
+import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import { BUSINESS } from "@shared/business";
 import { GBP_REVIEW_URL } from "@shared/const";
 
@@ -150,7 +152,22 @@ function Hero() {
   );
 }
 
-// ─── TRUST NUMBERS — Single horizontal strip ─────────────
+// ─── ANIMATED STAT — Single counter with viewport trigger ───
+function AnimatedStat({ end, decimals = 0, suffix = "", label, delay = 0 }: {
+  end: number; decimals?: number; suffix?: string; label: string; delay?: number;
+}) {
+  const { value, ref } = useAnimatedCounter({ end, duration: 2000, delay, decimals });
+  return (
+    <div ref={ref} className="text-center">
+      <div className="text-3xl lg:text-4xl font-bold text-[#FDB913] tracking-tight font-mono">
+        {decimals > 0 ? value.toFixed(decimals) : value.toLocaleString()}{suffix}
+      </div>
+      <div className="mt-1 text-sm text-foreground/40 font-medium">{label}</div>
+    </div>
+  );
+}
+
+// ─── TRUST NUMBERS — Single horizontal strip with animated counters ───
 function TrustNumbers() {
   const { data: googleData } = trpc.reviews.google.useQuery(undefined, {
     staleTime: 60 * 60 * 1000,
@@ -158,25 +175,31 @@ function TrustNumbers() {
   });
   const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
 
-  const stats = [
-    { value: "4.9", label: "Google Rating" },
-    { value: `${totalReviews.toLocaleString()}+`, label: "Reviews" },
-    { value: "7", label: "Days a Week" },
-    { value: "Same Day", label: "Most Repairs" },
-  ];
-
   return (
     <section className="section-elevated py-16 border-y border-border">
       <div className="container">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-0">
-          {stats.map((s, i) => (
-            <FadeIn key={s.label} delay={i * 0.1}>
-              <div className={`text-center ${i > 0 ? "lg:border-l lg:border-border" : ""}`}>
-                <div className="text-3xl lg:text-4xl font-bold text-[#FDB913] tracking-tight font-mono">{s.value}</div>
-                <div className="mt-1 text-sm text-foreground/40 font-medium">{s.label}</div>
-              </div>
-            </FadeIn>
-          ))}
+          <FadeIn delay={0}>
+            <div className="lg:border-r-0">
+              <AnimatedStat end={4.9} decimals={1} label="Google Rating" delay={0} />
+            </div>
+          </FadeIn>
+          <FadeIn delay={0.1}>
+            <div className="lg:border-l lg:border-border">
+              <AnimatedStat end={totalReviews} suffix="+" label="Reviews" delay={100} />
+            </div>
+          </FadeIn>
+          <FadeIn delay={0.2}>
+            <div className="lg:border-l lg:border-border">
+              <AnimatedStat end={7} label="Days a Week" delay={200} />
+            </div>
+          </FadeIn>
+          <FadeIn delay={0.3}>
+            <div className="lg:border-l lg:border-border text-center">
+              <div className="text-3xl lg:text-4xl font-bold text-[#FDB913] tracking-tight font-mono">Same Day</div>
+              <div className="mt-1 text-sm text-foreground/40 font-medium">Most Repairs</div>
+            </div>
+          </FadeIn>
         </div>
       </div>
     </section>
@@ -519,6 +542,7 @@ export default function Home() {
         canonicalPath="/"
       />
       <LocalBusinessSchema />
+      <SiteSearchSchema />
       <Hero />
       <TrustNumbers />
       <Services />

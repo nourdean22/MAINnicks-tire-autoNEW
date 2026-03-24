@@ -5,11 +5,14 @@ import { Link } from "wouter";
 import { Star } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { GBP_REVIEW_URL } from "@shared/const";
+import { useBusinessHours } from "@/hooks/useBusinessHours";
 
 const LINK_CLASS = "block text-[13px] text-foreground/30 hover:text-foreground/60 transition-colors duration-200";
 const HEADING_CLASS = "text-[11px] font-semibold uppercase tracking-[0.1em] text-foreground/50 mb-5";
 
 export default function SiteFooter() {
+  const { isOpen, nextOpenTime } = useBusinessHours();
+
   return (
     <footer>
       {/* ─── TOP CTA STRIPE ─── */}
@@ -46,6 +49,18 @@ export default function SiteFooter() {
               <a href={BUSINESS.phone.href} className="block mt-1 text-foreground/30 hover:text-foreground/60 text-[13px] transition-colors duration-200">
                 {BUSINESS.phone.display}
               </a>
+              {/* Live open/closed status */}
+              <div className="mt-3 flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${isOpen ? "bg-green-400 pulse-dot" : "bg-red-400"}`} />
+                <span className="text-[12px] text-foreground/40">
+                  {isOpen ? "Open Now" : `Closed · Opens ${nextOpenTime}`}
+                </span>
+              </div>
+              {/* Hours */}
+              <div className="mt-2 text-[11px] text-foreground/20 space-y-0.5">
+                <div>Mon–Sat: 8 AM – 6 PM</div>
+                <div>Sun: 9 AM – 4 PM</div>
+              </div>
               {/* Social links */}
               <div className="mt-5 flex gap-3">
                 <a
@@ -154,9 +169,10 @@ export default function SiteFooter() {
             <p className="text-foreground/20 text-[12px]">
               &copy; {new Date().getFullYear()} Nick's Tire & Auto. All rights reserved.
             </p>
-            <p className="text-foreground/20 text-[12px]">
-              Honest auto repair for Cleveland since 2018
-            </p>
+            <div className="flex items-center gap-4 text-foreground/20 text-[12px]">
+              <Link href="/privacy-policy" className="hover:text-foreground/40 transition-colors">Privacy Policy</Link>
+              <Link href="/terms" className="hover:text-foreground/40 transition-colors">Terms</Link>
+            </div>
           </div>
         </div>
       </div>
