@@ -37,7 +37,9 @@ async function autoCreateInvoiceFromTireOrder(d: any, orderId: number): Promise<
   try {
     const [setting] = await d.select().from(shopSettings).where(eq(shopSettings.key, "laborRate")).limit(1);
     if (setting) laborRate = parseFloat(setting.value);
-  } catch {}
+  } catch (e) {
+    console.warn("[GatewayTire] Failed to fetch labor rate, using default:", e);
+  }
 
   // Tire installation labor: 0.7 hours for mount + balance (from Auto Labor Guide)
   const installHours = 0.7;

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from "react";
+import { Suspense, lazy, useEffect, useRef } from "react";
 import EmergencyMode from "./components/EmergencyMode";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,6 +9,10 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { captureUtmParams } from "@/lib/utm";
 import { useWebVitals } from "@/hooks/useWebVitals";
 import RouteAnnouncer from "@/components/RouteAnnouncer";
+import CookieConsent from "@/components/CookieConsent";
+import { initConsent, onConsentChange, hasConsent } from "@/lib/consent-manager";
+import { initGA4, trackPageView } from "@/lib/ga4";
+import { installErrorHandlers, addBreadcrumb } from "@/lib/error-tracker";
 
 // ─── LOADING FALLBACK ─────────────────────────────────
 function PageLoader() {
@@ -242,10 +246,29 @@ function Router() {
 }
 
 function App() {
+  const [location] = useLocation();
+  const prevLocation = useRef(location);
+
   // Capture UTM params on first load for attribution
   useEffect(() => {
     captureUtmParams();
+    installErrorHandlers();
+    initConsent();
+    // If analytics consent already granted from a previous visit, init GA4 now
+    if (hasConsent("analytics")) initGA4();
+    // Listen for future consent changes
+    onConsentChange((state) => {
+      if (state.analytics) initGA4();
+    });
   }, []);
+
+  // Track page views on route change (gated behind consent in ga4.ts)
+  useEffect(() => {
+    if (location !== prevLocation.current) {
+      prevLocation.current = location;
+      trackPageView(location);
+    }
+  }, [location]);
 
   // Track Core Web Vitals (LCP, CLS, TTFB, INP)
   useWebVitals();
@@ -254,10 +277,19 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[9999] focus:bg-[#FDB913] focus:text-black focus:px-4 focus:py-2 focus:rounded"
+          >
+            Skip to main content
+          </a>
           <Toaster />
           <RouteAnnouncer />
-          <Router />
+          <div id="main-content">
+            <Router />
+          </div>
           <EmergencyMode />
+          <CookieConsent />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

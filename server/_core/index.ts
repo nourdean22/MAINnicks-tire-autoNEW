@@ -18,8 +18,9 @@ import { processReviewRequestQueue } from "../routers/reviewRequests";
 import { processReminderQueue } from "../routers/reminders";
 import { processPostInvoiceFollowUps } from "../postInvoiceFollowUp";
 import { SITE_URL } from "@shared/business";
-import { requestLogger } from "../middleware/request-logger";
 import { serverCache } from "../cache";
+import { logger, createRequestLogger } from "../logger";
+import { securityScan } from "../security-audit";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -59,12 +60,15 @@ async function startServer() {
     },
   }));
 
-  // ─── Request timing & structured logging ──────────────
-  app.use(requestLogger);
+  // ─── Structured request logging ──────────────────────
+  app.use(createRequestLogger());
 
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  // ─── Security scan (XSS, SQLi, path traversal) ──────
+  app.use(securityScan());
 
   // ─── Security headers (CSP + hardened) ────────────────
   app.use((_req, res, next) => {
@@ -113,6 +117,54 @@ async function startServer() {
       res.status(503).json({ status: "not_ready", database: err.message });
     }
   });
+  // ─── Tracking Rate Limiter ─────────────────────────
+  const trackingLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false,
+    message: { error: "Rate limited" },
+  });
+
+  // ─── Client Error Tracking ──────────────────────────
+  app.post("/api/track-error", trackingLimiter, (req, res) => {
+    const { message, stack, breadcrumbs, url, userAgent, componentStack } = req.body || {};
+    if (!message || typeof message !== "string") {
+      return res.status(400).json({ error: "Missing error message" });
+    }
+    logger.error("[CLIENT ERROR]", {
+      message: String(message).slice(0, 1000),
+      stack: stack ? String(stack).slice(0, 2000) : undefined,
+      url: url ? String(url).slice(0, 500) : undefined,
+      userAgent: userAgent ? String(userAgent).slice(0, 300) : undefined,
+      componentStack: componentStack ? String(componentStack).slice(0, 1000) : undefined,
+      breadcrumbs: Array.isArray(breadcrumbs) ? breadcrumbs.slice(-5) : undefined,
+    });
+    res.json({ ok: true });
+  });
+
+  // ─── 404 Tracking ─────────────────────────────────────
+  const notFoundLog: Map<string, { count: number; referrer: string; lastSeen: number }> = new Map();
+  app.post("/api/track-404", trackingLimiter, (req, res) => {
+    const { url, referrer } = req.body || {};
+    if (!url || typeof url !== "string") return res.status(400).json({ error: "Missing url" });
+    const key = String(url).slice(0, 500);
+    const existing = notFoundLog.get(key);
+    if (existing) {
+      existing.count++;
+      existing.lastSeen = Date.now();
+      if (referrer) existing.referrer = String(referrer).slice(0, 500);
+    } else {
+      notFoundLog.set(key, { count: 1, referrer: referrer ? String(referrer).slice(0, 500) : "", lastSeen: Date.now() });
+    }
+    // Keep only the top 500 entries
+    if (notFoundLog.size > 500) {
+      const oldest = [...notFoundLog.entries()].sort((a, b) => a[1].lastSeen - b[1].lastSeen)[0];
+      if (oldest) notFoundLog.delete(oldest[0]);
+    }
+    res.json({ ok: true });
+  });
+
+  // Expose 404 log for admin (will be wired into tRPC admin router too)
+  (app as any)._notFoundLog = notFoundLog;
+
   // Rate limiting for public API endpoints to prevent spam/abuse
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes

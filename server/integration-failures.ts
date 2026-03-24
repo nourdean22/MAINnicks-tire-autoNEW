@@ -2,6 +2,7 @@
  * Integration failure tracking utility
  * Logs failed integrations (Sheets sync, email, SMS, CAPI) for visibility in admin dashboard
  */
+import { eq } from "drizzle-orm";
 import { getDb } from "./db";
 import { integrationFailures } from "../drizzle/schema";
 
@@ -60,7 +61,7 @@ export async function resolveIntegrationFailure(id: number): Promise<void> {
     await d
       .update(integrationFailures)
       .set({ resolvedAt: new Date() })
-      .where((t: any) => t.id === id);
+      .where(eq(integrationFailures.id, id));
   } catch (err) {
     console.error("[IntegrationFailures] Failed to resolve failure #" + id, err);
   }

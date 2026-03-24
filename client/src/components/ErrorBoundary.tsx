@@ -4,6 +4,7 @@
  */
 import { Component, ReactNode } from "react";
 import { BUSINESS } from "@shared/business";
+import { captureError } from "@/lib/error-tracker";
 
 interface Props {
   children: ReactNode;
@@ -30,10 +31,7 @@ class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     this.setState({ errorInfo });
-
-    // Log error for debugging (could be sent to an error reporting service)
-    console.error("[ErrorBoundary] Caught error:", error);
-    console.error("[ErrorBoundary] Component stack:", errorInfo.componentStack);
+    captureError(error, { componentStack: errorInfo.componentStack || undefined });
   }
 
   handleRetry = () => {

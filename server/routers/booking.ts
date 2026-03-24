@@ -63,7 +63,9 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
   try {
     const [setting] = await d.select().from(shopSettings).where(eq(shopSettings.key, "laborRate")).limit(1);
     if (setting) laborRate = parseFloat(setting.value);
-  } catch {}
+  } catch (e) {
+    console.warn("[Booking] Failed to fetch labor rate, using default:", e);
+  }
 
   const laborCost = Math.round(labor.hours * laborRate * 100); // cents
   const taxRate = 0.08; // 8% Ohio sales tax on labor
@@ -275,7 +277,8 @@ export const bookingRouter = router({
       });
 
       // Meta Conversions API: Send server-side Lead + Schedule events
-      if (input.pixelEventIds) {
+      const pixelEventIds = input.pixelEventIds;
+      if (pixelEventIds) {
         const capiUserData = {
           phone: input.phone,
           email: input.email || undefined,
@@ -286,7 +289,7 @@ export const bookingRouter = router({
         };
         withRetry(
           () => sendLeadEvent({
-            eventId: input.pixelEventIds.leadEventId,
+            eventId: pixelEventIds.leadEventId,
             sourceUrl: SITE_URL,
             contentName: "Booking Form Submission",
             contentCategory: input.service,
@@ -305,7 +308,7 @@ export const bookingRouter = router({
         });
         withRetry(
           () => sendScheduleEvent({
-            eventId: input.pixelEventIds.scheduleEventId,
+            eventId: pixelEventIds.scheduleEventId,
             sourceUrl: SITE_URL,
             service: input.service,
             vehicle: vehicleStr || undefined,
