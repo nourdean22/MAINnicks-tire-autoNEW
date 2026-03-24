@@ -124,19 +124,38 @@ async function startServer() {
   });
 
   // ─── Client Error Tracking ──────────────────────────
-  app.post("/api/track-error", trackingLimiter, (req, res) => {
+  app.post("/api/track-error", trackingLimiter, async (req, res) => {
     const { message, stack, breadcrumbs, url, userAgent, componentStack } = req.body || {};
     if (!message || typeof message !== "string") {
       return res.status(400).json({ error: "Missing error message" });
     }
-    logger.error("[CLIENT ERROR]", {
+    const errorData = {
       message: String(message).slice(0, 1000),
       stack: stack ? String(stack).slice(0, 2000) : undefined,
       url: url ? String(url).slice(0, 500) : undefined,
       userAgent: userAgent ? String(userAgent).slice(0, 300) : undefined,
       componentStack: componentStack ? String(componentStack).slice(0, 1000) : undefined,
       breadcrumbs: Array.isArray(breadcrumbs) ? breadcrumbs.slice(-5) : undefined,
-    });
+    };
+    logger.error("[CLIENT ERROR]", errorData);
+    // Persist to errorLog table
+    try {
+      const { getDb } = await import("../db");
+      const { errorLog } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (db) {
+        await db.insert(errorLog).values({
+          source: "client",
+          message: errorData.message,
+          stack: errorData.stack || null,
+          url: errorData.url || null,
+          userAgent: errorData.userAgent || null,
+          metadata: { breadcrumbs: errorData.breadcrumbs, componentStack: errorData.componentStack },
+        });
+      }
+    } catch {
+      // Don't let persistence failures break error reporting
+    }
     res.json({ ok: true });
   });
 
@@ -164,6 +183,32 @@ async function startServer() {
 
   // Expose 404 log for admin (will be wired into tRPC admin router too)
   (app as any)._notFoundLog = notFoundLog;
+
+  // ─── Form Abandonment Tracking ────────────────────────
+  app.post("/api/track-abandonment", trackingLimiter, async (req, res) => {
+    const { phone, name, email, formType, fieldsCompleted } = req.body || {};
+    if (!formType || typeof formType !== "string") {
+      return res.status(400).json({ error: "Missing formType" });
+    }
+    try {
+      const { getDb } = await import("../db");
+      const { formAbandonment } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (db) {
+        await db.insert(formAbandonment).values({
+          phone: phone ? String(phone).slice(0, 20) : null,
+          name: name ? String(name).slice(0, 100) : null,
+          email: email ? String(email).slice(0, 255) : null,
+          formType: String(formType).slice(0, 50),
+          fieldsCompleted: Array.isArray(fieldsCompleted) ? fieldsCompleted : null,
+        });
+      }
+      logger.info("[Abandonment] Tracked", { formType, name });
+    } catch (err: any) {
+      logger.error("[Abandonment] Failed to track", { error: err.message });
+    }
+    res.json({ ok: true });
+  });
 
   // Rate limiting for public API endpoints to prevent spam/abuse
   const apiLimiter = rateLimit({

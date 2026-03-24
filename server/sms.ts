@@ -12,8 +12,26 @@
  * the store phone number (216) 862-0005 for callbacks.
  */
 import twilio from "twilio";
-
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
+
+// ─── Communication log helper (fire-and-forget) ──────
+async function logCommunication(phone: string, type: string, direction: string, body: string, sid?: string) {
+  try {
+    const { getDb } = await import("./db");
+    const { communicationLog } = await import("../drizzle/schema");
+    const db = await getDb();
+    if (!db) return;
+    await db.insert(communicationLog).values({
+      customerPhone: phone,
+      type,
+      direction,
+      body: body.slice(0, 5000),
+      metadata: sid ? { twilioSid: sid } : undefined,
+    });
+  } catch {
+    // Don't let logging failures break SMS sends
+  }
+}
 
 // ─── TWILIO CLIENT ─────────────────────────────────────
 
@@ -67,7 +85,9 @@ export async function sendSms(to: string, body: string): Promise<SmsResult> {
       to: normalized,
     });
 
-    // SMS sent successfully
+    // Log to communication_log
+    logCommunication(normalized, "sms", "outbound", body, message.sid);
+
     return { success: true, sid: message.sid };
   } catch (error: any) {
     console.error(`[SMS] Failed to send to ${normalized}:`, error.message);
