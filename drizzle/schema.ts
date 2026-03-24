@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, index } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -1295,3 +1295,119 @@ export const shareCards = mysqlTable("share_cards", {
   shares: int("shares").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// ═══════════════════════════════════════════════════════
+// Phase 3 — New tables added by master upgrade
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Unified communication log — tracks every SMS, email, call, and note per customer.
+ */
+export const communicationLog = mysqlTable("communication_log", {
+  id: int("id").primaryKey().autoincrement(),
+  customerId: int("customer_id"),
+  customerPhone: varchar("customer_phone", { length: 20 }),
+  type: varchar("type", { length: 20 }).notNull(), // sms, email, call, note
+  direction: varchar("direction", { length: 10 }).notNull(), // inbound, outbound, internal
+  subject: varchar("subject", { length: 255 }),
+  body: text("body"),
+  metadata: json("metadata"),
+  staffName: varchar("staff_name", { length: 100 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_comm_customer_id").on(table.customerId),
+  index("idx_comm_phone").on(table.customerPhone),
+  index("idx_comm_type").on(table.type),
+  index("idx_comm_created").on(table.createdAt),
+]);
+
+/**
+ * SMS opt-in/opt-out preferences (TCPA compliance).
+ */
+export const smsPreferences = mysqlTable("sms_preferences", {
+  id: int("id").primaryKey().autoincrement(),
+  phone: varchar("phone", { length: 20 }).notNull().unique(),
+  optedOut: boolean("opted_out").default(false).notNull(),
+  optOutKeyword: varchar("opt_out_keyword", { length: 20 }),
+  optedOutAt: timestamp("opted_out_at"),
+  optedInAt: timestamp("opted_in_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+/**
+ * Tracks abandoned form submissions for recovery outreach.
+ */
+export const formAbandonment = mysqlTable("form_abandonment", {
+  id: int("id").primaryKey().autoincrement(),
+  phone: varchar("phone", { length: 20 }),
+  name: varchar("name", { length: 100 }),
+  email: varchar("email", { length: 255 }),
+  formType: varchar("form_type", { length: 50 }).notNull(),
+  fieldsCompleted: json("fields_completed"),
+  recoverySmsSent: boolean("recovery_sms_sent").default(false),
+  recovered: boolean("recovered").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_abandon_phone").on(table.phone),
+  index("idx_abandon_created").on(table.createdAt),
+  index("idx_abandon_recovered").on(table.recovered),
+]);
+
+/**
+ * Payment records for Stripe payment links.
+ */
+export const payments = mysqlTable("payments", {
+  id: int("id").primaryKey().autoincrement(),
+  customerId: int("customer_id"),
+  customerPhone: varchar("customer_phone", { length: 20 }),
+  customerName: varchar("customer_name", { length: 200 }),
+  amount: int("amount").notNull(), // cents
+  description: varchar("description", { length: 500 }),
+  stripePaymentLinkId: varchar("stripe_payment_link_id", { length: 255 }),
+  stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 255 }),
+  status: varchar("status", { length: 20 }).default("pending").notNull(),
+  paidAt: timestamp("paid_at"),
+  invoiceId: int("invoice_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_pay_customer").on(table.customerId),
+  index("idx_pay_status").on(table.status),
+  index("idx_pay_stripe").on(table.stripePaymentIntentId),
+  index("idx_pay_created").on(table.createdAt),
+]);
+
+/**
+ * Server + client error log persistence.
+ */
+export const errorLog = mysqlTable("error_log", {
+  id: int("id").primaryKey().autoincrement(),
+  source: varchar("source", { length: 20 }).notNull(), // client, server
+  message: text("message").notNull(),
+  stack: text("stack"),
+  url: varchar("url", { length: 500 }),
+  userAgent: varchar("user_agent", { length: 500 }),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_error_source").on(table.source),
+  index("idx_error_created").on(table.createdAt),
+]);
+
+/**
+ * Appointment reminder delivery tracking.
+ */
+export const appointmentReminders = mysqlTable("appointment_reminders", {
+  id: int("id").primaryKey().autoincrement(),
+  bookingId: int("booking_id").notNull(),
+  type: varchar("type", { length: 20 }).notNull(), // 24h, 2h
+  sentAt: timestamp("sent_at"),
+  smsSid: varchar("sms_sid", { length: 100 }),
+  status: varchar("status", { length: 20 }).default("pending").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_remind_booking").on(table.bookingId),
+  index("idx_remind_type").on(table.type),
+  index("idx_remind_status").on(table.status),
+]);
