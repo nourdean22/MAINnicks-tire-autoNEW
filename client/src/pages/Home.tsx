@@ -12,6 +12,7 @@ import ComparisonTable from "@/components/ComparisonTable";
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import SiteSearchSchema from "@/components/SiteSearchSchema";
+import TestimonialCarousel from "@/components/TestimonialCarousel";
 import { SEOHead, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
@@ -396,6 +397,13 @@ function Reviews() {
           ))}
         </div>
 
+        {/* Testimonial Carousel — auto-rotating social proof */}
+        <FadeIn delay={0.3}>
+          <div className="mt-16 pt-12 border-t border-border">
+            <TestimonialCarousel />
+          </div>
+        </FadeIn>
+
         <FadeIn delay={0.4}>
           <div className="mt-12 text-center">
             <Link href="/reviews" className="inline-flex items-center gap-2 text-sm font-medium text-foreground/50 hover:text-foreground transition-colors">
@@ -546,11 +554,11 @@ export default function Home() {
       <Hero />
       <TrustNumbers />
       <Services />
-      <WhyUs />
-      <Reviews />
-      <ComparisonTable />
-      <Contact />
-      <InternalLinks title="Explore More" />
+      <div className="content-lazy"><WhyUs /></div>
+      <div className="content-lazy"><Reviews /></div>
+      <div className="content-lazy"><ComparisonTable /></div>
+      <div className="content-lazy"><Contact /></div>
+      <div className="content-lazy"><InternalLinks title="Explore More" /></div>
       <LeadPopup />
     </PageLayout>
   );

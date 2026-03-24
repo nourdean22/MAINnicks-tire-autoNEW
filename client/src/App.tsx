@@ -7,6 +7,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { captureUtmParams } from "@/lib/utm";
+import { useWebVitals } from "@/hooks/useWebVitals";
+import RouteAnnouncer from "@/components/RouteAnnouncer";
 
 // ─── LOADING FALLBACK ─────────────────────────────────
 function PageLoader() {
@@ -245,11 +247,15 @@ function App() {
     captureUtmParams();
   }, []);
 
+  // Track Core Web Vitals (LCP, CLS, TTFB, INP)
+  useWebVitals();
+
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
           <Toaster />
+          <RouteAnnouncer />
           <Router />
           <EmergencyMode />
         </TooltipProvider>
