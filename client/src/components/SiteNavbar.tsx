@@ -19,6 +19,22 @@ const NAV_LINKS = [
   { label: "Contact", href: "/contact" },
 ];
 
+// Prefetch page chunks on hover for instant navigation
+const PREFETCH_MAP: Record<string, () => Promise<unknown>> = {
+  "/services": () => import("@/pages/ServicesOverview"),
+  "/financing": () => import("@/pages/Financing"),
+  "/reviews": () => import("@/pages/ReviewsPage"),
+  "/specials": () => import("@/pages/SpecialsPage"),
+  "/about": () => import("@/pages/About"),
+  "/contact": () => import("@/pages/Contact"),
+};
+const prefetched = new Set<string>();
+function prefetchRoute(href: string) {
+  if (prefetched.has(href)) return;
+  prefetched.add(href);
+  PREFETCH_MAP[href]?.();
+}
+
 export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -65,6 +81,7 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
             <Link
               key={l.href}
               href={l.href}
+              onMouseEnter={() => prefetchRoute(l.href)}
               className={`text-[13px] font-medium tracking-[-0.005em] transition-colors duration-200 ${
                 l.href === activeHref
                   ? "text-foreground"
