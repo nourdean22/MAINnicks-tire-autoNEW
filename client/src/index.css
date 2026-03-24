@@ -47,15 +47,17 @@
   --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
   --font-display: 'Barlow Condensed', 'Oswald', system-ui, sans-serif;
 
-  /* ─── BRAND ACCENT COLORS (Dark Industrial) ─── */
+  /* ─── BRAND ACCENT COLORS (Building Blue + Gold) ─── */
   --color-nick-yellow: #FDB913;
   --color-nick-gold: #FFD54F;
   --color-nick-dark: #0A0A0A;
   --color-nick-charcoal: #141414;
   --color-nick-steel: #222222;
   --color-nick-light: #F5F5F5;
-  --color-nick-blue: oklch(0.45 0.10 250);
-  --color-nick-blue-light: oklch(0.55 0.12 250);
+  --color-nick-blue: #1E4D8C;
+  --color-nick-blue-light: #2B6CB0;
+  --color-nick-blue-deep: #153A6B;
+  --color-nick-blue-glow: #3B82F6;
   --color-nick-teal: oklch(0.65 0.15 195);
   --color-nick-cyan: oklch(0.72 0.16 200);
   --color-nick-orange: #FF9800;
@@ -263,6 +265,12 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+  .text-gradient-blue {
+    background: linear-gradient(135deg, #2B6CB0, #3B82F6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
   .text-gradient-teal {
     background: linear-gradient(135deg, oklch(0.55 0.12 250), oklch(0.65 0.15 195));
     -webkit-background-clip: text;
@@ -270,7 +278,26 @@
     background-clip: text;
   }
 
-  /* ─── GLASS MORPHISM ─── */
+
+  /* ─── BLUE SECTION (Building brand) ─── */
+  .section-blue {
+    background: linear-gradient(135deg, #153A6B 0%, #1E4D8C 100%);
+  }
+  .section-blue-dark {
+    background: linear-gradient(135deg, #0F2847 0%, #153A6B 100%);
+  }
+
+  /* ─── BLUE + GOLD BADGE ─── */
+  .badge-brand {
+    background: linear-gradient(135deg, #1E4D8C, #2B6CB0);
+    color: #FDB913;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: 1px solid rgba(253, 185, 19, 0.3);
+  }
+
+    /* ─── GLASS MORPHISM ─── */
   .glass {
     background: rgba(20, 20, 20, 0.85);
     backdrop-filter: blur(24px) saturate(1.3);
