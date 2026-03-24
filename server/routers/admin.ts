@@ -156,8 +156,8 @@ export const analyticsRouter = router({
 
 export const followUpsRouter = router({
   run: adminProcedure.mutation(async () => {
-    const { runFollowUps } = await import("../follow-ups");
-    return runFollowUps();
+    const { processPostInvoiceFollowUps } = await import("../postInvoiceFollowUp");
+    return processPostInvoiceFollowUps();
   }),
   pending: adminProcedure.query(async () => {
     const d = await db();

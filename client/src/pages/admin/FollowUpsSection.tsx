@@ -31,7 +31,7 @@ export default function FollowUpsSection() {
 
   const runFollowUps = trpc.followUps.run.useMutation({
     onSuccess: (data) => {
-      toast.success(`Processed ${data.total} follow-ups`);
+      toast.success(`Processed ${data.processed} follow-ups (${data.sent} sent)`);
       utils.followUps.pending.invalidate();
       utils.followUps.recent.invalidate();
     },

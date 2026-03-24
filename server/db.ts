@@ -5,7 +5,7 @@ import {
   InsertUser, users, bookings, InsertBooking,
   coupons, InsertCoupon,
   customerVehicles, InsertCustomerVehicle,
-  serviceHistory, InsertServiceHistory,
+  serviceHistory,
   referrals, InsertReferral,
   mechanicQA, InsertMechanicQA,
   analyticsSnapshots, InsertAnalyticsSnapshot,
@@ -13,7 +13,7 @@ import {
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
-let _db: ReturnType<typeof drizzle> | null = null;
+let _db: any = null;
 let _pool: mysql.Pool | null = null;
 
 /**
@@ -129,8 +129,8 @@ export async function getUserByOpenId(openId: string) {
 export async function createBooking(booking: InsertBooking) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.insert(bookings).values(booking);
-  return { success: true };
+  const [result] = await db.insert(bookings).values(booking).$returningId();
+  return { success: true, id: result.id };
 }
 
 export async function getBookings() {
@@ -242,13 +242,6 @@ export async function getServiceHistoryForUser(userId: number) {
   return db.select().from(serviceHistory)
     .where(eq(serviceHistory.userId, userId))
     .orderBy(desc(serviceHistory.completedAt));
-}
-
-export async function addServiceRecord(record: InsertServiceHistory) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const result = await db.insert(serviceHistory).values(record);
-  return { success: true, id: Number(result[0].insertId) };
 }
 
 // ─── REFERRAL QUERIES ─────────────────────────────────

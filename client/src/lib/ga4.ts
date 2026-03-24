@@ -1,8 +1,10 @@
 /**
  * GA4 Event Tracking Utility
- * Tracks conversions, form submissions, phone clicks, and custom events
- * Integrates with Google Analytics 4 for attribution and reporting
+ * Tracks conversions, form submissions, phone clicks, and custom events.
+ * All tracking functions are gated behind consent-manager analytics consent.
  */
+
+import { hasConsent } from "@/lib/consent-manager";
 
 // Extend Window interface to include gtag
 declare global {
@@ -16,15 +18,18 @@ export interface GA4Event {
   parameters: Record<string, string | number | boolean>;
 }
 
+/** Returns true if GA4 is available and analytics consent is granted. */
+function canTrack(): boolean {
+  return typeof window !== "undefined" && !!window.gtag && hasConsent("analytics");
+}
+
 /**
- * Initialize GA4 tracking
- * Assumes gtag is loaded globally via Google Analytics script
+ * Initialize GA4 tracking.
+ * Should be called after analytics consent is granted.
  */
 export function initGA4() {
-  // GA4 is loaded via script tag in index.html
-  // Check if gtag is available
-  if (typeof window !== 'undefined' && window.gtag) {
-    console.log('[GA4] Initialized');
+  if (typeof window !== "undefined" && window.gtag && hasConsent("analytics")) {
+    // GA4 script is loaded via index.html — nothing else needed
   }
 }
 
@@ -38,7 +43,7 @@ export function trackFormSubmission(formType: 'booking' | 'lead' | 'callback', d
   source?: string;
   eventId?: string;
 }) {
-  if (typeof window === 'undefined' || !window.gtag) return;
+  if (!canTrack()) return;
 
   const eventName = `form_submission_${formType}`;
   
@@ -63,7 +68,7 @@ export function trackPhoneClick(context: string, data?: {
   page?: string;
   eventId?: string;
 }) {
-  if (typeof window === 'undefined' || !window.gtag) return;
+  if (!canTrack()) return;
 
   window.gtag('event', 'phone_click', {
     event_category: 'engagement',
@@ -84,7 +89,7 @@ export function trackServiceView(serviceType: string, data?: {
   section?: string;
   scrollDepth?: number;
 }) {
-  if (typeof window === 'undefined' || !window.gtag) return;
+  if (!canTrack()) return;
 
   window.gtag('event', 'view_service', {
     event_category: 'content',
@@ -107,7 +112,7 @@ export function trackChatInteraction(action: 'start' | 'message' | 'convert', da
   messageCount?: number;
   eventId?: string;
 }) {
-  if (typeof window === 'undefined' || !window.gtag) return;
+  if (!canTrack()) return;
 
   window.gtag('event', `chat_${action}`, {
     event_category: 'engagement',
@@ -130,7 +135,7 @@ export function trackSearch(query: string, data?: {
   category?: string;
   eventId?: string;
 }) {
-  if (typeof window === 'undefined' || !window.gtag) return;
+  if (!canTrack()) return;
 
   window.gtag('event', 'search', {
     event_category: 'engagement',
@@ -154,7 +159,7 @@ export function trackPageView(pagePath: string, data?: {
   utm_medium?: string;
   utm_campaign?: string;
 }) {
-  if (typeof window === 'undefined' || !window.gtag) return;
+  if (!canTrack()) return;
 
   window.gtag('event', 'page_view', {
     page_path: pagePath,

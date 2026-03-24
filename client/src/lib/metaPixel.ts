@@ -53,6 +53,9 @@ function generateEventId(): string {
   return `evt_${timestamp}_${random}`;
 }
 
+// ─── Consent Check ───────────────────────────────────
+import { hasConsent } from "@/lib/consent-manager";
+
 // ─── Core Tracking Function ───────────────────────────
 function trackEvent(
   eventName: StandardEvent | string,
@@ -61,7 +64,7 @@ function trackEvent(
 ): string {
   const id = eventId || generateEventId();
 
-  if (typeof window !== "undefined" && window.fbq) {
+  if (typeof window !== "undefined" && window.fbq && hasConsent("marketing")) {
     window.fbq("track", eventName, params, { eventID: id });
   }
 
