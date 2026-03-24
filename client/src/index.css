@@ -698,3 +698,36 @@ img[loading="lazy"] {
   will-change: transform;
   transform: translateZ(0);
 }
+
+/* Smooth image reveal on load */
+.img-reveal {
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.img-reveal.loaded {
+  opacity: 1;
+}
+
+/* Skip to content — screen reader only but focusable */
+.sr-only:not(:focus):not(:active) {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+/* Touch target minimum size for mobile accessibility (WCAG 2.5.8) */
+@media (pointer: coarse) {
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Smooth scroll anchor offset for fixed navbar */
+[id] {
+  scroll-margin-top: 80px;
+}
