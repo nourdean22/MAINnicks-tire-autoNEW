@@ -12,6 +12,7 @@ import ChatWidget from "@/components/ChatWidget";
 import CallbackModal from "@/components/CallbackModal";
 import NotificationBar from "@/components/NotificationBar";
 import ReviewCTA from "@/components/ReviewCTA";
+import BackToTop from "@/components/BackToTop";
 import { SkipToContent } from "@/components/SEO";
 
 interface PageLayoutProps {
@@ -39,6 +40,7 @@ export default function PageLayout({ children, activeHref, showChat = false }: P
       <SiteMobileCTA />
       <FomoTicker />
       <CallbackModal />
+      <BackToTop />
       {showChat && <ChatWidget />}
     </div>
   );

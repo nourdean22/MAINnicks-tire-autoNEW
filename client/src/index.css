@@ -634,3 +634,67 @@ img[loading="lazy"] {
 @font-face {
   font-display: swap;
 }
+
+/* ═══════════════════════════════════════════════════════
+   PRINT STYLES
+   ═══════════════════════════════════════════════════════ */
+@media print {
+  /* Hide non-essential UI */
+  nav, footer, .fixed, [role="dialog"],
+  .mobile-cta, .chat-widget, .fomo-ticker,
+  .callback-modal, .notification-bar, .review-cta,
+  .sticky-trust-bar, .emergency-banner {
+    display: none !important;
+  }
+
+  /* Reset backgrounds for ink saving */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Make links visible */
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #666;
+  }
+
+  /* Internal links don't need URL display */
+  a[href^="/"]::after,
+  a[href^="#"]::after {
+    content: "";
+  }
+
+  /* Ensure images print */
+  img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+  }
+
+  /* Page break control */
+  h1, h2, h3, h4 {
+    page-break-after: avoid;
+    color: black !important;
+  }
+
+  section {
+    page-break-inside: avoid;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   PERFORMANCE UTILITIES
+   ═══════════════════════════════════════════════════════ */
+
+/* content-visibility for off-screen sections — huge paint savings */
+.content-lazy {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
+}
+
+/* GPU-accelerated transforms */
+.gpu-accelerated {
+  will-change: transform;
+  transform: translateZ(0);
+}

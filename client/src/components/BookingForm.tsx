@@ -544,7 +544,19 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                   type="tel"
                   required
                   value={formData.phone}
-                  onChange={(e) => update("phone", e.target.value)}
+                  onChange={(e) => {
+                    // Auto-format phone to (216) XXX-XXXX as user types
+                    const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+                    let formatted = digits;
+                    if (digits.length > 6) {
+                      formatted = `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+                    } else if (digits.length > 3) {
+                      formatted = `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+                    } else if (digits.length > 0) {
+                      formatted = `(${digits}`;
+                    }
+                    update("phone", formatted);
+                  }}
                   className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                   placeholder="(216) 555-0000"
                 />

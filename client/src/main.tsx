@@ -8,6 +8,19 @@ import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
 
+// ─── PERFORMANCE: Preconnect to CDN + Google Fonts early ───
+function injectPreconnect(href: string) {
+  if (document.querySelector(`link[href="${href}"]`)) return;
+  const link = document.createElement("link");
+  link.rel = "preconnect";
+  link.href = href;
+  link.crossOrigin = "anonymous";
+  document.head.appendChild(link);
+}
+injectPreconnect("https://d2xsxph8kpxj0f.cloudfront.net");
+injectPreconnect("https://fonts.googleapis.com");
+injectPreconnect("https://fonts.gstatic.com");
+
 const queryClient = new QueryClient();
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
