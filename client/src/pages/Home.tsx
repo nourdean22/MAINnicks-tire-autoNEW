@@ -28,10 +28,10 @@ const BRAKES_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqY
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.1 }}
-      transition={{ duration: 0.6, delay, ease: "easeOut" }}
+      viewport={{ once: true, amount: 0.05, margin: "0px 0px -80px 0px" }}
+      transition={{ duration: 0.5, delay, ease: "easeOut" }}
       className={className}
     >
       {children}
@@ -477,8 +477,8 @@ function LocalBusinessSchema() {
     "name": "Nick's Tire & Auto",
     "alternateName": "Nick's Tire And Auto Euclid",
     "image": HERO_IMG,
-    "@id": "https://nickstire.org",
-    "url": "https://nickstire.org",
+    "@id": "https://autonicks.com",
+    "url": "https://autonicks.com",
     "telephone": "+1-" + BUSINESS.phone.dashed,
     "priceRange": "$$",
     "address": {
