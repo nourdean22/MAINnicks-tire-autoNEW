@@ -252,9 +252,23 @@ export async function sendNotification(input: NotifyInput): Promise<{
     retried,
   });
 
-  console.log(
-    `[Notify] category=${input.category} email=${emailSent ? "sent" : "skipped"}${retried ? " (retried)" : ""} push=${pushSent ? "sent" : "skipped"} recipients=${recipients.join(",") || "none"}`
-  );
+  // Log to persistent communication_log (fire-and-forget)
+  try {
+    const { getDb } = await import("./db");
+    const { communicationLog } = await import("../drizzle/schema");
+    const db = await getDb();
+    if (db) {
+      await db.insert(communicationLog).values({
+        type: "email",
+        direction: "outbound",
+        subject: input.subject,
+        body: input.body.slice(0, 5000),
+        metadata: { category: input.category, recipients, emailSent, pushSent },
+      });
+    }
+  } catch {
+    // Don't let logging failures break notifications
+  }
 
   return { emailSent, pushSent, recipients };
 }
