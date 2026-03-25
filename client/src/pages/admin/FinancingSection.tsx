@@ -73,7 +73,7 @@ function ProviderPortalCard({ provider }: { provider: FinancingProvider }) {
 /* ── Log application form ──────────────────────────────────── */
 function LogApplicationForm() {
   const [form, setForm] = useState({
-    provider: "acima" as "acima" | "snap" | "koalafi" | "synchrony",
+    provider: "acima" as "acima" | "snap" | "koalafi" | "americanfirst",
     customerName: "",
     customerPhone: "",
     customerEmail: "",
