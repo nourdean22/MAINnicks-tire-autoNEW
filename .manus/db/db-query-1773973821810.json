@@ -1,9 +1,0 @@
-{
-  "query": "\n-- Remove the fake phone number customer\nDELETE FROM customers WHERE id = 1129 AND phone = '(12) 345-6789';\n\n-- Re-segment unknown customers based on their last visit date\n-- Recent: visited within last 6 months (since Sept 2025)\nUPDATE customers SET segment = 'recent' WHERE segment = 'unknown' AND lastVisitDate >= '2025-09-01';\n\n-- Lapsed: visited between 6-18 months ago\nUPDATE customers SET segment = 'lapsed' WHERE segment = 'unknown' AND lastVisitDate < '2025-09-01' AND lastVisitDate >= '2024-09-01';\n\n-- Keep truly unknown (no visit date or very old) as unknown\n",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute \n-- Remove the fake phone number customer\nDELETE FROM customers WHERE id = 1129 AND phone = '(12) 345-6789';\n\n-- Re-segment unknown customers based on their last visit date\n-- Recent: visited within last 6 months (since Sept 2025)\nUPDATE customers SET segment = 'recent' WHERE segment = 'unknown' AND lastVisitDate >= '2025-09-01';\n\n-- Lapsed: visited between 6-18 months ago\nUPDATE customers SET segment = 'lapsed' WHERE segment = 'unknown' AND lastVisitDate < '2025-09-01' AND lastVisitDate >= '2024-09-01';\n\n-- Keep truly unknown (no visit date or very old) as unknown\n",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 190
-}
