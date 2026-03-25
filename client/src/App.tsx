@@ -44,6 +44,7 @@ const SeasonalPage = lazy(() => import("./pages/SeasonalPage"));
 const SEOServicePage = lazy(() => import("./pages/SEOServicePage"));
 const IntersectionPage = lazy(() => import("./pages/IntersectionPage"));
 const TrackOrder = lazy(() => import("./pages/TrackOrder"));
+const ServiceCityPage = lazy(() => import("./pages/ServiceCityPage"));
 const VehicleMakePage = lazy(() => import("./pages/VehicleMakePage"));
 const ProblemPage = lazy(() => import("./pages/ProblemPage"));
 const ReviewsPage = lazy(() => import("./pages/ReviewsPage"));
@@ -243,6 +244,8 @@ function Router() {
         {/* Legal pages */}
         <Route path={"/privacy-policy"} component={PrivacyPolicy} />
         <Route path={"/terms"} component={Terms} />
+        {/* Programmatic SEO: 260 service+city pages (e.g., /tires-euclid-oh) */}
+        <Route path={"/:slug"} component={ServiceCityPage} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}
         <Route component={NotFound} />
