@@ -18,11 +18,11 @@ import FadeIn from "@/components/FadeIn";
 /* ── Provider card data (static, inline) ──────────────────── */
 const PROVIDERS = [
   {
-    id: "sunbit",
-    name: "Sunbit",
+    id: "americanfirst",
+    name: "American First Finance",
     primary: true,
-    tagline: "90% approval rate, 3-month 0% APR, 30-second application",
-    features: ["90% of customers approved", "0% APR for first 3 months", "Apply in 30 seconds at the counter", "No hard credit check"],
+    tagline: "Wide approval range, multiple payment options, 60-second application",
+    features: ["Wide approval range for all credit types", "Apply in 60 seconds", "No traditional credit check", "Multiple payment plan options"],
   },
   {
     id: "koalafi",
@@ -198,8 +198,8 @@ export default function Financing() {
   return (
     <PageLayout activeHref="/financing">
       <SEOHead
-        title="Financing Options | Nick's Tire & Auto Cleveland OH"
-        description="$0 down auto repair financing in Cleveland. Instant approval, no hard credit check. Sunbit, Koalafi, Snap Finance, Acima. Apply online in minutes."
+        title="Pay Over Time | Nick's Tire & Auto Cleveland OH"
+        description="Pay over time for auto repair in Cleveland. No traditional credit check. Acima, Snap Finance, Koalafi, American First Finance. Apply in 60 seconds. (216) 862-0005."
         canonicalPath="/financing"
       />
       <Breadcrumbs items={[{ label: "Financing", href: "/financing" }]} />

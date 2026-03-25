@@ -1697,3 +1697,15 @@ export const pushSubscriptions = mysqlTable("push_subscriptions", {
   index("idx_push_customer").on(table.customerId),
   index("idx_push_admin").on(table.isAdmin),
 ]);
+
+// ─── Feature Flags ──────────────────────────────────────
+export const featureFlags = mysqlTable("feature_flags", {
+  id: int("id").autoincrement().primaryKey(),
+  key: varchar("key", { length: 100 }).notNull().unique(),
+  value: boolean("value").default(false).notNull(),
+  description: varchar("description", { length: 500 }),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_flag_key").on(table.key),
+]);

@@ -252,7 +252,7 @@ export default function FAQ() {
     <PageLayout>
       <SEOHead
         title="Frequently Asked Questions | Nick's Tire & Auto Cleveland"
-        description="Common questions about auto repair, brakes, tires, diagnostics, emissions, and oil changes answered by Nick's Tire & Auto in Cleveland, Ohio."
+        description="Auto repair FAQ — brakes, tires, diagnostics, emissions, oil changes. Nick's Tire & Auto, Cleveland. 4.9★ rated. Call (216) 862-0005."
         canonicalPath="/faq"
       />
       <FAQSchema />

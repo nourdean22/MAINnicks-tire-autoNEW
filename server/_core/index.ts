@@ -468,6 +468,18 @@ async function startServer() {
     }).catch((err) => {
       console.warn("[SMS Scheduler] Failed to start:", err.message);
     });
+
+    // Start cron jobs
+    import("../cron/index").then(({ startAllJobs }) => {
+      startAllJobs();
+    }).catch((err) => {
+      console.warn("[Cron] Failed to start:", err.message);
+    });
+
+    // Seed feature flags (idempotent — skips existing)
+    import("../services/featureFlags").then(({ seedFlags }) => {
+      seedFlags().catch(() => {});
+    }).catch(() => {});
   });
 
   // ─── Graceful shutdown ─────────────────────────────────
