@@ -198,7 +198,7 @@ export default function Financing() {
   return (
     <PageLayout activeHref="/financing">
       <SEOHead
-        title="Financing Options | Nick's Tire & Auto Cleveland OH"
+        title="Pay Over Time | Nick's Tire & Auto Cleveland OH"
         description="Pay over time for auto repair in Cleveland. No traditional credit check. Acima, Snap Finance, Koalafi, American First Finance. Apply in 60 seconds. (216) 862-0005."
         canonicalPath="/financing"
       />
