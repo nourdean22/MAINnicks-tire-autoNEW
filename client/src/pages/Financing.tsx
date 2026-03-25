@@ -190,7 +190,7 @@ export default function Financing() {
 
   const handleApplyClick = useCallback((providerId: string) => {
     trackMutation.mutate({
-      provider: providerId as "acima" | "snap" | "koalafi" | "synchrony",
+      provider: providerId as "acima" | "snap" | "koalafi" | "americanfirst",
       sourcePage: "/financing",
     });
   }, [trackMutation]);
