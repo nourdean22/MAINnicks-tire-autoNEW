@@ -451,6 +451,56 @@ export const CITIES: CityData[] = [
       location: "Warrensville Heights, OH"
     }
   },
+  {
+    slug: "parma-heights-auto-repair",
+    name: "Parma Heights",
+    metaTitle: "Auto Repair Near Parma Heights, OH | Nick's Tire & Auto | (216) 862-0005",
+    metaDescription: "Auto repair serving Parma Heights drivers. Brakes from $89, tires from $60. 4.9★ (1,700+ reviews). 36-month warranty. Call (216) 862-0005.",
+    heroHeadline: "AUTO REPAIR FOR\nPARMA HEIGHTS DRIVERS",
+    heroSubline: "Parma Heights residents choose Nick's Tire & Auto for transparent pricing and expert repairs. From brake jobs to tire installations, we handle it all with a 36-month labor warranty.",
+    distance: "18 miles",
+    driveTime: "25 minutes",
+    neighborhoods: ["Parma Heights", "Pearl Road area", "York Road corridor", "Big Creek Parkway"],
+    localContent: "Parma Heights drivers have discovered that the short drive to Nick's Tire & Auto on Euclid Avenue is worth every minute. Our 4.9-star Google rating with over 1,700 reviews speaks to the trust we have built across Greater Cleveland. We offer the same honest diagnostics and upfront pricing that have made us the top-rated shop in Cuyahoga County. Parma Heights residents particularly appreciate our used tire selection starting at $60 and our brake repair packages starting at $89 with a 36-month warranty on labor.",
+    serviceHighlights: [
+      "Used tires from $60 — same-day mounting and balancing",
+      "Brake repair from $89 with 36-month labor warranty",
+      "Ohio E-Check and emissions repair",
+      "Check engine light diagnostics from $49",
+      "Oil changes from $39 — no appointment needed",
+      "Free estimates on all repairs"
+    ],
+    testimonial: {
+      text: "I drive from Parma Heights because I trust these guys. They showed me photos of my brakes and explained everything before starting. Fair prices too.",
+      author: "Kevin M.",
+      location: "Parma Heights, OH"
+    }
+  },
+  {
+    slug: "wickliffe-auto-repair",
+    name: "Wickliffe",
+    metaTitle: "Auto Repair Near Wickliffe, OH | Nick's Tire & Auto | (216) 862-0005",
+    metaDescription: "Auto repair near Wickliffe, OH. Tires, brakes, diagnostics, oil changes. 4.9★ rated, 1,700+ reviews. Walk-ins welcome. Call (216) 862-0005.",
+    heroHeadline: "AUTO REPAIR FOR\nWICKLIFFE DRIVERS",
+    heroSubline: "Just a quick drive down Euclid Avenue, Nick's Tire & Auto serves Wickliffe residents with honest auto repair and fair pricing. Our technicians are ASE-certified and back all labor with a 36-month warranty.",
+    distance: "5 miles",
+    driveTime: "10 minutes",
+    neighborhoods: ["Wickliffe", "Coulby Park", "Lloyd Road area", "Lakeland Boulevard"],
+    localContent: "Wickliffe residents enjoy one of the shortest drives to Nick's Tire & Auto — just 10 minutes straight down Euclid Avenue. Our shop at 17625 Euclid Ave sits right on the Euclid-Wickliffe border, making us the closest top-rated auto repair option for Wickliffe drivers. Whether you need a flat tire repaired for $25, new brakes installed, or a check engine light diagnosed, our team handles it quickly and honestly. Many Wickliffe families have been coming to Nick's for years because we show you the problem before we fix it.",
+    serviceHighlights: [
+      "Flat tire repair from $25 — most done in 15 minutes",
+      "New and used tires with free installation package ($289 value)",
+      "Brake inspection and repair — same-day service available",
+      "Advanced engine diagnostics from $49",
+      "Ohio E-Check and emissions repair",
+      "Walk-ins welcome 7 days a week"
+    ],
+    testimonial: {
+      text: "Only 10 minutes from Wickliffe and worth every minute. Best tire prices in the area and they actually explain what they are doing.",
+      author: "Sarah K.",
+      location: "Wickliffe, OH"
+    }
+  },
 ];
 
 export function getCityBySlug(slug: string): CityData | undefined {
