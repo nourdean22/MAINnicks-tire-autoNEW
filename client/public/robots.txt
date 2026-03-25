@@ -36,4 +36,4 @@ Disallow: /*?*
 Crawl-delay: 1
 
 # Sitemap location
-Sitemap: https://nickstire.org/sitemap.xml
+Sitemap: https://autonicks.com/sitemap.xml

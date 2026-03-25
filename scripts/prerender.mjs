@@ -170,7 +170,7 @@ async function main() {
           // Inject correct SEO tags from route registry if React's useEffect didn't update them
           const routeInfo = routeMap.get(routePath);
           if (routeInfo) {
-            const BASE_URL = "https://nickstire.org";
+            const BASE_URL = "https://autonicks.com";
             const canonicalUrl = `${BASE_URL}${routePath === "/" ? "" : routePath}`;
 
             // Fix title if it's still the default

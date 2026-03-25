@@ -198,7 +198,7 @@ export default function AutoFollowUpSection() {
 If you have 30 seconds, a Google review helps other Cleveland drivers find honest repair:
 [Google Review Link]
 
-Know someone who needs reliable auto service? Refer them to us: nickstire.org/refer
+Know someone who needs reliable auto service? Refer them to us: autonicks.com/refer
 
 Thank you! — Nick's Team
 (216) 862-0005`}

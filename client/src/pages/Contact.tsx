@@ -37,7 +37,7 @@ function ContactSchema() {
     "@type": "AutoRepair",
     name: "Nick's Tire & Auto",
     telephone: `+1-${BUSINESS.phone.dashed}`,
-    url: "https://nickstire.org/contact",
+    url: "https://autonicks.com/contact",
     address: {
       "@type": "PostalAddress",
       streetAddress: BUSINESS.address.street,

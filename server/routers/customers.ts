@@ -240,8 +240,8 @@ export const customersRouter = router({
       const { STORE_NAME, STORE_PHONE } = await import("@shared/const");
 
       // Short URLs save ~50 chars → drops from 3 segments to 2 (33% cost savings)
-      const REVIEW_URL = "nickstire.org/review";
-      const REFER_URL = "nickstire.org/refer";
+      const REVIEW_URL = "autonicks.com/review";
+      const REFER_URL = "autonicks.com/refer";
 
       // Get untexted customers, prioritize recent → lapsed → unknown
       const untexted = await d.select()

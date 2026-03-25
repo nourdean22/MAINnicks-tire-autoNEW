@@ -248,9 +248,9 @@ function QuickLinksBar() {
             <span className="text-foreground/70 text-xs font-medium">Financing Page</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-foreground/30 text-[10px]">nickstire.org/financing</span>
+            <span className="text-foreground/30 text-[10px]">autonicks.com/financing</span>
             <button
-              onClick={() => copyLink("https://nickstire.org/financing", "page")}
+              onClick={() => copyLink("https://autonicks.com/financing", "page")}
               className="text-foreground/40 hover:text-primary transition-colors"
               title="Copy link"
             >

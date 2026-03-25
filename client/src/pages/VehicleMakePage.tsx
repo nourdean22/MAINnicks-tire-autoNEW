@@ -252,7 +252,7 @@ export default function VehicleMakePage() {
         "name": `Nick's Tire & Auto - ${page.make} Repair`,
         "telephone": "+1-" + BUSINESS.phone.dashed,
         "address": { "@type": "PostalAddress", "streetAddress": BUSINESS.address.street, "addressLocality": "Cleveland", "addressRegion": "OH", "postalCode": "44112" },
-        "url": `https://nickstire.org/${page.slug}`,
+        "url": `https://autonicks.com/${page.slug}`,
         "hasMap": BUSINESS.urls.googleBusiness,
         "sameAs": [...BUSINESS.sameAs],
         "aggregateRating": { "@type": "AggregateRating", "ratingValue": String(BUSINESS.reviews.rating), "reviewCount": String(BUSINESS.reviews.count), "bestRating": "5" },

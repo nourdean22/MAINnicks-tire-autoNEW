@@ -26,7 +26,7 @@ const WINBACK_TEMPLATES = {
     {
       step: 1,
       delayDays: 0,
-      template: `Hi {firstName}, this is ${STORE_NAME}. We noticed it has been a while since your last visit. Your vehicle may be due for maintenance. Call us at ${STORE_PHONE} or book online at nickstire.org — we're here when you need us.`,
+      template: `Hi {firstName}, this is ${STORE_NAME}. We noticed it has been a while since your last visit. Your vehicle may be due for maintenance. Call us at ${STORE_PHONE} or book online at autonicks.com — we're here when you need us.`,
     },
     {
       step: 2,
@@ -36,14 +36,14 @@ const WINBACK_TEMPLATES = {
     {
       step: 3,
       delayDays: 12,
-      template: `Hi {firstName}, ${STORE_NAME} here. We wanted to make sure your vehicle is running safely. Whether it is an oil change, brakes, or a check engine light, our technicians are ready to help. Book at nickstire.org or call ${STORE_PHONE}.`,
+      template: `Hi {firstName}, ${STORE_NAME} here. We wanted to make sure your vehicle is running safely. Whether it is an oil change, brakes, or a check engine light, our technicians are ready to help. Book at autonicks.com or call ${STORE_PHONE}.`,
     },
   ],
   unknown: [
     {
       step: 1,
       delayDays: 0,
-      template: `Hi {firstName}, this is ${STORE_NAME} in Cleveland. We have your vehicle on file and wanted to check in. If your car needs any service, we are here to help. Call ${STORE_PHONE} or visit nickstire.org.`,
+      template: `Hi {firstName}, this is ${STORE_NAME} in Cleveland. We have your vehicle on file and wanted to check in. If your car needs any service, we are here to help. Call ${STORE_PHONE} or visit autonicks.com.`,
     },
     {
       step: 2,
@@ -55,7 +55,7 @@ const WINBACK_TEMPLATES = {
     {
       step: 1,
       delayDays: 0,
-      template: `Hi {firstName}, thank you for being a loyal customer at ${STORE_NAME}. As a valued customer, we wanted to let you know about our current specials. Visit nickstire.org/specials or call ${STORE_PHONE}.`,
+      template: `Hi {firstName}, thank you for being a loyal customer at ${STORE_NAME}. As a valued customer, we wanted to let you know about our current specials. Visit autonicks.com/specials or call ${STORE_PHONE}.`,
     },
   ],
 };

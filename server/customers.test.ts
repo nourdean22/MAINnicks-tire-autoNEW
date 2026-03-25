@@ -161,7 +161,7 @@ describe("Customers Router", () => {
     });
 
     it("should have referral URL in shared constants", async () => {
-      // The campaign message references nickstire.org/refer
+      // The campaign message references autonicks.com/refer
       const constants = await import("@shared/const");
       expect(constants).toBeDefined();
     });

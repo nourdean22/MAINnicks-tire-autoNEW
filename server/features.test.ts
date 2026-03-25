@@ -778,23 +778,23 @@ describe("sitemap.xml", () => {
     // Should contain urlset root element
     expect(xml).toContain('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
     // Should contain all public service pages
-    expect(xml).toContain("https://nickstire.org/");
-    expect(xml).toContain("https://nickstire.org/tires");
-    expect(xml).toContain("https://nickstire.org/brakes");
-    expect(xml).toContain("https://nickstire.org/diagnostics");
-    expect(xml).toContain("https://nickstire.org/emissions");
-    expect(xml).toContain("https://nickstire.org/oil-change");
-    expect(xml).toContain("https://nickstire.org/general-repair");
-    expect(xml).toContain("https://nickstire.org/blog");
+    expect(xml).toContain("https://autonicks.com/");
+    expect(xml).toContain("https://autonicks.com/tires");
+    expect(xml).toContain("https://autonicks.com/brakes");
+    expect(xml).toContain("https://autonicks.com/diagnostics");
+    expect(xml).toContain("https://autonicks.com/emissions");
+    expect(xml).toContain("https://autonicks.com/oil-change");
+    expect(xml).toContain("https://autonicks.com/general-repair");
+    expect(xml).toContain("https://autonicks.com/blog");
     // Should contain blog post URLs
-    expect(xml).toContain("https://nickstire.org/blog/5-signs-brakes-need-replacing");
-    expect(xml).toContain("https://nickstire.org/blog/check-engine-light-common-causes");
-    expect(xml).toContain("https://nickstire.org/blog/ohio-echeck-what-to-know");
-    expect(xml).toContain("https://nickstire.org/blog/when-to-replace-tires");
-    expect(xml).toContain("https://nickstire.org/blog/spring-car-maintenance-checklist");
-    expect(xml).toContain("https://nickstire.org/blog/synthetic-vs-conventional-oil");
+    expect(xml).toContain("https://autonicks.com/blog/5-signs-brakes-need-replacing");
+    expect(xml).toContain("https://autonicks.com/blog/check-engine-light-common-causes");
+    expect(xml).toContain("https://autonicks.com/blog/ohio-echeck-what-to-know");
+    expect(xml).toContain("https://autonicks.com/blog/when-to-replace-tires");
+    expect(xml).toContain("https://autonicks.com/blog/spring-car-maintenance-checklist");
+    expect(xml).toContain("https://autonicks.com/blog/synthetic-vs-conventional-oil");
     // Should NOT contain admin pages
-    expect(xml).not.toContain("https://nickstire.org/admin");
+    expect(xml).not.toContain("https://autonicks.com/admin");
   });
 });
 
@@ -808,6 +808,6 @@ describe("robots.txt", () => {
     expect(text).toContain("Allow: /");
     expect(text).toContain("Disallow: /admin");
     expect(text).toContain("Disallow: /api/");
-    expect(text).toContain("Sitemap: https://nickstire.org/sitemap.xml");
+    expect(text).toContain("Sitemap: https://autonicks.com/sitemap.xml");
   });
 });

@@ -41,7 +41,7 @@ export default function Terms() {
               <h2 className="text-2xl font-bold text-foreground mb-4">1. Acceptance of Terms</h2>
               <p>
                 By accessing or using the Nick's Tire & Auto website at{" "}
-                <a href="https://nickstire.org" className="text-primary hover:underline">nickstire.org</a>,
+                <a href="https://autonicks.com" className="text-primary hover:underline">autonicks.com</a>,
                 booking an appointment, or opting in to our SMS messaging program, you agree to be bound by these
                 Terms and Conditions. If you do not agree, please do not use our website or services.
               </p>
@@ -195,7 +195,7 @@ export default function Terms() {
                 <p className="font-bold text-foreground">{BUSINESS.name}</p>
                 <p>{BUSINESS.address.full}</p>
                 <p>Phone: <a href={BUSINESS.phone.href} className="text-primary hover:underline">{BUSINESS.phone.display}</a></p>
-                <p>Website: <a href="https://nickstire.org" className="text-primary hover:underline">nickstire.org</a></p>
+                <p>Website: <a href="https://autonicks.com" className="text-primary hover:underline">autonicks.com</a></p>
               </div>
             </div>
 

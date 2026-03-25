@@ -237,7 +237,7 @@ export default function ReviewsPage() {
       addressCountry: "US",
     },
     telephone: `+1-${BUSINESS.phone.dashed}`,
-    url: "https://nickstire.org",
+    url: "https://autonicks.com",
     aggregateRating: {
       "@type": "AggregateRating",
       ratingValue: avgRating,
