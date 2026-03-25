@@ -5,7 +5,8 @@
       "name": "Nick's Tire Dev Server",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev"],
-      "autoPort": true
+      "port": 3000,
+      "autoPort": false
     },
     {
       "name": "Nick's Tire Production",
