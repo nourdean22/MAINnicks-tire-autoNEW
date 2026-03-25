@@ -1689,3 +1689,56 @@ export const webhookDeliveries = mysqlTable("webhook_deliveries", {
   index("idx_wh_status").on(table.status),
   index("idx_wh_next_retry").on(table.nextRetryAt),
 ]);
+
+// ═══════════════════════════════════════════════════════
+// LAYER 8: Security Tables
+// ═══════════════════════════════════════════════════════
+
+/**
+ * OTP Codes — phone-based one-time password authentication
+ */
+export const otpCodes = mysqlTable("otp_codes", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  code: varchar("code", { length: 6 }).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_otp_phone").on(table.phone),
+  index("idx_otp_expires").on(table.expiresAt),
+]);
+
+/**
+ * Audit Log — tracks all admin/system mutations
+ */
+export const auditLog = mysqlTable("audit_log", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  actor: varchar("actor", { length: 100 }).notNull(),
+  action: varchar("action", { length: 100 }).notNull(),
+  entityType: varchar("entity_type", { length: 50 }),
+  entityId: varchar("entity_id", { length: 36 }),
+  changes: json("changes"),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_audit_actor").on(table.actor),
+  index("idx_audit_entity").on(table.entityType, table.entityId),
+  index("idx_audit_created").on(table.createdAt),
+]);
+
+/**
+ * Push Subscriptions — Web Push notification endpoints
+ */
+export const pushSubscriptions = mysqlTable("push_subscriptions", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  customerId: varchar("customer_id", { length: 36 }),
+  endpoint: text("endpoint").notNull(),
+  p256dh: varchar("p256dh", { length: 255 }).notNull(),
+  auth: varchar("auth_key", { length: 255 }).notNull(),
+  isAdmin: boolean("is_admin").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_push_customer").on(table.customerId),
+  index("idx_push_admin").on(table.isAdmin),
+]);
