@@ -16,6 +16,7 @@ import { adminProcedure, publicProcedure, router } from "../_core/trpc";
 import { notifyTireOrder, notifyInvoiceCreated } from "../email-notify";
 import { getNextInvoiceNumber, createInvoice } from "../db";
 import { syncInvoiceToSheet } from "../sheets-sync";
+import { withRetry } from "../retry";
 import { z } from "zod";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { tireOrders, shopSettings, bookings } from "../../drizzle/schema";
@@ -65,8 +66,8 @@ async function autoCreateInvoiceFromTireOrder(d: any, orderId: number): Promise<
     invoiceDate: new Date(),
   });
 
-  // Sync to Google Sheets
-  await syncInvoiceToSheet({
+  // Sync to Google Sheets (with retry)
+  await withRetry(() => syncInvoiceToSheet({
     invoiceNumber,
     customerName: order.customerName,
     customerPhone: order.customerPhone,
@@ -83,7 +84,7 @@ async function autoCreateInvoiceFromTireOrder(d: any, orderId: number): Promise<
     source: "tire_order",
     orderRef: order.orderNumber,
     notes: `Auto-generated from tire order ${order.orderNumber}`,
-  });
+  }), { label: "invoice-sheet-sync" });
 
   // Notify CEO about the auto-generated invoice
   notifyInvoiceCreated({
@@ -560,6 +561,8 @@ export const gatewayTireRouter = router({
         customerNotes: input.customerNotes || null,
         status: "received",
       }).catch(err => console.error("[TireOrder] Sheet sync error:", err));
+      // Note: syncOrderToGoogleSheet already has internal error handling.
+      // For the invoice sheet sync (line ~69), wrap with withRetry:
 
       // Send email notification to shop + CEO (async, don't block)
       notifyTireOrder({
