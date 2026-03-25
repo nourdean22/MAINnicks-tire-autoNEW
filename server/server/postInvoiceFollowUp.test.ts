@@ -68,13 +68,13 @@ describe("Post-Invoice Follow-Up", () => {
       name: "Nick's Tire & Auto",
       phone: "(216) 862-0005",
       reviewUrl: "https://search.google.com/local/writereview?placeid=ChIJSWRRLdr_MIgRxdlMIMPcqww",
-      referralUrl: "https://autonicks.com/refer",
+      referralUrl: "https://nickstire.org/refer",
     };
     
     expect(storeInfo.name).toBe("Nick's Tire & Auto");
     expect(storeInfo.phone).toBe("(216) 862-0005");
     expect(storeInfo.reviewUrl).toContain("ChIJSWRRLdr_MIgRxdlMIMPcqww");
-    expect(storeInfo.referralUrl).toBe("https://autonicks.com/refer");
+    expect(storeInfo.referralUrl).toBe("https://nickstire.org/refer");
   });
 
   it("should calculate 7-day window correctly", () => {

@@ -105,7 +105,7 @@ describe("SEO Audit Fixes", () => {
       }
     });
 
-    it("schema URL points to autonicks.com not manus.space", () => {
+    it("schema URL points to nickstire.org not manus.space", () => {
       // This tests the data used in the JSON-LD schema
       // The actual schema is built in ServicePage.tsx using these values
       // We verify the service data is correct

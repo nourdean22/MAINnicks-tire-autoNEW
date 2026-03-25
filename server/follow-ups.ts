@@ -20,7 +20,7 @@ async function getDb() {
 }
 
 // Short URL saves ~50 chars → keeps 7d review message at 2 segments instead of 3
-const REVIEW_URL = "autonicks.com/review";
+const REVIEW_URL = "nickstire.org/review";
 
 /**
  * Process 24-hour thank-you follow-ups for completed bookings

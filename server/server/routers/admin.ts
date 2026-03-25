@@ -112,7 +112,7 @@ export const adminDashboardRouter = router({
     checks.push({
       name: "Financing Providers",
       status: "connected",
-      details: "4 providers active: Acima, Snap Finance, Koalafi, Synchrony — merchant portals linked",
+      details: "4 providers active: Acima, Snap Finance, Koalafi, American First Finance — merchant portals linked",
     });
 
     const overallStatus = checks.every(c => c.status === "connected")
