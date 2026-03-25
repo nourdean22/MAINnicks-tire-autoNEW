@@ -166,6 +166,35 @@ export function reviewRequestSms(name: string): string {
 }
 
 /**
+ * 24-hour appointment reminder SMS
+ */
+export function appointmentReminder24hSms(name: string, service: string, vehicle?: string, time?: string): string {
+  const firstName = name.split(" ")[0];
+  const vehicleStr = vehicle ? ` for your ${vehicle}` : "";
+  const timeStr = time ? ` at ${time}` : " tomorrow";
+  return `Hey ${firstName}, we're prepping${vehicleStr}${timeStr}. Parts are staged — see you soon!\n\n${STORE_NAME} — ${STORE_PHONE}`;
+}
+
+/**
+ * 1-hour appointment reminder SMS
+ */
+export function appointmentReminder1hSms(name: string, vehicle?: string): string {
+  const firstName = name.split(" ")[0];
+  const vehicleStr = vehicle ? ` your ${vehicle}` : "";
+  return `Bay is ready for${vehicleStr}! Fresh coffee & fast Wi-Fi if you're hanging out with us.\n\nDirections: nickstire.org/directions\n\n${STORE_NAME}`;
+}
+
+/**
+ * Service complete + DVI link SMS
+ */
+export function serviceCompleteSms(name: string, vehicle?: string, inspectionId?: number): string {
+  const firstName = name.split(" ")[0];
+  const vehicleStr = vehicle ? `Your ${vehicle} is` : "Your vehicle is";
+  const dviLink = inspectionId ? `\n\nDigital inspection: nickstire.org/inspection/${inspectionId}` : "";
+  return `${vehicleStr} ready for pickup, ${firstName}!${dviLink}\n\nCome by during business hours. ${STORE_PHONE}`;
+}
+
+/**
  * Callback confirmation SMS — sent when customer requests a callback
  */
 export function callbackConfirmationSms(name: string): string {
