@@ -9,6 +9,7 @@ import BookingForm from "@/components/BookingForm";
 import FinancingCTA from "@/components/FinancingCTA";
 import LeadPopup from "@/components/LeadPopup";
 import ComparisonTable from "@/components/ComparisonTable";
+import PricingTiers from "@/components/PricingTiers";
 import SnapToQuote from "@/components/SnapToQuote";
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
@@ -789,6 +790,7 @@ export default function Home() {
       <div className="content-lazy"><Reviews /></div>
       <div className="content-lazy"><TirePressureGuide /></div>
       <div className="content-lazy"><ReferAFriend /></div>
+      <div className="content-lazy"><PricingTiers /></div>
       <div className="content-lazy"><ComparisonTable /></div>
       <div className="content-lazy"><Contact /></div>
       <div className="content-lazy"><InternalLinks title="Explore More" /></div>
