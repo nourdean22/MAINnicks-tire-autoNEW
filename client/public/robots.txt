@@ -23,6 +23,11 @@ Disallow: /admin
 Disallow: /admin/
 Disallow: /my-garage
 Disallow: /portal
+
+# Allow tRPC API for client-side rendering (Googlebot needs these for page content)
+Allow: /api/trpc/
+
+# Block other API endpoints
 Disallow: /api/
 Disallow: /status/
 Disallow: /inspection/

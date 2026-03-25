@@ -6,6 +6,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
 import { getRouteByPath } from "../../shared/routes";
+import { SITE_URL } from "../../shared/business";
 
 /**
  * Inject route-specific meta tags (title, description, canonical, OG) into the HTML template.
@@ -16,7 +17,7 @@ function injectRouteMeta(html: string, url: string): string {
   const route = getRouteByPath(url.split("?")[0]);
   if (!route) return html;
 
-  const baseUrl = "https://nickstire.org";
+  const baseUrl = SITE_URL;
   const fullUrl = `${baseUrl}${route.path}`;
   const escapedTitle = route.title.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
   const escapedDesc = route.description.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
@@ -119,13 +120,47 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  // Hashed assets (JS/CSS from Vite) — cache forever (immutable)
+  app.use(
+    "/assets",
+    express.static(path.resolve(distPath, "assets"), {
+      maxAge: "1y",
+      immutable: true,
+      etag: false,
+      lastModified: false,
+    })
+  );
+
+  // Other static files (favicon, manifest, etc.) — cache 1 day with revalidation
+  app.use(
+    express.static(distPath, {
+      maxAge: "1d",
+      etag: true,
+      lastModified: true,
+    })
+  );
+
+  // Cache the index.html in memory to avoid disk reads on every page request
+  let cachedIndex: string | null = null;
+  const indexPath = path.resolve(distPath, "index.html");
+
+  function getIndexHtml(): string {
+    if (!cachedIndex) {
+      cachedIndex = fs.readFileSync(indexPath, "utf-8");
+    }
+    return cachedIndex;
+  }
 
   // fall through to index.html if the file doesn't exist — inject route-specific meta tags for SEO
   app.use("*", (req, res) => {
-    const indexPath = path.resolve(distPath, "index.html");
-    let html = fs.readFileSync(indexPath, "utf-8");
+    let html = getIndexHtml();
     html = injectRouteMeta(html, req.originalUrl);
-    res.status(200).set({ "Content-Type": "text/html" }).end(html);
+    res
+      .status(200)
+      .set({
+        "Content-Type": "text/html",
+        "Cache-Control": "public, max-age=0, must-revalidate",
+      })
+      .end(html);
   });
 }

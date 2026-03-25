@@ -1,7 +1,7 @@
 /*
- * Home Page — Nick's Tire & Auto
- * Dark, bold hero with Barlow Condensed headings, DM Sans body,
- * JetBrains Mono stat numbers, gold accents
+ * Home Page — Nick's Tire & Auto (PIT CREW OS)
+ * Inter headings, Roboto Mono body, Oswald labels
+ * Cobalt blue + gold accent system
  */
 
 import { Link } from "wouter";
@@ -9,12 +9,17 @@ import BookingForm from "@/components/BookingForm";
 import FinancingCTA from "@/components/FinancingCTA";
 import LeadPopup from "@/components/LeadPopup";
 import ComparisonTable from "@/components/ComparisonTable";
+import PricingTiers from "@/components/PricingTiers";
+import SnapToQuote from "@/components/SnapToQuote";
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
+import SiteSearchSchema from "@/components/SiteSearchSchema";
+import TestimonialCarousel from "@/components/TestimonialCarousel";
 import { SEOHead, trackPhoneClick } from "@/components/SEO";
-import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight } from "lucide-react";
+import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight, Gift, Snowflake, Sun, Shield, Users, Gauge } from "lucide-react";
 import { motion } from "framer-motion";
 import { trpc } from "@/lib/trpc";
+import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import { BUSINESS } from "@shared/business";
 import { GBP_REVIEW_URL } from "@shared/const";
 
@@ -28,10 +33,10 @@ const BRAKES_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqY
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.05, margin: "0px 0px -80px 0px" }}
-      transition={{ duration: 0.5, delay, ease: "easeOut" }}
+      viewport={{ once: true, amount: 0.1 }}
+      transition={{ duration: 0.6, delay, ease: "easeOut" }}
       className={className}
     >
       {children}
@@ -39,7 +44,7 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
   );
 }
 
-// ─── HERO — Full-viewport cinematic with left content ────
+// ─── HERO — Bold dual-accent with building blue + gold ────
 function Hero() {
   const { data: googleData } = trpc.reviews.google.useQuery(undefined, {
     staleTime: 60 * 60 * 1000,
@@ -56,29 +61,49 @@ function Hero() {
           src={HERO_IMG}
           alt="Nick's Tire and Auto repair shop in Cleveland Ohio"
           className="w-full h-full object-cover"
+          loading="eager"
+          fetchPriority="high"
         />
+        {/* Blue-tinted gradient overlay matching building color */}
         <div
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(135deg, rgba(10,10,10,0.85) 0%, rgba(10,10,10,0.4) 100%)",
+              "linear-gradient(135deg, rgba(15,40,71,0.92) 0%, rgba(30,77,140,0.65) 40%, rgba(10,10,10,0.45) 100%)",
           }}
         />
       </div>
 
       {/* Content — left-aligned */}
       <div className="relative container">
-        <div className="max-w-[60%] max-lg:max-w-full">
-          {/* Headline */}
+        <div className="max-w-[65%] max-lg:max-w-full">
+          {/* Top badges — inspired by AI Studio layout */}
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
+            className="flex flex-wrap items-center gap-3 mb-6"
+          >
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase bg-[#FDB913] text-[#0B0E14]">
+              <Star className="w-3.5 h-3.5 fill-current" />
+              Cleveland&rsquo;s #1 Tire Shop
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase border border-emerald-500/40 text-emerald-400">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              Walk-ins Welcome
+            </span>
+          </motion.div>
+
+          {/* Headline — directive: "PRECISION REPAIR. EUCLID TOUGH." */}
           <motion.h1
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
-            className="font-heading text-[2.5rem] sm:text-5xl lg:text-[5.5rem] font-extrabold uppercase text-[#F5F5F5] leading-[0.95] tracking-tight"
+            className="font-heading text-[2rem] sm:text-5xl lg:text-[4.5rem] font-extrabold uppercase text-white leading-[0.95] tracking-tight"
           >
-            Cleveland&rsquo;s #1 Rated
+            Precision Repair.
             <br />
-            <span className="text-[#FDB913]">Tire & Auto Repair</span>
+            <span className="text-[#FDB913]">Euclid Tough.</span>
           </motion.h1>
 
           {/* Subheadline */}
@@ -86,36 +111,33 @@ function Hero() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
-            className="mt-6 text-lg sm:text-xl lg:text-2xl font-sans text-[#A0A0A0] max-w-lg"
+            className="mt-6 text-lg sm:text-xl lg:text-2xl font-sans text-white/70 max-w-xl"
           >
-            We show you the problem before we fix it.
+            Cleveland&rsquo;s #1 for tires, brakes, and diagnostics. We beat any quote.
           </motion.p>
 
-          {/* CTA buttons */}
+          {/* CTA buttons — Gold for revenue, outline for secondary */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.7, ease: "easeOut" }}
             className="mt-8 flex flex-col sm:flex-row gap-3"
           >
-            <a
-              href={BUSINESS.phone.href}
-              onClick={() => trackPhoneClick("hero")}
-              className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-[#0A0A0A] px-8 py-3.5 rounded-lg font-semibold text-lg hover:bg-[#FDB913]/90 transition-colors"
-              aria-label="Call for service"
+            <Link
+              href="/booking"
+              className="btn-gold inline-flex items-center justify-center gap-2 text-lg"
             >
-              <Phone className="w-5 h-5" />
-              Call {BUSINESS.phone.display}
-            </a>
+              Book Appointment Now
+            </Link>
             <a
-              href="#booking"
-              className="inline-flex items-center justify-center gap-2 border-2 border-[#FDB913] text-[#FDB913] px-8 py-3.5 rounded-lg font-semibold text-lg hover:bg-[#FDB913]/10 transition-colors"
+              href={`sms:${BUSINESS.phone.raw}`}
+              className="btn-outline inline-flex items-center justify-center gap-2 text-lg"
             >
-              Book Appointment
+              Text a Mechanic
             </a>
           </motion.div>
 
-          {/* Social proof strip */}
+          {/* Trust row — 3 inline badges */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -130,9 +152,8 @@ function Hero() {
               </span>
               {rating.toFixed(1)} from {totalReviews.toLocaleString()}+ reviews
             </span>
-            <span className="text-[#A0A0A0]">&bull; Same-day service</span>
-            <span className="text-[#A0A0A0]">&bull; Walk-ins welcome</span>
-            <span className="text-[#A0A0A0]">&bull; Open 7 days</span>
+            <span className="text-white/50">&bull; ASE Certified</span>
+            <span className="text-white/50">&bull; 3-Year Warranty</span>
           </motion.div>
         </div>
       </div>
@@ -143,14 +164,29 @@ function Hero() {
           animate={{ y: [0, 8, 0] }}
           transition={{ repeat: Infinity, duration: 2 }}
         >
-          <ChevronDown className="w-5 h-5 text-foreground/30" />
+          <ChevronDown className="w-5 h-5 text-white/30" />
         </motion.div>
       </div>
     </section>
   );
 }
 
-// ─── TRUST NUMBERS — Single horizontal strip ─────────────
+// ─── ANIMATED STAT — Single counter with viewport trigger ───
+function AnimatedStat({ end, decimals = 0, suffix = "", label, delay = 0 }: {
+  end: number; decimals?: number; suffix?: string; label: string; delay?: number;
+}) {
+  const { value, ref } = useAnimatedCounter({ end, duration: 2000, delay, decimals });
+  return (
+    <div ref={ref} className="text-center">
+      <div className="text-3xl lg:text-4xl font-bold text-[#FDB913] tracking-tight font-mono">
+        {decimals > 0 ? value.toFixed(decimals) : value.toLocaleString()}{suffix}
+      </div>
+      <div className="mt-1 text-sm text-foreground/40 font-medium">{label}</div>
+    </div>
+  );
+}
+
+// ─── TRUST NUMBERS — Single horizontal strip with animated counters ───
 function TrustNumbers() {
   const { data: googleData } = trpc.reviews.google.useQuery(undefined, {
     staleTime: 60 * 60 * 1000,
@@ -158,25 +194,31 @@ function TrustNumbers() {
   });
   const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
 
-  const stats = [
-    { value: "4.9", label: "Google Rating" },
-    { value: `${totalReviews.toLocaleString()}+`, label: "Reviews" },
-    { value: "7", label: "Days a Week" },
-    { value: "Same Day", label: "Most Repairs" },
-  ];
-
   return (
     <section className="section-elevated py-16 border-y border-border">
       <div className="container">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-0">
-          {stats.map((s, i) => (
-            <FadeIn key={s.label} delay={i * 0.1}>
-              <div className={`text-center ${i > 0 ? "lg:border-l lg:border-border" : ""}`}>
-                <div className="text-3xl lg:text-4xl font-bold text-[#FDB913] tracking-tight font-mono">{s.value}</div>
-                <div className="mt-1 text-sm text-foreground/40 font-medium">{s.label}</div>
-              </div>
-            </FadeIn>
-          ))}
+          <FadeIn delay={0}>
+            <div className="lg:border-r-0">
+              <AnimatedStat end={4.9} decimals={1} label="Google Rating" delay={0} />
+            </div>
+          </FadeIn>
+          <FadeIn delay={0.1}>
+            <div className="lg:border-l lg:border-border">
+              <AnimatedStat end={totalReviews} suffix="+" label="Reviews" delay={100} />
+            </div>
+          </FadeIn>
+          <FadeIn delay={0.2}>
+            <div className="lg:border-l lg:border-border">
+              <AnimatedStat end={7} label="Days a Week" delay={200} />
+            </div>
+          </FadeIn>
+          <FadeIn delay={0.3}>
+            <div className="lg:border-l lg:border-border text-center">
+              <div className="text-3xl lg:text-4xl font-bold text-[#FDB913] tracking-tight font-mono">Same Day</div>
+              <div className="mt-1 text-sm text-foreground/40 font-medium">Most Repairs</div>
+            </div>
+          </FadeIn>
         </div>
       </div>
     </section>
@@ -373,6 +415,13 @@ function Reviews() {
           ))}
         </div>
 
+        {/* Testimonial Carousel — auto-rotating social proof */}
+        <FadeIn delay={0.3}>
+          <div className="mt-16 pt-12 border-t border-border">
+            <TestimonialCarousel />
+          </div>
+        </FadeIn>
+
         <FadeIn delay={0.4}>
           <div className="mt-12 text-center">
             <Link href="/reviews" className="inline-flex items-center gap-2 text-sm font-medium text-foreground/50 hover:text-foreground transition-colors">
@@ -469,6 +518,198 @@ function Contact() {
   );
 }
 
+// ─── SEASONAL SPECIALS — Blue brand section ──────────────
+function SeasonalSpecials() {
+  const specials = [
+    {
+      icon: Sun,
+      title: "Spring Brake Special",
+      desc: "Full brake inspection + pad replacement. Keep your family safe this season.",
+      price: "$149",
+      badge: "Save $50",
+    },
+    {
+      icon: Shield,
+      title: "Free Tire Safety Check",
+      desc: "Not sure if you need new tires? Get a professional inspection for free. No obligation.",
+      price: "FREE",
+      badge: "Popular",
+    },
+    {
+      icon: Snowflake,
+      title: "A/C Ready Package",
+      desc: "Full A/C system check, recharge, and leak inspection before summer hits.",
+      price: "$89",
+      badge: "Seasonal",
+    },
+  ];
+
+  return (
+    <section id="specials-home" className="relative py-24 lg:py-32 overflow-hidden">
+      {/* Building blue gradient background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#0F2847] via-[#1E4D8C] to-[#153A6B]" />
+      <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(59,130,246,0.3) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(253,185,19,0.15) 0%, transparent 40%)' }} />
+
+      <div className="relative container">
+        <FadeIn>
+          <div className="text-center mb-16">
+            <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold tracking-widest uppercase bg-[#FDB913]/10 text-[#FDB913] border border-[#FDB913]/20 mb-6">
+              <Gift className="w-3.5 h-3.5" />
+              Limited Time Offers
+            </span>
+            <h2 className="font-heading text-4xl lg:text-5xl font-bold text-white tracking-tight uppercase">
+              Seasonal Specials
+            </h2>
+            <p className="mt-4 text-white/50 text-lg max-w-xl mx-auto">Save more with our current promotions. Walk in or call to claim.</p>
+          </div>
+        </FadeIn>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {specials.map((s, i) => (
+            <FadeIn key={s.title} delay={i * 0.1}>
+              <div className="relative p-8 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 hover:border-[#FDB913]/30 transition-all group">
+                <div className="absolute top-4 right-4">
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase bg-[#FDB913] text-[#0B0E14]">
+                    {s.badge}
+                  </span>
+                </div>
+                <s.icon className="w-8 h-8 text-[#FDB913] mb-4" />
+                <h3 className="font-heading text-xl font-bold text-white uppercase tracking-tight">{s.title}</h3>
+                <p className="mt-2 text-white/50 text-sm leading-relaxed">{s.desc}</p>
+                <div className="mt-4 text-2xl font-bold text-[#FDB913] font-mono">{s.price}</div>
+                <a
+                  href={BUSINESS.phone.href}
+                  onClick={() => trackPhoneClick(`special-${s.title}`)}
+                  className="mt-6 inline-flex items-center gap-2 w-full justify-center bg-white/10 hover:bg-[#FDB913] hover:text-[#0B0E14] text-white px-4 py-3 rounded-lg font-semibold text-sm transition-all"
+                >
+                  Claim This Offer
+                  <ArrowRight className="w-4 h-4" />
+                </a>
+              </div>
+            </FadeIn>
+          ))}
+        </div>
+
+        <FadeIn delay={0.4}>
+          <div className="mt-12 text-center">
+            <Link href="/specials" className="inline-flex items-center gap-2 text-sm font-medium text-white/50 hover:text-[#FDB913] transition-colors">
+              View all specials <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </FadeIn>
+      </div>
+    </section>
+  );
+}
+
+// ─── REFER A FRIEND — Community rewards ──────────────────
+function ReferAFriend() {
+  return (
+    <section className="py-24 lg:py-32 bg-[oklch(0.065_0.004_260)]">
+      <div className="container">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          <FadeIn>
+            <div>
+              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold tracking-widest uppercase bg-[#1E4D8C]/20 text-[#1E4D8C] border border-[#1E4D8C]/20 mb-6">
+                <Users className="w-3.5 h-3.5" />
+                Community Rewards
+              </span>
+              <h2 className="font-heading text-4xl lg:text-5xl font-bold text-foreground tracking-tight uppercase leading-[1.05]">
+                Refer a Friend.
+                <br />
+                <span className="text-[#FDB913]">You both save $20.</span>
+              </h2>
+              <p className="mt-6 text-foreground/50 text-lg leading-relaxed max-w-md">
+                Know someone who needs tires or auto work? Send them our way. When they mention your name, you both get $20 off your next service.
+              </p>
+              <div className="mt-8 flex flex-col sm:flex-row gap-3">
+                <a
+                  href={BUSINESS.phone.href}
+                  onClick={() => trackPhoneClick("referral-cta")}
+                  className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-[#0B0E14] px-6 py-3.5 rounded-lg font-bold text-sm hover:bg-[#FFD54F] transition-colors"
+                >
+                  <Phone className="w-4 h-4" />
+                  Call to Refer
+                </a>
+                <Link
+                  href="/referral"
+                  className="inline-flex items-center justify-center gap-2 border border-foreground/20 text-foreground px-6 py-3.5 rounded-lg font-semibold text-sm hover:bg-foreground/5 transition-colors"
+                >
+                  Learn More
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+            </div>
+          </FadeIn>
+          <FadeIn delay={0.15}>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-6 rounded-2xl bg-[#1E4D8C]/10 border border-[#1E4D8C]/20">
+                <div className="text-3xl font-bold text-[#1E4D8C] font-mono mb-2">$20</div>
+                <div className="text-sm text-foreground/50">Your friend saves on their first visit</div>
+              </div>
+              <div className="p-6 rounded-2xl bg-[#FDB913]/10 border border-[#FDB913]/20">
+                <div className="text-3xl font-bold text-[#FDB913] font-mono mb-2">$20</div>
+                <div className="text-sm text-foreground/50">You save on your next service</div>
+              </div>
+              <div className="col-span-2 p-6 rounded-2xl bg-foreground/5 border border-border">
+                <div className="text-3xl font-bold text-foreground font-mono mb-2">No Limit</div>
+                <div className="text-sm text-foreground/50">Refer as many friends as you want. Stack your savings.</div>
+              </div>
+            </div>
+          </FadeIn>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── TIRE PRESSURE GUIDE — Utility tool ──────────────────
+function TirePressureGuide() {
+  const vehicles = [
+    { type: "Sedan / Compact", psi: "32-35 PSI", icon: "🚗" },
+    { type: "SUV / Crossover", psi: "35-38 PSI", icon: "🚙" },
+    { type: "Truck / Van", psi: "35-44 PSI", icon: "🛻" },
+    { type: "Sports Car", psi: "30-35 PSI", icon: "🏎️" },
+  ];
+
+  return (
+    <section className="py-20 section-elevated border-y border-border">
+      <div className="container">
+        <FadeIn>
+          <div className="flex flex-col lg:flex-row items-start lg:items-center gap-8 lg:gap-16">
+            <div className="lg:w-1/3">
+              <div className="flex items-center gap-3 mb-4">
+                <Gauge className="w-6 h-6 text-[#1E4D8C]" />
+                <span className="text-xs font-bold tracking-widest uppercase text-foreground/40">Quick Reference</span>
+              </div>
+              <h3 className="font-heading text-2xl lg:text-3xl font-bold text-foreground tracking-tight uppercase">Tire Pressure Guide</h3>
+              <p className="mt-3 text-foreground/50 text-sm leading-relaxed">Not sure what PSI? Check your door jamb sticker or use these general recommendations.</p>
+              <a
+                href={`https://www.google.com/maps/dir//${encodeURIComponent(BUSINESS.address.full)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[#1E4D8C] hover:text-[#FDB913] transition-colors"
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                Get Directions for Free Air Check
+              </a>
+            </div>
+            <div className="lg:w-2/3 grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {vehicles.map((v) => (
+                <div key={v.type} className="text-center p-5 rounded-xl bg-background border border-border">
+                  <div className="text-2xl mb-2">{v.icon}</div>
+                  <div className="text-lg font-bold text-[#FDB913] font-mono">{v.psi}</div>
+                  <div className="text-xs text-foreground/40 mt-1">{v.type}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </FadeIn>
+      </div>
+    </section>
+  );
+}
+
 // ─── LOCAL BUSINESS SCHEMA ───────────────────────────────
 function LocalBusinessSchema() {
   const schema = {
@@ -477,14 +718,14 @@ function LocalBusinessSchema() {
     "name": "Nick's Tire & Auto",
     "alternateName": "Nick's Tire And Auto Euclid",
     "image": HERO_IMG,
-    "@id": "https://autonicks.com",
-    "url": "https://autonicks.com",
+    "@id": "https://nickstire.org",
+    "url": "https://nickstire.org",
     "telephone": "+1-" + BUSINESS.phone.dashed,
     "priceRange": "$$",
     "address": {
       "@type": "PostalAddress",
       "streetAddress": BUSINESS.address.street,
-      "addressLocality": "Cleveland",
+      "addressLocality": "Euclid",
       "addressRegion": "OH",
       "postalCode": "44112",
       "addressCountry": "US"
@@ -509,24 +750,50 @@ function LocalBusinessSchema() {
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />;
 }
 
+// ─── HOMEPAGE FAQ SCHEMA (moved from index.html to prevent duplicate FAQPage) ───
+function HomepageFAQSchema() {
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+      { "@type": "Question", name: "How much does flat tire repair cost at Nick's Tire & Auto?",
+        acceptedAnswer: { "@type": "Answer", text: "Flat tire repair costs $15-$25. Most repairs done in 15 minutes. We never sell you a new tire if yours can be safely repaired." } },
+      { "@type": "Question", name: "Do you sell used tires?",
+        acceptedAnswer: { "@type": "Answer", text: "Yes. Large selection of quality inspected used tires. Every tire checked for tread depth, sidewall condition, and safety. Walk-ins welcome." } },
+      { "@type": "Question", name: "What is included in the free tire installation package?",
+        acceptedAnswer: { "@type": "Answer", text: "15 services free with every tire purchase: mounting, balancing, valve stems, TPMS reset, alignment check, 20-point inspection, rim cleaning, disposal, torque, and more. $289+ value." } },
+      { "@type": "Question", name: "What areas does Nick's Tire & Auto serve?",
+        acceptedAnswer: { "@type": "Answer", text: "Located at 17625 Euclid Ave, Euclid OH 44112. We serve Cleveland, Euclid, Lakewood, Parma, East Cleveland, Shaker Heights, South Euclid, and all of Northeast Ohio." } },
+    ],
+  };
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />;
+}
+
 // ─── PAGE ────────────────────────────────────────────────
 export default function Home() {
   return (
     <PageLayout activeHref="/" showChat={true}>
       <SEOHead
         title="Nick's Tire & Auto — Cleveland's #1 Tire Shop & Auto Repair"
-        description={`Cleveland's top-rated new & used tire specialist + full-service auto repair. Free premium installation ($289 value). Flat repair $15. Brakes, diagnostics, emissions. ${BUSINESS.reviews.countDisplay} reviews, 4.9 stars. Walk-ins 7 days. $10 down financing.`}
+        description="Cleveland's top-rated auto shop. 4.9★ (1,700+ reviews). Tires, brakes, diagnostics, oil changes. 36-month warranty. Walk-ins welcome. (216) 862-0005."
         canonicalPath="/"
       />
       <LocalBusinessSchema />
+      <HomepageFAQSchema />
+      <SiteSearchSchema />
       <Hero />
       <TrustNumbers />
+      <div className="content-lazy"><SnapToQuote /></div>
       <Services />
-      <WhyUs />
-      <Reviews />
-      <ComparisonTable />
-      <Contact />
-      <InternalLinks title="Explore More" />
+      <div className="content-lazy"><WhyUs /></div>
+      <div className="content-lazy"><SeasonalSpecials /></div>
+      <div className="content-lazy"><Reviews /></div>
+      <div className="content-lazy"><TirePressureGuide /></div>
+      <div className="content-lazy"><ReferAFriend /></div>
+      <div className="content-lazy"><PricingTiers /></div>
+      <div className="content-lazy"><ComparisonTable /></div>
+      <div className="content-lazy"><Contact /></div>
+      <div className="content-lazy"><InternalLinks title="Explore More" /></div>
       <LeadPopup />
     </PageLayout>
   );

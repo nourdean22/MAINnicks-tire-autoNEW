@@ -3,6 +3,7 @@
  */
 import { publicProcedure, adminProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { SITE_URL } from "@shared/business";
 import {
   createBooking, getBookings, updateBookingStatus, updateBookingNotes, updateBookingPriority,
   updateBookingStage, getBookingByPhone, getBookingByRef,
@@ -62,7 +63,9 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
   try {
     const [setting] = await d.select().from(shopSettings).where(eq(shopSettings.key, "laborRate")).limit(1);
     if (setting) laborRate = parseFloat(setting.value);
-  } catch {}
+  } catch (e) {
+    console.warn("[Booking] Failed to fetch labor rate, using default:", e);
+  }
 
   const laborCost = Math.round(labor.hours * laborRate * 100); // cents
   const taxRate = 0.08; // 8% Ohio sales tax on labor
@@ -273,8 +276,18 @@ export const bookingRouter = router({
         });
       });
 
+      // Schedule post-booking SMS lifecycle (24h before, 1h before)
+      import("../services/sms-scheduler").then(({ scheduleBookingReminders }) => {
+        const vehicle = [input.vehicleYear, input.vehicleMake, input.vehicleModel].filter(Boolean).join(" ");
+        scheduleBookingReminders(
+          result.id, input.phone, input.name, input.service,
+          input.preferredDate, input.preferredTime, vehicle || undefined
+        ).catch(err => console.error("[SMS Scheduler] Failed to schedule reminders:", err));
+      });
+
       // Meta Conversions API: Send server-side Lead + Schedule events
-      if (input.pixelEventIds) {
+      const pixelEventIds = input.pixelEventIds;
+      if (pixelEventIds) {
         const capiUserData = {
           phone: input.phone,
           email: input.email || undefined,
@@ -285,8 +298,8 @@ export const bookingRouter = router({
         };
         withRetry(
           () => sendLeadEvent({
-            eventId: input.pixelEventIds.leadEventId,
-            sourceUrl: "https://nickstire.org",
+            eventId: pixelEventIds.leadEventId,
+            sourceUrl: SITE_URL,
             contentName: "Booking Form Submission",
             contentCategory: input.service,
             ...capiUserData,
@@ -304,8 +317,8 @@ export const bookingRouter = router({
         });
         withRetry(
           () => sendScheduleEvent({
-            eventId: input.pixelEventIds.scheduleEventId,
-            sourceUrl: "https://nickstire.org",
+            eventId: pixelEventIds.scheduleEventId,
+            sourceUrl: SITE_URL,
             service: input.service,
             vehicle: vehicleStr || undefined,
             ...capiUserData,
@@ -352,6 +365,30 @@ export const bookingRouter = router({
     .input(z.object({ id: z.number(), status: z.enum(["new", "confirmed", "completed", "cancelled"]) }))
     .mutation(async ({ input }) => {
       const result = await updateBookingStatus(input.id, input.status);
+
+      // Cancel pending SMS reminders when booking is cancelled
+      if (input.status === "cancelled") {
+        import("../services/sms-scheduler").then(({ cancelBookingReminders }) => {
+          cancelBookingReminders(input.id).catch(err =>
+            console.error(`[SMS Scheduler] Failed to cancel reminders for booking #${input.id}:`, err)
+          );
+        });
+      }
+
+      // Schedule post-service SMS (thank-you, review, maintenance) when completed
+      if (input.status === "completed") {
+        const d2 = await db();
+        if (d2) {
+          const [bk] = await d2.select().from(bookings).where(eq(bookings.id, input.id)).limit(1);
+          if (bk?.phone) {
+            import("../services/sms-scheduler").then(({ schedulePostServiceReminders }) => {
+              const vehicle = [bk.vehicleYear, bk.vehicleMake, bk.vehicleModel].filter(Boolean).join(" ");
+              schedulePostServiceReminders(input.id, bk.phone, bk.name, bk.service, vehicle || undefined)
+                .catch(err => console.error(`[SMS Scheduler] Post-service schedule failed:`, err));
+            });
+          }
+        }
+      }
 
       // Auto-schedule Google review request when booking is completed
       if (input.status === "completed") {

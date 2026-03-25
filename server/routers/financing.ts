@@ -16,7 +16,7 @@ export const financingRouter = router({
   trackApplication: publicProcedure
     .input(
       z.object({
-        provider: z.enum(["acima", "snap", "koalafi", "synchrony"]),
+        provider: z.enum(["acima", "snap", "koalafi", "americanfirst"]),
         customerName: z.string().optional(),
         customerPhone: z.string().optional(),
         customerEmail: z.string().optional(),
@@ -81,7 +81,7 @@ export const financingRouter = router({
   logApplication: adminProcedure
     .input(
       z.object({
-        provider: z.enum(["acima", "snap", "koalafi", "synchrony"]),
+        provider: z.enum(["acima", "snap", "koalafi", "americanfirst"]),
         customerName: z.string().min(1),
         customerPhone: z.string().min(1),
         customerEmail: z.string().optional(),

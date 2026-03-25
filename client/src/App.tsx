@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from "react";
+import { Suspense, lazy, useEffect, useRef } from "react";
 import EmergencyMode from "./components/EmergencyMode";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,6 +7,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { captureUtmParams } from "@/lib/utm";
+import { useWebVitals } from "@/hooks/useWebVitals";
+import RouteAnnouncer from "@/components/RouteAnnouncer";
+import CookieConsent from "@/components/CookieConsent";
+import { initConsent, onConsentChange, hasConsent } from "@/lib/consent-manager";
+import { initGA4, trackPageView } from "@/lib/ga4";
+import { installErrorHandlers, addBreadcrumb } from "@/lib/error-tracker";
 
 // ─── LOADING FALLBACK ─────────────────────────────────
 function PageLoader() {
@@ -36,6 +42,9 @@ const CityPage = lazy(() => import("./pages/CityPage"));
 const FAQ = lazy(() => import("./pages/FAQ"));
 const SeasonalPage = lazy(() => import("./pages/SeasonalPage"));
 const SEOServicePage = lazy(() => import("./pages/SEOServicePage"));
+const IntersectionPage = lazy(() => import("./pages/IntersectionPage"));
+const TrackOrder = lazy(() => import("./pages/TrackOrder"));
+const ServiceCityPage = lazy(() => import("./pages/ServiceCityPage"));
 const VehicleMakePage = lazy(() => import("./pages/VehicleMakePage"));
 const ProblemPage = lazy(() => import("./pages/ProblemPage"));
 const ReviewsPage = lazy(() => import("./pages/ReviewsPage"));
@@ -125,6 +134,12 @@ function Router() {
         <Route path={"/maple-heights-auto-repair"} component={CityPage} />
         <Route path={"/bedford-auto-repair"} component={CityPage} />
         <Route path={"/warrensville-heights-auto-repair"} component={CityPage} />
+        <Route path={"/parma-heights-auto-repair"} component={CityPage} />
+        <Route path={"/wickliffe-auto-repair"} component={CityPage} />
+        {/* Intersection SEO pages */}
+        <Route path={"/near/:slug"} component={IntersectionPage} />
+        {/* Real-time job tracker */}
+        <Route path={"/track/:orderId"} component={TrackOrder} />
         {/* Seasonal landing pages */}
         <Route path={"/winter-car-care-cleveland"} component={SeasonalPage} />
         <Route path={"/summer-car-care-cleveland"} component={SeasonalPage} />
@@ -229,6 +244,8 @@ function Router() {
         {/* Legal pages */}
         <Route path={"/privacy-policy"} component={PrivacyPolicy} />
         <Route path={"/terms"} component={Terms} />
+        {/* Programmatic SEO: 260 service+city pages (e.g., /tires-euclid-oh) */}
+        <Route path={"/:slug"} component={ServiceCityPage} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}
         <Route component={NotFound} />
@@ -240,18 +257,50 @@ function Router() {
 }
 
 function App() {
+  const [location] = useLocation();
+  const prevLocation = useRef(location);
+
   // Capture UTM params on first load for attribution
   useEffect(() => {
     captureUtmParams();
+    installErrorHandlers();
+    initConsent();
+    // If analytics consent already granted from a previous visit, init GA4 now
+    if (hasConsent("analytics")) initGA4();
+    // Listen for future consent changes
+    onConsentChange((state) => {
+      if (state.analytics) initGA4();
+    });
   }, []);
+
+  // Track page views on route change (gated behind consent in ga4.ts)
+  useEffect(() => {
+    if (location !== prevLocation.current) {
+      prevLocation.current = location;
+      trackPageView(location);
+    }
+  }, [location]);
+
+  // Track Core Web Vitals (LCP, CLS, TTFB, INP)
+  useWebVitals();
 
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[9999] focus:bg-[#FDB913] focus:text-black focus:px-4 focus:py-2 focus:rounded"
+          >
+            Skip to main content
+          </a>
           <Toaster />
-          <Router />
+          <RouteAnnouncer />
+          <div id="main-content">
+            <Router />
+          </div>
           <EmergencyMode />
+          <CookieConsent />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

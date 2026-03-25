@@ -5,6 +5,15 @@
  * When any business detail changes, update ONLY this file.
  */
 
+/**
+ * SITE_URL — Configurable domain for the entire site.
+ * Set SITE_URL env var on Railway to switch domains instantly.
+ * Defaults to nickstire.org (primary domain).
+ */
+export const SITE_URL =
+  (typeof process !== "undefined" && process.env?.SITE_URL) ||
+  "https://nickstire.org";
+
 export const BUSINESS = {
   name: "Nick's Tire & Auto",
   legalName: "Nick's Tire And Auto",
@@ -55,15 +64,15 @@ export const BUSINESS = {
   // ─── REVIEWS ─────────────────────────────────────────
   reviews: {
     rating: 4.9,
-    count: 1685,
-    countDisplay: "1,685+",
+    count: 1700,
+    countDisplay: "1,700+",
     source: "Google",
     url: "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid",
   },
 
   // ─── URLS ────────────────────────────────────────────
   urls: {
-    website: "https://nickstire.org",
+    website: SITE_URL,
     googleMaps: "https://maps.google.com/?q=17625+Euclid+Ave+Cleveland+OH+44112",
     googleMapsDirections: "https://www.google.com/maps/dir/?api=1&destination=17625+Euclid+Ave+Cleveland+OH+44112",
     googleMapsDirectionsNamed: "https://www.google.com/maps/dir//Nick's+Tire+And+Auto+Euclid,+17625+Euclid+Ave,+Cleveland,+OH+44112",

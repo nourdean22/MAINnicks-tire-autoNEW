@@ -16,7 +16,9 @@ declare global {
   }
 }
 
-const BASE_URL = "https://nickstire.org";
+// Domain is configurable via SITE_URL env var (set on Railway).
+// Vite exposes it as import.meta.env.VITE_SITE_URL at build time.
+const BASE_URL = import.meta.env.VITE_SITE_URL || "https://nickstire.org";
 
 interface BreadcrumbItem {
   label: string;

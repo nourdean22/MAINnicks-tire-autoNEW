@@ -94,7 +94,7 @@ export default function Contact() {
     <PageLayout>
       <SEOHead
         title="Contact Us | Nick's Tire & Auto Cleveland"
-        description={`Contact Nick's Tire & Auto at ${BUSINESS.phone.display}. Located at ${BUSINESS.address.full}. Open ${BUSINESS.hours.display}. Walk-ins welcome.`}
+        description="Nick's Tire & Auto — 17625 Euclid Ave, Euclid OH. Open Mon-Sat 8-6, Sun 9-4. Walk-ins welcome. Call (216) 862-0005."
         canonicalPath="/contact"
       />
       <Breadcrumbs items={[{ label: "Contact", href: "/contact" }]} />

@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, index, decimal, date } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -1295,3 +1295,405 @@ export const shareCards = mysqlTable("share_cards", {
   shares: int("shares").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// ═══════════════════════════════════════════════════════
+// Phase 3 — New tables added by master upgrade
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Unified communication log — tracks every SMS, email, call, and note per customer.
+ */
+export const communicationLog = mysqlTable("communication_log", {
+  id: int("id").primaryKey().autoincrement(),
+  customerId: int("customer_id"),
+  customerPhone: varchar("customer_phone", { length: 20 }),
+  type: varchar("type", { length: 20 }).notNull(), // sms, email, call, note
+  direction: varchar("direction", { length: 10 }).notNull(), // inbound, outbound, internal
+  subject: varchar("subject", { length: 255 }),
+  body: text("body"),
+  metadata: json("metadata"),
+  staffName: varchar("staff_name", { length: 100 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_comm_customer_id").on(table.customerId),
+  index("idx_comm_phone").on(table.customerPhone),
+  index("idx_comm_type").on(table.type),
+  index("idx_comm_created").on(table.createdAt),
+]);
+
+/**
+ * SMS opt-in/opt-out preferences (TCPA compliance).
+ */
+export const smsPreferences = mysqlTable("sms_preferences", {
+  id: int("id").primaryKey().autoincrement(),
+  phone: varchar("phone", { length: 20 }).notNull().unique(),
+  optedOut: boolean("opted_out").default(false).notNull(),
+  optOutKeyword: varchar("opt_out_keyword", { length: 20 }),
+  optedOutAt: timestamp("opted_out_at"),
+  optedInAt: timestamp("opted_in_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+/**
+ * Tracks abandoned form submissions for recovery outreach.
+ */
+export const formAbandonment = mysqlTable("form_abandonment", {
+  id: int("id").primaryKey().autoincrement(),
+  phone: varchar("phone", { length: 20 }),
+  name: varchar("name", { length: 100 }),
+  email: varchar("email", { length: 255 }),
+  formType: varchar("form_type", { length: 50 }).notNull(),
+  fieldsCompleted: json("fields_completed"),
+  recoverySmsSent: boolean("recovery_sms_sent").default(false),
+  recovered: boolean("recovered").default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_abandon_phone").on(table.phone),
+  index("idx_abandon_created").on(table.createdAt),
+  index("idx_abandon_recovered").on(table.recovered),
+]);
+
+/**
+ * Payment records for Stripe payment links.
+ */
+export const payments = mysqlTable("payments", {
+  id: int("id").primaryKey().autoincrement(),
+  customerId: int("customer_id"),
+  customerPhone: varchar("customer_phone", { length: 20 }),
+  customerName: varchar("customer_name", { length: 200 }),
+  amount: int("amount").notNull(), // cents
+  description: varchar("description", { length: 500 }),
+  stripePaymentLinkId: varchar("stripe_payment_link_id", { length: 255 }),
+  stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 255 }),
+  status: varchar("status", { length: 20 }).default("pending").notNull(),
+  paidAt: timestamp("paid_at"),
+  invoiceId: int("invoice_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_pay_customer").on(table.customerId),
+  index("idx_pay_status").on(table.status),
+  index("idx_pay_stripe").on(table.stripePaymentIntentId),
+  index("idx_pay_created").on(table.createdAt),
+]);
+
+/**
+ * Server + client error log persistence.
+ */
+export const errorLog = mysqlTable("error_log", {
+  id: int("id").primaryKey().autoincrement(),
+  source: varchar("source", { length: 20 }).notNull(), // client, server
+  message: text("message").notNull(),
+  stack: text("stack"),
+  url: varchar("url", { length: 500 }),
+  userAgent: varchar("user_agent", { length: 500 }),
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_error_source").on(table.source),
+  index("idx_error_created").on(table.createdAt),
+]);
+
+/**
+ * Appointment reminder delivery tracking.
+ */
+export const appointmentReminders = mysqlTable("appointment_reminders", {
+  id: int("id").primaryKey().autoincrement(),
+  bookingId: int("booking_id").notNull(),
+  type: varchar("type", { length: 20 }).notNull(), // 24h, 2h
+  sentAt: timestamp("sent_at"),
+  smsSid: varchar("sms_sid", { length: 100 }),
+  status: varchar("status", { length: 20 }).default("pending").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_remind_booking").on(table.bookingId),
+  index("idx_remind_type").on(table.type),
+  index("idx_remind_status").on(table.status),
+]);
+
+// ═══════════════════════════════════════════════════════
+// BACKEND-5: Core Business Tables
+// ═══════════════════════════════════════════════════════
+
+// customers table already defined earlier in this file (line ~761)
+// Removed duplicate definition to prevent esbuild errors
+
+/**
+ * Vehicles — linked to customers
+ */
+export const vehicles = mysqlTable("vehicles", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  customerId: varchar("customer_id", { length: 36 }).notNull(),
+  year: int("year"),
+  make: varchar("make", { length: 50 }),
+  model: varchar("model", { length: 50 }),
+  trim: varchar("trim_level", { length: 50 }),
+  vin: varchar("vin", { length: 17 }),
+  licensePlate: varchar("license_plate", { length: 20 }),
+  color: varchar("color", { length: 30 }),
+  mileage: int("mileage"),
+  mileageUpdatedAt: timestamp("mileage_updated_at"),
+  tireSize: varchar("tire_size", { length: 30 }),
+  engine: varchar("engine", { length: 50 }),
+  transmission: varchar("transmission", { length: 20 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_veh_customer").on(table.customerId),
+  index("idx_veh_vin").on(table.vin),
+]);
+
+/**
+ * Work Orders / Repair Orders
+ */
+export const workOrders = mysqlTable("work_orders", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  orderNumber: varchar("order_number", { length: 20 }).notNull(),
+  customerId: varchar("customer_id", { length: 36 }).notNull(),
+  vehicleId: varchar("vehicle_id", { length: 36 }),
+  status: varchar("status", { length: 30 }).default("pending").notNull(),
+  priority: varchar("priority", { length: 10 }).default("normal").notNull(),
+  assignedBay: varchar("assigned_bay", { length: 10 }),
+  assignedTech: varchar("assigned_tech", { length: 100 }),
+  diagnosis: text("diagnosis"),
+  customerComplaint: text("customer_complaint"),
+  internalNotes: text("internal_notes"),
+  estimatedCompletion: timestamp("estimated_completion"),
+  actualCompletion: timestamp("actual_completion"),
+  partsCost: decimal("parts_cost", { precision: 10, scale: 2 }).default("0"),
+  laborCost: decimal("labor_cost", { precision: 10, scale: 2 }).default("0"),
+  tax: decimal("tax", { precision: 10, scale: 2 }).default("0"),
+  discount: decimal("discount", { precision: 10, scale: 2 }).default("0"),
+  total: decimal("total", { precision: 10, scale: 2 }).default("0"),
+  paymentMethod: varchar("payment_method", { length: 50 }),
+  paymentStatus: varchar("payment_status", { length: 20 }).default("unpaid").notNull(),
+  warrantyMonths: int("warranty_months").default(0),
+  warrantyMiles: int("warranty_miles").default(0),
+  warrantyExpiresAt: timestamp("warranty_expires_at"),
+  source: varchar("source", { length: 50 }),
+  bookingId: int("booking_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_wo_customer").on(table.customerId),
+  index("idx_wo_status").on(table.status),
+  index("idx_wo_created").on(table.createdAt),
+  index("idx_wo_order_num").on(table.orderNumber),
+]);
+
+/**
+ * Work Order Line Items — parts, labor, tires, fees
+ */
+export const workOrderItems = mysqlTable("work_order_items", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  workOrderId: varchar("work_order_id", { length: 36 }).notNull(),
+  type: varchar("type", { length: 20 }).notNull(),
+  description: varchar("description", { length: 500 }).notNull(),
+  partNumber: varchar("part_number", { length: 50 }),
+  quantity: decimal("quantity", { precision: 10, scale: 2 }).default("1"),
+  unitCost: decimal("unit_cost", { precision: 10, scale: 2 }).default("0"),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).default("0"),
+  total: decimal("total", { precision: 10, scale: 2 }).default("0"),
+  techName: varchar("tech_name", { length: 100 }),
+  laborHours: decimal("labor_hours", { precision: 5, scale: 2 }),
+  warrantyCovered: boolean("warranty_covered").default(false),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_woi_work_order").on(table.workOrderId),
+]);
+
+/**
+ * Specials / Promotions
+ */
+export const specials = mysqlTable("specials", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  title: varchar("title", { length: 200 }).notNull(),
+  description: text("description"),
+  discountType: varchar("discount_type", { length: 20 }).notNull(),
+  discountValue: decimal("discount_value", { precision: 10, scale: 2 }),
+  serviceCategory: varchar("service_category", { length: 100 }),
+  conditions: text("conditions"),
+  couponCode: varchar("coupon_code", { length: 50 }),
+  startsAt: timestamp("starts_at").notNull(),
+  expiresAt: timestamp("expires_at"),
+  maxUses: int("max_uses"),
+  currentUses: int("current_uses").default(0).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  displayOnWebsite: boolean("display_on_website").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_special_active").on(table.isActive, table.startsAt, table.expiresAt),
+  index("idx_special_code").on(table.couponCode),
+]);
+
+/**
+ * Warranties — tracks service warranties for follow-up
+ */
+export const warranties = mysqlTable("warranties", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  workOrderId: varchar("work_order_id", { length: 36 }).notNull(),
+  customerId: varchar("customer_id", { length: 36 }).notNull(),
+  vehicleId: varchar("vehicle_id", { length: 36 }),
+  serviceDescription: varchar("service_description", { length: 500 }),
+  warrantyMonths: int("warranty_months").notNull(),
+  warrantyMiles: int("warranty_miles"),
+  startsAt: date("starts_at").notNull(),
+  expiresAt: date("expires_at").notNull(),
+  mileageAtService: int("mileage_at_service"),
+  status: varchar("status", { length: 20 }).default("active").notNull(),
+  reminderSent: boolean("reminder_sent").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_warr_customer").on(table.customerId),
+  index("idx_warr_expires").on(table.expiresAt),
+  index("idx_warr_status").on(table.status),
+]);
+
+/**
+ * Inventory — basic parts and tire tracking
+ */
+export const inventory = mysqlTable("inventory", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  sku: varchar("sku", { length: 50 }),
+  name: varchar("name", { length: 200 }).notNull(),
+  category: varchar("category", { length: 30 }).notNull(),
+  brand: varchar("brand", { length: 100 }),
+  size: varchar("size", { length: 50 }),
+  quantityOnHand: int("quantity_on_hand").default(0).notNull(),
+  quantityReserved: int("quantity_reserved").default(0).notNull(),
+  reorderThreshold: int("reorder_threshold").default(2).notNull(),
+  cost: decimal("cost", { precision: 10, scale: 2 }),
+  retailPrice: decimal("retail_price", { precision: 10, scale: 2 }),
+  supplier: varchar("supplier", { length: 100 }),
+  supplierPartNumber: varchar("supplier_part_number", { length: 100 }),
+  location: varchar("location", { length: 50 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_inv_sku").on(table.sku),
+  index("idx_inv_category").on(table.category),
+  index("idx_inv_low_stock").on(table.quantityOnHand, table.reorderThreshold),
+]);
+
+/**
+ * Referrals — tracks customer referral program
+ */
+// referrals table already defined earlier in this file (line ~283)
+// Removed duplicate definition to prevent esbuild errors
+
+/**
+ * Waitlist — when shop is fully booked
+ */
+export const waitlist = mysqlTable("waitlist", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  customerName: varchar("customer_name", { length: 200 }).notNull(),
+  customerPhone: varchar("customer_phone", { length: 20 }).notNull(),
+  customerEmail: varchar("customer_email", { length: 255 }),
+  serviceType: varchar("service_type", { length: 100 }),
+  preferredDate: date("preferred_date"),
+  notes: text("notes"),
+  status: varchar("status", { length: 20 }).default("waiting").notNull(),
+  notifiedAt: timestamp("notified_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_wait_status").on(table.status),
+]);
+
+/**
+ * Cron Job Log — tracks execution of scheduled jobs
+ */
+export const cronLog = mysqlTable("cron_log", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  jobName: varchar("job_name", { length: 100 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull(),
+  durationMs: int("duration_ms"),
+  recordsProcessed: int("records_processed").default(0),
+  details: text("details"),
+  errorMessage: text("error_message"),
+  startedAt: timestamp("started_at").notNull(),
+  completedAt: timestamp("completed_at"),
+}, (table) => [
+  index("idx_cron_job").on(table.jobName),
+  index("idx_cron_started").on(table.startedAt),
+]);
+
+/**
+ * Webhook Deliveries — retry queue for failed external API calls
+ */
+export const webhookDeliveries = mysqlTable("webhook_deliveries", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  webhookName: varchar("webhook_name", { length: 100 }).notNull(),
+  url: varchar("url", { length: 500 }).notNull(),
+  method: varchar("method", { length: 10 }).default("POST").notNull(),
+  payload: json("payload").notNull(),
+  responseStatus: int("response_status"),
+  responseBody: text("response_body"),
+  errorMessage: text("error_message"),
+  attemptCount: int("attempt_count").default(0).notNull(),
+  maxAttempts: int("max_attempts").default(5).notNull(),
+  status: varchar("status", { length: 20 }).default("pending").notNull(),
+  nextRetryAt: timestamp("next_retry_at"),
+  deliveredAt: timestamp("delivered_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_wh_status").on(table.status),
+  index("idx_wh_next_retry").on(table.nextRetryAt),
+]);
+
+// ═══════════════════════════════════════════════════════
+// LAYER 8: Security Tables
+// ═══════════════════════════════════════════════════════
+
+/**
+ * OTP Codes — phone-based one-time password authentication
+ */
+export const otpCodes = mysqlTable("otp_codes", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  code: varchar("code", { length: 6 }).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_otp_phone").on(table.phone),
+  index("idx_otp_expires").on(table.expiresAt),
+]);
+
+/**
+ * Audit Log — tracks all admin/system mutations
+ */
+export const auditLog = mysqlTable("audit_log", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  actor: varchar("actor", { length: 100 }).notNull(),
+  action: varchar("action", { length: 100 }).notNull(),
+  entityType: varchar("entity_type", { length: 50 }),
+  entityId: varchar("entity_id", { length: 36 }),
+  changes: json("changes"),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_audit_actor").on(table.actor),
+  index("idx_audit_entity").on(table.entityType, table.entityId),
+  index("idx_audit_created").on(table.createdAt),
+]);
+
+/**
+ * Push Subscriptions — Web Push notification endpoints
+ */
+export const pushSubscriptions = mysqlTable("push_subscriptions", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  customerId: varchar("customer_id", { length: 36 }),
+  endpoint: text("endpoint").notNull(),
+  p256dh: varchar("p256dh", { length: 255 }).notNull(),
+  auth: varchar("auth_key", { length: 255 }).notNull(),
+  isAdmin: boolean("is_admin").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_push_customer").on(table.customerId),
+  index("idx_push_admin").on(table.isAdmin),
+]);

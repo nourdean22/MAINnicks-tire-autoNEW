@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import compression from "compression";
 import { createServer } from "http";
 import net from "net";
 import path from "path";
@@ -16,6 +17,10 @@ import { markReviewRequestClicked } from "../db";
 import { processReviewRequestQueue } from "../routers/reviewRequests";
 import { processReminderQueue } from "../routers/reminders";
 import { processPostInvoiceFollowUps } from "../postInvoiceFollowUp";
+import { SITE_URL } from "@shared/business";
+import { serverCache } from "../cache";
+import { logger, createRequestLogger } from "../logger";
+import { securityScan } from "../security-audit";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -39,24 +44,175 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  const startTime = Date.now();
+
   // Trust proxy — required for rate limiting behind reverse proxy
   app.set("trust proxy", 1);
+
+  // ─── GZIP / BROTLI Compression ────────────────────────
+  // Compresses all responses > 1KB. Cuts payload size 60-80%.
+  app.use(compression({
+    level: 6,
+    threshold: 1024,
+    filter: (req, res) => {
+      if (req.headers["x-no-compression"]) return false;
+      return compression.filter(req, res);
+    },
+  }));
+
+  // ─── Structured request logging ──────────────────────
+  app.use(createRequestLogger());
+
+  // ─── Performance monitoring (tracks response times per endpoint) ──
+  import("../middleware/performanceMonitor").then(({ performanceMiddleware }) => {
+    app.use(performanceMiddleware);
+  }).catch(() => { /* Performance monitor not critical */ });
+
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-  // Security headers
+  // ─── Security scan (XSS, SQLi, path traversal) ──────
+  app.use(securityScan());
+
+  // ─── Security headers (CSP + hardened) ────────────────
   app.use((_req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "SAMEORIGIN");
     res.setHeader("X-XSS-Protection", "1; mode=block");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)");
+    // Content Security Policy — restrict resource origins
+    res.setHeader("Content-Security-Policy", [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://maps.googleapis.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https://d2xsxph8kpxj0f.cloudfront.net https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.ggpht.com https://lh3.googleusercontent.com",
+      "connect-src 'self' https://d2xsxph8kpxj0f.cloudfront.net https://www.google-analytics.com https://maps.googleapis.com https://api.openai.com",
+      "frame-src 'self' https://www.google.com https://maps.google.com",
+      "media-src 'self' https://d2xsxph8kpxj0f.cloudfront.net",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; "));
     if (process.env.NODE_ENV === "production") {
-      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
     }
     next();
   });
+
+  // ─── Health check, ping, & readiness endpoints ──────
+  app.get("/api/ping", (_req, res) => { res.json({ pong: true, timestamp: Date.now() }); });
+
+  app.get("/api/health", async (_req, res) => {
+    const { healthHandler } = await import("../lib/health");
+    await healthHandler(_req, res);
+  });
+
+  app.get("/api/ready", async (_req, res) => {
+    try {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new Error("Database not connected");
+      res.json({ status: "ready", database: "connected" });
+    } catch (err: any) {
+      res.status(503).json({ status: "not_ready", database: err.message });
+    }
+  });
+  // ─── Tracking Rate Limiter ─────────────────────────
+  const trackingLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false,
+    message: { error: "Rate limited" },
+  });
+
+  // ─── Client Error Tracking ──────────────────────────
+  app.post("/api/track-error", trackingLimiter, async (req, res) => {
+    const { message, stack, breadcrumbs, url, userAgent, componentStack } = req.body || {};
+    if (!message || typeof message !== "string") {
+      return res.status(400).json({ error: "Missing error message" });
+    }
+    const errorData = {
+      message: String(message).slice(0, 1000),
+      stack: stack ? String(stack).slice(0, 2000) : undefined,
+      url: url ? String(url).slice(0, 500) : undefined,
+      userAgent: userAgent ? String(userAgent).slice(0, 300) : undefined,
+      componentStack: componentStack ? String(componentStack).slice(0, 1000) : undefined,
+      breadcrumbs: Array.isArray(breadcrumbs) ? breadcrumbs.slice(-5) : undefined,
+    };
+    logger.error("[CLIENT ERROR]", errorData);
+    // Persist to errorLog table
+    try {
+      const { getDb } = await import("../db");
+      const { errorLog } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (db) {
+        await db.insert(errorLog).values({
+          source: "client",
+          message: errorData.message,
+          stack: errorData.stack || null,
+          url: errorData.url || null,
+          userAgent: errorData.userAgent || null,
+          metadata: { breadcrumbs: errorData.breadcrumbs, componentStack: errorData.componentStack },
+        });
+      }
+    } catch {
+      // Don't let persistence failures break error reporting
+    }
+    res.json({ ok: true });
+  });
+
+  // ─── 404 Tracking ─────────────────────────────────────
+  const notFoundLog: Map<string, { count: number; referrer: string; lastSeen: number }> = new Map();
+  app.post("/api/track-404", trackingLimiter, (req, res) => {
+    const { url, referrer } = req.body || {};
+    if (!url || typeof url !== "string") return res.status(400).json({ error: "Missing url" });
+    const key = String(url).slice(0, 500);
+    const existing = notFoundLog.get(key);
+    if (existing) {
+      existing.count++;
+      existing.lastSeen = Date.now();
+      if (referrer) existing.referrer = String(referrer).slice(0, 500);
+    } else {
+      notFoundLog.set(key, { count: 1, referrer: referrer ? String(referrer).slice(0, 500) : "", lastSeen: Date.now() });
+    }
+    // Keep only the top 500 entries
+    if (notFoundLog.size > 500) {
+      const oldest = [...notFoundLog.entries()].sort((a, b) => a[1].lastSeen - b[1].lastSeen)[0];
+      if (oldest) notFoundLog.delete(oldest[0]);
+    }
+    res.json({ ok: true });
+  });
+
+  // Expose 404 log for admin (will be wired into tRPC admin router too)
+  (app as any)._notFoundLog = notFoundLog;
+
+  // ─── Form Abandonment Tracking ────────────────────────
+  app.post("/api/track-abandonment", trackingLimiter, async (req, res) => {
+    const { phone, name, email, formType, fieldsCompleted } = req.body || {};
+    if (!formType || typeof formType !== "string") {
+      return res.status(400).json({ error: "Missing formType" });
+    }
+    try {
+      const { getDb } = await import("../db");
+      const { formAbandonment } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (db) {
+        await db.insert(formAbandonment).values({
+          phone: phone ? String(phone).slice(0, 20) : null,
+          name: name ? String(name).slice(0, 100) : null,
+          email: email ? String(email).slice(0, 255) : null,
+          formType: String(formType).slice(0, 50),
+          fieldsCompleted: Array.isArray(fieldsCompleted) ? fieldsCompleted : null,
+        });
+      }
+      logger.info("[Abandonment] Tracked", { formType, name });
+    } catch (err: any) {
+      logger.error("[Abandonment] Failed to track", { error: err.message });
+    }
+    res.json({ ok: true });
+  });
+
   // Rate limiting for public API endpoints to prevent spam/abuse
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -95,6 +251,16 @@ async function startServer() {
   app.use("/api/trpc/public.aiSearch", aiLimiter);
   app.use("/api/trpc/laborEstimate.generate", aiLimiter);
 
+  // ─── Twilio webhook routes (SMS + Voice) ──────────────
+  import("../routes/webhooks/twilio").then(({ twilioWebhookRouter }) => {
+    app.use(twilioWebhookRouter);
+  }).catch(() => { /* Twilio webhooks not critical for startup */ });
+
+  // ─── SSE real-time routes (admin feed + order tracking) ──
+  import("../services/realtime").then(({ registerSSERoutes }) => {
+    registerSSERoutes(app);
+  }).catch(() => { /* SSE routes not critical for startup */ });
+
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // tRPC API
@@ -108,30 +274,32 @@ async function startServer() {
       },
     })
   );
-  // Sitemap.xml — powered by shared/routes.ts route registry + dynamic blog articles from DB
+  // Sitemap.xml — cached server-side (1 hour) to avoid DB query on every crawler hit
   app.get("/sitemap.xml", async (_req, res) => {
-    const baseUrl = "https://nickstire.org";
-    const now = new Date().toISOString().split("T")[0];
+    const xml = await serverCache.getOrSet("sitemap:xml", 60 * 60 * 1000, async () => {
+      const baseUrl = SITE_URL;
+      const now = new Date().toISOString().split("T")[0];
 
-    // Fetch published dynamic articles from DB
-    let dynamicSlugs: string[] = [];
-    try {
-      const published = await getPublishedArticles();
-      dynamicSlugs = published.map((a: any) => a.slug);
-    } catch {}
+      let dynamicSlugs: string[] = [];
+      try {
+        const published = await getPublishedArticles();
+        dynamicSlugs = published.map((a: any) => a.slug);
+      } catch {}
 
-    const allBlogSlugs = Array.from(new Set([...BLOG_SLUGS, ...dynamicSlugs]));
+      const allBlogSlugs = Array.from(new Set([...BLOG_SLUGS, ...dynamicSlugs]));
 
-    const urls = [
-      ...SITEMAP_ROUTES.map(p =>
-        `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
-      ),
-      ...allBlogSlugs.map(s =>
-        `  <url>\n    <loc>${baseUrl}/blog/${s}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>`
-      ),
-    ];
+      const urls = [
+        ...SITEMAP_ROUTES.map(p =>
+          `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
+        ),
+        ...allBlogSlugs.map(s =>
+          `  <url>\n    <loc>${baseUrl}/blog/${s}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>`
+        ),
+      ];
 
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>`;
+      return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>`;
+    });
+
     res.setHeader("Content-Type", "application/xml; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=3600");
     res.send(xml);
@@ -141,7 +309,7 @@ async function startServer() {
   app.get("/robots.txt", (_req, res) => {
     res.setHeader("Content-Type", "text/plain");
     res.send(
-      `User-agent: *\nAllow: /\nAllow: /favicon.ico\n\n# Public pages — crawl freely\nAllow: /tires\nAllow: /tires/info\nAllow: /services/\nAllow: /about\nAllow: /contact\nAllow: /reviews\nAllow: /specials\nAllow: /faq\nAllow: /blog\nAllow: /diagnose\nAllow: /estimate\nAllow: /fleet\nAllow: /financing\nAllow: /car-care-guide\nAllow: /area/\n\n# Block admin, auth, and private pages from indexing\nDisallow: /admin\nDisallow: /admin/\nDisallow: /my-garage\nDisallow: /portal\nDisallow: /api/\nDisallow: /status/\nDisallow: /inspection/\nDisallow: /loyalty\nDisallow: /referral\n\n# Block query parameters\nDisallow: /*?*\n\n# Crawl delay for polite crawling\nCrawl-delay: 1\n\nSitemap: https://nickstire.org/sitemap.xml\n`
+      `User-agent: *\nAllow: /\nAllow: /favicon.ico\n\n# Public pages — crawl freely\nAllow: /tires\nAllow: /tires/info\nAllow: /services/\nAllow: /about\nAllow: /contact\nAllow: /reviews\nAllow: /specials\nAllow: /faq\nAllow: /blog\nAllow: /diagnose\nAllow: /estimate\nAllow: /fleet\nAllow: /financing\nAllow: /car-care-guide\nAllow: /area/\n\n# Block admin, auth, and private pages from indexing\nDisallow: /admin\nDisallow: /admin/\nDisallow: /my-garage\nDisallow: /portal\nDisallow: /api/\nDisallow: /status/\nDisallow: /inspection/\nDisallow: /loyalty\nDisallow: /referral\n\n# Block query parameters\nDisallow: /*?*\n\n# Crawl delay for polite crawling\nCrawl-delay: 1\n\nSitemap: ${SITE_URL}/sitemap.xml\n`
     );
   });
 
@@ -268,6 +436,21 @@ async function startServer() {
     serveStatic(app);
   }
 
+  // ─── Global error handler (MUST be after all routes) ──
+  import("../middleware/errorHandler").then(({ globalErrorHandler }) => {
+    app.use(globalErrorHandler);
+  }).catch(() => { /* Error handler module not critical */ });
+
+  // ─── Initialize cache layer (Redis or in-memory fallback) ──
+  import("../lib/cache").then(({ initCache }) => {
+    initCache();
+  }).catch(() => { /* Cache init not critical */ });
+
+  // ─── Start cron job system ──
+  import("../cron/index").then(({ startAllJobs }) => {
+    startAllJobs();
+  }).catch(() => { /* Cron start not critical */ });
+
   const preferredPort = parseInt(process.env.PORT || "3000");
   const port = await findAvailablePort(preferredPort);
 
@@ -277,7 +460,32 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    console.log(`[Perf] Server started in ${Date.now() - startTime}ms`);
+
+    // Start SMS scheduler for post-booking lifecycle messages
+    import("../services/sms-scheduler").then(({ startSmsScheduler }) => {
+      startSmsScheduler();
+    }).catch((err) => {
+      console.warn("[SMS Scheduler] Failed to start:", err.message);
+    });
   });
+
+  // ─── Graceful shutdown ─────────────────────────────────
+  const shutdown = async (signal: string) => {
+    console.log(`\n[${signal}] Shutting down gracefully...`);
+    server.close(async () => {
+      try {
+        const { closeDb } = await import("../db");
+        await closeDb();
+      } catch {}
+      console.log("[Shutdown] Complete.");
+      process.exit(0);
+    });
+    // Force exit after 10s if graceful shutdown hangs
+    setTimeout(() => process.exit(1), 10_000);
+  };
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
 startServer().catch(console.error);

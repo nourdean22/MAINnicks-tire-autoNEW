@@ -21,6 +21,15 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    // Target modern browsers for smaller output
+    target: "es2020",
+    // Increase chunk warning threshold (we code-split aggressively)
+    chunkSizeWarningLimit: 600,
+    // DO NOT add manualChunks — causes d3/recharts crash. Let Vite handle code-splitting naturally.
+    // Enable CSS code splitting
+    cssCodeSplit: true,
+    // Source maps in production for error tracking
+    sourcemap: false,
   },
   server: {
     host: true,
