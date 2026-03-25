@@ -33,6 +33,7 @@ export function registerJob(
 
 /** Start all registered jobs */
 export function startAllJobs(): void {
+  registerAllJobs();
   for (const [name, job] of registeredJobs) {
     if (!job.enabled) continue;
 
@@ -111,4 +112,57 @@ export function getJobStatuses(): Array<{ name: string; enabled: boolean; interv
     intervalMin: Math.round(j.intervalMs / 60000),
     lastRun: j.lastRun?.toISOString() || null,
   }));
+}
+
+/** Register all cron jobs — called from startAllJobs or server startup */
+export function registerAllJobs(): void {
+  // Appointment reminders (every 5 min — sms-scheduler handles timing)
+  registerJob("sms-scheduler", 5 * 60 * 1000, async () => {
+    const { processAppointmentReminders24h } = await import("./jobs/appointmentReminders");
+    return processAppointmentReminders24h();
+  });
+
+  // Review requests (every 30 min)
+  registerJob("review-requests", 30 * 60 * 1000, async () => {
+    const { processReviewRequests } = await import("./jobs/reviewRequests");
+    return processReviewRequests();
+  });
+
+  // Daily report (every 12 hours — actual timing handled by business hours check)
+  registerJob("daily-report", 12 * 60 * 60 * 1000, async () => {
+    const { generateDailyReport } = await import("./jobs/dailyReport");
+    return generateDailyReport();
+  });
+
+  // Cleanup (every 6 hours)
+  registerJob("cleanup", 6 * 60 * 60 * 1000, async () => {
+    const { cleanupOldData } = await import("./jobs/cleanup");
+    return cleanupOldData();
+  });
+
+  // Customer segmentation (every 24 hours)
+  registerJob("customer-segmentation", 24 * 60 * 60 * 1000, async () => {
+    const { processCustomerSegmentation } = await import("./jobs/customerSegmentation");
+    return processCustomerSegmentation();
+  }, false); // Disabled by default
+
+  // Retention sequences (every 24 hours)
+  registerJob("retention-90day", 24 * 60 * 60 * 1000, async () => {
+    const { processRetention90Day } = await import("./jobs/retentionSequences");
+    return processRetention90Day();
+  }, false); // Disabled by default
+
+  // Warranty expiration alerts (every 24 hours)
+  registerJob("warranty-alerts", 24 * 60 * 60 * 1000, async () => {
+    const { processWarrantyAlerts } = await import("./jobs/warrantyAlerts");
+    return processWarrantyAlerts();
+  });
+
+  // Dashboard Google Sheets sync (every 15 min)
+  registerJob("dashboard-sync", 15 * 60 * 1000, async () => {
+    const { processDashboardSync } = await import("./jobs/dashboardSync");
+    return processDashboardSync();
+  });
+
+  log.info("All cron jobs registered");
 }
