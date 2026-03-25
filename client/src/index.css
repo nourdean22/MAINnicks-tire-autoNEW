@@ -854,3 +854,247 @@ img[loading="lazy"] {
 }
 
 [id] { scroll-margin-top: 80px; }
+
+/* ═══════════════════════════════════════════════════════
+   MICRO-INTERACTIONS — PREMIUM FEEL
+   ═══════════════════════════════════════════════════════ */
+
+/* Button press feedback — every tappable element */
+button, a[role="button"], .btn-gold, .btn-cobalt, .btn-outline {
+  transition: transform 0.1s ease, box-shadow 0.3s ease, filter 0.15s ease;
+}
+button:active, a[role="button"]:active, .btn-gold:active, .btn-cobalt:active {
+  transform: scale(0.97) !important;
+}
+
+/* Gold CTA shimmer sweep on hover */
+.btn-gold {
+  position: relative;
+  overflow: hidden;
+}
+.btn-gold::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  transition: none;
+}
+.btn-gold:hover::after {
+  animation: shimmer-sweep 0.6s ease forwards;
+}
+@keyframes shimmer-sweep {
+  0% { left: -100%; }
+  100% { left: 200%; }
+}
+
+/* Card hover glow — service cards, glass cards */
+.service-card, .glass-card, [class*="card"] {
+  transition: border-color 0.2s ease, box-shadow 0.3s ease, transform 0.2s ease;
+}
+.service-card:hover, .glass-card:hover {
+  transform: translateY(-2px);
+}
+
+/* Fade-in-up for scroll-triggered content */
+.animate-in {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.animate-in.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Number count-up animation base */
+.count-up {
+  display: inline-block;
+  transition: all 0.3s ease;
+}
+
+/* Pulse animation for live indicators */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.pulse-live {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* Breathing glow for alerts */
+@keyframes breathe-glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(255, 59, 48, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(255, 59, 48, 0.6); }
+}
+.alert-breathe {
+  animation: breathe-glow 3s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════
+   DARK MODE REFINEMENT — ZERO LIGHT LEAKS
+   ═══════════════════════════════════════════════════════ */
+
+/* Custom scrollbar — thin, branded */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--brand-cobalt, #1E4D8C);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--brand-gold, #FDB913);
+}
+
+/* Text selection — cobalt highlight */
+::selection {
+  background: rgba(30, 77, 140, 0.4);
+  color: var(--text-primary, #F0F6FC);
+}
+
+/* Focus rings — cobalt glow, not browser blue */
+:focus-visible {
+  outline: 2px solid var(--brand-cobalt, #1E4D8C);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(30, 77, 140, 0.2);
+}
+
+/* Kill all light backgrounds in dropdowns, tooltips, popovers */
+[data-radix-popper-content-wrapper],
+[role="tooltip"],
+[role="dialog"],
+[role="menu"],
+[role="listbox"],
+select option {
+  background-color: var(--bg-surface, #161B22) !important;
+  color: var(--text-primary, #F0F6FC) !important;
+  border-color: var(--glass-border, rgba(255,255,255,0.1)) !important;
+}
+
+/* Smooth scroll globally */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ═══════════════════════════════════════════════════════
+   MOBILE STICKY BOTTOM BAR
+   ═══════════════════════════════════════════════════════ */
+.mobile-action-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  background: rgba(11, 14, 20, 0.95);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  z-index: 9999;
+}
+.mobile-action-bar a,
+.mobile-action-bar button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 8px;
+  border-radius: 10px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+  transition: transform 0.1s ease, background 0.2s ease;
+  min-height: 48px;
+}
+.mobile-action-bar a:active,
+.mobile-action-bar button:active {
+  transform: scale(0.95);
+}
+.mobile-action-bar .action-call {
+  background: linear-gradient(135deg, #FDB913, #C99200);
+  color: #000;
+}
+.mobile-action-bar .action-book {
+  background: var(--brand-cobalt, #1E4D8C);
+  color: #F0F6FC;
+}
+.mobile-action-bar .action-emergency {
+  background: rgba(255, 59, 48, 0.15);
+  color: #FF3B30;
+  border: 1px solid rgba(255, 59, 48, 0.3);
+}
+
+/* Hide mobile action bar on desktop */
+@media (min-width: 768px) {
+  .mobile-action-bar { display: none; }
+}
+
+/* Add bottom padding to body so content isn't hidden behind bar */
+@media (max-width: 767px) {
+  body { padding-bottom: 72px; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   SKELETON LOADING SCREENS
+   ═══════════════════════════════════════════════════════ */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.06; }
+  50% { opacity: 0.12; }
+}
+.skeleton {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+.skeleton-text {
+  height: 14px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+}
+.skeleton-text.wide { width: 80%; }
+.skeleton-text.medium { width: 60%; }
+.skeleton-text.short { width: 40%; }
+.skeleton-card {
+  height: 120px;
+  border-radius: 12px;
+}
+.skeleton-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+/* ═══════════════════════════════════════════════════════
+   COBALT GLOW PULSE — for license plate input focus
+   ═══════════════════════════════════════════════════════ */
+@keyframes cobalt-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(30, 77, 140, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(30, 77, 140, 0.6); }
+}
+input:focus.cobalt-glow,
+.cobalt-glow:focus-within {
+  animation: cobalt-pulse 2s ease-in-out infinite;
+  border-color: var(--brand-cobalt, #1E4D8C);
+}
+
+/* ═══════════════════════════════════════════════════════
+   HAPTIC-STYLE TOUCH FEEDBACK (mobile)
+   ═══════════════════════════════════════════════════════ */
+@media (pointer: coarse) {
+  .touch-feedback:active {
+    transform: scale(0.96);
+    transition: transform 0.05s ease;
+  }
+}
