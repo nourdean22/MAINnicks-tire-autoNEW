@@ -164,5 +164,17 @@ export function registerAllJobs(): void {
     return processDashboardSync();
   });
 
+  // Abandoned form recovery (every 30 min)
+  registerJob("abandoned-forms", 30 * 60 * 1000, async () => {
+    const { processAbandonedForms } = await import("../services/abandonedForms");
+    return processAbandonedForms();
+  });
+
+  // Stale lead follow-up (every 2 hours during business hours)
+  registerJob("stale-lead-followup", 2 * 60 * 60 * 1000, async () => {
+    const { processStaleLeadFollowUp } = await import("./jobs/staleLeadFollowup");
+    return processStaleLeadFollowUp();
+  });
+
   log.info("All cron jobs registered");
 }
