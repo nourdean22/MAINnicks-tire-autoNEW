@@ -8,7 +8,7 @@
  * Prevents duplicates by checking smsCampaignSent > 0.
  * Tracks all sends in the database.
  *
- * OPTIMIZED: Uses short nickstire.org URLs instead of full Google URLs
+ * OPTIMIZED: Uses short autonicks.com URLs instead of full Google URLs
  * to keep messages at 2 SMS segments (~252 chars) instead of 3 (~383 chars).
  * Saves 33% on per-message cost ($0.0158 vs $0.0237).
  */
@@ -24,8 +24,8 @@ import { sendSms } from "./sms";
 import { STORE_NAME, STORE_PHONE } from "@shared/const";
 
 // ─── SHORT URLs (saves ~50 chars → 2 segments instead of 3) ─────
-const REVIEW_URL = "nickstire.org/review";
-const REFER_URL = "nickstire.org/refer";
+const REVIEW_URL = "autonicks.com/review";
+const REFER_URL = "autonicks.com/refer";
 
 // ─── MESSAGE TEMPLATES (optimized for 2 SMS segments) ────────────
 

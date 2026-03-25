@@ -86,7 +86,7 @@ function CitySchema({ city }: { city: CityData }) {
     "@type": "AutoRepair",
     name: `Nick's Tire & Auto — Serving ${city.name}`,
     description: city.metaDescription,
-    url: `https://nickstire.org/${city.slug}`,
+    url: `https://autonicks.com/${city.slug}`,
     telephone: `+1-${BUSINESS.phone.dashed}`,
     address: {
       "@type": "PostalAddress",

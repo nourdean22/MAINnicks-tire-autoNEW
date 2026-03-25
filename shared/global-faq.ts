@@ -10,7 +10,7 @@ export const GLOBAL_FAQ_QUESTIONS = [
     name: "Can I buy tires online from Nick's Tire & Auto?",
     acceptedAnswer: {
       "@type": "Answer" as const,
-      text: "Yes. Visit nickstire.org/tires to search by tire size, compare options from major brands, and place your order online. Every tire purchase includes our free Premium Installation Package ($289+ value) with mounting, balancing, valve stems, TPMS reset, alignment check, and a 20-point safety inspection.",
+      text: "Yes. Visit autonicks.com/tires to search by tire size, compare options from major brands, and place your order online. Every tire purchase includes our free Premium Installation Package ($289+ value) with mounting, balancing, valve stems, TPMS reset, alignment check, and a 20-point safety inspection.",
     },
   },
   {

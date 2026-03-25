@@ -143,7 +143,7 @@ export function statusUpdateSms(name: string, stage: string, refCode?: string): 
   };
 
   const statusMsg = stageMessages[stage] || "your vehicle status has been updated";
-  const pickup = stage === "ready" ? "" : `\n\nTrack status: nickstire.org/status`;
+  const pickup = stage === "ready" ? "" : `\n\nTrack status: autonicks.com/status`;
 
   return `Hi ${firstName}, ${statusMsg}.${ref}${pickup}\n\n${STORE_NAME} — ${STORE_PHONE}`;
 }
@@ -158,11 +158,11 @@ export function thankYouSms(name: string, service: string): string {
 
 /**
  * 7-day review request SMS
- * Optimized: uses short nickstire.org/review URL (189 chars, 2 segments)
+ * Optimized: uses short autonicks.com/review URL (189 chars, 2 segments)
  */
 export function reviewRequestSms(name: string): string {
   const firstName = name.split(" ")[0];
-  return `Hi ${firstName}, hope your vehicle is running great! If you have 30 seconds, a Google review helps other Cleveland drivers find honest repair:\n\nnickstire.org/review\n\nThank you! — ${STORE_NAME}`;
+  return `Hi ${firstName}, hope your vehicle is running great! If you have 30 seconds, a Google review helps other Cleveland drivers find honest repair:\n\nautonicks.com/review\n\nThank you! — ${STORE_NAME}`;
 }
 
 /**
@@ -179,7 +179,7 @@ export function callbackConfirmationSms(name: string): string {
 export function maintenanceReminderSms(name: string, service: string, mileageNote?: string): string {
   const firstName = name.split(" ")[0];
   const mileage = mileageNote ? ` ${mileageNote}` : "";
-  return `Hi ${firstName}, it may be time for your next ${service.toLowerCase()}.${mileage} Call ${STORE_PHONE} or book online at nickstire.org to schedule.\n\n— ${STORE_NAME}`;
+  return `Hi ${firstName}, it may be time for your next ${service.toLowerCase()}.${mileage} Call ${STORE_PHONE} or book online at autonicks.com to schedule.\n\n— ${STORE_NAME}`;
 }
 
 /**
