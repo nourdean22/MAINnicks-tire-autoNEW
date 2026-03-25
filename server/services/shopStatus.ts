@@ -4,7 +4,6 @@
  */
 
 import { createLogger } from "../lib/logger";
-import { useBusinessHours } from "../../client/src/hooks/useBusinessHours";
 
 const log = createLogger("shop-status");
 
