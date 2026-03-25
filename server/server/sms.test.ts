@@ -91,7 +91,7 @@ describe("SMS Module", () => {
       const msg = statusUpdateSms("Sarah Lee", "in-progress");
       expect(msg).toContain("Sarah");
       expect(msg).toContain("actively being repaired");
-      expect(msg).toContain("autonicks.com/status");
+      expect(msg).toContain("nickstire.org/status");
     });
 
     it("status update for waiting-parts stage", () => {
@@ -110,7 +110,7 @@ describe("SMS Module", () => {
     it("review request SMS includes Google review link", () => {
       const msg = reviewRequestSms("Tom Wilson");
       expect(msg).toContain("Tom");
-      expect(msg).toContain("autonicks.com/review");
+      expect(msg).toContain("nickstire.org/review");
       expect(msg).toContain("Cleveland");
     });
 
@@ -132,7 +132,7 @@ describe("SMS Module", () => {
       expect(msg).toContain("Dave");
       expect(msg).toContain("oil change");
       expect(msg).toContain("5,000 miles ago");
-      expect(msg).toContain("autonicks.com");
+      expect(msg).toContain("nickstire.org");
     });
 
     it("all messages are under 1600 characters", () => {
