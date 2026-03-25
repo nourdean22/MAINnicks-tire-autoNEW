@@ -13,15 +13,18 @@ const log = createLogger("customer-lookup");
  * Find existing customer by phone, email, or ID.
  * Phone matching uses last 10 digits for flexibility.
  */
-export async function findCustomer(identifier: { phone?: string; email?: string; id?: string }) {
+export async function findCustomer(identifier: { phone?: string; email?: string; id?: number | string }) {
   const { getDb } = await import("../db");
   const { customers } = await import("../../drizzle/schema");
   const db = await getDb();
   if (!db) return null;
 
   if (identifier.id) {
-    const [result] = await db.select().from(customers).where(eq(customers.id, identifier.id)).limit(1);
-    return result || null;
+    const numId = typeof identifier.id === "string" ? parseInt(identifier.id, 10) : identifier.id;
+    if (!isNaN(numId)) {
+      const [result] = await db.select().from(customers).where(eq(customers.id, numId)).limit(1);
+      return result || null;
+    }
   }
 
   if (identifier.phone) {
@@ -70,11 +73,10 @@ export async function findOrCreateCustomer(data: {
   const nameParts = data.name.trim().split(/\s+/);
   const firstName = nameParts[0] || "";
   const lastName = nameParts.slice(1).join(" ") || "";
-  const id = randomUUID();
-  const referralCode = `NICK${id.slice(0, 6).toUpperCase()}`;
+  const referralCode = `NICK${randomUUID().slice(0, 6).toUpperCase()}`;
 
-  await db.insert(customers).values({
-    id,
+  // ID is auto-increment int — don't pass it, let DB generate
+  const result = await db.insert(customers).values({
     firstName,
     lastName,
     phone: data.phone,
@@ -83,7 +85,8 @@ export async function findOrCreateCustomer(data: {
     referralCode,
   });
 
-  const newCustomer = await findCustomer({ id });
-  log.info("New customer created", { id, name: data.name, referralCode });
+  // Fetch by phone since we just created with that phone
+  const newCustomer = await findCustomer({ phone: data.phone });
+  log.info("New customer created", { name: data.name, referralCode });
   return { customer: newCustomer!, isNew: true };
 }
