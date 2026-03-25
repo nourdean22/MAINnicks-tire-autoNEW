@@ -192,8 +192,8 @@ describe("Share Cards", () => {
 
   it("should generate correct share URL format", () => {
     const token = "abc123def456";
-    const url = `https://autonicks.com/share/${token}`;
-    expect(url).toBe("https://autonicks.com/share/abc123def456");
+    const url = `https://nickstire.org/share/${token}`;
+    expect(url).toBe("https://nickstire.org/share/abc123def456");
   });
 
   it("should classify health scores correctly", () => {

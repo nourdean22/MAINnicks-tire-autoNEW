@@ -121,7 +121,7 @@ export default function SiteHealthSection() {
               <span className="text-[12px] text-foreground/60">Validation Status</span>
               <span className="text-[12px] text-emerald-400">Started (Mar 18, 2026)</span>
             </div>
-            <a href="https://search.google.com/search-console/index?resource_id=https%3A%2F%2Fautonicks.com%2F" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 text-primary hover:text-primary/80 text-[12px] p-2 border border-primary/20 hover:border-primary/40 transition-colors">
+            <a href="https://search.google.com/search-console/index?resource_id=https%3A%2F%2Fnickstire.org%2F" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 text-primary hover:text-primary/80 text-[12px] p-2 border border-primary/20 hover:border-primary/40 transition-colors">
               View Full Report in GSC <ExternalLink className="w-3 h-3" />
             </a>
           </div>

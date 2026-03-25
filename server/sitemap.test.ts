@@ -23,40 +23,40 @@ describe("sitemap.xml endpoint", () => {
   it("includes the homepage with highest priority", async () => {
     const res = await fetch(`${BASE}/sitemap.xml`);
     const body = await res.text();
-    expect(body).toContain("<loc>https://autonicks.com/</loc>");
+    expect(body).toContain("<loc>https://nickstire.org/</loc>");
     expect(body).toContain("<priority>1.0</priority>");
   });
 
   it("includes all six service pages", async () => {
     const res = await fetch(`${BASE}/sitemap.xml`);
     const body = await res.text();
-    expect(body).toContain("<loc>https://autonicks.com/tires</loc>");
-    expect(body).toContain("<loc>https://autonicks.com/brakes</loc>");
-    expect(body).toContain("<loc>https://autonicks.com/diagnostics</loc>");
-    expect(body).toContain("<loc>https://autonicks.com/emissions</loc>");
-    expect(body).toContain("<loc>https://autonicks.com/oil-change</loc>");
-    expect(body).toContain("<loc>https://autonicks.com/general-repair</loc>");
+    expect(body).toContain("<loc>https://nickstire.org/tires</loc>");
+    expect(body).toContain("<loc>https://nickstire.org/brakes</loc>");
+    expect(body).toContain("<loc>https://nickstire.org/diagnostics</loc>");
+    expect(body).toContain("<loc>https://nickstire.org/emissions</loc>");
+    expect(body).toContain("<loc>https://nickstire.org/oil-change</loc>");
+    expect(body).toContain("<loc>https://nickstire.org/general-repair</loc>");
   });
 
   it("includes the /about and /contact pages", async () => {
     const res = await fetch(`${BASE}/sitemap.xml`);
     const body = await res.text();
-    expect(body).toContain("<loc>https://autonicks.com/about</loc>");
-    expect(body).toContain("<loc>https://autonicks.com/contact</loc>");
+    expect(body).toContain("<loc>https://nickstire.org/about</loc>");
+    expect(body).toContain("<loc>https://nickstire.org/contact</loc>");
   });
 
   it("includes the /blog index page", async () => {
     const res = await fetch(`${BASE}/sitemap.xml`);
     const body = await res.text();
-    expect(body).toContain("<loc>https://autonicks.com/blog</loc>");
+    expect(body).toContain("<loc>https://nickstire.org/blog</loc>");
   });
 
   it("includes hardcoded blog article URLs", async () => {
     const res = await fetch(`${BASE}/sitemap.xml`);
     const body = await res.text();
-    expect(body).toContain("<loc>https://autonicks.com/blog/5-signs-brakes-need-replacing</loc>");
-    expect(body).toContain("<loc>https://autonicks.com/blog/check-engine-light-common-causes</loc>");
-    expect(body).toContain("<loc>https://autonicks.com/blog/ohio-echeck-what-to-know</loc>");
+    expect(body).toContain("<loc>https://nickstire.org/blog/5-signs-brakes-need-replacing</loc>");
+    expect(body).toContain("<loc>https://nickstire.org/blog/check-engine-light-common-causes</loc>");
+    expect(body).toContain("<loc>https://nickstire.org/blog/ohio-echeck-what-to-know</loc>");
   });
 
   it("includes changefreq and priority for all URLs", async () => {
@@ -111,6 +111,6 @@ describe("robots.txt endpoint", () => {
   it("references the sitemap URL", async () => {
     const res = await fetch(`${BASE}/robots.txt`);
     const body = await res.text();
-    expect(body).toContain("Sitemap: https://autonicks.com/sitemap.xml");
+    expect(body).toContain("Sitemap: https://nickstire.org/sitemap.xml");
   });
 });

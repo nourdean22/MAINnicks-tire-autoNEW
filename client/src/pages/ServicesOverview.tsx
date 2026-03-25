@@ -271,7 +271,7 @@ export default function ServicesOverview() {
             "@type": "AutoRepair",
             name: "Nick's Tire & Auto",
             description: "Complete auto repair services in Cleveland, Ohio. Tires, brakes, diagnostics, emissions, oil changes, and general repair.",
-            url: "https://autonicks.com/services",
+            url: "https://nickstire.org/services",
             telephone: `+1-${BUSINESS.phone.dashed}`,
             address: {
               "@type": "PostalAddress",

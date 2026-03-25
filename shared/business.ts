@@ -8,11 +8,11 @@
 /**
  * SITE_URL — Configurable domain for the entire site.
  * Set SITE_URL env var on Railway to switch domains instantly.
- * Defaults to autonicks.com (primary domain).
+ * Defaults to nickstire.org (primary domain).
  */
 export const SITE_URL =
   (typeof process !== "undefined" && process.env?.SITE_URL) ||
-  "https://autonicks.com";
+  "https://nickstire.org";
 
 export const BUSINESS = {
   name: "Nick's Tire & Auto",

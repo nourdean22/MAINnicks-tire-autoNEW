@@ -39,7 +39,7 @@ export default function PrivacyPolicy() {
               <h2 className="text-2xl font-bold text-foreground mb-4">1. Introduction</h2>
               <p>
                 Nick's Tire & Auto ("we," "us," or "our") operates the website at{" "}
-                <a href="https://autonicks.com" className="text-primary hover:underline">autonicks.com</a>{" "}
+                <a href="https://nickstire.org" className="text-primary hover:underline">nickstire.org</a>{" "}
                 and provides automotive repair and tire services at our shop located at {BUSINESS.address.full}.
                 This Privacy Policy describes how we collect, use, and protect your personal information when you
                 visit our website, use our services, or communicate with us.
@@ -171,7 +171,7 @@ export default function PrivacyPolicy() {
                 <p className="font-bold text-foreground">{BUSINESS.name}</p>
                 <p>{BUSINESS.address.full}</p>
                 <p>Phone: <a href={BUSINESS.phone.href} className="text-primary hover:underline">{BUSINESS.phone.display}</a></p>
-                <p>Website: <a href="https://autonicks.com" className="text-primary hover:underline">autonicks.com</a></p>
+                <p>Website: <a href="https://nickstire.org" className="text-primary hover:underline">nickstire.org</a></p>
               </div>
             </div>
 

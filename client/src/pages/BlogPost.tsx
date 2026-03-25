@@ -74,12 +74,12 @@ export default function BlogPost() {
     author: {
       "@type": "Organization",
       name: "Nick's Tire & Auto",
-      url: "https://autonicks.com",
+      url: "https://nickstire.org",
     },
     publisher: {
       "@type": "Organization",
       name: "Nick's Tire & Auto",
-      url: "https://autonicks.com",
+      url: "https://nickstire.org",
       logo: {
         "@type": "ImageObject",
         url: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
