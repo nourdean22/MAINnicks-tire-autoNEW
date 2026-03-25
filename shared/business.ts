@@ -8,12 +8,11 @@
 /**
  * SITE_URL — Configurable domain for the entire site.
  * Set SITE_URL env var on Railway to switch domains instantly.
- * Defaults to nickstire.org (primary domain).
- * For autonicks.com backup: set SITE_URL=https://autonicks.com on Railway.
+ * Defaults to autonicks.com (primary domain).
  */
 export const SITE_URL =
   (typeof process !== "undefined" && process.env?.SITE_URL) ||
-  "https://nickstire.org";
+  "https://autonicks.com";
 
 export const BUSINESS = {
   name: "Nick's Tire & Auto",
@@ -65,8 +64,8 @@ export const BUSINESS = {
   // ─── REVIEWS ─────────────────────────────────────────
   reviews: {
     rating: 4.9,
-    count: 1685,
-    countDisplay: "1,685+",
+    count: 1700,
+    countDisplay: "1,700+",
     source: "Google",
     url: "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid",
   },

@@ -63,7 +63,7 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
         hasEmergencyBanner ? "top-[56px] sm:top-[48px]" : "top-0"
       } ${
         scrolled
-          ? "bg-[oklch(0.06_0.004_260/0.92)] backdrop-blur-2xl shadow-[0_1px_0_oklch(0.17_0.004_260/0.5)]"
+          ? "bg-[#0B0E14]/95 backdrop-blur-2xl shadow-[0_1px_0_rgba(255,255,255,0.08)]"
           : "bg-transparent"
       }`}
     >
@@ -97,20 +97,14 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
         <div className="hidden lg:flex items-center gap-3">
           <Link
             href="/diagnose"
-            className="text-[13px] font-medium text-primary/80 hover:text-primary transition-colors duration-200"
+            className="text-[13px] font-medium text-secondary hover:text-[#2B6CB0] transition-colors duration-200"
           >
             Diagnose
-          </Link>
-          <Link
-            href="/estimate"
-            className="text-[13px] font-medium text-foreground/50 hover:text-foreground transition-colors duration-200"
-          >
-            Estimate
           </Link>
           <a
             href={BUSINESS.phone.href}
             onClick={() => trackPhoneClick("navbar")}
-            className="flex items-center gap-1.5 text-[13px] font-semibold bg-foreground/[0.08] border border-foreground/[0.08] text-foreground px-4 py-[7px] rounded-full hover:bg-foreground/[0.12] hover:border-foreground/[0.12] transition-all duration-200"
+            className="flex items-center gap-1.5 text-[13px] font-bold bg-[#FDB913] text-[#0B0E14] px-4 py-[7px] rounded-full hover:shadow-lg hover:shadow-[#FDB913]/30 transition-all duration-200"
             aria-label="Call Nick's Tire and Auto"
           >
             <Phone className="w-3.5 h-3.5" />
@@ -118,15 +112,26 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
           </a>
         </div>
 
-        {/* ─── MOBILE TOGGLE ─── */}
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="lg:hidden text-foreground/70 hover:text-foreground p-2 -mr-2 transition-colors"
-          aria-label={mobileOpen ? "Close menu" : "Open menu"}
-          aria-expanded={mobileOpen}
-        >
-          {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
+        {/* ─── MOBILE: Phone + Toggle ─── */}
+        <div className="lg:hidden flex items-center gap-2">
+          <a
+            href={BUSINESS.phone.href}
+            onClick={() => trackPhoneClick("navbar-mobile")}
+            className="flex items-center gap-1.5 text-xs font-bold bg-[#FDB913] text-[#0B0E14] px-3 py-1.5 rounded-full"
+            aria-label="Call Nick's Tire and Auto"
+          >
+            <Phone className="w-3.5 h-3.5" />
+            Call
+          </a>
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="text-foreground/70 hover:text-foreground p-2 -mr-2 transition-colors"
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileOpen}
+          >
+            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
 
       {/* ─── MOBILE MENU ─── */}
@@ -137,7 +142,7 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="lg:hidden fixed inset-0 top-[60px] bg-[oklch(0.06_0.004_260/0.98)] backdrop-blur-2xl z-40"
+            className="lg:hidden fixed inset-0 top-[60px] bg-[#0B0E14]/98 backdrop-blur-2xl z-40"
           >
             <div className="container py-10 flex flex-col gap-1">
               {NAV_LINKS.map((l, i) => (
