@@ -94,7 +94,7 @@ function Hero() {
             </span>
           </motion.div>
 
-          {/* Headline — directive: "PRECISION REPAIR. EUCLID TOUGH." */}
+          {/* Headline — "PRECISION REPAIR. CLEVELAND TOUGH." */}
           <motion.h1
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
@@ -103,7 +103,7 @@ function Hero() {
           >
             Precision Repair.
             <br />
-            <span className="text-[#FDB913]">Euclid Tough.</span>
+            <span className="text-[#FDB913]">Cleveland Tough.</span>
           </motion.h1>
 
           {/* Subheadline */}

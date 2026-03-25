@@ -933,6 +933,78 @@ button:active, a[role="button"]:active, .btn-gold:active, .btn-cobalt:active {
   animation: breathe-glow 3s ease-in-out infinite;
 }
 
+/* FAQ Accordion — smooth expand/collapse */
+.faq-answer {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, padding 0.3s ease;
+  opacity: 0;
+  padding: 0 16px;
+}
+.faq-item.open .faq-answer {
+  max-height: 500px;
+  opacity: 1;
+  padding: 12px 16px 16px;
+}
+.faq-toggle {
+  transition: transform 0.3s ease;
+}
+.faq-item.open .faq-toggle {
+  transform: rotate(180deg);
+}
+
+/* Booking flow step transitions */
+.booking-step {
+  animation: slide-in-left 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.booking-step-exit {
+  animation: slide-out-left 0.25s ease forwards;
+}
+@keyframes slide-out-left {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(-30px); }
+}
+
+/* Booking confirmation celebration */
+@keyframes confirm-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.booking-confirmed {
+  animation: confirm-pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* Gold progress bar for booking flow */
+.booking-progress-bar {
+  height: 3px;
+  background: var(--brand-gold, #FDB913);
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 2px;
+}
+
+/* Trust badge scale-in on viewport entry */
+@keyframes badge-in {
+  from { transform: scale(0.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.trust-badge-animate {
+  animation: badge-in 0.4s ease forwards;
+}
+
+/* Price counter animation */
+@keyframes price-count {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.price-animate {
+  animation: price-count 0.6s ease forwards;
+}
+
 /* ═══════════════════════════════════════════════════════
    DARK MODE REFINEMENT — ZERO LIGHT LEAKS
    ═══════════════════════════════════════════════════════ */
