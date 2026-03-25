@@ -65,10 +65,6 @@
   --text-secondary: #8B949E;
   --status-green: #27AE60;
   --status-red: #FF3B30;
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-bg: rgba(255, 255, 255, 0.03);
-  --cobalt-glow: 0 0 15px rgba(30, 77, 140, 0.5);
-  --gold-glow: 0 4px 15px rgba(253, 185, 19, 0.3);
 
   /* ─── LEGACY NICK COLOR ALIASES (for existing components) ─── */
   --color-nick-yellow: #FDB913;
@@ -101,6 +97,12 @@
 
 :root {
   --radius: 0.625rem;
+
+  /* ─── GLOW & GLASS (complex values — must be in :root, not @theme) ─── */
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --cobalt-glow: 0 0 15px rgba(30, 77, 140, 0.5);
+  --gold-glow: 0 4px 15px rgba(253, 185, 19, 0.3);
 
   /* ─── BACKGROUND: Deep blue-black (#0B0E14 system) ─── */
   --background: #0B0E14;
