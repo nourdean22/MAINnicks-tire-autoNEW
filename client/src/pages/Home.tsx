@@ -60,6 +60,8 @@ function Hero() {
           src={HERO_IMG}
           alt="Nick's Tire and Auto repair shop in Cleveland Ohio"
           className="w-full h-full object-cover"
+          loading="eager"
+          fetchPriority="high"
         />
         {/* Blue-tinted gradient overlay matching building color */}
         <div
