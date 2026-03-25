@@ -179,7 +179,7 @@ export default function ReviewsPage() {
   const [recencyFilter, setRecencyFilter] = useState<RecencyOption>("Most Recent");
   const [sortBy, setSortBy] = useState<SortOption>("Most Recent");
 
-  const totalCount = reviewData?.totalReviews ?? 1685;
+  const totalCount = reviewData?.totalReviews ?? 1700;
   const avgRating = reviewData?.rating ?? 4.9;
 
   // Filter and sort reviews
