@@ -97,14 +97,12 @@ async function startServer() {
     next();
   });
 
-  // ─── Health check & readiness endpoints ───────────────
-  app.get("/api/health", (_req, res) => {
-    res.json({
-      status: "ok",
-      uptime: Math.floor((Date.now() - startTime) / 1000),
-      timestamp: new Date().toISOString(),
-      cache: serverCache.stats(),
-    });
+  // ─── Health check, ping, & readiness endpoints ──────
+  app.get("/api/ping", (_req, res) => { res.json({ pong: true, timestamp: Date.now() }); });
+
+  app.get("/api/health", async (_req, res) => {
+    const { healthHandler } = await import("../lib/health");
+    await healthHandler(_req, res);
   });
 
   app.get("/api/ready", async (_req, res) => {
