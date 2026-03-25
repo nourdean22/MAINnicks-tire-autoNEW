@@ -63,6 +63,11 @@ async function startServer() {
   // ─── Structured request logging ──────────────────────
   app.use(createRequestLogger());
 
+  // ─── Performance monitoring (tracks response times per endpoint) ──
+  import("../middleware/performanceMonitor").then(({ performanceMiddleware }) => {
+    app.use(performanceMiddleware);
+  }).catch(() => { /* Performance monitor not critical */ });
+
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -246,6 +251,16 @@ async function startServer() {
   app.use("/api/trpc/public.aiSearch", aiLimiter);
   app.use("/api/trpc/laborEstimate.generate", aiLimiter);
 
+  // ─── Twilio webhook routes (SMS + Voice) ──────────────
+  import("../routes/webhooks/twilio").then(({ twilioWebhookRouter }) => {
+    app.use(twilioWebhookRouter);
+  }).catch(() => { /* Twilio webhooks not critical for startup */ });
+
+  // ─── SSE real-time routes (admin feed + order tracking) ──
+  import("../services/realtime").then(({ registerSSERoutes }) => {
+    registerSSERoutes(app);
+  }).catch(() => { /* SSE routes not critical for startup */ });
+
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // tRPC API
@@ -420,6 +435,21 @@ async function startServer() {
   } else {
     serveStatic(app);
   }
+
+  // ─── Global error handler (MUST be after all routes) ──
+  import("../middleware/errorHandler").then(({ globalErrorHandler }) => {
+    app.use(globalErrorHandler);
+  }).catch(() => { /* Error handler module not critical */ });
+
+  // ─── Initialize cache layer (Redis or in-memory fallback) ──
+  import("../lib/cache").then(({ initCache }) => {
+    initCache();
+  }).catch(() => { /* Cache init not critical */ });
+
+  // ─── Start cron job system ──
+  import("../cron/index").then(({ startAllJobs }) => {
+    startAllJobs();
+  }).catch(() => { /* Cron start not critical */ });
 
   const preferredPort = parseInt(process.env.PORT || "3000");
   const port = await findAvailablePort(preferredPort);
