@@ -42,6 +42,7 @@ const CityPage = lazy(() => import("./pages/CityPage"));
 const FAQ = lazy(() => import("./pages/FAQ"));
 const SeasonalPage = lazy(() => import("./pages/SeasonalPage"));
 const SEOServicePage = lazy(() => import("./pages/SEOServicePage"));
+const IntersectionPage = lazy(() => import("./pages/IntersectionPage"));
 const VehicleMakePage = lazy(() => import("./pages/VehicleMakePage"));
 const ProblemPage = lazy(() => import("./pages/ProblemPage"));
 const ReviewsPage = lazy(() => import("./pages/ReviewsPage"));
@@ -133,6 +134,8 @@ function Router() {
         <Route path={"/warrensville-heights-auto-repair"} component={CityPage} />
         <Route path={"/parma-heights-auto-repair"} component={CityPage} />
         <Route path={"/wickliffe-auto-repair"} component={CityPage} />
+        {/* Intersection SEO pages */}
+        <Route path={"/near/:slug"} component={IntersectionPage} />
         {/* Seasonal landing pages */}
         <Route path={"/winter-car-care-cleveland"} component={SeasonalPage} />
         <Route path={"/summer-car-care-cleveland"} component={SeasonalPage} />
