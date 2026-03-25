@@ -128,14 +128,14 @@ export default function SharePage() {
 
   const shareOnFacebook = () => {
     if (!token) return;
-    const url = `https://autonicks.com/share/${token}`;
+    const url = `https://nickstire.org/share/${token}`;
     const fbShareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
     window.open(fbShareUrl, "facebook-share", "width=600,height=400");
   };
 
   const shareViaText = () => {
     if (!token) return;
-    const url = `https://autonicks.com/share/${token}`;
+    const url = `https://nickstire.org/share/${token}`;
     const message = `Check out my vehicle health report from Nick's Tire & Auto: ${url}`;
     const smsUrl = `sms:?body=${encodeURIComponent(message)}`;
     window.location.href = smsUrl;

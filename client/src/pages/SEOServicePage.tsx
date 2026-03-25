@@ -229,7 +229,7 @@ export default function SEOServicePage() {
           "@type": "City",
           "name": "Cleveland"
         },
-        "url": `https://autonicks.com/${page.slug}`
+        "url": `https://nickstire.org/${page.slug}`
       })}} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
         "@context": "https://schema.org",

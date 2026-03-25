@@ -108,7 +108,7 @@ function NeighborhoodSchema({ neighborhood }: { neighborhood: Neighborhood }) {
     "@type": "AutoRepair",
     name: `${BUSINESS.name} — Serving ${neighborhood.name}`,
     description: neighborhood.description,
-    url: `https://autonicks.com/${neighborhood.slug}`,
+    url: `https://nickstire.org/${neighborhood.slug}`,
     telephone: `+1-${BUSINESS.phone.dashed}`,
     address: {
       "@type": "PostalAddress",
@@ -395,7 +395,7 @@ export default function NeighborhoodPage() {
                 <Phone className="w-5 h-5" />
                 {BUSINESS.phone.display}
               </a>
-              <a href="https://autonicks.com/book" className="flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
+              <a href="https://nickstire.org/book" className="flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
                 BOOK ONLINE
                 <ChevronRight className="w-5 h-5" />
               </a>

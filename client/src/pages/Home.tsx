@@ -715,8 +715,8 @@ function LocalBusinessSchema() {
     "name": "Nick's Tire & Auto",
     "alternateName": "Nick's Tire And Auto Euclid",
     "image": HERO_IMG,
-    "@id": "https://autonicks.com",
-    "url": "https://autonicks.com",
+    "@id": "https://nickstire.org",
+    "url": "https://nickstire.org",
     "telephone": "+1-" + BUSINESS.phone.dashed,
     "priceRange": "$$",
     "address": {
@@ -747,16 +747,36 @@ function LocalBusinessSchema() {
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />;
 }
 
+// ─── HOMEPAGE FAQ SCHEMA (moved from index.html to prevent duplicate FAQPage) ───
+function HomepageFAQSchema() {
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+      { "@type": "Question", name: "How much does flat tire repair cost at Nick's Tire & Auto?",
+        acceptedAnswer: { "@type": "Answer", text: "Flat tire repair costs $15-$25. Most repairs done in 15 minutes. We never sell you a new tire if yours can be safely repaired." } },
+      { "@type": "Question", name: "Do you sell used tires?",
+        acceptedAnswer: { "@type": "Answer", text: "Yes. Large selection of quality inspected used tires. Every tire checked for tread depth, sidewall condition, and safety. Walk-ins welcome." } },
+      { "@type": "Question", name: "What is included in the free tire installation package?",
+        acceptedAnswer: { "@type": "Answer", text: "15 services free with every tire purchase: mounting, balancing, valve stems, TPMS reset, alignment check, 20-point inspection, rim cleaning, disposal, torque, and more. $289+ value." } },
+      { "@type": "Question", name: "What areas does Nick's Tire & Auto serve?",
+        acceptedAnswer: { "@type": "Answer", text: "Located at 17625 Euclid Ave, Euclid OH 44112. We serve Cleveland, Euclid, Lakewood, Parma, East Cleveland, Shaker Heights, South Euclid, and all of Northeast Ohio." } },
+    ],
+  };
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />;
+}
+
 // ─── PAGE ────────────────────────────────────────────────
 export default function Home() {
   return (
     <PageLayout activeHref="/" showChat={true}>
       <SEOHead
         title="Nick's Tire & Auto — Cleveland's #1 Tire Shop & Auto Repair"
-        description={`Cleveland's top-rated new & used tire specialist + full-service auto repair. Free premium installation ($289 value). Flat repair $15. Brakes, diagnostics, emissions. ${BUSINESS.reviews.countDisplay} reviews, 4.9 stars. Walk-ins 7 days. $10 down financing.`}
+        description="Cleveland's top-rated auto shop. 4.9★ (1,700+ reviews). Tires, brakes, diagnostics, oil changes. 36-month warranty. Walk-ins welcome. (216) 862-0005."
         canonicalPath="/"
       />
       <LocalBusinessSchema />
+      <HomepageFAQSchema />
       <SiteSearchSchema />
       <Hero />
       <TrustNumbers />

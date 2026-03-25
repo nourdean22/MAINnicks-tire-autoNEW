@@ -166,7 +166,7 @@ export default function AnalyticsSection() {
           Add UTM parameters to your ad links and social posts to track which channels drive the most leads and bookings.
         </p>
         <div className="bg-foreground/5 rounded p-3 font-mono text-[11px] text-foreground/70 break-all">
-          autonicks.com/?utm_source=facebook&utm_medium=cpc&utm_campaign=spring_brakes
+          nickstire.org/?utm_source=facebook&utm_medium=cpc&utm_campaign=spring_brakes
         </div>
         <p className="text-[10px] text-muted-foreground mt-2">
           Supported parameters: utm_source, utm_medium, utm_campaign. Data appears here automatically once visitors arrive from tagged URLs.

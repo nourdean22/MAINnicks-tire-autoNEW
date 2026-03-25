@@ -6,7 +6,7 @@
 import { BUSINESS } from "@shared/business";
 
 export default function SiteSearchSchema() {
-  const siteUrl = typeof window !== "undefined" ? window.location.origin : "https://autonicks.com";
+  const siteUrl = typeof window !== "undefined" ? window.location.origin : "https://nickstire.org";
 
   const organizationSchema = {
     "@context": "https://schema.org",

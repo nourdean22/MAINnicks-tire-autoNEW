@@ -43,7 +43,7 @@ describe("Meta CAPI Module", () => {
     const result = await sendCAPIEvent({
       eventName: "Lead",
       eventId: "evt_test_123",
-      sourceUrl: "https://autonicks.com",
+      sourceUrl: "https://nickstire.org",
       userData: {
         ip: "1.2.3.4",
         userAgent: "Mozilla/5.0 Test",
@@ -77,7 +77,7 @@ describe("Meta CAPI Module", () => {
     expect(event.event_name).toBe("Lead");
     expect(event.event_id).toBe("evt_test_123");
     expect(event.action_source).toBe("website");
-    expect(event.event_source_url).toBe("https://autonicks.com");
+    expect(event.event_source_url).toBe("https://nickstire.org");
 
     // Verify user_data has hashed PII
     expect(event.user_data.client_ip_address).toBe("1.2.3.4");
@@ -195,7 +195,7 @@ describe("Typed Event Helpers", () => {
 
     const result = await sendLeadEvent({
       eventId: "evt_lead_123",
-      sourceUrl: "https://autonicks.com",
+      sourceUrl: "https://nickstire.org",
       phone: "2168620005",
       email: "test@test.com",
       name: "John Doe",
@@ -218,7 +218,7 @@ describe("Typed Event Helpers", () => {
 
     const result = await sendScheduleEvent({
       eventId: "evt_sched_123",
-      sourceUrl: "https://autonicks.com",
+      sourceUrl: "https://nickstire.org",
       phone: "2168620005",
       name: "Jane Smith",
       service: "Brake Repair",
@@ -239,7 +239,7 @@ describe("Typed Event Helpers", () => {
 
     const result = await sendContactEvent({
       eventId: "evt_contact_123",
-      sourceUrl: "https://autonicks.com",
+      sourceUrl: "https://nickstire.org",
       contentName: "Phone Call Click",
       contentCategory: "hero",
     });

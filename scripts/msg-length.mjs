@@ -1,7 +1,7 @@
 const STORE_NAME = "Nick's Tire & Auto";
 const STORE_PHONE = "(216) 862-0005";
 const GBP_REVIEW_URL = "https://search.google.com/local/writereview?placeid=ChIJSWRRLdr_MIgRxdlMIMPcqww";
-const REFERRAL_URL = "https://autonicks.com/refer";
+const REFERRAL_URL = "https://nickstire.org/refer";
 
 function segs(msg) {
   return msg.length <= 160 ? 1 : Math.ceil(msg.length / 153);
@@ -13,16 +13,16 @@ const recent = `Hi John, thank you for choosing ${STORE_NAME}! We truly apprecia
 const lapsed = `Hi John, this is ${STORE_NAME}. Thank you for trusting us with your vehicle. We hope it's running great!\n\nIf you had a good experience, a quick Google review means a lot:\n${GBP_REVIEW_URL}\n\nRefer a friend or family member: ${REFERRAL_URL}\n\nWe'd love to see you again. — Nick's Team\n${STORE_PHONE}`;
 
 // Campaign message (from retryCampaign)
-const campaign = `Hi John, thank you for choosing ${STORE_NAME}! We truly appreciate your business.\n\nIf you have 30 seconds, a Google review helps other Cleveland drivers find honest repair:\n${GBP_REVIEW_URL}\n\nKnow someone who needs reliable auto service? Refer them to us: autonicks.com/refer\n\nThank you! — Nick's Team\n${STORE_PHONE}`;
+const campaign = `Hi John, thank you for choosing ${STORE_NAME}! We truly appreciate your business.\n\nIf you have 30 seconds, a Google review helps other Cleveland drivers find honest repair:\n${GBP_REVIEW_URL}\n\nKnow someone who needs reliable auto service? Refer them to us: nickstire.org/refer\n\nThank you! — Nick's Team\n${STORE_PHONE}`;
 
 console.log("=== CURRENT MESSAGE LENGTHS ===\n");
 console.log(`Campaign msg:         ${campaign.length} chars → ${segs(campaign)} segments → $${(segs(campaign) * 0.0079).toFixed(4)}/msg`);
 console.log(`Recent follow-up:     ${recent.length} chars → ${segs(recent)} segments → $${(segs(recent) * 0.0079).toFixed(4)}/msg`);
 console.log(`Lapsed follow-up:     ${lapsed.length} chars → ${segs(lapsed)} segments → $${(segs(lapsed) * 0.0079).toFixed(4)}/msg`);
 
-// Optimized messages using autonicks.com/review instead of full Google URL
-const REVIEW_SHORT = "autonicks.com/review";
-const REFER_SHORT = "autonicks.com/refer";
+// Optimized messages using nickstire.org/review instead of full Google URL
+const REVIEW_SHORT = "nickstire.org/review";
+const REFER_SHORT = "nickstire.org/refer";
 
 const optCampaign = `Hi John, thank you for choosing ${STORE_NAME}! We truly appreciate your business.\n\nGot 30 sec? A Google review helps other Cleveland drivers find honest repair:\n${REVIEW_SHORT}\n\nRefer a friend: ${REFER_SHORT}\n— Nick's Team ${STORE_PHONE}`;
 
