@@ -7,6 +7,10 @@ const log = createLogger("cron:reminders");
 
 export async function processAppointmentReminders24h(): Promise<{ recordsProcessed: number }> {
   try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    if (!(await isEnabled("sms_appointment_reminders"))) {
+      return { recordsProcessed: 0 }; // Flag disabled — skip silently
+    }
     const { processScheduledSms } = await import("../../services/sms-scheduler");
     const result = await processScheduledSms();
     return { recordsProcessed: result.sent + result.failed };

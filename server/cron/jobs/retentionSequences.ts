@@ -6,8 +6,10 @@ import { createLogger } from "../../lib/logger";
 const log = createLogger("cron:retention");
 
 export async function processRetention90Day(): Promise<{ recordsProcessed: number }> {
+  const { isEnabled } = await import("../../services/featureFlags");
+  if (!(await isEnabled("sms_retention_sequences"))) return { recordsProcessed: 0 };
   // TODO: Query customers where last_visit 88-92 days ago, not contacted in 30 days
-  log.info("Retention 90-day check (feature flag controlled)");
+  log.info("Retention 90-day check running");
   return { recordsProcessed: 0 };
 }
 
