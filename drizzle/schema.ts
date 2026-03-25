@@ -1416,38 +1416,8 @@ export const appointmentReminders = mysqlTable("appointment_reminders", {
 // BACKEND-5: Core Business Tables
 // ═══════════════════════════════════════════════════════
 
-/**
- * Customers — central record linking vehicles, work orders, referrals
- */
-export const customers = mysqlTable("customers", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  firstName: varchar("first_name", { length: 100 }).notNull(),
-  lastName: varchar("last_name", { length: 100 }).notNull(),
-  email: varchar("email", { length: 255 }),
-  phone: varchar("phone", { length: 20 }).notNull(),
-  phoneSecondary: varchar("phone_secondary", { length: 20 }),
-  addressLine1: varchar("address_line1", { length: 255 }),
-  city: varchar("city", { length: 100 }),
-  state: varchar("state", { length: 2 }).default("OH"),
-  zip: varchar("zip", { length: 10 }),
-  source: varchar("source", { length: 50 }),
-  sourceDetail: varchar("source_detail", { length: 255 }),
-  notes: text("notes"),
-  tags: json("tags").$type<string[]>(),
-  loyaltyPoints: int("loyalty_points").default(0).notNull(),
-  referralCode: varchar("referral_code", { length: 20 }),
-  referredBy: varchar("referred_by", { length: 36 }),
-  totalSpent: decimal("total_spent", { precision: 10, scale: 2 }).default("0"),
-  visitCount: int("visit_count").default(0).notNull(),
-  lastVisitDate: timestamp("last_visit_date"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-}, (table) => [
-  index("idx_cust_phone").on(table.phone),
-  index("idx_cust_email").on(table.email),
-  index("idx_cust_referral").on(table.referralCode),
-  index("idx_cust_last_visit").on(table.lastVisitDate),
-]);
+// customers table already defined earlier in this file (line ~761)
+// Removed duplicate definition to prevent esbuild errors
 
 /**
  * Vehicles — linked to customers
@@ -1613,23 +1583,8 @@ export const inventory = mysqlTable("inventory", {
 /**
  * Referrals — tracks customer referral program
  */
-export const referrals = mysqlTable("referrals", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  referrerCustomerId: varchar("referrer_customer_id", { length: 36 }).notNull(),
-  referredName: varchar("referred_name", { length: 200 }),
-  referredPhone: varchar("referred_phone", { length: 20 }),
-  referredEmail: varchar("referred_email", { length: 255 }),
-  referredCustomerId: varchar("referred_customer_id", { length: 36 }),
-  status: varchar("status", { length: 20 }).default("pending").notNull(),
-  referrerCredit: decimal("referrer_credit", { precision: 10, scale: 2 }).default("25.00"),
-  referredDiscount: decimal("referred_discount", { precision: 10, scale: 2 }).default("20.00"),
-  referrerCreditedAt: timestamp("referrer_credited_at"),
-  referredUsedAt: timestamp("referred_used_at"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [
-  index("idx_ref_referrer").on(table.referrerCustomerId),
-  index("idx_ref_status").on(table.status),
-]);
+// referrals table already defined earlier in this file (line ~283)
+// Removed duplicate definition to prevent esbuild errors
 
 /**
  * Waitlist — when shop is fully booked
