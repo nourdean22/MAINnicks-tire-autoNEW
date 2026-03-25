@@ -9,6 +9,7 @@ import BookingForm from "@/components/BookingForm";
 import FinancingCTA from "@/components/FinancingCTA";
 import LeadPopup from "@/components/LeadPopup";
 import ComparisonTable from "@/components/ComparisonTable";
+import SnapToQuote from "@/components/SnapToQuote";
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import SiteSearchSchema from "@/components/SiteSearchSchema";
@@ -759,6 +760,7 @@ export default function Home() {
       <SiteSearchSchema />
       <Hero />
       <TrustNumbers />
+      <div className="content-lazy"><SnapToQuote /></div>
       <Services />
       <div className="content-lazy"><WhyUs /></div>
       <div className="content-lazy"><SeasonalSpecials /></div>
