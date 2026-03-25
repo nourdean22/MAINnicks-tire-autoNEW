@@ -152,5 +152,17 @@ export function registerAllJobs(): void {
     return processRetention90Day();
   }, false); // Disabled by default
 
+  // Warranty expiration alerts (every 24 hours)
+  registerJob("warranty-alerts", 24 * 60 * 60 * 1000, async () => {
+    const { processWarrantyAlerts } = await import("./jobs/warrantyAlerts");
+    return processWarrantyAlerts();
+  });
+
+  // Dashboard Google Sheets sync (every 15 min)
+  registerJob("dashboard-sync", 15 * 60 * 1000, async () => {
+    const { processDashboardSync } = await import("./jobs/dashboardSync");
+    return processDashboardSync();
+  });
+
   log.info("All cron jobs registered");
 }

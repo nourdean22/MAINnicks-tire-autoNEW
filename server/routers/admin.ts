@@ -381,6 +381,12 @@ export const exportRouter = router({
     return getJobStatuses();
   }),
 
+  // ─── Performance Metrics ───────────────────────────
+  performanceMetrics: adminProcedure.query(async () => {
+    const { getPerformanceMetrics } = await import("../middleware/performanceMonitor");
+    return getPerformanceMetrics();
+  }),
+
   // ─── System Health (Enhanced) ─────────────────────
   systemHealth: adminProcedure.query(async () => {
     const mem = process.memoryUsage();
