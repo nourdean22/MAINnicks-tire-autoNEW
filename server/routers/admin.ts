@@ -355,4 +355,46 @@ export const exportRouter = router({
     ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
     return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
   }),
+
+  // ─── Feature Flags Management ──────────────────────
+  featureFlags: adminProcedure.query(async () => {
+    const { getAllFlags } = await import("../services/featureFlags");
+    return getAllFlags();
+  }),
+
+  toggleFlag: adminProcedure
+    .input(z.object({ key: z.string(), value: z.boolean() }))
+    .mutation(async ({ input }) => {
+      const { setFlag } = await import("../services/featureFlags");
+      await setFlag(input.key as any, input.value);
+      return { success: true, key: input.key, value: input.value };
+    }),
+
+  seedFlags: adminProcedure.mutation(async () => {
+    const { seedFlags } = await import("../services/featureFlags");
+    return seedFlags();
+  }),
+
+  // ─── Cron Job Status ──────────────────────────────
+  cronStatus: adminProcedure.query(async () => {
+    const { getJobStatuses } = await import("../cron/index");
+    return getJobStatuses();
+  }),
+
+  // ─── System Health (Enhanced) ─────────────────────
+  systemHealth: adminProcedure.query(async () => {
+    const mem = process.memoryUsage();
+    return {
+      uptime: Math.round(process.uptime()),
+      memory: {
+        heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
+        heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
+        rssMB: Math.round(mem.rss / 1024 / 1024),
+        percent: Math.round((mem.heapUsed / mem.heapTotal) * 100),
+      },
+      nodeVersion: process.version,
+      platform: process.platform,
+      env: process.env.NODE_ENV || "development",
+    };
+  }),
 });

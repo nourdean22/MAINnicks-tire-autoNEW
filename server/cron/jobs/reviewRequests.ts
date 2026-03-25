@@ -7,6 +7,8 @@ const log = createLogger("cron:reviews");
 
 export async function processReviewRequests(): Promise<{ recordsProcessed: number }> {
   try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    if (!(await isEnabled("sms_review_requests"))) return { recordsProcessed: 0 };
     const { processReviewRequestQueue } = await import("../../routers/reviewRequests");
     const result = await processReviewRequestQueue();
     return { recordsProcessed: typeof result === "number" ? result : 0 };
