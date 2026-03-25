@@ -433,6 +433,13 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
     console.log(`[Perf] Server started in ${Date.now() - startTime}ms`);
+
+    // Start SMS scheduler for post-booking lifecycle messages
+    import("../services/sms-scheduler").then(({ startSmsScheduler }) => {
+      startSmsScheduler();
+    }).catch((err) => {
+      console.warn("[SMS Scheduler] Failed to start:", err.message);
+    });
   });
 
   // ─── Graceful shutdown ─────────────────────────────────

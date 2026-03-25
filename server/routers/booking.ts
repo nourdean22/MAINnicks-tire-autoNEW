@@ -276,6 +276,15 @@ export const bookingRouter = router({
         });
       });
 
+      // Schedule post-booking SMS lifecycle (24h before, 1h before)
+      import("../services/sms-scheduler").then(({ scheduleBookingReminders }) => {
+        const vehicle = [input.vehicleYear, input.vehicleMake, input.vehicleModel].filter(Boolean).join(" ");
+        scheduleBookingReminders(
+          result.id, input.phone, input.name, input.service,
+          input.preferredDate, input.preferredTime, vehicle || undefined
+        ).catch(err => console.error("[SMS Scheduler] Failed to schedule reminders:", err));
+      });
+
       // Meta Conversions API: Send server-side Lead + Schedule events
       const pixelEventIds = input.pixelEventIds;
       if (pixelEventIds) {
@@ -356,6 +365,30 @@ export const bookingRouter = router({
     .input(z.object({ id: z.number(), status: z.enum(["new", "confirmed", "completed", "cancelled"]) }))
     .mutation(async ({ input }) => {
       const result = await updateBookingStatus(input.id, input.status);
+
+      // Cancel pending SMS reminders when booking is cancelled
+      if (input.status === "cancelled") {
+        import("../services/sms-scheduler").then(({ cancelBookingReminders }) => {
+          cancelBookingReminders(input.id).catch(err =>
+            console.error(`[SMS Scheduler] Failed to cancel reminders for booking #${input.id}:`, err)
+          );
+        });
+      }
+
+      // Schedule post-service SMS (thank-you, review, maintenance) when completed
+      if (input.status === "completed") {
+        const d2 = await db();
+        if (d2) {
+          const [bk] = await d2.select().from(bookings).where(eq(bookings.id, input.id)).limit(1);
+          if (bk?.phone) {
+            import("../services/sms-scheduler").then(({ schedulePostServiceReminders }) => {
+              const vehicle = [bk.vehicleYear, bk.vehicleMake, bk.vehicleModel].filter(Boolean).join(" ");
+              schedulePostServiceReminders(input.id, bk.phone, bk.name, bk.service, vehicle || undefined)
+                .catch(err => console.error(`[SMS Scheduler] Post-service schedule failed:`, err));
+            });
+          }
+        }
+      }
 
       // Auto-schedule Google review request when booking is completed
       if (input.status === "completed") {
