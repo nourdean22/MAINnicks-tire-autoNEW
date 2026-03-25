@@ -9,15 +9,18 @@ import { randomUUID } from "crypto";
 export const specialsRouter = router({
   getActive: publicProcedure.query(async () => {
     try {
-      const { getDb } = await import("../db");
-      const { specials } = await import("../../drizzle/schema");
-      const db = await getDb();
-      if (!db) return [];
-      const now = new Date();
-      const results = await db.select().from(specials)
-        .where(eq(specials.isActive, true))
-        .limit(20);
-      return results.filter(s => !s.expiresAt || new Date(s.expiresAt) > now);
+      const { cached } = await import("../lib/cache");
+      return cached("specials:active", 300, async () => {
+        const { getDb } = await import("../db");
+        const { specials } = await import("../../drizzle/schema");
+        const db = await getDb();
+        if (!db) return [];
+        const now = new Date();
+        const results = await db.select().from(specials)
+          .where(eq(specials.isActive, true))
+          .limit(20);
+        return results.filter(s => !s.expiresAt || new Date(s.expiresAt) > now);
+      });
     } catch { return []; }
   }),
 

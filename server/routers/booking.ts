@@ -523,4 +523,22 @@ export const bookingRouter = router({
     .query(async ({ input }) => {
       return getBookingByRef(input.ref);
     }),
+
+  /** Save partial form data for abandoned form recovery */
+  savePartial: publicProcedure
+    .input(z.object({
+      sessionId: z.string().min(1),
+      formType: z.enum(["booking", "lead", "callback", "quote"]),
+      name: z.string().optional(),
+      phone: z.string().optional(),
+      email: z.string().optional(),
+      service: z.string().optional(),
+      pageUrl: z.string().optional(),
+    }))
+    .mutation(({ input }) => {
+      import("../services/abandonedForms").then(({ savePartialForm }) => {
+        savePartialForm(input);
+      }).catch(() => {});
+      return { captured: true };
+    }),
 });
