@@ -1,9 +1,0 @@
-{
-  "query": "CREATE INDEX idx_winback_sends_scheduled ON winback_sends(scheduledAt);\nCREATE INDEX idx_winback_sends_message ON winback_sends(messageId);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PAf3reHgcPDAtuw.root --database FqYRztyCVa3fHbrFjU6jAV --execute CREATE INDEX idx_winback_sends_scheduled ON winback_sends(scheduledAt);\nCREATE INDEX idx_winback_sends_message ON winback_sends(messageId);",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 672
-}
