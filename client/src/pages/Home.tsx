@@ -1,7 +1,7 @@
 /*
- * Home Page — Nick's Tire & Auto
- * Dark, bold hero with Barlow Condensed headings, DM Sans body,
- * JetBrains Mono stat numbers, gold accents
+ * Home Page — Nick's Tire & Auto (PIT CREW OS)
+ * Inter headings, Roboto Mono body, Oswald labels
+ * Cobalt blue + gold accent system
  */
 
 import { Link } from "wouter";
@@ -80,7 +80,7 @@ function Hero() {
             transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
             className="flex flex-wrap items-center gap-3 mb-6"
           >
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase bg-[#FDB913] text-[#0A0A0A]">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase bg-[#FDB913] text-[#0B0E14]">
               <Star className="w-3.5 h-3.5 fill-current" />
               Cleveland&rsquo;s #1 Tire Shop
             </span>
@@ -90,18 +90,16 @@ function Hero() {
             </span>
           </motion.div>
 
-          {/* Headline — clean, impactful, AI Studio inspired */}
+          {/* Headline — directive: "PRECISION REPAIR. EUCLID TOUGH." */}
           <motion.h1
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
-            className="font-heading text-[2.75rem] sm:text-6xl lg:text-[6rem] font-extrabold uppercase text-white leading-[0.92] tracking-tight"
+            className="font-heading text-[2rem] sm:text-5xl lg:text-[4.5rem] font-extrabold uppercase text-white leading-[0.95] tracking-tight"
           >
-            Premium{" "}
-            <span className="text-[#FDB913]">Tires</span>
+            Precision Repair.
             <br />
-            Expert{" "}
-            <span className="text-[#3B82F6]">Care.</span>
+            <span className="text-[#FDB913]">Euclid Tough.</span>
           </motion.h1>
 
           {/* Subheadline */}
@@ -111,36 +109,31 @@ function Hero() {
             transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
             className="mt-6 text-lg sm:text-xl lg:text-2xl font-sans text-white/70 max-w-xl"
           >
-            Trusted auto repair and tire shop. Free installation package &mdash;{" "}
-            <span className="text-[#FDB913] font-semibold">a $289+ value</span> included with every set.
+            Cleveland&rsquo;s #1 for tires, brakes, and diagnostics. We beat any quote.
           </motion.p>
 
-          {/* CTA buttons */}
+          {/* CTA buttons — Gold for revenue, outline for secondary */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.7, ease: "easeOut" }}
             className="mt-8 flex flex-col sm:flex-row gap-3"
           >
-            <a
-              href={BUSINESS.phone.href}
-              onClick={() => trackPhoneClick("hero")}
-              className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-[#0A0A0A] px-8 py-4 rounded-lg font-bold text-lg hover:bg-[#FFD54F] transition-colors shadow-lg shadow-[#FDB913]/20"
-              aria-label="Call for service"
-            >
-              <Phone className="w-5 h-5" />
-              Call {BUSINESS.phone.display}
-            </a>
             <Link
-              href="/services"
-              className="inline-flex items-center justify-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-white/20 transition-colors"
+              href="/booking"
+              className="btn-gold inline-flex items-center justify-center gap-2 text-lg"
             >
-              Our Services
-              <ArrowRight className="w-4 h-4" />
+              Book Appointment Now
             </Link>
+            <a
+              href={`sms:${BUSINESS.phone.raw}`}
+              className="btn-outline inline-flex items-center justify-center gap-2 text-lg"
+            >
+              Text a Mechanic
+            </a>
           </motion.div>
 
-          {/* Social proof strip */}
+          {/* Trust row — 3 inline badges */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -155,9 +148,8 @@ function Hero() {
               </span>
               {rating.toFixed(1)} from {totalReviews.toLocaleString()}+ reviews
             </span>
-            <span className="text-white/50">&bull; Same-day service</span>
-            <span className="text-white/50">&bull; Open 7 days</span>
-            <span className="text-white/50">&bull; Free estimates</span>
+            <span className="text-white/50">&bull; ASE Certified</span>
+            <span className="text-white/50">&bull; 3-Year Warranty</span>
           </motion.div>
         </div>
       </div>
@@ -573,7 +565,7 @@ function SeasonalSpecials() {
             <FadeIn key={s.title} delay={i * 0.1}>
               <div className="relative p-8 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 hover:border-[#FDB913]/30 transition-all group">
                 <div className="absolute top-4 right-4">
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase bg-[#FDB913] text-[#0A0A0A]">
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase bg-[#FDB913] text-[#0B0E14]">
                     {s.badge}
                   </span>
                 </div>
@@ -584,7 +576,7 @@ function SeasonalSpecials() {
                 <a
                   href={BUSINESS.phone.href}
                   onClick={() => trackPhoneClick(`special-${s.title}`)}
-                  className="mt-6 inline-flex items-center gap-2 w-full justify-center bg-white/10 hover:bg-[#FDB913] hover:text-[#0A0A0A] text-white px-4 py-3 rounded-lg font-semibold text-sm transition-all"
+                  className="mt-6 inline-flex items-center gap-2 w-full justify-center bg-white/10 hover:bg-[#FDB913] hover:text-[#0B0E14] text-white px-4 py-3 rounded-lg font-semibold text-sm transition-all"
                 >
                   Claim This Offer
                   <ArrowRight className="w-4 h-4" />
@@ -614,7 +606,7 @@ function ReferAFriend() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <FadeIn>
             <div>
-              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold tracking-widest uppercase bg-[#1E4D8C]/20 text-[#3B82F6] border border-[#3B82F6]/20 mb-6">
+              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold tracking-widest uppercase bg-[#1E4D8C]/20 text-[#1E4D8C] border border-[#1E4D8C]/20 mb-6">
                 <Users className="w-3.5 h-3.5" />
                 Community Rewards
               </span>
@@ -630,7 +622,7 @@ function ReferAFriend() {
                 <a
                   href={BUSINESS.phone.href}
                   onClick={() => trackPhoneClick("referral-cta")}
-                  className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-[#0A0A0A] px-6 py-3.5 rounded-lg font-bold text-sm hover:bg-[#FFD54F] transition-colors"
+                  className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-[#0B0E14] px-6 py-3.5 rounded-lg font-bold text-sm hover:bg-[#FFD54F] transition-colors"
                 >
                   <Phone className="w-4 h-4" />
                   Call to Refer
@@ -648,7 +640,7 @@ function ReferAFriend() {
           <FadeIn delay={0.15}>
             <div className="grid grid-cols-2 gap-4">
               <div className="p-6 rounded-2xl bg-[#1E4D8C]/10 border border-[#1E4D8C]/20">
-                <div className="text-3xl font-bold text-[#3B82F6] font-mono mb-2">$20</div>
+                <div className="text-3xl font-bold text-[#1E4D8C] font-mono mb-2">$20</div>
                 <div className="text-sm text-foreground/50">Your friend saves on their first visit</div>
               </div>
               <div className="p-6 rounded-2xl bg-[#FDB913]/10 border border-[#FDB913]/20">
@@ -683,7 +675,7 @@ function TirePressureGuide() {
           <div className="flex flex-col lg:flex-row items-start lg:items-center gap-8 lg:gap-16">
             <div className="lg:w-1/3">
               <div className="flex items-center gap-3 mb-4">
-                <Gauge className="w-6 h-6 text-[#3B82F6]" />
+                <Gauge className="w-6 h-6 text-[#1E4D8C]" />
                 <span className="text-xs font-bold tracking-widest uppercase text-foreground/40">Quick Reference</span>
               </div>
               <h3 className="font-heading text-2xl lg:text-3xl font-bold text-foreground tracking-tight uppercase">Tire Pressure Guide</h3>
@@ -692,7 +684,7 @@ function TirePressureGuide() {
                 href={`https://www.google.com/maps/dir//${encodeURIComponent(BUSINESS.address.full)}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[#3B82F6] hover:text-[#FDB913] transition-colors"
+                className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[#1E4D8C] hover:text-[#FDB913] transition-colors"
               >
                 <MapPin className="w-3.5 h-3.5" />
                 Get Directions for Free Air Check
@@ -722,14 +714,14 @@ function LocalBusinessSchema() {
     "name": "Nick's Tire & Auto",
     "alternateName": "Nick's Tire And Auto Euclid",
     "image": HERO_IMG,
-    "@id": "https://nickstire.org",
-    "url": "https://nickstire.org",
+    "@id": "https://autonicks.com",
+    "url": "https://autonicks.com",
     "telephone": "+1-" + BUSINESS.phone.dashed,
     "priceRange": "$$",
     "address": {
       "@type": "PostalAddress",
       "streetAddress": BUSINESS.address.street,
-      "addressLocality": "Cleveland",
+      "addressLocality": "Euclid",
       "addressRegion": "OH",
       "postalCode": "44112",
       "addressCountry": "US"
