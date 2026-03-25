@@ -7,6 +7,7 @@ import { createCallbackRequest, getCallbackRequests, updateCallbackStatus } from
 import { notifyCallbackRequest } from "../email-notify";
 import { syncLeadToSheet, syncCallbackToSheet } from "../sheets-sync";
 import { sendSms, callbackConfirmationSms } from "../sms";
+import { withRetry } from "../retry";
 import { z } from "zod";
 import { leads } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone } from "../sanitize";
@@ -86,21 +87,21 @@ export const callbackRouter = router({
         console.error("[SMS] Callback confirmation failed:", err)
       );
 
-      syncLeadToSheet({
+      withRetry(() => syncLeadToSheet({
         name: input.name,
         phone: input.phone,
         source: "callback",
         problem: "Callback request",
         urgencyScore: 4,
         urgencyReason: "Customer requested callback",
-      }).catch(() => {});
+      }), { label: "callback-lead-sheet" }).catch(() => {});
 
-      syncCallbackToSheet({
+      withRetry(() => syncCallbackToSheet({
         name: input.name,
         phone: input.phone,
         reason: input.context || undefined,
         sourcePage: input.sourcePage || undefined,
-      }).catch(() => {});
+      }), { label: "callback-sheet" }).catch(() => {});
 
       // Meta Conversions API: Send server-side Lead event for callback
       if (input.pixelEventId) {
