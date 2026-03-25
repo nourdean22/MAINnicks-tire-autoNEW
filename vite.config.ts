@@ -25,29 +25,7 @@ export default defineConfig({
     target: "es2020",
     // Increase chunk warning threshold (we code-split aggressively)
     chunkSizeWarningLimit: 600,
-    rollupOptions: {
-      output: {
-        // Manual chunk splitting for optimal caching & parallel loading
-        manualChunks(id) {          // Vendor: React core — changes rarely, cached long-term
-          if (id.includes("node_modules/react-dom") || id.includes("node_modules/react/")) {
-            return "vendor-react";
-          }
-          // Vendor: UI library (Radix + framer-motion)
-          if (id.includes("@radix-ui") || id.includes("framer-motion")) {
-            return "vendor-ui";
-          }
-          // Vendor: Data layer (tRPC + TanStack Query)
-          if (id.includes("@trpc") || id.includes("@tanstack")) {
-            return "vendor-data";
-          }
-          // NOTE: recharts/d3 intentionally NOT manual-chunked here.
-          // Forcing them into a shared chunk caused a d3 circular-dependency
-          // crash (ReferenceError: Cannot access 'S' before initialization)
-          // that broke the entire site. Let Vite naturally code-split them
-          // into the lazy admin chunks where they're actually used.
-        },
-      },
-    },
+    // DO NOT add manualChunks — causes d3/recharts crash. Let Vite handle code-splitting naturally.
     // Enable CSS code splitting
     cssCodeSplit: true,
     // Source maps in production for error tracking
