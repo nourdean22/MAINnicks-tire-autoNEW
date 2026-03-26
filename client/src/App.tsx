@@ -79,6 +79,7 @@ const SharePage = lazy(() => import("./pages/SharePage"));
 const NeighborhoodPage = lazy(() => import("./pages/NeighborhoodPage"));
 const InstantQuote = lazy(() => import("./pages/InstantQuote"));
 const TireSizePage = lazy(() => import("./pages/TireSizePage"));
+const CareersPage = lazy(() => import("./pages/CareersPage"));
 
 function Router() {
   const [location] = useLocation();
@@ -248,6 +249,9 @@ function Router() {
         <Route path={"/mayfield-heights"} component={NeighborhoodPage} />
         <Route path={"/highland-heights"} component={NeighborhoodPage} />
         <Route path={"/beachwood"} component={NeighborhoodPage} />
+        {/* Careers / Apply */}
+        <Route path={"/careers"} component={CareersPage} />
+        <Route path={"/apply"} component={CareersPage} />
         {/* Legal pages */}
         <Route path={"/privacy-policy"} component={PrivacyPolicy} />
         <Route path={"/terms"} component={Terms} />
