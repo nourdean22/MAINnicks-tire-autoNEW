@@ -80,6 +80,7 @@ const NeighborhoodPage = lazy(() => import("./pages/NeighborhoodPage"));
 const InstantQuote = lazy(() => import("./pages/InstantQuote"));
 const TireSizePage = lazy(() => import("./pages/TireSizePage"));
 const CareersPage = lazy(() => import("./pages/CareersPage"));
+const AppointmentPage = lazy(() => import("./pages/AppointmentPage"));
 
 function Router() {
   const [location] = useLocation();
@@ -249,6 +250,9 @@ function Router() {
         <Route path={"/mayfield-heights"} component={NeighborhoodPage} />
         <Route path={"/highland-heights"} component={NeighborhoodPage} />
         <Route path={"/beachwood"} component={NeighborhoodPage} />
+        {/* Appointments */}
+        <Route path={"/appointment"} component={AppointmentPage} />
+        <Route path={"/schedule"} component={AppointmentPage} />
         {/* Careers / Apply */}
         <Route path={"/careers"} component={CareersPage} />
         <Route path={"/apply"} component={CareersPage} />

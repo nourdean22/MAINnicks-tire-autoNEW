@@ -18,6 +18,7 @@ import TestimonialCarousel from "@/components/TestimonialCarousel";
 import { SEOHead, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight, Gift, Snowflake, Sun, Shield, Users, Gauge } from "lucide-react";
 import { motion } from "framer-motion";
+import LiveQuoteCounter from "@/components/LiveQuoteCounter";
 import { trpc } from "@/lib/trpc";
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import { BUSINESS } from "@shared/business";
@@ -782,6 +783,9 @@ export default function Home() {
       <HomepageFAQSchema />
       <SiteSearchSchema />
       <Hero />
+      <div className="flex justify-center py-4 bg-[#0A0A0A]">
+        <LiveQuoteCounter />
+      </div>
       <TrustNumbers />
       <div className="content-lazy"><SnapToQuote /></div>
       <Services />
