@@ -64,6 +64,7 @@ import {
   warrantiesRouter,
   waitlistRouter,
   fleetRouter,
+  nourOsQuoteRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -155,6 +156,9 @@ export const appRouter = router({
   warranties: warrantiesRouter,
   waitlist: waitlistRouter,
   fleet: fleetRouter,
+
+  // ─── NOUR-OS Integration ─────────────────────
+  nourOsQuote: nourOsQuoteRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -75,6 +75,7 @@ const CostEstimator = lazy(() => import("./pages/CostEstimator"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const SharePage = lazy(() => import("./pages/SharePage"));
 const NeighborhoodPage = lazy(() => import("./pages/NeighborhoodPage"));
+const InstantQuote = lazy(() => import("./pages/InstantQuote"));
 
 function Router() {
   const [location] = useLocation();
@@ -215,6 +216,7 @@ function Router() {
         <Route path={"/blog/:slug"} component={BlogPost} />
         {/* Phase 5: Cost Estimator */}
         <Route path={"/cost-estimator"} component={CostEstimator} />
+        <Route path={"/instant-quote"} component={InstantQuote} />
         {/* Phase 5: Google Ads Landing Pages (no nav, conversion-only) */}
         <Route path={"/lp/brakes"} component={LandingPage} />
         <Route path={"/lp/tires"} component={LandingPage} />
