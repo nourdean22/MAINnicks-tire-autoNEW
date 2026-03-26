@@ -7,6 +7,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { captureUtmParams } from "@/lib/utm";
+import { captureAttribution } from "@/lib/attribution";
+import ExitIntentPopup from "./components/ExitIntentPopup";
 import { useWebVitals } from "@/hooks/useWebVitals";
 import RouteAnnouncer from "@/components/RouteAnnouncer";
 import CookieConsent from "@/components/CookieConsent";
@@ -76,6 +78,7 @@ const LandingPage = lazy(() => import("./pages/LandingPage"));
 const SharePage = lazy(() => import("./pages/SharePage"));
 const NeighborhoodPage = lazy(() => import("./pages/NeighborhoodPage"));
 const InstantQuote = lazy(() => import("./pages/InstantQuote"));
+const TireSizePage = lazy(() => import("./pages/TireSizePage"));
 
 function Router() {
   const [location] = useLocation();
@@ -209,6 +212,8 @@ function Router() {
         <Route path={"/portal"} component={CustomerPortal} />
         {/* Tire Info (service page) */}
         <Route path={"/tires/info"} component={ServicePage} />
+        {/* Tire size SEO pages */}
+        <Route path={"/tires/:size"} component={TireSizePage} />
         {/* FAQ page */}
         <Route path={"/faq"} component={FAQ} />
         {/* Blog / Tips */}
@@ -265,6 +270,7 @@ function App() {
   // Capture UTM params on first load for attribution
   useEffect(() => {
     captureUtmParams();
+    captureAttribution();
     installErrorHandlers();
     initConsent();
     // If analytics consent already granted from a previous visit, init GA4 now
@@ -318,6 +324,7 @@ function App() {
             </a>
           </div>
           <CookieConsent />
+          <ExitIntentPopup />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
