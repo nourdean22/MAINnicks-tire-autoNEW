@@ -200,37 +200,46 @@
     <!-- FAQPage schema removed from index.html to prevent duplicate FAQPage errors.
          Each page renders its own FAQ schema via React components (ServicePage, FAQ, etc.) -->
 
-    <!-- Meta Pixel -->
+    <!-- Meta Pixel — deferred until after first paint -->
     <script>
-      !function(f,b,e,v,n,t,s)
-      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-      n.queue=[];t=b.createElement(e);t.async=!0;
-      t.src=v;s=b.getElementsByTagName(e)[0];
-      s.parentNode.insertBefore(t,s)}(window, document,'script',
-      'https://connect.facebook.net/en_US/fbevents.js');
-      fbq('init', '1436350367898578');
-      fbq('track', 'PageView');
+      window.addEventListener('load', function() {
+        !function(f,b,e,v,n,t,s)
+        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t,s)}(window, document,'script',
+        'https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', '1436350367898578');
+        fbq('track', 'PageView');
+      });
     </script>
-    <!-- Google Analytics 4 (GA4) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-B1LJ1P43G8"></script>
+    <!-- Google Analytics 4 (GA4) — deferred until after first paint -->
     <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-B1LJ1P43G8');
+      window.addEventListener('load', function() {
+        var s = document.createElement('script');
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=G-B1LJ1P43G8';
+        s.async = true;
+        document.head.appendChild(s);
+        s.onload = function() {
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-B1LJ1P43G8');
+        };
+      });
     </script>
 
     <!-- CDN Preconnect for hero images -->
     <link rel="preconnect" href="https://d2xsxph8kpxj0f.cloudfront.net" />
 
-    <!-- Fonts: Inter (headings), Roboto Mono (body), Oswald (nav/labels) -->
+    <!-- Fonts: Inter (headings), Roboto Mono (body), Oswald (nav/labels) — slimmed to critical weights -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Preload Inter 800 (hero font) for fastest LCP -->
     <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@800&display=swap" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500;700&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Roboto+Mono:wght@400&family=Oswald:wght@500;700&display=swap" rel="stylesheet" />
   </head>
 
   <body>
@@ -239,10 +248,15 @@
     /></noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script
-      defer
-      src="%VITE_ANALYTICS_ENDPOINT%/umami"
-      data-website-id="%VITE_ANALYTICS_WEBSITE_ID%"></script>
+    <script>
+      window.addEventListener('load', function() {
+        var u = document.createElement('script');
+        u.src = '%VITE_ANALYTICS_ENDPOINT%/umami';
+        u.dataset.websiteId = '%VITE_ANALYTICS_WEBSITE_ID%';
+        u.async = true;
+        document.body.appendChild(u);
+      });
+    </script>
   </body>
 
 </html>
