@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useRoute } from "wouter";
 import { trpc } from "@/lib/trpc";
-import Layout from "@/components/Layout";
 import { Helmet } from "react-helmet-async";
 
 const POPULAR_SIZES = [
@@ -32,7 +31,7 @@ export default function TireSizePage() {
   const desc = `Find ${tireSize} tires at the best prices in Cleveland. ${tires.length} options in stock. Free quotes, expert installation. Call (289) 700-9080.`;
 
   return (
-    <Layout>
+    <>
       <Helmet>
         <title>{title}</title>
         <meta name="description" content={desc} />
@@ -114,6 +113,6 @@ export default function TireSizePage() {
           </div>
         </div>
       </div>
-    </Layout>
+    </>
   );
 }
