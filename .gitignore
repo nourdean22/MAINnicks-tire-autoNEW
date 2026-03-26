@@ -114,3 +114,4 @@ temp/
 # Manus platform artifacts
 .manus/
 .manus-logs/
+.vercel
