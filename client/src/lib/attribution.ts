@@ -1,64 +1,76 @@
-/**
- * Source Attribution — Captures UTM params and session data
- * for lead/booking/callback form submissions.
- *
- * Stores first-touch UTM params in sessionStorage.
- * getAttribution() returns the full attribution object to include in form data.
- */
-
-export interface Attribution {
-  utm_source: string;
-  utm_medium: string;
-  utm_campaign: string;
-  utm_content: string;
+interface Attribution {
+  source: string;
+  medium: string;
+  campaign: string;
   referrer: string;
-  landing_page: string;
-  session_id: string;
+  landingPage: string;
+  timestamp: string;
 }
 
-function getOrCreateSessionId(): string {
-  let sid = sessionStorage.getItem("nta_session");
-  if (!sid) {
-    sid = `s_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    sessionStorage.setItem("nta_session", sid);
-    sessionStorage.setItem("nta_landing", window.location.pathname + window.location.search);
-  }
+/**
+ * Capture attribution data on first visit.
+ * Stored in localStorage so it persists across pages.
+ */
+export function captureAttribution(): void {
+  // Don't overwrite existing attribution
+  if (localStorage.getItem("nick_attribution")) return;
 
-  // Store UTMs on first visit (first-touch attribution)
   const params = new URLSearchParams(window.location.search);
-  const utmKeys = ["utm_source", "utm_medium", "utm_campaign", "utm_content"];
-  for (const key of utmKeys) {
-    const val = params.get(key);
-    if (val && !sessionStorage.getItem(`nta_${key}`)) {
-      sessionStorage.setItem(`nta_${key}`, val);
+  const referrer = document.referrer;
+
+  let source = params.get("utm_source") || "";
+  let medium = params.get("utm_medium") || "";
+  const campaign = params.get("utm_campaign") || "";
+
+  // Auto-detect source from referrer
+  if (!source && referrer) {
+    try {
+      const refHost = new URL(referrer).hostname;
+      if (refHost.includes("google")) { source = "google"; medium = medium || "organic"; }
+      else if (refHost.includes("facebook") || refHost.includes("fb.")) { source = "facebook"; medium = medium || "social"; }
+      else if (refHost.includes("yelp")) { source = "yelp"; medium = medium || "referral"; }
+      else if (refHost.includes("instagram")) { source = "instagram"; medium = medium || "social"; }
+      else { source = refHost; medium = medium || "referral"; }
+    } catch {
+      source = "unknown";
     }
   }
 
-  return sid;
-}
+  if (!source) {
+    source = "direct";
+    medium = "none";
+  }
 
-/**
- * Get the full attribution object for form submissions.
- * Call this when submitting any form (lead, booking, callback, quote).
- */
-export function getAttribution(): Attribution {
-  const sid = getOrCreateSessionId();
-
-  return {
-    utm_source: sessionStorage.getItem("nta_utm_source") || "",
-    utm_medium: sessionStorage.getItem("nta_utm_medium") || "",
-    utm_campaign: sessionStorage.getItem("nta_utm_campaign") || "",
-    utm_content: sessionStorage.getItem("nta_utm_content") || "",
-    referrer: document.referrer || "",
-    landing_page: sessionStorage.getItem("nta_landing") || window.location.pathname,
-    session_id: sid,
+  const attribution: Attribution = {
+    source,
+    medium,
+    campaign,
+    referrer: referrer || "",
+    landingPage: window.location.pathname,
+    timestamp: new Date().toISOString(),
   };
+
+  localStorage.setItem("nick_attribution", JSON.stringify(attribution));
 }
 
 /**
- * Initialize attribution tracking on page load.
- * Call this once in main.tsx or App.tsx.
+ * Get stored attribution data.
  */
-export function initAttribution(): void {
-  getOrCreateSessionId();
+export function getAttribution(): Attribution | null {
+  try {
+    const raw = localStorage.getItem("nick_attribution");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get attribution source string for quote/lead submissions.
+ * Format: "source/medium" e.g., "google/organic", "facebook/ads"
+ */
+export function getAttributionSource(): string {
+  const attr = getAttribution();
+  if (!attr) return "website";
+  return `${attr.source}/${attr.medium}`;
 }
