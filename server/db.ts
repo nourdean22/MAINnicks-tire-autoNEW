@@ -31,6 +31,7 @@ export async function getDb() {
         idleTimeout: 60000,
         enableKeepAlive: true,
         keepAliveInitialDelay: 10000,
+        ssl: process.env.DATABASE_URL?.includes('tidbcloud.com') ? { rejectUnauthorized: true } : undefined,
       });
       _db = drizzle(_pool);
       console.log("[Database] Connection pool established (max 10 connections)");
