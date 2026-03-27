@@ -52,7 +52,7 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
     }
   } catch {
     checks.database = { status: "down" };
-    overallStatus = "unhealthy";
+    overallStatus = "degraded";
   }
 
   // Email check (configured?)
