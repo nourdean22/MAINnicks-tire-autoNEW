@@ -11,5 +11,6 @@ export default defineConfig({
   dialect: "mysql",
   dbCredentials: {
     url: connectionString,
+    ssl: connectionString.includes("tidbcloud.com") ? { rejectUnauthorized: true } : undefined,
   },
 });
