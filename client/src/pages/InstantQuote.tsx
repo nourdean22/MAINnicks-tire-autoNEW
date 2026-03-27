@@ -175,6 +175,7 @@ export default function InstantQuote() {
       <SEOHead
         title="Instant Quote — Nick's Tire & Auto"
         description="Get a real-time repair and tire quote. Select your vehicle, pick services, and see your total instantly."
+        canonicalPath="/instant-quote"
       />
       <LocalBusinessSchema />
 

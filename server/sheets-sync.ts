@@ -270,6 +270,26 @@ export async function syncInvoiceToSheet(invoice: {
  * Sync a financing application click/submission to the Financing sheet.
  * Tracks which provider was selected, from which page, and customer info if available.
  */
+/**
+ * Sync dashboard metrics to the Dashboard sheet.
+ * Called by the dashboard cron job every 15 min during business hours.
+ */
+export async function syncDashboardToSheet(metrics: {
+  date: string;
+  time: string;
+  bookings: number;
+  leads: number;
+  callbacks: number;
+}): Promise<boolean> {
+  return appendRow("Dashboard", [
+    metrics.date,
+    metrics.time,
+    String(metrics.bookings),
+    String(metrics.leads),
+    String(metrics.callbacks),
+  ]);
+}
+
 export async function syncFinancingToSheet(application: {
   provider: string;
   providerType: string;

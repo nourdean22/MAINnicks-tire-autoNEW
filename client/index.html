@@ -248,15 +248,7 @@
     /></noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      window.addEventListener('load', function() {
-        var u = document.createElement('script');
-        u.src = '%VITE_ANALYTICS_ENDPOINT%/umami';
-        u.dataset.websiteId = '%VITE_ANALYTICS_WEBSITE_ID%';
-        u.async = true;
-        document.body.appendChild(u);
-      });
-    </script>
+    <!-- Umami analytics loaded via React (see App.tsx) to access Vite env vars -->
   </body>
 
 </html>

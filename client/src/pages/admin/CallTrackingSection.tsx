@@ -102,7 +102,7 @@ export default function CallTrackingSection() {
                 </tr>
               </thead>
               <tbody>
-                {calls.map((call) => (
+                {calls.map((call: any) => (
                   <tr key={call.id} className="border-t border-border/10 hover:bg-foreground/[0.02]">
                     <td className="p-3 font-mono text-foreground">{call.phoneNumber}</td>
                     <td className="p-3 text-foreground/70">{call.sourcePage || "—"}</td>

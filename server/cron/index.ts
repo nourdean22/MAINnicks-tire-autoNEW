@@ -176,8 +176,8 @@ export function registerAllJobs(): void {
     return processStaleLeadFollowUp();
   });
 
-  // Statenour brain sync (every 12 hours — push business metrics to NOUR OS)
-  registerJob("statenour-sync", 12 * 60 * 60 * 1000, async () => {
+  // Statenour brain sync (every 4 hours — push business metrics to NOUR OS)
+  registerJob("statenour-sync", 4 * 60 * 60 * 1000, async () => {
     const { syncToStatenour } = await import("./jobs/statenourSync");
     return syncToStatenour();
   });

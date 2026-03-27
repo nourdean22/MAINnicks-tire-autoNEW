@@ -200,12 +200,12 @@ export const weeklyReportRouter = router({
       .where(gte(customerNotifications.createdAt, weekAgo));
 
     const serviceBreakdown: Record<string, number> = {};
-    weekBookings.forEach(b => {
+    weekBookings.forEach((b: any) => {
       serviceBreakdown[b.service] = (serviceBreakdown[b.service] || 0) + 1;
     });
 
     const urgencyBreakdown: Record<string, number> = {};
-    weekBookings.forEach(b => {
+    weekBookings.forEach((b: any) => {
       const u = b.urgency || "whenever";
       urgencyBreakdown[u] = (urgencyBreakdown[u] || 0) + 1;
     });
@@ -214,26 +214,26 @@ export const weeklyReportRouter = router({
       period: { start: weekAgo.toISOString(), end: now.toISOString() },
       bookings: {
         total: weekBookings.length,
-        completed: weekBookings.filter(b => b.status === "completed").length,
-        cancelled: weekBookings.filter(b => b.status === "cancelled").length,
-        emergency: weekBookings.filter(b => b.urgency === "emergency").length,
+        completed: weekBookings.filter((b: any) => b.status === "completed").length,
+        cancelled: weekBookings.filter((b: any) => b.status === "cancelled").length,
+        emergency: weekBookings.filter((b: any) => b.urgency === "emergency").length,
         serviceBreakdown,
         urgencyBreakdown,
       },
       leads: {
         total: weekLeads.length,
-        highUrgency: weekLeads.filter(l => l.urgencyScore >= 4).length,
-        converted: weekLeads.filter(l => l.status === "booked").length,
-        sources: weekLeads.reduce((acc, l) => { acc[l.source] = (acc[l.source] || 0) + 1; return acc; }, {} as Record<string, number>),
+        highUrgency: weekLeads.filter((l: any) => l.urgencyScore >= 4).length,
+        converted: weekLeads.filter((l: any) => l.status === "booked").length,
+        sources: weekLeads.reduce((acc: Record<string, number>, l: any) => { acc[l.source] = (acc[l.source] || 0) + 1; return acc; }, {} as Record<string, number>),
       },
       callbacks: {
         total: weekCallbacks.length,
-        completed: weekCallbacks.filter(c => c.status === "completed").length,
-        pending: weekCallbacks.filter(c => c.status === "new").length,
+        completed: weekCallbacks.filter((c: any) => c.status === "completed").length,
+        pending: weekCallbacks.filter((c: any) => c.status === "new").length,
       },
       notifications: {
-        sent: weekNotifs.filter(n => n.status === "sent").length,
-        pending: weekNotifs.filter(n => n.status === "pending").length,
+        sent: weekNotifs.filter((n: any) => n.status === "sent").length,
+        pending: weekNotifs.filter((n: any) => n.status === "pending").length,
       },
     };
 
@@ -309,11 +309,11 @@ export const exportRouter = router({
     if (!d) return { csv: "", count: 0 };
     const rows = await d.select().from(bookings).orderBy(desc(bookings.createdAt));
     const headers = ["ID", "Name", "Phone", "Email", "Service", "Vehicle", "Status", "Urgency", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
-    const csvRows = rows.map(r => [
+    const csvRows = rows.map((r: any) => [
       r.id, r.name, r.phone, r.email || "", r.service, r.vehicle || "", r.status, r.urgency || "",
       r.utmSource || "", r.utmMedium || "", r.utmCampaign || "", r.landingPage || "", r.referrer || "",
       new Date(r.createdAt).toISOString(),
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    ].map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(","));
     return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
   }),
 
@@ -322,11 +322,11 @@ export const exportRouter = router({
     if (!d) return { csv: "", count: 0 };
     const rows = await d.select().from(leads).orderBy(desc(leads.createdAt));
     const headers = ["ID", "Name", "Phone", "Email", "Source", "Problem", "Urgency Score", "Status", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
-    const csvRows = rows.map(r => [
+    const csvRows = rows.map((r: any) => [
       r.id, r.name, r.phone, r.email || "", r.source, r.problem || "", r.urgencyScore ?? "", r.status,
       r.utmSource || "", r.utmMedium || "", r.utmCampaign || "", r.landingPage || "", r.referrer || "",
       new Date(r.createdAt).toISOString(),
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    ].map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(","));
     return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
   }),
 
@@ -335,11 +335,11 @@ export const exportRouter = router({
     if (!d) return { csv: "", count: 0 };
     const rows = await d.select().from(callEvents).orderBy(desc(callEvents.createdAt));
     const headers = ["ID", "Phone Number", "Source Page", "Click Element", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
-    const csvRows = rows.map(r => [
+    const csvRows = rows.map((r: any) => [
       r.id, r.phoneNumber, r.sourcePage || "", r.clickElement || "",
       r.utmSource || "", r.utmMedium || "", r.utmCampaign || "", r.landingPage || "", r.referrer || "",
       new Date(r.createdAt).toISOString(),
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    ].map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(","));
     return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
   }),
 
@@ -348,11 +348,11 @@ export const exportRouter = router({
     if (!d) return { csv: "", count: 0 };
     const rows = await d.select().from(callbackRequests).orderBy(desc(callbackRequests.createdAt));
     const headers = ["ID", "Name", "Phone", "Context", "Source Page", "Status", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
-    const csvRows = rows.map(r => [
+    const csvRows = rows.map((r: any) => [
       r.id, r.name, r.phone, r.context || "", r.sourcePage || "", r.status,
       r.utmSource || "", r.utmMedium || "", r.utmCampaign || "", r.landingPage || "", r.referrer || "",
       new Date(r.createdAt).toISOString(),
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    ].map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(","));
     return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
   }),
 

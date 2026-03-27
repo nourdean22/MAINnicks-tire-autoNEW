@@ -178,7 +178,7 @@ export const customersRouter = router({
 
       // Build CSV
       const headers = ["First Name", "Last Name", "Phone", "Email", "City", "State", "Segment", "Total Visits", "Last Visit", "Customer Type"];
-      const rows = results.map(c => [
+      const rows = results.map((c: any) => [
         c.firstName || "",
         c.lastName || "",
         c.phone || "",
@@ -191,7 +191,7 @@ export const customersRouter = router({
         c.customerType || "",
       ]);
 
-      const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${v.replace(/"/g, '""')}"`).join(","))].join("\n");
+      const csv = [headers.join(","), ...rows.map((r: string[]) => r.map((v: string) => `"${v.replace(/"/g, '""')}"`).join(","))].join("\n");
       return { csv, count: results.length };
     }),
 

@@ -25,7 +25,7 @@ export const warrantiesRouter = router({
     const thirtyDaysFromNow = new Date();
     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
     return db.select().from(warranties)
-      .where(and(eq(warranties.status, "active"), lte(warranties.expiresAt, thirtyDaysFromNow.toISOString().split("T")[0])));
+      .where(and(eq(warranties.status, "active"), lte(warranties.expiresAt, thirtyDaysFromNow)));
   }),
 
   create: adminProcedure

@@ -27,7 +27,7 @@ export const fleetRouter = router({
         phone: input.contactPhone,
         email: input.contactEmail,
         service: `Fleet: ${input.fleetSize} vehicles - ${input.servicesNeeded || "General"}`,
-        source: "fleet-inquiry",
+        source: "fleet",
         problemDescription: input.notes || `Fleet size: ${input.fleetSize}. Vehicle types: ${input.vehicleTypes || "Mixed"}`,
       });
       return { success: true, message: "Fleet inquiry received. We'll call you within 1 business day." };
@@ -39,6 +39,6 @@ export const fleetRouter = router({
     const { eq } = await import("drizzle-orm");
     const db = await getDb();
     if (!db) return [];
-    return db.select().from(leads).where(eq(leads.source, "fleet-inquiry"));
+    return db.select().from(leads).where(eq(leads.source, "fleet"));
   }),
 });

@@ -34,9 +34,9 @@ export default function TrackOrder() {
   const [currentStatus, setCurrentStatus] = useState("checked_in");
 
   // Try to fetch order status from tRPC
-  const { data: order } = trpc.booking.getById.useQuery(
-    { id: parseInt(orderId) || 0 },
-    { enabled: !!orderId && !isNaN(parseInt(orderId)), retry: 1 }
+  const { data: order } = trpc.booking.statusByRef.useQuery(
+    { ref: orderId },
+    { enabled: !!orderId, retry: 1 }
   );
 
   useEffect(() => {

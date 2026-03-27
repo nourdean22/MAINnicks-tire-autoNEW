@@ -51,3 +51,4 @@ export { warrantiesRouter } from "./warrantiesRouter";
 export { waitlistRouter } from "./waitlistRouter";
 export { fleetRouter } from "./fleetRouter";
 export { nourOsQuoteRouter } from "./nourOsQuote";
+export { nourOsBridgeRouter } from "./nourOsBridge";

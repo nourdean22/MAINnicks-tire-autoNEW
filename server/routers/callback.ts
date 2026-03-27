@@ -13,6 +13,7 @@ import { leads } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone } from "../sanitize";
 import { sendLeadEvent } from "../meta-capi";
 import { SITE_URL } from "@shared/business";
+import { onCallbackRequested } from "../nour-os-bridge";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -102,6 +103,13 @@ export const callbackRouter = router({
         reason: input.context || undefined,
         sourcePage: input.sourcePage || undefined,
       }), { label: "callback-sheet" }).catch(() => {});
+
+      // NOUR OS: Dispatch callback event
+      onCallbackRequested({
+        name: input.name,
+        phone: input.phone,
+        reason: input.context || null,
+      }).catch(() => {});
 
       // Meta Conversions API: Send server-side Lead event for callback
       if (input.pixelEventId) {

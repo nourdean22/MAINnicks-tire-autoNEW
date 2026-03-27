@@ -56,7 +56,7 @@ async function refreshCache(): Promise<void> {
     if (!db) return;
 
     const rows = await db.select().from(featureFlags);
-    flagCache = new Map(rows.map(r => [r.key, r.value]));
+    flagCache = new Map(rows.map((r: any) => [r.key, r.value]));
     lastCacheRefresh = Date.now();
   } catch {
     // Silent — use stale cache

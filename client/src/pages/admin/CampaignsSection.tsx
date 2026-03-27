@@ -355,7 +355,7 @@ export default function CampaignsSection() {
       {/* Campaigns List */}
       <div className="space-y-3">
         {campaigns && campaigns.length > 0 ? (
-          campaigns.map(campaign => (
+          campaigns.map((campaign: any) => (
             <CampaignRow key={campaign.id} campaign={campaign} />
           ))
         ) : (

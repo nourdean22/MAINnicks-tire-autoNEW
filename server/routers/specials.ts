@@ -19,7 +19,7 @@ export const specialsRouter = router({
         const results = await db.select().from(specials)
           .where(eq(specials.isActive, true))
           .limit(20);
-        return results.filter(s => !s.expiresAt || new Date(s.expiresAt) > now);
+        return results.filter((s: any) => !s.expiresAt || new Date(s.expiresAt) > now);
       });
     } catch { return []; }
   }),
