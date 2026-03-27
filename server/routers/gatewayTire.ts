@@ -17,6 +17,7 @@ import { notifyTireOrder, notifyInvoiceCreated } from "../email-notify";
 import { getNextInvoiceNumber, createInvoice } from "../db";
 import { syncInvoiceToSheet } from "../sheets-sync";
 import { withRetry } from "../retry";
+import { onTireOrderPlaced, onInvoiceCreated } from "../nour-os-bridge";
 import { z } from "zod";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { tireOrders, shopSettings, bookings } from "../../drizzle/schema";
@@ -93,6 +94,14 @@ async function autoCreateInvoiceFromTireOrder(d: any, orderId: number): Promise<
     totalAmount: totalAmount / 100,
     source: "tire_order",
     serviceDescription: `Tire Install: ${order.quantity}x ${order.tireBrand} ${order.tireModel}`,
+  }).catch(() => {});
+
+  // NOUR OS: Dispatch invoice event
+  onInvoiceCreated({
+    invoiceNumber,
+    customerName: order.customerName,
+    totalAmount: totalAmount / 100,
+    source: "tire_order",
   }).catch(() => {});
 
   console.log(`[Invoice] Auto-created ${invoiceNumber} for tire order ${order.orderNumber} — $${(totalAmount / 100).toFixed(2)}`);
@@ -580,6 +589,16 @@ export const gatewayTireRouter = router({
         notes: input.customerNotes || undefined,
       }).catch(err => console.error("[TireOrder] Notification error:", err));
 
+      // NOUR OS: Dispatch tire order event
+      onTireOrderPlaced({
+        orderNumber,
+        customerName: input.customerName,
+        tireBrand: input.tireBrand,
+        tireModel: input.tireModel,
+        quantity: input.quantity,
+        totalAmount: totalDollars,
+      }).catch(() => {});
+
       return {
         success: true,
         orderNumber,
@@ -676,7 +695,7 @@ export const gatewayTireRouter = router({
       ]);
 
       return {
-        orders: orders.map(o => ({
+        orders: orders.map((o: any) => ({
           ...o,
           pricePerTire: o.pricePerTire / 100,
           serviceFeePerTire: o.serviceFeePerTire / 100,

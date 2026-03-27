@@ -273,6 +273,21 @@ function Router() {
   );
 }
 
+/** Load Umami analytics script (consent-gated, called from useEffect) */
+let umamiLoaded = false;
+function loadUmami() {
+  if (umamiLoaded) return;
+  const endpoint = import.meta.env.VITE_ANALYTICS_ENDPOINT;
+  const websiteId = import.meta.env.VITE_ANALYTICS_WEBSITE_ID;
+  if (!endpoint || !websiteId) return;
+  umamiLoaded = true;
+  const s = document.createElement("script");
+  s.defer = true;
+  s.src = endpoint;
+  s.setAttribute("data-website-id", websiteId);
+  document.head.appendChild(s);
+}
+
 function App() {
   const [location] = useLocation();
   const prevLocation = useRef(location);
@@ -284,10 +299,16 @@ function App() {
     installErrorHandlers();
     initConsent();
     // If analytics consent already granted from a previous visit, init GA4 now
-    if (hasConsent("analytics")) initGA4();
+    if (hasConsent("analytics")) {
+      initGA4();
+      loadUmami();
+    }
     // Listen for future consent changes
     onConsentChange((state) => {
-      if (state.analytics) initGA4();
+      if (state.analytics) {
+        initGA4();
+        loadUmami();
+      }
     });
   }, []);
 

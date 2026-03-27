@@ -10,7 +10,7 @@ export default function EstimatesSection() {
   const { data: leads, isLoading } = trpc.lead.list.useQuery();
 
   // Filter for estimate-related leads (source contains "estimate")
-  const estimateLeads = leads?.filter(l => 
+  const estimateLeads = leads?.filter((l: any) =>
     l.source?.toLowerCase().includes("estimate") || 
     l.source?.toLowerCase().includes("labor")
   ) || [];
@@ -82,7 +82,7 @@ export default function EstimatesSection() {
                 </tr>
               </thead>
               <tbody>
-                {estimateLeads.map((lead) => (
+                {estimateLeads.map((lead: any) => (
                   <tr key={lead.id} className="border-b border-border/10">
                     <td className="py-2.5 pr-4">
                       <span className="text-[12px] text-foreground/70">

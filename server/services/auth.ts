@@ -5,7 +5,7 @@
  */
 
 import { eq, and, gt, desc, like } from "drizzle-orm";
-import { sign, verify } from "jose";
+import type { JWTPayload } from "jose";
 import { createLogger } from "../lib/logger";
 import { randomUUID } from "crypto";
 

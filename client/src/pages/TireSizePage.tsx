@@ -14,18 +14,11 @@ export default function TireSizePage() {
   // Convert URL format (225-65r17) back to tire format (225/65R17)
   const tireSize = rawSize.replace(/-/g, "/").replace(/r/i, "R");
 
-  const [tires, setTires] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!tireSize) return;
-    trpc.nourOsQuote.searchTires.query({ size: tireSize, limit: 20 })
-      .then((res: any) => {
-        setTires(res?.data?.tires ?? res?.tires ?? []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [tireSize]);
+  const { data: result, isLoading: loading } = trpc.nourOsQuote.searchTires.useQuery(
+    { size: tireSize },
+    { enabled: !!tireSize, retry: 1 }
+  );
+  const tires: any[] = (result as any)?.data?.tires ?? (result as any)?.tires ?? [];
 
   const title = `${tireSize} Tires in Cleveland | Nick's Tire & Auto`;
   const desc = `Find ${tireSize} tires at the best prices in Cleveland. ${tires.length} options in stock. Free quotes, expert installation. Call (289) 700-9080.`;

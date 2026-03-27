@@ -15,6 +15,7 @@ import { logIntegrationFailure } from "../integration-failures";
 import { withRetry } from "../retry";
 import { sendSms, leadConfirmationSms } from "../sms";
 import { SITE_URL } from "@shared/business";
+import { onLeadCaptured } from "../nour-os-bridge";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -179,6 +180,16 @@ export const leadRouter = router({
           });
         });
       }
+
+      // NOUR OS: Dispatch lead event
+      onLeadCaptured({
+        id: leadId || 0,
+        name: input.name,
+        phone: input.phone,
+        source: input.source,
+        urgencyScore: scoring.score,
+        interest: input.problem || scoring.recommendedService,
+      }).catch(() => {});
 
       // Send SMS confirmation to customer
       withRetry(

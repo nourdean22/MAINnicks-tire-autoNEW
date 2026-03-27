@@ -47,7 +47,7 @@ export function trackFormSubmission(formType: 'booking' | 'lead' | 'callback', d
 
   const eventName = `form_submission_${formType}`;
   
-  window.gtag('event', eventName, {
+  window.gtag!('event', eventName, {
     event_category: 'form',
     event_label: formType,
     form_type: formType,
@@ -70,7 +70,7 @@ export function trackPhoneClick(context: string, data?: {
 }) {
   if (!canTrack()) return;
 
-  window.gtag('event', 'phone_click', {
+  window.gtag!('event', 'phone_click', {
     event_category: 'engagement',
     event_label: context,
     source: data?.source || 'direct',
@@ -91,7 +91,7 @@ export function trackServiceView(serviceType: string, data?: {
 }) {
   if (!canTrack()) return;
 
-  window.gtag('event', 'view_service', {
+  window.gtag!('event', 'view_service', {
     event_category: 'content',
     service_type: serviceType,
     section: data?.section || 'overview',
@@ -114,7 +114,7 @@ export function trackChatInteraction(action: 'start' | 'message' | 'convert', da
 }) {
   if (!canTrack()) return;
 
-  window.gtag('event', `chat_${action}`, {
+  window.gtag!('event', `chat_${action}`, {
     event_category: 'engagement',
     event_label: action,
     vehicle_info: data?.vehicleInfo,
@@ -137,7 +137,7 @@ export function trackSearch(query: string, data?: {
 }) {
   if (!canTrack()) return;
 
-  window.gtag('event', 'search', {
+  window.gtag!('event', 'search', {
     event_category: 'engagement',
     search_term: query,
     result_count: data?.resultCount || 0,
@@ -161,7 +161,7 @@ export function trackPageView(pagePath: string, data?: {
 }) {
   if (!canTrack()) return;
 
-  window.gtag('event', 'page_view', {
+  window.gtag!('event', 'page_view', {
     page_path: pagePath,
     page_title: data?.pageTitle || document.title,
     referrer: data?.referrer || document.referrer,

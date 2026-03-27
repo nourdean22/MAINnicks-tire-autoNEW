@@ -23,6 +23,7 @@ import { bookings } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { logIntegrationFailure } from "../integration-failures";
 import { withRetry } from "../retry";
+import { onBookingCreated, onBookingCompleted, onInvoiceCreated } from "../nour-os-bridge";
 
 // ─── LABOR GUIDE REFERENCE (for auto-invoice labor estimation) ───
 const SERVICE_LABOR_MAP: Record<string, { hours: number; description: string }> = {
@@ -124,6 +125,14 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
     }),
     { maxRetries: 3, baseDelayMs: 1000, label: "notifyInvoiceCreated" }
   ).catch(() => {});
+
+  // NOUR OS: Dispatch invoice event
+  onInvoiceCreated({
+    invoiceNumber,
+    customerName: booking.name,
+    totalAmount: totalAmount / 100,
+    source: "booking",
+  }).catch(() => {});
 
   console.log(`[Invoice] Auto-created ${invoiceNumber} for booking #${booking.id} — $${(totalAmount / 100).toFixed(2)}`);
 }
@@ -336,6 +345,17 @@ export const bookingRouter = router({
         });
       }
 
+      // NOUR OS: Dispatch booking event
+      onBookingCreated({
+        id: result.id,
+        name: input.name,
+        phone: input.phone,
+        service: input.service,
+        vehicle: vehicleStr,
+        urgency: input.urgency,
+        refCode,
+      }).catch(() => {});
+
       return { ...result, referenceCode: refCode };
       } catch (err) {
         console.error("[Booking] Create failed:", err);
@@ -432,6 +452,13 @@ export const bookingRouter = router({
                   errorDetails: err,
                 });
               });
+
+            // NOUR OS: Dispatch booking complete event
+            onBookingCompleted({
+              id: booking.id,
+              name: booking.name,
+              service: booking.service,
+            }).catch(() => {});
 
             // Auto-create invoice from completed booking
             autoCreateInvoiceFromBooking(d, booking).catch(err => {
