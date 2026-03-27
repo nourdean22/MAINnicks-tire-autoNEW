@@ -250,9 +250,11 @@ function Router() {
         <Route path={"/mayfield-heights"} component={NeighborhoodPage} />
         <Route path={"/highland-heights"} component={NeighborhoodPage} />
         <Route path={"/beachwood"} component={NeighborhoodPage} />
-        {/* Appointments */}
+        {/* Appointments / Booking */}
         <Route path={"/appointment"} component={AppointmentPage} />
         <Route path={"/schedule"} component={AppointmentPage} />
+        <Route path={"/book"} component={AppointmentPage} />
+        <Route path={"/booking"} component={AppointmentPage} />
         {/* Careers / Apply */}
         <Route path={"/careers"} component={CareersPage} />
         <Route path={"/apply"} component={CareersPage} />
