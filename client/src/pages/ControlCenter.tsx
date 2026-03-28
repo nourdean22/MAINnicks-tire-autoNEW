@@ -202,7 +202,7 @@ export default function ControlCenter() {
             </Link>
           </div>
         </div>
-        {systemOpen && o && <TruthSheet o={o} />}
+        {systemOpen && o && <TruthSheet o={o} user={user} />}
       </header>
 
       <main className="max-w-lg mx-auto px-5 pt-5 pb-20">
@@ -356,15 +356,37 @@ function SystemDots({ o, open, onToggle, isOnFire }: { o: any; open: boolean; on
   );
 }
 
-function TruthSheet({ o }: { o: any }) {
+function TruthSheet({ o, user }: { o: any; user: any }) {
+  const repo = trpc.controlCenter.getRepoActivity.useQuery(undefined, { enabled: !!user, staleTime: 120_000 });
+  const sources = trpc.controlCenter.getSourceStatus.useQuery(undefined, { enabled: !!user, staleTime: 300_000 });
+
   return (
-    <div className="max-w-lg mx-auto px-5 pb-3 space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
+    <div className="max-w-lg mx-auto px-5 pb-3 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+      {/* Runtime */}
       <div className="flex items-center gap-4 text-[10px] text-white/25 font-mono">
-        <TruthItem label="AI" value={o.aiGateway.ollamaHealthy ? "local" : "cloud fallback"} ok={o.aiGateway.ollamaHealthy} />
+        <TruthItem label="AI" value={o.aiGateway.ollamaHealthy ? "local" : "cloud"} ok={o.aiGateway.ollamaHealthy} />
         <TruthItem label="DB" value={o.systemHealth.dbStatus} ok={o.systemHealth.dbStatus === "connected"} />
-        <TruthItem label="Net" value={o.systemHealth.tunnelMode !== "none" ? "remote" : "local only"} ok={o.systemHealth.tunnelMode !== "none"} />
+        <TruthItem label="Net" value={o.systemHealth.tunnelMode !== "none" ? "remote" : "local"} ok={o.systemHealth.tunnelMode !== "none"} />
         <span className="ml-auto text-white/15">{o.systemHealth.env?.toUpperCase()}</span>
       </div>
+
+      {/* Repo */}
+      {repo.data && repo.data.commitsThisWeek > 0 && (
+        <div className="flex items-center gap-3 text-[10px] text-white/15 font-mono">
+          <span>{repo.data.commitsThisWeek} commits this week</span>
+          {repo.data.uncommittedCount > 0 && (
+            <span className="text-amber-400/30">{repo.data.uncommittedCount} uncommitted</span>
+          )}
+          <span className="ml-auto">{repo.data.branch}</span>
+        </div>
+      )}
+
+      {/* Source docs */}
+      {sources.data?.knownDocs?.some(d => d.status === "stale") && (
+        <div className="text-[10px] text-amber-400/25 font-mono">
+          {sources.data.knownDocs.filter(d => d.status === "stale").map(d => d.name).join(", ")} — stale
+        </div>
+      )}
     </div>
   );
 }
