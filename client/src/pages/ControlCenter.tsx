@@ -607,30 +607,41 @@ function RevenueQueue({ brief, loading }: { brief: any; loading: boolean }) {
 
       {/* Expanded: Top opportunities */}
       {expanded && opps.length > 0 && (
-        <div className="mt-3 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+        <div className="mt-3 space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
           {opps.map((opp: any, i: number) => {
             const ageDays = Math.floor((Date.now() - new Date(opp.createdAt).getTime()) / 86400000);
+            const urgent = ageDays > 2;
+            const critical = ageDays > 5;
             return (
-              <Link key={opp.id ?? i} href="/admin#leads">
-                <div className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-white/[0.02] transition-colors group cursor-pointer">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-white/60 group-hover:text-white/80 truncate transition-colors">{opp.name}</p>
-                    <p className="text-[11px] text-white/20">{opp.service}</p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0 ml-3">
-                    <span className={`text-[11px] font-mono tabular-nums ${ageDays > 2 ? "text-red-400/60" : "text-white/25"}`}>
-                      {ageDays}d
-                    </span>
-                    <ArrowRight className="w-3 h-3 text-white/10 group-hover:text-white/30 transition-colors" />
-                  </div>
+              <div key={opp.id ?? i} className={`flex items-center justify-between py-2.5 px-3 rounded-lg transition-colors ${
+                critical ? "bg-red-500/[0.04]" : "hover:bg-white/[0.02]"
+              }`}>
+                <div className="min-w-0 flex-1">
+                  <p className={`text-sm truncate transition-colors ${critical ? "text-red-300/70" : "text-white/60"}`}>{opp.name}</p>
+                  <p className="text-[11px] text-white/20">{opp.service} · {opp.status}</p>
                 </div>
-              </Link>
+                <div className="flex items-center gap-2.5 shrink-0 ml-3">
+                  <span className={`text-[11px] font-mono tabular-nums ${critical ? "text-red-400/70" : urgent ? "text-amber-400/50" : "text-white/25"}`}>
+                    {ageDays}d
+                  </span>
+                  {opp.phone && (
+                    <a
+                      href={`tel:${opp.phone}`}
+                      onClick={e => e.stopPropagation()}
+                      className="text-[#FDB913]/40 hover:text-[#FDB913]/80 transition-colors active:scale-95"
+                      title={`Call ${opp.phone}`}
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
+              </div>
             );
           })}
           {total > 3 && (
             <Link href="/admin#leads">
               <p className="text-[11px] text-white/20 hover:text-white/40 transition-colors text-center py-1">
-                View all {total} →
+                {total - 3} more →
               </p>
             </Link>
           )}
