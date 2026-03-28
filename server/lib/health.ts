@@ -70,6 +70,22 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
     status: process.env.META_PIXEL_ID ? "configured" : "using_default",
   };
 
+  // AI Gateway check
+  try {
+    const { getGatewayHealth } = await import("./ai-gateway");
+    const aiHealth = getGatewayHealth();
+    checks.aiGateway = {
+      status: "up",
+      ollamaHealthy: aiHealth.ollamaHealthy,
+      recentRequests: aiHealth.stats.last5min.total,
+      fallbackRate: aiHealth.stats.last5min.total > 0
+        ? Math.round((aiHealth.stats.last5min.fallbacks / aiHealth.stats.last5min.total) * 100) + "%"
+        : "n/a",
+    } as any;
+  } catch {
+    checks.aiGateway = { status: "not_loaded" };
+  }
+
   // Memory usage
   const mem = process.memoryUsage();
   const memUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
