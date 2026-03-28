@@ -260,10 +260,10 @@ export default function ControlCenter() {
         />
 
         {/* ═══ MISSION ═══ */}
-        <MissionBlock brief={b} loading={!b} setMission={setMissionMut} />
+        <MissionBlock brief={b} loading={!b} setMission={setMissionMut} logAction={logAction} />
 
         {/* ═══ NON-NEGOTIABLES ═══ */}
-        <HabitsBlock brief={b} loading={!b} toggleHabit={toggleHabit} />
+        <HabitsBlock brief={b} loading={!b} toggleHabit={toggleHabit} logAction={logAction} />
 
         {/* ═══ REVENUE NOW (hidden in MVD mode — focus on basics) ═══ */}
         {b?.mode !== "mvd" && <RevenueQueue brief={b} loading={!b} />}
@@ -320,6 +320,7 @@ export default function ControlCenter() {
           onClose={() => setCommandOpen(false)}
           setMission={setMissionMut}
           refetch={refetchAll}
+          logAction={logAction}
         />
       )}
     </div>
@@ -436,7 +437,7 @@ function ActionLoop({ current, queueDepth, onDone, onSkip, loading }: {
 
 // ─── Mission ──────────────────────────
 
-function MissionBlock({ brief, loading, setMission }: { brief: any; loading: boolean; setMission: any }) {
+function MissionBlock({ brief, loading, setMission, logAction }: { brief: any; loading: boolean; setMission: any; logAction: (a: string, t?: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -456,6 +457,7 @@ function MissionBlock({ brief, loading, setMission }: { brief: any; loading: boo
     const trimmed = draft.trim();
     if (trimmed && trimmed !== mission) {
       setMission.mutate({ mission: trimmed });
+      logAction("mission_set", trimmed);
     }
   };
 
@@ -518,13 +520,14 @@ function MissionBlock({ brief, loading, setMission }: { brief: any; loading: boo
 
 // ─── Habits ──────────────────────────
 
-function HabitsBlock({ brief, loading, toggleHabit }: { brief: any; loading: boolean; toggleHabit: any }) {
+function HabitsBlock({ brief, loading, toggleHabit, logAction }: { brief: any; loading: boolean; toggleHabit: any; logAction: (a: string, t?: string) => void }) {
   const [optimistic, setOptimistic] = useState<Record<string, boolean>>({});
   const habits: Array<{ key: string; label: string; completed: boolean }> = brief?.execution?.nonNegotiables ?? [];
 
   const toggle = (key: string, current: boolean) => {
     const next = !current;
     setOptimistic(prev => ({ ...prev, [key]: next }));
+    logAction("habit_toggle", `${key}:${next}`);
     toggleHabit.mutate(
       { habitKey: key, completed: next },
       { onError: () => setOptimistic(prev => { const n = { ...prev }; delete n[key]; return n; }) },
@@ -639,7 +642,7 @@ function RevenueQueue({ brief, loading }: { brief: any; loading: boolean }) {
 
 // ─── Command Palette ──────────────────────────
 
-function CommandPalette({ onClose, setMission, refetch }: { onClose: () => void; setMission: any; refetch: () => void }) {
+function CommandPalette({ onClose, setMission, refetch, logAction }: { onClose: () => void; setMission: any; refetch: () => void; logAction: (a: string, t?: string) => void }) {
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -653,6 +656,8 @@ function CommandPalette({ onClose, setMission, refetch }: { onClose: () => void;
   const execute = () => {
     const cmd = input.trim().toLowerCase();
     if (!cmd) return;
+
+    logAction("command", cmd);
 
     if (cmd.startsWith("mission ") || cmd.startsWith("set mission ")) {
       const text = input.replace(/^(set )?mission /i, "").trim();
