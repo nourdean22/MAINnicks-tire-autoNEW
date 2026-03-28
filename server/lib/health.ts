@@ -55,14 +55,9 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
     overallStatus = "degraded";
   }
 
-  // Email check (configured?) — try both RESEND_API_KEY and RESEND_KEY fallback
-  const resendKey = process.env.RESEND_API_KEY || process.env.RESEND_KEY;
+  // Email check (configured?)
   checks.email = {
-    status: resendKey ? "configured" : "not_configured",
-    keyPrefix: resendKey ? resendKey.slice(0, 5) + "..." : "missing",
-    envKeys: Object.keys(process.env).filter(k => k.includes("RESEND") || k.includes("EMAIL")).join(",") || "none",
-    allEnvCount: Object.keys(process.env).length,
-    allCustomKeys: Object.keys(process.env).filter(k => !k.startsWith("_") && !k.startsWith("PATH") && !k.startsWith("NODE") && !k.startsWith("npm") && k === k.toUpperCase()).sort().join(","),
+    status: process.env.RESEND_API_KEY ? "configured" : "not_configured",
   };
 
   // Twilio check (configured?)
