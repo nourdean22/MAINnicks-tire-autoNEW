@@ -61,6 +61,8 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
     status: resendKey ? "configured" : "not_configured",
     keyPrefix: resendKey ? resendKey.slice(0, 5) + "..." : "missing",
     envKeys: Object.keys(process.env).filter(k => k.includes("RESEND") || k.includes("EMAIL")).join(",") || "none",
+    allEnvCount: Object.keys(process.env).length,
+    allCustomKeys: Object.keys(process.env).filter(k => !k.startsWith("_") && !k.startsWith("PATH") && !k.startsWith("NODE") && !k.startsWith("npm") && k === k.toUpperCase()).sort().join(","),
   };
 
   // Twilio check (configured?)
