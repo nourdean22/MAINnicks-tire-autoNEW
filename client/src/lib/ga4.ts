@@ -57,7 +57,6 @@ export function trackFormSubmission(formType: 'booking' | 'lead' | 'callback', d
     timestamp: new Date().toISOString(),
   });
 
-  console.log(`[GA4] Tracked: ${eventName}`, data);
 }
 
 /**
@@ -79,7 +78,6 @@ export function trackPhoneClick(context: string, data?: {
     timestamp: new Date().toISOString(),
   });
 
-  console.log('[GA4] Tracked: phone_click', context);
 }
 
 /**
@@ -100,7 +98,6 @@ export function trackServiceView(serviceType: string, data?: {
     timestamp: new Date().toISOString(),
   });
 
-  console.log('[GA4] Tracked: view_service', serviceType);
 }
 
 /**
@@ -124,7 +121,6 @@ export function trackChatInteraction(action: 'start' | 'message' | 'convert', da
     timestamp: new Date().toISOString(),
   });
 
-  console.log(`[GA4] Tracked: chat_${action}`);
 }
 
 /**
@@ -146,7 +142,6 @@ export function trackSearch(query: string, data?: {
     timestamp: new Date().toISOString(),
   });
 
-  console.log('[GA4] Tracked: search', query);
 }
 
 /**
@@ -171,7 +166,6 @@ export function trackPageView(pagePath: string, data?: {
     timestamp: new Date().toISOString(),
   });
 
-  console.log('[GA4] Tracked: page_view', pagePath);
 }
 
 /**
