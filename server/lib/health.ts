@@ -57,7 +57,7 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
 
   // Email check (configured?)
   checks.email = {
-    status: process.env.EMAIL_FROM || process.env.SENDGRID_API_KEY ? "configured" : "not_configured",
+    status: process.env.RESEND_API_KEY ? "configured" : "not_configured",
   };
 
   // Twilio check (configured?)
