@@ -80,13 +80,29 @@ export default function ControlCenter() {
     enabled: !!user,
   });
 
+  const yesterday = trpc.controlCenter.getYesterday.useQuery(undefined, {
+    enabled: !!user,
+    staleTime: 300_000, // 5min — yesterday doesn't change often
+  });
+
   const toggleHabit = trpc.controlCenter.toggleHabit.useMutation();
   const setMissionMut = trpc.controlCenter.setMission.useMutation();
+  const logActionMut = trpc.controlCenter.logAction.useMutation();
+  const closeDayMut = trpc.controlCenter.closeDay.useMutation();
+
+  const logAction = useCallback((action: string, target?: string) => {
+    logActionMut.mutate({ action: action as any, target });
+  }, [logActionMut]);
 
   const refetchAll = useCallback(() => {
     overview.refetch();
     brief.refetch();
   }, [overview, brief]);
+
+  // Log open event once per mount
+  useEffect(() => {
+    logAction("open");
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (authLoading || !user) {
     return (
@@ -135,7 +151,8 @@ export default function ControlCenter() {
   const currentAction = actionQueue[0] ?? null;
   const queueDepth = actionQueue.length;
 
-  const dismissAction = (item: ActionItem) => {
+  const dismissAction = (item: ActionItem, reason: "done" | "skip") => {
+    logAction(reason, item.message);
     setDismissed(prev => {
       const next = new Set(prev).add(`${item.type}:${item.message}`);
       saveDismissed(next);
@@ -174,6 +191,9 @@ export default function ControlCenter() {
       </header>
 
       <main className="max-w-lg mx-auto px-5 pt-8 pb-16">
+
+        {/* ═══ YESTERDAY CARRY-FORWARD ═══ */}
+        <YesterdayBanner data={yesterday.data} />
 
         {/* ═══ FIRE MODE ═══ */}
         {isOnFire && (
@@ -234,7 +254,8 @@ export default function ControlCenter() {
         <ActionLoop
           current={currentAction}
           queueDepth={queueDepth}
-          onDismiss={dismissAction}
+          onDone={(item) => dismissAction(item, "done")}
+          onSkip={(item) => dismissAction(item, "skip")}
           loading={!b}
         />
 
@@ -256,6 +277,28 @@ export default function ControlCenter() {
             </p>
           </div>
         )}
+
+        {/* ═══ DAY CLOSE ═══ */}
+        {b?.timeContext?.period === "evening" || b?.timeContext?.period === "night" ? (
+          <div className="mt-8 border-t border-white/[0.04] pt-5">
+            <button
+              onClick={() => {
+                closeDayMut.mutate(undefined, {
+                  onSuccess: (data) => {
+                    logAction("done", `day-close:${data.score}%`);
+                    brief.refetch();
+                  },
+                });
+              }}
+              disabled={closeDayMut.isPending}
+              className="w-full py-3 px-4 rounded-xl border border-white/[0.06] hover:border-white/[0.10] bg-white/[0.02] hover:bg-white/[0.03] transition-all text-center group active:scale-[0.99]"
+            >
+              <p className="text-xs text-white/30 group-hover:text-white/50 transition-colors">
+                {closeDayMut.isPending ? "Closing..." : "Close the day"}
+              </p>
+            </button>
+          </div>
+        ) : null}
 
         {/* ═══ TODAY FOOTER ═══ */}
         {o && (
@@ -330,10 +373,11 @@ function TruthItem({ label, value, ok }: { label: string; value: string; ok: boo
 
 // ─── Action Loop ──────────────────────────
 
-function ActionLoop({ current, queueDepth, onDismiss, loading }: {
+function ActionLoop({ current, queueDepth, onDone, onSkip, loading }: {
   current: ActionItem | null;
   queueDepth: number;
-  onDismiss: (item: ActionItem) => void;
+  onDone: (item: ActionItem) => void;
+  onSkip: (item: ActionItem) => void;
   loading: boolean;
 }) {
   if (loading) {
@@ -373,13 +417,13 @@ function ActionLoop({ current, queueDepth, onDismiss, loading }: {
         </span>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => onDismiss(current)}
-            className="text-[10px] text-white/20 hover:text-white/40 transition-colors px-2 py-0.5 rounded hover:bg-white/[0.03]"
+            onClick={() => onDone(current)}
+            className="text-[10px] text-emerald-400/40 hover:text-emerald-400/70 transition-colors px-2 py-0.5 rounded hover:bg-emerald-500/[0.05]"
           >
             done
           </button>
           <button
-            onClick={() => onDismiss(current)}
+            onClick={() => onSkip(current)}
             className="text-[10px] text-white/20 hover:text-white/40 transition-colors px-2 py-0.5 rounded hover:bg-white/[0.03]"
           >
             skip
@@ -674,6 +718,39 @@ function CommandPalette({ onClose, setMission, refetch }: { onClose: () => void;
           <span>refresh</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Yesterday Banner ──────────────────────────
+
+function YesterdayBanner({ data }: { data: any }) {
+  const [dismissed, setDismissed] = useState(false);
+  if (!data || dismissed) return null;
+
+  const { mission, score, status } = data;
+  // Only show if yesterday had activity and wasn't perfect
+  if (!mission && score === 0) return null;
+
+  const wasGood = score >= 80;
+
+  return (
+    <div className="mb-5 flex items-start justify-between gap-3 px-0.5">
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] text-white/20 uppercase tracking-wider mb-0.5">Yesterday</p>
+        {mission && (
+          <p className="text-xs text-white/30 truncate">{mission}</p>
+        )}
+        <p className={`text-[11px] mt-0.5 ${wasGood ? "text-emerald-400/40" : "text-amber-400/40"}`}>
+          {score}% — {status === "on_track" ? "strong" : status === "drifting" ? "slipped" : "missed"}
+        </p>
+      </div>
+      <button
+        onClick={() => setDismissed(true)}
+        className="text-white/10 hover:text-white/25 transition-colors shrink-0 mt-1"
+      >
+        <X className="w-3 h-3" />
+      </button>
     </div>
   );
 }

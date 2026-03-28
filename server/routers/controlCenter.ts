@@ -492,4 +492,82 @@ export const controlCenterRouter = router({
 
       return { success: true, date: today, mission: input.mission };
     }),
+
+  // ─── LOG ACTION (telemetry + action completion tracking) ───
+  logAction: adminProcedure
+    .input(z.object({
+      action: z.enum(["done", "skip", "defer", "open", "habit_toggle", "mission_set", "command"]),
+      target: z.string().optional(),
+      meta: z.record(z.string()).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) return { logged: false };
+
+      const today = getTodayET();
+      await d.execute(
+        sql`INSERT INTO daily_execution (date, status) VALUES (${today}, 'on_track')
+            ON DUPLICATE KEY UPDATE status = status`
+      );
+
+      // Increment action counts in notes field (JSON)
+      const [row] = await d.select().from(dailyExecution).where(sql`${dailyExecution.date} = ${today}`).limit(1);
+      let counts: Record<string, number> = {};
+      try { counts = JSON.parse(row?.notes || "{}"); } catch {}
+      counts[input.action] = (counts[input.action] || 0) + 1;
+
+      await d.execute(
+        sql`UPDATE daily_execution SET notes = ${JSON.stringify(counts)} WHERE date = ${today}`
+      );
+
+      return { logged: true, action: input.action, date: today };
+    }),
+
+  // ─── CLOSE DAY (end-of-day summary + rollover) ────────────
+  closeDay: adminProcedure
+    .mutation(async () => {
+      const d = await db();
+      if (!d) throw new Error("Database unavailable");
+
+      const today = getTodayET();
+
+      // Calculate final score for today
+      const habits = await d.select().from(dailyHabits).where(sql`${dailyHabits.date} = ${today}`);
+      const completed = habits.filter((h: any) => h.completed || h.completed_at).length;
+      const total = habits.length || 1;
+      const score = Math.round((completed / total) * 100);
+
+      const status = score >= 80 ? "on_track" : score >= 40 ? "drifting" : "off_track";
+
+      await d.execute(
+        sql`UPDATE daily_execution SET status = ${status} WHERE date = ${today}`
+      );
+
+      return { date: today, score, status, habitsCompleted: completed, habitsTotal: total };
+    }),
+
+  // ─── GET YESTERDAY (carry-forward data) ────────────────────
+  getYesterday: adminProcedure.query(async () => {
+    const d = await db();
+    if (!d) return null;
+
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+      .toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+
+    const [row] = await d.select().from(dailyExecution).where(sql`${dailyExecution.date} = ${yesterday}`).limit(1);
+    if (!row) return null;
+
+    const habits = await d.select().from(dailyHabits).where(sql`${dailyHabits.date} = ${yesterday}`);
+    const completed = habits.filter((h: any) => h.completed || h.completed_at).length;
+
+    return {
+      date: yesterday,
+      mission: row.mission,
+      status: row.status,
+      score: Math.round((completed / (habits.length || 1)) * 100),
+      habitsCompleted: completed,
+      habitsTotal: habits.length,
+    };
+  }),
 });
