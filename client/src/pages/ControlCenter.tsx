@@ -87,9 +87,13 @@ export default function ControlCenter() {
   });
 
   const toggleHabit = trpc.controlCenter.toggleHabit.useMutation();
-  const setMissionMut = trpc.controlCenter.setMission.useMutation();
+  const setMissionMut = trpc.controlCenter.setMission.useMutation({
+    onError: () => { brief.refetch(); }, // Revert to server state on failure
+  });
   const logActionMut = trpc.controlCenter.logAction.useMutation();
-  const closeDayMut = trpc.controlCenter.closeDay.useMutation();
+  const closeDayMut = trpc.controlCenter.closeDay.useMutation({
+    onError: () => { brief.refetch(); }, // Revert on failure
+  });
 
   const logAction = useCallback((action: string, target?: string) => {
     logActionMut.mutate({ action: action as any, target });
@@ -218,8 +222,8 @@ export default function ControlCenter() {
             <p className="text-[10px] font-semibold tracking-wider text-red-400/60 uppercase mb-1">
               {fireItems.length} critical
             </p>
-            {fireItems.slice(0, 3).map((item, i) => (
-              <p key={i} className="text-sm text-red-300/70 leading-relaxed">
+            {fireItems.slice(0, 3).map((item) => (
+              <p key={`${item.type}:${item.message}`} className="text-sm text-red-300/70 leading-relaxed">
                 {item.message}
               </p>
             ))}
@@ -302,8 +306,8 @@ export default function ControlCenter() {
         {b?.mode !== "mvd" && <RevenueQueue brief={b} loading={!b} />}
 
         {/* ═══ DRIFT — escalates based on severity ═══ */}
-        {b?.driftIndicator?.status !== "focused" && (b?.driftIndicator?.signals?.length ?? 0) > 0 && (
-          <DriftEscalation status={b!.driftIndicator!.status} signals={b!.driftIndicator!.signals} score={b?.execution?.completionScore ?? 0} />
+        {b?.driftIndicator && b.driftIndicator.status !== "focused" && b.driftIndicator.signals?.length > 0 && (
+          <DriftEscalation status={b.driftIndicator.status} signals={b.driftIndicator.signals} score={b?.execution?.completionScore ?? 0} />
         )}
 
         {/* ═══ DAY CLOSE ═══ */}
