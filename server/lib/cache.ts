@@ -136,6 +136,13 @@ export function cleanupMemCache(): number {
 export function getCacheStats(): { type: "redis" | "memory"; keys: number } {
   return {
     type: redisClient ? "redis" : "memory",
-    keys: redisClient ? -1 : memCache.size, // Redis doesn't expose count easily without DBSIZE
+    keys: redisClient ? -1 : memCache.size,
   };
 }
+
+// Auto-cleanup expired in-memory cache entries every 5 minutes
+setInterval(() => {
+  if (!redisClient) {
+    cleanupMemCache();
+  }
+}, 5 * 60 * 1000);

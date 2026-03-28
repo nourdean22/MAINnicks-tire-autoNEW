@@ -6,6 +6,42 @@
 
 const attempts = new Map<string, { count: number; lastAttempt: number; blockedUntil?: number }>();
 const otpRequests = new Map<string, { count: number; firstRequest: number }>();
+const MAX_ENTRIES = 5000;
+
+// Cleanup stale entries every 15 minutes to prevent memory leaks
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, record] of attempts) {
+    // Remove entries older than 2 hours with no active block
+    if (now - record.lastAttempt > 7_200_000 && (!record.blockedUntil || now > record.blockedUntil)) {
+      attempts.delete(key);
+    }
+  }
+  for (const [key, record] of otpRequests) {
+    if (now - record.firstRequest > 1_800_000) {
+      otpRequests.delete(key);
+    }
+  }
+  // Hard cap: if maps are still too large, evict oldest
+  if (attempts.size > MAX_ENTRIES) {
+    const toDelete = attempts.size - MAX_ENTRIES;
+    let deleted = 0;
+    for (const key of attempts.keys()) {
+      if (deleted >= toDelete) break;
+      attempts.delete(key);
+      deleted++;
+    }
+  }
+  if (otpRequests.size > MAX_ENTRIES) {
+    const toDelete = otpRequests.size - MAX_ENTRIES;
+    let deleted = 0;
+    for (const key of otpRequests.keys()) {
+      if (deleted >= toDelete) break;
+      otpRequests.delete(key);
+      deleted++;
+    }
+  }
+}, 15 * 60 * 1000);
 
 export function checkBruteForce(phone: string): { allowed: boolean; retryAfter?: number } {
   const key = phone.replace(/\D/g, "").slice(-10);

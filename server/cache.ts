@@ -82,6 +82,11 @@ class ServerCache {
 
 export const serverCache = new ServerCache();
 
+// Auto-prune expired entries every 5 minutes
+setInterval(() => {
+  serverCache.stats(); // stats() already prunes expired entries
+}, 5 * 60 * 1000);
+
 // ─── Common TTL constants ─────────────────────────────
 export const CACHE_TTL = {
   WEATHER: 10 * 60 * 1000,        // 10 minutes
