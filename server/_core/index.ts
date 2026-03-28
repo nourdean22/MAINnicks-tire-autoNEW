@@ -107,6 +107,31 @@ async function startServer() {
     await healthHandler(_req, res);
   });
 
+  // ─── AI Gateway endpoints ─────────────────────────────
+  app.get("/api/ai/health", async (_req, res) => {
+    const { getGatewayHealth } = await import("../lib/ai-gateway");
+    res.json(getGatewayHealth());
+  });
+
+  app.get("/api/ai/models", async (_req, res) => {
+    const { getAvailableModels } = await import("../lib/ai-gateway");
+    res.json(await getAvailableModels());
+  });
+
+  app.post("/api/ai/chat", express.json(), async (req, res) => {
+    try {
+      const { aiGateway } = await import("../lib/ai-gateway");
+      const { task = "chat", messages, provider, model } = req.body;
+      if (!messages || !Array.isArray(messages)) {
+        return res.status(400).json({ error: "messages array required" });
+      }
+      const result = await aiGateway({ task, messages, overrideProvider: provider, overrideModel: model });
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // ─── Cron trigger endpoint (called by Railway worker) ──
   app.post("/api/cron/:jobName", express.json(), async (req, res) => {
     const cronSecret = process.env.CRON_SECRET;
