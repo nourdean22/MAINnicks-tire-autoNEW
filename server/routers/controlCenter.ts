@@ -454,6 +454,18 @@ export const controlCenterRouter = router({
     }
     // "fire" is determined client-side from urgentItems priority
 
+    // ─── Execution Debt (consecutive low-score days) ─────
+    // Streak already tells us consecutive good days.
+    // Debt = how many of the last 7 days were below DRIFTING_MIN.
+    let executionDebt = 0;
+    if (streakRows && Array.isArray(streakRows)) {
+      const recentDays = (streakRows as any[]).slice(0, 7);
+      for (const row of recentDays) {
+        const pct = (Number(row.done) / Math.max(Number(row.total), 1)) * 100;
+        if (pct < THRESHOLDS.DRIFTING_MIN) executionDebt++;
+      }
+    }
+
     return {
       topAction,
       revenueWaiting,
@@ -468,6 +480,7 @@ export const controlCenterRouter = router({
         hoursLeft,
       },
       mode,
+      executionDebt, // 0-7: how many of last 7 days were below 40%
     };
   }),
 
