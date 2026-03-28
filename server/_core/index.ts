@@ -108,17 +108,28 @@ async function startServer() {
   });
 
   // ─── AI Gateway endpoints ─────────────────────────────
-  app.get("/api/ai/health", async (_req, res) => {
+  const { aiLimiter: aiGatewayLimiter } = await import("../middleware/rateLimiter");
+
+  // AI admin auth — requires ADMIN_API_KEY for direct gateway access
+  const aiAdminAuth: import("express").RequestHandler = (req, res, next) => {
+    const key = req.headers["x-admin-key"] || req.query.key;
+    const adminKey = process.env.ADMIN_API_KEY;
+    if (!adminKey) return res.status(503).json({ error: "Admin API not configured" });
+    if (key !== adminKey) return res.status(401).json({ error: "Unauthorized" });
+    next();
+  };
+
+  app.get("/api/ai/health", aiAdminAuth, async (_req, res) => {
     const { getGatewayHealth } = await import("../lib/ai-gateway");
     res.json(getGatewayHealth());
   });
 
-  app.get("/api/ai/models", async (_req, res) => {
+  app.get("/api/ai/models", aiAdminAuth, async (_req, res) => {
     const { getAvailableModels } = await import("../lib/ai-gateway");
     res.json(await getAvailableModels());
   });
 
-  app.post("/api/ai/chat", express.json(), async (req, res) => {
+  app.post("/api/ai/chat", aiAdminAuth, aiGatewayLimiter, express.json(), async (req, res) => {
     try {
       const { aiGateway } = await import("../lib/ai-gateway");
       const { task = "chat", messages, provider, model } = req.body;

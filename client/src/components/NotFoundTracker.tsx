@@ -15,7 +15,7 @@ export default function NotFoundTracker() {
           referrer: document.referrer,
           userAgent: navigator.userAgent,
         }),
-      }).catch(() => {});
+      }).catch((err) => { console.error("[404-tracker] report failed", err); });
     } catch {
       // Silently fail
     }

@@ -44,7 +44,7 @@ export function useFormAbandonment(
               .filter(([, v]) => v && String(v).trim().length > 0)
               .map(([k]) => k),
           }),
-        }).catch(() => {});
+        }).catch((err) => { console.error("[form-abandonment] track failed", err); });
       }, 3 * 60 * 1000); // 3 minutes
     }
 
