@@ -149,7 +149,7 @@ export default function LeadPopup() {
           className="fixed inset-0 z-[100] flex items-center justify-center p-4"
         >
           {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={dismiss} />
+          <div className="absolute inset-0 bg-black/60" onClick={dismiss} />
 
           {/* Popup */}
           <motion.div
