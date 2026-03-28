@@ -446,8 +446,9 @@ export const portalRouter = router({
         throw new Error("Too many code requests. Please wait and try again.");
       }
 
-      // Generate 6-digit code
-      const code = String(Math.floor(100000 + Math.random() * 900000));
+      // Generate 6-digit code (cryptographically secure)
+      const { randomInt } = await import("crypto");
+      const code = randomInt(100000, 999999).toString();
       const codeExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
 
       // Find customer
@@ -464,7 +465,7 @@ export const portalRouter = router({
 
       // In development, log to console. In production, use Twilio SMS.
       if (process.env.NODE_ENV !== "production") {
-        console.log(`[Portal] Verification code for ${normalized}: ${code}`);
+        console.log(`[Portal] Verification code sent to phone ending ${normalized.slice(-4)}`);
       }
       // TODO: When Twilio is active, send SMS here
 
@@ -496,8 +497,9 @@ export const portalRouter = router({
 
       if (!session) throw new Error("Invalid or expired code");
 
-      // Generate session token
-      const token = Array.from({ length: 64 }, () => "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]).join("");
+      // Generate session token (cryptographically secure)
+      const { randomBytes } = await import("crypto");
+      const token = randomBytes(32).toString("hex");
       const sessionExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
       await d.update(portalSessions).set({

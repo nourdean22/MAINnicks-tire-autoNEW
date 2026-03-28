@@ -228,6 +228,32 @@ async function startServer() {
     res.json({ ok: true });
   });
 
+  // ─── NOUR OS Proxy — avoids cross-origin calls to autonicks.com ──
+  const nourOsProxy = async (req: import("express").Request, res: import("express").Response) => {
+    try {
+      const nourOsUrl = process.env.NOUR_OS_API_URL ?? "https://autonicks.com";
+      const subPath = req.path.replace("/api/nour-os", "/api");
+      // Block path traversal attempts
+      if (subPath.includes("..") || subPath.includes("//")) {
+        res.status(400).json({ error: "Invalid path" });
+        return;
+      }
+      const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+      const upstream = await fetch(`${nourOsUrl}${subPath}${qs}`, {
+        method: req.method,
+        headers: { "Content-Type": "application/json" },
+        ...(req.method !== "GET" && req.body ? { body: JSON.stringify(req.body) } : {}),
+        signal: AbortSignal.timeout(8000),
+      });
+      const data = await upstream.json();
+      res.status(upstream.status).json(data);
+    } catch {
+      res.status(502).json({ error: "NOUR OS unavailable" });
+    }
+  };
+  app.get("/api/nour-os/*", nourOsProxy);
+  app.post("/api/nour-os/*", express.json(), nourOsProxy);
+
   // Rate limiting for public API endpoints to prevent spam/abuse
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -305,7 +331,7 @@ async function startServer() {
 
       const urls = [
         ...SITEMAP_ROUTES.map(p =>
-          `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
+          `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority.toFixed(1)}</priority>\n  </url>`
         ),
         ...allBlogSlugs.map(s =>
           `  <url>\n    <loc>${baseUrl}/blog/${s}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.6</priority>\n  </url>`
@@ -330,8 +356,9 @@ async function startServer() {
 
   // ─── SMS Bot Webhook (Twilio) ───────────────────────────
   // Receives inbound SMS messages and returns Twilio XML response
+  const { validateTwilioRequest } = await import("../middleware/twilioValidation");
   const { handleIncomingSMS } = await import("../routers/smsBot");
-  app.post("/api/sms-webhook", express.urlencoded({ extended: false }), async (req, res) => {
+  app.post("/api/sms-webhook", express.urlencoded({ extended: false }), validateTwilioRequest, async (req, res) => {
     try {
       const { Body, From } = req.body;
       const reply = await handleIncomingSMS(From, Body);
@@ -457,11 +484,25 @@ async function startServer() {
     import("../services/featureFlags").then(({ seedFlags }) => {
       seedFlags().catch(() => {});
     }).catch(() => {});
+
+    // Hydrate SMS opt-out set from DB so in-memory checks are accurate
+    import("../routers/smsBot").then(({ loadOptOutsFromDb }) => {
+      loadOptOutsFromDb().catch(() => {});
+    }).catch(() => {});
   });
 
   // ─── Graceful shutdown ─────────────────────────────────
   const shutdown = async (signal: string) => {
     console.log(`\n[${signal}] Shutting down gracefully...`);
+    // Stop cron jobs and SMS scheduler first
+    try {
+      const { stopAllJobs } = await import("../cron");
+      stopAllJobs();
+    } catch {}
+    try {
+      const { stopSmsScheduler } = await import("../services/sms-scheduler");
+      stopSmsScheduler();
+    } catch {}
     server.close(async () => {
       try {
         const { closeDb } = await import("../db");

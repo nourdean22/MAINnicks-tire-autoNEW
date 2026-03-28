@@ -42,7 +42,7 @@ async function getSegmentCustomers(segment: "recent" | "lapsed" | "all"): Promis
   const d = await db();
   if (!d) return [];
 
-  const phoneFilter = sql`${customers.phone} IS NOT NULL AND LENGTH(${customers.phone}) >= 10`;
+  const phoneFilter = sql`${customers.phone} IS NOT NULL AND LENGTH(${customers.phone}) >= 10 AND ${customers.smsOptOut} = 0`;
 
   if (segment === "recent") {
     // Active in last 90 days

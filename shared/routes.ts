@@ -31,7 +31,7 @@ const CORE_PAGES: RouteEntry[] = [
     priority: 1.0,
     changefreq: "weekly",
     title: "Nick's Tire & Auto — Cleveland's #1 Tire Shop & Auto Repair",
-    description: "Cleveland's top-rated new & used tire specialist + full-service auto repair. 1,700+ reviews, 4.9 stars. Free installation package ($289 value). Walk-ins 7 days. Financing.",
+    description: "Cleveland's top-rated tire specialist + full-service auto repair. 1,700+ reviews, 4.9 stars. Free installation ($289 value). Walk-ins 7 days.",
     group: "core",
     sitemap: true,
     prerender: true,
@@ -105,7 +105,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     priority: 1.0,
     changefreq: "weekly",
     title: "Tire Shop Cleveland OH — New & Used Tires | Nick's Tire",
-    description: "Cleveland's #1 new & used tire shop. Buy tires online — free premium installation ($289 value). Flat repair $15. Every tire inspected. Walk-ins 7 days. $10 down financing.",
+    description: "Cleveland's #1 tire shop. Buy tires online — free installation ($289 value). Flat repair $15. Every tire inspected. Walk-ins 7 days. Financing.",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -175,7 +175,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     priority: 0.8,
     changefreq: "monthly",
     title: "Tire Services Cleveland — New & Used | Nick's Tire & Auto",
-    description: "Cleveland's largest new & used tire selection. Free mounting, balancing, TPMS reset, alignment check with every tire. Flat repair from $15. Walk-ins welcome 7 days.",
+    description: "Cleveland's largest tire selection. Free mounting, balancing, TPMS reset, alignment check with every tire. Flat repair from $15. Walk-ins 7 days.",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -410,7 +410,7 @@ const NEIGHBORHOOD_PAGES: RouteEntry[] = [
 // ─── SEO SERVICE PAGES (long-tail keywords) ──────────────
 const SEO_SERVICE_PAGES: RouteEntry[] = [
   { path: "/brake-repair-cleveland", priority: 0.8, changefreq: "monthly", title: "Brake Repair Cleveland OH — Nick's Tire & Auto", description: "Expert brake repair in Cleveland. Pads, rotors, calipers, ABS. Honest diagnosis before any repair. 4.9 stars, 1,700+ reviews. Walk-ins welcome.", group: "seo-service", sitemap: true, prerender: true },
-  { path: "/check-engine-light-cleveland", priority: 0.8, changefreq: "monthly", title: "Check Engine Light On? Same-Day Diagnostics | Cleveland OH", description: "Check engine light on? We diagnose it fast with OBD-II scanners — no guesswork. Walk in today, get answers in minutes. 4.9 stars, 1,700+ reviews. Open 7 days. Call (216) 862-0005.", group: "seo-service", sitemap: true, prerender: true },
+  { path: "/check-engine-light-cleveland", priority: 0.8, changefreq: "monthly", title: "Check Engine Light On? Same-Day Diagnostics | Cleveland OH", description: "Check engine light on? OBD-II diagnostics — no guesswork. Walk in today, get answers in minutes. 4.9 stars, 1,700+ reviews. Open 7 days. (216) 862-0005.", group: "seo-service", sitemap: true, prerender: true },
   { path: "/tire-repair-cleveland", priority: 0.9, changefreq: "monthly", title: "Tire Repair Cleveland OH — Nick's Tire & Auto", description: "Flat tire repair from $15 in Cleveland. Plug and patch in 15 min. Largest new & used tire selection. Free installation with purchase. Walk-ins 7 days.", group: "seo-service", sitemap: true, prerender: true },
   { path: "/suspension-repair-cleveland", priority: 0.8, changefreq: "monthly", title: "Suspension Repair Cleveland — Nick's Tire & Auto", description: "Suspension and steering repair in Cleveland. Struts, shocks, ball joints, tie rods. 4.9 stars. Financing available. Walk-ins welcome.", group: "seo-service", sitemap: true, prerender: true },
   { path: "/ac-repair-cleveland", priority: 0.8, changefreq: "monthly", title: "AC Repair Cleveland OH — Nick's Tire & Auto", description: "Auto AC repair in Cleveland. Recharge, compressor, condenser, evaporator. Stay cool this summer. 4.9 stars. Walk-ins welcome.", group: "seo-service", sitemap: true, prerender: true },
@@ -445,7 +445,7 @@ const PROBLEM_PAGES: RouteEntry[] = [
   { path: "/battery-keeps-dying", priority: 0.7, changefreq: "monthly", title: "Battery Keeps Dying? — Nick's Tire & Auto Cleveland", description: "Battery keeps dying? Alternator, parasitic drain, or old battery. Expert electrical diagnostics at Nick's Tire & Auto, Cleveland.", group: "problem", sitemap: true, prerender: true },
   { path: "/grinding-noise-when-braking", priority: 0.7, changefreq: "monthly", title: "Grinding Noise When Braking? — Nick's Tire & Auto", description: "Grinding noise when braking? Worn pads, damaged rotors, or debris. Expert brake diagnosis at Nick's Tire & Auto, Cleveland. Walk-ins welcome.", group: "problem", sitemap: true, prerender: true },
   { path: "/oil-leak-under-car", priority: 0.7, changefreq: "monthly", title: "Oil Leak Under Car? — Nick's Tire & Auto Cleveland", description: "Oil leak under your car? Valve cover gasket, oil pan, or drain plug. Expert leak diagnosis at Nick's Tire & Auto, Cleveland. Walk-ins welcome.", group: "problem", sitemap: true, prerender: true },
-  { path: "/check-engine-light-on", priority: 0.7, changefreq: "monthly", title: "Check Engine Light On? Top 5 Causes + What to Do Now", description: "Check engine light on? Most common causes: O2 sensor, catalytic converter, gas cap, ignition coils. Walk in for same-day diagnostics in Cleveland. (216) 862-0005.", group: "problem", sitemap: true, prerender: true },
+  { path: "/check-engine-light-on", priority: 0.7, changefreq: "monthly", title: "Check Engine Light On? Top 5 Causes + What to Do Now", description: "Check engine light on? Common causes: O2 sensor, catalytic converter, gas cap. Walk in for same-day diagnostics in Cleveland. (216) 862-0005.", group: "problem", sitemap: true, prerender: true },
 ];
 
 // ─── SEASONAL PAGES ──────────────────────────────────────

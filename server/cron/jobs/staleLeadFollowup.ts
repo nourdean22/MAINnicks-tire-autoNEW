@@ -10,9 +10,9 @@ const log = createLogger("cron:stale-leads");
 
 export async function processStaleLeadFollowUp(): Promise<{ recordsProcessed: number }> {
   try {
-    // Only during business hours
-    const hour = new Date().getHours();
-    if (hour < 8 || hour > 18) return { recordsProcessed: 0 };
+    // Only during business hours (ET)
+    const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+    if (etHour < 8 || etHour > 18) return { recordsProcessed: 0 };
 
     const { isEnabled } = await import("../../services/featureFlags");
     if (!(await isEnabled("smart_sms_auto_reply"))) return { recordsProcessed: 0 };
@@ -40,10 +40,20 @@ export async function processStaleLeadFollowUp(): Promise<{ recordsProcessed: nu
     if (staleLeads.length === 0) return { recordsProcessed: 0 };
 
     const { sendSms } = await import("../../sms");
+    const { customers } = await import("../../../drizzle/schema");
+    const { like } = await import("drizzle-orm");
     let processed = 0;
 
     for (const lead of staleLeads) {
       if (!lead.phone) continue;
+
+      // Respect SMS opt-out
+      const normalized = lead.phone.replace(/\D/g, "").slice(-10);
+      const [customer] = await db.select({ smsOptOut: customers.smsOptOut })
+        .from(customers)
+        .where(like(customers.phone, `%${normalized}`))
+        .limit(1);
+      if (customer?.smsOptOut) continue;
 
       const firstName = lead.name?.split(" ")[0] || "there";
       const service = lead.service || "your vehicle";

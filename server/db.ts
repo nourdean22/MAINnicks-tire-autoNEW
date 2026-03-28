@@ -562,10 +562,8 @@ export async function seedDefaultPricing() {
 // ─── VEHICLE INSPECTION QUERIES ─────────────────────
 
 function generateShareToken(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let token = "";
-  for (let i = 0; i < 32; i++) token += chars[Math.floor(Math.random() * chars.length)];
-  return token;
+  const { randomBytes } = require("crypto") as typeof import("crypto");
+  return randomBytes(16).toString("hex"); // 32 hex chars, cryptographically secure
 }
 
 export async function createInspection(data: Omit<InsertVehicleInspection, "shareToken">) {

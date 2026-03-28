@@ -31,8 +31,8 @@ export function registerOAuthRoutes(app: Express) {
         return;
       }
 
-      // Log OpenID for admin setup — remove after OWNER_OPEN_ID is set
-      console.log(`[OAuth] Login: openId=${userInfo.openId} email=${userInfo.email} name=${userInfo.name}`);
+      // Log OpenID for admin setup (no PII in logs)
+      console.log(`[OAuth] Login: openId=${userInfo.openId}`);
 
       // Check if this is the owner (first admin)
       const ownerOpenId = process.env.OWNER_OPEN_ID;

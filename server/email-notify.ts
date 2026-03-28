@@ -115,7 +115,7 @@ async function sendEmailResend(
       return { sent: false };
     }
 
-    const fromAddress = process.env.EMAIL_FROM || "Nick's Tire & Auto <noreply@autonicks.com>";
+    const fromAddress = process.env.EMAIL_FROM || "Nick's Tire & Auto <noreply@nickstire.org>";
 
     await resend.emails.send({
       from: fromAddress,
@@ -124,7 +124,7 @@ async function sendEmailResend(
       text: content,
     });
 
-    console.log(`[Email] Sent via Resend: "${subject}" → ${to.join(", ")}`);
+    console.log(`[Email] Sent via Resend: "${subject}" → ${to.length} recipient(s)`);
     return { sent: true };
   } catch (error) {
     console.warn("[Email] Resend send failed:", error);

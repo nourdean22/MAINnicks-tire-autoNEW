@@ -21,6 +21,22 @@ import {
   maintenanceReminderSms,
 } from "../sms";
 
+/**
+ * Convert an Eastern Time hour to UTC hour for a given date.
+ * Railway runs UTC — we must offset scheduled times so customers
+ * receive texts at the intended Eastern Time, not UTC.
+ */
+function etHourToUtcHour(date: Date, etHour: number): number {
+  // Find the ET offset (4 or 5 hours) for the given date using Intl
+  const utcParts = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", hour: "numeric", hour12: false }).formatToParts(date);
+  const etParts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }).formatToParts(date);
+  const utcH = parseInt(utcParts.find(p => p.type === "hour")?.value || "0");
+  const etH = parseInt(etParts.find(p => p.type === "hour")?.value || "0");
+  let offset = utcH - etH;
+  if (offset < 0) offset += 24;
+  return etHour + offset;
+}
+
 // ─── SCHEDULE ON BOOKING CREATION ───────────────────────
 export async function scheduleBookingReminders(
   bookingId: number,
@@ -48,21 +64,22 @@ export async function scheduleBookingReminders(
     }
 
     // 1 hour before (assume morning appointment if no time specified)
+    // Convert ET business hours to UTC — Railway runs UTC
     const reminder1h = new Date(apptDate);
-    if (preferredTime === "morning") reminder1h.setHours(8, 0);
-    else if (preferredTime === "afternoon") reminder1h.setHours(13, 0);
-    else reminder1h.setHours(9, 0);
+    const etHour = preferredTime === "morning" ? 8 : preferredTime === "afternoon" ? 13 : 9;
+    reminder1h.setUTCHours(etHourToUtcHour(reminder1h, etHour), 0, 0, 0);
     reminder1h.setHours(reminder1h.getHours() - 1);
     if (reminder1h > new Date()) {
       reminders.push({ type: "1h-before", scheduledFor: reminder1h });
     }
   }
 
-  // Insert all reminders
+  // Insert all reminders with their scheduled time
   for (const r of reminders) {
     await db.insert(appointmentReminders).values({
       bookingId,
       type: r.type,
+      scheduledFor: r.scheduledFor,
       status: "pending",
     });
   }
@@ -83,15 +100,15 @@ export async function schedulePostServiceReminders(
   const thankYouTime = new Date();
   thankYouTime.setHours(thankYouTime.getHours() + 2);
 
-  // 3-day review request
+  // 3-day review request — send at 10 AM Eastern
   const reviewTime = new Date();
   reviewTime.setDate(reviewTime.getDate() + 3);
-  reviewTime.setHours(10, 0, 0, 0); // Send at 10am
+  reviewTime.setUTCHours(etHourToUtcHour(reviewTime, 10), 0, 0, 0);
 
-  // 6-month maintenance reminder
+  // 6-month maintenance reminder — send at 10 AM Eastern
   const maintenanceTime = new Date();
   maintenanceTime.setMonth(maintenanceTime.getMonth() + 6);
-  maintenanceTime.setHours(10, 0, 0, 0);
+  maintenanceTime.setUTCHours(etHourToUtcHour(maintenanceTime, 10), 0, 0, 0);
 
   const reminders = [
     { type: "thank-you", scheduledFor: thankYouTime },
@@ -103,6 +120,7 @@ export async function schedulePostServiceReminders(
     await db.insert(appointmentReminders).values({
       bookingId,
       type: r.type,
+      scheduledFor: r.scheduledFor,
       status: "pending",
     });
   }
@@ -133,16 +151,22 @@ export async function processScheduledSms() {
   let sent = 0;
   let failed = 0;
 
-  // Get all pending reminders that are due
-  const dueReminders = await db
-    .select()
-    .from(appointmentReminders)
+  // Atomically claim pending reminders by marking them "processing" first.
+  // This prevents duplicate SMS if two scheduler runs overlap.
+  await db.update(appointmentReminders)
+    .set({ status: "processing" })
     .where(
       and(
         eq(appointmentReminders.status, "pending"),
-        isNull(appointmentReminders.sentAt)
+        isNull(appointmentReminders.sentAt),
+        lte(appointmentReminders.scheduledFor, now)
       )
-    )
+    );
+
+  const dueReminders = await db
+    .select()
+    .from(appointmentReminders)
+    .where(eq(appointmentReminders.status, "processing"))
     .limit(50);
 
   for (const reminder of dueReminders) {
@@ -160,6 +184,22 @@ export async function processScheduledSms() {
       continue;
     }
 
+    // Respect SMS opt-out (skip marketing messages, allow transactional)
+    const isMarketing = ["review-request", "maintenance-reminder"].includes(reminder.type);
+    if (isMarketing) {
+      const { customers } = await import("../../drizzle/schema");
+      const { like } = await import("drizzle-orm");
+      const normalized = booking.phone.replace(/\D/g, "").slice(-10);
+      const [cust] = await db.select({ smsOptOut: customers.smsOptOut })
+        .from(customers).where(like(customers.phone, `%${normalized}`)).limit(1);
+      if (cust?.smsOptOut) {
+        await db.update(appointmentReminders)
+          .set({ status: "cancelled" })
+          .where(eq(appointmentReminders.id, reminder.id));
+        continue;
+      }
+    }
+
     // Skip if booking was cancelled
     if (booking.status === "cancelled") {
       await db.update(appointmentReminders)
@@ -171,6 +211,18 @@ export async function processScheduledSms() {
     const vehicle = [booking.vehicleYear, booking.vehicleMake, booking.vehicleModel]
       .filter(Boolean)
       .join(" ");
+
+    // Check feature flags for each reminder type
+    const { isEnabled } = await import("./featureFlags");
+    if ((reminder.type === "24h-before" || reminder.type === "1h-before") && !(await isEnabled("sms_appointment_reminders"))) {
+      continue; // Skip — flag disabled
+    }
+    if (reminder.type === "review-request" && !(await isEnabled("sms_review_requests"))) {
+      continue;
+    }
+    if (reminder.type === "maintenance-reminder" && !(await isEnabled("predictive_maintenance_alerts"))) {
+      continue;
+    }
 
     // Generate message based on type
     let message: string;

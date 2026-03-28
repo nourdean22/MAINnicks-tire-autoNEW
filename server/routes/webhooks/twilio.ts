@@ -9,9 +9,13 @@ import { Router, type Request, type Response } from "express";
 import { createLogger } from "../../lib/logger";
 import { parseSmsResponse, executeAutoAction } from "../../services/smsResponseParser";
 import { generateGreetingTwiML, generateResponseTwiML } from "../../services/aiReceptionist";
+import { validateTwilioRequest } from "../../middleware/twilioValidation";
 
 const log = createLogger("twilio-webhooks");
 const router = Router();
+
+// Apply Twilio signature validation to all routes in this router
+router.use(validateTwilioRequest);
 
 // ─── Inbound SMS ────────────────────────────────
 router.post("/api/v1/webhooks/twilio/incoming-sms", async (req: Request, res: Response) => {
@@ -91,7 +95,9 @@ async function logInboundSms(phone: string, body: string, intent: string): Promi
       body: body.slice(0, 5000),
       metadata: { parsedIntent: intent },
     });
-  } catch {}
+  } catch (err) {
+    console.warn("[twilio] Failed to log inbound SMS:", err instanceof Error ? err.message : err);
+  }
 }
 
 export { router as twilioWebhookRouter };

@@ -80,11 +80,12 @@ function isBanned(ip: string): boolean {
 }
 
 // ─── Scanning ──────────────────────────────────────────
-function scanValue(value: unknown): string | null {
+function scanValue(value: unknown, depth = 0): string | null {
+  if (depth > 10) return null; // Prevent stack overflow from deeply nested payloads
   if (typeof value !== "string") {
     if (typeof value === "object" && value !== null) {
       for (const v of Object.values(value)) {
-        const result = scanValue(v);
+        const result = scanValue(v, depth + 1);
         if (result) return result;
       }
     }

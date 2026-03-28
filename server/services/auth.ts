@@ -7,14 +7,15 @@
 import { eq, and, gt, desc, like } from "drizzle-orm";
 import type { JWTPayload } from "jose";
 import { createLogger } from "../lib/logger";
-import { randomUUID } from "crypto";
+import { randomUUID, randomInt } from "crypto";
 
 const log = createLogger("auth");
 
-const JWT_SECRET_DEFAULT = "nicks-tire-dev-secret-change-in-production";
-
 function getJwtSecret(): Uint8Array {
-  const secret = process.env.JWT_SECRET || JWT_SECRET_DEFAULT;
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error("JWT_SECRET environment variable is required — refusing to use insecure fallback");
+  }
   return new TextEncoder().encode(secret);
 }
 
@@ -27,7 +28,7 @@ export async function requestOTP(phone: string): Promise<{ success: boolean; err
     return { success: false, error: "Invalid phone number" };
   }
 
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const code = randomInt(100000, 999999).toString();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
   try {

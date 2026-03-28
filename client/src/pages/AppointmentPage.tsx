@@ -203,7 +203,7 @@ export default function AppointmentPage() {
       setSubmitting(true);
       setError("");
       try {
-        const res = await fetch("https://autonicks.com/api/appointments", {
+        const res = await fetch("/api/nour-os/appointments", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(form),

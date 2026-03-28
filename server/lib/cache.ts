@@ -10,6 +10,7 @@ const log = createLogger("cache");
 
 // ─── In-memory fallback cache ───────────────────
 const memCache = new Map<string, { value: string; expiresAt: number }>();
+const MAX_MEM_CACHE_ENTRIES = 5000;
 
 let redisClient: {
   get(key: string): Promise<string | null>;
@@ -76,7 +77,17 @@ export async function cacheSet(key: string, value: unknown, ttlSeconds: number =
       return;
     }
 
-    // In-memory fallback
+    // In-memory fallback — evict expired entries if at capacity
+    if (memCache.size >= MAX_MEM_CACHE_ENTRIES) {
+      cleanupMemCache();
+      // If still over cap after cleanup, evict oldest entries
+      if (memCache.size >= MAX_MEM_CACHE_ENTRIES) {
+        const entries = Array.from(memCache.entries())
+          .sort((a, b) => a[1].expiresAt - b[1].expiresAt);
+        const toRemove = memCache.size - Math.floor(MAX_MEM_CACHE_ENTRIES * 0.8);
+        for (let i = 0; i < toRemove; i++) memCache.delete(entries[i][0]);
+      }
+    }
     memCache.set(key, { value: serialized, expiresAt: Date.now() + ttlSeconds * 1000 });
   } catch {
     // Silent failure — caching is best-effort

@@ -62,6 +62,28 @@ export function registerSSERoutes(router: Router): void {
   });
 }
 
+// ─── Periodic heartbeat + stale connection cleanup ──
+// Send a heartbeat comment every 30s. Dead connections will throw on write,
+// triggering cleanup. Also caps orderClients at 500 entries.
+setInterval(() => {
+  const heartbeat = `:heartbeat ${Date.now()}\n\n`;
+  adminClients.forEach((client) => {
+    try { client.write(heartbeat); } catch { adminClients.delete(client); }
+  });
+  for (const [orderId, clients] of orderClients) {
+    clients.forEach((client) => {
+      try { client.write(heartbeat); } catch { clients.delete(client); }
+    });
+    if (clients.size === 0) orderClients.delete(orderId);
+  }
+  // Hard cap: if orderClients grows beyond 500 keys, drop oldest
+  if (orderClients.size > 500) {
+    const excess = orderClients.size - 500;
+    const keys = Array.from(orderClients.keys());
+    for (let i = 0; i < excess; i++) orderClients.delete(keys[i]);
+  }
+}, 30_000);
+
 // ─── Emit functions (called by other services) ──
 
 export function emitToAdmin(event: string, data: unknown): void {

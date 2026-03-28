@@ -114,6 +114,32 @@ export async function notify(params: NotifyParams): Promise<void> {
 
     // Send SMS to customer
     if (params.phone) {
+      // Check opt-out for marketing message types
+      const marketingTypes: NotificationType[] = [
+        "review-request", "retention-90day", "retention-180day", "retention-365day",
+        "referral-credit", "special-offer", "warranty-expiring", "welcome",
+      ];
+      if (marketingTypes.includes(params.type)) {
+        try {
+          const { getDb } = await import("../db");
+          const { customers } = await import("../../drizzle/schema");
+          const { like } = await import("drizzle-orm");
+          const d = await getDb();
+          if (d) {
+            const normalized = params.phone.replace(/\D/g, "").slice(-10);
+            const [cust] = await d.select({ smsOptOut: customers.smsOptOut })
+              .from(customers).where(like(customers.phone, `%${normalized}`)).limit(1);
+            if (cust?.smsOptOut) {
+              log.info(`Skipped ${params.type} — customer opted out`, { phone: params.phone?.slice(-4) });
+              return;
+            }
+          }
+        } catch (err) {
+          log.error("Opt-out check failed, skipping send as precaution", { error: String(err) });
+          return;
+        }
+      }
+
       const body = template(templateData);
       await sendSms(params.phone, body);
       log.info(`Notification sent: ${params.type}`, { phone: params.phone?.slice(-4) });

@@ -29,7 +29,7 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
   {
     slug: "brake-repair-cleveland",
     metaTitle: "Brake Repair Cleveland OH | Pads, Rotors, ABS | Nick's Tire & Auto",
-    metaDescription: "Expert brake repair in Cleveland. Brake pads, rotors, calipers, ABS diagnostics, and brake fluid service. Honest diagnosis before any repair. Call (216) 862-0005.",
+    metaDescription: "Expert brake repair in Cleveland. Brake pads, rotors, calipers, ABS diagnostics, and brake fluid service. Honest diagnosis before any repair.",
     heroHeadline: "BRAKE REPAIR\nIN CLEVELAND",
     heroSubline: "Squealing, grinding, or a soft brake pedal all point to brake components that need attention. Our technicians inspect the entire braking system, show you the worn parts, and explain your options before any work begins.",
     category: "service",
@@ -85,7 +85,7 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
   {
     slug: "check-engine-light-cleveland",
     metaTitle: "Check Engine Light Cleveland OH | OBD-II Diagnostics | Nick's Tire & Auto",
-    metaDescription: "Check engine light on? Our Cleveland technicians use advanced OBD-II diagnostics to find the exact cause. No guesswork, no unnecessary repairs. Call (216) 862-0005.",
+    metaDescription: "Check engine light on? Our Cleveland technicians use advanced OBD-II diagnostics to find the exact cause. No guesswork, no unnecessary repairs.",
     heroHeadline: "CHECK ENGINE LIGHT\nDIAGNOSTICS",
     heroSubline: "A check engine light can mean anything from a loose gas cap to a failing catalytic converter. We read the codes, run live data tests, and tell you exactly what is wrong before recommending any repair.",
     category: "service",
@@ -193,7 +193,7 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
   {
     slug: "suspension-repair-cleveland",
     metaTitle: "Suspension Repair Cleveland OH | Shocks, Struts, Ball Joints | Nick's Tire & Auto",
-    metaDescription: "Suspension repair in Cleveland. Shocks, struts, ball joints, tie rods, control arms, and alignment. Cleveland roads are tough — we keep your ride smooth. Call (216) 862-0005.",
+    metaDescription: "Suspension repair in Cleveland. Shocks, struts, ball joints, tie rods, control arms, and alignment. Cleveland roads are tough — we keep your ride smooth.",
     heroHeadline: "SUSPENSION REPAIR\nFOR CLEVELAND ROADS",
     heroSubline: "Cleveland potholes, frost heaves, and rough roads take a toll on suspension components. When your ride feels loose, bouncy, or unstable, our technicians inspect every component and restore safe handling.",
     category: "service",
@@ -376,7 +376,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
     slug: "toyota-repair-cleveland",
     make: "Toyota",
     metaTitle: "Toyota Repair Cleveland OH | Camry, Corolla, RAV4 | Nick's Tire & Auto",
-    metaDescription: "Toyota repair specialists in Cleveland. Camry, Corolla, RAV4, Highlander, Tacoma service and repair. Factory-quality work at independent shop prices. Call (216) 862-0005.",
+    metaDescription: "Toyota repair specialists in Cleveland. Camry, Corolla, RAV4, Highlander, Tacoma service and repair. Factory-quality work at independent shop prices.",
     heroHeadline: "TOYOTA REPAIR\nIN CLEVELAND",
     heroSubline: "Toyotas are built to last, but they still need proper maintenance and occasional repairs. Our technicians know Toyota systems inside and out and use quality parts to keep your vehicle running the way Toyota intended.",
     intro: "Toyota vehicles are among the most popular on Cleveland roads. We service all Toyota models including Camry, Corolla, RAV4, Highlander, Tacoma, Tundra, 4Runner, Prius, and Sienna. Whether you need routine maintenance like oil changes and brake pads, or more complex repairs like timing chain replacement or hybrid battery service, we have the tools and experience to do the job right at a fraction of dealership prices.",
@@ -630,7 +630,7 @@ export const PROBLEM_PAGES: ProblemPage[] = [
   {
     slug: "car-shaking-while-driving",
     metaTitle: "Car Shaking While Driving? | Causes & Repair | Nick's Tire & Auto Cleveland",
-    metaDescription: "Car vibrating or shaking while driving? Common causes include tire balance, brake rotors, suspension wear, and drivetrain problems. Diagnosis in Cleveland. Call (216) 862-0005.",
+    metaDescription: "Car vibrating or shaking while driving? Common causes include tire balance, brake rotors, suspension wear, and drivetrain problems. Diagnosis in Cleveland.",
     heroHeadline: "CAR SHAKING\nWHILE DRIVING?",
     heroSubline: "A vibration or shake while driving is your vehicle telling you something needs attention. The cause depends on when it happens — at highway speed, during braking, or at all times. We diagnose the exact source.",
     problemDescription: "Vehicle vibration is one of the most common complaints we hear. It can range from a slight shimmy in the steering wheel to a violent shake that makes the whole vehicle feel unstable. The key to diagnosing vibration is understanding when it occurs: only at certain speeds, only when braking, only when accelerating, or all the time. Each pattern points to different components.",
@@ -746,7 +746,7 @@ export const PROBLEM_PAGES: ProblemPage[] = [
   {
     slug: "steering-wheel-shaking",
     metaTitle: "Steering Wheel Shaking? | Causes & Repair | Nick's Tire & Auto Cleveland",
-    metaDescription: "Steering wheel vibrating or shaking? Causes include tire balance, warped rotors, worn suspension, and alignment problems. Diagnosis in Cleveland. Call (216) 862-0005.",
+    metaDescription: "Steering wheel vibrating or shaking? Causes include tire balance, warped rotors, worn suspension, and alignment problems. Diagnosis in Cleveland.",
     heroHeadline: "STEERING WHEEL\nSHAKING?",
     heroSubline: "A shaking steering wheel is not just annoying — it is a warning sign. The speed at which it shakes and whether it happens during braking tells us exactly where to look.",
     problemDescription: "Steering wheel vibration is a symptom that drivers notice immediately because they feel it through their hands. The pattern of the vibration provides critical diagnostic information. Shaking at highway speeds (55-70 mph) that goes away at lower speeds usually points to tire balance or tire condition. Shaking only when braking indicates warped brake rotors. Constant vibration at all speeds suggests a bent wheel, damaged tire, or worn suspension component.",
@@ -770,7 +770,7 @@ export const PROBLEM_PAGES: ProblemPage[] = [
   {
     slug: "car-pulling-to-one-side",
     metaTitle: "Car Pulling to One Side? | Causes & Repair | Nick's Tire & Auto Cleveland",
-    metaDescription: "Car pulling left or right while driving? Causes include alignment, tire pressure, brake drag, and suspension wear. Expert diagnosis in Cleveland. Call (216) 862-0005.",
+    metaDescription: "Car pulling left or right while driving? Causes include alignment, tire pressure, brake drag, and suspension wear. Expert diagnosis in Cleveland.",
     heroHeadline: "CAR PULLING\nTO ONE SIDE?",
     heroSubline: "If your vehicle drifts left or right when you let go of the steering wheel, something is causing uneven forces on your tires. We identify and correct the cause.",
     problemDescription: "A vehicle that pulls to one side is not just inconvenient — it causes uneven tire wear and can indicate a safety issue. The pull can be constant, intermittent, or only during braking. Each pattern has different causes. A constant pull usually relates to alignment or tire pressure. Pulling only during braking indicates a brake problem. A pull that appeared suddenly after hitting a pothole suggests bent suspension components.",
@@ -818,7 +818,7 @@ export const PROBLEM_PAGES: ProblemPage[] = [
   {
     slug: "ac-not-blowing-cold",
     metaTitle: "AC Not Blowing Cold? | Causes & Repair | Nick's Tire & Auto Cleveland",
-    metaDescription: "Car AC not blowing cold air? Causes include low refrigerant, compressor failure, and electrical problems. AC diagnosis and repair in Cleveland. Call (216) 862-0005.",
+    metaDescription: "Car AC not blowing cold air? Causes include low refrigerant, compressor failure, and electrical problems. AC diagnosis and repair in Cleveland.",
     heroHeadline: "AC NOT\nBLOWING COLD?",
     heroSubline: "When your AC stops cooling, Cleveland summers become miserable. We diagnose the exact cause — from simple refrigerant recharge to compressor replacement — and fix it right.",
     problemDescription: "Your vehicle's air conditioning system is a sealed loop that circulates refrigerant through a compressor, condenser, and evaporator. When any component in this loop fails or refrigerant leaks out, the system cannot cool the air. The most common symptom is air that blows but is not cold, or air that starts cold and gradually warms up. Some AC problems are inexpensive to fix while others require major component replacement.",
@@ -842,7 +842,7 @@ export const PROBLEM_PAGES: ProblemPage[] = [
   {
     slug: "battery-keeps-dying",
     metaTitle: "Car Battery Keeps Dying? | Causes & Repair | Nick's Tire & Auto Cleveland",
-    metaDescription: "Car battery keeps dying or going dead? Causes include bad alternator, parasitic drain, and old battery. Expert electrical diagnosis in Cleveland. Call (216) 862-0005.",
+    metaDescription: "Car battery keeps dying or going dead? Causes include bad alternator, parasitic drain, and old battery. Expert electrical diagnosis in Cleveland.",
     heroHeadline: "BATTERY KEEPS\nDYING?",
     heroSubline: "If your battery keeps going dead, something is either draining it or not charging it. We test the entire electrical system to find the exact cause.",
     problemDescription: "A battery that repeatedly dies is one of the most frustrating vehicle problems because it leaves you stranded. The cause is always one of three things: the battery itself is failing, the charging system is not keeping it charged, or something is draining it when the vehicle is off (parasitic drain). Each requires different testing to diagnose. Simply replacing the battery without finding the root cause often leads to the same problem with the new battery.",
@@ -866,7 +866,7 @@ export const PROBLEM_PAGES: ProblemPage[] = [
   {
     slug: "oil-leak-under-car",
     metaTitle: "Oil Leak Under Car? | Causes & Repair | Nick's Tire & Auto Cleveland",
-    metaDescription: "Oil puddle or stain under your car? Could be valve cover gasket, oil pan gasket, rear main seal, or oil filter. Expert leak diagnosis in Cleveland. Call (216) 862-0005.",
+    metaDescription: "Oil puddle or stain under your car? Could be valve cover gasket, oil pan gasket, rear main seal, or oil filter. Expert leak diagnosis in Cleveland.",
     heroHeadline: "OIL LEAK\nUNDER YOUR CAR?",
     heroSubline: "An oil spot under your vehicle is more than a driveway stain — it is a warning. Oil leaks get worse over time, never better. Left unchecked, they lead to low oil levels, engine overheating, and eventually catastrophic engine damage.",
     problemDescription: "Oil leaks are extremely common, especially on vehicles with higher mileage. Gaskets and seals harden and shrink over time, allowing oil to seep past. The severity ranges from a minor seep that leaves a few drops on your driveway to a significant leak that requires checking oil level every few days. The color of the fluid helps identify it — engine oil is typically brown or black, transmission fluid is red or pink, and power steering fluid is clear or light brown. The location of the puddle under the vehicle also helps narrow down the source.",

@@ -51,6 +51,10 @@ export async function processWarrantyAlerts(): Promise<{ recordsProcessed: numbe
         .limit(1);
 
       if (!customer?.phone) continue;
+      if (customer.smsOptOut) {
+        await db.update(warranties).set({ reminderSent: true }).where(eq(warranties.id, w.id));
+        continue;
+      }
 
       const firstName = customer.firstName || "there";
       const message = `Hi ${firstName}, your warranty on ${w.serviceDescription || "your service"} at Nick's Tire & Auto expires on ${w.expiresAt}. Schedule a check before it's up: (216) 862-0005`;

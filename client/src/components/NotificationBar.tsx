@@ -335,15 +335,17 @@ export default function NotificationBar() {
 
   // Check if dismissed in last 24 hours
   useEffect(() => {
-    const dismissedAt = localStorage.getItem("nicks-notif-dismissed");
-    if (dismissedAt) {
-      const elapsed = Date.now() - parseInt(dismissedAt, 10);
-      if (elapsed < 24 * 60 * 60 * 1000) {
-        setDismissed(true);
-      } else {
-        localStorage.removeItem("nicks-notif-dismissed");
+    try {
+      const dismissedAt = localStorage.getItem("nicks-notif-dismissed");
+      if (dismissedAt) {
+        const elapsed = Date.now() - parseInt(dismissedAt, 10);
+        if (elapsed < 24 * 60 * 60 * 1000) {
+          setDismissed(true);
+        } else {
+          localStorage.removeItem("nicks-notif-dismissed");
+        }
       }
-    }
+    } catch {}
   }, []);
 
   // Auto-rotate every 8 seconds
@@ -357,7 +359,7 @@ export default function NotificationBar() {
 
   const handleDismiss = useCallback(() => {
     setDismissed(true);
-    localStorage.setItem("nicks-notif-dismissed", Date.now().toString());
+    try { localStorage.setItem("nicks-notif-dismissed", Date.now().toString()); } catch {}
   }, []);
 
   if (dismissed || activeNotifications.length === 0) return null;
