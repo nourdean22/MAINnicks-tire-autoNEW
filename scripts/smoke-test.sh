@@ -91,8 +91,14 @@ echo ""
 echo "── Auth Gates (expect 403 without session) ──"
 check_status "getOverview (no auth)" "$BASE/api/trpc/controlCenter.getOverview" "403"
 check_status "getDailyBrief (no auth)" "$BASE/api/trpc/controlCenter.getDailyBrief" "403"
-# toggleHabit is a mutation (POST) — GET returns 405, which is correct behavior
+check_status "getRepoActivity (no auth)" "$BASE/api/trpc/controlCenter.getRepoActivity" "403"
+check_status "getSourceStatus (no auth)" "$BASE/api/trpc/controlCenter.getSourceStatus" "403"
+check_status "getYesterday (no auth)" "$BASE/api/trpc/controlCenter.getYesterday" "403"
+# Mutations — GET returns 405 (correct behavior)
 check_status "toggleHabit mutation (GET→405)" "$BASE/api/trpc/controlCenter.toggleHabit" "405"
+check_status "logAction mutation (GET→405)" "$BASE/api/trpc/controlCenter.logAction" "405"
+check_status "closeDay mutation (GET→405)" "$BASE/api/trpc/controlCenter.closeDay" "405"
+check_status "setMission mutation (GET→405)" "$BASE/api/trpc/controlCenter.setMission" "405"
 
 
 # ─── PWA ───
