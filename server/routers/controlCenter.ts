@@ -19,14 +19,32 @@ function getTodayET(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
-// Fixed non-negotiable habits (defined in code, not DB)
+// ─── Domain Constants (single source of truth for thresholds) ───
 const NON_NEGOTIABLES = [
   { key: "wake", label: "Wake by 6:30 AM" },
   { key: "workout", label: "Workout / Movement" },
   { key: "business_action", label: "One Business Action" },
   { key: "clean_space", label: "Clean Space" },
   { key: "no_social_am", label: "No Social Before Noon" },
-];
+] as const;
+
+const THRESHOLDS = {
+  // Execution status
+  ON_TRACK_MIN: 80,       // ≥80% = on_track
+  DRIFTING_MIN: 40,       // ≥40% = drifting, <40% = off_track
+  // Drift signals
+  STALE_LEADS_WARN: 3,    // >3 stale leads triggers drift signal
+  STALE_QUOTES_WARN: 5,   // >5 stale quotes triggers drift signal
+  CALLBACKS_WARN: 3,      // >3 pending callbacks triggers drift signal
+  COMPLETION_WARN: 60,    // <60% completion triggers drift signal
+  // Operating mode
+  RECOVERY_REVENUE_MIN: 5, // ≥5 overdue revenue items + off_track = recovery
+  MVD_SCORE_MAX: 40,      // <40% mid-day = minimum viable day
+  CLEAR_SCORE_MIN: 80,    // ≥80% + no revenue = clear
+  // Time
+  BUSINESS_DAY_END: 21,   // 9pm ET = end of business day
+  STREAK_LOOKBACK_DAYS: 30,
+} as const;
 
 export const controlCenterRouter = router({
   getOverview: adminProcedure.query(async () => {
@@ -318,7 +336,7 @@ export const controlCenterRouter = router({
         ]);
 
         // Parallel reads: execution + habits + streak (was 3 sequential)
-        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+        const thirtyDaysAgo = new Date(now.getTime() - THRESHOLDS.STREAK_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
           .toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
         const [execRows, todayHabits, streakRows] = await Promise.all([
@@ -349,9 +367,9 @@ export const controlCenterRouter = router({
         const completedCount = execution.nonNegotiables.filter((h) => h.completed).length;
         execution.completionScore = Math.round((completedCount / NON_NEGOTIABLES.length) * 100);
 
-        if (execution.completionScore >= 80) {
+        if (execution.completionScore >= THRESHOLDS.ON_TRACK_MIN) {
           execution.status = "on_track";
-        } else if (execution.completionScore >= 40) {
+        } else if (execution.completionScore >= THRESHOLDS.DRIFTING_MIN) {
           execution.status = "drifting";
         } else {
           execution.status = "off_track";
@@ -373,16 +391,16 @@ export const controlCenterRouter = router({
     // ─── Drift Indicator ─────────────────────────────────
     const signals: string[] = [];
 
-    if (revenueWaiting.staleLeadsCount > 3) {
+    if (revenueWaiting.staleLeadsCount > THRESHOLDS.STALE_LEADS_WARN) {
       signals.push("Leads going cold");
     }
-    if (execution.completionScore < 60) {
+    if (execution.completionScore < THRESHOLDS.COMPLETION_WARN) {
       signals.push("Non-negotiables slipping");
     }
-    if (revenueWaiting.staleQuotesCount > 5) {
+    if (revenueWaiting.staleQuotesCount > THRESHOLDS.STALE_QUOTES_WARN) {
       signals.push("Quotes dying on the vine");
     }
-    if (revenueWaiting.pendingCallbacks > 3) {
+    if (revenueWaiting.pendingCallbacks > THRESHOLDS.CALLBACKS_WARN) {
       signals.push("Callbacks piling up");
     }
 
@@ -421,19 +439,18 @@ export const controlCenterRouter = router({
       greeting = "Day's over. Rest. Reset.";
     }
 
-    const hoursLeft = Math.max(0, 21 - etHour);
+    const hoursLeft = Math.max(0, THRESHOLDS.BUSINESS_DAY_END - etHour);
 
-    // ─── Operating Mode ───────────────────────────────────
-    // Governs what the client shows and hides
+    // ─── Operating Mode (derived from thresholds) ─────────
     const totalRevenue = revenueWaiting.staleLeadsCount + revenueWaiting.staleQuotesCount + revenueWaiting.pendingCallbacks;
     let mode: "fire" | "recovery" | "mvd" | "normal" | "clear" = "normal";
 
-    if (driftStatus === "off_track" && totalRevenue > 5) {
-      mode = "recovery"; // too many things overdue — triage mode
-    } else if (score < 40 && period !== "morning" && period !== "night") {
-      mode = "mvd"; // falling behind mid-day — minimum viable day
-    } else if (totalRevenue === 0 && score >= 80) {
-      mode = "clear"; // nothing urgent, execution strong
+    if (driftStatus === "off_track" && totalRevenue >= THRESHOLDS.RECOVERY_REVENUE_MIN) {
+      mode = "recovery";
+    } else if (score < THRESHOLDS.MVD_SCORE_MAX && period !== "morning" && period !== "night") {
+      mode = "mvd";
+    } else if (totalRevenue === 0 && score >= THRESHOLDS.CLEAR_SCORE_MIN) {
+      mode = "clear";
     }
     // "fire" is determined client-side from urgentItems priority
 
@@ -538,7 +555,7 @@ export const controlCenterRouter = router({
       const total = habits.length || 1;
       const score = Math.round((completed / total) * 100);
 
-      const status = score >= 80 ? "on_track" : score >= 40 ? "drifting" : "off_track";
+      const status = score >= THRESHOLDS.ON_TRACK_MIN ? "on_track" : score >= THRESHOLDS.DRIFTING_MIN ? "drifting" : "off_track";
 
       await d.execute(
         sql`UPDATE daily_execution SET status = ${status} WHERE date = ${today}`
