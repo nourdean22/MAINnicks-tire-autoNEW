@@ -107,6 +107,24 @@ async function startServer() {
     await healthHandler(_req, res);
   });
 
+  // ─── Cron trigger endpoint (called by Railway worker) ──
+  app.post("/api/cron/:jobName", express.json(), async (req, res) => {
+    const cronSecret = process.env.CRON_SECRET;
+    if (cronSecret && req.headers["x-cron-secret"] !== cronSecret) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const { jobName } = req.params;
+    try {
+      const { registerAllJobs } = await import("../cron/index");
+      const { runJobByName } = await import("../cron/index");
+      const result = await runJobByName(jobName);
+      res.json({ job: jobName, ...result });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      res.status(500).json({ error: msg });
+    }
+  });
+
   app.get("/api/ready", async (_req, res) => {
     try {
       const { getDb } = await import("../db");
@@ -406,10 +424,14 @@ async function startServer() {
     initCache();
   }).catch(() => { /* Cache init not critical */ });
 
-  // ─── Start cron job system ──
-  import("../cron/index").then(({ startAllJobs }) => {
-    startAllJobs();
-  }).catch(() => { /* Cron start not critical */ });
+  // ─── Start cron job system (skip if Railway worker handles it) ──
+  if (!process.env.CRON_EXTERNAL) {
+    import("../cron/index").then(({ startAllJobs }) => {
+      startAllJobs();
+    }).catch(() => { /* Cron start not critical */ });
+  } else {
+    console.log("[Cron] External worker mode — in-process cron disabled");
+  }
 
   const preferredPort = parseInt(process.env.PORT || "3000");
   const port = await findAvailablePort(preferredPort);
@@ -429,12 +451,7 @@ async function startServer() {
       console.warn("[SMS Scheduler] Failed to start:", err.message);
     });
 
-    // Start cron jobs
-    import("../cron/index").then(({ startAllJobs }) => {
-      startAllJobs();
-    }).catch((err) => {
-      console.warn("[Cron] Failed to start:", err.message);
-    });
+    // Cron jobs already started above (or disabled if CRON_EXTERNAL is set)
 
     // Seed feature flags (idempotent — skips existing)
     import("../services/featureFlags").then(({ seedFlags }) => {

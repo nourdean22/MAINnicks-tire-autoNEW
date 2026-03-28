@@ -114,6 +114,27 @@ export function getJobStatuses(): Array<{ name: string; enabled: boolean; interv
   }));
 }
 
+/** Run a single job by name (used by Railway cron worker HTTP trigger) */
+export async function runJobByName(jobName: string): Promise<{ status: string; recordsProcessed?: number; details?: string }> {
+  registerAllJobs();
+  const job = registeredJobs.get(jobName);
+  if (!job) {
+    return { status: "not_found", details: `Job "${jobName}" not found. Available: ${[...registeredJobs.keys()].join(", ")}` };
+  }
+  const startedAt = Date.now();
+  try {
+    const result = await job.handler();
+    const durationMs = Date.now() - startedAt;
+    logCronRun(job.name, "completed", durationMs, result.recordsProcessed, result.details).catch(() => {});
+    return { status: "completed", recordsProcessed: result.recordsProcessed, details: result.details };
+  } catch (err) {
+    const durationMs = Date.now() - startedAt;
+    const error = err instanceof Error ? err.message : String(err);
+    logCronRun(job.name, "failed", durationMs, 0, error).catch(() => {});
+    return { status: "failed", details: error };
+  }
+}
+
 /** Register all cron jobs — called from startAllJobs or server startup */
 export function registerAllJobs(): void {
   // Appointment reminders (every 5 min — sms-scheduler handles timing)
