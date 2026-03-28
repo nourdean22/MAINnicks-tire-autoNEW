@@ -40,35 +40,21 @@ export const controlCenterRouter = router({
     let todayStats = { leadsToday: 0, quotesToday: 0, bookingsToday: 0, callbacksPending: 0 };
 
     if (d) {
-      const [leadsToday] = await d
-        .select({ count: sql<number>`count(*)` })
-        .from(leads)
-        .where(gte(leads.createdAt, todayStart));
-
-      const [bookingsToday] = await d
-        .select({ count: sql<number>`count(*)` })
-        .from(bookings)
-        .where(gte(bookings.createdAt, todayStart));
-
-      const [callbacksPending] = await d
-        .select({ count: sql<number>`count(*)` })
-        .from(callbackRequests)
-        .where(eq(callbackRequests.status, "new"));
-
-      // "Quotes" = leads with status contacted or booked (in pipeline)
-      const [quotesToday] = await d
-        .select({ count: sql<number>`count(*)` })
-        .from(leads)
-        .where(and(
-          gte(leads.createdAt, todayStart),
-          sql`${leads.status} IN ('contacted', 'booked')`
-        ));
+      // Parallel stat queries (was 4 serial)
+      const [leadsTodayArr, bookingsTodayArr, callbacksArr, quotesTodayArr] = await Promise.all([
+        d.select({ count: sql<number>`count(*)` }).from(leads).where(gte(leads.createdAt, todayStart)),
+        d.select({ count: sql<number>`count(*)` }).from(bookings).where(gte(bookings.createdAt, todayStart)),
+        d.select({ count: sql<number>`count(*)` }).from(callbackRequests).where(eq(callbackRequests.status, "new")),
+        d.select({ count: sql<number>`count(*)` }).from(leads).where(and(
+          gte(leads.createdAt, todayStart), sql`${leads.status} IN ('contacted', 'booked')`
+        )),
+      ]);
 
       todayStats = {
-        leadsToday: leadsToday?.count ?? 0,
-        quotesToday: quotesToday?.count ?? 0,
-        bookingsToday: bookingsToday?.count ?? 0,
-        callbacksPending: callbacksPending?.count ?? 0,
+        leadsToday: leadsTodayArr[0]?.count ?? 0,
+        quotesToday: quotesTodayArr[0]?.count ?? 0,
+        bookingsToday: bookingsTodayArr[0]?.count ?? 0,
+        callbacksPending: callbacksArr[0]?.count ?? 0,
       };
     }
 
@@ -140,86 +126,58 @@ export const controlCenterRouter = router({
     }> = [];
 
     if (d) {
-      // Leads with no response in 24h
-      const [staleLeads] = await d
-        .select({ count: sql<number>`count(*)` })
-        .from(leads)
-        .where(and(
-          eq(leads.status, "new"),
-          sql`${leads.createdAt} < ${yesterday}`
-        ));
-      if ((staleLeads?.count ?? 0) > 0) {
+      const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+
+      // Parallel urgent item queries (was 4 serial)
+      const [staleLeadsArr, staleQuotesArr, failedSmsArr, newLeadsTodayArr] = await Promise.all([
+        d.select({ count: sql<number>`count(*)` }).from(leads)
+          .where(and(eq(leads.status, "new"), sql`${leads.createdAt} < ${yesterday}`)),
+        d.select({ count: sql<number>`count(*)` }).from(leads)
+          .where(and(eq(leads.status, "contacted"), sql`${leads.createdAt} < ${twoDaysAgo}`)),
+        d.select({ count: sql<number>`count(*)` }).from(smsMessages)
+          .where(and(eq(smsMessages.status, "failed"), gte(smsMessages.createdAt, yesterday)))
+          .catch(() => [{ count: 0 }]),
+        d.select({ count: sql<number>`count(*)` }).from(leads)
+          .where(and(eq(leads.status, "new"), gte(leads.createdAt, todayStart))),
+      ]);
+
+      const staleLeadsCount = staleLeadsArr[0]?.count ?? 0;
+      const staleQuotesCount = staleQuotesArr[0]?.count ?? 0;
+      const failedSmsCount = failedSmsArr[0]?.count ?? 0;
+      const newLeadsTodayCount = newLeadsTodayArr[0]?.count ?? 0;
+
+      if (staleLeadsCount > 0) {
         urgentItems.push({
           type: "lead",
-          message: `${staleLeads!.count} lead${staleLeads!.count > 1 ? "s" : ""} with no response in 24h`,
-          action: "/admin#leads",
-          priority: "high",
+          message: `${staleLeadsCount} lead${staleLeadsCount > 1 ? "s" : ""} with no response in 24h`,
+          action: "/admin#leads", priority: "high",
         });
       }
-
-      // Pending callbacks
       if (todayStats.callbacksPending > 0) {
         urgentItems.push({
           type: "callback",
           message: `${todayStats.callbacksPending} callback${todayStats.callbacksPending > 1 ? "s" : ""} pending`,
-          action: "/admin#bookings",
-          priority: "high",
+          action: "/admin#bookings", priority: "high",
         });
       }
-
-      // Stale quotes — contacted leads older than 48h not yet booked
-      const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
-      const [staleQuotes] = await d
-        .select({ count: sql<number>`count(*)` })
-        .from(leads)
-        .where(and(
-          eq(leads.status, "contacted"),
-          sql`${leads.createdAt} < ${twoDaysAgo}`
-        ));
-      if ((staleQuotes?.count ?? 0) > 0) {
+      if (staleQuotesCount > 0) {
         urgentItems.push({
           type: "quote",
-          message: `${staleQuotes!.count} quote${staleQuotes!.count > 1 ? "s" : ""} not followed up (48h+)`,
-          action: "/admin#leads",
-          priority: "medium",
+          message: `${staleQuotesCount} quote${staleQuotesCount > 1 ? "s" : ""} not followed up (48h+)`,
+          action: "/admin#leads", priority: "medium",
         });
       }
-
-      // Failed SMS in last 24h
-      try {
-        const [failedSms] = await d
-          .select({ count: sql<number>`count(*)` })
-          .from(smsMessages)
-          .where(and(
-            eq(smsMessages.status, "failed"),
-            gte(smsMessages.createdAt, yesterday)
-          ));
-        if ((failedSms?.count ?? 0) > 0) {
-          urgentItems.push({
-            type: "sms",
-            message: `${failedSms!.count} failed SMS in last 24h`,
-            action: "/admin#sms",
-            priority: "medium",
-          });
-        }
-      } catch {
-        // SMS table might not exist yet
+      if (failedSmsCount > 0) {
+        urgentItems.push({
+          type: "sms", message: `${failedSmsCount} failed SMS in last 24h`,
+          action: "/admin#sms", priority: "medium",
+        });
       }
-
-      // Unread leads from today
-      const [newLeadsToday] = await d
-        .select({ count: sql<number>`count(*)` })
-        .from(leads)
-        .where(and(
-          eq(leads.status, "new"),
-          gte(leads.createdAt, todayStart)
-        ));
-      if ((newLeadsToday?.count ?? 0) > 0) {
+      if (newLeadsTodayCount > 0) {
         urgentItems.push({
           type: "lead",
-          message: `${newLeadsToday!.count} new lead${newLeadsToday!.count > 1 ? "s" : ""} today — not contacted yet`,
-          action: "/admin#leads",
-          priority: "medium",
+          message: `${newLeadsTodayCount} new lead${newLeadsTodayCount > 1 ? "s" : ""} today — not contacted yet`,
+          action: "/admin#leads", priority: "medium",
         });
       }
     }
@@ -268,55 +226,33 @@ export const controlCenterRouter = router({
     };
 
     if (d) {
-      // Stale leads: new, >24h
-      const [staleLeadsResult] = await d
-        .select({ count: sql<number>`count(*)` })
-        .from(leads)
-        .where(and(
-          eq(leads.status, "new"),
-          sql`${leads.createdAt} < ${yesterday}`
-        ));
-      revenueWaiting.staleLeadsCount = staleLeadsResult?.count ?? 0;
+      // Parallel revenue queries (was 4 serial)
+      const [staleLeadsArr, staleQuotesArr, callbacksArr, topOpps] = await Promise.all([
+        d.select({ count: sql<number>`count(*)` })
+          .from(leads)
+          .where(and(eq(leads.status, "new"), sql`${leads.createdAt} < ${yesterday}`)),
+        d.select({ count: sql<number>`count(*)` })
+          .from(leads)
+          .where(and(eq(leads.status, "contacted"), sql`${leads.createdAt} < ${twoDaysAgo}`)),
+        d.select({ count: sql<number>`count(*)` })
+          .from(callbackRequests)
+          .where(eq(callbackRequests.status, "new")),
+        d.select({
+            id: leads.id, name: leads.name, phone: leads.phone,
+            service: leads.recommendedService, createdAt: leads.createdAt, status: leads.status,
+          })
+          .from(leads)
+          .where(sql`${leads.status} IN ('new', 'contacted')`)
+          .orderBy(sql`FIELD(${leads.status}, 'new', 'contacted')`, leads.createdAt)
+          .limit(5),
+      ]);
 
-      // Stale quotes: contacted, >48h
-      const [staleQuotesResult] = await d
-        .select({ count: sql<number>`count(*)` })
-        .from(leads)
-        .where(and(
-          eq(leads.status, "contacted"),
-          sql`${leads.createdAt} < ${twoDaysAgo}`
-        ));
-      revenueWaiting.staleQuotesCount = staleQuotesResult?.count ?? 0;
-
-      // Pending callbacks
-      const [callbacksResult] = await d
-        .select({ count: sql<number>`count(*)` })
-        .from(callbackRequests)
-        .where(eq(callbackRequests.status, "new"));
-      revenueWaiting.pendingCallbacks = callbacksResult?.count ?? 0;
-
-      // Top 5 opportunities sorted by urgency (new leads first, then by age)
-      const topOpps = await d
-        .select({
-          id: leads.id,
-          name: leads.name,
-          phone: leads.phone,
-          service: leads.recommendedService,
-          createdAt: leads.createdAt,
-          status: leads.status,
-        })
-        .from(leads)
-        .where(sql`${leads.status} IN ('new', 'contacted')`)
-        .orderBy(sql`FIELD(${leads.status}, 'new', 'contacted')`, leads.createdAt)
-        .limit(5);
-
+      revenueWaiting.staleLeadsCount = staleLeadsArr[0]?.count ?? 0;
+      revenueWaiting.staleQuotesCount = staleQuotesArr[0]?.count ?? 0;
+      revenueWaiting.pendingCallbacks = callbacksArr[0]?.count ?? 0;
       revenueWaiting.topOpportunities = topOpps.map((o: typeof topOpps[number]) => ({
-        id: o.id,
-        name: o.name,
-        phone: o.phone,
-        service: o.service ?? "General",
-        createdAt: o.createdAt,
-        status: o.status,
+        id: o.id, name: o.name, phone: o.phone,
+        service: o.service ?? "General", createdAt: o.createdAt, status: o.status,
       }));
 
       // Build topAction from priority: stale leads > pending callbacks > stale quotes > failed SMS
@@ -373,34 +309,33 @@ export const controlCenterRouter = router({
 
     if (d) {
       try {
-        // Ensure today's daily_execution row exists
-        await d.execute(
-          sql`INSERT IGNORE INTO daily_execution (date, status) VALUES (${today}, 'on_track')`
-        );
+        // Batch ensure rows exist (1 write for execution + 1 for all habits instead of 6)
+        const habitValues = NON_NEGOTIABLES.map(h => `('${today}', '${h.key}', 0)`).join(", ");
+        await Promise.all([
+          d.execute(sql`INSERT IGNORE INTO daily_execution (date, status) VALUES (${today}, 'on_track')`),
+          d.execute(sql.raw(`INSERT IGNORE INTO daily_habits (date, habit_key, completed) VALUES ${habitValues}`)),
+        ]);
 
-        // Get today's execution
-        const [todayExec] = await d
-          .select()
-          .from(dailyExecution)
-          .where(sql`${dailyExecution.date} = ${today}`)
-          .limit(1);
+        // Parallel reads: execution + habits + streak (was 3 sequential)
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+          .toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
+        const [execRows, todayHabits, streakRows] = await Promise.all([
+          d.select().from(dailyExecution).where(sql`${dailyExecution.date} = ${today}`).limit(1),
+          d.select().from(dailyHabits).where(sql`${dailyHabits.date} = ${today}`),
+          d.execute(
+            sql`SELECT date, SUM(completed) as done, COUNT(*) as total
+                FROM daily_habits
+                WHERE date >= ${thirtyDaysAgo} AND date < ${today}
+                GROUP BY date
+                ORDER BY date DESC`
+          ),
+        ]);
+
+        const todayExec = execRows[0];
         if (todayExec) {
           execution.mission = todayExec.mission;
         }
-
-        // Ensure all habit rows exist for today
-        for (const habit of NON_NEGOTIABLES) {
-          await d.execute(
-            sql`INSERT IGNORE INTO daily_habits (date, habit_key, completed) VALUES (${today}, ${habit.key}, 0)`
-          );
-        }
-
-        // Get today's habits
-        const todayHabits = await d
-          .select()
-          .from(dailyHabits)
-          .where(sql`${dailyHabits.date} = ${today}`);
 
         const habitMap = new Map(todayHabits.map((h: any) => [h.habit_key ?? h.habitKey, h.completed]));
 
@@ -421,18 +356,7 @@ export const controlCenterRouter = router({
           execution.status = "off_track";
         }
 
-        // Calculate streak: consecutive past days with >=80% completion (single query)
-        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-          .toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-
-        const streakRows = await d.execute(
-          sql`SELECT date, SUM(completed) as done, COUNT(*) as total
-              FROM daily_habits
-              WHERE date >= ${thirtyDaysAgo} AND date < ${today}
-              GROUP BY date
-              ORDER BY date DESC`
-        ) as any[];
-
+        // Streak from parallel query above
         let streak = 0;
         for (const row of (streakRows as any[] ?? [])) {
           const pct = (Number(row.done) / Number(row.total)) * 100;
