@@ -1713,3 +1713,39 @@ export const featureFlags = mysqlTable("feature_flags", {
 }, (table) => [
   index("idx_flag_key").on(table.key),
 ]);
+
+// ─── DAILY EXECUTION TRACKING ───────────────────────────
+/**
+ * Daily execution log — one row per day for mission tracking and status.
+ */
+export const dailyExecution = mysqlTable("daily_execution", {
+  id: int("id").primaryKey().autoincrement(),
+  date: date("date").notNull(),
+  mission: text("mission"),
+  notes: text("notes"),
+  status: mysqlEnum("status", ["on_track", "drifting", "off_track"]).default("on_track").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_daily_date").on(table.date),
+]);
+
+export type DailyExecution = typeof dailyExecution.$inferSelect;
+export type InsertDailyExecution = typeof dailyExecution.$inferInsert;
+
+/**
+ * Daily habit tracking — one row per habit per day.
+ */
+export const dailyHabits = mysqlTable("daily_habits", {
+  id: int("id").primaryKey().autoincrement(),
+  date: date("date").notNull(),
+  habitKey: varchar("habit_key", { length: 50 }).notNull(),
+  completed: boolean("completed").default(false).notNull(),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_habit_date_key").on(table.date, table.habitKey),
+]);
+
+export type DailyHabit = typeof dailyHabits.$inferSelect;
+export type InsertDailyHabit = typeof dailyHabits.$inferInsert;

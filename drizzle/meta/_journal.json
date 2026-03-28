@@ -148,6 +148,13 @@
       "when": 1774718200000,
       "tag": "0020_add_sms_opt_out",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1774900000000,
+      "tag": "0021_daily_execution",
+      "breakpoints": true
     }
   ]
 }

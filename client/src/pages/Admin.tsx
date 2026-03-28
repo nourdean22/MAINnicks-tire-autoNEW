@@ -196,6 +196,13 @@ export default function Admin() {
           </button>
         </div>
 
+        {/* Control Center Quick Link */}
+        <Link href="/cc" className="mx-3 mt-3 flex items-center gap-2 px-3 py-2.5 rounded-lg bg-[#FDB913]/10 border border-[#FDB913]/20 hover:bg-[#FDB913]/20 transition-colors group">
+          <Sparkles className="w-4 h-4 text-[#FDB913]" />
+          <span className="text-xs font-semibold text-[#FDB913] tracking-tight">Control Center</span>
+          <ChevronRight className="w-3 h-3 text-[#FDB913]/50 ml-auto group-hover:translate-x-0.5 transition-transform" />
+        </Link>
+
         {/* Nav Items — Grouped */}
         <nav className="flex-1 py-3 px-3 space-y-4 overflow-y-auto">
           {NAV_GROUPS.map(group => (
