@@ -14,15 +14,61 @@ import {
 } from "lucide-react";
 
 const REFRESH_INTERVAL = 30_000;
+const STORAGE_KEY_DISMISSED = "cc:dismissed";
+const STORAGE_KEY_LAST_OPEN = "cc:lastOpen";
+const STORAGE_KEY_OPENS = "cc:opens";
 
 // ─── Types ──────────────────────────
 type ActionItem = { type: string; message: string; action: string; priority?: string };
+
+// ─── Persistence helpers ──────────────────────────
+function loadDismissed(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY_DISMISSED);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch { return new Set(); }
+}
+
+function saveDismissed(set: Set<string>) {
+  try { sessionStorage.setItem(STORAGE_KEY_DISMISSED, JSON.stringify([...set])); } catch {}
+}
+
+function trackOpen() {
+  try {
+    const now = Date.now();
+    localStorage.setItem(STORAGE_KEY_LAST_OPEN, String(now));
+    const opens = Number(localStorage.getItem(STORAGE_KEY_OPENS) || "0") + 1;
+    localStorage.setItem(STORAGE_KEY_OPENS, String(opens));
+  } catch {}
+}
+
+function getLastOpen(): number | null {
+  try {
+    const v = localStorage.getItem(STORAGE_KEY_LAST_OPEN);
+    return v ? Number(v) : null;
+  } catch { return null; }
+}
 
 export default function ControlCenter() {
   const { user, loading: authLoading } = useAuth({ redirectOnUnauthenticated: true, redirectPath: getLoginUrl() });
   const [systemOpen, setSystemOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [dismissed, setDismissed] = useState<Set<string>>(loadDismissed);
+  const [showInstall, setShowInstall] = useState(false);
+  const deferredPromptRef = useRef<any>(null);
+
+  // Track opens + PWA install prompt
+  useEffect(() => {
+    trackOpen();
+
+    const handler = (e: any) => {
+      e.preventDefault();
+      deferredPromptRef.current = e;
+      setShowInstall(true);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
 
   const overview = trpc.controlCenter.getOverview.useQuery(undefined, {
     refetchInterval: REFRESH_INTERVAL,
@@ -90,7 +136,19 @@ export default function ControlCenter() {
   const queueDepth = actionQueue.length;
 
   const dismissAction = (item: ActionItem) => {
-    setDismissed(prev => new Set(prev).add(`${item.type}:${item.message}`));
+    setDismissed(prev => {
+      const next = new Set(prev).add(`${item.type}:${item.message}`);
+      saveDismissed(next);
+      return next;
+    });
+  };
+
+  const installApp = async () => {
+    if (deferredPromptRef.current) {
+      deferredPromptRef.current.prompt();
+      deferredPromptRef.current = null;
+      setShowInstall(false);
+    }
   };
 
   return (
@@ -152,10 +210,25 @@ export default function ControlCenter() {
           ) : (
             <div className="h-7 w-48 bg-white/[0.03] rounded animate-pulse" />
           )}
-          {b?.timeContext && b.timeContext.hoursLeft > 0 && (
-            <p className="text-xs text-white/20 mt-1.5 font-mono tabular-nums">{b.timeContext.hoursLeft}h left today</p>
-          )}
+          <div className="flex items-center gap-3 mt-1.5">
+            {b?.timeContext && b.timeContext.hoursLeft > 0 && (
+              <span className="text-xs text-white/20 font-mono tabular-nums">{b.timeContext.hoursLeft}h left</span>
+            )}
+            <LastCheckIndicator />
+          </div>
         </div>
+
+        {/* ═══ INSTALL PROMPT ═══ */}
+        {showInstall && (
+          <button
+            onClick={installApp}
+            className="w-full mb-4 py-2.5 px-4 rounded-xl bg-[#FDB913]/[0.06] border border-[#FDB913]/10 hover:bg-[#FDB913]/[0.10] transition-colors text-left group"
+          >
+            <p className="text-xs text-[#FDB913]/60 group-hover:text-[#FDB913]/80 transition-colors">
+              Install to home screen for instant access
+            </p>
+          </button>
+        )}
 
         {/* ═══ NEXT ACTION LOOP ═══ */}
         <ActionLoop
@@ -602,5 +675,35 @@ function CommandPalette({ onClose, setMission, refetch }: { onClose: () => void;
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Last Check Indicator ──────────────────────────
+
+function LastCheckIndicator() {
+  const last = getLastOpen();
+  if (!last) return null;
+
+  const ago = Date.now() - last;
+  if (ago < 60_000) return null; // Less than 1 min — just opened
+
+  const hours = Math.floor(ago / 3_600_000);
+  const mins = Math.floor((ago % 3_600_000) / 60_000);
+
+  let text: string;
+  let urgent = false;
+  if (hours >= 8) {
+    text = `${hours}h since last check`;
+    urgent = true;
+  } else if (hours >= 1) {
+    text = `${hours}h ${mins}m ago`;
+  } else {
+    text = `${mins}m ago`;
+  }
+
+  return (
+    <span className={`text-[10px] font-mono tabular-nums ${urgent ? "text-amber-400/40" : "text-white/15"}`}>
+      {text}
+    </span>
   );
 }
