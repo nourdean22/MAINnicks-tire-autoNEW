@@ -79,13 +79,8 @@ function Hero() {
       {/* Content — left-aligned */}
       <div className="relative container">
         <div className="max-w-[65%] max-lg:max-w-full">
-          {/* Top badges — inspired by AI Studio layout */}
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
-            className="flex flex-wrap items-center gap-3 mb-6"
-          >
+          {/* Top badges — render instantly for LCP */}
+          <div className="flex flex-wrap items-center gap-3 mb-6">
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase bg-[#FDB913] text-[#0B0E14]">
               <Star className="w-3.5 h-3.5 fill-current" />
               Cleveland&rsquo;s #1 Tire Shop
@@ -94,37 +89,22 @@ function Hero() {
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               Walk-ins Welcome
             </span>
-          </motion.div>
+          </div>
 
-          {/* Headline — problem-focused, empathetic */}
-          <motion.h1
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
-            className="font-heading text-[2rem] sm:text-5xl lg:text-[4.5rem] font-extrabold uppercase text-white leading-[0.95] tracking-tight"
-          >
+          {/* Headline — renders instantly, no animation delay */}
+          <h1 className="font-heading text-[2rem] sm:text-5xl lg:text-[4.5rem] font-extrabold uppercase text-white leading-[0.95] tracking-tight">
             Car trouble?
             <br />
             <span className="text-[#FDB913]">We&rsquo;ll fix it right.</span>
-          </motion.h1>
+          </h1>
 
-          {/* Subheadline — trust + local + empathy */}
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
-            className="mt-6 text-lg sm:text-xl lg:text-2xl font-sans text-white/70 max-w-xl"
-          >
+          {/* Subheadline — renders instantly */}
+          <p className="mt-6 text-lg sm:text-xl lg:text-2xl font-sans text-white/70 max-w-xl">
             Honest diagnostics. Upfront pricing. Cleveland&rsquo;s most trusted auto repair since day one.
-          </motion.p>
+          </p>
 
-          {/* CTA buttons — Gold for revenue, outline for secondary */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.7, ease: "easeOut" }}
-            className="mt-8 flex flex-col sm:flex-row gap-3"
-          >
+          {/* CTA buttons — render instantly for conversion */}
+          <div className="mt-8 flex flex-col sm:flex-row gap-3">
             <a
               href={BUSINESS.phone.href}
               onClick={() => trackPhoneClick('hero-call')}
@@ -139,15 +119,10 @@ function Hero() {
             >
               Book Online
             </Link>
-          </motion.div>
+          </div>
 
-          {/* Trust row — 3 inline badges */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.9, ease: "easeOut" }}
-            className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm sm:text-base"
-          >
+          {/* Trust row — renders instantly */}
+          <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm sm:text-base">
             <span className="inline-flex items-center gap-1.5 text-[#FDB913]">
               <span className="flex gap-0.5">
                 {[...Array(5)].map((_, i) => (
@@ -158,7 +133,7 @@ function Hero() {
             </span>
             <span className="text-white/50">&bull; ASE Certified</span>
             <span className="text-white/50">&bull; 3-Year Warranty</span>
-          </motion.div>
+          </div>
         </div>
       </div>
 
