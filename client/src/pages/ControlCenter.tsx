@@ -131,6 +131,18 @@ export default function ControlCenter() {
           </div>
         )}
 
+        {/* ═══ MODE BANNER ═══ */}
+        {b?.mode === "recovery" && (
+          <div className="mb-4 py-2 px-3 rounded-lg bg-amber-500/[0.06] border border-amber-500/10">
+            <p className="text-[11px] text-amber-400/70 font-medium">Recovery mode — too many things overdue. Triage. Close the biggest fires first.</p>
+          </div>
+        )}
+        {b?.mode === "mvd" && (
+          <div className="mb-4 py-2 px-3 rounded-lg bg-blue-500/[0.06] border border-blue-500/10">
+            <p className="text-[11px] text-blue-400/60 font-medium">Minimum viable day — non-negotiables + one business action. Protect the streak.</p>
+          </div>
+        )}
+
         {/* ═══ GREETING ═══ */}
         <div className="mb-6">
           {b?.timeContext ? (
@@ -159,8 +171,8 @@ export default function ControlCenter() {
         {/* ═══ NON-NEGOTIABLES ═══ */}
         <HabitsBlock brief={b} loading={!b} toggleHabit={toggleHabit} />
 
-        {/* ═══ REVENUE NOW ═══ */}
-        <RevenueQueue brief={b} loading={!b} />
+        {/* ═══ REVENUE NOW (hidden in MVD mode — focus on basics) ═══ */}
+        {b?.mode !== "mvd" && <RevenueQueue brief={b} loading={!b} />}
 
         {/* ═══ DRIFT WHISPER ═══ */}
         {b?.driftIndicator?.status !== "focused" && b?.driftIndicator?.signals?.length > 0 && (
