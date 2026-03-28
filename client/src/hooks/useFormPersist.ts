@@ -42,7 +42,7 @@ export function useFormPersist<T extends Record<string, unknown>>(
   }, []);
 
   const clear = useCallback(() => {
-    sessionStorage.removeItem(key);
+    try { sessionStorage.removeItem(key); } catch {}
     setValues(initialValues);
   }, [key, initialValues]);
 

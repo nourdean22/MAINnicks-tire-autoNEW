@@ -199,7 +199,7 @@ export function trackPhoneClick(source: string) {
           referrer: utm.referrer || null,
         },
       }),
-    }).catch(() => { /* silent fail — don't block the call */ });
+    }).catch((err) => { console.error("[call-tracking] log failed", err); });
   });
   // Also fire a custom DOM event for any other tracking
   window.dispatchEvent(new CustomEvent("nick_phone_click", { detail: { source } }));

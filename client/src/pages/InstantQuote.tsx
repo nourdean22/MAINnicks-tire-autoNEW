@@ -81,21 +81,22 @@ export default function InstantQuote() {
   const [submitting, setSubmitting] = useState(false);
 
   // Fetch categories on mount
-  const loadCategories = useCallback(async () => {
-    setLoadingOps(true);
-    try {
-      const res = await fetch("/api/trpc/nourOsQuote.laborCategories", { method: "GET" });
-      // tRPC wraps in { result: { data } }
-      const json = await res.json();
-      const data = json?.result?.data ?? json;
-      if (data?.categories) setCategories(data.categories);
-    } catch {
-      // Fall back silently
-    }
-    setLoadingOps(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      setLoadingOps(true);
+      try {
+        const res = await fetch("/api/trpc/nourOsQuote.laborCategories", { method: "GET", signal: controller.signal });
+        const json = await res.json();
+        const data = json?.result?.data ?? json;
+        if (data?.categories) setCategories(data.categories);
+      } catch {
+        if (!controller.signal.aborted) console.error("[instant-quote] failed to load categories");
+      }
+      if (!controller.signal.aborted) setLoadingOps(false);
+    })();
+    return () => controller.abort();
   }, []);
-
-  useEffect(() => { loadCategories(); }, [loadCategories]);
 
   // Tire search
   const searchTires = useCallback(async (size: string) => {
