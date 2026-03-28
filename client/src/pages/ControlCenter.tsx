@@ -283,14 +283,9 @@ export default function ControlCenter() {
         {/* ═══ REVENUE NOW (hidden in MVD mode — focus on basics) ═══ */}
         {b?.mode !== "mvd" && <RevenueQueue brief={b} loading={!b} />}
 
-        {/* ═══ DRIFT WHISPER ═══ */}
+        {/* ═══ DRIFT — escalates based on severity ═══ */}
         {b?.driftIndicator?.status !== "focused" && b?.driftIndicator?.signals?.length > 0 && (
-          <div className="mt-8 flex items-start gap-2.5 px-0.5">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400/40 shrink-0 mt-0.5" />
-            <p className="text-xs text-white/25 leading-relaxed">
-              {b.driftIndicator.signals.join(". ")}.
-            </p>
-          </div>
+          <DriftEscalation status={b.driftIndicator.status} signals={b.driftIndicator.signals} score={b.execution?.completionScore ?? 0} />
         )}
 
         {/* ═══ DAY CLOSE ═══ */}
@@ -749,6 +744,60 @@ function CommandPalette({ onClose, setMission, refetch, logAction }: { onClose: 
           <span>refresh</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Drift Escalation ──────────────────────────
+
+function DriftEscalation({ status, signals, score }: { status: string; signals: string[]; score: number }) {
+  const isDrifting = status === "drifting";
+  const isOffTrack = status === "off_track";
+  const signalCount = signals.length;
+
+  // Level 1: 1 signal, score ok — quiet whisper at bottom
+  if (isDrifting && signalCount === 1 && score >= 40) {
+    return (
+      <div className="mt-6 flex items-start gap-2 px-0.5">
+        <AlertTriangle className="w-3 h-3 text-white/15 shrink-0 mt-0.5" />
+        <p className="text-[11px] text-white/20">{signals[0]}.</p>
+      </div>
+    );
+  }
+
+  // Level 2: 2 signals or score dropping — visible amber
+  if (isDrifting && (signalCount >= 2 || score < 40)) {
+    return (
+      <div className="mt-6 py-2.5 px-3 rounded-lg bg-amber-500/[0.04] border-l-2 border-amber-500/20">
+        <p className="text-[11px] text-amber-400/50 leading-relaxed">
+          {signals.join(". ")}.
+        </p>
+      </div>
+    );
+  }
+
+  // Level 3: off_track — hard to ignore
+  if (isOffTrack) {
+    return (
+      <div className="mt-6 py-3 px-4 rounded-lg bg-red-500/[0.05] border-l-2 border-red-500/30">
+        <p className="text-[10px] font-semibold text-red-400/60 uppercase tracking-wider mb-1">Drift</p>
+        <p className="text-xs text-red-300/50 leading-relaxed">
+          {signals.join(". ")}.
+        </p>
+        {score < 20 && (
+          <p className="text-[11px] text-red-400/40 mt-1.5 font-medium">
+            Consider switching to minimum viable day.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // Default whisper
+  return (
+    <div className="mt-6 flex items-start gap-2 px-0.5">
+      <AlertTriangle className="w-3 h-3 text-white/10 shrink-0 mt-0.5" />
+      <p className="text-[11px] text-white/15">{signals.join(". ")}.</p>
     </div>
   );
 }
