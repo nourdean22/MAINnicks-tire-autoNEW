@@ -74,7 +74,7 @@ export const callbackRouter = router({
           utmCampaign: input.utmCampaign || null,
           landingPage: input.landingPage || null,
           referrer: input.referrer || null,
-        }).catch(err => console.error("[Callback] Click event store failed:", err));
+        }).catch((err: any) => console.error("[Callback] Click event store failed:", err));
       }
 
       notifyCallbackRequest({
@@ -82,9 +82,9 @@ export const callbackRouter = router({
         phone: input.phone,
         reason: input.context || undefined,
         sourcePage: input.sourcePage || undefined,
-      }).catch(err => console.error("[Callback] Email notification failed:", err));
+      }).catch((err: any) => console.error("[Callback] Email notification failed:", err));
 
-      sendSms(input.phone, callbackConfirmationSms(input.name)).catch(err =>
+      sendSms(input.phone, callbackConfirmationSms(input.name)).catch((err: any) =>
         console.error("[SMS] Callback confirmation failed:", err)
       );
 
@@ -95,21 +95,21 @@ export const callbackRouter = router({
         problem: "Callback request",
         urgencyScore: 4,
         urgencyReason: "Customer requested callback",
-      }), { label: "callback-lead-sheet" }).catch(err => console.error("[Callback] Lead sheet sync failed:", err));
+      }), { label: "callback-lead-sheet" }).catch((err: any) => console.error("[Callback] Lead sheet sync failed:", err));
 
       withRetry(() => syncCallbackToSheet({
         name: input.name,
         phone: input.phone,
         reason: input.context || undefined,
         sourcePage: input.sourcePage || undefined,
-      }), { label: "callback-sheet" }).catch(err => console.error("[Callback] Sheet sync failed:", err));
+      }), { label: "callback-sheet" }).catch((err: any) => console.error("[Callback] Sheet sync failed:", err));
 
       // NOUR OS: Dispatch callback event
       onCallbackRequested({
         name: input.name,
         phone: input.phone,
         reason: input.context || null,
-      }).catch(err => console.error("[Callback] NOUR OS dispatch failed:", err));
+      }).catch((err: any) => console.error("[Callback] NOUR OS dispatch failed:", err));
 
       // Meta Conversions API: Send server-side Lead event for callback
       if (input.pixelEventId) {
@@ -123,7 +123,7 @@ export const callbackRouter = router({
           fbp: input.pixelUserData?.fbp,
           contentName: "Callback Request",
           contentCategory: input.sourcePage || "website",
-        }).catch(err => console.error("[CAPI] Callback lead event failed:", err));
+        }).catch((err: any) => console.error("[CAPI] Callback lead event failed:", err));
       }
 
       return result;
