@@ -171,6 +171,21 @@ function cleanup(maxAge = 24 * 60 * 60 * 1000): number {
   return removed;
 }
 
+// Auto-cleanup completed/failed jobs every 10 minutes (prevents unbounded growth)
+setInterval(() => {
+  cleanup(2 * 60 * 60 * 1000); // Remove completed/failed jobs older than 2 hours
+  // Hard cap: if still over 10k jobs, purge oldest completed first
+  if (jobs.size > 10000) {
+    const completed = Array.from(jobs.entries())
+      .filter(([, j]) => j.state === "completed" || j.state === "failed")
+      .sort((a, b) => (a[1].completedAt || a[1].createdAt) - (b[1].completedAt || b[1].createdAt));
+    const toRemove = jobs.size - 5000;
+    for (let i = 0; i < Math.min(toRemove, completed.length); i++) {
+      jobs.delete(completed[i][0]);
+    }
+  }
+}, 10 * 60 * 1000);
+
 export const jobQueue = {
   register,
   add,

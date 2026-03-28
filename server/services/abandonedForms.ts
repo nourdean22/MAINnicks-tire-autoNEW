@@ -22,6 +22,22 @@ interface PartialFormData {
 
 // In-memory store (production would use DB table)
 const partials = new Map<string, PartialFormData & { createdAt: Date; recoveryAttempted: boolean }>();
+const MAX_PARTIALS = 2000;
+
+// Auto-cleanup every 20 minutes to prevent unbounded growth
+setInterval(() => {
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  for (const [id, p] of partials) {
+    if (p.createdAt.getTime() < cutoff) partials.delete(id);
+  }
+  // Hard cap
+  if (partials.size > MAX_PARTIALS) {
+    const sorted = Array.from(partials.entries())
+      .sort((a, b) => a[1].createdAt.getTime() - b[1].createdAt.getTime());
+    const toRemove = partials.size - MAX_PARTIALS;
+    for (let i = 0; i < toRemove; i++) partials.delete(sorted[i][0]);
+  }
+}, 20 * 60 * 1000);
 
 /** Save partial form data (called from frontend on blur events) */
 export function savePartialForm(data: PartialFormData): void {
