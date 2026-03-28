@@ -94,7 +94,7 @@ async function autoCreateInvoiceFromTireOrder(d: any, orderId: number): Promise<
     totalAmount: totalAmount / 100,
     source: "tire_order",
     serviceDescription: `Tire Install: ${order.quantity}x ${order.tireBrand} ${order.tireModel}`,
-  }).catch(() => {});
+  }).catch(err => console.error("[TireOrder] Invoice notification failed:", err));
 
   // NOUR OS: Dispatch invoice event
   onInvoiceCreated({
@@ -102,7 +102,7 @@ async function autoCreateInvoiceFromTireOrder(d: any, orderId: number): Promise<
     customerName: order.customerName,
     totalAmount: totalAmount / 100,
     source: "tire_order",
-  }).catch(() => {});
+  }).catch(err => console.error("[TireOrder] NOUR OS invoice dispatch failed:", err));
 
   console.log(`[Invoice] Auto-created ${invoiceNumber} for tire order ${order.orderNumber} — $${(totalAmount / 100).toFixed(2)}`);
 }
@@ -231,13 +231,27 @@ const SERVICE_FEE_PER_TIRE = 0;
 
 // ─── Order number generator ──────────────────────────
 function generateOrderNumber(): string {
+  const { randomInt } = require("crypto") as typeof import("crypto");
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const rand = Math.floor(Math.random() * 900 + 100);
+  const rand = randomInt(100, 999);
   return `TO-${dateStr}-${rand}`;
 }
 
 // ─── Google Sheets sync ──────────────────────────────
+function getGoogleAuthToken(): string {
+  const { readFileSync, existsSync } = require("fs") as typeof import("fs");
+  try {
+    const tokenFile = "/tmp/.gws-auth-token";
+    if (existsSync(tokenFile)) {
+      const token = readFileSync(tokenFile, "utf-8").trim();
+      if (token.length > 20) return token;
+    }
+  } catch {}
+  const envToken = process.env.GOOGLE_DRIVE_TOKEN || process.env.GOOGLE_WORKSPACE_CLI_TOKEN || "";
+  return envToken.length > 20 ? envToken : "";
+}
+
 async function syncOrderToGoogleSheet(order: {
   orderNumber: string;
   customerName: string;
@@ -254,12 +268,8 @@ async function syncOrderToGoogleSheet(order: {
   status: string;
 }) {
   try {
-    const fs = await import("fs");
-    const configContent = fs.readFileSync("/home/ubuntu/.gdrive-rclone.ini", "utf-8");
-    const tokenJson = configContent.split("token = ")[1]?.trim();
-    if (!tokenJson) return;
-    const tokenData = JSON.parse(tokenJson);
-    const accessToken = tokenData.access_token;
+    const accessToken = getGoogleAuthToken();
+    if (!accessToken) return;
     const sheetId = process.env.GOOGLE_SHEETS_CRM_ID;
     if (!sheetId) return;
 
@@ -597,7 +607,7 @@ export const gatewayTireRouter = router({
         tireModel: input.tireModel,
         quantity: input.quantity,
         totalAmount: totalDollars,
-      }).catch(() => {});
+      }).catch(err => console.error("[TireOrder] NOUR OS dispatch failed:", err));
 
       return {
         success: true,

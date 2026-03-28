@@ -189,7 +189,7 @@ export const leadRouter = router({
         source: input.source,
         urgencyScore: scoring.score,
         interest: input.problem || scoring.recommendedService,
-      }).catch(() => {});
+      }).catch(err => console.error("[Lead] NOUR OS dispatch failed:", err));
 
       // Send SMS confirmation to customer
       withRetry(

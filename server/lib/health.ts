@@ -67,7 +67,7 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
 
   // Meta Pixel check
   checks.metaPixel = {
-    status: process.env.META_PIXEL_ID || "1436350367898578" ? "configured" : "missing",
+    status: process.env.META_PIXEL_ID ? "configured" : "using_default",
   };
 
   // Memory usage

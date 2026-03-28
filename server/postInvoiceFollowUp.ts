@@ -61,10 +61,10 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
     // Calculate the 7-day window: customers who visited 6-8 days ago
     // This gives a ±1 day buffer so we don't miss anyone
     const now = new Date();
-    const sixDaysAgo = new Date(now);
-    sixDaysAgo.setDate(sixDaysAgo.getDate() - 8);
-    const eightDaysAgo = new Date(now);
-    eightDaysAgo.setDate(eightDaysAgo.getDate() - 6);
+    const windowStart = new Date(now);
+    windowStart.setDate(windowStart.getDate() - 8); // 8 days ago (oldest)
+    const windowEnd = new Date(now);
+    windowEnd.setDate(windowEnd.getDate() - 6); // 6 days ago (most recent)
 
     // Query customers:
     // - lastVisitDate between 6 and 8 days ago
@@ -81,8 +81,9 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
       .where(
         and(
           eq(customers.smsCampaignSent, 0),
-          gte(customers.lastVisitDate, sixDaysAgo),
-          lte(customers.lastVisitDate, eightDaysAgo),
+          eq(customers.smsOptOut, 0),
+          gte(customers.lastVisitDate, windowStart),
+          lte(customers.lastVisitDate, windowEnd),
           sql`${customers.phone} IS NOT NULL AND ${customers.phone} != '' AND ${customers.phone} LIKE '+1%'`
         )
       )

@@ -16,7 +16,8 @@ export async function processDashboardSync(): Promise<{ recordsProcessed: number
     if (!db) return { recordsProcessed: 0 };
 
     // Only sync during business hours (8am-7pm ET)
-    const hour = new Date().getHours();
+    const etHour = new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false });
+    const hour = parseInt(etHour, 10);
     if (hour < 8 || hour > 19) return { recordsProcessed: 0, details: "Outside business hours" };
 
     const today = new Date();
@@ -40,8 +41,8 @@ export async function processDashboardSync(): Promise<{ recordsProcessed: number
       .where(gte(callbackRequests.createdAt, sql`${todayStr}`));
 
     const metrics = {
-      date: new Date().toLocaleDateString("en-US"),
-      time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+      date: new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" }),
+      time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" }),
       bookings: todayBookings?.count || 0,
       leads: todayLeads?.count || 0,
       callbacks: todayCallbacks?.count || 0,

@@ -35,9 +35,10 @@ interface ShopStatus {
  * In v1, this uses heuristics. In v2, will be driven by real-time bay tracking.
  */
 export function getShopStatus(activeOrderCount?: number): ShopStatus {
+  // Use Eastern Time — Railway runs UTC, but business hours are ET
   const now = new Date();
-  const hour = now.getHours();
-  const day = now.getDay(); // 0=Sun
+  const hour = parseInt(now.toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+  const day = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" })).getDay(); // 0=Sun
 
   // Business hours check
   let isOpen = false;

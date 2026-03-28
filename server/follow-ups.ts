@@ -8,8 +8,8 @@
  * 
  * Uses the customerNotifications table for tracking.
  */
-import { eq, and, lte } from "drizzle-orm";
-import { bookings } from "../drizzle/schema";
+import { eq, and, lte, like } from "drizzle-orm";
+import { bookings, customers } from "../drizzle/schema";
 import { createCustomerNotification, markNotificationSent } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { sendSms, thankYouSms, reviewRequestSms } from "./sms";
@@ -55,11 +55,19 @@ export async function process24hFollowUps() {
       message,
     });
 
-    // Send SMS thank-you
+    // Send SMS thank-you (check opt-out first)
     if (booking.phone) {
-      const smsResult = await sendSms(booking.phone, thankYouSms(booking.name, booking.service)).catch(() => ({ success: false }));
+      const normalized = booking.phone.replace(/\D/g, "").slice(-10);
+      const [cust] = await db.select({ smsOptOut: customers.smsOptOut })
+        .from(customers).where(like(customers.phone, `%${normalized}`)).limit(1);
+      if (cust?.smsOptOut) {
+        await db.update(bookings).set({ followUp24hSent: 1 }).where(eq(bookings.id, booking.id));
+        processed++;
+        continue;
+      }
+      const smsResult = await sendSms(booking.phone, thankYouSms(booking.name, booking.service)).catch(err => { console.error("[FollowUp] Thank-you SMS failed:", err); return { success: false }; });
       if (smsResult.success && notification.id) {
-        await markNotificationSent(notification.id).catch(() => {});
+        await markNotificationSent(notification.id).catch(err => console.error("[FollowUp] Mark sent failed:", err));
       }
     }
 
@@ -103,11 +111,19 @@ export async function process7dReviewRequests() {
       message,
     });
 
-    // Send SMS review request
+    // Send SMS review request (check opt-out first)
     if (booking.phone) {
-      const smsResult = await sendSms(booking.phone, reviewRequestSms(booking.name)).catch(() => ({ success: false }));
+      const normalized = booking.phone.replace(/\D/g, "").slice(-10);
+      const [cust] = await db.select({ smsOptOut: customers.smsOptOut })
+        .from(customers).where(like(customers.phone, `%${normalized}`)).limit(1);
+      if (cust?.smsOptOut) {
+        await db.update(bookings).set({ followUp7dSent: 1 }).where(eq(bookings.id, booking.id));
+        processed++;
+        continue;
+      }
+      const smsResult = await sendSms(booking.phone, reviewRequestSms(booking.name)).catch(err => { console.error("[FollowUp] Review SMS failed:", err); return { success: false }; });
       if (smsResult.success && notification.id) {
-        await markNotificationSent(notification.id).catch(() => {});
+        await markNotificationSent(notification.id).catch(err => console.error("[FollowUp] Mark sent failed:", err));
       }
     }
 
@@ -131,7 +147,7 @@ export async function runFollowUps() {
       await notifyOwner({
         title: `Follow-Up Report: ${total} messages queued`,
         content: `24h Thank-You: ${thankYou.processed} queued\n7-Day Review Request: ${reviews.processed} queued\n\nView pending messages in the admin dashboard under Customer Notifications.`,
-      }).catch(() => {});
+      }).catch(err => console.error("[FollowUp] Owner notification failed:", err));
     }
 
     return { thankYou, reviews, total };

@@ -403,7 +403,7 @@ export default function CareersPage() {
         hasVideo: !!form.videoFile,
       };
 
-      const res = await fetch("https://autonicks.com/api/applicants", {
+      const res = await fetch("/api/nour-os/applicants", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -414,7 +414,7 @@ export default function CareersPage() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
       setError(
-        "Something went wrong. Please try again or call us at (289) 700-9080.",
+        "Something went wrong. Please try again or call us at (216) 862-0005.",
       );
     } finally {
       setSubmitting(false);
@@ -447,12 +447,12 @@ export default function CareersPage() {
               We'll be in touch within 48 hours. Keep your phone nearby.
             </p>
             <a
-              href="tel:2897009080"
+              href="tel:2168620005"
               className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold text-black"
               style={{ background: BRAND.gold }}
             >
               <Phone size={18} />
-              Call (289) 700-9080
+              Call (216) 862-0005
             </a>
           </motion.div>
         </div>
@@ -470,7 +470,7 @@ export default function CareersPage() {
           name="description"
           content="Now hiring mechanics, tire technicians, and apprentices at Nick's Tire & Auto. Competitive pay, growth opportunities, modern shop. Apply in 2 minutes."
         />
-        <link rel="canonical" href="https://autonicks.com/careers" />
+        <link rel="canonical" href="https://nickstire.org/careers" />
       </Helmet>
 
       {/* ─── HERO ──────────────────────────────────────── */}
@@ -499,10 +499,10 @@ export default function CareersPage() {
               Apply Now — Takes 2 Minutes
             </button>
             <a
-              href="tel:2897009080"
+              href="tel:2168620005"
               className="px-8 py-4 rounded-xl font-bold text-white text-lg border-2 border-[#333] hover:border-[#FDB913] transition-colors touch-manipulation"
             >
-              Call (289) 700-9080
+              Call (216) 862-0005
             </a>
           </div>
           <p className="text-sm text-[#555] mt-4">
@@ -965,11 +965,11 @@ export default function CareersPage() {
           <div className="text-center mt-8">
             <p className="text-[#666] mb-3">Still have questions?</p>
             <a
-              href="tel:2897009080"
+              href="tel:2168620005"
               className="inline-flex items-center gap-2 text-[#FDB913] font-semibold hover:underline"
             >
               <Phone size={16} />
-              Call (289) 700-9080
+              Call (216) 862-0005
             </a>
           </div>
         </div>

@@ -41,6 +41,8 @@ setInterval(() => {
 
 /** Save partial form data (called from frontend on blur events) */
 export function savePartialForm(data: PartialFormData): void {
+  // Enforce cap at insertion time — don't accept new entries if at limit
+  if (partials.size >= MAX_PARTIALS && !partials.has(data.sessionId)) return;
   partials.set(data.sessionId, {
     ...data,
     createdAt: new Date(),
@@ -81,6 +83,18 @@ export async function processAbandonedForms(): Promise<{ recordsProcessed: numbe
     try {
       const { isEnabled } = await import("./featureFlags");
       if (!(await isEnabled("smart_sms_auto_reply"))) continue;
+
+      // Check opt-out before sending recovery SMS
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (d) {
+        const { customers } = await import("../../drizzle/schema");
+        const { like } = await import("drizzle-orm");
+        const normalized = partial.phone!.replace(/\D/g, "").slice(-10);
+        const [cust] = await d.select({ smsOptOut: customers.smsOptOut })
+          .from(customers).where(like(customers.phone, `%${normalized}`)).limit(1);
+        if (cust?.smsOptOut) continue;
+      }
 
       const { sendSms } = await import("../sms");
       const firstName = partial.name?.split(" ")[0] || "there";

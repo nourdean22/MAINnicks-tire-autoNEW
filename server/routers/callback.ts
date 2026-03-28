@@ -74,7 +74,7 @@ export const callbackRouter = router({
           utmCampaign: input.utmCampaign || null,
           landingPage: input.landingPage || null,
           referrer: input.referrer || null,
-        }).catch(() => {});
+        }).catch(err => console.error("[Callback] Click event store failed:", err));
       }
 
       notifyCallbackRequest({
@@ -95,21 +95,21 @@ export const callbackRouter = router({
         problem: "Callback request",
         urgencyScore: 4,
         urgencyReason: "Customer requested callback",
-      }), { label: "callback-lead-sheet" }).catch(() => {});
+      }), { label: "callback-lead-sheet" }).catch(err => console.error("[Callback] Lead sheet sync failed:", err));
 
       withRetry(() => syncCallbackToSheet({
         name: input.name,
         phone: input.phone,
         reason: input.context || undefined,
         sourcePage: input.sourcePage || undefined,
-      }), { label: "callback-sheet" }).catch(() => {});
+      }), { label: "callback-sheet" }).catch(err => console.error("[Callback] Sheet sync failed:", err));
 
       // NOUR OS: Dispatch callback event
       onCallbackRequested({
         name: input.name,
         phone: input.phone,
         reason: input.context || null,
-      }).catch(() => {});
+      }).catch(err => console.error("[Callback] NOUR OS dispatch failed:", err));
 
       // Meta Conversions API: Send server-side Lead event for callback
       if (input.pixelEventId) {

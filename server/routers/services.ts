@@ -303,7 +303,8 @@ export const inspectionRouter = router({
     }))
     .mutation(async ({ input }) => {
       const buffer = Buffer.from(input.base64, "base64");
-      const suffix = Math.random().toString(36).substring(2, 8);
+      const { randomBytes } = require("crypto") as typeof import("crypto");
+      const suffix = randomBytes(4).toString("hex");
       const key = `inspection-photos/${Date.now()}-${suffix}-${input.filename}`;
       const { url } = await storagePut(key, buffer, input.mimeType);
       return { url };

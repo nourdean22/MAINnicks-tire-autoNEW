@@ -124,7 +124,7 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
       serviceDescription: labor.description,
     }),
     { maxRetries: 3, baseDelayMs: 1000, label: "notifyInvoiceCreated" }
-  ).catch(() => {});
+  ).catch(err => console.error("[Invoice] Notification failed:", err));
 
   // NOUR OS: Dispatch invoice event
   onInvoiceCreated({
@@ -132,7 +132,7 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
     customerName: booking.name,
     totalAmount: totalAmount / 100,
     source: "booking",
-  }).catch(() => {});
+  }).catch(err => console.error("[Invoice] NOUR OS dispatch failed:", err));
 
   console.log(`[Invoice] Auto-created ${invoiceNumber} for booking #${booking.id} — $${(totalAmount / 100).toFixed(2)}`);
 }
@@ -143,9 +143,10 @@ async function db() {
 }
 
 function generateRefCode(): string {
+  const { randomInt } = require("crypto") as typeof import("crypto");
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "NT-";
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < 6; i++) code += chars[randomInt(chars.length)];
   return code;
 }
 
@@ -354,7 +355,7 @@ export const bookingRouter = router({
         vehicle: vehicleStr,
         urgency: input.urgency,
         refCode,
-      }).catch(() => {});
+      }).catch(err => console.error("[Booking] NOUR OS dispatch failed:", err));
 
       return { ...result, referenceCode: refCode };
       } catch (err) {
@@ -371,7 +372,8 @@ export const bookingRouter = router({
     }))
     .mutation(async ({ input }) => {
       const buffer = Buffer.from(input.base64, "base64");
-      const suffix = Math.random().toString(36).substring(2, 8);
+      const { randomBytes } = require("crypto") as typeof import("crypto");
+      const suffix = randomBytes(4).toString("hex");
       const key = `booking-photos/${Date.now()}-${suffix}-${input.filename}`;
       const { url } = await storagePut(key, buffer, input.mimeType);
       return { url };
@@ -395,31 +397,22 @@ export const bookingRouter = router({
         });
       }
 
-      // Schedule post-service SMS (thank-you, review, maintenance) when completed
-      if (input.status === "completed") {
-        const d2 = await db();
-        if (d2) {
-          const [bk] = await d2.select().from(bookings).where(eq(bookings.id, input.id)).limit(1);
-          if (bk?.phone) {
-            import("../services/sms-scheduler").then(({ schedulePostServiceReminders }) => {
-              const vehicle = [bk.vehicleYear, bk.vehicleMake, bk.vehicleModel].filter(Boolean).join(" ");
-              schedulePostServiceReminders(input.id, bk.phone, bk.name, bk.service, vehicle || undefined)
-                .catch(err => console.error(`[SMS Scheduler] Post-service schedule failed:`, err));
-            });
-          }
-        }
-      }
-
-      // Auto-schedule Google review request when booking is completed
+      // All post-completion actions: SMS, review request, reminders, invoice
       if (input.status === "completed") {
         const d = await db();
         if (d) {
           const [booking] = await d.select().from(bookings).where(eq(bookings.id, input.id)).limit(1);
-          if (booking && booking.phone) {
+          if (booking?.phone) {
+            const vehicle = [booking.vehicleYear, booking.vehicleMake, booking.vehicleModel].filter(Boolean).join(" ");
+
+            // Schedule post-service SMS (thank-you, review, maintenance)
+            import("../services/sms-scheduler").then(({ schedulePostServiceReminders }) => {
+              schedulePostServiceReminders(input.id, booking.phone, booking.name, booking.service, vehicle || undefined)
+                .catch(err => console.error(`[SMS Scheduler] Post-service schedule failed:`, err));
+            });
+
+            // Auto-schedule Google review request
             scheduleReviewRequest(booking.id, booking.name, booking.phone, booking.service)
-              .then(r => {
-                // Review request handled
-              })
               .catch(err => {
                 console.error(`[ReviewRequest] Error scheduling for booking #${booking.id}:`, err);
                 logIntegrationFailure({
@@ -439,9 +432,6 @@ export const bookingRouter = router({
               service: booking.service,
               vehicle: booking.vehicle,
             })
-              .then((ids: number[]) => {
-                // Reminders scheduled
-              })
               .catch((err: unknown) => {
                 console.error(`[Reminders] Error scheduling for booking #${booking.id}:`, err);
                 logIntegrationFailure({
@@ -458,7 +448,7 @@ export const bookingRouter = router({
               id: booking.id,
               name: booking.name,
               service: booking.service,
-            }).catch(() => {});
+            }).catch(err => console.error("[Booking] NOUR OS complete dispatch failed:", err));
 
             // Auto-create invoice from completed booking
             autoCreateInvoiceFromBooking(d, booking).catch(err => {
@@ -565,7 +555,7 @@ export const bookingRouter = router({
     .mutation(({ input }) => {
       import("../services/abandonedForms").then(({ savePartialForm }) => {
         savePartialForm(input);
-      }).catch(() => {});
+      }).catch(err => console.error("[Booking] Abandoned form capture failed:", err));
       return { captured: true };
     }),
 });

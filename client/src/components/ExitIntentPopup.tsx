@@ -9,7 +9,7 @@ export default function ExitIntentPopup() {
 
   const triggerPopup = useCallback(() => {
     // Don't show if already dismissed or submitted
-    if (sessionStorage.getItem("exit_popup_dismissed")) return;
+    try { if (sessionStorage.getItem("exit_popup_dismissed")) return; } catch { return; }
     setShow(true);
   }, []);
 
@@ -37,7 +37,7 @@ export default function ExitIntentPopup() {
 
   const dismiss = () => {
     setShow(false);
-    sessionStorage.setItem("exit_popup_dismissed", "1");
+    try { sessionStorage.setItem("exit_popup_dismissed", "1"); } catch {}
   };
 
   const submit = async () => {
@@ -45,7 +45,7 @@ export default function ExitIntentPopup() {
     setSubmitting(true);
     try {
       // Submit lead to API
-      await fetch("https://autonicks.com/api/quotes", {
+      await fetch("/api/nour-os/quotes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -60,7 +60,7 @@ export default function ExitIntentPopup() {
         }),
       });
       setSubmitted(true);
-      sessionStorage.setItem("exit_popup_dismissed", "1");
+      try { sessionStorage.setItem("exit_popup_dismissed", "1"); } catch {}
     } catch {
       // Fail silently — still show thank you
       setSubmitted(true);

@@ -21,7 +21,7 @@ export default function TireSizePage() {
   const tires: any[] = (result as any)?.data?.tires ?? (result as any)?.tires ?? [];
 
   const title = `${tireSize} Tires in Cleveland | Nick's Tire & Auto`;
-  const desc = `Find ${tireSize} tires at the best prices in Cleveland. ${tires.length} options in stock. Free quotes, expert installation. Call (289) 700-9080.`;
+  const desc = `Find ${tireSize} tires at the best prices in Cleveland. ${tires.length} options in stock. Free quotes, expert installation. Call (216) 862-0005.`;
 
   return (
     <>
@@ -73,8 +73,8 @@ export default function TireSizePage() {
                   <a href="/instant-quote" className="bg-[#FDB913] text-black font-bold py-3 px-8 rounded-lg hover:bg-[#FDB913]/90 transition">
                     Get Instant Quote
                   </a>
-                  <a href="tel:+12897009080" className="border border-[#FDB913] text-[#FDB913] font-bold py-3 px-8 rounded-lg hover:bg-[#FDB913]/10 transition">
-                    Call (289) 700-9080
+                  <a href="tel:+12168620005" className="border border-[#FDB913] text-[#FDB913] font-bold py-3 px-8 rounded-lg hover:bg-[#FDB913]/10 transition">
+                    Call (216) 862-0005
                   </a>
                 </div>
               </div>
@@ -83,7 +83,7 @@ export default function TireSizePage() {
             <div className="text-center py-16">
               <p className="text-[#A0A0A0] text-lg mb-4">No {tireSize} tires found in our current inventory.</p>
               <p className="text-[#666] mb-6">We can special-order any size. Call us for availability!</p>
-              <a href="tel:+12897009080" className="bg-[#FDB913] text-black font-bold py-3 px-8 rounded-lg">
+              <a href="tel:+12168620005" className="bg-[#FDB913] text-black font-bold py-3 px-8 rounded-lg">
                 Call for Special Order
               </a>
             </div>

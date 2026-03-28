@@ -23,10 +23,14 @@ export default function CustomerPortal() {
 
   // Check for existing session
   useEffect(() => {
-    const saved = sessionStorage.getItem("portal_token");
-    if (saved) {
-      setToken(saved);
-      setStep("dashboard");
+    try {
+      const saved = sessionStorage.getItem("portal_token");
+      if (saved) {
+        setToken(saved);
+        setStep("dashboard");
+      }
+    } catch {
+      // sessionStorage unavailable (private browsing)
     }
   }, []);
 
@@ -46,7 +50,7 @@ export default function CustomerPortal() {
     onSuccess: (data) => {
       if (data.token) {
         setToken(data.token);
-        sessionStorage.setItem("portal_token", data.token);
+        try { sessionStorage.setItem("portal_token", data.token); } catch {}
         setStep("dashboard");
         toast.success("Welcome back!");
       }
@@ -78,7 +82,7 @@ export default function CustomerPortal() {
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem("portal_token");
+    try { sessionStorage.removeItem("portal_token"); } catch {}
     setToken(null);
     setStep("phone");
     setPhone("");

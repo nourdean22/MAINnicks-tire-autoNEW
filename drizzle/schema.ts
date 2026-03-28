@@ -783,6 +783,8 @@ export const customers = mysqlTable("customers", {
   smsCampaignDate: timestamp("smsCampaignDate"),
   /** Admin notes for internal tracking */
   notes: text("notes"),
+  /** Whether customer has opted out of marketing SMS (transactional SMS still allowed) */
+  smsOptOut: int("smsOptOut").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -1401,7 +1403,8 @@ export const errorLog = mysqlTable("error_log", {
 export const appointmentReminders = mysqlTable("appointment_reminders", {
   id: int("id").primaryKey().autoincrement(),
   bookingId: int("booking_id").notNull(),
-  type: varchar("type", { length: 20 }).notNull(), // 24h, 2h
+  type: varchar("type", { length: 30 }).notNull(), // 24h-before, 1h-before, thank-you, review-request, maintenance-reminder
+  scheduledFor: timestamp("scheduled_for"), // When this reminder should actually fire
   sentAt: timestamp("sent_at"),
   smsSid: varchar("sms_sid", { length: 100 }),
   status: varchar("status", { length: 20 }).default("pending").notNull(),
@@ -1410,6 +1413,7 @@ export const appointmentReminders = mysqlTable("appointment_reminders", {
   index("idx_remind_booking").on(table.bookingId),
   index("idx_remind_type").on(table.type),
   index("idx_remind_status").on(table.status),
+  index("idx_remind_scheduled").on(table.scheduledFor),
 ]);
 
 // ═══════════════════════════════════════════════════════

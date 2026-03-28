@@ -102,7 +102,7 @@ function scheduleRetry(delivery: WebhookDelivery): void {
       lastError: delivery.lastError,
     });
     // Store in DB for admin review (fire-and-forget)
-    storeFailedDelivery(delivery).catch(() => {});
+    storeFailedDelivery(delivery).catch(err => console.error("[Webhook] Failed to store failed delivery:", err));
     return;
   }
 

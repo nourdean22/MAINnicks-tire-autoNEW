@@ -5,6 +5,7 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { eq, and } from "drizzle-orm";
 
 const log = createLogger("sms-parser");
 
@@ -98,38 +99,67 @@ export async function executeAutoAction(parsed: ParsedResponse, phone: string, c
     return { executed: false };
   }
 
-  switch (parsed.autoAction) {
-    case "confirm-appointment":
-      if (context?.bookingId) {
-        log.info("Auto-confirming appointment", { bookingId: context.bookingId, phone: phone.slice(-4) });
-        // TODO: Update booking status to 'confirmed' via DB
-      }
-      return { executed: true, action: "confirm-appointment" };
+  try {
+    const { getDb } = await import("../db");
+    const db = await getDb();
 
-    case "cancel-appointment":
-      if (context?.bookingId) {
-        log.info("Auto-cancelling appointment", { bookingId: context.bookingId, phone: phone.slice(-4) });
-        // TODO: Update booking status to 'cancelled', cancel SMS reminders
-      }
-      return { executed: true, action: "cancel-appointment" };
+    switch (parsed.autoAction) {
+      case "confirm-appointment":
+        if (context?.bookingId && db) {
+          const { bookings } = await import("../../drizzle/schema");
+          await db.update(bookings)
+            .set({ status: "confirmed" })
+            .where(eq(bookings.id, context.bookingId));
+          log.info("Auto-confirmed appointment", { bookingId: context.bookingId, phone: phone.slice(-4) });
+        }
+        return { executed: true, action: "confirm-appointment" };
 
-    case "approve-estimate":
-      if (context?.estimateId) {
-        log.info("Auto-approving estimate", { estimateId: context.estimateId, phone: phone.slice(-4) });
-        // TODO: Update estimate status to 'approved', notify tech
-      }
-      return { executed: true, action: "approve-estimate" };
+      case "cancel-appointment":
+        if (context?.bookingId && db) {
+          const { bookings } = await import("../../drizzle/schema");
+          await db.update(bookings)
+            .set({ status: "cancelled" })
+            .where(eq(bookings.id, context.bookingId));
+          // Cancel pending SMS reminders
+          const { cancelBookingReminders } = await import("./sms-scheduler");
+          await cancelBookingReminders(context.bookingId);
+          log.info("Auto-cancelled appointment + reminders", { bookingId: context.bookingId, phone: phone.slice(-4) });
+        }
+        return { executed: true, action: "cancel-appointment" };
 
-    case "unsubscribe-customer":
-      log.info("Customer opted out of SMS marketing", { phone: phone.slice(-4) });
-      // TODO: Mark customer as opted-out of marketing SMS (keep transactional)
-      return { executed: true, action: "unsubscribe-customer" };
+      case "approve-estimate":
+        if (context?.estimateId) {
+          log.info("Estimate approved via SMS — flagging for shop", { estimateId: context.estimateId, phone: phone.slice(-4) });
+          // Notify shop about approval
+          const { sendNotification } = await import("../email-notify");
+          sendNotification({
+            category: "booking",
+            subject: `Estimate Approved by Customer (***${phone.slice(-4)})`,
+            body: `Customer approved estimate #${context.estimateId} via SMS reply. Please proceed with the repair.`,
+          }).catch(() => {});
+        }
+        return { executed: true, action: "approve-estimate" };
 
-    case "flag-for-followup":
-      log.info("Flagged for human follow-up", { phone: phone.slice(-4) });
-      return { executed: true, action: "flag-for-followup" };
+      case "unsubscribe-customer":
+        if (db) {
+          const { customers } = await import("../../drizzle/schema");
+          const normalized = phone.replace(/\D/g, "").slice(-10);
+          await db.update(customers)
+            .set({ smsOptOut: 1 })
+            .where(eq(customers.phone, normalized));
+          log.info("Customer opted out of SMS marketing", { phone: phone.slice(-4) });
+        }
+        return { executed: true, action: "unsubscribe-customer" };
 
-    default:
-      return { executed: false };
+      case "flag-for-followup":
+        log.info("Flagged for human follow-up", { phone: phone.slice(-4) });
+        return { executed: true, action: "flag-for-followup" };
+
+      default:
+        return { executed: false };
+    }
+  } catch (err) {
+    log.error("Auto-action failed", { action: parsed.autoAction, error: err instanceof Error ? err.message : String(err) });
+    return { executed: false };
   }
 }

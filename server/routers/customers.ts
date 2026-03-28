@@ -83,25 +83,27 @@ export const customersRouter = router({
       };
     }),
 
-  /** Get segment summary stats */
+  /** Get segment summary stats — single query instead of 6 */
   stats: adminProcedure.query(async () => {
     const d = await db();
     if (!d) return { total: 0, recent: 0, lapsed: 0, unknown: 0, withEmail: 0, commercial: 0 };
 
-    const [total] = await d.select({ count: sql<number>`count(*)` }).from(customers);
-    const [recent] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(eq(customers.segment, "recent"));
-    const [lapsed] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(eq(customers.segment, "lapsed"));
-    const [unknown] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(eq(customers.segment, "unknown"));
-    const [withEmail] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(sql`${customers.email} IS NOT NULL AND ${customers.email} != ''`);
-    const [commercial] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(eq(customers.customerType, "commercial"));
+    const [stats] = await d.select({
+      total: sql<number>`count(*)`,
+      recent: sql<number>`sum(case when ${customers.segment} = 'recent' then 1 else 0 end)`,
+      lapsed: sql<number>`sum(case when ${customers.segment} = 'lapsed' then 1 else 0 end)`,
+      unknown: sql<number>`sum(case when ${customers.segment} = 'unknown' then 1 else 0 end)`,
+      withEmail: sql<number>`sum(case when ${customers.email} is not null and ${customers.email} != '' then 1 else 0 end)`,
+      commercial: sql<number>`sum(case when ${customers.customerType} = 'commercial' then 1 else 0 end)`,
+    }).from(customers);
 
     return {
-      total: total?.count ?? 0,
-      recent: recent?.count ?? 0,
-      lapsed: lapsed?.count ?? 0,
-      unknown: unknown?.count ?? 0,
-      withEmail: withEmail?.count ?? 0,
-      commercial: commercial?.count ?? 0,
+      total: stats?.total ?? 0,
+      recent: stats?.recent ?? 0,
+      lapsed: stats?.lapsed ?? 0,
+      unknown: stats?.unknown ?? 0,
+      withEmail: stats?.withEmail ?? 0,
+      commercial: stats?.commercial ?? 0,
     };
   }),
 
@@ -207,6 +209,7 @@ export const customersRouter = router({
 
       const [customer] = await d.select().from(customers).where(eq(customers.id, input.customerId));
       if (!customer) return { success: false, error: "Customer not found" };
+      if (customer.smsOptOut) return { success: false, error: "Customer has opted out of SMS" };
 
       const { sendSms } = await import("../sms");
       const result = await sendSms(customer.phone, input.message);
@@ -246,7 +249,7 @@ export const customersRouter = router({
       // Get untexted customers, prioritize recent → lapsed → unknown
       const untexted = await d.select()
         .from(customers)
-        .where(sql`${customers.smsCampaignSent} = 0 AND ${customers.phone} IS NOT NULL AND LENGTH(${customers.phone}) >= 10 AND ${customers.phone} LIKE '+1%'`)
+        .where(sql`${customers.smsCampaignSent} = 0 AND ${customers.smsOptOut} = 0 AND ${customers.phone} IS NOT NULL AND LENGTH(${customers.phone}) >= 10 AND ${customers.phone} LIKE '+1%'`)
         .orderBy(sql`FIELD(${customers.segment}, 'recent', 'lapsed', 'unknown'), ${customers.lastVisitDate} DESC`)
         .limit(batchSize);
 

@@ -20,10 +20,7 @@ export function useFormAbandonment(
     }
 
     const sessionKey = `nta_abandon_${formType}`;
-    if (sessionStorage.getItem(sessionKey)) {
-      firedRef.current = true;
-      return;
-    }
+    try { if (sessionStorage.getItem(sessionKey)) { firedRef.current = true; return; } } catch {}
 
     // Start 3-minute timer when name AND phone are filled
     const hasNameAndPhone = (fields.name?.trim().length ?? 0) >= 2 && (fields.phone?.trim().length ?? 0) >= 7;
@@ -33,7 +30,7 @@ export function useFormAbandonment(
       timerRef.current = setTimeout(() => {
         if (firedRef.current) return;
         firedRef.current = true;
-        sessionStorage.setItem(sessionKey, "1");
+        try { sessionStorage.setItem(sessionKey, "1"); } catch {}
 
         fetch("/api/track-abandonment", {
           method: "POST",

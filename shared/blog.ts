@@ -262,7 +262,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: "echeck-emissions-guide-cleveland",
     title: "Ohio E-Check Guide — Everything Cleveland Drivers Need to Know (2026)",
     metaTitle: "Ohio E-Check Guide Cleveland 2026 | Nick's Tire & Auto",
-    metaDescription: "Complete Ohio E-Check guide for Cleveland drivers. Which counties require it, how to pass, what happens if you fail, repair costs, and exemptions. Expert advice.",
+    metaDescription: "Complete Ohio E-Check guide for Cleveland drivers. Which counties require it, how to pass, what to do if you fail, and repair costs. Expert local advice.",
     category: "Emissions",
     publishDate: "2026-03-20",
     readTime: "8 min read",
@@ -305,7 +305,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: "winter-tires-cleveland",
     title: "Do You Need Winter Tires in Cleveland? A Local Mechanic's Honest Answer",
     metaTitle: "Winter Tires Cleveland — Do You Need Them? | Nick's Tire & Auto",
-    metaDescription: "Do Cleveland drivers need winter tires? A local mechanic breaks down when they're worth it, all-season vs snow tires, and the best options for Northeast Ohio winters.",
+    metaDescription: "Do Cleveland drivers need winter tires? A local mechanic breaks down when they're worth it, all-season vs snow tires, and the best picks for Northeast Ohio.",
     category: "Tires",
     publishDate: "2026-03-18",
     readTime: "6 min read",
@@ -337,14 +337,14 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "As mechanics who fix the aftermath of winter accidents every season, our honest recommendation is: if you can afford winter tires, get them. Mount them in November, swap back to all-seasons in April. If you keep them on separate wheels ($50-$75 per wheel), the swap is fast and inexpensive each season. And your all-season tires last longer because they are not wearing down all winter. Come see us at Nick's Tire & Auto — we will help you find the right winter tires for your vehicle and budget, new or used."
       }
     ],
-    relatedServices: ["/tires", "/alignment"],
+    relatedServices: ["/tires", "/general-repair"],
     tags: ["winter tires Cleveland", "snow tires Ohio", "all-season vs winter tires", "Cleveland winter driving", "used winter tires"]
   },
   {
     slug: "how-much-brake-repair-cost-cleveland",
     title: "How Much Does Brake Repair Cost in Cleveland? (2026 Price Guide)",
     metaTitle: "Brake Repair Cost Cleveland 2026 — Price Guide | Nick's Tire & Auto",
-    metaDescription: "How much does brake repair cost in Cleveland? Complete 2026 price guide: brake pads $150-$300, rotors $250-$500, calipers $300-$800. Honest pricing from Nick's Tire.",
+    metaDescription: "Brake repair costs in Cleveland: pads $150-$300, rotors $250-$500, calipers $300-$800. Complete 2026 price guide with honest pricing from Nick's Tire & Auto.",
     category: "Brake Repair",
     publishDate: "2026-03-15",
     readTime: "7 min read",
@@ -380,7 +380,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "1. Get a written estimate before authorizing work. 2. Ask what is actually worn — not every brake job needs rotors. 3. Compare independent shop prices to dealerships. 4. Do not ignore brake noise — catching worn pads early prevents rotor damage and saves $200+. 5. Ask about financing — at Nick's Tire & Auto, we offer $10 down financing through four providers so you do not have to drive on unsafe brakes because of cost."
       }
     ],
-    relatedServices: ["/brakes", "/financing"],
+    relatedServices: ["/brakes", "/general-repair"],
     tags: ["brake repair cost Cleveland", "how much brakes cost", "brake job price 2026", "Cleveland brake repair pricing", "brake pads and rotors cost"]
   },
   {
@@ -422,7 +422,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: "transmission-problems-warning-signs",
     title: "7 Warning Signs of Transmission Problems (Don't Ignore These)",
     metaTitle: "Transmission Problems Warning Signs | Nick's Tire & Auto Cleveland",
-    metaDescription: "7 warning signs your transmission is failing. Slipping, hard shifts, burning smell, fluid leak, grinding. Catch it early to avoid a $3,000 rebuild. Expert advice.",
+    metaDescription: "7 warning signs your transmission is failing: slipping, hard shifts, burning smell, fluid leaks, grinding. Catch it early to avoid a $3,000 rebuild.",
     category: "Transmission",
     publishDate: "2026-03-10",
     readTime: "6 min read",
@@ -469,7 +469,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: "car-wont-start-common-causes",
     title: "Car Won't Start? Here Are the 6 Most Common Causes",
     metaTitle: "Car Won't Start? Common Causes & Fixes | Nick's Tire & Auto Cleveland",
-    metaDescription: "Car won't start? 6 most common causes: dead battery, bad starter, alternator failure, fuel pump, ignition switch, security system. Expert diagnosis in Cleveland.",
+    metaDescription: "Car won't start? 6 common causes: dead battery, bad starter, alternator, fuel pump, ignition switch, security system. Expert diagnosis in Cleveland.",
     category: "Electrical",
     publishDate: "2026-03-08",
     readTime: "5 min read",
@@ -512,7 +512,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: "brake-repair-cost-cleveland-2026",
     title: "How Much Does Brake Repair Cost in Cleveland? (2026 Guide)",
     metaTitle: "Brake Repair Cost Cleveland 2026 | Nick's Tire & Auto Pricing Guide",
-    metaDescription: "How much does brake repair cost in Cleveland in 2026? Honest pricing from $149 for pads to $699 for full brake jobs. Compare Nick's Tire & Auto vs dealerships and chains.",
+    metaDescription: "How much does brake repair cost in Cleveland in 2026? From $149 for pads to $699 for full brake jobs. See how Nick's Tire & Auto compares to dealerships.",
     category: "Brake Repair",
     publishDate: "2026-03-20",
     readTime: "8 min read",
@@ -552,14 +552,14 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "Whether you are hearing a noise, feeling a vibration, or just want peace of mind, bring your vehicle to Nick's Tire & Auto for a free brake inspection. We will measure everything, show you what we find, and give you an honest price before any work begins. No appointment needed — walk-ins welcome 7 days a week. We serve Cleveland, East Cleveland, Euclid, South Euclid, Cleveland Heights, and all of Northeast Ohio. Honest work, fair prices, every time."
       }
     ],
-    relatedServices: ["/brakes", "/financing", "/diagnostics"],
+    relatedServices: ["/brakes", "/diagnostics"],
     tags: ["brake repair cost", "brake repair Cleveland", "brake pad replacement price", "brake rotor cost", "cheap brakes Cleveland", "brake repair financing"]
   },
   {
     slug: "how-often-rotate-tires",
     title: "How Often Should You Rotate Your Tires? (Complete Guide)",
     metaTitle: "How Often to Rotate Tires | Nick's Tire & Auto Cleveland Guide",
-    metaDescription: "Learn how often to rotate your tires, the best rotation patterns, and why regular rotation saves you money. Expert tire advice from Nick's Tire & Auto in Cleveland.",
+    metaDescription: "How often to rotate your tires, the best rotation patterns, and why it saves you money. Expert tire advice from Nick's Tire & Auto in Cleveland.",
     category: "Tire Care",
     publishDate: "2026-03-15",
     readTime: "7 min read",
@@ -595,7 +595,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "Tire rotation at Nick's Tire & Auto is one of the most affordable maintenance services we offer. If you purchased your tires from us, rotations are included for the life of the tires at no additional charge. For all other customers, tire rotation is a quick and affordable service that takes about 20 to 30 minutes. We remove all four wheels, inspect the tires and brakes, rotate to the correct pattern for your vehicle, and set all tire pressures to factory specifications. We also do a visual alignment check during every rotation. No appointment needed — drive in anytime during business hours. We serve Cleveland, Euclid, South Euclid, Cleveland Heights, and all of Cuyahoga County."
       }
     ],
-    relatedServices: ["/tires", "/alignment"],
+    relatedServices: ["/tires", "/general-repair"],
     tags: ["tire rotation", "how often rotate tires", "tire rotation pattern", "tire wear", "tire maintenance Cleveland", "wheel alignment"]
   },
   {
@@ -649,7 +649,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: "cleveland-winter-driving-guide",
     title: "Cleveland Winter Driving Survival Guide 2026",
     metaTitle: "Cleveland Winter Driving Guide 2026 | Nick's Tire & Auto Tips",
-    metaDescription: "Prepare your car for Cleveland winters with this survival guide. Winter tires, battery checks, antifreeze, brake inspection, and Ohio winter driving tips from Nick's Tire & Auto.",
+    metaDescription: "Prepare your car for Cleveland winters. Winter tires, battery checks, antifreeze, brake inspection, and Ohio winter driving tips from Nick's Tire & Auto.",
     category: "Seasonal Tips",
     publishDate: "2026-03-05",
     readTime: "9 min read",

@@ -991,7 +991,7 @@ export const SERVICES: ServiceData[] = [
     title: "COOLING SYSTEM",
     shortDesc: "Radiator, water pump, thermostat, coolant flush, hoses, and overheating diagnostics. Don't blow a head gasket.",
     metaTitle: "Cooling System Repair Cleveland OH | Radiator Service | Nick's Tire & Auto",
-    metaDescription: "Cooling system and radiator repair in Cleveland. Water pump, thermostat, coolant flush, hose replacement. Don't risk overheating. Walk-ins welcome. (216) 862-0005.",
+    metaDescription: "Cooling system & radiator repair in Cleveland. Water pump, thermostat, coolant flush, hose replacement. Walk-ins welcome. (216) 862-0005.",
     heroHeadline: "COOLING SYSTEM & RADIATOR",
     heroSubline: "An overheating engine can destroy itself in minutes. We diagnose cooling system problems fast and get your engine running at the right temperature.",
     heroCTA: "FIX OVERHEATING",

@@ -4,18 +4,20 @@ export default function LiveQuoteCounter() {
   const [count, setCount] = useState<number | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchCount = async () => {
       try {
-        const res = await fetch("https://autonicks.com/api/quotes?countOnly=true");
+        // Proxy through our server to avoid cross-origin issues with autonicks.com
+        const res = await fetch("/api/nour-os/quotes?countOnly=true", { signal: controller.signal });
         const data = await res.json();
         setCount(data?.data?.todayCount ?? data?.todayCount ?? 0);
       } catch {
-        setCount(null);
+        if (!controller.signal.aborted) setCount(null);
       }
     };
     fetchCount();
     const interval = setInterval(fetchCount, 60000); // refresh every minute
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); controller.abort(); };
   }, []);
 
   if (count === null || count === 0) return null;

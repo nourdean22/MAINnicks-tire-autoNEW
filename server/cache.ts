@@ -13,6 +13,7 @@ class ServerCache {
   private store = new Map<string, CacheEntry<unknown>>();
   private hits = 0;
   private misses = 0;
+  private readonly maxEntries = 2000;
 
   /**
    * Get a cached value, or compute and cache it if missing/expired.
@@ -29,6 +30,15 @@ class ServerCache {
 
     this.misses++;
     const data = await fn();
+    // Evict if at capacity
+    if (this.store.size >= this.maxEntries) {
+      this.stats(); // Prune expired first
+      if (this.store.size >= this.maxEntries) {
+        // Delete oldest entry
+        const firstKey = this.store.keys().next().value;
+        if (firstKey) this.store.delete(firstKey);
+      }
+    }
     this.store.set(key, { data, expiresAt: Date.now() + ttlMs });
     return data;
   }

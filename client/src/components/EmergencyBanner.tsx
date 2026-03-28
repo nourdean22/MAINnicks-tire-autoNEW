@@ -13,15 +13,12 @@ export default function EmergencyBanner() {
 
   useEffect(() => {
     // Check localStorage to see if user dismissed this session
-    const dismissed = sessionStorage.getItem("emergency-banner-dismissed");
-    if (dismissed) {
-      setVisible(false);
-    }
+    try { if (sessionStorage.getItem("emergency-banner-dismissed")) setVisible(false); } catch {}
   }, []);
 
   const handleDismiss = () => {
     setVisible(false);
-    sessionStorage.setItem("emergency-banner-dismissed", "true");
+    try { sessionStorage.setItem("emergency-banner-dismissed", "true"); } catch {}
   };
 
   if (!visible) return null;

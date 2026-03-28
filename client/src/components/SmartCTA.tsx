@@ -21,12 +21,11 @@ export default function SmartCTA() {
 
   // Show after 8 seconds of browsing, only once per session
   useEffect(() => {
-    const alreadyShown = sessionStorage.getItem("smartcta-shown");
-    if (alreadyShown) return;
+    try { if (sessionStorage.getItem("smartcta-shown")) return; } catch { return; }
 
     const timer = setTimeout(() => {
       setVisible(true);
-      sessionStorage.setItem("smartcta-shown", "1");
+      try { sessionStorage.setItem("smartcta-shown", "1"); } catch {}
     }, 8000);
 
     return () => clearTimeout(timer);

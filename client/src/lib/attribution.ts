@@ -12,8 +12,12 @@ interface Attribution {
  * Stored in localStorage so it persists across pages.
  */
 export function captureAttribution(): void {
-  // Don't overwrite existing attribution
-  if (localStorage.getItem("nick_attribution")) return;
+  try {
+    // Don't overwrite existing attribution
+    if (localStorage.getItem("nick_attribution")) return;
+  } catch {
+    return; // localStorage unavailable (private browsing)
+  }
 
   const params = new URLSearchParams(window.location.search);
   const referrer = document.referrer;
@@ -50,7 +54,11 @@ export function captureAttribution(): void {
     timestamp: new Date().toISOString(),
   };
 
-  localStorage.setItem("nick_attribution", JSON.stringify(attribution));
+  try {
+    localStorage.setItem("nick_attribution", JSON.stringify(attribution));
+  } catch {
+    // Storage full or unavailable
+  }
 }
 
 /**

@@ -15,6 +15,7 @@ interface CronJob {
   handler: () => Promise<{ recordsProcessed?: number; details?: string }>;
   enabled: boolean;
   lastRun?: Date;
+  running?: boolean;
   intervalId?: ReturnType<typeof setInterval>;
 }
 
@@ -60,8 +61,13 @@ export function stopAllJobs(): void {
   log.info("All cron jobs stopped");
 }
 
-/** Run a single job with logging */
+/** Run a single job with logging (skip if already running to prevent overlap) */
 async function runJob(job: CronJob): Promise<void> {
+  if (job.running) {
+    log.info(`Cron skipped (still running): ${job.name}`);
+    return;
+  }
+  job.running = true;
   const startedAt = new Date();
   try {
     const result = await job.handler();
@@ -79,6 +85,8 @@ async function runJob(job: CronJob): Promise<void> {
     const error = err instanceof Error ? err.message : String(err);
     logCronRun(job.name, "failed", durationMs, 0, error).catch(() => {});
     log.error(`Cron failed: ${job.name}`, { duration: durationMs, error });
+  } finally {
+    job.running = false;
   }
 }
 
@@ -136,7 +144,11 @@ export async function runJobByName(jobName: string): Promise<{ status: string; r
 }
 
 /** Register all cron jobs — called from startAllJobs or server startup */
+let _jobsRegistered = false;
 export function registerAllJobs(): void {
+  if (_jobsRegistered) return;
+  _jobsRegistered = true;
+
   // Appointment reminders (every 5 min — sms-scheduler handles timing)
   registerJob("sms-scheduler", 5 * 60 * 1000, async () => {
     const { processAppointmentReminders24h } = await import("./jobs/appointmentReminders");
