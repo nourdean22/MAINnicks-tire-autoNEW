@@ -114,6 +114,20 @@ echo "── Assets ──"
 check_status "favicon" "$BASE/favicon-32x32.png" "200"
 check_status "apple-touch-icon" "$BASE/apple-touch-icon.png" "200"
 
+# ─── Production (if reachable) ───
+echo ""
+echo "── Production (nickstire.org) ──"
+PROD_HEALTH=$(curl -s --max-time 10 https://nickstire.org/api/health 2>/dev/null | python -c "import sys,json; d=json.load(sys.stdin); print(d.get('status','UNKNOWN'))" 2>/dev/null || echo "UNREACHABLE")
+if [ "$PROD_HEALTH" = "healthy" ]; then
+  green "Production health: healthy"
+elif [ "$PROD_HEALTH" = "degraded" ]; then
+  yellow "Production health: degraded"
+elif [ "$PROD_HEALTH" = "UNREACHABLE" ]; then
+  yellow "Production: unreachable (may be Cloudflare)"
+else
+  red "Production health: $PROD_HEALTH"
+fi
+
 # ─── Summary ───
 echo ""
 echo "═══════════════════════════════════════════"
