@@ -152,12 +152,44 @@ const ROUTING_TABLE: Record<TaskType, ModelConfig> = {
   },
 };
 
-// ─── Health tracking ─────────────────────────────────
+// ─── Health tracking + Circuit Breaker ──────────────
 let ollamaHealthy = true;
 let lastHealthCheck = 0;
 const HEALTH_CHECK_INTERVAL = 60_000; // 1 minute
 
+// Circuit breaker: after N consecutive failures, skip Ollama for COOLDOWN period
+let consecutiveOllamaFailures = 0;
+let circuitOpenUntil = 0;
+const CIRCUIT_FAILURE_THRESHOLD = 3;
+const CIRCUIT_COOLDOWN_MS = 120_000; // 2 minutes
+
+function isCircuitOpen(): boolean {
+  if (Date.now() < circuitOpenUntil) return true;
+  // Reset if cooldown expired
+  if (consecutiveOllamaFailures >= CIRCUIT_FAILURE_THRESHOLD) {
+    consecutiveOllamaFailures = 0;
+    log.info("Circuit breaker reset — retrying Ollama");
+  }
+  return false;
+}
+
+function recordOllamaSuccess() {
+  consecutiveOllamaFailures = 0;
+  ollamaHealthy = true;
+}
+
+function recordOllamaFailure() {
+  consecutiveOllamaFailures++;
+  if (consecutiveOllamaFailures >= CIRCUIT_FAILURE_THRESHOLD) {
+    circuitOpenUntil = Date.now() + CIRCUIT_COOLDOWN_MS;
+    ollamaHealthy = false;
+    log.warn(`Circuit breaker OPEN — skipping Ollama for ${CIRCUIT_COOLDOWN_MS / 1000}s after ${consecutiveOllamaFailures} failures`);
+  }
+}
+
 async function checkOllamaHealth(): Promise<boolean> {
+  if (isCircuitOpen()) return false;
+
   const now = Date.now();
   if (now - lastHealthCheck < HEALTH_CHECK_INTERVAL) return ollamaHealthy;
 
@@ -167,6 +199,7 @@ async function checkOllamaHealth(): Promise<boolean> {
     const res = await fetch(`${OLLAMA_BASE}/api/tags`, { signal: controller.signal });
     clearTimeout(timeout);
     ollamaHealthy = res.ok;
+    if (res.ok) consecutiveOllamaFailures = 0;
   } catch {
     ollamaHealthy = false;
   }
@@ -392,10 +425,12 @@ export async function aiGateway(request: GatewayRequest): Promise<GatewayRespons
   if (provider === "ollama" && ollamaAvailable) {
     try {
       const result = await callOllama(model, request.messages, config.timeoutMs);
+      recordOllamaSuccess();
       logRequest({ timestamp: Date.now(), task: request.task, provider: "ollama", model, latencyMs: result.latencyMs, success: true, fallbackUsed: false });
       log.info(`[${request.task}] Ollama ${model} → ${result.latencyMs}ms`);
       return { ...result, wasFallback: false };
     } catch (err: any) {
+      recordOllamaFailure();
       const failureReason = classifyError(err);
       log.warn(`[${request.task}] Ollama failed (${failureReason}): ${err.message}`);
       logRequest({ timestamp: Date.now(), task: request.task, provider: "ollama", model, latencyMs: 0, success: false, fallbackUsed: false, error: err.message });
@@ -453,6 +488,11 @@ export function getGatewayHealth() {
   return {
     ollamaHealthy,
     ollamaBase: OLLAMA_BASE,
+    circuitBreaker: {
+      open: isCircuitOpen(),
+      consecutiveFailures: consecutiveOllamaFailures,
+      cooldownUntil: circuitOpenUntil > Date.now() ? new Date(circuitOpenUntil).toISOString() : null,
+    },
     lastRequestAt: lastRequestAt ? new Date(lastRequestAt).toISOString() : null,
     stats: {
       last5min: {
