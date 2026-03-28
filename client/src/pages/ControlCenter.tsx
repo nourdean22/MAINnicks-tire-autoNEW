@@ -184,7 +184,7 @@ export default function ControlCenter() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white selection:bg-[#FDB913]/20">
+    <div className="min-h-screen bg-[#050505] text-white selection:bg-[#FDB913]/20" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
 
       {/* ─── Header ─── */}
       <header className="sticky top-0 z-10 bg-[#050505]/90 backdrop-blur-md border-b border-white/[0.04]">
@@ -205,7 +205,7 @@ export default function ControlCenter() {
         {systemOpen && o && <TruthSheet o={o} />}
       </header>
 
-      <main className="max-w-lg mx-auto px-5 pt-8 pb-16">
+      <main className="max-w-lg mx-auto px-5 pt-5 pb-20">
 
         {/* ═══ YESTERDAY CARRY-FORWARD ═══ */}
         <YesterdayBanner data={yesterday.data} />
@@ -237,9 +237,9 @@ export default function ControlCenter() {
         )}
 
         {/* ═══ GREETING ═══ */}
-        <div className="mb-6">
+        <div className="mb-4">
           {b?.timeContext ? (
-            <h1 className="text-[22px] font-semibold text-white/90 leading-tight tracking-tight">
+            <h1 className="text-[20px] font-semibold text-white/90 leading-tight tracking-tight">
               {b.timeContext.greeting}
             </h1>
           ) : (
@@ -429,13 +429,13 @@ function ActionLoop({ current, queueDepth, onDone, onSkip, loading }: {
         <div className="flex items-center gap-2">
           <button
             onClick={() => onDone(current)}
-            className="text-[10px] text-emerald-400/40 hover:text-emerald-400/70 transition-colors px-2 py-0.5 rounded hover:bg-emerald-500/[0.05]"
+            className="text-[11px] text-emerald-400/50 hover:text-emerald-400/80 transition-colors px-3 py-1.5 rounded-lg hover:bg-emerald-500/[0.06] active:scale-95 min-h-[32px]"
           >
             done
           </button>
           <button
             onClick={() => onSkip(current)}
-            className="text-[10px] text-white/20 hover:text-white/40 transition-colors px-2 py-0.5 rounded hover:bg-white/[0.03]"
+            className="text-[11px] text-white/25 hover:text-white/45 transition-colors px-3 py-1.5 rounded-lg hover:bg-white/[0.03] active:scale-95 min-h-[32px]"
           >
             skip
           </button>
