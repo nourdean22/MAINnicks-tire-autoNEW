@@ -115,7 +115,7 @@ async function sendEmailResend(
       return { sent: false };
     }
 
-    const fromAddress = process.env.EMAIL_FROM || "Nick's Tire & Auto <noreply@nickstire.org>";
+    const fromAddress = process.env.EMAIL_FROM || "Nick's Tire & Auto <noreply@autonicks.com>";
 
     await resend.emails.send({
       from: fromAddress,
