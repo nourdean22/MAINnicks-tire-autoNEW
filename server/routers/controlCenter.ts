@@ -46,6 +46,39 @@ const THRESHOLDS = {
   STREAK_LOOKBACK_DAYS: 30,
 } as const;
 
+/** Derive the single biggest bottleneck across all dimensions */
+function deriveBottleneck(
+  execution: { completionScore: number; mission: string | null; streak: number },
+  revenue: { staleLeadsCount: number; staleQuotesCount: number; pendingCallbacks: number },
+  driftStatus: string,
+  totalRevenue: number,
+  mode: string,
+): { area: string; message: string; severity: "critical" | "high" | "medium" | "low" } {
+  // Priority order: fire > revenue decay > execution collapse > drift > clear
+  if (mode === "recovery") {
+    return { area: "operations", message: "Too many things overdue. Triage first.", severity: "critical" };
+  }
+  if (revenue.pendingCallbacks >= 3) {
+    return { area: "revenue", message: `${revenue.pendingCallbacks} callbacks waiting — money on the table`, severity: "high" };
+  }
+  if (revenue.staleLeadsCount >= 3) {
+    return { area: "revenue", message: `${revenue.staleLeadsCount} leads going cold — contact them`, severity: "high" };
+  }
+  if (execution.completionScore < THRESHOLDS.DRIFTING_MIN && !execution.mission) {
+    return { area: "execution", message: "No mission set and habits slipping", severity: "high" };
+  }
+  if (driftStatus === "off_track") {
+    return { area: "discipline", message: "Multiple drift signals — return to fundamentals", severity: "medium" };
+  }
+  if (totalRevenue > 0) {
+    return { area: "revenue", message: `${totalRevenue} items waiting on follow-up`, severity: "medium" };
+  }
+  if (execution.completionScore < THRESHOLDS.ON_TRACK_MIN) {
+    return { area: "execution", message: "Finish non-negotiables to stay on track", severity: "low" };
+  }
+  return { area: "none", message: "Clear. Execute your mission.", severity: "low" };
+}
+
 export const controlCenterRouter = router({
   getOverview: adminProcedure.query(async () => {
     const d = await db();
@@ -478,7 +511,8 @@ export const controlCenterRouter = router({
         hoursLeft,
       },
       mode,
-      executionDebt, // 0-7: how many of last 7 days were below 40%
+      executionDebt,
+      bottleneck: deriveBottleneck(execution, revenueWaiting, driftStatus, totalRevenue, mode),
     };
   }),
 
@@ -651,6 +685,49 @@ export const controlCenterRouter = router({
         uncommittedCount: 0,
       };
     }
+  }),
+
+  // ─── OPERATIONAL TWIN (machine-readable system model) ────
+  getOperationalTwin: adminProcedure.query(async () => {
+    const d = await db();
+    const health = getGatewayHealth();
+
+    return {
+      version: "1.0",
+      timestamp: new Date().toISOString(),
+      subsystems: {
+        server: { status: "live", risk: "low" },
+        database: { status: d ? "connected" : "disconnected", risk: d ? "low" : "critical" },
+        aiGateway: {
+          status: health.ollamaHealthy ? "local" : "cloud-fallback",
+          circuitBreaker: health.circuitBreaker?.open ? "open" : "closed",
+          risk: health.ollamaHealthy ? "low" : "medium",
+        },
+        cron: { status: "running", jobCount: 11, risk: "low" },
+        auth: { status: "active", method: "google-oauth", risk: "low" },
+        controlCenter: { status: "active", endpoints: 10, risk: "low" },
+        tunnel: { status: process.env.TUNNEL_URL ? "configured" : "local-only", risk: "low" },
+      },
+      protectedCore: [
+        "server/_core/index.ts", "server/_core/trpc.ts", "server/routers.ts",
+        "drizzle/schema.ts", "server/db.ts", "client/src/App.tsx",
+      ],
+      truthSources: {
+        database: "TiDB Cloud via Drizzle ORM",
+        ai: "Ollama local-first, OpenAI fallback via ai-gateway.ts",
+        auth: "Google OAuth via GOOGLE_OAUTH_CLIENT_ID",
+        config: ".env + Railway env vars",
+        schema: "drizzle/schema.ts (68 tables, 22 migrations)",
+      },
+      knownDebt: {
+        schemaNaming: "mixed camelCase/snake_case across eras",
+        missingTimestamps: 8,
+        missingIndexes: 22,
+        stubCronJobs: 2,
+        contentCronMissing: true,
+        staleKBDoc: true,
+      },
+    };
   }),
 
   // ─── SOURCE STATUS (truth layer summary) ────────────────
