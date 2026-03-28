@@ -312,14 +312,11 @@ export default function ControlCenter() {
 
         {/* ═══ TODAY FOOTER ═══ */}
         {o && (
-          <div className="mt-10 flex items-center justify-between text-xs text-white/15 font-mono tabular-nums px-0.5">
+          <div className="mt-10 flex items-center gap-4 text-[10px] text-white/12 font-mono tabular-nums px-0.5">
             <span>{o.todayStats.leadsToday} leads</span>
-            <span className="text-white/6">·</span>
             <span>{o.todayStats.quotesToday} quoted</span>
-            <span className="text-white/6">·</span>
             <span>{o.todayStats.bookingsToday} booked</span>
-            <span className="text-white/6">·</span>
-            <span className={o.todayStats.callbacksPending > 0 ? "text-amber-400/40" : ""}>{o.todayStats.callbacksPending} calls</span>
+            <span className={o.todayStats.callbacksPending > 0 ? "text-amber-400/30" : ""}>{o.todayStats.callbacksPending} calls</span>
           </div>
         )}
       </main>
@@ -737,11 +734,8 @@ function CommandPalette({ onClose, setMission, refetch, logAction }: { onClose: 
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="px-4 py-2 text-[10px] text-white/15 flex gap-4">
-          <span>mission [text]</span>
-          <span>leads</span>
-          <span>callbacks</span>
-          <span>refresh</span>
+        <div className="px-4 py-1.5 text-[9px] text-white/10">
+          type anything — routes to mission, leads, bookings, or refresh
         </div>
       </div>
     </div>
