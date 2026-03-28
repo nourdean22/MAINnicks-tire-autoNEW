@@ -30,7 +30,6 @@ overrides:
   tar@<=7.5.3: '>=7.5.4'
   fast-xml-parser@>=5.0.0 <5.5.6: '>=5.5.6'
   fast-xml-parser@>=4.0.0-beta.3 <=5.5.6: '>=5.5.7'
-  path-to-regexp@<0.1.13: '>=0.1.13'
   dompurify@<3.3.2: '>=3.3.2'
   picomatch@>=4.0.0 <4.0.4: '>=4.0.4'
   dompurify@>=3.1.3 <=3.3.1: '>=3.3.2'
@@ -3840,8 +3839,8 @@ packages:
     resolution: {integrity: sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q==}
     engines: {node: '>=8'}
 
-  path-to-regexp@8.4.0:
-    resolution: {integrity: sha512-PuseHIvAnz3bjrM2rGJtSgo1zjgxapTLZ7x2pjhzWwlp4SJQgK3f3iZIQwkpEnBaKz6seKBADpM4B4ySkuYypg==}
+  path-to-regexp@0.1.12:
+    resolution: {integrity: sha512-RA1GjUVMnvYFxuqovrEqZoxxW5NUZqbwKtYz/Tt7nXerk0LbLblQmrsgdeOxV5SFHf0UDggjS/bSeOZwt1pmEQ==}
 
   pathe@1.1.2:
     resolution: {integrity: sha512-whLdWMYL2TwI08hn8/ZqAbrVemu0LNaNNJZX73O6qaIdCTfXutsLhMkjdENX0qhsQ9uIimo4/aQOmXkoon2nDQ==}
@@ -7688,7 +7687,7 @@ snapshots:
       methods: 1.1.2
       on-finished: 2.4.1
       parseurl: 1.3.3
-      path-to-regexp: 8.4.0
+      path-to-regexp: 0.1.12
       proxy-addr: 2.0.7
       qs: 6.15.0
       range-parser: 1.2.1
@@ -8817,7 +8816,7 @@ snapshots:
 
   path-key@3.1.1: {}
 
-  path-to-regexp@8.4.0: {}
+  path-to-regexp@0.1.12: {}
 
   pathe@1.1.2: {}
 
