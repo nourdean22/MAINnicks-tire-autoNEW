@@ -4,6 +4,7 @@
  * Cobalt blue + gold accent system
  */
 
+import React from "react";
 import { Link } from "wouter";
 import BookingForm from "@/components/BookingForm";
 import FinancingCTA from "@/components/FinancingCTA";
@@ -713,6 +714,63 @@ function TirePressureGuide() {
   );
 }
 
+// ─── HOMEPAGE FAQ (visible) ──────────────────────────
+function HomepageFAQ() {
+  const faqs = [
+    { q: "Do I need an appointment?", a: "Walk-ins welcome 7 days a week. For bigger jobs, calling ahead helps us prepare — but you can always just stop by." },
+    { q: "Will you show me what's wrong first?", a: "Always. We walk you through the diagnosis, show you the worn parts, explain your options, and let you decide. No pressure." },
+    { q: "How much does a diagnosis cost?", a: "Check engine light diagnostics start at $49.99. We pinpoint the real problem — not just read codes." },
+    { q: "Do you work on all makes and models?", a: "Yes. Domestic, import, trucks, SUVs — we work on it all." },
+    { q: "Do you offer financing?", a: "Yes. Payment plans available so you can get the repair you need today. Ask when you call or visit." },
+    { q: "How fast can you get me in?", a: "Most tire, oil, and brake services are same-day. Call (216) 862-0005 and we'll let you know right away." },
+  ];
+
+  const [open, setOpen] = React.useState<number | null>(null);
+
+  return (
+    <section className="py-24 lg:py-32 section-elevated">
+      <div className="container max-w-3xl">
+        <FadeIn>
+          <h2 className="font-heading text-3xl lg:text-4xl font-bold text-foreground tracking-tight text-center uppercase mb-12">
+            Common Questions
+          </h2>
+        </FadeIn>
+        <div className="space-y-2">
+          {faqs.map((faq, i) => (
+            <FadeIn key={i} delay={i * 0.05}>
+              <button
+                onClick={() => setOpen(open === i ? null : i)}
+                className="w-full text-left p-5 rounded-xl border border-border hover:border-foreground/20 transition-colors"
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <span className="font-semibold text-foreground text-sm">{faq.q}</span>
+                  <ChevronDown className={`w-4 h-4 text-foreground/30 transition-transform shrink-0 ${open === i ? "rotate-180" : ""}`} />
+                </div>
+                {open === i && (
+                  <p className="mt-3 text-foreground/50 text-sm leading-relaxed">{faq.a}</p>
+                )}
+              </button>
+            </FadeIn>
+          ))}
+        </div>
+        <FadeIn delay={0.3}>
+          <div className="mt-8 text-center">
+            <p className="text-foreground/30 text-sm">Still have questions?</p>
+            <a
+              href={BUSINESS.phone.href}
+              onClick={() => trackPhoneClick('faq-cta')}
+              className="mt-2 inline-flex items-center gap-2 text-[#FDB913] font-semibold text-sm hover:text-[#FFD54F] transition-colors"
+            >
+              <Phone className="w-4 h-4" />
+              Call us — {BUSINESS.phone.display}
+            </a>
+          </div>
+        </FadeIn>
+      </div>
+    </section>
+  );
+}
+
 // ─── LOCAL BUSINESS SCHEMA ───────────────────────────────
 function LocalBusinessSchema() {
   const schema = {
@@ -761,12 +819,18 @@ function HomepageFAQSchema() {
     mainEntity: [
       { "@type": "Question", name: "How much does flat tire repair cost at Nick's Tire & Auto?",
         acceptedAnswer: { "@type": "Answer", text: "Flat tire repair costs $15-$25. Most repairs done in 15 minutes. We never sell you a new tire if yours can be safely repaired." } },
-      { "@type": "Question", name: "Do you sell used tires?",
-        acceptedAnswer: { "@type": "Answer", text: "Yes. Large selection of quality inspected used tires. Every tire checked for tread depth, sidewall condition, and safety. Walk-ins welcome." } },
-      { "@type": "Question", name: "What is included in the free tire installation package?",
-        acceptedAnswer: { "@type": "Answer", text: "15 services free with every tire purchase: mounting, balancing, valve stems, TPMS reset, alignment check, 20-point inspection, rim cleaning, disposal, torque, and more. $289+ value." } },
+      { "@type": "Question", name: "How much does a check engine light diagnosis cost?",
+        acceptedAnswer: { "@type": "Answer", text: "Diagnostic starts at $49.99. We use advanced OBD-II scanning and live data analysis to pinpoint the exact problem — not just read codes. We explain what we find before any repair begins." } },
+      { "@type": "Question", name: "Do I need an appointment or can I walk in?",
+        acceptedAnswer: { "@type": "Answer", text: "Walk-ins are welcome 7 days a week. For faster service on bigger jobs, calling ahead or booking online helps us prepare. Most tire and oil services are same-day." } },
+      { "@type": "Question", name: "How do I know if my brakes need replacing?",
+        acceptedAnswer: { "@type": "Answer", text: "Common signs: squealing or grinding noise, soft brake pedal, vibration when stopping, or longer stopping distance. We offer free brake inspections — we'll show you the wear and explain your options before any work begins." } },
+      { "@type": "Question", name: "Do you offer financing or payment plans?",
+        acceptedAnswer: { "@type": "Answer", text: "Yes. We offer financing options so you can get the repairs you need today. Ask about our payment plans when you visit or call (216) 862-0005." } },
       { "@type": "Question", name: "What areas does Nick's Tire & Auto serve?",
         acceptedAnswer: { "@type": "Answer", text: "Located at 17625 Euclid Ave, Euclid OH 44112. We serve Cleveland, Euclid, Lakewood, Parma, East Cleveland, Shaker Heights, South Euclid, and all of Northeast Ohio." } },
+      { "@type": "Question", name: "Will you show me what's wrong before you fix it?",
+        acceptedAnswer: { "@type": "Answer", text: "Always. We walk you through the diagnosis, show you the worn or damaged parts, explain your options, and let you decide. No pressure, no surprises." } },
     ],
   };
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />;
@@ -798,6 +862,7 @@ export default function Home() {
       <div className="content-lazy"><ReferAFriend /></div>
       <div className="content-lazy"><PricingTiers /></div>
       <div className="content-lazy"><ComparisonTable /></div>
+      <div className="content-lazy"><HomepageFAQ /></div>
       <div className="content-lazy"><Contact /></div>
       <div className="content-lazy"><InternalLinks title="Explore More" /></div>
       <LeadPopup />
