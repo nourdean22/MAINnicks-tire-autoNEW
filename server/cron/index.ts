@@ -61,20 +61,34 @@ export function stopAllJobs(): void {
   log.info("All cron jobs stopped");
 }
 
+const MAX_JOB_DURATION_MS = 5 * 60 * 1000; // 5 min safety timeout
+
 /** Run a single job with logging (skip if already running to prevent overlap) */
 async function runJob(job: CronJob): Promise<void> {
   if (job.running) {
-    log.info(`Cron skipped (still running): ${job.name}`);
-    return;
+    // Safety: if a job has been "running" for over MAX_JOB_DURATION_MS, force-reset it
+    const stuckMs = job.lastRun ? Date.now() - job.lastRun.getTime() : 0;
+    if (stuckMs > MAX_JOB_DURATION_MS * 2) {
+      log.warn(`Cron force-reset (stuck ${Math.round(stuckMs / 1000)}s): ${job.name}`);
+      job.running = false;
+    } else {
+      log.info(`Cron skipped (still running): ${job.name}`);
+      return;
+    }
   }
   job.running = true;
   const startedAt = new Date();
+
+  // Timeout race — prevent hung handlers from blocking forever
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`Job timed out after ${MAX_JOB_DURATION_MS / 1000}s`)), MAX_JOB_DURATION_MS)
+  );
+
   try {
-    const result = await job.handler();
+    const result = await Promise.race([job.handler(), timeoutPromise]);
     const durationMs = Date.now() - startedAt.getTime();
     job.lastRun = new Date();
 
-    // Log to DB (fire-and-forget)
     logCronRun(job.name, "completed", durationMs, result.recordsProcessed, result.details).catch(() => {});
 
     if (result.recordsProcessed && result.recordsProcessed > 0) {
