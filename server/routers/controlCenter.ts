@@ -4,6 +4,7 @@
  */
 import { adminProcedure, router } from "../_core/trpc";
 import { sql, eq, gte, and } from "drizzle-orm";
+import { execSync } from "child_process";
 import { bookings, leads, callbackRequests, smsMessages, dailyExecution, dailyHabits } from "../../drizzle/schema";
 import { getGatewayHealth, getAvailableModels } from "../lib/ai-gateway";
 import { z } from "zod";
@@ -569,5 +570,86 @@ export const controlCenterRouter = router({
       habitsCompleted: completed,
       habitsTotal: habits.length,
     };
+  }),
+
+  // ─── REPO ACTIVITY (git-based source awareness) ────────
+  getRepoActivity: adminProcedure.query(async () => {
+    try {
+      const cwd = process.cwd();
+
+      // Recent commits (last 7 days)
+      const logRaw = execSync(
+        'git log --oneline --since="7 days ago" --no-decorate 2>/dev/null',
+        { cwd, encoding: "utf-8", timeout: 5000 }
+      ).trim();
+      const commits = logRaw ? logRaw.split("\n").map(line => {
+        const [hash, ...rest] = line.split(" ");
+        return { hash, message: rest.join(" ") };
+      }) : [];
+
+      // Files changed today
+      const diffRaw = execSync(
+        'git diff --name-only HEAD~1 2>/dev/null || echo ""',
+        { cwd, encoding: "utf-8", timeout: 5000 }
+      ).trim();
+      const recentFiles = diffRaw ? diffRaw.split("\n").filter(Boolean).slice(0, 10) : [];
+
+      // Current branch
+      const branch = execSync(
+        'git branch --show-current 2>/dev/null',
+        { cwd, encoding: "utf-8", timeout: 3000 }
+      ).trim();
+
+      // Uncommitted changes
+      const statusRaw = execSync(
+        'git status --porcelain 2>/dev/null',
+        { cwd, encoding: "utf-8", timeout: 3000 }
+      ).trim();
+      const uncommittedCount = statusRaw ? statusRaw.split("\n").filter(Boolean).length : 0;
+
+      return {
+        branch,
+        commitsThisWeek: commits.length,
+        recentCommits: commits.slice(0, 5),
+        recentFiles,
+        uncommittedCount,
+      };
+    } catch {
+      return {
+        branch: "unknown",
+        commitsThisWeek: 0,
+        recentCommits: [],
+        recentFiles: [],
+        uncommittedCount: 0,
+      };
+    }
+  }),
+
+  // ─── SOURCE STATUS (truth layer summary) ────────────────
+  getSourceStatus: adminProcedure.query(async () => {
+    const d = await db();
+
+    // Runtime truth
+    const runtime = {
+      env: process.env.NODE_ENV ?? "unknown",
+      isProduction: process.env.NODE_ENV === "production",
+      hasOllamaLocal: !!process.env.OLLAMA_BASE_URL || true, // default localhost
+      hasOpenAI: !!process.env.OPENAI_API_KEY,
+      hasGoogleOAuth: !!process.env.GOOGLE_OAUTH_CLIENT_ID,
+      hasAdminKey: !!process.env.ADMIN_API_KEY,
+      hasTwilio: !!process.env.TWILIO_ACCOUNT_SID,
+      hasResend: !!process.env.RESEND_API_KEY,
+      dbConnected: !!d,
+    };
+
+    // Known source docs (from Drive registry)
+    const knownDocs = [
+      { name: "Knowledge Base", lastUpdated: "2026-03-15", status: "stale" as const, drift: "9 contradictions found" },
+      { name: "Brand Blueprint", lastUpdated: "2026-03-15", status: "current" as const, drift: null },
+      { name: "Website Audit", lastUpdated: "2026-03-19", status: "current" as const, drift: null },
+      { name: "Weekly Directives", lastUpdated: "2026-03-15", status: "stale" as const, drift: "Covers Mar 16-22 only" },
+    ];
+
+    return { runtime, knownDocs };
   }),
 });
