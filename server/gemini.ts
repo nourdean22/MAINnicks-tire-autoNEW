@@ -6,6 +6,7 @@
  */
 
 import { invokeLLM } from "./_core/llm";
+import { aiGateway } from "./lib/ai-gateway";
 
 const NICK_SYSTEM_PROMPT = `You are the AI assistant for Nick's Tire & Auto, a trusted independent auto repair and tire shop at 17625 Euclid Ave, Cleveland, OH 44112. Phone: (216) 862-0005. Hours: Mon-Sat 8AM-6PM, Sunday 9AM-4PM.
 
@@ -121,19 +122,20 @@ export async function chatWithAssistant(
   try {
     // Build the conversation with system prompt
     const fullMessages = [
-      { role: "system" as const, content: NICK_SYSTEM_PROMPT },
+      { role: "system", content: NICK_SYSTEM_PROMPT },
       ...messages.map(m => ({
-        role: m.role as "user" | "assistant",
+        role: m.role,
         content: m.content,
       })),
     ];
 
-    const response = await invokeLLM({
+    // Route through AI gateway — uses local Ollama (dolphin-nour) with OpenAI fallback
+    const gatewayResult = await aiGateway({
+      task: "chat",
       messages: fullMessages,
     });
 
-    const rawReply = response.choices?.[0]?.message?.content;
-    const reply: string = (typeof rawReply === 'string' ? rawReply : '') || 
+    const reply: string = gatewayResult.content ||
       "I apologize, I'm having trouble right now. Please call us directly at (216) 862-0005 and we'll help you right away.";
 
     // Try to extract vehicle/problem info from the conversation
