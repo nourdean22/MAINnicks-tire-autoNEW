@@ -14,9 +14,6 @@ import { createPrerenderMiddleware } from "../prerender-middleware";
 import { SITEMAP_ROUTES, BLOG_SLUGS } from "@shared/routes";
 import { getPublishedArticles } from "../content-generator";
 import { markReviewRequestClicked } from "../db";
-import { processReviewRequestQueue } from "../routers/reviewRequests";
-import { processReminderQueue } from "../routers/reminders";
-import { processPostInvoiceFollowUps } from "../postInvoiceFollowUp";
 import { SITE_URL } from "@shared/business";
 import { serverCache } from "../cache";
 import { logger, createRequestLogger } from "../logger";
@@ -345,45 +342,8 @@ async function startServer() {
     res.redirect(302, GOOGLE_REVIEW_URL);
   });
 
-  // ─── Periodic review request queue processor ──────────
-  // Checks every 5 minutes for pending review requests that are past their scheduled time
-  setInterval(async () => {
-    try {
-      const result = await processReviewRequestQueue();
-      if (result.processed > 0) {
-        console.log(`[ReviewRequest] Queue processed: ${result.sent} sent, ${result.failed} failed`);
-      }
-    } catch (err) {
-      console.error("[ReviewRequest] Queue processing error:", err);
-    }
-  }, 5 * 60 * 1000); // Every 5 minutes
-
-  // Periodic maintenance reminder queue processor
-  // Checks every 15 minutes for reminders that are past their nextDueDate
-  setInterval(async () => {
-    try {
-      const result = await processReminderQueue();
-      if (result.processed > 0) {
-        console.log(`[Reminders] Queue processed: ${result.sent} sent, ${result.failed} failed`);
-      }
-    } catch (err) {
-      console.error("[Reminders] Queue processing error:", err);
-    }
-  }, 15 * 60 * 1000); // Every 15 minutes
-
-  // ─── Automated 7-day post-invoice follow-up ──────────
-  // Checks every hour for customers whose last visit was 7 days ago
-  // Sends thank you + review request + referral text (same as campaign)
-  setInterval(async () => {
-    try {
-      const result = await processPostInvoiceFollowUps();
-      if (result.processed > 0) {
-        console.log(`[PostInvoiceFollowUp] Processed: ${result.sent} sent, ${result.failed} failed out of ${result.processed}`);
-      }
-    } catch (err) {
-      console.error("[PostInvoiceFollowUp] Processing error:", err);
-    }
-  }, 60 * 60 * 1000); // Every 1 hour
+  // Review requests, reminders, and post-invoice follow-ups are handled by the cron system
+  // See server/cron/index.ts — duplicate setInterval timers removed to save memory
 
   // ─── Facebook Messenger Webhook ──────────────────────
   // Webhook verification for Facebook Messenger

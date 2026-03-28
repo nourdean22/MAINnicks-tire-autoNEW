@@ -26,15 +26,15 @@ export async function getDb() {
       _pool = mysql.createPool({
         uri: process.env.DATABASE_URL,
         waitForConnections: true,
-        connectionLimit: 10,
-        maxIdle: 5,
+        connectionLimit: 5,
+        maxIdle: 3,
         idleTimeout: 60000,
         enableKeepAlive: true,
         keepAliveInitialDelay: 10000,
         ssl: process.env.DATABASE_URL?.includes('tidbcloud.com') ? { rejectUnauthorized: true } : undefined,
       });
       _db = drizzle(_pool);
-      console.log("[Database] Connection pool established (max 10 connections)");
+      console.log("[Database] Connection pool established (max 5 connections)");
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;

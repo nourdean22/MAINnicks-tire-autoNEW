@@ -11,7 +11,6 @@
  * All messages identify as Nick's Tire & Auto and include
  * the store phone number (216) 862-0005 for callbacks.
  */
-import twilio from "twilio";
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
 
 // ─── Communication log helper (fire-and-forget) ──────
@@ -35,7 +34,9 @@ async function logCommunication(phone: string, type: string, direction: string, 
 
 // ─── TWILIO CLIENT ─────────────────────────────────────
 
-function getTwilioClient() {
+let _twilioClient: any = null;
+
+async function getTwilioClient() {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
 
@@ -44,7 +45,11 @@ function getTwilioClient() {
     return null;
   }
 
-  return twilio(accountSid, authToken);
+  if (!_twilioClient) {
+    const twilio = (await import("twilio")).default;
+    _twilioClient = twilio(accountSid, authToken);
+  }
+  return _twilioClient;
 }
 
 function getFromNumber(): string {
@@ -64,7 +69,7 @@ export interface SmsResult {
  * Returns success/failure with Twilio message SID.
  */
 export async function sendSms(to: string, body: string): Promise<SmsResult> {
-  const client = getTwilioClient();
+  const client = await getTwilioClient();
   const from = getFromNumber();
 
   if (!client || !from) {
