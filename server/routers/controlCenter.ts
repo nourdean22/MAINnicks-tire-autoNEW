@@ -58,10 +58,10 @@ function deriveBottleneck(
   if (mode === "recovery") {
     return { area: "operations", message: "Too many things overdue. Triage first.", severity: "critical" };
   }
-  if (revenue.pendingCallbacks >= 3) {
+  if (revenue.pendingCallbacks > THRESHOLDS.CALLBACKS_WARN) {
     return { area: "revenue", message: `${revenue.pendingCallbacks} callbacks waiting — money on the table`, severity: "high" };
   }
-  if (revenue.staleLeadsCount >= 3) {
+  if (revenue.staleLeadsCount > THRESHOLDS.STALE_LEADS_WARN) {
     return { area: "revenue", message: `${revenue.staleLeadsCount} leads going cold — contact them`, severity: "high" };
   }
   if (execution.completionScore < THRESHOLDS.DRIFTING_MIN && !execution.mission) {
@@ -487,15 +487,11 @@ export const controlCenterRouter = router({
     }
     // "fire" is determined client-side from urgentItems priority
 
-    // ─── Execution Debt (consecutive low-score days) ─────
-    // Debt = how many of the last 7 days were below DRIFTING_MIN.
-    // Uses execution.streak data already computed above.
-    let executionDebt = 0;
-    // execution.streak counts consecutive good days. If streak < 7, some days were bad.
-    // Approximate: debt = max(0, 7 - streak - 1) for simplicity without re-querying.
-    if (execution.streak < 7) {
-      executionDebt = Math.max(0, 7 - execution.streak - 1);
-    }
+    // ─── Execution Debt ─────
+    // Simple: streak=0 means yesterday was bad. No streak = no momentum.
+    // We report streak directly — client decides how to display.
+    // executionDebt = 0 means streak is healthy, >0 means days since last good streak.
+    const executionDebt = execution.streak === 0 && execution.completionScore < THRESHOLDS.DRIFTING_MIN ? 1 : 0;
 
     return {
       topAction,
@@ -573,14 +569,17 @@ export const controlCenterRouter = router({
             ON DUPLICATE KEY UPDATE status = status`
       );
 
-      // Increment action counts in notes field (JSON)
-      const [row] = await d.select().from(dailyExecution).where(sql`${dailyExecution.date} = ${today}`).limit(1);
-      let counts: Record<string, number> = {};
-      try { counts = JSON.parse(row?.notes || "{}"); } catch {}
-      counts[input.action] = (counts[input.action] || 0) + 1;
-
+      // Atomic increment — avoids race condition on concurrent logAction calls
+      // Uses COALESCE + JSON to safely increment without read-modify-write
+      const actionKey = input.action.replace(/[^a-z_]/g, ""); // sanitize key
       await d.execute(
-        sql`UPDATE daily_execution SET notes = ${JSON.stringify(counts)} WHERE date = ${today}`
+        sql`UPDATE daily_execution
+            SET notes = JSON_SET(
+              COALESCE(notes, '{}'),
+              ${`$.${actionKey}`},
+              COALESCE(JSON_EXTRACT(notes, ${`$.${actionKey}`}), 0) + 1
+            )
+            WHERE date = ${today}`
       );
 
       return { logged: true, action: input.action, date: today };
@@ -690,7 +689,8 @@ export const controlCenterRouter = router({
   // ─── OPERATIONAL TWIN (machine-readable system model) ────
   getOperationalTwin: adminProcedure.query(async () => {
     const d = await db();
-    const health = getGatewayHealth();
+    let health: any = { ollamaHealthy: false, circuitBreaker: { open: false } };
+    try { health = getGatewayHealth(); } catch {}
 
     return {
       version: "1.0",
@@ -738,7 +738,7 @@ export const controlCenterRouter = router({
     const runtime = {
       env: process.env.NODE_ENV ?? "unknown",
       isProduction: process.env.NODE_ENV === "production",
-      hasOllamaLocal: !!process.env.OLLAMA_BASE_URL || true, // default localhost
+      hasOllamaLocal: true, // Ollama defaults to localhost:11434 when not configured
       hasOpenAI: !!process.env.OPENAI_API_KEY,
       hasGoogleOAuth: !!process.env.GOOGLE_OAUTH_CLIENT_ID,
       hasAdminKey: !!process.env.ADMIN_API_KEY,
