@@ -95,26 +95,26 @@ function Hero() {
             </span>
           </motion.div>
 
-          {/* Headline — "PRECISION REPAIR. CLEVELAND TOUGH." */}
+          {/* Headline — problem-focused, empathetic */}
           <motion.h1
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
             className="font-heading text-[2rem] sm:text-5xl lg:text-[4.5rem] font-extrabold uppercase text-white leading-[0.95] tracking-tight"
           >
-            Precision Repair.
+            Car trouble?
             <br />
-            <span className="text-[#FDB913]">Cleveland Tough.</span>
+            <span className="text-[#FDB913]">We&rsquo;ll fix it right.</span>
           </motion.h1>
 
-          {/* Subheadline */}
+          {/* Subheadline — trust + local + empathy */}
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
             className="mt-6 text-lg sm:text-xl lg:text-2xl font-sans text-white/70 max-w-xl"
           >
-            Cleveland&rsquo;s #1 for tires, brakes, and diagnostics. We beat any quote.
+            Honest diagnostics. Upfront pricing. Cleveland&rsquo;s most trusted auto repair since day one.
           </motion.p>
 
           {/* CTA buttons — Gold for revenue, outline for secondary */}
@@ -124,18 +124,20 @@ function Hero() {
             transition={{ duration: 0.6, delay: 0.7, ease: "easeOut" }}
             className="mt-8 flex flex-col sm:flex-row gap-3"
           >
-            <Link
-              href="/booking"
+            <a
+              href={BUSINESS.phone.href}
+              onClick={() => trackPhoneClick('hero-call')}
               className="btn-gold inline-flex items-center justify-center gap-2 text-lg"
             >
-              Book Appointment Now
-            </Link>
-            <a
-              href={`sms:${BUSINESS.phone.raw}`}
+              <Phone className="w-5 h-5" />
+              Call Now — {BUSINESS.phone.display}
+            </a>
+            <Link
+              href="/booking"
               className="btn-outline inline-flex items-center justify-center gap-2 text-lg"
             >
-              Text a Mechanic
-            </a>
+              Book Online
+            </Link>
           </motion.div>
 
           {/* Trust row — 3 inline badges */}
@@ -274,7 +276,7 @@ function Services() {
               <p className="mt-3 text-lg text-foreground/60 max-w-md font-light">{s.desc}</p>
               <div className="mt-6 flex gap-3">
                 <Link href={s.slug} className="inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/90 transition-colors">
-                  Learn More
+                  Get Help Now
                 </Link>
                 <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`service-${s.slug}`)} className="inline-flex items-center gap-2 border border-foreground/30 text-foreground px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/5 transition-colors">
                   Call Now
