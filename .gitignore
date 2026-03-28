@@ -116,7 +116,6 @@ temp/
 .manus-logs/
 .vercel
 .env*.local
-logs/
 
 # Local artifacts
 logs/
