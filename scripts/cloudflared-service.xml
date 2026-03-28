@@ -1,0 +1,74 @@
+<!--
+  Cloudflare Tunnel - Windows Task Scheduler Configuration
+
+  IMPORT:
+    schtasks /create /tn "Cloudflare Tunnel" /xml scripts\cloudflared-service.xml
+
+  REMOVE:
+    schtasks /delete /tn "Cloudflare Tunnel" /f
+
+  CHECK STATUS:
+    schtasks /query /tn "Cloudflare Tunnel" /v
+
+  RUN MANUALLY:
+    schtasks /run /tn "Cloudflare Tunnel"
+
+  This task starts the quick tunnel on user login. It writes the URL to
+  %USERPROFILE%\.cloudflared\tunnel-url.txt via the start-quick-tunnel.bat script.
+
+  To switch to the named tunnel (after DNS migration), change the Command below
+  to point to start-named-tunnel.bat instead.
+-->
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>Starts Cloudflare quick tunnel on login, routing traffic to localhost:3000. URL is captured to %USERPROFILE%\.cloudflared\tunnel-url.txt</Description>
+    <Author>nourd</Author>
+    <URI>\Cloudflare Tunnel</URI>
+  </RegistrationInfo>
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+      <UserId>nourd</UserId>
+      <Delay>PT30S</Delay>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <UserId>nourd</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>true</RunOnlyIfNetworkAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <DisallowStartOnRemoteAppSession>false</DisallowStartOnRemoteAppSession>
+    <UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <Priority>7</Priority>
+    <RestartOnFailure>
+      <Interval>PT1M</Interval>
+      <Count>3</Count>
+    </RestartOnFailure>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>C:\Users\nourd\nickstire\scripts\start-quick-tunnel.bat</Command>
+      <WorkingDirectory>C:\Users\nourd\nickstire</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>

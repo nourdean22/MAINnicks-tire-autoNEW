@@ -141,6 +141,13 @@
       "when": 1774716300000,
       "tag": "0019_add_scheduled_for",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1774718200000,
+      "tag": "0020_add_sms_opt_out",
+      "breakpoints": true
     }
   ]
 }

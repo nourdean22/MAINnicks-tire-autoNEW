@@ -71,6 +71,7 @@ const AlignmentPage = lazy(() => import("./pages/AlignmentPage"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const Terms = lazy(() => import("./pages/Terms"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const ControlCenter = lazy(() => import("./pages/ControlCenter"));
 
 // ─── Phase 5 Pages ──────────────────────────────────
 const CostEstimator = lazy(() => import("./pages/CostEstimator"));
@@ -122,6 +123,7 @@ function Router() {
         {/* Admin dashboard */}
         <Route path={"/admin"} component={Admin} />
         <Route path={"/admin/content"} component={AdminContent} />
+        <Route path={"/admin/control-center"} component={ControlCenter} />
         {/* City-specific landing pages for local SEO */}
         <Route path={"/cleveland-auto-repair"} component={CityPage} />
         <Route path={"/euclid-auto-repair"} component={CityPage} />

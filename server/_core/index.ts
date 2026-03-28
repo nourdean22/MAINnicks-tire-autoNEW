@@ -470,6 +470,11 @@ async function startServer() {
     app.use(createPrerenderMiddleware(prerenderedDir));
   }
 
+  // ─── API 404 handler (before SPA catch-all) ────────
+  app.all("/api/*", (_req, res) => {
+    res.status(404).json({ error: "Not found" });
+  });
+
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);

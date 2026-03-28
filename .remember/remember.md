@@ -1,21 +1,26 @@
 # Handoff
 
 ## State
-Built 655 total systems for nickstire.org across 2 mega sessions. 38 router files (45 appRouter entries, 122+ procedures), 28 services, 6 lib modules, 6 middleware, 10 cron jobs, 67 DB tables, 307 SEO pages (260 service+city + 50 intersection + 21 city), 44 pages, 51 components. All pushed to main, build passes from both `C:/Users/nourd/OneDrive/.../NICK TIRE/repo` (editing) and `C:/Users/nourd/nickstire` (dev server). Financing audit complete: 0 Synchrony, 0 Sunbit, correct dealer URLs for Acima/Snap/Koalafi/AmericanFirst. Review count updated to 1,700 everywhere. Stale duplicate dirs deleted (48K lines). All middleware wired into Express, cron jobs registered, 10 new tRPC routers wired into appRouter.
+8 commits on `main`, all pushed to Railway. Latest: `e943907`. Production healthy (nickstire.org). AI gateway live with Ollama local-first + OpenAI fallback. Customer chat + review replies wired through gateway. All remaining invokeLLM calls use JSON schema — correctly staying direct. 24 performance indexes applied to DB. Migrations 0017-0019 applied directly (journal synced). AI endpoints locked with ADMIN_API_KEY + rate limiter.
 
-## Next
-1. **Test every tRPC endpoint on live server** — `shop.getStatus`, `estimates.generate`, `serviceMatcher.match`, `specials.getActive`, `workOrders.getRecent`, `inventory.getAll`, `warranties.getExpiringSoon`, `waitlist.join`, `fleet.inquiry`
-2. **Run `drizzle-kit push`** to create the 16 new tables in production DB (customers UUID version removed, but vehicles/workOrders/specials/warranties/inventory/waitlist/cronLog/webhookDeliveries/otpCodes/auditLog/pushSubscriptions still need creating)
-3. **Enable feature flags incrementally** — SMS appointment reminders first, then review requests, then retention sequences
-4. **Build remaining tRPC procedures** — `customers.search`, `orders.calculateTotals`, `admin.getDashboard`, `analytics.trackEvent`, `content.generate`
+## Remote Access
+- Quick tunnel: `https://bird-cork-bringing-efforts.trycloudflare.com` (changes on restart)
+- Named tunnel `nour-local` exists (ID: 6193177a) but `dev.nickstire.org` doesn't resolve — DNS is at globaldomaingroup.com, not Cloudflare
+- To fix: add CNAME `dev` → `6193177a-0bd6-45cf-b2f8-0e3ef9162113.cfargotunnel.com` at DNS provider
+- Tunnel URL written to `C:\Users\nourd\.cloudflared\tunnel-url.txt`
+
+## In Progress (agents running)
+- Permanent tunnel scripts + startup persistence
+- Admin control center page
+- AI gateway persistent logging + observability
+- End-to-end flow validation
+- Dead-weight cleanup
+
+## Production Env Vars Needed on Railway
+- ADMIN_API_KEY — set via Railway dashboard to enable /api/ai/* admin endpoints (currently fail-closed 503)
 
 ## Context
-- Two repo dirs: `C:/Users/nourd/OneDrive/.../NICK TIRE/repo` (edit here) and `C:/Users/nourd/nickstire` (dev server). Must sync files between them + sync package.json for deps.
-- `nickstire.org` = PRIMARY domain. Zero `autonicks.com` in customer-facing code.
-- NOT Next.js — Vite + React + Wouter. Ignore all "use client" / Next.js hook suggestions.
-- NO manualChunks in vite.config.ts. Feature flags all start DISABLED.
-- shopStatus.ts had broken import from client code — fixed to use inline hours logic.
-- customerLookup.ts fixed to use int IDs (matching real customers table) not UUIDs.
-- Duplicate customers/referrals table defs in schema.ts were removed (kept originals).
-- User added: abandonedForms service, featureFlags seeder, warrantyAlerts cron, dashboardSync cron, staleLeadFollowup cron, more intersection data (50 total).
-- Financing rules: "Pay Over Time" not "Financing Options", no "credit" in headers, Synchrony/Sunbit = ZERO refs.
+- Structured output calls (JSON schema) MUST stay on OpenAI `invokeLLM()` — Ollama can't do strict schemas
+- DO NOT touch `C:\Users\nourd\Documents\nour-os-unified`
+- nickstire.org = Railway. autonicks.com = NOUR OS dashboard. Do not confuse.
+- Railway CLI not authed (`railway login` needed)
