@@ -52,3 +52,4 @@ export { waitlistRouter } from "./waitlistRouter";
 export { fleetRouter } from "./fleetRouter";
 export { nourOsQuoteRouter } from "./nourOsQuote";
 export { nourOsBridgeRouter } from "./nourOsBridge";
+export { controlCenterRouter } from "./controlCenter";

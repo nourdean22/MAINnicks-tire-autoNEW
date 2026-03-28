@@ -12,8 +12,42 @@
  */
 
 import { createLogger } from "./logger";
+import { appendFile, stat, writeFile, mkdir } from "fs/promises";
+import { join } from "path";
 
 const log = createLogger("ai-gateway");
+
+// ─── File-based persistent logging ──────────────────
+const LOG_DIR = join(process.cwd(), "logs");
+const LOG_FILE = join(LOG_DIR, "ai-gateway.log");
+const MAX_LOG_SIZE = 1_000_000; // ~1MB
+
+let logDirReady = false;
+
+async function ensureLogDir() {
+  if (logDirReady) return;
+  try {
+    await mkdir(LOG_DIR, { recursive: true });
+    logDirReady = true;
+  } catch {
+    // If mkdir fails, we'll just skip file logging
+  }
+}
+
+async function persistLog(entry: Record<string, unknown>) {
+  try {
+    await ensureLogDir();
+    const line = JSON.stringify(entry) + "\n";
+    await appendFile(LOG_FILE, line, "utf-8");
+    // Simple rotation: truncate when over ~1MB
+    const s = await stat(LOG_FILE).catch(() => null);
+    if (s && s.size > MAX_LOG_SIZE) {
+      await writeFile(LOG_FILE, line, "utf-8");
+    }
+  } catch {
+    // Non-blocking — don't let logging failures break requests
+  }
+}
 
 // ─── Configuration ───────────────────────────────────
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
@@ -170,6 +204,7 @@ async function callOllama(model: string, messages: OllamaMessage[], timeoutMs: n
       provider: "ollama",
       latencyMs: latency,
       tokensUsed: data.usage?.total_tokens,
+      wasFallback: false,
     };
   } catch (err) {
     clearTimeout(timeout);
@@ -211,6 +246,7 @@ async function callOpenAI(model: string, messages: OllamaMessage[], timeoutMs: n
       provider: "openai",
       latencyMs: latency,
       tokensUsed: data.usage?.total_tokens,
+      wasFallback: false,
     };
   } catch (err) {
     clearTimeout(timeout);
@@ -236,6 +272,7 @@ export type GatewayResponse = {
   latencyMs: number;
   tokensUsed?: number;
   fallbackUsed?: boolean;
+  wasFallback: boolean;
 };
 
 // ─── Request log (in-memory ring buffer) ─────────────
@@ -248,14 +285,95 @@ type RequestLogEntry = {
   success: boolean;
   fallbackUsed: boolean;
   error?: string;
+  originalError?: string; // failure reason that triggered fallback
 };
 
 const requestLog: RequestLogEntry[] = [];
 const MAX_LOG_ENTRIES = 200;
 
+// ─── Daily stats & latency tracking ─────────────────
+let lastRequestAt: number | null = null;
+
+type DailyStats = {
+  date: string; // YYYY-MM-DD in ET
+  total: number;
+  ollama: number;
+  openai: number;
+  failures: number;
+  fallbacks: number;
+};
+
+type LatencyTracker = {
+  totalMs: number;
+  count: number;
+};
+
+let dailyStats: DailyStats = makeDailyStats();
+const providerLatency: Record<AIProvider, LatencyTracker> = {
+  ollama: { totalMs: 0, count: 0 },
+  openai: { totalMs: 0, count: 0 },
+};
+
+function getTodayET(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+function makeDailyStats(): DailyStats {
+  return { date: getTodayET(), total: 0, ollama: 0, openai: 0, failures: 0, fallbacks: 0 };
+}
+
+function ensureDailyReset() {
+  const today = getTodayET();
+  if (dailyStats.date !== today) {
+    dailyStats = makeDailyStats();
+    providerLatency.ollama = { totalMs: 0, count: 0 };
+    providerLatency.openai = { totalMs: 0, count: 0 };
+  }
+}
+
 function logRequest(entry: RequestLogEntry) {
   requestLog.push(entry);
   if (requestLog.length > MAX_LOG_ENTRIES) requestLog.splice(0, requestLog.length - MAX_LOG_ENTRIES);
+
+  lastRequestAt = entry.timestamp;
+
+  // Update daily stats
+  ensureDailyReset();
+  dailyStats.total++;
+  dailyStats[entry.provider]++;
+  if (!entry.success) dailyStats.failures++;
+  if (entry.fallbackUsed) dailyStats.fallbacks++;
+
+  // Update latency averages
+  if (entry.success && entry.latencyMs > 0) {
+    providerLatency[entry.provider].totalMs += entry.latencyMs;
+    providerLatency[entry.provider].count++;
+  }
+
+  // Persist to file (fire-and-forget)
+  persistLog({
+    timestamp: new Date(entry.timestamp).toISOString(),
+    task: entry.task,
+    provider: entry.provider,
+    model: entry.model,
+    latencyMs: entry.latencyMs,
+    success: entry.success,
+    fallback: entry.fallbackUsed,
+    error: entry.error || undefined,
+    originalError: entry.originalError || undefined,
+  });
+}
+
+// ─── Error classification ───────────────────────────
+function classifyError(err: any): string {
+  if (err.name === "AbortError" || err.message?.includes("aborted")) return "timeout";
+  if (err.message?.includes("ECONNREFUSED")) return "connection_refused";
+  if (err.message?.includes("ECONNRESET")) return "connection_reset";
+  if (err.message?.includes("ETIMEDOUT")) return "network_timeout";
+  if (err.message?.includes("404") || err.message?.includes("model")) return "model_not_found";
+  if (err.message?.includes("429")) return "rate_limited";
+  if (/\b5\d{2}\b/.test(err.message || "")) return "server_error";
+  return "unknown";
 }
 
 // ─── Main gateway function ───────────────────────────
@@ -276,20 +394,23 @@ export async function aiGateway(request: GatewayRequest): Promise<GatewayRespons
       const result = await callOllama(model, request.messages, config.timeoutMs);
       logRequest({ timestamp: Date.now(), task: request.task, provider: "ollama", model, latencyMs: result.latencyMs, success: true, fallbackUsed: false });
       log.info(`[${request.task}] Ollama ${model} → ${result.latencyMs}ms`);
-      return result;
+      return { ...result, wasFallback: false };
     } catch (err: any) {
-      log.warn(`[${request.task}] Ollama failed: ${err.message}`);
+      const failureReason = classifyError(err);
+      log.warn(`[${request.task}] Ollama failed (${failureReason}): ${err.message}`);
+      logRequest({ timestamp: Date.now(), task: request.task, provider: "ollama", model, latencyMs: 0, success: false, fallbackUsed: false, error: err.message });
 
       // Fallback to cloud
       if (config.fallbackProvider && config.fallbackModel) {
+        log.info(`[${request.task}] Triggering fallback: ollama/${model} → openai/${config.fallbackModel} (reason: ${failureReason})`);
         try {
           const fallbackResult = await callOpenAI(config.fallbackModel, request.messages, config.timeoutMs);
-          logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: fallbackResult.latencyMs, success: true, fallbackUsed: true });
+          logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: fallbackResult.latencyMs, success: true, fallbackUsed: true, originalError: `${failureReason}: ${err.message}` });
           log.info(`[${request.task}] Fallback OpenAI ${config.fallbackModel} → ${fallbackResult.latencyMs}ms`);
-          return { ...fallbackResult, fallbackUsed: true };
+          return { ...fallbackResult, fallbackUsed: true, wasFallback: true };
         } catch (fallbackErr: any) {
-          logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: 0, success: false, fallbackUsed: true, error: fallbackErr.message });
-          throw new Error(`Both Ollama and OpenAI failed. Primary: ${err.message}. Fallback: ${fallbackErr.message}`);
+          logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: 0, success: false, fallbackUsed: true, error: fallbackErr.message, originalError: `${failureReason}: ${err.message}` });
+          throw new Error(`Both Ollama and OpenAI failed. Primary (${failureReason}): ${err.message}. Fallback: ${fallbackErr.message}`);
         }
       }
       throw err;
@@ -298,10 +419,10 @@ export async function aiGateway(request: GatewayRequest): Promise<GatewayRespons
 
   // Ollama requested but not available — use fallback
   if (provider === "ollama" && !ollamaAvailable && config.fallbackProvider === "openai" && config.fallbackModel) {
-    log.info(`[${request.task}] Ollama unavailable, using OpenAI fallback`);
+    log.info(`[${request.task}] Ollama unavailable (health check failed), using OpenAI fallback → ${config.fallbackModel}`);
     const result = await callOpenAI(config.fallbackModel, request.messages, config.timeoutMs);
-    logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: result.latencyMs, success: true, fallbackUsed: true });
-    return { ...result, fallbackUsed: true };
+    logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: result.latencyMs, success: true, fallbackUsed: true, originalError: "ollama_unavailable: health check failed" });
+    return { ...result, fallbackUsed: true, wasFallback: true };
   }
 
   // Direct OpenAI
@@ -309,7 +430,7 @@ export async function aiGateway(request: GatewayRequest): Promise<GatewayRespons
     const result = await callOpenAI(model, request.messages, config.timeoutMs);
     logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model, latencyMs: result.latencyMs, success: true, fallbackUsed: false });
     log.info(`[${request.task}] OpenAI ${model} → ${result.latencyMs}ms`);
-    return result;
+    return { ...result, wasFallback: false };
   }
 
   throw new Error(`Provider ${provider} unavailable and no fallback configured for task ${request.task}`);
@@ -324,9 +445,15 @@ export function getGatewayHealth() {
   const failures = recent.filter(r => !r.success);
   const fallbacks = recent.filter(r => r.fallbackUsed);
 
+  ensureDailyReset();
+
+  const ollamaLatency = providerLatency.ollama;
+  const openaiLatency = providerLatency.openai;
+
   return {
     ollamaHealthy,
     ollamaBase: OLLAMA_BASE,
+    lastRequestAt: lastRequestAt ? new Date(lastRequestAt).toISOString() : null,
     stats: {
       last5min: {
         total: recent.length,
@@ -336,6 +463,11 @@ export function getGatewayHealth() {
         fallbacks: fallbacks.length,
         avgLatencyMs: recent.length > 0 ? Math.round(recent.reduce((sum, r) => sum + r.latencyMs, 0) / recent.length) : 0,
       },
+    },
+    todayStats: { ...dailyStats },
+    providerLatency: {
+      ollama: ollamaLatency.count > 0 ? Math.round(ollamaLatency.totalMs / ollamaLatency.count) : 0,
+      openai: openaiLatency.count > 0 ? Math.round(openaiLatency.totalMs / openaiLatency.count) : 0,
     },
     recentRequests: requestLog.slice(-10).reverse(),
     routingTable: Object.entries(ROUTING_TABLE).map(([task, config]) => ({

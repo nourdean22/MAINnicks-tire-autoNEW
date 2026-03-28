@@ -66,6 +66,7 @@ import {
   fleetRouter,
   nourOsQuoteRouter,
   nourOsBridgeRouter,
+  controlCenterRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -161,6 +162,9 @@ export const appRouter = router({
   // ─── NOUR-OS Integration ─────────────────────
   nourOsQuote: nourOsQuoteRouter,
   nourOsBridge: nourOsBridgeRouter,
+
+  // Control Center
+  controlCenter: controlCenterRouter,
 });
 
 export type AppRouter = typeof appRouter;
