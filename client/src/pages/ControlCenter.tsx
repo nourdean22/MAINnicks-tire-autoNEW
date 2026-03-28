@@ -17,6 +17,7 @@ const REFRESH_INTERVAL = 30_000;
 const STORAGE_KEY_DISMISSED = "cc:dismissed";
 const STORAGE_KEY_LAST_OPEN = "cc:lastOpen";
 const STORAGE_KEY_OPENS = "cc:opens";
+const STORAGE_KEY_LAST_STATE = "cc:lastState";
 
 // ─── Types ──────────────────────────
 type ActionItem = { type: string; message: string; action: string; priority?: string };
@@ -99,10 +100,24 @@ export default function ControlCenter() {
     brief.refetch();
   }, [overview, brief]);
 
-  // Log open event once per mount
+  // Log open event + save/restore state
   useEffect(() => {
     logAction("open");
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist active state for re-entry continuity
+  useEffect(() => {
+    if (!b || !o) return;
+    const state = {
+      timestamp: Date.now(),
+      mission: b.execution?.mission || null,
+      score: b.execution?.completionScore ?? 0,
+      pendingActions: actionQueue.length,
+      topActionMsg: currentAction?.message || null,
+      mode: b.mode,
+    };
+    try { localStorage.setItem(STORAGE_KEY_LAST_STATE, JSON.stringify(state)); } catch {}
+  }, [b, o, actionQueue.length, currentAction?.message]);
 
   if (authLoading || !user) {
     return (
@@ -778,25 +793,40 @@ function LastCheckIndicator() {
   if (!last) return null;
 
   const ago = Date.now() - last;
-  if (ago < 60_000) return null; // Less than 1 min — just opened
+  if (ago < 60_000) return null;
 
   const hours = Math.floor(ago / 3_600_000);
   const mins = Math.floor((ago % 3_600_000) / 60_000);
 
-  let text: string;
+  let timeText: string;
   let urgent = false;
   if (hours >= 8) {
-    text = `${hours}h since last check`;
+    timeText = `${hours}h away`;
     urgent = true;
   } else if (hours >= 1) {
-    text = `${hours}h ${mins}m ago`;
+    timeText = `${hours}h ${mins}m ago`;
   } else {
-    text = `${mins}m ago`;
+    timeText = `${mins}m ago`;
   }
+
+  // Check if there was unfinished work
+  let leftOpen: string | null = null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_LAST_STATE);
+    if (raw) {
+      const state = JSON.parse(raw);
+      if (state.pendingActions > 0 && state.topActionMsg) {
+        leftOpen = state.topActionMsg;
+      }
+    }
+  } catch {}
 
   return (
     <span className={`text-[10px] font-mono tabular-nums ${urgent ? "text-amber-400/40" : "text-white/15"}`}>
-      {text}
+      {timeText}
+      {leftOpen && urgent && (
+        <span className="text-amber-400/30 ml-1">· left: {leftOpen.slice(0, 30)}{leftOpen.length > 30 ? "…" : ""}</span>
+      )}
     </span>
   );
 }
