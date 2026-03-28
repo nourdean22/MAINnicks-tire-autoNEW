@@ -124,6 +124,7 @@ function Router() {
         <Route path={"/admin"} component={Admin} />
         <Route path={"/admin/content"} component={AdminContent} />
         <Route path={"/admin/control-center"} component={ControlCenter} />
+        <Route path={"/cc"} component={ControlCenter} />
         {/* City-specific landing pages for local SEO */}
         <Route path={"/cleveland-auto-repair"} component={CityPage} />
         <Route path={"/euclid-auto-repair"} component={CityPage} />

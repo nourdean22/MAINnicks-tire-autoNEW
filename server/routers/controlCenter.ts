@@ -1,16 +1,31 @@
 /**
  * Control Center router — unified admin overview with urgent items,
- * today's stats, AI gateway health, and system status.
+ * today's stats, AI gateway health, system status, daily brief, and execution tracking.
  */
 import { adminProcedure, router } from "../_core/trpc";
 import { sql, eq, gte, and } from "drizzle-orm";
-import { bookings, leads, callbackRequests, smsMessages } from "../../drizzle/schema";
+import { bookings, leads, callbackRequests, smsMessages, dailyExecution, dailyHabits } from "../../drizzle/schema";
 import { getGatewayHealth, getAvailableModels } from "../lib/ai-gateway";
+import { z } from "zod";
 
 async function db() {
   const { getDb } = await import("../db");
   return getDb();
 }
+
+/** Get today's date string (YYYY-MM-DD) in America/New_York timezone */
+function getTodayET(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+// Fixed non-negotiable habits (defined in code, not DB)
+const NON_NEGOTIABLES = [
+  { key: "wake", label: "Wake by 6:30 AM" },
+  { key: "workout", label: "Workout / Movement" },
+  { key: "business_action", label: "One Business Action" },
+  { key: "clean_space", label: "Clean Space" },
+  { key: "no_social_am", label: "No Social Before Noon" },
+];
 
 export const controlCenterRouter = router({
   getOverview: adminProcedure.query(async () => {
@@ -112,7 +127,8 @@ export const controlCenterRouter = router({
       tunnelUrl,
       tunnelMode,
       uptime: Math.round(process.uptime()),
-      lastDeployTime: null as string | null,
+      env: process.env.NODE_ENV ?? "unknown",
+      startedAt: new Date(Date.now() - process.uptime() * 1000).toISOString(),
     };
 
     // ─── Urgent Items ────────────────────────────────
@@ -224,4 +240,317 @@ export const controlCenterRouter = router({
 
     return { todayStats, aiGateway, systemHealth, urgentItems };
   }),
+
+  // ─── DAILY BRIEF ─────────────────────────────────────
+  getDailyBrief: adminProcedure.query(async () => {
+    const d = await db();
+    const today = getTodayET();
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+
+    // ─── Top Action (single highest-priority urgent item) ───
+    let topAction: { type: string; message: string; action: string } | null = null;
+
+    // ─── Revenue Waiting ────────────────────────────────
+    let revenueWaiting = {
+      staleLeadsCount: 0,
+      staleQuotesCount: 0,
+      pendingCallbacks: 0,
+      topOpportunities: [] as Array<{
+        id: number;
+        name: string;
+        phone: string;
+        service: string;
+        createdAt: Date;
+        status: string;
+      }>,
+    };
+
+    if (d) {
+      // Stale leads: new, >24h
+      const [staleLeadsResult] = await d
+        .select({ count: sql<number>`count(*)` })
+        .from(leads)
+        .where(and(
+          eq(leads.status, "new"),
+          sql`${leads.createdAt} < ${yesterday}`
+        ));
+      revenueWaiting.staleLeadsCount = staleLeadsResult?.count ?? 0;
+
+      // Stale quotes: contacted, >48h
+      const [staleQuotesResult] = await d
+        .select({ count: sql<number>`count(*)` })
+        .from(leads)
+        .where(and(
+          eq(leads.status, "contacted"),
+          sql`${leads.createdAt} < ${twoDaysAgo}`
+        ));
+      revenueWaiting.staleQuotesCount = staleQuotesResult?.count ?? 0;
+
+      // Pending callbacks
+      const [callbacksResult] = await d
+        .select({ count: sql<number>`count(*)` })
+        .from(callbackRequests)
+        .where(eq(callbackRequests.status, "new"));
+      revenueWaiting.pendingCallbacks = callbacksResult?.count ?? 0;
+
+      // Top 5 opportunities sorted by urgency (new leads first, then by age)
+      const topOpps = await d
+        .select({
+          id: leads.id,
+          name: leads.name,
+          phone: leads.phone,
+          service: leads.recommendedService,
+          createdAt: leads.createdAt,
+          status: leads.status,
+        })
+        .from(leads)
+        .where(sql`${leads.status} IN ('new', 'contacted')`)
+        .orderBy(sql`FIELD(${leads.status}, 'new', 'contacted')`, leads.createdAt)
+        .limit(5);
+
+      revenueWaiting.topOpportunities = topOpps.map((o: typeof topOpps[number]) => ({
+        id: o.id,
+        name: o.name,
+        phone: o.phone,
+        service: o.service ?? "General",
+        createdAt: o.createdAt,
+        status: o.status,
+      }));
+
+      // Build topAction from priority: stale leads > pending callbacks > stale quotes > failed SMS
+      if (revenueWaiting.staleLeadsCount > 0) {
+        topAction = {
+          type: "lead",
+          message: `${revenueWaiting.staleLeadsCount} lead${revenueWaiting.staleLeadsCount > 1 ? "s" : ""} with no response in 24h`,
+          action: "/admin#leads",
+        };
+      } else if (revenueWaiting.pendingCallbacks > 0) {
+        topAction = {
+          type: "callback",
+          message: `${revenueWaiting.pendingCallbacks} callback${revenueWaiting.pendingCallbacks > 1 ? "s" : ""} pending`,
+          action: "/admin#bookings",
+        };
+      } else if (revenueWaiting.staleQuotesCount > 0) {
+        topAction = {
+          type: "quote",
+          message: `${revenueWaiting.staleQuotesCount} quote${revenueWaiting.staleQuotesCount > 1 ? "s" : ""} not followed up (48h+)`,
+          action: "/admin#leads",
+        };
+      } else {
+        // Check failed SMS as lowest priority topAction
+        try {
+          const [failedSms] = await d
+            .select({ count: sql<number>`count(*)` })
+            .from(smsMessages)
+            .where(and(
+              eq(smsMessages.status, "failed"),
+              gte(smsMessages.createdAt, yesterday)
+            ));
+          if ((failedSms?.count ?? 0) > 0) {
+            topAction = {
+              type: "sms",
+              message: `${failedSms!.count} failed SMS in last 24h`,
+              action: "/admin#sms",
+            };
+          }
+        } catch {
+          // SMS table might not exist yet
+        }
+      }
+    }
+
+    // ─── Execution Tracking ──────────────────────────────
+    let execution = {
+      date: today,
+      mission: null as string | null,
+      nonNegotiables: NON_NEGOTIABLES.map((h) => ({ key: h.key, label: h.label, completed: false })),
+      completionScore: 0,
+      status: "off_track" as "on_track" | "drifting" | "off_track",
+      streak: 0,
+    };
+
+    if (d) {
+      try {
+        // Ensure today's daily_execution row exists
+        await d.execute(
+          sql`INSERT IGNORE INTO daily_execution (date, status) VALUES (${today}, 'on_track')`
+        );
+
+        // Get today's execution
+        const [todayExec] = await d
+          .select()
+          .from(dailyExecution)
+          .where(sql`${dailyExecution.date} = ${today}`)
+          .limit(1);
+
+        if (todayExec) {
+          execution.mission = todayExec.mission;
+        }
+
+        // Ensure all habit rows exist for today
+        for (const habit of NON_NEGOTIABLES) {
+          await d.execute(
+            sql`INSERT IGNORE INTO daily_habits (date, habit_key, completed) VALUES (${today}, ${habit.key}, 0)`
+          );
+        }
+
+        // Get today's habits
+        const todayHabits = await d
+          .select()
+          .from(dailyHabits)
+          .where(sql`${dailyHabits.date} = ${today}`);
+
+        const habitMap = new Map(todayHabits.map((h: any) => [h.habit_key ?? h.habitKey, h.completed]));
+
+        execution.nonNegotiables = NON_NEGOTIABLES.map((h) => ({
+          key: h.key,
+          label: h.label,
+          completed: habitMap.get(h.key) === true,
+        }));
+
+        const completedCount = execution.nonNegotiables.filter((h) => h.completed).length;
+        execution.completionScore = Math.round((completedCount / NON_NEGOTIABLES.length) * 100);
+
+        if (execution.completionScore >= 80) {
+          execution.status = "on_track";
+        } else if (execution.completionScore >= 40) {
+          execution.status = "drifting";
+        } else {
+          execution.status = "off_track";
+        }
+
+        // Calculate streak: consecutive past days with >=80% completion (single query)
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+          .toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+
+        const streakRows = await d.execute(
+          sql`SELECT date, SUM(completed) as done, COUNT(*) as total
+              FROM daily_habits
+              WHERE date >= ${thirtyDaysAgo} AND date < ${today}
+              GROUP BY date
+              ORDER BY date DESC`
+        ) as any[];
+
+        let streak = 0;
+        for (const row of (streakRows as any[] ?? [])) {
+          const pct = (Number(row.done) / Number(row.total)) * 100;
+          if (pct >= 80) streak++;
+          else break;
+        }
+        execution.streak = streak;
+      } catch {
+        // Tables might not exist yet — return defaults
+      }
+    }
+
+    // ─── Drift Indicator ─────────────────────────────────
+    const signals: string[] = [];
+
+    if (revenueWaiting.staleLeadsCount > 3) {
+      signals.push("Leads going cold");
+    }
+    if (execution.completionScore < 60) {
+      signals.push("Non-negotiables slipping");
+    }
+    if (revenueWaiting.staleQuotesCount > 5) {
+      signals.push("Quotes dying on the vine");
+    }
+    if (revenueWaiting.pendingCallbacks > 3) {
+      signals.push("Callbacks piling up");
+    }
+
+    let driftStatus: "focused" | "drifting" | "off_track" = "focused";
+    if (signals.length >= 3) {
+      driftStatus = "off_track";
+    } else if (signals.length >= 1) {
+      driftStatus = "drifting";
+    }
+
+    // ─── Time Context ───────────────────────────────────
+    const etNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const etHour = etNow.getHours();
+
+    let period: "morning" | "afternoon" | "evening" | "night";
+    if (etHour < 12) period = "morning";
+    else if (etHour < 17) period = "afternoon";
+    else if (etHour < 21) period = "evening";
+    else period = "night";
+
+    const score = execution.completionScore;
+    const missionSet = !!execution.mission;
+    let greeting: string;
+
+    if (period === "morning") {
+      if (!missionSet) greeting = "Set your mission. Start with the hardest thing.";
+      else if (score < 40) greeting = "Morning. Time to move.";
+      else greeting = "Good start. Keep going.";
+    } else if (period === "afternoon") {
+      if (score < 60) greeting = "Afternoon check. You're behind.";
+      else greeting = "Solid afternoon. Close it out.";
+    } else if (period === "evening") {
+      if (score < 80) greeting = "Day's ending. What's left?";
+      else greeting = "Strong day. Finish clean.";
+    } else {
+      greeting = "Day's over. Rest. Reset.";
+    }
+
+    const hoursLeft = Math.max(0, 21 - etHour);
+
+    return {
+      topAction,
+      revenueWaiting,
+      execution,
+      driftIndicator: {
+        status: driftStatus,
+        signals,
+      },
+      timeContext: {
+        period,
+        greeting,
+        hoursLeft,
+      },
+    };
+  }),
+
+  // ─── TOGGLE HABIT ────────────────────────────────────
+  toggleHabit: adminProcedure
+    .input(z.object({ habitKey: z.string(), completed: z.boolean() }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) throw new Error("Database unavailable");
+
+      const today = getTodayET();
+      const completedAt = input.completed ? new Date() : null;
+
+      await d.execute(
+        sql`INSERT INTO daily_habits (date, habit_key, completed, completed_at)
+            VALUES (${today}, ${input.habitKey}, ${input.completed ? 1 : 0}, ${completedAt})
+            ON DUPLICATE KEY UPDATE
+              completed = ${input.completed ? 1 : 0},
+              completed_at = ${completedAt}`
+      );
+
+      return { habitKey: input.habitKey, completed: input.completed, date: today };
+    }),
+
+  // ─── SET MISSION ─────────────────────────────────────
+  setMission: adminProcedure
+    .input(z.object({ mission: z.string() }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) throw new Error("Database unavailable");
+
+      const today = getTodayET();
+
+      await d.execute(
+        sql`INSERT INTO daily_execution (date, mission, status)
+            VALUES (${today}, ${input.mission}, 'on_track')
+            ON DUPLICATE KEY UPDATE
+              mission = ${input.mission}`
+      );
+
+      return { success: true, date: today, mission: input.mission };
+    }),
 });
