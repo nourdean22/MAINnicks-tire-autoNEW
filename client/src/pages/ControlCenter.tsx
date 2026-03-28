@@ -260,6 +260,17 @@ export default function ControlCenter() {
           </div>
         </div>
 
+        {/* ═══ BOTTLENECK ═══ */}
+        {b?.bottleneck && b.bottleneck.severity !== "low" && (
+          <p className={`text-[11px] mb-3 px-0.5 ${
+            b.bottleneck.severity === "critical" ? "text-red-400/50" :
+            b.bottleneck.severity === "high" ? "text-amber-400/40" :
+            "text-white/20"
+          }`}>
+            {b.bottleneck.message}
+          </p>
+        )}
+
         {/* ═══ INSTALL PROMPT ═══ */}
         {showInstall && (
           <button
