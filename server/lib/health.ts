@@ -55,8 +55,8 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
     overallStatus = "degraded";
   }
 
-  // Email check (configured?)
-  const resendKey = process.env.RESEND_API_KEY;
+  // Email check (configured?) — try both RESEND_API_KEY and RESEND_KEY fallback
+  const resendKey = process.env.RESEND_API_KEY || process.env.RESEND_KEY;
   checks.email = {
     status: resendKey ? "configured" : "not_configured",
     keyPrefix: resendKey ? resendKey.slice(0, 5) + "..." : "missing",
