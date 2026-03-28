@@ -235,6 +235,11 @@ export default function ControlCenter() {
             <p className="text-[11px] text-blue-400/60 font-medium">Minimum viable day — non-negotiables + one business action. Protect the streak.</p>
           </div>
         )}
+        {b?.executionDebt > 2 && b?.mode !== "mvd" && (
+          <div className="mb-4 py-2 px-3 rounded-lg bg-white/[0.02] border border-white/[0.06]">
+            <p className="text-[11px] text-white/30">{b.executionDebt} of last 7 days below standard. Execution debt is building.</p>
+          </div>
+        )}
 
         {/* ═══ GREETING ═══ */}
         <div className="mb-4">
