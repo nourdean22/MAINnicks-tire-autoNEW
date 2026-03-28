@@ -498,6 +498,20 @@ export const controlCenterRouter = router({
 
     const hoursLeft = Math.max(0, 21 - etHour);
 
+    // ─── Operating Mode ───────────────────────────────────
+    // Governs what the client shows and hides
+    const totalRevenue = revenueWaiting.staleLeadsCount + revenueWaiting.staleQuotesCount + revenueWaiting.pendingCallbacks;
+    let mode: "fire" | "recovery" | "mvd" | "normal" | "clear" = "normal";
+
+    if (driftStatus === "off_track" && totalRevenue > 5) {
+      mode = "recovery"; // too many things overdue — triage mode
+    } else if (score < 40 && period !== "morning" && period !== "night") {
+      mode = "mvd"; // falling behind mid-day — minimum viable day
+    } else if (totalRevenue === 0 && score >= 80) {
+      mode = "clear"; // nothing urgent, execution strong
+    }
+    // "fire" is determined client-side from urgentItems priority
+
     return {
       topAction,
       revenueWaiting,
@@ -511,6 +525,7 @@ export const controlCenterRouter = router({
         greeting,
         hoursLeft,
       },
+      mode,
     };
   }),
 
