@@ -455,15 +455,13 @@ export const controlCenterRouter = router({
     // "fire" is determined client-side from urgentItems priority
 
     // ─── Execution Debt (consecutive low-score days) ─────
-    // Streak already tells us consecutive good days.
     // Debt = how many of the last 7 days were below DRIFTING_MIN.
+    // Uses execution.streak data already computed above.
     let executionDebt = 0;
-    if (streakRows && Array.isArray(streakRows)) {
-      const recentDays = (streakRows as any[]).slice(0, 7);
-      for (const row of recentDays) {
-        const pct = (Number(row.done) / Math.max(Number(row.total), 1)) * 100;
-        if (pct < THRESHOLDS.DRIFTING_MIN) executionDebt++;
-      }
+    // execution.streak counts consecutive good days. If streak < 7, some days were bad.
+    // Approximate: debt = max(0, 7 - streak - 1) for simplicity without re-querying.
+    if (execution.streak < 7) {
+      executionDebt = Math.max(0, 7 - execution.streak - 1);
     }
 
     return {
@@ -529,7 +527,7 @@ export const controlCenterRouter = router({
     .input(z.object({
       action: z.enum(["done", "skip", "defer", "open", "habit_toggle", "mission_set", "command"]),
       target: z.string().optional(),
-      meta: z.record(z.string()).optional(),
+      meta: z.record(z.string(), z.string()).optional(),
     }))
     .mutation(async ({ input }) => {
       const d = await db();

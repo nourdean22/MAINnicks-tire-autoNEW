@@ -342,7 +342,7 @@ export async function saveGeneratedArticle(article: GeneratedArticle): Promise<n
       contentType: "article",
       status: "failed",
       errorMessage: error.message,
-    }).catch(err => console.error("[ContentGen] Failed to log generation failure:", err));
+    }).catch((err: any) => console.error("[ContentGen] Failed to log generation failure:", err));
 
     throw error;
   }
@@ -375,7 +375,7 @@ export async function saveGeneratedNotifications(notifications: GeneratedNotific
         contentType: "notification",
         status: "failed",
         errorMessage: error.message,
-      }).catch(err => console.error("[ContentGen] Failed to log notification failure:", err));
+      }).catch((err: any) => console.error("[ContentGen] Failed to log notification failure:", err));
     }
   }
 }

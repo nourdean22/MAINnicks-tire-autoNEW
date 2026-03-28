@@ -105,19 +105,7 @@ export default function ControlCenter() {
     logAction("open");
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Persist active state for re-entry continuity
-  useEffect(() => {
-    if (!b || !o) return;
-    const state = {
-      timestamp: Date.now(),
-      mission: b.execution?.mission || null,
-      score: b.execution?.completionScore ?? 0,
-      pendingActions: actionQueue.length,
-      topActionMsg: currentAction?.message || null,
-      mode: b.mode,
-    };
-    try { localStorage.setItem(STORAGE_KEY_LAST_STATE, JSON.stringify(state)); } catch {}
-  }, [b, o, actionQueue.length, currentAction?.message]);
+  // State persistence moved below derived state (after early returns)
 
   if (authLoading || !user) {
     return (
@@ -165,6 +153,20 @@ export default function ControlCenter() {
 
   const currentAction = actionQueue[0] ?? null;
   const queueDepth = actionQueue.length;
+
+  // Persist active state for re-entry continuity (non-hook, runs on every render with data)
+  if (b && o) {
+    try {
+      localStorage.setItem(STORAGE_KEY_LAST_STATE, JSON.stringify({
+        timestamp: Date.now(),
+        mission: b.execution?.mission || null,
+        score: b.execution?.completionScore ?? 0,
+        pendingActions: actionQueue.length,
+        topActionMsg: currentAction?.message || null,
+        mode: b.mode,
+      }));
+    } catch {}
+  }
 
   const dismissAction = (item: ActionItem, reason: "done" | "skip") => {
     logAction(reason, item.message);
@@ -235,9 +237,9 @@ export default function ControlCenter() {
             <p className="text-[11px] text-blue-400/60 font-medium">Minimum viable day — non-negotiables + one business action. Protect the streak.</p>
           </div>
         )}
-        {b?.executionDebt > 2 && b?.mode !== "mvd" && (
+        {(b?.executionDebt ?? 0) > 2 && b?.mode !== "mvd" && (
           <div className="mb-4 py-2 px-3 rounded-lg bg-white/[0.02] border border-white/[0.06]">
-            <p className="text-[11px] text-white/30">{b.executionDebt} of last 7 days below standard. Execution debt is building.</p>
+            <p className="text-[11px] text-white/30">{b?.executionDebt} of last 7 days below standard. Execution debt is building.</p>
           </div>
         )}
 
@@ -289,8 +291,8 @@ export default function ControlCenter() {
         {b?.mode !== "mvd" && <RevenueQueue brief={b} loading={!b} />}
 
         {/* ═══ DRIFT — escalates based on severity ═══ */}
-        {b?.driftIndicator?.status !== "focused" && b?.driftIndicator?.signals?.length > 0 && (
-          <DriftEscalation status={b.driftIndicator.status} signals={b.driftIndicator.signals} score={b.execution?.completionScore ?? 0} />
+        {b?.driftIndicator?.status !== "focused" && (b?.driftIndicator?.signals?.length ?? 0) > 0 && (
+          <DriftEscalation status={b!.driftIndicator!.status} signals={b!.driftIndicator!.signals} score={b?.execution?.completionScore ?? 0} />
         )}
 
         {/* ═══ DAY CLOSE ═══ */}
