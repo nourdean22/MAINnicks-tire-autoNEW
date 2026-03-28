@@ -1,4 +1,5 @@
-import "dotenv/config";
+// dotenv is dev-only — Vercel injects env vars natively in production
+// import "dotenv/config";  // DISABLED: was potentially interfering with Vercel env injection
 import express from "express";
 import compression from "compression";
 import { createServer } from "http";
