@@ -116,3 +116,9 @@ temp/
 .manus-logs/
 .vercel
 .env*.local
+logs/
+
+# Local artifacts
+logs/
+tunnel-url.txt
+*.yml.bak
