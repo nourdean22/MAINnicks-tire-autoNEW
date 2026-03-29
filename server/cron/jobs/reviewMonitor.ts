@@ -1,0 +1,110 @@
+/**
+ * Review Monitor — Periodically fetches Google reviews and alerts on low ratings.
+ * Uses the existing reviewReplies system to store new reviews with AI-drafted replies.
+ */
+
+import { createLogger } from "../../lib/logger";
+
+const log = createLogger("review-monitor");
+
+export async function processReviewMonitor(): Promise<{ recordsProcessed: number; details?: string }> {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey) {
+    return { recordsProcessed: 0, details: "GOOGLE_PLACES_API_KEY not configured — skipping" };
+  }
+
+  const PLACE_ID = "ChIJSWRRLdr_MIgRxdlMIMPcqww";
+
+  try {
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${PLACE_ID}&key=${apiKey}&fields=reviews,rating,user_ratings_total`
+    );
+
+    if (!response.ok) {
+      return { recordsProcessed: 0, details: `Google API error: ${response.status}` };
+    }
+
+    const data = await response.json();
+    const reviews: any[] = data.result?.reviews || [];
+
+    if (!reviews.length) {
+      return { recordsProcessed: 0, details: "No reviews returned from API" };
+    }
+
+    // Store new reviews in the reviewReplies table (same as manual fetch)
+    const { getDb } = await import("../../db");
+    const { reviewReplies } = await import("../../../drizzle/schema");
+    const db = await getDb();
+    if (!db) return { recordsProcessed: 0, details: "Database unavailable" };
+
+    const { eq } = await import("drizzle-orm");
+    const { sanitizeText } = await import("../../sanitize");
+
+    let newCount = 0;
+    let lowRatingCount = 0;
+
+    for (const review of reviews) {
+      const reviewId = review.time?.toString() || `${review.author_name}_${Date.now()}`;
+
+      // Check if already exists
+      const existing = await db
+        .select()
+        .from(reviewReplies)
+        .where(eq(reviewReplies.reviewId, reviewId))
+        .limit(1);
+
+      if (existing.length > 0) continue;
+
+      // Insert new review
+      await db.insert(reviewReplies).values({
+        reviewId,
+        reviewerName: review.author_name || "Anonymous",
+        reviewRating: review.rating || 3,
+        reviewText: sanitizeText(review.text || ""),
+        reviewDate: review.time ? new Date(review.time * 1000) : new Date(),
+        draftReply: getDefaultDraft(review.rating, review.author_name),
+        status: "draft",
+      });
+
+      newCount++;
+
+      if (review.rating <= 3) {
+        lowRatingCount++;
+      }
+    }
+
+    // Alert on low ratings
+    if (lowRatingCount > 0) {
+      try {
+        const { notifySystemAlert } = await import("../../email-notify");
+        await notifySystemAlert({
+          title: "Low Rating Review Alert",
+          message: `⚠️ ${lowRatingCount} new review(s) with 3 stars or below detected. Check admin → Review Replies to respond.`,
+        });
+      } catch (err) {
+        log.error("Failed to send low-rating alert", { error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
+    return {
+      recordsProcessed: newCount,
+      details: newCount > 0
+        ? `${newCount} new review(s) found${lowRatingCount > 0 ? `, ${lowRatingCount} low-rating` : ""}`
+        : "No new reviews",
+    };
+  } catch (err) {
+    log.error("Review monitor failed", { error: err instanceof Error ? err.message : String(err) });
+    return { recordsProcessed: 0, details: `Error: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
+function getDefaultDraft(rating: number, authorName: string): string {
+  const name = authorName?.split(" ")[0] || "there";
+  if (rating >= 4) {
+    return `Thank you so much, ${name}! We're glad you had a great experience. We look forward to seeing you again!`;
+  }
+  if (rating === 3) {
+    return `Thank you for your feedback, ${name}. We'd love to make your next visit even better. Please call us at (216) 862-0005 — we want to get it right.`;
+  }
+  return `We're sorry about your experience, ${name}. This isn't our standard. Please call us at (216) 862-0005 so we can make it right.`;
+}

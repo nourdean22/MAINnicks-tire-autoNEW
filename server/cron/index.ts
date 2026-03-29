@@ -229,5 +229,11 @@ export function registerAllJobs(): void {
     return syncToStatenour();
   });
 
+  // Review monitor (every 2 hours — fetch new Google reviews, alert on low ratings)
+  registerJob("review-monitor", 2 * 60 * 60 * 1000, async () => {
+    const { processReviewMonitor } = await import("./jobs/reviewMonitor");
+    return processReviewMonitor();
+  });
+
   log.info("All cron jobs registered");
 }
