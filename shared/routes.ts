@@ -596,6 +596,16 @@ const UTILITY_PAGES: RouteEntry[] = [
     sitemap: true,
     prerender: true,
   },
+  {
+    path: "/booking",
+    priority: 0.8,
+    changefreq: "monthly",
+    title: "Book Online — Nick's Tire & Auto Cleveland",
+    description: "Book your auto repair appointment online at Nick's Tire & Auto. Tires, brakes, oil changes, diagnostics. Walk-ins also welcome 7 days a week.",
+    group: "utility",
+    sitemap: false,
+    prerender: true,
+  },
 ];
 
 // ─── LEGAL PAGES ─────────────────────────────────────────

@@ -67,6 +67,7 @@ const LandingPage = lazy(() => import("./pages/LandingPage"));
 const SharePage = lazy(() => import("./pages/SharePage"));
 const NeighborhoodPage = lazy(() => import("./pages/NeighborhoodPage"));
 const Careers = lazy(() => import("./pages/Careers"));
+const BookingPage = lazy(() => import("./pages/BookingPage"));
 
 function Router() {
   const [location] = useLocation();
@@ -102,6 +103,9 @@ function Router() {
         <Route path={"/belts-hoses"} component={ServicePage} />
         <Route path={"/starter-alternator"} component={ServicePage} />
         <Route path={"/alignment"} component={AlignmentPage} />
+        {/* Booking / Appointment */}
+        <Route path={"/appointment"} component={BookingPage} />
+        <Route path={"/booking"} component={BookingPage} />
         {/* Standalone pages */}
         <Route path={"/contact"} component={Contact} />
         <Route path={"/about"} component={About} />
