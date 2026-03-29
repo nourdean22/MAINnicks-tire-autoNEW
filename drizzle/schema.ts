@@ -746,6 +746,24 @@ export const technicians = mysqlTable("technicians", {
   isActive: int("isActive").default(1).notNull(),
   /** Sort order (lower = first) */
   sortOrder: int("sortOrder").default(0).notNull(),
+  // ── Dispatch fields ──
+  /** Tech level: junior | mid | senior | lead | master */
+  role: varchar("role", { length: 20 }).default("mid"),
+  /** Skill tags JSON array: ["brakes","alignment","diagnostics","tires","engine","electrical","suspension","oil_change"] */
+  skills: json("skills"),
+  /** ASE certifications JSON array */
+  aseCerts: json("ase_certs"),
+  /** Currently clocked in */
+  clockedIn: boolean("clocked_in").default(false),
+  clockedInAt: timestamp("clocked_in_at"),
+  /** Contact */
+  phone: varchar("phone", { length: 30 }),
+  /** Performance metrics (updated nightly or on event) */
+  avgJobDurationRatio: decimal("avg_job_duration_ratio", { precision: 5, scale: 2 }).default("1.00"),
+  qcPassRate: decimal("qc_pass_rate", { precision: 5, scale: 2 }).default("1.00"),
+  comebackRate: decimal("comeback_rate", { precision: 5, scale: 2 }).default("0.00"),
+  totalJobsCompleted: int("total_jobs_completed").default(0),
+  notes: text("tech_notes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -1462,6 +1480,7 @@ export const workOrders = mysqlTable("work_orders", {
   priority: varchar("priority", { length: 10 }).default("normal").notNull(),
   assignedBay: varchar("assigned_bay", { length: 10 }),
   assignedTech: varchar("assigned_tech", { length: 100 }),
+  assignedTechId: int("assigned_tech_id"),
   assignedAdvisor: varchar("assigned_advisor", { length: 100 }),
   diagnosis: text("diagnosis"),
   customerComplaint: text("customer_complaint"),
@@ -1811,3 +1830,99 @@ export const dailyHabits = mysqlTable("daily_habits", {
 
 export type DailyHabit = typeof dailyHabits.$inferSelect;
 export type InsertDailyHabit = typeof dailyHabits.$inferInsert;
+
+// ─── SHOP BAYS ─────────────────────────────────────────
+/**
+ * Physical bays/lifts in the shop.
+ * Tracks capabilities and current occupancy.
+ */
+export const bays = mysqlTable("bays", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 20 }).notNull(),
+  type: varchar("type", { length: 30 }).notNull(), // full_service | tire_only | alignment | quick_lube | diagnostics
+  capabilities: json("capabilities"), // string[]
+  hasLift: boolean("has_lift").default(true),
+  liftType: varchar("lift_type", { length: 30 }), // two_post | four_post | scissor | drive_on
+  active: boolean("active").default(true),
+  currentWorkOrderId: varchar("current_work_order_id", { length: 36 }),
+  currentTechId: int("current_tech_id"),
+  displayOrder: int("display_order").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type Bay = typeof bays.$inferSelect;
+export type InsertBay = typeof bays.$inferInsert;
+
+// ─── QC CHECKLISTS ──────────────────────────────────────
+/**
+ * Quality control checklists — service-specific quality checks
+ * before a vehicle can be released for pickup.
+ */
+export const qcChecklists = mysqlTable("qc_checklists", {
+  id: int("id").autoincrement().primaryKey(),
+  workOrderId: varchar("work_order_id", { length: 36 }).notNull(),
+  completedBy: varchar("completed_by", { length: 100 }),
+  reviewedBy: varchar("reviewed_by", { length: 100 }),
+  status: varchar("status", { length: 20 }).default("pending").notNull(), // pending | in_progress | passed | failed | waived
+  items: json("items"), // QCChecklistItem[]
+  roadTestRequired: boolean("road_test_required").default(false),
+  roadTestCompleted: boolean("road_test_completed").default(false),
+  roadTestNotes: text("road_test_notes"),
+  roadTestMileage: int("road_test_mileage"),
+  failureReasons: json("failure_reasons"), // string[]
+  correctiveActions: text("corrective_actions"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_qc_wo").on(table.workOrderId),
+]);
+
+export type QcChecklist = typeof qcChecklists.$inferSelect;
+export type InsertQcChecklist = typeof qcChecklists.$inferInsert;
+
+// ─── COMEBACKS / WARRANTY RETURNS ───────────────────────
+/**
+ * Tracks warranty returns and comebacks within 30 days.
+ */
+export const comebacks = mysqlTable("comebacks", {
+  id: int("id").autoincrement().primaryKey(),
+  originalWorkOrderId: varchar("original_work_order_id", { length: 36 }).notNull(),
+  comebackWorkOrderId: varchar("comeback_work_order_id", { length: 36 }),
+  customerId: varchar("customer_id", { length: 36 }).notNull(),
+  serviceType: varchar("service_type", { length: 100 }),
+  originalTechId: int("original_tech_id"),
+  daysSinceOriginal: int("days_since_original"),
+  type: varchar("type", { length: 20 }).notNull(), // comeback | warranty | related_issue | unrelated
+  severity: varchar("severity", { length: 20 }), // minor | moderate | major | safety
+  rootCause: varchar("root_cause", { length: 50 }), // part_failure | installation_error | missed_diagnosis | customer_misuse | unrelated | unknown
+  description: text("description"),
+  resolution: text("resolution"),
+  costToShop: decimal("cost_to_shop", { precision: 10, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_comeback_orig").on(table.originalWorkOrderId),
+  index("idx_comeback_customer").on(table.customerId),
+]);
+
+export type Comeback = typeof comebacks.$inferSelect;
+export type InsertComeback = typeof comebacks.$inferInsert;
+
+// ─── CUSTOMER STATUS MESSAGES ───────────────────────────
+/**
+ * Log of all status messages sent to customers about their work orders.
+ */
+export const customerStatusMessages = mysqlTable("customer_status_messages", {
+  id: int("id").autoincrement().primaryKey(),
+  workOrderId: varchar("work_order_id", { length: 36 }).notNull(),
+  customerId: varchar("customer_id", { length: 36 }),
+  trigger: varchar("trigger", { length: 30 }).notNull(), // status that triggered the message
+  channel: varchar("channel", { length: 10 }).notNull(), // sms | email
+  recipient: varchar("recipient", { length: 100 }).notNull(),
+  message: text("message").notNull(),
+  status: varchar("status", { length: 20 }).default("sent").notNull(), // sent | failed | skipped
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_csm_wo").on(table.workOrderId),
+]);

@@ -49,6 +49,7 @@ const ExportSection = lazy(() => import("./admin/ExportSection"));
 const CampaignsSection = lazy(() => import("./admin/CampaignsSection"));
 const FinancingSection = lazy(() => import("./admin/FinancingSection"));
 const WorkOrdersSection = lazy(() => import("./admin/WorkOrdersSection"));
+const DispatchSection = lazy(() => import("./admin/DispatchSection"));
 
 function SectionSpinner() {
   return (
@@ -95,6 +96,7 @@ function SectionContent({ section }: { section: AdminSection }) {
       {section === "callTrackingView" && <CallTrackingSection />}
       {section === "exportView" && <ExportSection />}
       {section === "workOrders" && <WorkOrdersSection />}
+      {section === "dispatch" && <DispatchSection />}
     </Suspense>
   );
 }
