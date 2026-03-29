@@ -81,8 +81,6 @@ export async function findOrCreateCustomer(data: {
     lastName,
     phone: data.phone,
     email: data.email?.toLowerCase(),
-    source: data.source || "website",
-    referralCode,
   });
 
   // Fetch by phone since we just created with that phone

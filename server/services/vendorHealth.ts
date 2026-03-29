@@ -41,7 +41,7 @@ async function checkDatabase(): Promise<VendorHealthResult> {
   const start = Date.now();
   try {
     const { getDb } = await import("../db");
-    const d = getDb();
+    const d = await getDb();
     if (!d) return { vendor: "Database", status: "down", checks: [{ name: "connection", passed: false, latencyMs: 0, error: "No connection" }], checkedAt: new Date().toISOString() };
 
     const { sql } = await import("drizzle-orm");
@@ -77,6 +77,7 @@ async function checkGoogleSheets(): Promise<VendorHealthResult> {
 
   // Try to access the sheets API to verify credentials work
   try {
+    // @ts-ignore — googleapis may not have type declarations installed
     const { google } = await import("googleapis");
     const token = process.env.GOOGLE_DRIVE_TOKEN;
     if (!token) throw new Error("No GOOGLE_DRIVE_TOKEN");

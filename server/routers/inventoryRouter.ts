@@ -14,11 +14,10 @@ export const inventoryRouter = router({
       const { inventory } = await import("../../drizzle/schema");
       const db = await getDb();
       if (!db) return [];
-      let query = db.select().from(inventory).limit(input.limit);
       if (input.category) {
-        query = db.select().from(inventory).where(eq(inventory.category, input.category)).limit(input.limit);
+        return db.select().from(inventory).where(eq(inventory.category, input.category)).limit(input.limit);
       }
-      return query;
+      return db.select().from(inventory).limit(input.limit);
     }),
 
   getLowStock: adminProcedure.query(async () => {

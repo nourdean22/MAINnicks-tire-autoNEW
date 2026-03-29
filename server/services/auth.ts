@@ -106,7 +106,7 @@ export async function verifyOTP(phone: string, code: string): Promise<{ token?: 
       .sign(getJwtSecret());
 
     log.info("OTP verified, token issued", { customerId: customer.id });
-    return { token, customerId: customer.id };
+    return { token, customerId: String(customer.id) };
   } catch (err) {
     log.error("OTP verification failed", { error: err instanceof Error ? err.message : String(err) });
     return { error: "Verification failed" };
