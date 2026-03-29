@@ -9,11 +9,12 @@ import { getLoginUrl } from "@/const";
 import { useState, lazy, Suspense } from "react";
 import { Link } from "wouter";
 import {
-  Loader2, Shield, XCircle, ArrowLeft, Menu, X, Sparkles, ChevronRight,
+  Loader2, Shield, XCircle, ArrowLeft, Menu, X, Sparkles, ChevronRight, Search,
 } from "lucide-react";
 import {
   AdminSection, NAV_GROUPS, SECTION_TITLES,
 } from "./admin/shared";
+import AdminCommandBar from "./admin/AdminCommandBar";
 
 // Lazy-load each section for code splitting
 const OverviewSection = lazy(() => import("./admin/OverviewSection"));
@@ -266,6 +267,16 @@ export default function Admin() {
             {SECTION_TITLES[section]}
           </h1>
           <div className="flex-1" />
+          <button
+            onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
+            className="flex items-center gap-1.5 bg-muted/50 border border-border px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:border-foreground/20 transition-all text-xs font-medium"
+          >
+            <Search className="w-3 h-3" />
+            <span className="hidden sm:inline">Search</span>
+            <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[10px] text-muted-foreground">
+              ⌘K
+            </kbd>
+          </button>
           <Link
             href="/admin/content"
             className="flex items-center gap-1.5 bg-muted/50 border border-border px-3 py-1.5 rounded-md text-muted-foreground hover:text-primary hover:border-primary/30 transition-all text-xs font-medium"
@@ -280,6 +291,9 @@ export default function Admin() {
           <SectionContent section={section} />
         </div>
       </main>
+
+      {/* Command bar — Ctrl/Cmd+K */}
+      <AdminCommandBar onNavigate={(s) => { setSection(s); setSidebarOpen(false); }} />
     </div>
   );
 }
