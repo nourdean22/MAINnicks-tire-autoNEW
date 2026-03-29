@@ -55,7 +55,7 @@ export const STATUS_CONFIG: Record<string, { label: string; color: string; bgCol
 async function getDbAndSchema() {
   const { getDb } = await import("../db");
   const schema = await import("../../drizzle/schema");
-  const d = getDb();
+  const d = await getDb();
   if (!d) throw new Error("Database not available");
   return { db: d, ...schema };
 }
@@ -242,7 +242,7 @@ async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus)
         const [cust] = await db.select().from(customers).where(eq(customers.id, parseInt(wo.customerId))).limit(1);
         if (cust?.phone) {
           const { sendSms } = await import("../sms");
-          const name = cust.firstName || cust.name || "there";
+          const name = cust.firstName || "there";
           await sendSms(cust.phone, `Hi ${name}, your vehicle is ready for pickup at Nick's Tire & Auto! We're open until 6pm. Call (216) 862-0005 with any questions.`);
           await updateStatus(workOrderId, "customer_notified", "system", { note: "Pickup SMS sent" });
         }
@@ -263,7 +263,7 @@ async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus)
           const { createReviewRequest } = await import("../db");
           const scheduledAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours later
           await createReviewRequest({
-            customerName: cust.firstName || cust.name || "Customer",
+            customerName: cust.firstName || "Customer",
             customerPhone: cust.phone,
             customerEmail: cust.email || null,
             service: wo.serviceDescription || "Auto Service",
@@ -286,7 +286,7 @@ async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus)
       await onWorkOrderStatusChange({
         workOrderId,
         orderNumber: wo.orderNumber,
-        fromStatus: current.status,
+        fromStatus: wo.status,
         toStatus: newStatus,
         service: wo.serviceDescription || undefined,
       });

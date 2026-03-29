@@ -186,7 +186,7 @@ export const dispatchRouter = router({
     .input(z.object({
       workOrderId: z.string(),
       newStatus: z.string(),
-      overrideVars: z.record(z.string()).optional(),
+      overrideVars: z.record(z.string(), z.string()).optional(),
     }))
     .query(async ({ input }) => {
       const { generateStatusMessage } = await import("../services/customerMessaging");

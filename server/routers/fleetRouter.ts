@@ -26,9 +26,11 @@ export const fleetRouter = router({
         name: `${input.contactName} (${input.companyName})`,
         phone: input.contactPhone,
         email: input.contactEmail,
-        service: `Fleet: ${input.fleetSize} vehicles - ${input.servicesNeeded || "General"}`,
-        source: "fleet",
-        problemDescription: input.notes || `Fleet size: ${input.fleetSize}. Vehicle types: ${input.vehicleTypes || "Mixed"}`,
+        recommendedService: `Fleet: ${input.fleetSize} vehicles - ${input.servicesNeeded || "General"}`,
+        source: "fleet" as const,
+        problem: input.notes || `Fleet size: ${input.fleetSize}. Vehicle types: ${input.vehicleTypes || "Mixed"}`,
+        companyName: input.companyName,
+        fleetSize: input.fleetSize,
       });
       return { success: true, message: "Fleet inquiry received. We'll call you within 1 business day." };
     }),

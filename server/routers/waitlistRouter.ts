@@ -22,7 +22,15 @@ export const waitlistRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
       const id = randomUUID();
-      await db.insert(waitlist).values({ id, ...input });
+      await db.insert(waitlist).values({
+        id,
+        customerName: input.customerName,
+        customerPhone: input.customerPhone,
+        customerEmail: input.customerEmail,
+        serviceType: input.serviceType,
+        preferredDate: input.preferredDate ? new Date(input.preferredDate) : null,
+        notes: input.notes,
+      });
       return { id, position: "You'll be notified when a slot opens." };
     }),
 

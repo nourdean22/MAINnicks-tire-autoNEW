@@ -6,6 +6,7 @@ import path from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import rateLimit from "express-rate-limit";
 import { registerOAuthRoutes } from "./oauth";
+import { registerBridgeRoutes } from "./bridge-routes";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -98,6 +99,12 @@ async function startServer() {
 
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+
+  // ─── NOUR OS Bridge REST Endpoints ─────────────────────
+  // These are plain REST endpoints (not tRPC) that NOUR OS calls
+  // to pull shop data. Authenticated via X-Bridge-Key header.
+  registerBridgeRoutes(app);
+
   // tRPC API
   app.use(
     "/api/trpc",

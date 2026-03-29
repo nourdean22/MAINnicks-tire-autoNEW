@@ -103,8 +103,8 @@ export async function getUserByOpenId(openId: string) {
 export async function createBooking(booking: InsertBooking) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.insert(bookings).values(booking);
-  return { success: true };
+  const [result] = await db.insert(bookings).values(booking).$returningId();
+  return { success: true, id: result.id };
 }
 
 export async function getBookings() {

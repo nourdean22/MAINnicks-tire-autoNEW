@@ -855,7 +855,7 @@ export default function TireFinder() {
 
                   {/* Tire grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {data.tires.map((tire) => (
+                    {data.tires.map((tire: any) => (
                       <TireCard
                         key={tire.id}
                         tire={tire}
@@ -869,7 +869,7 @@ export default function TireFinder() {
                   <div className="mt-8 bg-gradient-to-br from-primary/5 via-card to-primary/5 border border-primary/20 rounded-xl p-8 text-center">
                     <p className="text-sm text-muted-foreground mb-1">Starting at</p>
                     <p className="text-4xl font-semibold text-foreground">
-                      ${(Math.min(...data.tires.map(t => t.shopPrice)) * quantity).toFixed(2)}
+                      ${(Math.min(...data.tires.map((t: any) => t.shopPrice)) * quantity).toFixed(2)}
                     </p>
                     <p className="text-sm text-muted-foreground mt-1">
                       for a set of {quantity} — fully installed with Nick's Premium Package

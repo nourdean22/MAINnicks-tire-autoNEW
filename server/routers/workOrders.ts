@@ -47,7 +47,7 @@ export const workOrdersRouter = router({
       const { getDb } = await import("../db");
       const { workOrders } = await import("../../drizzle/schema");
       const { eq, desc, and, notInArray } = await import("drizzle-orm");
-      const db = getDb();
+      const db = await getDb();
       if (!db) return [];
 
       const conditions: any[] = [];
@@ -110,7 +110,7 @@ export const workOrdersRouter = router({
       const { getDb } = await import("../db");
       const { workOrders } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
-      const db = getDb();
+      const db = await getDb();
       if (!db) throw new Error("Database not available");
 
       const { id, ...fields } = input;

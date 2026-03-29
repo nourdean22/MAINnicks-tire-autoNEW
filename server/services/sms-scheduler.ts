@@ -13,13 +13,22 @@ import { getDb } from "../db";
 import { appointmentReminders, bookings } from "../../drizzle/schema";
 import {
   sendSms,
-  appointmentReminder24hSms,
-  appointmentReminder1hSms,
-  serviceCompleteSms,
   thankYouSms,
   reviewRequestSms,
   maintenanceReminderSms,
 } from "../sms";
+
+// Inline SMS template helpers (not exported from sms module)
+function appointmentReminder24hSms(name: string, service: string, vehicle?: string, time?: string): string {
+  const vehicleStr = vehicle ? ` for your ${vehicle}` : "";
+  const timeStr = time ? ` at ${time}` : "";
+  return `Hi ${name}, reminder: your appointment${vehicleStr} at Nick's Tire & Auto is tomorrow${timeStr}. Call (216) 862-0005 to reschedule.`;
+}
+
+function appointmentReminder1hSms(name: string, vehicle?: string): string {
+  const vehicleStr = vehicle ? ` for your ${vehicle}` : "";
+  return `Hi ${name}, your appointment${vehicleStr} at Nick's Tire & Auto is in about 1 hour. See you soon!`;
+}
 
 /**
  * Convert an Eastern Time hour to UTC hour for a given date.

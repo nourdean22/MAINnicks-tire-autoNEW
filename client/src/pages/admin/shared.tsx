@@ -143,6 +143,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   exportView: "Export Data",
   financing: "Financing Command",
   workOrders: "Work Order Board",
+  dispatch: "Bay Dispatch",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────

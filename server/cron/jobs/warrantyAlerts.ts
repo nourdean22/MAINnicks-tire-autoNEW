@@ -47,7 +47,7 @@ export async function processWarrantyAlerts(): Promise<{ recordsProcessed: numbe
       const [customer] = await db
         .select()
         .from(customers)
-        .where(eq(customers.id, w.customerId))
+        .where(eq(customers.id, Number(w.customerId)))
         .limit(1);
 
       if (!customer?.phone) continue;

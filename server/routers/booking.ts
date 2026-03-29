@@ -286,7 +286,7 @@ export const bookingRouter = router({
         };
         withRetry(
           () => sendLeadEvent({
-            eventId: input.pixelEventIds.leadEventId,
+            eventId: input.pixelEventIds!.leadEventId,
             sourceUrl: SITE_URL,
             contentName: "Booking Form Submission",
             contentCategory: input.service,
@@ -305,7 +305,7 @@ export const bookingRouter = router({
         });
         withRetry(
           () => sendScheduleEvent({
-            eventId: input.pixelEventIds.scheduleEventId,
+            eventId: input.pixelEventIds!.scheduleEventId,
             sourceUrl: SITE_URL,
             service: input.service,
             vehicle: vehicleStr || undefined,

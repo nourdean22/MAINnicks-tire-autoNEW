@@ -50,6 +50,7 @@ export async function processDashboardSync(): Promise<{ recordsProcessed: number
 
     // Write to Google Sheets Dashboard tab
     try {
+      // @ts-ignore — syncDashboardToSheet may not exist yet; guarded by typeof check below
       const { syncDashboardToSheet } = await import("../../sheets-sync");
       if (typeof syncDashboardToSheet === "function") {
         await syncDashboardToSheet(metrics);

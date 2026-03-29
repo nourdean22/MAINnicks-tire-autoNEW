@@ -14,7 +14,7 @@ import { eq, and, gte, sql, inArray, desc } from "drizzle-orm";
 async function getDbAndSchema() {
   const { getDb } = await import("../db");
   const schema = await import("../../drizzle/schema");
-  const d = getDb();
+  const d = await getDb();
   if (!d) throw new Error("Database not available");
   return { db: d, ...schema };
 }
