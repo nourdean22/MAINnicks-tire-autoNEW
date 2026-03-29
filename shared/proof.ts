@@ -35,6 +35,8 @@ export interface ServiceProofConfig {
     wait?: ProofQuote[];
     diagnostic?: ProofQuote[];
     repeat?: ProofQuote[];
+    speed?: ProofQuote[];
+    stress?: ProofQuote[];
   };
   /** Compact trust tags for the strip */
   trustTags: TrustTag[];
