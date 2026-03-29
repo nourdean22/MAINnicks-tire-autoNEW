@@ -113,8 +113,10 @@ export default function SiteFooter() {
                   { href: "/diagnose", label: "Diagnose My Car" },
                   { href: "/financing", label: "Financing" },
                   { href: "/specials", label: "Specials" },
-                  { href: "/fleet", label: "Fleet" },
                   { href: "/careers", label: "Careers" },
+                  { href: "/estimate", label: "Cost Estimator" },
+                  { href: "/fleet", label: "Fleet" },
+                  { href: "/appointment", label: "Book Online" },
                 ].map((l) => (
                   <Link key={l.href} href={l.href} className={LINK_CLASS}>{l.label}</Link>
                 ))}

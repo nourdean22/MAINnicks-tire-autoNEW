@@ -576,6 +576,26 @@ const UTILITY_PAGES: RouteEntry[] = [
     sitemap: false, // review generation page
     prerender: true,
   },
+  {
+    path: "/careers",
+    priority: 0.7,
+    changefreq: "weekly",
+    title: "Careers — Auto Tech Jobs Cleveland | Nick's Tire & Auto",
+    description: "Now hiring mechanics, tire technicians, and apprentices at Nick's Tire & Auto. Competitive pay, growth opportunities, modern shop. Apply in 2 minutes.",
+    group: "utility",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/appointment",
+    priority: 0.8,
+    changefreq: "monthly",
+    title: "Schedule Service — Nick's Tire & Auto Cleveland",
+    description: "Book your auto repair appointment online at Nick's Tire & Auto. Tires, brakes, oil changes, diagnostics. Walk-ins also welcome 7 days a week.",
+    group: "utility",
+    sitemap: true,
+    prerender: true,
+  },
 ];
 
 // ─── LEGAL PAGES ─────────────────────────────────────────
