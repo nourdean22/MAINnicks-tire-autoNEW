@@ -70,6 +70,12 @@ export interface ServiceData {
     label: string;
     description: string;
   }[];
+  /** Service-specific proof quotes from real reviews */
+  proofQuotes?: {
+    name: string;
+    text: string;
+    attribute: string; // e.g., "honesty", "fair_price", "women_safe", "speed"
+  }[];
 }
 
 export const SERVICES: ServiceData[] = [
@@ -163,7 +169,10 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "30-60 min",
     startingPrice: "See tire prices",
-
+    proofQuotes: [
+      { name: "Tammy H.", text: "She made sure I got the best tires for my vehicle at a great price. Fast and professional.", attribute: "fair_price" },
+      { name: "Marcus T.", text: "Walked in needing tires ASAP. They had me out in 45 minutes. Best tire shop in Cleveland.", attribute: "speed" },
+    ],
   },
   {
     slug: "brakes",
@@ -255,7 +264,10 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "1-3 hours",
     startingPrice: "FREE inspection",
-
+    proofQuotes: [
+      { name: "Nurse Summer", text: "The FIRST shop I felt I could trust! Especially as a woman — honest and well done work.", attribute: "women_safe" },
+      { name: "Amber S.", text: "Good, honest work that doesn't break the bank. Today I found them.", attribute: "honesty" },
+    ],
   },
   {
     slug: "diagnostics",
@@ -345,7 +357,10 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "30-60 min",
     startingPrice: "$59.99 (credited toward repair)",
-
+    proofQuotes: [
+      { name: "David R.", text: "They actually found the real problem — not just what the code said. Saved me hundreds.", attribute: "diagnostic_skill" },
+      { name: "Jennifer M.", text: "Explained everything clearly and didn't try to sell me anything I didn't need.", attribute: "no_pressure" },
+    ],
   },
   {
     slug: "emissions",
@@ -436,7 +451,10 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "20-40 min (test) / 1-2 days (repair)",
     startingPrice: "From $24.99",
-
+    proofQuotes: [
+      { name: "Carlos P.", text: "Failed E-Check twice. They found the real issue and I passed on the first retest.", attribute: "diagnostic_skill" },
+      { name: "Angela W.", text: "Fair price and they explained every step of the emissions repair.", attribute: "transparency" },
+    ],
   },
   {
     slug: "oil-change",
