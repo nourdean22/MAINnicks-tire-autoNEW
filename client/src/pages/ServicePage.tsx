@@ -295,6 +295,38 @@ function Problems({ service }: { service: ServiceData }) {
   );
 }
 
+// ─── PROOF QUOTES (service-specific reviews) ─────────
+function ProofQuotes({ service }: { service: ServiceData }) {
+  if (!service.proofQuotes || service.proofQuotes.length === 0) return null;
+
+  return (
+    <section className="py-12 lg:py-16">
+      <div className="container">
+        <div className="max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {service.proofQuotes.map((q, i) => (
+              <FadeIn key={i} delay={i * 0.1}>
+                <div className="p-6 border border-border rounded-xl">
+                  <div className="flex gap-0.5 mb-3">
+                    {[...Array(5)].map((_, j) => (
+                      <Star key={j} className="w-3.5 h-3.5 fill-nick-yellow text-primary" />
+                    ))}
+                  </div>
+                  <p className="text-foreground/70 text-sm leading-relaxed">"{q.text}"</p>
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <span className="text-foreground text-xs font-semibold">{q.name}</span>
+                    <span className="text-foreground/30 text-xs ml-2">Google Review</span>
+                  </div>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ─── WARNING SIGNS ────────────────────────────────────
 function WarningSigns({ service }: { service: ServiceData }) {
   if (!service.signs || service.signs.length === 0) return null;
@@ -913,6 +945,7 @@ export default function ServicePage() {
         <ServiceHero service={service} />
         <PillarIntro service={service} />
         <Problems service={service} />
+        <ProofQuotes service={service} />
         <WarningSigns service={service} />
         <CostBreakdown service={service} />
         <Process service={service} />
