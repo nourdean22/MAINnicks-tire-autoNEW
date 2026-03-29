@@ -12,7 +12,7 @@ import {
   type BookingStatus, type LeadStatus,
 } from "./shared";
 import {
-  AlertTriangle, ArrowDownRight, ArrowUpRight, Calendar, CalendarClock, Camera, Car, CheckCircle2, Clock, Eye, FileText, Filter, Hash, Loader2, Mail, MessageSquare, Phone, RefreshCw, Search, Wrench, X, XCircle
+  AlertTriangle, ArrowDownRight, ArrowUpRight, Calendar, CalendarClock, Camera, Car, CheckCircle2, ChevronRight, Clock, Eye, FileText, Filter, Hash, Loader2, Mail, MessageSquare, Phone, RefreshCw, Search, Wrench, X, XCircle
 } from "lucide-react";
 
 function BookingNotesEditor({ bookingId, initialNotes }: { bookingId: number; initialNotes: string | null }) {
@@ -184,6 +184,30 @@ export default function BookingsSection() {
         ].map(stat => (
           <StatCard key={stat.label} label={stat.label} value={stat.value} icon={stat.icon} color={stat.color} />
         ))}
+      </div>
+
+      {/* Pipeline flow bar */}
+      <div className="stat-card !p-4">
+        <div className="flex items-center gap-1">
+          {(["new", "confirmed", "completed", "cancelled"] as const).map((status, i) => {
+            const cfg = BOOKING_STATUS_CONFIG[status];
+            const count = bookingStats[status];
+            return (
+              <div key={status} className="flex items-center flex-1">
+                <button
+                  onClick={() => setBookingFilter(bookingFilter === status ? "all" : status)}
+                  className={`flex-1 py-2.5 px-2 text-center transition-all ${
+                    bookingFilter === status ? `${cfg.bgColor} border border-current/20` : "hover:bg-muted/50"
+                  }`}
+                >
+                  <div className={`text-lg font-bold ${cfg.color}`}>{count}</div>
+                  <div className="text-[10px] text-muted-foreground font-medium mt-0.5">{cfg.label}</div>
+                </button>
+                {i < 3 && <ChevronRight className="w-3 h-3 text-border shrink-0" />}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Filters */}

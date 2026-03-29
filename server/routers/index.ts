@@ -38,3 +38,4 @@ export { costEstimatorRouter } from "./costEstimator";
 export { emergencyRouter } from "./emergency";
 export { messengerBotRouter } from "./messengerBot";
 export { financingRouter } from "./financing";
+export { nourOsBridgeRouter } from "./nourOsBridge";

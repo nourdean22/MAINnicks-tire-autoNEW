@@ -1,9 +1,12 @@
 /**
- * CustomerDrawer — Shows customer details in a side drawer.
+ * CustomerDrawer — Shows customer details + chronological timeline in a side drawer.
  */
 import { trpc } from "@/lib/trpc";
 import { SideDrawer } from "./SideDrawer";
-import { Phone, Mail, MapPin, Calendar, Hash, MessageSquare, Loader2 } from "lucide-react";
+import {
+  Phone, Mail, MapPin, Calendar, Hash, MessageSquare, Loader2,
+  CalendarClock, Users, PhoneCall, Clock, CheckCircle2, XCircle,
+} from "lucide-react";
 import { BUSINESS } from "@shared/business";
 
 interface Props {
@@ -12,10 +15,32 @@ interface Props {
   onNavigateToSection?: (section: string, filter?: string) => void;
 }
 
+const EVENT_CONFIG: Record<string, { icon: React.ReactNode; color: string; bgColor: string }> = {
+  booking: { icon: <CalendarClock className="w-3.5 h-3.5" />, color: "text-blue-400", bgColor: "bg-blue-500/10" },
+  lead: { icon: <Users className="w-3.5 h-3.5" />, color: "text-amber-400", bgColor: "bg-amber-500/10" },
+  callback: { icon: <PhoneCall className="w-3.5 h-3.5" />, color: "text-emerald-400", bgColor: "bg-emerald-500/10" },
+  call: { icon: <Phone className="w-3.5 h-3.5" />, color: "text-cyan-400", bgColor: "bg-cyan-500/10" },
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  new: "text-blue-400 bg-blue-500/10",
+  confirmed: "text-amber-400 bg-amber-500/10",
+  completed: "text-emerald-400 bg-emerald-500/10",
+  cancelled: "text-red-400 bg-red-500/10",
+  contacted: "text-amber-400 bg-amber-500/10",
+  booked: "text-emerald-400 bg-emerald-500/10",
+  lost: "text-red-400 bg-red-500/10",
+};
+
 export function CustomerDrawer({ customerId, onClose, onNavigateToSection }: Props) {
   const { data: customer, isLoading } = trpc.customers.getById.useQuery(
     { id: customerId! },
     { enabled: !!customerId }
+  );
+
+  const { data: timeline, isLoading: timelineLoading } = trpc.customers.timeline.useQuery(
+    { phone: customer?.phone || "" },
+    { enabled: !!customer?.phone }
   );
 
   return (
@@ -65,18 +90,22 @@ export function CustomerDrawer({ customerId, onClose, onNavigateToSection }: Pro
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="bg-background/50 border border-border/20 p-3">
               <span className="text-[10px] text-foreground/40 tracking-wide block">Visits</span>
               <span className="text-lg font-bold text-foreground">{customer.totalVisits ?? 0}</span>
             </div>
             <div className="bg-background/50 border border-border/20 p-3">
               <span className="text-[10px] text-foreground/40 tracking-wide block">Last Visit</span>
-              <span className="text-sm font-medium text-foreground">
+              <span className="text-xs font-medium text-foreground">
                 {customer.lastVisitDate
                   ? new Date(customer.lastVisitDate).toLocaleDateString()
                   : "Never"}
               </span>
+            </div>
+            <div className="bg-background/50 border border-border/20 p-3">
+              <span className="text-[10px] text-foreground/40 tracking-wide block">Interactions</span>
+              <span className="text-lg font-bold text-foreground">{timeline?.length ?? 0}</span>
             </div>
           </div>
 
@@ -112,6 +141,52 @@ export function CustomerDrawer({ customerId, onClose, onNavigateToSection }: Pro
               </p>
             </div>
           )}
+
+          {/* ─── INTERACTION TIMELINE ─── */}
+          <div>
+            <h4 className="text-[10px] font-semibold text-foreground/40 tracking-wider uppercase mb-3 flex items-center gap-1.5">
+              <Clock className="w-3 h-3" /> Interaction Timeline
+            </h4>
+            {timelineLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="w-4 h-4 animate-spin text-primary/60" />
+              </div>
+            ) : !timeline || timeline.length === 0 ? (
+              <p className="text-xs text-foreground/30 py-4">No interactions recorded yet.</p>
+            ) : (
+              <div className="relative space-y-0">
+                {/* Vertical line */}
+                <div className="absolute left-[11px] top-3 bottom-3 w-px bg-border/30" />
+                {timeline.map((event, i) => {
+                  const cfg = EVENT_CONFIG[event.type] || EVENT_CONFIG.call;
+                  const statusCls = STATUS_COLORS[event.status] || "text-foreground/50 bg-foreground/5";
+                  return (
+                    <div key={i} className="relative flex items-start gap-3 py-2.5 pl-0">
+                      {/* Dot */}
+                      <div className={`relative z-10 w-[23px] h-[23px] flex items-center justify-center rounded-full shrink-0 ${cfg.bgColor}`}>
+                        <span className={cfg.color}>{cfg.icon}</span>
+                      </div>
+                      {/* Content */}
+                      <div className="flex-1 min-w-0 pt-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-foreground truncate">{event.title}</span>
+                          <span className={`text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded ${statusCls}`}>
+                            {event.status.toUpperCase()}
+                          </span>
+                        </div>
+                        {event.detail && (
+                          <p className="text-[11px] text-foreground/40 truncate mt-0.5">{event.detail}</p>
+                        )}
+                        <p className="text-[10px] text-foreground/30 mt-0.5">
+                          {new Date(event.date).toLocaleDateString()} {new Date(event.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Cross-links */}
           {onNavigateToSection && (

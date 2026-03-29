@@ -23,15 +23,19 @@ function useDebounce(value: string, delay: number) {
 }
 
 const SECTION_SHORTCUTS: { id: AdminSection; label: string; keywords: string[] }[] = [
-  { id: "overview", label: "Dashboard Overview", keywords: ["dashboard", "overview", "home"] },
+  { id: "overview", label: "Dashboard Overview", keywords: ["dashboard", "overview", "home", "today"] },
   { id: "bookings", label: "Bookings", keywords: ["booking", "appointment", "schedule"] },
   { id: "leads", label: "Leads / CRM", keywords: ["lead", "crm", "prospect"] },
-  { id: "customers", label: "Customers", keywords: ["customer", "client"] },
+  { id: "estimates", label: "Estimate Pipeline", keywords: ["estimate", "pipeline", "quote", "approval"] },
+  { id: "customers", label: "Customers", keywords: ["customer", "client", "database"] },
   { id: "sms", label: "SMS Messaging", keywords: ["sms", "text", "message"] },
+  { id: "financing", label: "Financing Command", keywords: ["financing", "payment", "acima", "snap", "koalafi", "synchrony"] },
   { id: "revenue", label: "Revenue Center", keywords: ["revenue", "money", "income"] },
-  { id: "reviewRequests", label: "Review Requests", keywords: ["review", "rating", "star"] },
+  { id: "reviewRequests", label: "Review Requests", keywords: ["review", "rating", "star", "proof"] },
+  { id: "callTrackingView", label: "Call Tracking", keywords: ["call", "phone", "tracking", "missed"] },
   { id: "analyticsView", label: "Analytics", keywords: ["analytics", "stats", "data"] },
-  { id: "callTrackingView", label: "Call Tracking", keywords: ["call", "phone", "tracking"] },
+  { id: "campaigns", label: "Campaigns", keywords: ["campaign", "blast", "bulk"] },
+  { id: "tireOrders", label: "Tire Orders", keywords: ["tire", "order", "inventory"] },
   { id: "settings", label: "Settings", keywords: ["setting", "config"] },
 ];
 
@@ -72,13 +76,53 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     if (open) inputRef.current?.focus();
   }, [open]);
 
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+
   const close = useCallback(() => {
     setOpen(false);
     setQuery("");
+    setSelectedIndex(-1);
   }, []);
 
   const customers = customerResults?.customers || [];
   const hasResults = customers.length > 0 || matchingSections.length > 0;
+
+  // Total results for keyboard navigation
+  const totalResults = matchingSections.length + customers.length;
+
+  // Keyboard navigation within results
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { close(); return; }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIndex(i => Math.min(i + 1, totalResults - 1));
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIndex(i => Math.max(i - 1, -1));
+      }
+      if (e.key === "Enter" && selectedIndex >= 0) {
+        e.preventDefault();
+        if (selectedIndex < matchingSections.length) {
+          onNavigate(matchingSections[selectedIndex].id);
+          close();
+        } else {
+          const custIdx = selectedIndex - matchingSections.length;
+          if (customers[custIdx]) {
+            onSelectCustomer((customers[custIdx] as any).id);
+            close();
+          }
+        }
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, selectedIndex, totalResults, matchingSections, customers, close, onNavigate, onSelectCustomer]);
+
+  // Reset selection when query changes
+  useEffect(() => { setSelectedIndex(-1); }, [query]);
 
   return (
     <>
@@ -124,11 +168,13 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
                   {matchingSections.length > 0 && (
                     <div className="px-2 py-2">
                       <div className="px-2 py-1 text-[10px] font-semibold text-foreground/40 tracking-wider uppercase">Sections</div>
-                      {matchingSections.map(s => (
+                      {matchingSections.map((s, i) => (
                         <button
                           key={s.id}
                           onClick={() => { onNavigate(s.id); close(); }}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground hover:bg-primary/10 transition-colors"
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground transition-colors ${
+                            selectedIndex === i ? "bg-primary/15 text-primary" : "hover:bg-primary/10"
+                          }`}
                         >
                           <LayoutDashboard className="w-4 h-4 text-foreground/40" />
                           {s.label}
@@ -141,11 +187,13 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
                   {customers.length > 0 && (
                     <div className="px-2 py-2 border-t border-border/10">
                       <div className="px-2 py-1 text-[10px] font-semibold text-foreground/40 tracking-wider uppercase">Customers</div>
-                      {customers.map((c: any) => (
+                      {customers.map((c: any, ci: number) => (
                         <button
                           key={c.id}
                           onClick={() => { onSelectCustomer(c.id); close(); }}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-primary/10 transition-colors group"
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors group ${
+                            selectedIndex === matchingSections.length + ci ? "bg-primary/15" : "hover:bg-primary/10"
+                          }`}
                         >
                           <Users className="w-4 h-4 text-foreground/40 group-hover:text-primary" />
                           <div className="flex-1 min-w-0">
@@ -172,7 +220,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
 
               {/* Footer hint */}
               <div className="px-4 py-2 border-t border-border/10 text-[10px] text-foreground/30">
-                Type to search customers or sections · <kbd className="px-1 py-0.5 bg-background/50 border border-border/30 rounded">Esc</kbd> to close
+                <kbd className="px-1 py-0.5 bg-background/50 border border-border/30 rounded">↑↓</kbd> navigate · <kbd className="px-1 py-0.5 bg-background/50 border border-border/30 rounded">↵</kbd> select · <kbd className="px-1 py-0.5 bg-background/50 border border-border/30 rounded">Esc</kbd> close
               </div>
             </div>
           </div>

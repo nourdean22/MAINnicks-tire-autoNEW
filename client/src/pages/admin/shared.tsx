@@ -99,7 +99,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "System",
     items: [
       { id: "shopdriver", label: "ShopDriver Sync", icon: <Upload className="w-4 h-4" /> },
-      { id: "estimates", label: "Estimate Log", icon: <DollarSign className="w-4 h-4" /> },
+      { id: "estimates", label: "Estimate Pipeline", icon: <DollarSign className="w-4 h-4" /> },
       { id: "activity", label: "Activity Feed", icon: <Activity className="w-4 h-4" /> },
       { id: "settings", label: "Shop Settings", icon: <Settings className="w-4 h-4" /> },
     ],
@@ -131,7 +131,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   autoFollowUp: "Automated Follow-Ups",
   settings: "Shop Settings",
   shopdriver: "ShopDriver Sync",
-  estimates: "Estimate Log",
+  estimates: "Estimate Pipeline",
   activity: "Activity Feed",
   revenue: "Revenue Command Center",
   integrations: "Integrations Hub",
@@ -139,7 +139,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   analyticsView: "Analytics & Attribution",
   callTrackingView: "Call Tracking",
   exportView: "Export Data",
-  financing: "Financing Providers",
+  financing: "Financing Command",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────
