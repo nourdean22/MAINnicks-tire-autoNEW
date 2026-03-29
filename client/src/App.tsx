@@ -57,6 +57,7 @@ const CustomerPortal = lazy(() => import("./pages/CustomerPortal"));
 const TireFinder = lazy(() => import("./pages/TireFinder"));
 const ServicesOverview = lazy(() => import("./pages/ServicesOverview"));
 const AlignmentPage = lazy(() => import("./pages/AlignmentPage"));
+const TrackJob = lazy(() => import("./pages/TrackJob"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const Terms = lazy(() => import("./pages/Terms"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -183,6 +184,7 @@ function Router() {
         <Route path={"/review"} component={ReviewPage} />
         {/* Status Tracker */}
         <Route path={"/status"} component={StatusTracker} />
+        <Route path={"/track"} component={TrackJob} />
         {/* Price Estimator */}
         <Route path={"/pricing"} component={PriceEstimator} />
         <Route path={"/estimate"} component={LaborEstimator} />

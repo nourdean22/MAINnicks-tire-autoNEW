@@ -56,6 +56,7 @@ import {
   financingRouter,
   nourOsBridgeRouter,
   workOrdersRouter,
+  dispatchRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -141,6 +142,9 @@ export const appRouter = router({
 
   // Work Orders
   workOrders: workOrdersRouter,
+
+  // Dispatch + QC + Customer Messaging
+  dispatch: dispatchRouter,
 });
 
 export type AppRouter = typeof appRouter;
