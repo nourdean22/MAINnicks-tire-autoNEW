@@ -43,7 +43,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
 
   // Fetch customers when query looks like a search
   const { data: customerResults } = trpc.customers.list.useQuery(
-    { search: debouncedQuery, limit: 5 },
+    { search: debouncedQuery, pageSize: 5 },
     { enabled: open && debouncedQuery.length >= 2 }
   );
 
