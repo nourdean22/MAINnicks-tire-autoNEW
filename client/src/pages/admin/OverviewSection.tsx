@@ -1,15 +1,17 @@
 /**
  * OverviewSection — Premium admin dashboard overview with CEO-level polish.
  */
+import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Link } from "wouter";
 import {
-  StatCard, ActivityIcon, StatusDot, CHART_COLORS,
+  StatCard, ActivityIcon, StatusDot, CHART_COLORS, BOOKING_STATUS_CONFIG,
+  type BookingStatus,
 } from "./shared";
 import {
   Activity, AlertTriangle, BarChart3, Bell, CalendarClock, CheckCircle2,
-  ChevronRight, ExternalLink, FileSpreadsheet, FileText, Globe, Hash,
+  ChevronRight, Clock, ExternalLink, FileSpreadsheet, FileText, Globe, Hash,
   Loader2, MessageSquare, Newspaper, PieChart, Send, Sparkles, Star,
   TrendingUp, Users, XCircle, Zap,
 } from "lucide-react";
@@ -37,6 +39,19 @@ export default function OverviewSection() {
   const { data: sheetInfo } = trpc.lead.sheetUrl.useQuery();
   const { data: customerStats } = trpc.customers.stats.useQuery();
   const { data: campaignStats } = trpc.customers.campaignStats.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: allBookings } = trpc.booking.list.useQuery(undefined, { refetchInterval: 60000 });
+
+  // Today's bookings
+  const todaysBookings = useMemo(() => {
+    if (!allBookings) return [];
+    const today = new Date().toISOString().split("T")[0];
+    return allBookings
+      .filter((b: any) => b.preferredDate === today || b.createdAt?.startsWith(today))
+      .sort((a: any, b: any) => {
+        const timeOrder: Record<string, number> = { morning: 0, afternoon: 1, "no-preference": 2 };
+        return (timeOrder[a.preferredTime] ?? 2) - (timeOrder[b.preferredTime] ?? 2);
+      });
+  }, [allBookings]);
 
   if (isLoading || !stats) {
     return (
@@ -147,6 +162,44 @@ export default function OverviewSection() {
             );
           })}
         </div>
+      </div>
+
+      {/* ─── TODAY'S TIMELINE ─── */}
+      <div className="stat-card !p-5">
+        <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-4 flex items-center gap-2">
+          <Clock className="w-3.5 h-3.5 text-primary" />
+          Today's Timeline
+        </h3>
+        {todaysBookings.length === 0 ? (
+          <p className="text-sm text-foreground/40 py-4">No bookings scheduled for today.</p>
+        ) : (
+          <div className="space-y-2">
+            {todaysBookings.map((b: any) => {
+              const cfg = BOOKING_STATUS_CONFIG[b.status as BookingStatus] || BOOKING_STATUS_CONFIG.new;
+              return (
+                <div key={b.id} className="flex items-center gap-3 px-3 py-2.5 bg-background/50 border border-border/20 hover:border-primary/30 transition-colors">
+                  <div className="shrink-0">{cfg.icon}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-foreground truncate">{b.name}</span>
+                      <span className={`text-[10px] font-semibold tracking-wider px-1.5 py-0.5 ${cfg.bgColor} ${cfg.color}`}>
+                        {cfg.label.toUpperCase()}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-foreground/50">
+                      {b.service}{b.preferredTime ? ` · ${b.preferredTime === "morning" ? "Morning" : b.preferredTime === "afternoon" ? "Afternoon" : "Flex"}` : ""}
+                    </span>
+                  </div>
+                  {b.phone && (
+                    <a href={`tel:${b.phone}`} className="shrink-0 text-foreground/30 hover:text-primary transition-colors">
+                      <CalendarClock className="w-4 h-4" />
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ─── SMS CAMPAIGN ROI ─── */}

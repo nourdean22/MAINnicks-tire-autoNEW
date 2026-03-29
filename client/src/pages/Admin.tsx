@@ -14,6 +14,8 @@ import {
 import {
   AdminSection, NAV_GROUPS, SECTION_TITLES,
 } from "./admin/shared";
+import { CommandSearch } from "@/components/admin/CommandSearch";
+import { CustomerDrawer } from "@/components/admin/CustomerDrawer";
 
 // Lazy-load each section for code splitting
 const OverviewSection = lazy(() => import("./admin/OverviewSection"));
@@ -99,6 +101,7 @@ export default function Admin() {
   const { user, loading: authLoading } = useAuth();
   const [section, setSection] = useState<AdminSection>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [drawerCustomerId, setDrawerCustomerId] = useState<number | null>(null);
 
   const { data: stats } = trpc.adminDashboard.stats.useQuery(undefined, {
     enabled: !!user && user.role === "admin",
@@ -266,6 +269,10 @@ export default function Admin() {
             {SECTION_TITLES[section]}
           </h1>
           <div className="flex-1" />
+          <CommandSearch
+            onNavigate={(s) => setSection(s)}
+            onSelectCustomer={(id) => setDrawerCustomerId(id)}
+          />
           <Link
             href="/admin/content"
             className="flex items-center gap-1.5 bg-muted/50 border border-border px-3 py-1.5 rounded-md text-muted-foreground hover:text-primary hover:border-primary/30 transition-all text-xs font-medium"
@@ -280,6 +287,13 @@ export default function Admin() {
           <SectionContent section={section} />
         </div>
       </main>
+
+      {/* Customer side drawer */}
+      <CustomerDrawer
+        customerId={drawerCustomerId}
+        onClose={() => setDrawerCustomerId(null)}
+        onNavigateToSection={(s) => setSection(s as AdminSection)}
+      />
     </div>
   );
 }
