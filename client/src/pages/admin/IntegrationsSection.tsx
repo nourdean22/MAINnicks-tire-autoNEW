@@ -13,7 +13,8 @@ import {
   Truck, Wrench, Calculator, ExternalLink, Search, Plus, Trash2,
   ChevronRight, DollarSign, Clock, Package, Loader2, Settings2,
   CheckCircle2, AlertTriangle, Gauge, Zap, Shield, Droplets,
-  ThermometerSun, Cog, CircleDot, ArrowRight
+  ThermometerSun, Cog, CircleDot, ArrowRight, RefreshCw, XCircle,
+  Activity, Wifi, WifiOff
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
@@ -41,6 +42,94 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   tires: <CircleDot className="w-4 h-4" />,
 };
 
+// ─── VENDOR HEALTH STRIP ────────────────────────────────
+function VendorHealthStrip() {
+  const { data: health, isLoading } = trpc.adminDashboard.syncHealth.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+  const refreshMut = trpc.adminDashboard.refreshHealth.useMutation({
+    onSuccess: () => toast.success("Health checks refreshed"),
+  });
+  const [expanded, setExpanded] = useState(false);
+
+  if (isLoading) {
+    return (
+      <div className="bg-card border border-border/30 p-3 flex items-center gap-2 text-xs text-foreground/40">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        Checking vendor integrations...
+      </div>
+    );
+  }
+
+  if (!health) return null;
+
+  const statusColor = health.overallStatus === "all_systems_operational" ? "text-emerald-400"
+    : health.overallStatus === "degraded" ? "text-amber-400"
+    : "text-red-400";
+
+  const StatusIcon = health.overallStatus === "all_systems_operational" ? Wifi
+    : health.overallStatus === "degraded" ? AlertTriangle
+    : WifiOff;
+
+  const connectedCount = health.checks.filter((c: any) => c.status === "connected").length;
+
+  return (
+    <div className="bg-card border border-border/30">
+      {/* Summary bar */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-foreground/5 transition-colors"
+      >
+        <StatusIcon className={`w-4 h-4 ${statusColor}`} />
+        <span className="text-xs font-semibold tracking-wide flex-1">
+          VENDOR HEALTH — {connectedCount}/{health.checks.length} CONNECTED
+        </span>
+        <span className={`text-[10px] font-mono ${statusColor}`}>
+          {health.overallStatus.replace(/_/g, " ").toUpperCase()}
+        </span>
+        <ChevronRight className={`w-3.5 h-3.5 text-foreground/30 transition-transform ${expanded ? "rotate-90" : ""}`} />
+      </button>
+
+      {/* Expanded detail */}
+      {expanded && (
+        <div className="border-t border-border/20 px-4 py-3 space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {health.checks.map((c: any) => (
+              <div key={c.name} className="flex items-center gap-2 px-3 py-2 bg-background/50 border border-border/10 text-xs">
+                {c.status === "connected" ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                ) : c.status === "degraded" ? (
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                ) : (
+                  <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold truncate">{c.name}</div>
+                  <div className="text-foreground/40 truncate text-[10px]">{c.details}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-[10px] text-foreground/30">
+              Last checked: {health.checkedAt ? new Date(health.checkedAt).toLocaleTimeString() : "—"}
+            </span>
+            <button
+              onClick={(e) => { e.stopPropagation(); refreshMut.mutate(); }}
+              disabled={refreshMut.isPending}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold text-primary hover:bg-primary/10 transition-colors"
+            >
+              <RefreshCw className={`w-3 h-3 ${refreshMut.isPending ? "animate-spin" : ""}`} />
+              RE-CHECK ALL
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── MAIN COMPONENT ─────────────────────────────────────
 export default function IntegrationsSection() {
   const [tab, setTab] = useState<Tab>("tires");
@@ -52,6 +141,9 @@ export default function IntegrationsSection() {
 
   return (
     <div className="space-y-6">
+      {/* Vendor Health Strip */}
+      <VendorHealthStrip />
+
       {/* Tab Bar */}
       <div className="flex gap-1 bg-card border border-border/30 p-1">
         {tabs.map(t => (
