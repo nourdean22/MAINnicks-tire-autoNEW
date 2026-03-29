@@ -1,4 +1,23 @@
 import "dotenv/config";
+
+// ─── Startup env validation ─────────────────────────
+const REQUIRED_ENV = ["DATABASE_URL"] as const;
+const RECOMMENDED_ENV = [
+  "JWT_SECRET", "OWNER_OPEN_ID", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
+  "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER",
+  "BRIDGE_API_KEY", "OPENAI_API_KEY",
+] as const;
+
+const missingRequired = REQUIRED_ENV.filter(k => !process.env[k]);
+if (missingRequired.length) {
+  console.error(`FATAL: Missing required env vars: ${missingRequired.join(", ")}`);
+  process.exit(1);
+}
+const missingRec = RECOMMENDED_ENV.filter(k => !process.env[k]);
+if (missingRec.length) {
+  console.warn(`WARNING: Missing recommended env vars: ${missingRec.join(", ")}`);
+}
+
 import express from "express";
 import { createServer } from "http";
 import net from "net";
