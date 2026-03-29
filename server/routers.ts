@@ -54,6 +54,7 @@ import {
   emergencyRouter,
   messengerBotRouter,
   financingRouter,
+  nourOsBridgeRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -133,6 +134,9 @@ export const appRouter = router({
 
   // Financing
   financing: financingRouter,
+
+  // NOUR OS Bridge
+  nourOsBridge: nourOsBridgeRouter,
 });
 
 export type AppRouter = typeof appRouter;

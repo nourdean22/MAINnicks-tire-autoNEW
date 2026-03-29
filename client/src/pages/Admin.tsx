@@ -108,6 +108,16 @@ export default function Admin() {
     refetchInterval: 60000,
   });
 
+  const { data: callbacks } = trpc.callback.list.useQuery(undefined, {
+    enabled: !!user && user.role === "admin",
+    refetchInterval: 60000,
+  });
+
+  // Pending callback count for badge
+  const pendingCallbacks = (callbacks as any[] | undefined)?.filter(
+    (c: any) => c.status === "new" || c.status === "pending"
+  ).length ?? 0;
+
   // ─── AUTH GATE ───────────────────────────────────────
   if (authLoading) {
     return (
@@ -208,6 +218,7 @@ export default function Admin() {
                   let badge = 0;
                   if (item.id === "bookings") badge = newBookings;
                   if (item.id === "leads") badge = urgentLeads + newLeads;
+                  if (item.id === "callTrackingView") badge = pendingCallbacks;
 
                   return (
                     <button
