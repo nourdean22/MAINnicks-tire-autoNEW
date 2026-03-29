@@ -48,12 +48,6 @@ function cleanupExpiredConversations() {
       conversationMap.delete(phone);
     }
   }
-  // Also clean expired rate limit entries
-  for (const [phone, limit] of Array.from(rateLimitMap.entries())) {
-    if (now > limit.resetAt) {
-      rateLimitMap.delete(phone);
-    }
-  }
 }
 
 function checkRateLimit(phone: string): boolean {
@@ -78,67 +72,20 @@ function checkRateLimit(phone: string): boolean {
   return true;
 }
 
-/** Persist opt-out/opt-in to the customers table */
-async function persistOptOut(phone: string, optOut: boolean) {
-  try {
-    const { getDb } = await import("../db");
-    const d = await getDb();
-    if (!d) return;
-    const { customers } = await import("../../drizzle/schema");
-    const { like } = await import("drizzle-orm");
-    await d.update(customers)
-      .set({ smsOptOut: optOut ? 1 : 0 })
-      .where(like(customers.phone, `%${phone}`));
-  } catch (err) {
-    console.error("[SMS Bot] DB opt-out update failed:", err);
-  }
-}
-
-/** Load DB opt-outs into the in-memory set on startup */
-export async function loadOptOutsFromDb() {
-  try {
-    const { getDb } = await import("../db");
-    const d = await getDb();
-    if (!d) return;
-    const { customers } = await import("../../drizzle/schema");
-    const { eq } = await import("drizzle-orm");
-    const optedOut = await d.select({ phone: customers.phone })
-      .from(customers)
-      .where(eq(customers.smsOptOut, 1));
-    for (const c of optedOut) {
-      if (c.phone) {
-        optOutSet.add(c.phone.replace(/\D/g, "").slice(-10));
-      }
-    }
-    console.log(`[SMS Bot] Loaded ${optedOut.length} opt-outs from DB`);
-  } catch (err) {
-    console.error("[SMS Bot] Failed to load opt-outs:", err);
-  }
-}
-
 export async function handleIncomingSMS(from: string, body: string): Promise<string> {
   cleanupExpiredConversations();
 
   const phone = sanitizePhone(from).replace(/\D/g, "").slice(-10);
   const message = sanitizeText(body).trim().toUpperCase();
 
-  // Check opt-out (in-memory cache, backed by DB)
+  // Check opt-out
   if (optOutSet.has(phone)) {
-    // Handle UNSTOP to re-enable
-    if (message === "UNSTOP" || message === "START") {
-      optOutSet.delete(phone);
-      // Persist to DB
-      persistOptOut(phone, false).catch(err => console.error("[SMS Bot] Failed to persist opt-in:", err));
-      return "Welcome back! You've been re-subscribed to messages from Nick's Tire & Auto.";
-    }
     return "";
   }
 
   // Handle STOP keyword
   if (message === "STOP" || message === "HALT") {
     optOutSet.add(phone);
-    // Persist to DB
-    persistOptOut(phone, true).catch(err => console.error("[SMS Bot] Failed to persist opt-out:", err));
     return "You've been opted out. Text UNSTOP to re-enable.";
   }
 
@@ -247,7 +194,7 @@ async function saveBooking(phone: string, conv: ConversationState) {
 
     // Notify owner via SMS
     try {
-      const OWNER_PHONE = process.env.OWNER_PHONE_NUMBER || "2168620005";
+      const OWNER_PHONE = "2167699977"; // Twilio number
       const notifMsg = `New SMS booking from ${conv.customerName}: ${conv.vehicleInfo} - ${conv.problemDescription}`;
       await sendSms(OWNER_PHONE, notifMsg);
     } catch (err) {

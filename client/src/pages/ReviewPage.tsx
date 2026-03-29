@@ -13,6 +13,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { BUSINESS } from "@shared/business";
 import { GBP_REVIEW_URL } from "@shared/const";
 import InternalLinks from "@/components/InternalLinks";
+import ReviewCTA from "@/components/ReviewCTA";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
@@ -295,6 +296,7 @@ export default function ReviewPage() {
         </div>
       </section>
     
+      <ReviewCTA />
       <InternalLinks />
 </PageLayout>
   );

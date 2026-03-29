@@ -31,7 +31,7 @@ export default function SettingsSection() {
   useEffect(() => {
     if (settings) {
       const vals: Record<string, string> = {};
-      settings.forEach((s: any) => { vals[s.key] = s.value; });
+      settings.forEach((s) => { vals[s.key] = s.value; });
       setEditValues(vals);
     }
   }, [settings]);
@@ -52,7 +52,7 @@ export default function SettingsSection() {
     }
   };
 
-  const categorySettings = settings?.filter((s: any) => s.category === activeCategory) || [];
+  const categorySettings = settings?.filter(s => s.category === activeCategory) || [];
 
   if (isLoading) {
     return (
@@ -101,7 +101,7 @@ export default function SettingsSection() {
           <p className="text-foreground/40 text-[12px]">No settings in this category</p>
         ) : (
           <div className="space-y-4">
-            {categorySettings.map((setting: any) => {
+            {categorySettings.map(setting => {
               const isChanged = editValues[setting.key] !== setting.value;
               const isSaving = saving === setting.key;
               const isSaved = saved === setting.key;

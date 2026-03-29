@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../_core/trpc";
 import { eq } from "drizzle-orm";
-import { aiGateway } from "../lib/ai-gateway";
+import { invokeLLM } from "../_core/llm";
 import { sanitizeText } from "../sanitize";
 import { TRPCError } from "@trpc/server";
 
@@ -52,15 +52,21 @@ Write a warm, professional 2-3 sentence response that:
 Keep it under 160 characters (Google's limit).`;
 
   try {
-    const result = await aiGateway({
-      task: "generate",
-      messages: [{ role: "user", content: prompt }],
+    const result = await invokeLLM({
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      maxTokens: 256,
     });
 
-    if (result.content) {
-      return sanitizeText(result.content);
+    const content = result.choices?.[0]?.message?.content;
+    if (typeof content === "string") {
+      return sanitizeText(content);
     }
-    throw new Error("Empty AI response");
+    throw new Error("Invalid LLM response");
   } catch (err) {
     console.error("[ReviewReplies] AI draft generation failed:", err);
     return "Thank you for your review! We appreciate your feedback.";

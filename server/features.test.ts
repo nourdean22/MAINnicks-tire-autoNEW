@@ -253,8 +253,8 @@ describe("getWeatherAlert", () => {
 // ─── SERVICE DATA TESTS ────────────────────────────────
 
 describe("shared/services", () => {
-  it("has at least 6 core services", () => {
-    expect(SERVICES.length).toBeGreaterThanOrEqual(6);
+  it("has exactly 6 services", () => {
+    expect(SERVICES).toHaveLength(6);
   });
 
   it("each service has required fields", () => {
@@ -297,12 +297,10 @@ describe("shared/services", () => {
     }
   });
 
-  it("all core service slugs are present", () => {
-    const coreSlugs = ["tires", "brakes", "diagnostics", "emissions", "oil-change", "general-repair"];
+  it("all service slugs match expected routes", () => {
+    const expectedSlugs = ["tires", "brakes", "diagnostics", "emissions", "oil-change", "general-repair"];
     const actualSlugs = SERVICES.map((s) => s.slug);
-    for (const slug of coreSlugs) {
-      expect(actualSlugs).toContain(slug);
-    }
+    expect(actualSlugs).toEqual(expectedSlugs);
   });
 
   it("each problem has both question and answer", () => {
@@ -403,7 +401,7 @@ describe("shared/blog", () => {
   });
 
   it("related services reference valid routes", () => {
-    const validRoutes = SERVICES.map(s => `/${s.slug}`);
+    const validRoutes = ["/tires", "/brakes", "/diagnostics", "/emissions", "/oil-change", "/general-repair"];
     for (const article of BLOG_ARTICLES) {
       for (const svc of article.relatedServices) {
         expect(validRoutes).toContain(svc);

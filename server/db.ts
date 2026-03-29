@@ -1,11 +1,10 @@
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import mysql from "mysql2/promise";
 import {
   InsertUser, users, bookings, InsertBooking,
   coupons, InsertCoupon,
   customerVehicles, InsertCustomerVehicle,
-  serviceHistory,
+  serviceHistory, InsertServiceHistory,
   referrals, InsertReferral,
   mechanicQA, InsertMechanicQA,
   analyticsSnapshots, InsertAnalyticsSnapshot,
@@ -13,45 +12,19 @@ import {
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
-let _db: any = null;
-let _pool: mysql.Pool | null = null;
+let _db: ReturnType<typeof drizzle> | null = null;
 
-/**
- * Lazily create a connection pool + drizzle instance.
- * Uses mysql2 pool for proper connection reuse under concurrent load.
- */
+// Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _pool = mysql.createPool({
-        uri: process.env.DATABASE_URL,
-        waitForConnections: true,
-        connectionLimit: 5,
-        maxIdle: 3,
-        idleTimeout: 60000,
-        enableKeepAlive: true,
-        keepAliveInitialDelay: 10000,
-        ssl: process.env.DATABASE_URL?.includes('tidbcloud.com') ? { rejectUnauthorized: true } : undefined,
-      });
-      _db = drizzle(_pool);
-      console.log("[Database] Connection pool established (max 5 connections)");
+      _db = drizzle(process.env.DATABASE_URL);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
-      _pool = null;
     }
   }
   return _db;
-}
-
-/** Gracefully close the connection pool (for clean shutdown). */
-export async function closeDb() {
-  if (_pool) {
-    await _pool.end();
-    _pool = null;
-    _db = null;
-    console.log("[Database] Connection pool closed");
-  }
 }
 
 export async function upsertUser(user: InsertUser): Promise<void> {
@@ -130,8 +103,8 @@ export async function getUserByOpenId(openId: string) {
 export async function createBooking(booking: InsertBooking) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const [result] = await db.insert(bookings).values(booking).$returningId();
-  return { success: true, id: result.id };
+  await db.insert(bookings).values(booking);
+  return { success: true };
 }
 
 export async function getBookings() {
@@ -243,6 +216,13 @@ export async function getServiceHistoryForUser(userId: number) {
   return db.select().from(serviceHistory)
     .where(eq(serviceHistory.userId, userId))
     .orderBy(desc(serviceHistory.completedAt));
+}
+
+export async function addServiceRecord(record: InsertServiceHistory) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(serviceHistory).values(record);
+  return { success: true, id: Number(result[0].insertId) };
 }
 
 // ─── REFERRAL QUERIES ─────────────────────────────────
@@ -562,8 +542,10 @@ export async function seedDefaultPricing() {
 // ─── VEHICLE INSPECTION QUERIES ─────────────────────
 
 function generateShareToken(): string {
-  const { randomBytes } = require("crypto") as typeof import("crypto");
-  return randomBytes(16).toString("hex"); // 32 hex chars, cryptographically secure
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let token = "";
+  for (let i = 0; i < 32; i++) token += chars[Math.floor(Math.random() * chars.length)];
+  return token;
 }
 
 export async function createInspection(data: Omit<InsertVehicleInspection, "shareToken">) {
@@ -948,7 +930,7 @@ export async function getCompletedBookingsWithoutReview(lookbackDays = 365) {
   // Get all phones that already have a non-failed review request
   const existingPhones = await db.select({ phone: reviewRequests.phone }).from(reviewRequests)
     .where(ne(reviewRequests.status, "failed"));
-  const phoneSet = new Set(existingPhones.map((r: { phone: string }) => r.phone));
+  const phoneSet = new Set(existingPhones.map(r => r.phone));
 
   // Filter out bookings whose phone already has a review request
   // Also deduplicate by phone (only keep most recent booking per phone)
@@ -1066,10 +1048,10 @@ export async function getReminderStats() {
   const now = new Date();
   return {
     total: all.length,
-    scheduled: all.filter((r: any) => r.status === "scheduled").length,
-    sent: all.filter((r: any) => r.status === "sent").length,
-    snoozed: all.filter((r: any) => r.status === "snoozed").length,
-    dueNow: all.filter((r: any) => r.status === "scheduled" && r.nextDueDate <= now).length,
+    scheduled: all.filter(r => r.status === "scheduled").length,
+    sent: all.filter(r => r.status === "sent").length,
+    snoozed: all.filter(r => r.status === "snoozed").length,
+    dueNow: all.filter(r => r.status === "scheduled" && r.nextDueDate <= now).length,
   };
 }
 
@@ -1087,7 +1069,7 @@ export async function scheduleRemindersForBooking(booking: {
   const db = await getDb();
   if (!db) return [];
   const settings = await getReminderSettings();
-  const enabledSettings = settings.filter((s: any) => s.enabled === 1);
+  const enabledSettings = settings.filter(s => s.enabled === 1);
   const serviceLower = booking.service.toLowerCase();
   const created: number[] = [];
 

@@ -58,7 +58,7 @@ export function SEOHead({
 }: SEOHeadProps) {
   useEffect(() => {
     const canonicalUrl = ogUrl || `${BASE_URL}${canonicalPath}`;
-    const defaultOgImage = ogImage || "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/og-share-image-b6xtjfHGwFJnz4MtsoFkCp.png";
+    const defaultOgImage = ogImage || `${BASE_URL}/og-default.png`;
 
     // Title
     document.title = title;
@@ -199,7 +199,7 @@ export function trackPhoneClick(source: string) {
           referrer: utm.referrer || null,
         },
       }),
-    }).catch((err) => { console.error("[call-tracking] log failed", err); });
+    }).catch(() => { /* silent fail — don't block the call */ });
   });
   // Also fire a custom DOM event for any other tracking
   window.dispatchEvent(new CustomEvent("nick_phone_click", { detail: { source } }));

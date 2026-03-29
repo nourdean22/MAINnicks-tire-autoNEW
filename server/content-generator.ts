@@ -16,9 +16,7 @@ import { eq, desc, and, sql } from "drizzle-orm";
 export type Season = "spring" | "summer" | "fall" | "winter";
 
 export function getCurrentSeason(): Season {
-  // Use Eastern Time — Railway runs UTC, month boundaries differ at night
-  const etDate = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
-  const month = etDate.getMonth(); // 0-11
+  const month = new Date().getMonth(); // 0-11
   if (month >= 2 && month <= 4) return "spring";
   if (month >= 5 && month <= 7) return "summer";
   if (month >= 8 && month <= 10) return "fall";
@@ -198,14 +196,7 @@ Return your response as JSON matching this exact schema.`,
     throw new Error("LLM returned empty or non-string content");
   }
 
-  // Strip markdown code fences if LLM wraps response
-  const cleaned = content.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
-  let article: GeneratedArticle;
-  try {
-    article = JSON.parse(cleaned);
-  } catch {
-    throw new Error("LLM returned invalid JSON for article generation");
-  }
+  const article: GeneratedArticle = JSON.parse(content);
 
   // Validate and sanitize
   if (!article.slug || !article.title || !article.sections?.length) {
@@ -292,13 +283,7 @@ Return as JSON array.`,
     throw new Error("LLM returned empty content for notifications");
   }
 
-  const cleaned2 = content.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
-  let parsed: { notifications: GeneratedNotification[] };
-  try {
-    parsed = JSON.parse(cleaned2);
-  } catch {
-    throw new Error("LLM returned invalid JSON for notification generation");
-  }
+  const parsed = JSON.parse(content);
   return parsed.notifications;
 }
 
@@ -342,7 +327,7 @@ export async function saveGeneratedArticle(article: GeneratedArticle): Promise<n
       contentType: "article",
       status: "failed",
       errorMessage: error.message,
-    }).catch((err: any) => console.error("[ContentGen] Failed to log generation failure:", err));
+    }).catch(() => {});
 
     throw error;
   }
@@ -375,7 +360,7 @@ export async function saveGeneratedNotifications(notifications: GeneratedNotific
         contentType: "notification",
         status: "failed",
         errorMessage: error.message,
-      }).catch((err: any) => console.error("[ContentGen] Failed to log notification failure:", err));
+      }).catch(() => {});
     }
   }
 }

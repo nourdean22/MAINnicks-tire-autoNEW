@@ -120,12 +120,12 @@ export const jobAssignmentsRouter = router({
         .where(eq(jobAssignments.bookingId, input.bookingId))
         .orderBy(desc(jobAssignments.createdAt));
       // Enrich with technician names
-      const techIds = Array.from(new Set(assignments.map((a: any) => a.technicianId)));
+      const techIds = Array.from(new Set(assignments.map(a => a.technicianId)));
       const techs = techIds.length > 0
         ? await d.select().from(technicians).where(sql`${technicians.id} IN (${sql.join(techIds.map(id => sql`${id}`), sql`, `)})`)
         : [];
-      const techMap = new Map(techs.map((t: any) => [t.id, t]));
-      return assignments.map((a: any) => ({
+      const techMap = new Map(techs.map(t => [t.id, t]));
+      return assignments.map(a => ({
         ...a,
         technician: techMap.get(a.technicianId) || null,
       }));
@@ -148,13 +148,13 @@ export const jobAssignmentsRouter = router({
     const techs = await d.select().from(technicians).where(eq(technicians.isActive, 1));
     const activeJobs = await d.select().from(jobAssignments)
       .where(sql`${jobAssignments.completedAt} IS NULL`);
-    return techs.map((t: any) => ({
+    return techs.map(t => ({
       id: t.id,
       name: t.name,
       title: t.title,
       photoUrl: t.photoUrl,
-      activeJobs: activeJobs.filter((j: any) => j.technicianId === t.id).length,
-      assignments: activeJobs.filter((j: any) => j.technicianId === t.id),
+      activeJobs: activeJobs.filter(j => j.technicianId === t.id).length,
+      assignments: activeJobs.filter(j => j.technicianId === t.id),
     }));
   }),
 });
@@ -276,19 +276,19 @@ export const invoicesRouter = router({
       const prevInvoices = await d.select().from(invoices)
         .where(and(gte(invoices.invoiceDate, prevCutoff), lte(invoices.invoiceDate, cutoff), eq(invoices.paymentStatus, "paid")));
 
-      const totalRevenue = currentInvoices.reduce((sum: number, inv: any) => sum + inv.totalAmount, 0);
-      const prevRevenue = prevInvoices.reduce((sum: number, inv: any) => sum + inv.totalAmount, 0);
+      const totalRevenue = currentInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+      const prevRevenue = prevInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
 
       // Revenue by day
       const byDay: Record<string, number> = {};
-      currentInvoices.forEach((inv: any) => {
+      currentInvoices.forEach(inv => {
         const day = new Date(inv.invoiceDate).toISOString().split("T")[0];
         byDay[day] = (byDay[day] || 0) + inv.totalAmount;
       });
 
       // Revenue by payment method
       const byPayment: Record<string, number> = {};
-      currentInvoices.forEach((inv: any) => {
+      currentInvoices.forEach(inv => {
         byPayment[inv.paymentMethod] = (byPayment[inv.paymentMethod] || 0) + inv.totalAmount;
       });
 
@@ -316,7 +316,7 @@ export const invoicesRouter = router({
         .where(eq(invoices.paymentStatus, "paid"));
       // Aggregate by customer name
       const byCustomer: Record<string, { name: string; phone: string | null; total: number; count: number; lastVisit: Date }> = {};
-      all.forEach((inv: any) => {
+      all.forEach(inv => {
         const key = inv.customerPhone || inv.customerName;
         if (!byCustomer[key]) {
           byCustomer[key] = { name: inv.customerName, phone: inv.customerPhone, total: 0, count: 0, lastVisit: new Date(inv.invoiceDate) };
@@ -352,16 +352,16 @@ export const kpiRouter = router({
     // Revenue this month
     const monthInvoices = await d.select().from(invoices)
       .where(and(gte(invoices.invoiceDate, monthAgo), eq(invoices.paymentStatus, "paid")));
-    const monthRevenue = monthInvoices.reduce((sum: number, inv: any) => sum + inv.totalAmount, 0);
+    const monthRevenue = monthInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
 
     // Review stats
     const monthReviews = await d.select().from(reviewRequests).where(gte(reviewRequests.createdAt, monthAgo));
-    const reviewsSent = monthReviews.filter((r: any) => r.status === "sent" || r.status === "clicked").length;
-    const reviewsClicked = monthReviews.filter((r: any) => r.status === "clicked").length;
+    const reviewsSent = monthReviews.filter(r => r.status === "sent" || r.status === "clicked").length;
+    const reviewsClicked = monthReviews.filter(r => r.status === "clicked").length;
 
     // Conversion rate
     const totalLeads = monthLeads.length;
-    const convertedLeads = monthLeads.filter((l: any) => l.status === "booked").length;
+    const convertedLeads = monthLeads.filter(l => l.status === "booked").length;
     const conversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0;
 
     // Customer counts
@@ -375,7 +375,7 @@ export const kpiRouter = router({
     }).from(bookings).groupBy(sql`DAYOFWEEK(${bookings.createdAt})`);
 
     const dayOfWeekCounts = [0, 0, 0, 0, 0, 0, 0]; // Sun-Sat
-    dayOfWeekResults.forEach((r: any) => {
+    dayOfWeekResults.forEach(r => {
       // MySQL DAYOFWEEK: 1=Sun, 2=Mon, ..., 7=Sat
       const idx = r.dayOfWeek - 1;
       if (idx >= 0 && idx < 7) dayOfWeekCounts[idx] = r.count;
@@ -388,7 +388,7 @@ export const kpiRouter = router({
     }).from(bookings).groupBy(sql`HOUR(${bookings.createdAt})`);
 
     const hourCounts = new Array(24).fill(0);
-    hourResults.forEach((r: any) => {
+    hourResults.forEach(r => {
       if (r.hour >= 0 && r.hour < 24) hourCounts[r.hour] = r.count;
     });
 
@@ -406,9 +406,9 @@ export const kpiRouter = router({
       newCustomersThisMonth: newCustomerCount?.count ?? 0,
       dayOfWeekCounts,
       hourCounts,
-      completedThisWeek: weekBookings.filter((b: any) => b.status === "completed").length,
-      completedThisMonth: monthBookings.filter((b: any) => b.status === "completed").length,
-      emergencyThisWeek: weekBookings.filter((b: any) => b.urgency === "emergency").length,
+      completedThisWeek: weekBookings.filter(b => b.status === "completed").length,
+      completedThisMonth: monthBookings.filter(b => b.status === "completed").length,
+      emergencyThisWeek: weekBookings.filter(b => b.urgency === "emergency").length,
     };
   }),
 
@@ -446,9 +446,8 @@ export const portalRouter = router({
         throw new Error("Too many code requests. Please wait and try again.");
       }
 
-      // Generate 6-digit code (cryptographically secure)
-      const { randomInt } = await import("crypto");
-      const code = randomInt(100000, 999999).toString();
+      // Generate 6-digit code
+      const code = String(Math.floor(100000 + Math.random() * 900000));
       const codeExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
 
       // Find customer
@@ -465,7 +464,7 @@ export const portalRouter = router({
 
       // In development, log to console. In production, use Twilio SMS.
       if (process.env.NODE_ENV !== "production") {
-        console.log(`[Portal] Verification code sent to phone ending ${normalized.slice(-4)}`);
+        console.log(`[Portal] Verification code for ${normalized}: ${code}`);
       }
       // TODO: When Twilio is active, send SMS here
 
@@ -497,9 +496,8 @@ export const portalRouter = router({
 
       if (!session) throw new Error("Invalid or expired code");
 
-      // Generate session token (cryptographically secure)
-      const { randomBytes } = await import("crypto");
-      const token = randomBytes(32).toString("hex");
+      // Generate session token
+      const token = Array.from({ length: 64 }, () => "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]).join("");
       const sessionExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
       await d.update(portalSessions).set({

@@ -661,7 +661,7 @@ export default function TireFinder() {
   return (
     <PageLayout>
       <SEOHead
-        title="Tire Shop Cleveland OH — New & Used Tires | Nick's Tire"
+        title="Tire Shop Cleveland OH | New & Used Tires | Nick's Tire & Auto"
         description="Cleveland's #1 new & used tire shop. Buy tires online — free premium installation ($289 value). Flat repair $15. Every tire inspected. Walk-ins 7 days. $10 down financing."
         canonicalPath="/tires"
       />

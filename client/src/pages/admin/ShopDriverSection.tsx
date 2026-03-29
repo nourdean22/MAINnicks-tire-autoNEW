@@ -190,7 +190,7 @@ export default function ShopDriverSection() {
                 </tr>
               </thead>
               <tbody>
-                {history.map((h: any) => (
+                {history.map((h) => (
                   <tr key={h.id} className="border-b border-border/10">
                     <td className="py-2.5 pr-4">
                       <div className="flex items-center gap-2">

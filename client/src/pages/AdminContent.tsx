@@ -152,7 +152,7 @@ function ArticlesPanel({ expandedArticle, setExpandedArticle }: { expandedArticl
   const filtered = useMemo(() => {
     if (!articles) return [];
     if (filter === "all") return articles;
-    return articles.filter((a: any) => a.status === filter);
+    return articles.filter((a) => a.status === filter);
   }, [articles, filter]);
 
   if (isLoading) {
@@ -199,7 +199,7 @@ function ArticlesPanel({ expandedArticle, setExpandedArticle }: { expandedArticl
         </div>
       ) : (
         <div className="space-y-4">
-          {filtered.map((article: any) => {
+          {filtered.map((article) => {
             const isExpanded = expandedArticle === article.id;
             const statusConfig = ARTICLE_STATUS_CONFIG[article.status as ArticleStatus];
             let sections: { heading: string; content: string }[] = [];
@@ -353,7 +353,7 @@ function NotificationsPanel() {
         </div>
       ) : (
         <div className="space-y-3">
-          {notifications.map((notif: any) => (
+          {notifications.map((notif) => (
             <div key={notif.id} className={`bg-card border p-5 flex items-center justify-between gap-4 ${notif.isActive ? "border-border/30" : "border-border/10 opacity-60"}`}>
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-1">
@@ -592,7 +592,7 @@ function LogPanel() {
         </div>
       ) : (
         <div className="space-y-2">
-          {log.map((entry: any) => (
+          {log.map((entry) => (
             <div key={entry.id} className="bg-card border border-border/30 p-4 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <span className={`w-2 h-2 rounded-full ${entry.status === "success" ? "bg-emerald-400" : "bg-red-400"}`} />

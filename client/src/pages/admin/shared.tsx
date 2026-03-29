@@ -8,11 +8,11 @@ import {
   LayoutDashboard, FileText, Globe, Wrench, Gauge,
   ClipboardList, Trophy, Gift, Send, Star, UserCheck, RotateCcw, Timer,
   Settings, Upload, DollarSign, Activity, TrendingUp, Plug, ShoppingCart,
-  BarChart3, PhoneCall, Download, CreditCard, Brain,
+  BarChart3, PhoneCall, Download, CreditCard,
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "nourOsBridge";
+export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -100,7 +100,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "shopdriver", label: "ShopDriver Sync", icon: <Upload className="w-4 h-4" /> },
       { id: "estimates", label: "Estimate Log", icon: <DollarSign className="w-4 h-4" /> },
-      { id: "nourOsBridge", label: "NOUR OS Bridge", icon: <Brain className="w-4 h-4" /> },
       { id: "activity", label: "Activity Feed", icon: <Activity className="w-4 h-4" /> },
       { id: "settings", label: "Shop Settings", icon: <Settings className="w-4 h-4" /> },
     ],
@@ -141,7 +140,6 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   callTrackingView: "Call Tracking",
   exportView: "Export Data",
   financing: "Financing Providers",
-  nourOsBridge: "NOUR OS Bridge",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────

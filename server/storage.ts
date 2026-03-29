@@ -1,15 +1,13 @@
 // S3-compatible storage helpers (replaces Manus Forge storage proxy)
-// Uses AWS SDK v3 — lazy-loaded to save ~60MB memory at startup
+// Uses AWS SDK v3 for direct S3 uploads/downloads
 
-let _s3Client: any = null;
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-async function getS3Client() {
-  if (!_s3Client) {
-    const { S3Client } = await import("@aws-sdk/client-s3");
-    const region = process.env.AWS_REGION || "us-east-1";
-    _s3Client = new S3Client({ region });
-  }
-  return _s3Client;
+function getS3Client(): S3Client {
+  const region = process.env.AWS_REGION || "us-east-1";
+  // AWS SDK v3 auto-reads AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY from env
+  return new S3Client({ region });
 }
 
 function getBucket(): string {
@@ -29,9 +27,7 @@ export async function storagePut(
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream"
 ): Promise<{ key: string; url: string }> {
-  const { PutObjectCommand, GetObjectCommand } = await import("@aws-sdk/client-s3");
-  const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
-  const s3 = await getS3Client();
+  const s3 = getS3Client();
   const bucket = getBucket();
   const key = normalizeKey(relKey);
 
@@ -46,6 +42,7 @@ export async function storagePut(
     })
   );
 
+  // If CloudFront is configured, use it; otherwise generate a presigned URL
   const cdnDomain = process.env.CLOUDFRONT_DOMAIN;
   const url = cdnDomain
     ? `https://${cdnDomain}/${key}`
@@ -55,9 +52,7 @@ export async function storagePut(
 }
 
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
-  const { GetObjectCommand } = await import("@aws-sdk/client-s3");
-  const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
-  const s3 = await getS3Client();
+  const s3 = getS3Client();
   const bucket = getBucket();
   const key = normalizeKey(relKey);
 

@@ -49,7 +49,7 @@ describe("SEO Audit Fixes", () => {
       }
     });
 
-    it("all core services exist with correct slugs", () => {
+    it("all six services exist with correct slugs", () => {
       const slugs = SERVICES.map((s) => s.slug);
       expect(slugs).toContain("tires");
       expect(slugs).toContain("brakes");
@@ -57,7 +57,7 @@ describe("SEO Audit Fixes", () => {
       expect(slugs).toContain("emissions");
       expect(slugs).toContain("oil-change");
       expect(slugs).toContain("general-repair");
-      expect(SERVICES.length).toBeGreaterThanOrEqual(6);
+      expect(SERVICES.length).toBe(6);
     });
 
     it("getServiceBySlug returns correct service", () => {

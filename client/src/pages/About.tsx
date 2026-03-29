@@ -25,7 +25,7 @@ export default function About() {
     <PageLayout activeHref="/about">
       <SEOHead
         title="About Us | Nick's Tire & Auto Cleveland"
-        description="Nick's Tire & Auto — honest diagnostics, fair pricing since 2018. 4.9★ (1,700+ reviews). Serving Cleveland & Euclid. Call (216) 862-0005."
+        description="Learn about Nick's Tire & Auto — honest diagnostics, fair pricing, experienced technicians serving Cleveland, Euclid, and Northeast Ohio since 2018."
         canonicalPath="/about"
       />
 

@@ -126,20 +126,6 @@ export async function processReviewRequestQueue() {
   let failed = 0;
 
   for (const req of batch) {
-    // Check SMS opt-out before sending review request
-    const db = await getDb();
-    if (db) {
-      const { customers: custTable } = await import("../../drizzle/schema");
-      const { like } = await import("drizzle-orm");
-      const [cust] = await db.select({ smsOptOut: custTable.smsOptOut })
-        .from(custTable).where(like(custTable.phone, `%${req.phone}`)).limit(1);
-      if (cust?.smsOptOut) {
-        await markReviewRequestFailed(req.id, "Customer opted out of SMS");
-        failed++;
-        continue;
-      }
-    }
-
     // Build tracking URL — uses the public redirect endpoint
     const trackingUrl = `${SITE_URL}/api/review-click/${req.trackingToken}`;
     const message = buildReviewMessage(req.customerName, req.service, trackingUrl, settings.messageTemplate);

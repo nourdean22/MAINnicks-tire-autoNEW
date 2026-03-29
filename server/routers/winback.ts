@@ -134,10 +134,10 @@ export const winbackRouter = router({
 
       const cleanName = input.name.replace(/<[^>]*>/g, "").trim();
 
-      // Count target customers (excluding opted-out)
+      // Count target customers
       const [targetCount] = await d.select({ count: sql<number>`count(*)` })
         .from(customers)
-        .where(and(eq(customers.segment, input.targetSegment), eq(customers.smsOptOut, 0)));
+        .where(eq(customers.segment, input.targetSegment));
 
       // Create campaign
       const [result] = await d.insert(winbackCampaigns).values({
@@ -191,13 +191,13 @@ export const winbackRouter = router({
 
       const sampleCustomers = await d.select()
         .from(customers)
-        .where(and(eq(customers.segment, campaign.targetSegment as any), eq(customers.smsOptOut, 0)))
+        .where(eq(customers.segment, campaign.targetSegment as any))
         .limit(5);
 
-      return sampleCustomers.map((c: any) => ({
+      return sampleCustomers.map(c => ({
         customer: `${c.firstName} ${c.lastName || ""}`.trim(),
         phone: c.phone,
-        messages: messages.map((m: any) => ({
+        messages: messages.map(m => ({
           step: m.step,
           delayDays: m.delayDays,
           body: m.body.replace(/{firstName}/g, c.firstName),
@@ -221,10 +221,10 @@ export const winbackRouter = router({
         .where(eq(winbackMessages.campaignId, input.campaignId))
         .orderBy(winbackMessages.step);
 
-      // Get all target customers (excluding opted-out)
+      // Get all target customers
       const targetCustomers = await d.select()
         .from(customers)
-        .where(and(eq(customers.segment, campaign.targetSegment as any), eq(customers.smsOptOut, 0)));
+        .where(eq(customers.segment, campaign.targetSegment as any));
 
       const now = new Date();
       let created = 0;

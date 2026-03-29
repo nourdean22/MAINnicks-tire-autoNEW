@@ -38,18 +38,3 @@ export { costEstimatorRouter } from "./costEstimator";
 export { emergencyRouter } from "./emergency";
 export { messengerBotRouter } from "./messengerBot";
 export { financingRouter } from "./financing";
-
-// ─── Phase 2 New Routers ─────────────────────────
-export { estimatesRouter } from "./estimates";
-export { serviceMatcherRouter } from "./serviceMatcher";
-export { shopStatusRouter } from "./shopStatus";
-export { segmentsRouter } from "./segments";
-export { specialsRouter } from "./specials";
-export { workOrdersRouter } from "./workOrders";
-export { inventoryRouter } from "./inventoryRouter";
-export { warrantiesRouter } from "./warrantiesRouter";
-export { waitlistRouter } from "./waitlistRouter";
-export { fleetRouter } from "./fleetRouter";
-export { nourOsQuoteRouter } from "./nourOsQuote";
-export { nourOsBridgeRouter } from "./nourOsBridge";
-export { controlCenterRouter } from "./controlCenter";

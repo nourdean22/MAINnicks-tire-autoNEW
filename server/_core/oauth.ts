@@ -31,9 +31,6 @@ export function registerOAuthRoutes(app: Express) {
         return;
       }
 
-      // Log OpenID for admin setup (no PII in logs)
-      console.log(`[OAuth] Login: openId=${userInfo.openId}`);
-
       // Check if this is the owner (first admin)
       const ownerOpenId = process.env.OWNER_OPEN_ID;
 
@@ -53,9 +50,7 @@ export function registerOAuthRoutes(app: Express) {
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
-      // Redirect to admin if owner, otherwise home
-      const isOwner = ownerOpenId && userInfo.openId === ownerOpenId;
-      res.redirect(302, isOwner ? "/admin" : "/");
+      res.redirect(302, "/");
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
       res.status(500).json({ error: "OAuth callback failed" });

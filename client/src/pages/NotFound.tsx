@@ -7,12 +7,10 @@ import PageLayout from "@/components/PageLayout";
 import { SEOHead } from "@/components/SEO";
 import { ArrowRight, Wrench } from "lucide-react";
 import FadeIn from "@/components/FadeIn";
-import NotFoundTracker from "@/components/NotFoundTracker";
 
 export default function NotFound() {
   return (
     <PageLayout>
-      <NotFoundTracker />
       <SEOHead
         title="Page Not Found | Nick's Tire & Auto Cleveland"
         description="Page not found. Let us help you find what you need. Nick's Tire & Auto — Cleveland's trusted auto repair shop."

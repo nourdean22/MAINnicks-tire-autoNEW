@@ -1,29 +1,25 @@
 /*
- * Home Page — Nick's Tire & Auto (PIT CREW OS)
- * Inter headings, Roboto Mono body, Oswald labels
- * Cobalt blue + gold accent system
+ * Home Page — Nick's Tire & Auto
+ * Dark, bold hero with Barlow Condensed headings, DM Sans body,
+ * JetBrains Mono stat numbers, gold accents
  */
 
-import React from "react";
 import { Link } from "wouter";
 import BookingForm from "@/components/BookingForm";
 import FinancingCTA from "@/components/FinancingCTA";
 import LeadPopup from "@/components/LeadPopup";
 import ComparisonTable from "@/components/ComparisonTable";
-import PricingTiers from "@/components/PricingTiers";
-import SnapToQuote from "@/components/SnapToQuote";
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
-import SiteSearchSchema from "@/components/SiteSearchSchema";
-import TestimonialCarousel from "@/components/TestimonialCarousel";
 import { SEOHead, trackPhoneClick } from "@/components/SEO";
-import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight, Gift, Snowflake, Sun, Shield, Users, Gauge } from "lucide-react";
+import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
-import LiveQuoteCounter from "@/components/LiveQuoteCounter";
 import { trpc } from "@/lib/trpc";
-import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import { BUSINESS } from "@shared/business";
 import { GBP_REVIEW_URL } from "@shared/const";
+import TrustStrip from "@/components/TrustStrip";
+import TrustBadges from "@/components/TrustBadges";
+import FastPaths from "@/components/FastPaths";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
@@ -46,7 +42,7 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
   );
 }
 
-// ─── HERO — Bold dual-accent with building blue + gold ────
+// ─── HERO — Full-viewport cinematic with left content ────
 function Hero() {
   const { data: googleData } = trpc.reviews.google.useQuery(undefined, {
     staleTime: 60 * 60 * 1000,
@@ -63,66 +59,72 @@ function Hero() {
           src={HERO_IMG}
           alt="Nick's Tire and Auto repair shop in Cleveland Ohio"
           className="w-full h-full object-cover"
-          loading="eager"
-          fetchPriority="high"
         />
-        {/* Blue-tinted gradient overlay matching building color */}
         <div
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(135deg, rgba(15,40,71,0.92) 0%, rgba(30,77,140,0.65) 40%, rgba(10,10,10,0.45) 100%)",
+              "linear-gradient(135deg, rgba(10,10,10,0.85) 0%, rgba(10,10,10,0.4) 100%)",
           }}
         />
       </div>
 
       {/* Content — left-aligned */}
       <div className="relative container">
-        <div className="max-w-[65%] max-lg:max-w-full">
-          {/* Top badges — render instantly for LCP */}
-          <div className="flex flex-wrap items-center gap-3 mb-6">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase bg-[#FDB913] text-[#0B0E14]">
-              <Star className="w-3.5 h-3.5 fill-current" />
-              Cleveland&rsquo;s #1 Tire Shop
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold tracking-wide uppercase border border-emerald-500/40 text-emerald-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Walk-ins Welcome
-            </span>
-          </div>
-
-          {/* Headline — renders instantly, no animation delay */}
-          <h1 className="font-heading text-[2rem] sm:text-5xl lg:text-[4.5rem] font-extrabold uppercase text-white leading-[0.95] tracking-tight">
-            Car trouble?
+        <div className="max-w-[60%] max-lg:max-w-full">
+          {/* Headline */}
+          <motion.h1
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
+            className="font-heading text-[2.5rem] sm:text-5xl lg:text-[5.5rem] font-extrabold uppercase text-[#F5F5F5] leading-[0.95] tracking-tight"
+          >
+            Cleveland&rsquo;s #1 Rated
             <br />
-            <span className="text-[#FDB913]">We&rsquo;ll fix it right.</span>
-          </h1>
+            <span className="text-[#FDB913]">Tire & Auto Repair</span>
+          </motion.h1>
 
-          {/* Subheadline — renders instantly */}
-          <p className="mt-6 text-lg sm:text-xl lg:text-2xl font-sans text-white/70 max-w-xl">
-            Honest diagnostics. Upfront pricing. Cleveland&rsquo;s most trusted auto repair since day one.
-          </p>
+          {/* Subheadline */}
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
+            className="mt-6 text-lg sm:text-xl lg:text-2xl font-sans text-[#A0A0A0] max-w-lg"
+          >
+            We show you the problem before we fix it.
+          </motion.p>
 
-          {/* CTA buttons — render instantly for conversion */}
-          <div className="mt-8 flex flex-col sm:flex-row gap-3">
+          {/* CTA buttons */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.7, ease: "easeOut" }}
+            className="mt-8 flex flex-col sm:flex-row gap-3"
+          >
             <a
               href={BUSINESS.phone.href}
-              onClick={() => trackPhoneClick('hero-call')}
-              className="btn-gold inline-flex items-center justify-center gap-2 text-lg"
+              onClick={() => trackPhoneClick("hero")}
+              className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-[#0A0A0A] px-8 py-3.5 rounded-lg font-semibold text-lg hover:bg-[#FDB913]/90 transition-colors"
+              aria-label="Call for service"
             >
               <Phone className="w-5 h-5" />
-              Call Now — {BUSINESS.phone.display}
+              Call {BUSINESS.phone.display}
             </a>
-            <Link
-              href="/booking"
-              className="btn-outline inline-flex items-center justify-center gap-2 text-lg"
+            <a
+              href="#booking"
+              className="inline-flex items-center justify-center gap-2 border-2 border-[#FDB913] text-[#FDB913] px-8 py-3.5 rounded-lg font-semibold text-lg hover:bg-[#FDB913]/10 transition-colors"
             >
-              Book Online
-            </Link>
-          </div>
+              Book Appointment
+            </a>
+          </motion.div>
 
-          {/* Trust row — renders instantly */}
-          <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm sm:text-base">
+          {/* Social proof strip */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.9, ease: "easeOut" }}
+            className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm sm:text-base"
+          >
             <span className="inline-flex items-center gap-1.5 text-[#FDB913]">
               <span className="flex gap-0.5">
                 {[...Array(5)].map((_, i) => (
@@ -131,9 +133,10 @@ function Hero() {
               </span>
               {rating.toFixed(1)} from {totalReviews.toLocaleString()}+ reviews
             </span>
-            <span className="text-white/50">&bull; ASE Certified</span>
-            <span className="text-white/50">&bull; 3-Year Warranty</span>
-          </div>
+            <span className="text-[#A0A0A0]">&bull; Same-day service</span>
+            <span className="text-[#A0A0A0]">&bull; Walk-ins welcome</span>
+            <span className="text-[#A0A0A0]">&bull; Open 7 days</span>
+          </motion.div>
         </div>
       </div>
 
@@ -143,29 +146,14 @@ function Hero() {
           animate={{ y: [0, 8, 0] }}
           transition={{ repeat: Infinity, duration: 2 }}
         >
-          <ChevronDown className="w-5 h-5 text-white/30" />
+          <ChevronDown className="w-5 h-5 text-foreground/30" />
         </motion.div>
       </div>
     </section>
   );
 }
 
-// ─── ANIMATED STAT — Single counter with viewport trigger ───
-function AnimatedStat({ end, decimals = 0, suffix = "", label, delay = 0 }: {
-  end: number; decimals?: number; suffix?: string; label: string; delay?: number;
-}) {
-  const { value, ref } = useAnimatedCounter({ end, duration: 2000, delay, decimals });
-  return (
-    <div ref={ref} className="text-center">
-      <div className="text-3xl lg:text-4xl font-bold text-[#FDB913] tracking-tight font-mono">
-        {decimals > 0 ? value.toFixed(decimals) : value.toLocaleString()}{suffix}
-      </div>
-      <div className="mt-1 text-sm text-foreground/40 font-medium">{label}</div>
-    </div>
-  );
-}
-
-// ─── TRUST NUMBERS — Single horizontal strip with animated counters ───
+// ─── TRUST NUMBERS — Single horizontal strip ─────────────
 function TrustNumbers() {
   const { data: googleData } = trpc.reviews.google.useQuery(undefined, {
     staleTime: 60 * 60 * 1000,
@@ -173,31 +161,25 @@ function TrustNumbers() {
   });
   const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
 
+  const stats = [
+    { value: "4.9", label: "Google Rating" },
+    { value: `${totalReviews.toLocaleString()}+`, label: "Reviews" },
+    { value: "7", label: "Days a Week" },
+    { value: "Same Day", label: "Most Repairs" },
+  ];
+
   return (
     <section className="section-elevated py-16 border-y border-border">
       <div className="container">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-0">
-          <FadeIn delay={0}>
-            <div className="lg:border-r-0">
-              <AnimatedStat end={4.9} decimals={1} label="Google Rating" delay={0} />
-            </div>
-          </FadeIn>
-          <FadeIn delay={0.1}>
-            <div className="lg:border-l lg:border-border">
-              <AnimatedStat end={totalReviews} suffix="+" label="Reviews" delay={100} />
-            </div>
-          </FadeIn>
-          <FadeIn delay={0.2}>
-            <div className="lg:border-l lg:border-border">
-              <AnimatedStat end={7} label="Days a Week" delay={200} />
-            </div>
-          </FadeIn>
-          <FadeIn delay={0.3}>
-            <div className="lg:border-l lg:border-border text-center">
-              <div className="text-3xl lg:text-4xl font-bold text-[#FDB913] tracking-tight font-mono">Same Day</div>
-              <div className="mt-1 text-sm text-foreground/40 font-medium">Most Repairs</div>
-            </div>
-          </FadeIn>
+          {stats.map((s, i) => (
+            <FadeIn key={s.label} delay={i * 0.1}>
+              <div className={`text-center ${i > 0 ? "lg:border-l lg:border-border" : ""}`}>
+                <div className="text-3xl lg:text-4xl font-bold text-[#FDB913] tracking-tight font-mono">{s.value}</div>
+                <div className="mt-1 text-sm text-foreground/40 font-medium">{s.label}</div>
+              </div>
+            </FadeIn>
+          ))}
         </div>
       </div>
     </section>
@@ -252,7 +234,7 @@ function Services() {
               <p className="mt-3 text-lg text-foreground/60 max-w-md font-light">{s.desc}</p>
               <div className="mt-6 flex gap-3">
                 <Link href={s.slug} className="inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/90 transition-colors">
-                  Get Help Now
+                  Learn More
                 </Link>
                 <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`service-${s.slug}`)} className="inline-flex items-center gap-2 border border-foreground/30 text-foreground px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/5 transition-colors">
                   Call Now
@@ -394,13 +376,6 @@ function Reviews() {
           ))}
         </div>
 
-        {/* Testimonial Carousel — auto-rotating social proof */}
-        <FadeIn delay={0.3}>
-          <div className="mt-16 pt-12 border-t border-border">
-            <TestimonialCarousel />
-          </div>
-        </FadeIn>
-
         <FadeIn delay={0.4}>
           <div className="mt-12 text-center">
             <Link href="/reviews" className="inline-flex items-center gap-2 text-sm font-medium text-foreground/50 hover:text-foreground transition-colors">
@@ -497,255 +472,6 @@ function Contact() {
   );
 }
 
-// ─── SEASONAL SPECIALS — Blue brand section ──────────────
-function SeasonalSpecials() {
-  const specials = [
-    {
-      icon: Sun,
-      title: "Spring Brake Special",
-      desc: "Full brake inspection + pad replacement. Keep your family safe this season.",
-      price: "$149",
-      badge: "Save $50",
-    },
-    {
-      icon: Shield,
-      title: "Free Tire Safety Check",
-      desc: "Not sure if you need new tires? Get a professional inspection for free. No obligation.",
-      price: "FREE",
-      badge: "Popular",
-    },
-    {
-      icon: Snowflake,
-      title: "A/C Ready Package",
-      desc: "Full A/C system check, recharge, and leak inspection before summer hits.",
-      price: "$89",
-      badge: "Seasonal",
-    },
-  ];
-
-  return (
-    <section id="specials-home" className="relative py-24 lg:py-32 overflow-hidden">
-      {/* Building blue gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#0F2847] via-[#1E4D8C] to-[#153A6B]" />
-      <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(59,130,246,0.3) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(253,185,19,0.15) 0%, transparent 40%)' }} />
-
-      <div className="relative container">
-        <FadeIn>
-          <div className="text-center mb-16">
-            <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold tracking-widest uppercase bg-[#FDB913]/10 text-[#FDB913] border border-[#FDB913]/20 mb-6">
-              <Gift className="w-3.5 h-3.5" />
-              Limited Time Offers
-            </span>
-            <h2 className="font-heading text-4xl lg:text-5xl font-bold text-white tracking-tight uppercase">
-              Seasonal Specials
-            </h2>
-            <p className="mt-4 text-white/50 text-lg max-w-xl mx-auto">Save more with our current promotions. Walk in or call to claim.</p>
-          </div>
-        </FadeIn>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {specials.map((s, i) => (
-            <FadeIn key={s.title} delay={i * 0.1}>
-              <div className="relative p-8 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 hover:border-[#FDB913]/30 transition-all group">
-                <div className="absolute top-4 right-4">
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase bg-[#FDB913] text-[#0B0E14]">
-                    {s.badge}
-                  </span>
-                </div>
-                <s.icon className="w-8 h-8 text-[#FDB913] mb-4" />
-                <h3 className="font-heading text-xl font-bold text-white uppercase tracking-tight">{s.title}</h3>
-                <p className="mt-2 text-white/50 text-sm leading-relaxed">{s.desc}</p>
-                <div className="mt-4 text-2xl font-bold text-[#FDB913] font-mono">{s.price}</div>
-                <a
-                  href={BUSINESS.phone.href}
-                  onClick={() => trackPhoneClick(`special-${s.title}`)}
-                  className="mt-6 inline-flex items-center gap-2 w-full justify-center bg-white/10 hover:bg-[#FDB913] hover:text-[#0B0E14] text-white px-4 py-3 rounded-lg font-semibold text-sm transition-all"
-                >
-                  Claim This Offer
-                  <ArrowRight className="w-4 h-4" />
-                </a>
-              </div>
-            </FadeIn>
-          ))}
-        </div>
-
-        <FadeIn delay={0.4}>
-          <div className="mt-12 text-center">
-            <Link href="/specials" className="inline-flex items-center gap-2 text-sm font-medium text-white/50 hover:text-[#FDB913] transition-colors">
-              View all specials <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-        </FadeIn>
-      </div>
-    </section>
-  );
-}
-
-// ─── REFER A FRIEND — Community rewards ──────────────────
-function ReferAFriend() {
-  return (
-    <section className="py-24 lg:py-32 bg-[oklch(0.065_0.004_260)]">
-      <div className="container">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <FadeIn>
-            <div>
-              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold tracking-widest uppercase bg-[#1E4D8C]/20 text-[#1E4D8C] border border-[#1E4D8C]/20 mb-6">
-                <Users className="w-3.5 h-3.5" />
-                Community Rewards
-              </span>
-              <h2 className="font-heading text-4xl lg:text-5xl font-bold text-foreground tracking-tight uppercase leading-[1.05]">
-                Refer a Friend.
-                <br />
-                <span className="text-[#FDB913]">You both save $20.</span>
-              </h2>
-              <p className="mt-6 text-foreground/50 text-lg leading-relaxed max-w-md">
-                Know someone who needs tires or auto work? Send them our way. When they mention your name, you both get $20 off your next service.
-              </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-3">
-                <a
-                  href={BUSINESS.phone.href}
-                  onClick={() => trackPhoneClick("referral-cta")}
-                  className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-[#0B0E14] px-6 py-3.5 rounded-lg font-bold text-sm hover:bg-[#FFD54F] transition-colors"
-                >
-                  <Phone className="w-4 h-4" />
-                  Call to Refer
-                </a>
-                <Link
-                  href="/referral"
-                  className="inline-flex items-center justify-center gap-2 border border-foreground/20 text-foreground px-6 py-3.5 rounded-lg font-semibold text-sm hover:bg-foreground/5 transition-colors"
-                >
-                  Learn More
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
-            </div>
-          </FadeIn>
-          <FadeIn delay={0.15}>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-6 rounded-2xl bg-[#1E4D8C]/10 border border-[#1E4D8C]/20">
-                <div className="text-3xl font-bold text-[#1E4D8C] font-mono mb-2">$20</div>
-                <div className="text-sm text-foreground/50">Your friend saves on their first visit</div>
-              </div>
-              <div className="p-6 rounded-2xl bg-[#FDB913]/10 border border-[#FDB913]/20">
-                <div className="text-3xl font-bold text-[#FDB913] font-mono mb-2">$20</div>
-                <div className="text-sm text-foreground/50">You save on your next service</div>
-              </div>
-              <div className="col-span-2 p-6 rounded-2xl bg-foreground/5 border border-border">
-                <div className="text-3xl font-bold text-foreground font-mono mb-2">No Limit</div>
-                <div className="text-sm text-foreground/50">Refer as many friends as you want. Stack your savings.</div>
-              </div>
-            </div>
-          </FadeIn>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── TIRE PRESSURE GUIDE — Utility tool ──────────────────
-function TirePressureGuide() {
-  const vehicles = [
-    { type: "Sedan / Compact", psi: "32-35 PSI", icon: "🚗" },
-    { type: "SUV / Crossover", psi: "35-38 PSI", icon: "🚙" },
-    { type: "Truck / Van", psi: "35-44 PSI", icon: "🛻" },
-    { type: "Sports Car", psi: "30-35 PSI", icon: "🏎️" },
-  ];
-
-  return (
-    <section className="py-20 section-elevated border-y border-border">
-      <div className="container">
-        <FadeIn>
-          <div className="flex flex-col lg:flex-row items-start lg:items-center gap-8 lg:gap-16">
-            <div className="lg:w-1/3">
-              <div className="flex items-center gap-3 mb-4">
-                <Gauge className="w-6 h-6 text-[#1E4D8C]" />
-                <span className="text-xs font-bold tracking-widest uppercase text-foreground/40">Quick Reference</span>
-              </div>
-              <h3 className="font-heading text-2xl lg:text-3xl font-bold text-foreground tracking-tight uppercase">Tire Pressure Guide</h3>
-              <p className="mt-3 text-foreground/50 text-sm leading-relaxed">Not sure what PSI? Check your door jamb sticker or use these general recommendations.</p>
-              <a
-                href={`https://www.google.com/maps/dir//${encodeURIComponent(BUSINESS.address.full)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[#1E4D8C] hover:text-[#FDB913] transition-colors"
-              >
-                <MapPin className="w-3.5 h-3.5" />
-                Get Directions for Free Air Check
-              </a>
-            </div>
-            <div className="lg:w-2/3 grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {vehicles.map((v) => (
-                <div key={v.type} className="text-center p-5 rounded-xl bg-background border border-border">
-                  <div className="text-2xl mb-2">{v.icon}</div>
-                  <div className="text-lg font-bold text-[#FDB913] font-mono">{v.psi}</div>
-                  <div className="text-xs text-foreground/40 mt-1">{v.type}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </FadeIn>
-      </div>
-    </section>
-  );
-}
-
-// ─── HOMEPAGE FAQ (visible) ──────────────────────────
-function HomepageFAQ() {
-  const faqs = [
-    { q: "Do I need an appointment?", a: "Walk-ins welcome 7 days a week. For bigger jobs, calling ahead helps us prepare — but you can always just stop by." },
-    { q: "Will you show me what's wrong first?", a: "Always. We walk you through the diagnosis, show you the worn parts, explain your options, and let you decide. No pressure." },
-    { q: "How much does a diagnosis cost?", a: "Check engine light diagnostics start at $49.99. We pinpoint the real problem — not just read codes." },
-    { q: "Do you work on all makes and models?", a: "Yes. Domestic, import, trucks, SUVs — we work on it all." },
-    { q: "Do you offer financing?", a: "Yes. Payment plans available so you can get the repair you need today. Ask when you call or visit." },
-    { q: "How fast can you get me in?", a: "Most tire, oil, and brake services are same-day. Call (216) 862-0005 and we'll let you know right away." },
-  ];
-
-  const [open, setOpen] = React.useState<number | null>(null);
-
-  return (
-    <section className="py-24 lg:py-32 section-elevated">
-      <div className="container max-w-3xl">
-        <FadeIn>
-          <h2 className="font-heading text-3xl lg:text-4xl font-bold text-foreground tracking-tight text-center uppercase mb-12">
-            Common Questions
-          </h2>
-        </FadeIn>
-        <div className="space-y-2">
-          {faqs.map((faq, i) => (
-            <FadeIn key={i} delay={i * 0.05}>
-              <button
-                onClick={() => setOpen(open === i ? null : i)}
-                className="w-full text-left p-5 rounded-xl border border-border hover:border-foreground/20 transition-colors"
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <span className="font-semibold text-foreground text-sm">{faq.q}</span>
-                  <ChevronDown className={`w-4 h-4 text-foreground/30 transition-transform shrink-0 ${open === i ? "rotate-180" : ""}`} />
-                </div>
-                {open === i && (
-                  <p className="mt-3 text-foreground/50 text-sm leading-relaxed">{faq.a}</p>
-                )}
-              </button>
-            </FadeIn>
-          ))}
-        </div>
-        <FadeIn delay={0.3}>
-          <div className="mt-8 text-center">
-            <p className="text-foreground/30 text-sm">Still have questions?</p>
-            <a
-              href={BUSINESS.phone.href}
-              onClick={() => trackPhoneClick('faq-cta')}
-              className="mt-2 inline-flex items-center gap-2 text-[#FDB913] font-semibold text-sm hover:text-[#FFD54F] transition-colors"
-            >
-              <Phone className="w-4 h-4" />
-              Call us — {BUSINESS.phone.display}
-            </a>
-          </div>
-        </FadeIn>
-      </div>
-    </section>
-  );
-}
-
 // ─── LOCAL BUSINESS SCHEMA ───────────────────────────────
 function LocalBusinessSchema() {
   const schema = {
@@ -761,7 +487,7 @@ function LocalBusinessSchema() {
     "address": {
       "@type": "PostalAddress",
       "streetAddress": BUSINESS.address.street,
-      "addressLocality": "Euclid",
+      "addressLocality": "Cleveland",
       "addressRegion": "OH",
       "postalCode": "44112",
       "addressCountry": "US"
@@ -786,60 +512,27 @@ function LocalBusinessSchema() {
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />;
 }
 
-// ─── HOMEPAGE FAQ SCHEMA (moved from index.html to prevent duplicate FAQPage) ───
-function HomepageFAQSchema() {
-  const faqSchema = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: [
-      { "@type": "Question", name: "How much does flat tire repair cost at Nick's Tire & Auto?",
-        acceptedAnswer: { "@type": "Answer", text: "Flat tire repair costs $15-$25. Most repairs done in 15 minutes. We never sell you a new tire if yours can be safely repaired." } },
-      { "@type": "Question", name: "How much does a check engine light diagnosis cost?",
-        acceptedAnswer: { "@type": "Answer", text: "Diagnostic starts at $49.99. We use advanced OBD-II scanning and live data analysis to pinpoint the exact problem — not just read codes. We explain what we find before any repair begins." } },
-      { "@type": "Question", name: "Do I need an appointment or can I walk in?",
-        acceptedAnswer: { "@type": "Answer", text: "Walk-ins are welcome 7 days a week. For faster service on bigger jobs, calling ahead or booking online helps us prepare. Most tire and oil services are same-day." } },
-      { "@type": "Question", name: "How do I know if my brakes need replacing?",
-        acceptedAnswer: { "@type": "Answer", text: "Common signs: squealing or grinding noise, soft brake pedal, vibration when stopping, or longer stopping distance. We offer free brake inspections — we'll show you the wear and explain your options before any work begins." } },
-      { "@type": "Question", name: "Do you offer financing or payment plans?",
-        acceptedAnswer: { "@type": "Answer", text: "Yes. We offer financing options so you can get the repairs you need today. Ask about our payment plans when you visit or call (216) 862-0005." } },
-      { "@type": "Question", name: "What areas does Nick's Tire & Auto serve?",
-        acceptedAnswer: { "@type": "Answer", text: "Located at 17625 Euclid Ave, Euclid OH 44112. We serve Cleveland, Euclid, Lakewood, Parma, East Cleveland, Shaker Heights, South Euclid, and all of Northeast Ohio." } },
-      { "@type": "Question", name: "Will you show me what's wrong before you fix it?",
-        acceptedAnswer: { "@type": "Answer", text: "Always. We walk you through the diagnosis, show you the worn or damaged parts, explain your options, and let you decide. No pressure, no surprises." } },
-    ],
-  };
-  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />;
-}
-
 // ─── PAGE ────────────────────────────────────────────────
 export default function Home() {
   return (
     <PageLayout activeHref="/" showChat={true}>
       <SEOHead
         title="Nick's Tire & Auto — Cleveland's #1 Tire Shop & Auto Repair"
-        description="Cleveland's top-rated auto shop. 4.9★ (1,700+ reviews). Tires, brakes, diagnostics, oil changes. 36-month warranty. Walk-ins welcome. (216) 862-0005."
+        description={`Cleveland's top-rated new & used tire specialist + full-service auto repair. Free premium installation ($289 value). Flat repair $15. Brakes, diagnostics, emissions. ${BUSINESS.reviews.countDisplay} reviews, 4.9 stars. Walk-ins 7 days. $10 down financing.`}
         canonicalPath="/"
       />
       <LocalBusinessSchema />
-      <HomepageFAQSchema />
-      <SiteSearchSchema />
       <Hero />
-      <div className="flex justify-center py-4 bg-[#0A0A0A]">
-        <LiveQuoteCounter />
-      </div>
+      <TrustStrip />
+      <TrustBadges />
+      <FastPaths />
       <TrustNumbers />
-      <div className="content-lazy"><SnapToQuote /></div>
       <Services />
-      <div className="content-lazy"><WhyUs /></div>
-      <div className="content-lazy"><SeasonalSpecials /></div>
-      <div className="content-lazy"><Reviews /></div>
-      <div className="content-lazy"><TirePressureGuide /></div>
-      <div className="content-lazy"><ReferAFriend /></div>
-      <div className="content-lazy"><PricingTiers /></div>
-      <div className="content-lazy"><ComparisonTable /></div>
-      <div className="content-lazy"><HomepageFAQ /></div>
-      <div className="content-lazy"><Contact /></div>
-      <div className="content-lazy"><InternalLinks title="Explore More" /></div>
+      <WhyUs />
+      <Reviews />
+      <ComparisonTable />
+      <Contact />
+      <InternalLinks title="Explore More" />
       <LeadPopup />
     </PageLayout>
   );

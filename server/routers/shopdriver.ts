@@ -143,7 +143,6 @@ interface SyncResult {
 }
 
 const syncHistory: SyncResult[] = [];
-const MAX_SYNC_HISTORY = 50;
 
 export const shopdriverRouter = router({
   // ═══════════════════════════════════════════════════════
@@ -381,7 +380,6 @@ export const shopdriverRouter = router({
         errors: 0,
         timestamp: Date.now(),
       });
-      if (syncHistory.length > MAX_SYNC_HISTORY) syncHistory.splice(0, syncHistory.length - MAX_SYNC_HISTORY);
 
       return { success: true, synced, updated, total: tickets.length };
     } catch {
@@ -459,7 +457,6 @@ export const shopdriverRouter = router({
         errors: 0,
         timestamp: Date.now(),
       });
-      if (syncHistory.length > MAX_SYNC_HISTORY) syncHistory.splice(0, syncHistory.length - MAX_SYNC_HISTORY);
 
       return { success: true, newCustomers: newCount, updatedCustomers: updatedCount };
     } catch {

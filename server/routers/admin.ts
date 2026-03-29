@@ -112,7 +112,7 @@ export const adminDashboardRouter = router({
     checks.push({
       name: "Financing Providers",
       status: "connected",
-      details: "4 providers active: Acima, Snap Finance, Koalafi, American First Finance — merchant portals linked",
+      details: "4 providers active: Acima, Snap Finance, Koalafi, Synchrony — merchant portals linked",
     });
 
     const overallStatus = checks.every(c => c.status === "connected")
@@ -156,8 +156,8 @@ export const analyticsRouter = router({
 
 export const followUpsRouter = router({
   run: adminProcedure.mutation(async () => {
-    const { processPostInvoiceFollowUps } = await import("../postInvoiceFollowUp");
-    return processPostInvoiceFollowUps();
+    const { runFollowUps } = await import("../follow-ups");
+    return runFollowUps();
   }),
   pending: adminProcedure.query(async () => {
     const d = await db();
@@ -200,12 +200,12 @@ export const weeklyReportRouter = router({
       .where(gte(customerNotifications.createdAt, weekAgo));
 
     const serviceBreakdown: Record<string, number> = {};
-    weekBookings.forEach((b: any) => {
+    weekBookings.forEach(b => {
       serviceBreakdown[b.service] = (serviceBreakdown[b.service] || 0) + 1;
     });
 
     const urgencyBreakdown: Record<string, number> = {};
-    weekBookings.forEach((b: any) => {
+    weekBookings.forEach(b => {
       const u = b.urgency || "whenever";
       urgencyBreakdown[u] = (urgencyBreakdown[u] || 0) + 1;
     });
@@ -214,26 +214,26 @@ export const weeklyReportRouter = router({
       period: { start: weekAgo.toISOString(), end: now.toISOString() },
       bookings: {
         total: weekBookings.length,
-        completed: weekBookings.filter((b: any) => b.status === "completed").length,
-        cancelled: weekBookings.filter((b: any) => b.status === "cancelled").length,
-        emergency: weekBookings.filter((b: any) => b.urgency === "emergency").length,
+        completed: weekBookings.filter(b => b.status === "completed").length,
+        cancelled: weekBookings.filter(b => b.status === "cancelled").length,
+        emergency: weekBookings.filter(b => b.urgency === "emergency").length,
         serviceBreakdown,
         urgencyBreakdown,
       },
       leads: {
         total: weekLeads.length,
-        highUrgency: weekLeads.filter((l: any) => l.urgencyScore >= 4).length,
-        converted: weekLeads.filter((l: any) => l.status === "booked").length,
-        sources: weekLeads.reduce((acc: Record<string, number>, l: any) => { acc[l.source] = (acc[l.source] || 0) + 1; return acc; }, {} as Record<string, number>),
+        highUrgency: weekLeads.filter(l => l.urgencyScore >= 4).length,
+        converted: weekLeads.filter(l => l.status === "booked").length,
+        sources: weekLeads.reduce((acc, l) => { acc[l.source] = (acc[l.source] || 0) + 1; return acc; }, {} as Record<string, number>),
       },
       callbacks: {
         total: weekCallbacks.length,
-        completed: weekCallbacks.filter((c: any) => c.status === "completed").length,
-        pending: weekCallbacks.filter((c: any) => c.status === "new").length,
+        completed: weekCallbacks.filter(c => c.status === "completed").length,
+        pending: weekCallbacks.filter(c => c.status === "new").length,
       },
       notifications: {
-        sent: weekNotifs.filter((n: any) => n.status === "sent").length,
-        pending: weekNotifs.filter((n: any) => n.status === "pending").length,
+        sent: weekNotifs.filter(n => n.status === "sent").length,
+        pending: weekNotifs.filter(n => n.status === "pending").length,
       },
     };
 
@@ -247,7 +247,7 @@ export const weeklyReportRouter = router({
       category: "weekly_report",
       subject: `Weekly Report: ${weekBookings.length} bookings, ${weekLeads.length} leads`,
       body: `NICK'S TIRE & AUTO — WEEKLY INTELLIGENCE REPORT\n${"-".repeat(50)}\nPeriod: ${weekAgo.toLocaleDateString()} — ${now.toLocaleDateString()}\n\nBOOKINGS: ${report.bookings.total} total\n  Completed: ${report.bookings.completed}\n  Emergency: ${report.bookings.emergency}\n  Cancelled: ${report.bookings.cancelled}\n\nTop Services:\n${topServices || "  No bookings this week"}\n\nLEADS: ${report.leads.total} total\n  High Urgency: ${report.leads.highUrgency}\n  Converted to Booking: ${report.leads.converted}\n\nCALLBACKS: ${report.callbacks.total} total\n  Completed: ${report.callbacks.completed}\n  Still Pending: ${report.callbacks.pending}\n\nFOLLOW-UPS SENT: ${report.notifications.sent}\nFOLLOW-UPS PENDING: ${report.notifications.pending}`,
-    }).catch(err => console.error("[Admin] Weekly report notification failed:", err));
+    }).catch(() => {});
 
     return report;
   }),
@@ -309,11 +309,11 @@ export const exportRouter = router({
     if (!d) return { csv: "", count: 0 };
     const rows = await d.select().from(bookings).orderBy(desc(bookings.createdAt));
     const headers = ["ID", "Name", "Phone", "Email", "Service", "Vehicle", "Status", "Urgency", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
-    const csvRows = rows.map((r: any) => [
+    const csvRows = rows.map(r => [
       r.id, r.name, r.phone, r.email || "", r.service, r.vehicle || "", r.status, r.urgency || "",
       r.utmSource || "", r.utmMedium || "", r.utmCampaign || "", r.landingPage || "", r.referrer || "",
       new Date(r.createdAt).toISOString(),
-    ].map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
     return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
   }),
 
@@ -322,11 +322,11 @@ export const exportRouter = router({
     if (!d) return { csv: "", count: 0 };
     const rows = await d.select().from(leads).orderBy(desc(leads.createdAt));
     const headers = ["ID", "Name", "Phone", "Email", "Source", "Problem", "Urgency Score", "Status", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
-    const csvRows = rows.map((r: any) => [
+    const csvRows = rows.map(r => [
       r.id, r.name, r.phone, r.email || "", r.source, r.problem || "", r.urgencyScore ?? "", r.status,
       r.utmSource || "", r.utmMedium || "", r.utmCampaign || "", r.landingPage || "", r.referrer || "",
       new Date(r.createdAt).toISOString(),
-    ].map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
     return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
   }),
 
@@ -335,11 +335,11 @@ export const exportRouter = router({
     if (!d) return { csv: "", count: 0 };
     const rows = await d.select().from(callEvents).orderBy(desc(callEvents.createdAt));
     const headers = ["ID", "Phone Number", "Source Page", "Click Element", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
-    const csvRows = rows.map((r: any) => [
+    const csvRows = rows.map(r => [
       r.id, r.phoneNumber, r.sourcePage || "", r.clickElement || "",
       r.utmSource || "", r.utmMedium || "", r.utmCampaign || "", r.landingPage || "", r.referrer || "",
       new Date(r.createdAt).toISOString(),
-    ].map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
     return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
   }),
 
@@ -348,59 +348,11 @@ export const exportRouter = router({
     if (!d) return { csv: "", count: 0 };
     const rows = await d.select().from(callbackRequests).orderBy(desc(callbackRequests.createdAt));
     const headers = ["ID", "Name", "Phone", "Context", "Source Page", "Status", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
-    const csvRows = rows.map((r: any) => [
+    const csvRows = rows.map(r => [
       r.id, r.name, r.phone, r.context || "", r.sourcePage || "", r.status,
       r.utmSource || "", r.utmMedium || "", r.utmCampaign || "", r.landingPage || "", r.referrer || "",
       new Date(r.createdAt).toISOString(),
-    ].map((v: any) => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
     return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
-  }),
-
-  // ─── Feature Flags Management ──────────────────────
-  featureFlags: adminProcedure.query(async () => {
-    const { getAllFlags } = await import("../services/featureFlags");
-    return getAllFlags();
-  }),
-
-  toggleFlag: adminProcedure
-    .input(z.object({ key: z.string(), value: z.boolean() }))
-    .mutation(async ({ input }) => {
-      const { setFlag } = await import("../services/featureFlags");
-      await setFlag(input.key as any, input.value);
-      return { success: true, key: input.key, value: input.value };
-    }),
-
-  seedFlags: adminProcedure.mutation(async () => {
-    const { seedFlags } = await import("../services/featureFlags");
-    return seedFlags();
-  }),
-
-  // ─── Cron Job Status ──────────────────────────────
-  cronStatus: adminProcedure.query(async () => {
-    const { getJobStatuses } = await import("../cron/index");
-    return getJobStatuses();
-  }),
-
-  // ─── Performance Metrics ───────────────────────────
-  performanceMetrics: adminProcedure.query(async () => {
-    const { getPerformanceMetrics } = await import("../middleware/performanceMonitor");
-    return getPerformanceMetrics();
-  }),
-
-  // ─── System Health (Enhanced) ─────────────────────
-  systemHealth: adminProcedure.query(async () => {
-    const mem = process.memoryUsage();
-    return {
-      uptime: Math.round(process.uptime()),
-      memory: {
-        heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
-        heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
-        rssMB: Math.round(mem.rss / 1024 / 1024),
-        percent: Math.round((mem.heapUsed / mem.heapTotal) * 100),
-      },
-      nodeVersion: process.version,
-      platform: process.platform,
-      env: process.env.NODE_ENV || "development",
-    };
   }),
 });

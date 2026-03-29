@@ -16,8 +16,6 @@ import { adminProcedure, publicProcedure, router } from "../_core/trpc";
 import { notifyTireOrder, notifyInvoiceCreated } from "../email-notify";
 import { getNextInvoiceNumber, createInvoice } from "../db";
 import { syncInvoiceToSheet } from "../sheets-sync";
-import { withRetry } from "../retry";
-import { onTireOrderPlaced, onInvoiceCreated } from "../nour-os-bridge";
 import { z } from "zod";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { tireOrders, shopSettings, bookings } from "../../drizzle/schema";
@@ -39,9 +37,7 @@ async function autoCreateInvoiceFromTireOrder(d: any, orderId: number): Promise<
   try {
     const [setting] = await d.select().from(shopSettings).where(eq(shopSettings.key, "laborRate")).limit(1);
     if (setting) laborRate = parseFloat(setting.value);
-  } catch (e) {
-    console.warn("[GatewayTire] Failed to fetch labor rate, using default:", e);
-  }
+  } catch {}
 
   // Tire installation labor: 0.7 hours for mount + balance (from Auto Labor Guide)
   const installHours = 0.7;
@@ -67,8 +63,8 @@ async function autoCreateInvoiceFromTireOrder(d: any, orderId: number): Promise<
     invoiceDate: new Date(),
   });
 
-  // Sync to Google Sheets (with retry)
-  await withRetry(() => syncInvoiceToSheet({
+  // Sync to Google Sheets
+  await syncInvoiceToSheet({
     invoiceNumber,
     customerName: order.customerName,
     customerPhone: order.customerPhone,
@@ -85,7 +81,7 @@ async function autoCreateInvoiceFromTireOrder(d: any, orderId: number): Promise<
     source: "tire_order",
     orderRef: order.orderNumber,
     notes: `Auto-generated from tire order ${order.orderNumber}`,
-  }), { label: "invoice-sheet-sync" });
+  });
 
   // Notify CEO about the auto-generated invoice
   notifyInvoiceCreated({
@@ -94,15 +90,7 @@ async function autoCreateInvoiceFromTireOrder(d: any, orderId: number): Promise<
     totalAmount: totalAmount / 100,
     source: "tire_order",
     serviceDescription: `Tire Install: ${order.quantity}x ${order.tireBrand} ${order.tireModel}`,
-  }).catch(err => console.error("[TireOrder] Invoice notification failed:", err));
-
-  // NOUR OS: Dispatch invoice event
-  onInvoiceCreated({
-    invoiceNumber,
-    customerName: order.customerName,
-    totalAmount: totalAmount / 100,
-    source: "tire_order",
-  }).catch(err => console.error("[TireOrder] NOUR OS invoice dispatch failed:", err));
+  }).catch(() => {});
 
   console.log(`[Invoice] Auto-created ${invoiceNumber} for tire order ${order.orderNumber} — $${(totalAmount / 100).toFixed(2)}`);
 }
@@ -231,27 +219,13 @@ const SERVICE_FEE_PER_TIRE = 0;
 
 // ─── Order number generator ──────────────────────────
 function generateOrderNumber(): string {
-  const { randomInt } = require("crypto") as typeof import("crypto");
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const rand = randomInt(100, 999);
+  const rand = Math.floor(Math.random() * 900 + 100);
   return `TO-${dateStr}-${rand}`;
 }
 
 // ─── Google Sheets sync ──────────────────────────────
-function getGoogleAuthToken(): string {
-  const { readFileSync, existsSync } = require("fs") as typeof import("fs");
-  try {
-    const tokenFile = "/tmp/.gws-auth-token";
-    if (existsSync(tokenFile)) {
-      const token = readFileSync(tokenFile, "utf-8").trim();
-      if (token.length > 20) return token;
-    }
-  } catch {}
-  const envToken = process.env.GOOGLE_DRIVE_TOKEN || process.env.GOOGLE_WORKSPACE_CLI_TOKEN || "";
-  return envToken.length > 20 ? envToken : "";
-}
-
 async function syncOrderToGoogleSheet(order: {
   orderNumber: string;
   customerName: string;
@@ -268,8 +242,12 @@ async function syncOrderToGoogleSheet(order: {
   status: string;
 }) {
   try {
-    const accessToken = getGoogleAuthToken();
-    if (!accessToken) return;
+    const fs = await import("fs");
+    const configContent = fs.readFileSync("/home/ubuntu/.gdrive-rclone.ini", "utf-8");
+    const tokenJson = configContent.split("token = ")[1]?.trim();
+    if (!tokenJson) return;
+    const tokenData = JSON.parse(tokenJson);
+    const accessToken = tokenData.access_token;
     const sheetId = process.env.GOOGLE_SHEETS_CRM_ID;
     if (!sheetId) return;
 
@@ -580,8 +558,6 @@ export const gatewayTireRouter = router({
         customerNotes: input.customerNotes || null,
         status: "received",
       }).catch(err => console.error("[TireOrder] Sheet sync error:", err));
-      // Note: syncOrderToGoogleSheet already has internal error handling.
-      // For the invoice sheet sync (line ~69), wrap with withRetry:
 
       // Send email notification to shop + CEO (async, don't block)
       notifyTireOrder({
@@ -598,16 +574,6 @@ export const gatewayTireRouter = router({
         totalAmount: totalDollars,
         notes: input.customerNotes || undefined,
       }).catch(err => console.error("[TireOrder] Notification error:", err));
-
-      // NOUR OS: Dispatch tire order event
-      onTireOrderPlaced({
-        orderNumber,
-        customerName: input.customerName,
-        tireBrand: input.tireBrand,
-        tireModel: input.tireModel,
-        quantity: input.quantity,
-        totalAmount: totalDollars,
-      }).catch(err => console.error("[TireOrder] NOUR OS dispatch failed:", err));
 
       return {
         success: true,
@@ -705,7 +671,7 @@ export const gatewayTireRouter = router({
       ]);
 
       return {
-        orders: orders.map((o: any) => ({
+        orders: orders.map(o => ({
           ...o,
           pricePerTire: o.pricePerTire / 100,
           serviceFeePerTire: o.serviceFeePerTire / 100,
