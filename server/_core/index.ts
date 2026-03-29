@@ -8,6 +8,7 @@ import rateLimit from "express-rate-limit";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+import { healthHandler, pingHandler, readyHandler } from "../lib/health";
 import { serveStatic, setupVite } from "./vite";
 import { createPrerenderMiddleware } from "../prerender-middleware";
 import { SITEMAP_ROUTES, BLOG_SLUGS } from "@shared/routes";
@@ -17,6 +18,31 @@ import { processReviewRequestQueue } from "../routers/reviewRequests";
 import { processReminderQueue } from "../routers/reminders";
 import { processPostInvoiceFollowUps } from "../postInvoiceFollowUp";
 import { SITE_URL } from "@shared/business";
+
+// ─── Startup environment validation ──────────────────
+// Fail fast if required env vars are missing — better than cryptic runtime errors
+const REQUIRED_ENV = [
+  "DATABASE_URL",
+  "JWT_SECRET",
+  "OPENAI_API_KEY",
+  "GOOGLE_OAUTH_CLIENT_ID",
+  "GOOGLE_OAUTH_CLIENT_SECRET",
+  "TWILIO_ACCOUNT_SID",
+  "TWILIO_AUTH_TOKEN",
+  "TWILIO_PHONE_NUMBER",
+] as const;
+
+const missingEnv = REQUIRED_ENV.filter(key => !process.env[key]);
+if (missingEnv.length > 0) {
+  console.error(`FATAL: Missing required environment variables: ${missingEnv.join(", ")}`);
+  console.error("Server cannot start. Add these variables to your .env file.");
+  process.exit(1);
+}
+
+// Warn about optional-but-important vars (degrade gracefully, but flag clearly)
+if (!process.env.FB_APP_SECRET) {
+  console.warn("WARN: FB_APP_SECRET is not set — Messenger webhook HMAC verification is disabled. Add it to prevent fake message events.");
+}
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -42,9 +68,10 @@ async function startServer() {
   const server = createServer(app);
   // Trust proxy — required for rate limiting behind reverse proxy
   app.set("trust proxy", 1);
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  // Body parser — 500kb max. File uploads go through booking.uploadPhoto which handles its own limits.
+  // 50mb was dangerously large and could memory-bomb the server with a single request.
+  app.use(express.json({ limit: "500kb" }));
+  app.use(express.urlencoded({ limit: "500kb", extended: true }));
 
   // Security headers
   app.use((_req, res, next) => {
@@ -81,7 +108,7 @@ async function startServer() {
   // Stricter rate limit for AI/chat endpoints (expensive operations)
   const aiLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
-    max: 30, // 30 AI requests per hour per IP
+    max: 20, // 20 AI requests per hour per IP — OpenAI tokens are expensive
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "Too many AI requests. Please try again later or call us at (216) 862-0005." },
@@ -95,6 +122,11 @@ async function startServer() {
   app.use("/api/trpc/public.askMechanic", aiLimiter);
   app.use("/api/trpc/public.aiSearch", aiLimiter);
   app.use("/api/trpc/laborEstimate.generate", aiLimiter);
+
+  // ─── Health check endpoints ───────────────────────────
+  app.get("/api/ping", pingHandler);        // Lightweight liveness probe
+  app.get("/api/ready", readyHandler);      // Readiness probe (checks DB)
+  app.get("/api/health", healthHandler);    // Full health check (DB latency, memory, services)
 
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
@@ -148,8 +180,34 @@ async function startServer() {
 
   // ─── SMS Bot Webhook (Twilio) ───────────────────────────
   // Receives inbound SMS messages and returns Twilio XML response
+  // Twilio signature verification prevents fake SMS events
   const { handleIncomingSMS } = await import("../routers/smsBot");
   app.post("/api/sms-webhook", express.urlencoded({ extended: false }), async (req, res) => {
+    // Verify request is genuinely from Twilio using HMAC-SHA1 signature
+    const twilioSignature = req.headers["x-twilio-signature"] as string | undefined;
+    const authToken = process.env.TWILIO_AUTH_TOKEN!;
+    const callbackUrl = `${req.protocol}://${req.get("host")}/api/sms-webhook`;
+
+    if (!twilioSignature) {
+      console.warn("[SMS Webhook] Missing X-Twilio-Signature header — rejecting");
+      res.sendStatus(403);
+      return;
+    }
+
+    try {
+      const twilio = await import("twilio");
+      const isValid = twilio.validateRequest(authToken, twilioSignature, callbackUrl, req.body);
+      if (!isValid) {
+        console.warn("[SMS Webhook] Invalid Twilio signature — rejecting");
+        res.sendStatus(403);
+        return;
+      }
+    } catch (err) {
+      console.error("[SMS Webhook] Signature validation error:", err);
+      res.sendStatus(500);
+      return;
+    }
+
     try {
       const { Body, From } = req.body;
       const reply = await handleIncomingSMS(From, Body);
@@ -232,9 +290,36 @@ async function startServer() {
     }
   });
 
-  // Incoming Messenger messages
-  app.post("/api/messenger-webhook", express.json(), async (req, res) => {
-    const body = req.body;
+  // Incoming Messenger messages — HMAC-SHA256 signature verification
+  // Facebook signs the raw body with the app secret and sends X-Hub-Signature-256
+  app.post("/api/messenger-webhook", express.raw({ type: "application/json" }), async (req, res) => {
+    const signature = req.headers["x-hub-signature-256"] as string | undefined;
+    const appSecret = process.env.FB_APP_SECRET;
+
+    if (appSecret) {
+      if (!signature) {
+        console.warn("[Messenger Webhook] Missing X-Hub-Signature-256 header — rejecting");
+        res.sendStatus(403);
+        return;
+      }
+
+      const crypto = await import("crypto");
+      const expectedSignature = "sha256=" + crypto.createHmac("sha256", appSecret).update(req.body).digest("hex");
+
+      if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+        console.warn("[Messenger Webhook] Invalid FB HMAC signature — rejecting");
+        res.sendStatus(403);
+        return;
+      }
+    }
+
+    let body: any;
+    try {
+      body = JSON.parse(req.body.toString());
+    } catch {
+      res.sendStatus(400);
+      return;
+    }
 
     if (body.object === "page") {
       for (const entry of body.entry || []) {
