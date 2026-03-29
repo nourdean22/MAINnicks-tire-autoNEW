@@ -12,7 +12,7 @@ import { leads } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone } from "../sanitize";
 import { sendLeadEvent } from "../meta-capi";
 import { SITE_URL } from "@shared/business";
-import { handleAfterHoursCapture } from "../services/afterHours";
+import { handleAfterHoursCapture, isAfterHours } from "../services/afterHours";
 import { alertNewLead } from "../services/telegram";
 
 async function db() {
@@ -84,9 +84,14 @@ export const callbackRouter = router({
         sourcePage: input.sourcePage || undefined,
       }).catch(err => console.error("[Callback] Email notification failed:", err));
 
-      sendSms(input.phone, callbackConfirmationSms(input.name)).catch(err =>
-        console.error("[SMS] Callback confirmation failed:", err)
-      );
+      // After-hours gets a different SMS than business hours
+      if (isAfterHours()) {
+        handleAfterHoursCapture({ name, phone, type: "callback" }).catch(() => {});
+      } else {
+        sendSms(input.phone, callbackConfirmationSms(input.name)).catch(err =>
+          console.error("[SMS] Callback confirmation failed:", err)
+        );
+      }
 
       syncLeadToSheet({
         name: input.name,
@@ -119,8 +124,7 @@ export const callbackRouter = router({
         }).catch(err => console.error("[CAPI] Callback lead event failed:", err));
       }
 
-      // After-hours auto-SMS + Telegram alert (fire-and-forget)
-      handleAfterHoursCapture({ name, phone, type: "callback" }).catch(() => {});
+      // Telegram alert (always, regardless of hours)
       alertNewLead({ name, phone, service: input.context || "Callback", source: "callback" }).catch(() => {});
 
       return result;

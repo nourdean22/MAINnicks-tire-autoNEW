@@ -23,7 +23,7 @@ import { bookings } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { logIntegrationFailure } from "../integration-failures";
 import { withRetry } from "../retry";
-import { handleAfterHoursCapture } from "../services/afterHours";
+import { handleAfterHoursCapture, isAfterHours } from "../services/afterHours";
 import { alertNewBooking } from "../services/telegram";
 
 // ─── LABOR GUIDE REFERENCE (for auto-invoice labor estimation) ───
@@ -262,19 +262,24 @@ export const bookingRouter = router({
         });
       });
 
-      withRetry(
-        () => sendSms(input.phone, bookingConfirmationSms(input.name, input.service, refCode)),
-        { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (booking confirmation)" }
-      ).catch(err => {
-        console.error("[SMS] Booking confirmation failed:", err);
-        logIntegrationFailure({
-          failureType: "sms",
-          entityId: result.id,
-          entityType: "booking",
-          errorMessage: err instanceof Error ? err.message : String(err),
-          errorDetails: err,
+      // After-hours gets a different SMS than business hours
+      if (isAfterHours()) {
+        handleAfterHoursCapture({ name, phone, type: "booking" }).catch(() => {});
+      } else {
+        withRetry(
+          () => sendSms(input.phone, bookingConfirmationSms(input.name, input.service, refCode)),
+          { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (booking confirmation)" }
+        ).catch(err => {
+          console.error("[SMS] Booking confirmation failed:", err);
+          logIntegrationFailure({
+            failureType: "sms",
+            entityId: result.id,
+            entityType: "booking",
+            errorMessage: err instanceof Error ? err.message : String(err),
+            errorDetails: err,
         });
       });
+      }
 
       // Meta Conversions API: Send server-side Lead + Schedule events
       if (input.pixelEventIds) {
@@ -326,8 +331,7 @@ export const bookingRouter = router({
         });
       }
 
-      // After-hours auto-SMS + Telegram alert (fire-and-forget)
-      handleAfterHoursCapture({ name, phone, type: "booking" }).catch(() => {});
+      // Telegram alert (always, regardless of hours)
       alertNewBooking({ name, phone, service, date: input.preferredDate || undefined }).catch(() => {});
 
       return { ...result, referenceCode: refCode };
