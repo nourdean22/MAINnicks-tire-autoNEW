@@ -32,9 +32,7 @@ export function registerOAuthRoutes(app: Express) {
         return;
       }
 
-      // Check if this is the owner (first admin)
-      const ownerOpenId = process.env.OWNER_OPEN_ID;
-
+      // Upsert user — admin role auto-granted in db.ts if openId matches OWNER_OPEN_ID
       await db.upsertUser({
         openId: userInfo.openId,
         name: userInfo.name || null,
@@ -57,7 +55,7 @@ export function registerOAuthRoutes(app: Express) {
       res.redirect(302, dest);
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
-      res.status(500).json({ error: "OAuth callback failed" });
+      res.redirect(302, "/admin?error=auth_failed");
     }
   });
 }

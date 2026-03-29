@@ -97,6 +97,18 @@ async function startServer() {
   app.use("/api/trpc/public.aiSearch", aiLimiter);
   app.use("/api/trpc/laborEstimate.generate", aiLimiter);
 
+  // ─── Deploy Version Endpoint ──────────────────────────
+  // Proves which commit is actually running on Railway
+  app.get("/api/version", (_req, res) => {
+    res.json({
+      commit: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.COMMIT_SHA || "unknown",
+      branch: process.env.RAILWAY_GIT_BRANCH || "unknown",
+      deployedAt: process.env.RAILWAY_DEPLOYMENT_CREATED_AT || "unknown",
+      nodeVersion: process.version,
+      uptime: Math.round(process.uptime()),
+    });
+  });
+
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
 
