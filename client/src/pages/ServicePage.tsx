@@ -6,8 +6,6 @@
 
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
-import ScrollProgress from "@/components/ScrollProgress";
-import ShareButtons from "@/components/ShareButtons";
 import { useState, useEffect } from "react";
 import { useRoute, Link } from "wouter";
 import { SERVICES, type ServiceData } from "@shared/services";
@@ -18,6 +16,14 @@ import { AnimatePresence, motion } from "framer-motion";
 import { BUSINESS } from "@shared/business";
 import FadeIn from "@/components/FadeIn";
 import FinancingCTA from "@/components/FinancingCTA";
+import ServiceProofBlock from "@/components/ServiceProofBlock";
+import ObjectionProofBlock from "@/components/ObjectionProofBlock";
+import ProofClusterStrip from "@/components/ProofClusterStrip";
+import ApprovalPromiseBlock from "@/components/ApprovalPromiseBlock";
+import WhatToExpectAtYourVisit from "@/components/WhatToExpectAtYourVisit";
+import WhatAffectsPrice, { PRICE_FACTORS } from "@/components/WhatAffectsPrice";
+import EstimateTrustBlock from "@/components/EstimateTrustBlock";
+import { getProofConfig } from "@shared/proof";
 
 // CDN images
 const HERO_IMAGES: Record<string, string> = {
@@ -186,12 +192,6 @@ function ServiceHero({ service }: { service: ServiceData }) {
           </div>
         </FadeIn>
 
-        <FadeIn delay={0.35}>
-          <div className="mt-6">
-            <ShareButtons title={service.title} path={`/${service.slug}`} />
-          </div>
-        </FadeIn>
-
         {/* Turnaround + Pricing badges */}
         <FadeIn delay={0.4}>
           <div className="mt-8 flex flex-wrap gap-4 text-sm">
@@ -286,38 +286,6 @@ function Problems({ service }: { service: ServiceData }) {
                     )}
                   </AnimatePresence>
                 </button>
-              </FadeIn>
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── PROOF QUOTES (service-specific reviews) ─────────
-function ProofQuotes({ service }: { service: ServiceData }) {
-  if (!service.proofQuotes || service.proofQuotes.length === 0) return null;
-
-  return (
-    <section className="py-12 lg:py-16">
-      <div className="container">
-        <div className="max-w-4xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {service.proofQuotes.map((q, i) => (
-              <FadeIn key={i} delay={i * 0.1}>
-                <div className="p-6 border border-border rounded-xl">
-                  <div className="flex gap-0.5 mb-3">
-                    {[...Array(5)].map((_, j) => (
-                      <Star key={j} className="w-3.5 h-3.5 fill-nick-yellow text-primary" />
-                    ))}
-                  </div>
-                  <p className="text-foreground/70 text-sm leading-relaxed">"{q.text}"</p>
-                  <div className="mt-3 pt-3 border-t border-border">
-                    <span className="text-foreground text-xs font-semibold">{q.name}</span>
-                    <span className="text-foreground/30 text-xs ml-2">Google Review</span>
-                  </div>
-                </div>
               </FadeIn>
             ))}
           </div>
@@ -461,6 +429,22 @@ function WhyUs({ service }: { service: ServiceData }) {
             </div>
           </FadeIn>
         </div>
+
+        {/* Proof cluster — customers confirm what we just claimed */}
+        {(() => {
+          const proof = getProofConfig(service.slug);
+          if (!proof) return null;
+          return (
+            <FadeIn delay={0.2}>
+              <div className="mt-16">
+                <ServiceProofBlock
+                  quotes={proof.featuredQuotes}
+                  heading="What Cleveland drivers say"
+                />
+              </div>
+            </FadeIn>
+          );
+        })()}
       </div>
     </section>
   );
@@ -588,6 +572,42 @@ function CostBreakdown({ service }: { service: ServiceData }) {
           <p className="mt-8 text-foreground/50 text-sm italic">
             Prices reflect typical ranges for the Cleveland area as of 2024-2025. Your actual cost depends on your specific vehicle and the components that need replacement. We always provide a written estimate before starting work.
           </p>
+        </FadeIn>
+
+        {/* What affects the price — education removes fear */}
+        {PRICE_FACTORS[service.slug] && (
+          <FadeIn delay={0.45}>
+            <div className="mt-10">
+              <WhatAffectsPrice
+                service={service.title.toLowerCase()}
+                factors={PRICE_FACTORS[service.slug]}
+                reassurance="All of these variables are visible in your written estimate before any work begins. No surprises."
+              />
+            </div>
+          </FadeIn>
+        )}
+
+        {/* Price objection proof — placed exactly where sticker shock lives */}
+        {(() => {
+          const proof = getProofConfig(service.slug);
+          const priceQuotes = proof?.objectionQuotes?.price;
+          if (!priceQuotes?.length) return null;
+          return (
+            <FadeIn delay={0.5}>
+              <ObjectionProofBlock
+                objectionLabel="What customers say about our pricing"
+                quotes={priceQuotes}
+                statLine={proof?.statLine}
+              />
+            </FadeIn>
+          );
+        })()}
+
+        {/* Estimate trust — locks in confidence right before the booking form */}
+        <FadeIn delay={0.55}>
+          <div className="mt-10">
+            <EstimateTrustBlock service={service.title.toLowerCase()} />
+          </div>
         </FadeIn>
       </div>
     </section>
@@ -725,8 +745,14 @@ function BookingSection({ service }: { service: ServiceData }) {
           </FadeIn>
 
           <FadeIn delay={0.15}>
-            <BookingForm defaultService={service.title === "EMISSIONS & E-CHECK" ? "Ohio E-Check / Emissions Repair" : service.title === "DIAGNOSTICS" ? "Check Engine Light / Diagnostics" : service.title === "OIL CHANGE" ? "Oil Change" : service.title === "GENERAL REPAIR" ? "General Repair / Other" : service.title === "TIRES" ? "Tires — New, Used, Repair" : service.title === "AC & HEATING" ? "AC / Heating Repair" : "Brake Repair"} />
+            <ApprovalPromiseBlock variant="compact" />
+            <div className="mt-4">
+              <BookingForm defaultService={service.title === "EMISSIONS & E-CHECK" ? "Ohio E-Check / Emissions Repair" : service.title === "DIAGNOSTICS" ? "Check Engine Light / Diagnostics" : service.title === "OIL CHANGE" ? "Oil Change" : service.title === "GENERAL REPAIR" ? "General Repair / Other" : service.title === "TIRES" ? "Tires — New, Used, Repair" : service.title === "AC & HEATING" ? "AC / Heating Repair" : "Brake Repair"} />
+            </div>
             <FinancingCTA variant="banner" className="mt-6" />
+            <div className="mt-6">
+              <WhatToExpectAtYourVisit />
+            </div>
           </FadeIn>
         </div>
       </div>
@@ -775,6 +801,50 @@ function OtherServices({ currentSlug }: { currentSlug: string }) {
 
 // ─── MOBILE CTA ────────────────────────────────────────
 
+
+// ─── GLOBAL FAQ Q&As (previously in index.html, merged here to prevent duplicates) ─
+const GLOBAL_FAQ_ITEMS = [
+  {
+    "@type": "Question" as const,
+    name: "Can I buy tires online from Nick's Tire & Auto?",
+    acceptedAnswer: {
+      "@type": "Answer" as const,
+      text: "Yes. Visit nickstire.org/tires to search by tire size, compare options from major brands, and place your order online. Every tire purchase includes our free Premium Installation Package ($289+ value) with mounting, balancing, valve stems, TPMS reset, alignment check, and a 20-point safety inspection.",
+    },
+  },
+  {
+    "@type": "Question" as const,
+    name: "How much does flat tire repair cost at Nick's Tire & Auto?",
+    acceptedAnswer: {
+      "@type": "Answer" as const,
+      text: "Flat tire repair at Nick's Tire & Auto costs $15 to $25. Most repairs are done in about 15 minutes using professional plug and patch methods. We will never sell you a new tire if your current tire can be safely repaired.",
+    },
+  },
+  {
+    "@type": "Question" as const,
+    name: "Do you sell used tires?",
+    acceptedAnswer: {
+      "@type": "Answer" as const,
+      text: "Yes. We carry a large selection of quality used tires. Every used tire is inspected for tread depth, sidewall condition, and safety before it goes on your vehicle. Used tires include the same professional installation service. Walk-ins welcome — inventory changes daily.",
+    },
+  },
+  {
+    "@type": "Question" as const,
+    name: "What is included in the free installation package?",
+    acceptedAnswer: {
+      "@type": "Answer" as const,
+      text: "Nick's Premium Installation Package includes 15 services at no extra charge: professional mounting, computer balancing, new rubber valve stems, TPMS sensor reset, alignment check, 20-point safety inspection, rim cleaning and degreasing, tire disposal and recycling, lug nut torque to spec, tire pressure optimization, brake visual inspection, suspension visual check, tread depth documentation, free flat repair for the first 12 months, and free tire rotation for the first year.",
+    },
+  },
+  {
+    "@type": "Question" as const,
+    name: "What areas does Nick's Tire & Auto serve?",
+    acceptedAnswer: {
+      "@type": "Answer" as const,
+      text: "Nick's Tire & Auto is located at 17625 Euclid Ave, Cleveland, OH 44112. We serve Cleveland, Euclid, Lakewood, Parma, East Cleveland, Shaker Heights, Cleveland Heights, South Euclid, Garfield Heights, Mentor, Strongsville, and all of Northeast Ohio.",
+    },
+  },
+];
 
 // ─── JSON-LD SCHEMA ────────────────────────────────────
 function ServiceSchema({ service }: { service: ServiceData }) {
@@ -878,6 +948,7 @@ function ServiceSchema({ service }: { service: ServiceData }) {
         text: fq.answer,
       },
     })),
+    ...GLOBAL_FAQ_ITEMS,
   ];
 
   const faqSchema = {
@@ -931,7 +1002,6 @@ export default function ServicePage() {
 
   return (
     <PageLayout>
-      <ScrollProgress />
       {service && (
         <SEOHead
           title={service.metaTitle}
@@ -943,9 +1013,20 @@ export default function ServicePage() {
       
       
         <ServiceHero service={service} />
+        {/* Proof cluster strip — anchors trust immediately after hero */}
+        {(() => {
+          const proof = getProofConfig(service.slug);
+          if (!proof) return null;
+          return (
+            <ProofClusterStrip
+              trustTags={proof.trustTags}
+              spotlight={proof.featuredQuotes[0]}
+              showRating
+            />
+          );
+        })()}
         <PillarIntro service={service} />
         <Problems service={service} />
-        <ProofQuotes service={service} />
         <WarningSigns service={service} />
         <CostBreakdown service={service} />
         <Process service={service} />

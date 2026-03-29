@@ -71,23 +71,8 @@ export async function processReminderQueue() {
 
   for (const reminder of due) {
     try {
-      // Check SMS opt-out before sending marketing reminder
-      const normalized = reminder.phone.replace(/\D/g, "").slice(-10);
-      const { getDb: getDatabase } = await import("../db");
-      const database = await getDatabase();
-      if (database) {
-        const { customers } = await import("../../drizzle/schema");
-        const { like } = await import("drizzle-orm");
-        const [cust] = await database.select({ smsOptOut: customers.smsOptOut })
-          .from(customers).where(like(customers.phone, `%${normalized}`)).limit(1);
-        if (cust?.smsOptOut) {
-          await markReminderSent(reminder.id, undefined); // Mark as handled to skip future processing
-          continue;
-        }
-      }
-
       const settings = await getReminderSettings();
-      const setting = settings.find((s: any) => s.serviceType === reminder.serviceType);
+      const setting = settings.find(s => s.serviceType === reminder.serviceType);
       const template = setting?.messageTemplate;
 
       let message: string;

@@ -7,13 +7,11 @@ import { createCallbackRequest, getCallbackRequests, updateCallbackStatus } from
 import { notifyCallbackRequest } from "../email-notify";
 import { syncLeadToSheet, syncCallbackToSheet } from "../sheets-sync";
 import { sendSms, callbackConfirmationSms } from "../sms";
-import { withRetry } from "../retry";
 import { z } from "zod";
 import { leads } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone } from "../sanitize";
 import { sendLeadEvent } from "../meta-capi";
 import { SITE_URL } from "@shared/business";
-import { onCallbackRequested } from "../nour-os-bridge";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -74,7 +72,7 @@ export const callbackRouter = router({
           utmCampaign: input.utmCampaign || null,
           landingPage: input.landingPage || null,
           referrer: input.referrer || null,
-        }).catch((err: any) => console.error("[Callback] Click event store failed:", err));
+        }).catch(() => {});
       }
 
       notifyCallbackRequest({
@@ -82,34 +80,27 @@ export const callbackRouter = router({
         phone: input.phone,
         reason: input.context || undefined,
         sourcePage: input.sourcePage || undefined,
-      }).catch((err: any) => console.error("[Callback] Email notification failed:", err));
+      }).catch(err => console.error("[Callback] Email notification failed:", err));
 
-      sendSms(input.phone, callbackConfirmationSms(input.name)).catch((err: any) =>
+      sendSms(input.phone, callbackConfirmationSms(input.name)).catch(err =>
         console.error("[SMS] Callback confirmation failed:", err)
       );
 
-      withRetry(() => syncLeadToSheet({
+      syncLeadToSheet({
         name: input.name,
         phone: input.phone,
         source: "callback",
         problem: "Callback request",
         urgencyScore: 4,
         urgencyReason: "Customer requested callback",
-      }), { label: "callback-lead-sheet" }).catch((err: any) => console.error("[Callback] Lead sheet sync failed:", err));
+      }).catch(() => {});
 
-      withRetry(() => syncCallbackToSheet({
+      syncCallbackToSheet({
         name: input.name,
         phone: input.phone,
         reason: input.context || undefined,
         sourcePage: input.sourcePage || undefined,
-      }), { label: "callback-sheet" }).catch((err: any) => console.error("[Callback] Sheet sync failed:", err));
-
-      // NOUR OS: Dispatch callback event
-      onCallbackRequested({
-        name: input.name,
-        phone: input.phone,
-        reason: input.context || null,
-      }).catch((err: any) => console.error("[Callback] NOUR OS dispatch failed:", err));
+      }).catch(() => {});
 
       // Meta Conversions API: Send server-side Lead event for callback
       if (input.pixelEventId) {
@@ -123,7 +114,7 @@ export const callbackRouter = router({
           fbp: input.pixelUserData?.fbp,
           contentName: "Callback Request",
           contentCategory: input.sourcePage || "website",
-        }).catch((err: any) => console.error("[CAPI] Callback lead event failed:", err));
+        }).catch(err => console.error("[CAPI] Callback lead event failed:", err));
       }
 
       return result;

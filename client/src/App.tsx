@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import EmergencyMode from "./components/EmergencyMode";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,14 +7,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { captureUtmParams } from "@/lib/utm";
-import { captureAttribution } from "@/lib/attribution";
-import ExitIntentPopup from "./components/ExitIntentPopup";
-import { useWebVitals } from "@/hooks/useWebVitals";
-import RouteAnnouncer from "@/components/RouteAnnouncer";
-import CookieConsent from "@/components/CookieConsent";
-import { initConsent, onConsentChange, hasConsent } from "@/lib/consent-manager";
-import { initGA4, trackPageView } from "@/lib/ga4";
-import { installErrorHandlers, addBreadcrumb } from "@/lib/error-tracker";
 
 // ─── LOADING FALLBACK ─────────────────────────────────
 function PageLoader() {
@@ -44,9 +36,6 @@ const CityPage = lazy(() => import("./pages/CityPage"));
 const FAQ = lazy(() => import("./pages/FAQ"));
 const SeasonalPage = lazy(() => import("./pages/SeasonalPage"));
 const SEOServicePage = lazy(() => import("./pages/SEOServicePage"));
-const IntersectionPage = lazy(() => import("./pages/IntersectionPage"));
-const TrackOrder = lazy(() => import("./pages/TrackOrder"));
-const ServiceCityPage = lazy(() => import("./pages/ServiceCityPage"));
 const VehicleMakePage = lazy(() => import("./pages/VehicleMakePage"));
 const ProblemPage = lazy(() => import("./pages/ProblemPage"));
 const ReviewsPage = lazy(() => import("./pages/ReviewsPage"));
@@ -71,17 +60,13 @@ const AlignmentPage = lazy(() => import("./pages/AlignmentPage"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const Terms = lazy(() => import("./pages/Terms"));
 const NotFound = lazy(() => import("./pages/NotFound"));
-const ControlCenter = lazy(() => import("./pages/ControlCenter"));
 
 // ─── Phase 5 Pages ──────────────────────────────────
 const CostEstimator = lazy(() => import("./pages/CostEstimator"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const SharePage = lazy(() => import("./pages/SharePage"));
 const NeighborhoodPage = lazy(() => import("./pages/NeighborhoodPage"));
-const InstantQuote = lazy(() => import("./pages/InstantQuote"));
-const TireSizePage = lazy(() => import("./pages/TireSizePage"));
-const CareersPage = lazy(() => import("./pages/CareersPage"));
-const AppointmentPage = lazy(() => import("./pages/AppointmentPage"));
+const Careers = lazy(() => import("./pages/Careers"));
 
 function Router() {
   const [location] = useLocation();
@@ -123,8 +108,6 @@ function Router() {
         {/* Admin dashboard */}
         <Route path={"/admin"} component={Admin} />
         <Route path={"/admin/content"} component={AdminContent} />
-        <Route path={"/admin/control-center"} component={ControlCenter} />
-        <Route path={"/cc"} component={ControlCenter} />
         {/* City-specific landing pages for local SEO */}
         <Route path={"/cleveland-auto-repair"} component={CityPage} />
         <Route path={"/euclid-auto-repair"} component={CityPage} />
@@ -143,12 +126,6 @@ function Router() {
         <Route path={"/maple-heights-auto-repair"} component={CityPage} />
         <Route path={"/bedford-auto-repair"} component={CityPage} />
         <Route path={"/warrensville-heights-auto-repair"} component={CityPage} />
-        <Route path={"/parma-heights-auto-repair"} component={CityPage} />
-        <Route path={"/wickliffe-auto-repair"} component={CityPage} />
-        {/* Intersection SEO pages */}
-        <Route path={"/near/:slug"} component={IntersectionPage} />
-        {/* Real-time job tracker */}
-        <Route path={"/track/:orderId"} component={TrackOrder} />
         {/* Seasonal landing pages */}
         <Route path={"/winter-car-care-cleveland"} component={SeasonalPage} />
         <Route path={"/summer-car-care-cleveland"} component={SeasonalPage} />
@@ -217,8 +194,6 @@ function Router() {
         <Route path={"/portal"} component={CustomerPortal} />
         {/* Tire Info (service page) */}
         <Route path={"/tires/info"} component={ServicePage} />
-        {/* Tire size SEO pages */}
-        <Route path={"/tires/:size"} component={TireSizePage} />
         {/* FAQ page */}
         <Route path={"/faq"} component={FAQ} />
         {/* Blog / Tips */}
@@ -226,7 +201,6 @@ function Router() {
         <Route path={"/blog/:slug"} component={BlogPost} />
         {/* Phase 5: Cost Estimator */}
         <Route path={"/cost-estimator"} component={CostEstimator} />
-        <Route path={"/instant-quote"} component={InstantQuote} />
         {/* Phase 5: Google Ads Landing Pages (no nav, conversion-only) */}
         <Route path={"/lp/brakes"} component={LandingPage} />
         <Route path={"/lp/tires"} component={LandingPage} />
@@ -253,19 +227,11 @@ function Router() {
         <Route path={"/mayfield-heights"} component={NeighborhoodPage} />
         <Route path={"/highland-heights"} component={NeighborhoodPage} />
         <Route path={"/beachwood"} component={NeighborhoodPage} />
-        {/* Appointments / Booking */}
-        <Route path={"/appointment"} component={AppointmentPage} />
-        <Route path={"/schedule"} component={AppointmentPage} />
-        <Route path={"/book"} component={AppointmentPage} />
-        <Route path={"/booking"} component={AppointmentPage} />
-        {/* Careers / Apply */}
-        <Route path={"/careers"} component={CareersPage} />
-        <Route path={"/apply"} component={CareersPage} />
+        {/* Careers */}
+        <Route path={"/careers"} component={Careers} />
         {/* Legal pages */}
         <Route path={"/privacy-policy"} component={PrivacyPolicy} />
         <Route path={"/terms"} component={Terms} />
-        {/* Programmatic SEO: 260 service+city pages (e.g., /tires-euclid-oh) */}
-        <Route path={"/:slug"} component={ServiceCityPage} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}
         <Route component={NotFound} />
@@ -276,89 +242,19 @@ function Router() {
   );
 }
 
-/** Load Umami analytics script (consent-gated, called from useEffect) */
-let umamiLoaded = false;
-function loadUmami() {
-  if (umamiLoaded) return;
-  const endpoint = import.meta.env.VITE_ANALYTICS_ENDPOINT;
-  const websiteId = import.meta.env.VITE_ANALYTICS_WEBSITE_ID;
-  if (!endpoint || !websiteId) return;
-  umamiLoaded = true;
-  const s = document.createElement("script");
-  s.defer = true;
-  s.src = endpoint;
-  s.setAttribute("data-website-id", websiteId);
-  document.head.appendChild(s);
-}
-
 function App() {
-  const [location] = useLocation();
-  const prevLocation = useRef(location);
-
   // Capture UTM params on first load for attribution
   useEffect(() => {
     captureUtmParams();
-    captureAttribution();
-    installErrorHandlers();
-    initConsent();
-    // If analytics consent already granted from a previous visit, init GA4 now
-    if (hasConsent("analytics")) {
-      initGA4();
-      loadUmami();
-    }
-    // Listen for future consent changes
-    onConsentChange((state) => {
-      if (state.analytics) {
-        initGA4();
-        loadUmami();
-      }
-    });
   }, []);
-
-  // Track page views on route change (gated behind consent in ga4.ts)
-  useEffect(() => {
-    if (location !== prevLocation.current) {
-      prevLocation.current = location;
-      trackPageView(location);
-    }
-  }, [location]);
-
-  // Track Core Web Vitals (LCP, CLS, TTFB, INP)
-  useWebVitals();
 
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
-          <a
-            href="#main-content"
-            className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[9999] focus:bg-[#FDB913] focus:text-black focus:px-4 focus:py-2 focus:rounded"
-          >
-            Skip to main content
-          </a>
           <Toaster />
-          <RouteAnnouncer />
-          <div id="main-content">
-            <Router />
-          </div>
+          <Router />
           <EmergencyMode />
-          {/* Mobile sticky bottom bar — always visible on mobile */}
-          <div className="mobile-action-bar md:hidden">
-            <a href="tel:2168620005" className="action-call touch-feedback">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
-              CALL
-            </a>
-            <a href="/book" className="action-book touch-feedback">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              BOOK
-            </a>
-            <a href="tel:2168620005" className="action-emergency touch-feedback">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              SOS
-            </a>
-          </div>
-          <CookieConsent />
-          <ExitIntentPopup />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

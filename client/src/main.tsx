@@ -4,27 +4,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
-import { HelmetProvider } from "react-helmet-async";
 import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
 
-// Preconnects are handled in index.html <head> for earliest possible dispatch
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      // Stale-while-revalidate: serve cached data instantly, refetch in background
-      staleTime: 2 * 60 * 1000, // 2 minutes — data is "fresh" for 2 min
-      gcTime: 10 * 60 * 1000,   // 10 minutes — keep in cache even after unmount
-      refetchOnWindowFocus: false,
-      retry: 1,
-    },
-    mutations: {
-      retry: 0,
-    },
-  },
-});
+const queryClient = new QueryClient();
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
@@ -69,11 +53,9 @@ const trpcClient = trpc.createClient({
 });
 
 createRoot(document.getElementById("root")!).render(
-  <HelmetProvider>
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>
-        <App />
-      </QueryClientProvider>
-    </trpc.Provider>
-  </HelmetProvider>
+  <trpc.Provider client={trpcClient} queryClient={queryClient}>
+    <QueryClientProvider client={queryClient}>
+      <App />
+    </QueryClientProvider>
+  </trpc.Provider>
 );

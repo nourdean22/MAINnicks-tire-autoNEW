@@ -11,32 +11,13 @@
  * All messages identify as Nick's Tire & Auto and include
  * the store phone number (216) 862-0005 for callbacks.
  */
-import { STORE_PHONE, STORE_NAME } from "@shared/const";
+import twilio from "twilio";
 
-// ─── Communication log helper (fire-and-forget) ──────
-async function logCommunication(phone: string, type: string, direction: string, body: string, sid?: string) {
-  try {
-    const { getDb } = await import("./db");
-    const { communicationLog } = await import("../drizzle/schema");
-    const db = await getDb();
-    if (!db) return;
-    await db.insert(communicationLog).values({
-      customerPhone: phone,
-      type,
-      direction,
-      body: body.slice(0, 5000),
-      metadata: sid ? { twilioSid: sid } : undefined,
-    });
-  } catch {
-    // Don't let logging failures break SMS sends
-  }
-}
+import { STORE_PHONE, STORE_NAME } from "@shared/const";
 
 // ─── TWILIO CLIENT ─────────────────────────────────────
 
-let _twilioClient: any = null;
-
-async function getTwilioClient() {
+function getTwilioClient() {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
 
@@ -45,11 +26,7 @@ async function getTwilioClient() {
     return null;
   }
 
-  if (!_twilioClient) {
-    const twilio = (await import("twilio")).default;
-    _twilioClient = twilio(accountSid, authToken);
-  }
-  return _twilioClient;
+  return twilio(accountSid, authToken);
 }
 
 function getFromNumber(): string {
@@ -69,7 +46,7 @@ export interface SmsResult {
  * Returns success/failure with Twilio message SID.
  */
 export async function sendSms(to: string, body: string): Promise<SmsResult> {
-  const client = await getTwilioClient();
+  const client = getTwilioClient();
   const from = getFromNumber();
 
   if (!client || !from) {
@@ -90,9 +67,7 @@ export async function sendSms(to: string, body: string): Promise<SmsResult> {
       to: normalized,
     });
 
-    // Log to communication_log
-    logCommunication(normalized, "sms", "outbound", body, message.sid);
-
+    // SMS sent successfully
     return { success: true, sid: message.sid };
   } catch (error: any) {
     console.error(`[SMS] Failed to send to ${normalized}:`, error.message);
@@ -168,35 +143,6 @@ export function thankYouSms(name: string, service: string): string {
 export function reviewRequestSms(name: string): string {
   const firstName = name.split(" ")[0];
   return `Hi ${firstName}, hope your vehicle is running great! If you have 30 seconds, a Google review helps other Cleveland drivers find honest repair:\n\nnickstire.org/review\n\nThank you! — ${STORE_NAME}`;
-}
-
-/**
- * 24-hour appointment reminder SMS
- */
-export function appointmentReminder24hSms(name: string, service: string, vehicle?: string, time?: string): string {
-  const firstName = name.split(" ")[0];
-  const vehicleStr = vehicle ? ` for your ${vehicle}` : "";
-  const timeStr = time ? ` at ${time}` : " tomorrow";
-  return `Hey ${firstName}, we're prepping${vehicleStr}${timeStr}. Parts are staged — see you soon!\n\n${STORE_NAME} — ${STORE_PHONE}`;
-}
-
-/**
- * 1-hour appointment reminder SMS
- */
-export function appointmentReminder1hSms(name: string, vehicle?: string): string {
-  const firstName = name.split(" ")[0];
-  const vehicleStr = vehicle ? ` your ${vehicle}` : "";
-  return `Bay is ready for${vehicleStr}! Fresh coffee & fast Wi-Fi if you're hanging out with us.\n\nDirections: nickstire.org/directions\n\n${STORE_NAME}`;
-}
-
-/**
- * Service complete + DVI link SMS
- */
-export function serviceCompleteSms(name: string, vehicle?: string, inspectionId?: number): string {
-  const firstName = name.split(" ")[0];
-  const vehicleStr = vehicle ? `Your ${vehicle} is` : "Your vehicle is";
-  const dviLink = inspectionId ? `\n\nDigital inspection: nickstire.org/inspection/${inspectionId}` : "";
-  return `${vehicleStr} ready for pickup, ${firstName}!${dviLink}\n\nCome by during business hours. ${STORE_PHONE}`;
 }
 
 /**

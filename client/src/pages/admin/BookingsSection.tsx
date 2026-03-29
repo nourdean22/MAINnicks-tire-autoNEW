@@ -163,10 +163,10 @@ export default function BookingsSection() {
   const bookingStats = useMemo(() => {
     if (!bookings) return { new: 0, confirmed: 0, completed: 0, cancelled: 0, total: 0 };
     return {
-      new: bookings.filter((b: any) => b.status === "new").length,
-      confirmed: bookings.filter((b: any) => b.status === "confirmed").length,
-      completed: bookings.filter((b: any) => b.status === "completed").length,
-      cancelled: bookings.filter((b: any) => b.status === "cancelled").length,
+      new: bookings.filter(b => b.status === "new").length,
+      confirmed: bookings.filter(b => b.status === "confirmed").length,
+      completed: bookings.filter(b => b.status === "completed").length,
+      cancelled: bookings.filter(b => b.status === "cancelled").length,
       total: bookings.length,
     };
   }, [bookings]);

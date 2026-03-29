@@ -29,7 +29,7 @@ export const SEASONAL_PAGES: SeasonalData[] = [
     slug: "winter-car-care-cleveland",
     season: "Winter",
     metaTitle: "Winter Car Care Cleveland | Snow Tires & Cold Weather Prep | Nick's Tire & Auto",
-    metaDescription: "Prepare your vehicle for Cleveland winters. Snow tires, battery testing, antifreeze, and brake inspection. Nick's Tire & Auto (216) 862-0005.",
+    metaDescription: "Prepare your vehicle for Cleveland winters. Snow tires, battery testing, antifreeze, brake inspection, and winter safety checks. Call Nick's Tire & Auto at (216) 862-0005.",
     heroHeadline: "WINTER CAR CARE\nFOR CLEVELAND DRIVERS",
     heroSubline: "Cleveland winters are hard on vehicles. Salt, ice, potholes, and freezing temperatures take a toll on tires, batteries, brakes, and cooling systems. We help you prepare before the first snowfall.",
     intro: "Northeast Ohio winters bring some of the toughest driving conditions in the country. Between lake-effect snow, sub-zero wind chills, and roads covered in salt and brine, your vehicle needs to be ready. At Nick's Tire & Auto, we perform comprehensive winter preparation services to keep you safe and avoid breakdowns when temperatures drop.",

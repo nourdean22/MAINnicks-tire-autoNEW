@@ -22,7 +22,7 @@ export default function ActivitySection() {
   const activities: ActivityItem[] = [];
 
   // Add bookings
-  bookings?.forEach((b: any) => {
+  bookings?.forEach(b => {
     activities.push({
       id: `booking-${b.id}`,
       type: "booking",
@@ -34,7 +34,7 @@ export default function ActivitySection() {
   });
 
   // Add leads
-  leads?.forEach((l: any) => {
+  leads?.forEach(l => {
     activities.push({
       id: `lead-${l.id}`,
       type: "lead",

@@ -42,35 +42,27 @@ async function getSegmentCustomers(segment: "recent" | "lapsed" | "all"): Promis
   const d = await db();
   if (!d) return [];
 
-  const phoneFilter = sql`${customers.phone} IS NOT NULL AND LENGTH(${customers.phone}) >= 10 AND ${customers.smsOptOut} = 0`;
+  const baseQuery = d.select({
+    id: customers.id,
+    firstName: customers.firstName,
+    phone: customers.phone,
+  }).from(customers).where(sql`${customers.phone} IS NOT NULL AND LENGTH(${customers.phone}) >= 10`);
 
   if (segment === "recent") {
     // Active in last 90 days
-    return d.select({
-      id: customers.id,
-      firstName: customers.firstName,
-      phone: customers.phone,
-    }).from(customers).where(and(
-      phoneFilter,
-      sql`${customers.lastVisitDate} IS NOT NULL AND DATEDIFF(CURDATE(), ${customers.lastVisitDate}) <= 90`
-    ));
+    return baseQuery
+      .where(
+        sql`${customers.lastVisitDate} IS NOT NULL AND DATEDIFF(CURDATE(), ${customers.lastVisitDate}) <= 90`
+      );
   } else if (segment === "lapsed") {
     // Haven't visited in 91-365 days
-    return d.select({
-      id: customers.id,
-      firstName: customers.firstName,
-      phone: customers.phone,
-    }).from(customers).where(and(
-      phoneFilter,
-      sql`${customers.lastVisitDate} IS NOT NULL AND DATEDIFF(CURDATE(), ${customers.lastVisitDate}) BETWEEN 91 AND 365`
-    ));
+    return baseQuery
+      .where(
+        sql`${customers.lastVisitDate} IS NOT NULL AND DATEDIFF(CURDATE(), ${customers.lastVisitDate}) BETWEEN 91 AND 365`
+      );
   } else {
     // All customers
-    return d.select({
-      id: customers.id,
-      firstName: customers.firstName,
-      phone: customers.phone,
-    }).from(customers).where(phoneFilter);
+    return baseQuery;
   }
 }
 
@@ -144,7 +136,7 @@ export const campaignsRouter = router({
       segment: z.enum(["recent", "lapsed", "all"]),
       customMessage: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .query(async ({ input }) => {
       const targetCustomers = await getSegmentCustomers(input.segment);
       const sampleCustomers = targetCustomers.slice(0, 5);
 
@@ -153,7 +145,7 @@ export const campaignsRouter = router({
         phone: c.phone,
         message:
           input.customMessage ||
-          CAMPAIGN_TEMPLATES[input.template](c.firstName, input.customMessage ?? undefined),
+          CAMPAIGN_TEMPLATES[input.template](c.firstName, input.customMessage),
       }));
     }),
 
@@ -188,7 +180,7 @@ export const campaignsRouter = router({
       const messageBody = campaign.customMessage ||
         CAMPAIGN_TEMPLATES[campaign.template](
           "{firstName}",
-          campaign.customMessage ?? undefined
+          campaign.customMessage
         );
 
       for (const customer of targetCustomers) {

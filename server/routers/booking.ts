@@ -23,7 +23,6 @@ import { bookings } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { logIntegrationFailure } from "../integration-failures";
 import { withRetry } from "../retry";
-import { onBookingCreated, onBookingCompleted, onInvoiceCreated } from "../nour-os-bridge";
 
 // ─── LABOR GUIDE REFERENCE (for auto-invoice labor estimation) ───
 const SERVICE_LABOR_MAP: Record<string, { hours: number; description: string }> = {
@@ -64,9 +63,7 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
   try {
     const [setting] = await d.select().from(shopSettings).where(eq(shopSettings.key, "laborRate")).limit(1);
     if (setting) laborRate = parseFloat(setting.value);
-  } catch (e) {
-    console.warn("[Booking] Failed to fetch labor rate, using default:", e);
-  }
+  } catch {}
 
   const laborCost = Math.round(labor.hours * laborRate * 100); // cents
   const taxRate = 0.08; // 8% Ohio sales tax on labor
@@ -124,15 +121,7 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
       serviceDescription: labor.description,
     }),
     { maxRetries: 3, baseDelayMs: 1000, label: "notifyInvoiceCreated" }
-  ).catch(err => console.error("[Invoice] Notification failed:", err));
-
-  // NOUR OS: Dispatch invoice event
-  onInvoiceCreated({
-    invoiceNumber,
-    customerName: booking.name,
-    totalAmount: totalAmount / 100,
-    source: "booking",
-  }).catch(err => console.error("[Invoice] NOUR OS dispatch failed:", err));
+  ).catch(() => {});
 
   console.log(`[Invoice] Auto-created ${invoiceNumber} for booking #${booking.id} — $${(totalAmount / 100).toFixed(2)}`);
 }
@@ -143,10 +132,9 @@ async function db() {
 }
 
 function generateRefCode(): string {
-  const { randomInt } = require("crypto") as typeof import("crypto");
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "NT-";
-  for (let i = 0; i < 6; i++) code += chars[randomInt(chars.length)];
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
   return code;
 }
 
@@ -286,18 +274,8 @@ export const bookingRouter = router({
         });
       });
 
-      // Schedule post-booking SMS lifecycle (24h before, 1h before)
-      import("../services/sms-scheduler").then(({ scheduleBookingReminders }) => {
-        const vehicle = [input.vehicleYear, input.vehicleMake, input.vehicleModel].filter(Boolean).join(" ");
-        scheduleBookingReminders(
-          result.id, input.phone, input.name, input.service,
-          input.preferredDate, input.preferredTime, vehicle || undefined
-        ).catch(err => console.error("[SMS Scheduler] Failed to schedule reminders:", err));
-      });
-
       // Meta Conversions API: Send server-side Lead + Schedule events
-      const pixelEventIds = input.pixelEventIds;
-      if (pixelEventIds) {
+      if (input.pixelEventIds) {
         const capiUserData = {
           phone: input.phone,
           email: input.email || undefined,
@@ -308,7 +286,7 @@ export const bookingRouter = router({
         };
         withRetry(
           () => sendLeadEvent({
-            eventId: pixelEventIds.leadEventId,
+            eventId: input.pixelEventIds.leadEventId,
             sourceUrl: SITE_URL,
             contentName: "Booking Form Submission",
             contentCategory: input.service,
@@ -327,7 +305,7 @@ export const bookingRouter = router({
         });
         withRetry(
           () => sendScheduleEvent({
-            eventId: pixelEventIds.scheduleEventId,
+            eventId: input.pixelEventIds.scheduleEventId,
             sourceUrl: SITE_URL,
             service: input.service,
             vehicle: vehicleStr || undefined,
@@ -346,17 +324,6 @@ export const bookingRouter = router({
         });
       }
 
-      // NOUR OS: Dispatch booking event
-      onBookingCreated({
-        id: result.id,
-        name: input.name,
-        phone: input.phone,
-        service: input.service,
-        vehicle: vehicleStr,
-        urgency: input.urgency,
-        refCode,
-      }).catch(err => console.error("[Booking] NOUR OS dispatch failed:", err));
-
       return { ...result, referenceCode: refCode };
       } catch (err) {
         console.error("[Booking] Create failed:", err);
@@ -372,8 +339,7 @@ export const bookingRouter = router({
     }))
     .mutation(async ({ input }) => {
       const buffer = Buffer.from(input.base64, "base64");
-      const { randomBytes } = require("crypto") as typeof import("crypto");
-      const suffix = randomBytes(4).toString("hex");
+      const suffix = Math.random().toString(36).substring(2, 8);
       const key = `booking-photos/${Date.now()}-${suffix}-${input.filename}`;
       const { url } = await storagePut(key, buffer, input.mimeType);
       return { url };
@@ -388,31 +354,16 @@ export const bookingRouter = router({
     .mutation(async ({ input }) => {
       const result = await updateBookingStatus(input.id, input.status);
 
-      // Cancel pending SMS reminders when booking is cancelled
-      if (input.status === "cancelled") {
-        import("../services/sms-scheduler").then(({ cancelBookingReminders }) => {
-          cancelBookingReminders(input.id).catch(err =>
-            console.error(`[SMS Scheduler] Failed to cancel reminders for booking #${input.id}:`, err)
-          );
-        });
-      }
-
-      // All post-completion actions: SMS, review request, reminders, invoice
+      // Auto-schedule Google review request when booking is completed
       if (input.status === "completed") {
         const d = await db();
         if (d) {
           const [booking] = await d.select().from(bookings).where(eq(bookings.id, input.id)).limit(1);
-          if (booking?.phone) {
-            const vehicle = [booking.vehicleYear, booking.vehicleMake, booking.vehicleModel].filter(Boolean).join(" ");
-
-            // Schedule post-service SMS (thank-you, review, maintenance)
-            import("../services/sms-scheduler").then(({ schedulePostServiceReminders }) => {
-              schedulePostServiceReminders(input.id, booking.phone, booking.name, booking.service, vehicle || undefined)
-                .catch(err => console.error(`[SMS Scheduler] Post-service schedule failed:`, err));
-            });
-
-            // Auto-schedule Google review request
+          if (booking && booking.phone) {
             scheduleReviewRequest(booking.id, booking.name, booking.phone, booking.service)
+              .then(r => {
+                // Review request handled
+              })
               .catch(err => {
                 console.error(`[ReviewRequest] Error scheduling for booking #${booking.id}:`, err);
                 logIntegrationFailure({
@@ -432,6 +383,9 @@ export const bookingRouter = router({
               service: booking.service,
               vehicle: booking.vehicle,
             })
+              .then((ids: number[]) => {
+                // Reminders scheduled
+              })
               .catch((err: unknown) => {
                 console.error(`[Reminders] Error scheduling for booking #${booking.id}:`, err);
                 logIntegrationFailure({
@@ -442,13 +396,6 @@ export const bookingRouter = router({
                   errorDetails: err,
                 });
               });
-
-            // NOUR OS: Dispatch booking complete event
-            onBookingCompleted({
-              id: booking.id,
-              name: booking.name,
-              service: booking.service,
-            }).catch(err => console.error("[Booking] NOUR OS complete dispatch failed:", err));
 
             // Auto-create invoice from completed booking
             autoCreateInvoiceFromBooking(d, booking).catch(err => {
@@ -539,23 +486,5 @@ export const bookingRouter = router({
     .input(z.object({ ref: z.string().min(3) }))
     .query(async ({ input }) => {
       return getBookingByRef(input.ref);
-    }),
-
-  /** Save partial form data for abandoned form recovery */
-  savePartial: publicProcedure
-    .input(z.object({
-      sessionId: z.string().min(1),
-      formType: z.enum(["booking", "lead", "callback", "quote"]),
-      name: z.string().optional(),
-      phone: z.string().optional(),
-      email: z.string().optional(),
-      service: z.string().optional(),
-      pageUrl: z.string().optional(),
-    }))
-    .mutation(({ input }) => {
-      import("../services/abandonedForms").then(({ savePartialForm }) => {
-        savePartialForm(input);
-      }).catch(err => console.error("[Booking] Abandoned form capture failed:", err));
-      return { captured: true };
     }),
 });

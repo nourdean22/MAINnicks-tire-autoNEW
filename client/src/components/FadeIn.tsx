@@ -1,7 +1,7 @@
 /**
  * Shared FadeIn animation component.
  * Uses CSS animation with IntersectionObserver for reliable viewport detection.
- * Fixed: reduced timers and threshold to prevent content staying invisible.
+ * Framer Motion whileInView had issues with deep pages — this is bulletproof.
  */
 
 import { useRef, useState, useEffect } from "react";
@@ -20,11 +20,8 @@ export default function FadeIn({ children, className = "", delay = 0 }: FadeInPr
     const el = ref.current;
     if (!el) return;
 
-    // Show immediately on first render to prevent blank pages
-    const immediateTimer = setTimeout(() => setIsVisible(true), 0);
-
-    // Fallback: force visible after 500ms in case IO never fires
-    const fallbackTimer = setTimeout(() => setIsVisible(true), 500);
+    // Fallback: force visible after 3s in case IO never fires (SSR, old browser, etc.)
+    const fallbackTimer = setTimeout(() => setIsVisible(true), 3000);
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -33,13 +30,12 @@ export default function FadeIn({ children, className = "", delay = 0 }: FadeInPr
           observer.disconnect();
         }
       },
-      { threshold: 0, rootMargin: "0px" }
+      { threshold: 0.05, rootMargin: "50px 0px" }
     );
 
     observer.observe(el);
 
     return () => {
-      clearTimeout(immediateTimer);
       clearTimeout(fallbackTimer);
       observer.disconnect();
     };
@@ -59,4 +55,4 @@ export default function FadeIn({ children, className = "", delay = 0 }: FadeInPr
       {children}
     </div>
   );
-        }
+}

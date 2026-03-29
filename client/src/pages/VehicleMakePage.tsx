@@ -15,7 +15,10 @@ function trackPhoneClick(location: string) {
 }
 
 export default function VehicleMakePage() {
-  const { slug } = useParams<{ slug: string }>();
+  // useParams returns {} for static routes (e.g. /chevy-repair-cleveland).
+  // Fall back to the pathname so every vehicle-make route resolves correctly.
+  const { slug: paramSlug } = useParams<{ slug: string }>();
+  const slug = paramSlug || (typeof window !== "undefined" ? window.location.pathname.replace(/^\//, "").split("/")[0] : "");
   const page = slug ? getVehicleMakeBySlug(slug) : undefined;
 
   if (!page) {

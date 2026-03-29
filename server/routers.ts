@@ -54,19 +54,6 @@ import {
   emergencyRouter,
   messengerBotRouter,
   financingRouter,
-  estimatesRouter,
-  serviceMatcherRouter,
-  shopStatusRouter,
-  segmentsRouter,
-  specialsRouter,
-  workOrdersRouter,
-  inventoryRouter,
-  warrantiesRouter,
-  waitlistRouter,
-  fleetRouter,
-  nourOsQuoteRouter,
-  nourOsBridgeRouter,
-  controlCenterRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -146,25 +133,6 @@ export const appRouter = router({
 
   // Financing
   financing: financingRouter,
-
-  // ─── Phase 2 New Features ──────────────────────
-  estimates: estimatesRouter,
-  serviceMatcher: serviceMatcherRouter,
-  shop: shopStatusRouter,
-  segments: segmentsRouter,
-  specials: specialsRouter,
-  workOrders: workOrdersRouter,
-  inventory: inventoryRouter,
-  warranties: warrantiesRouter,
-  waitlist: waitlistRouter,
-  fleet: fleetRouter,
-
-  // ─── NOUR-OS Integration ─────────────────────
-  nourOsQuote: nourOsQuoteRouter,
-  nourOsBridge: nourOsBridgeRouter,
-
-  // Control Center
-  controlCenter: controlCenterRouter,
 });
 
 export type AppRouter = typeof appRouter;

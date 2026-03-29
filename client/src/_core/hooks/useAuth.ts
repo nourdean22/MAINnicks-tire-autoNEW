@@ -42,14 +42,10 @@ export function useAuth(options?: UseAuthOptions) {
   }, [logoutMutation, utils]);
 
   const state = useMemo(() => {
-    try {
-      localStorage.setItem(
-        "nickstire-user-info",
-        JSON.stringify(meQuery.data)
-      );
-    } catch {
-      // localStorage unavailable (private browsing)
-    }
+    localStorage.setItem(
+      "nickstire-user-info",
+      JSON.stringify(meQuery.data)
+    );
     return {
       user: meQuery.data ?? null,
       loading: meQuery.isLoading || logoutMutation.isPending,

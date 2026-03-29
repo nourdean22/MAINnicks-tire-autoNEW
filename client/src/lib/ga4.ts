@@ -1,10 +1,8 @@
 /**
  * GA4 Event Tracking Utility
- * Tracks conversions, form submissions, phone clicks, and custom events.
- * All tracking functions are gated behind consent-manager analytics consent.
+ * Tracks conversions, form submissions, phone clicks, and custom events
+ * Integrates with Google Analytics 4 for attribution and reporting
  */
-
-import { hasConsent } from "@/lib/consent-manager";
 
 // Extend Window interface to include gtag
 declare global {
@@ -18,18 +16,15 @@ export interface GA4Event {
   parameters: Record<string, string | number | boolean>;
 }
 
-/** Returns true if GA4 is available and analytics consent is granted. */
-function canTrack(): boolean {
-  return typeof window !== "undefined" && !!window.gtag && hasConsent("analytics");
-}
-
 /**
- * Initialize GA4 tracking.
- * Should be called after analytics consent is granted.
+ * Initialize GA4 tracking
+ * Assumes gtag is loaded globally via Google Analytics script
  */
 export function initGA4() {
-  if (typeof window !== "undefined" && window.gtag && hasConsent("analytics")) {
-    // GA4 script is loaded via index.html — nothing else needed
+  // GA4 is loaded via script tag in index.html
+  // Check if gtag is available
+  if (typeof window !== 'undefined' && window.gtag) {
+    console.log('[GA4] Initialized');
   }
 }
 
@@ -43,11 +38,11 @@ export function trackFormSubmission(formType: 'booking' | 'lead' | 'callback', d
   source?: string;
   eventId?: string;
 }) {
-  if (!canTrack()) return;
+  if (typeof window === 'undefined' || !window.gtag) return;
 
   const eventName = `form_submission_${formType}`;
   
-  window.gtag!('event', eventName, {
+  window.gtag('event', eventName, {
     event_category: 'form',
     event_label: formType,
     form_type: formType,
@@ -57,6 +52,7 @@ export function trackFormSubmission(formType: 'booking' | 'lead' | 'callback', d
     timestamp: new Date().toISOString(),
   });
 
+  console.log(`[GA4] Tracked: ${eventName}`, data);
 }
 
 /**
@@ -67,9 +63,9 @@ export function trackPhoneClick(context: string, data?: {
   page?: string;
   eventId?: string;
 }) {
-  if (!canTrack()) return;
+  if (typeof window === 'undefined' || !window.gtag) return;
 
-  window.gtag!('event', 'phone_click', {
+  window.gtag('event', 'phone_click', {
     event_category: 'engagement',
     event_label: context,
     source: data?.source || 'direct',
@@ -78,6 +74,7 @@ export function trackPhoneClick(context: string, data?: {
     timestamp: new Date().toISOString(),
   });
 
+  console.log('[GA4] Tracked: phone_click', context);
 }
 
 /**
@@ -87,9 +84,9 @@ export function trackServiceView(serviceType: string, data?: {
   section?: string;
   scrollDepth?: number;
 }) {
-  if (!canTrack()) return;
+  if (typeof window === 'undefined' || !window.gtag) return;
 
-  window.gtag!('event', 'view_service', {
+  window.gtag('event', 'view_service', {
     event_category: 'content',
     service_type: serviceType,
     section: data?.section || 'overview',
@@ -98,6 +95,7 @@ export function trackServiceView(serviceType: string, data?: {
     timestamp: new Date().toISOString(),
   });
 
+  console.log('[GA4] Tracked: view_service', serviceType);
 }
 
 /**
@@ -109,9 +107,9 @@ export function trackChatInteraction(action: 'start' | 'message' | 'convert', da
   messageCount?: number;
   eventId?: string;
 }) {
-  if (!canTrack()) return;
+  if (typeof window === 'undefined' || !window.gtag) return;
 
-  window.gtag!('event', `chat_${action}`, {
+  window.gtag('event', `chat_${action}`, {
     event_category: 'engagement',
     event_label: action,
     vehicle_info: data?.vehicleInfo,
@@ -121,6 +119,7 @@ export function trackChatInteraction(action: 'start' | 'message' | 'convert', da
     timestamp: new Date().toISOString(),
   });
 
+  console.log(`[GA4] Tracked: chat_${action}`);
 }
 
 /**
@@ -131,9 +130,9 @@ export function trackSearch(query: string, data?: {
   category?: string;
   eventId?: string;
 }) {
-  if (!canTrack()) return;
+  if (typeof window === 'undefined' || !window.gtag) return;
 
-  window.gtag!('event', 'search', {
+  window.gtag('event', 'search', {
     event_category: 'engagement',
     search_term: query,
     result_count: data?.resultCount || 0,
@@ -142,6 +141,7 @@ export function trackSearch(query: string, data?: {
     timestamp: new Date().toISOString(),
   });
 
+  console.log('[GA4] Tracked: search', query);
 }
 
 /**
@@ -154,9 +154,9 @@ export function trackPageView(pagePath: string, data?: {
   utm_medium?: string;
   utm_campaign?: string;
 }) {
-  if (!canTrack()) return;
+  if (typeof window === 'undefined' || !window.gtag) return;
 
-  window.gtag!('event', 'page_view', {
+  window.gtag('event', 'page_view', {
     page_path: pagePath,
     page_title: data?.pageTitle || document.title,
     referrer: data?.referrer || document.referrer,
@@ -166,6 +166,7 @@ export function trackPageView(pagePath: string, data?: {
     timestamp: new Date().toISOString(),
   });
 
+  console.log('[GA4] Tracked: page_view', pagePath);
 }
 
 /**

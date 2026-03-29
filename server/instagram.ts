@@ -12,8 +12,6 @@ interface InstagramPost {
   id: string;
   type: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM";
   caption: string;
-  mediaUrl?: string;
-  thumbnailUrl?: string;
   link: string;
   likes: number;
   comments: number;

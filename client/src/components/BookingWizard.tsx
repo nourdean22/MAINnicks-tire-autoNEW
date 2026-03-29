@@ -162,7 +162,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
   // ─── CONFIRMATION STATE ─────────────────────────────
   if (submitted) {
     return (
-      <div className="bg-[#161B22]/80 border border-[rgba(255,255,255,0.1)] rounded-2xl p-8 lg:p-12 text-center">
+      <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-8 lg:p-12 text-center">
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
@@ -175,9 +175,9 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="font-heading font-bold text-[28px] text-foreground tracking-[-0.02em] mb-2 uppercase"
+          className="font-bold text-[28px] text-foreground tracking-[-0.02em] mb-2"
         >
-          You're Locked In, {formData.name.split(" ")[0]}!
+          You're all set, {formData.name.split(" ")[0]}!
         </motion.h3>
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -186,12 +186,14 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
           className="space-y-3"
         >
           <p className="text-foreground/60 text-sm">
-            Your {formData.vehicleYear && formData.vehicleMake
-              ? `${formData.vehicleYear} ${formData.vehicleMake} ${formData.vehicleModel}`
-              : "vehicle"} is confirmed for {formData.service}.
+            {formData.service} appointment requested
+            {formData.vehicleYear && formData.vehicleMake
+              ? ` for your ${formData.vehicleYear} ${formData.vehicleMake} ${formData.vehicleModel}`
+              : ""}
+            .
           </p>
           <p className="text-foreground/40 text-sm">
-            We'll text you a confirmation at {formData.phone}. Check your texts for directions.
+            We'll text you a confirmation shortly at {formData.phone}.
           </p>
           <div className="pt-4">
             <a
@@ -233,7 +235,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                     ? "bg-primary text-primary-foreground"
                     : isCurrent
                     ? "border-2 border-primary text-primary bg-transparent"
-                    : "bg-[#21262D] text-foreground/30"
+                    : "bg-[#2A2A2A] text-foreground/30"
                 }`}
               >
                 {isCompleted ? <Check className="w-4 h-4" /> : stepNum}

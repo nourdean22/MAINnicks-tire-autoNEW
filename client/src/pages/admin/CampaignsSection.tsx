@@ -52,7 +52,7 @@ const SEGMENT_CONFIG: Record<Segment, { label: string; description: string }> = 
   },
 };
 
-export default function CampaignsSection() {
+export function CampaignsSection() {
   const [view, setView] = useState<View>("list");
   const [selectedTemplate, setSelectedTemplate] = useState<Template>("maintenance");
   const [selectedSegment, setSelectedSegment] = useState<Segment>("recent");
@@ -355,7 +355,7 @@ export default function CampaignsSection() {
       {/* Campaigns List */}
       <div className="space-y-3">
         {campaigns && campaigns.length > 0 ? (
-          campaigns.map((campaign: any) => (
+          campaigns.map(campaign => (
             <CampaignRow key={campaign.id} campaign={campaign} />
           ))
         ) : (

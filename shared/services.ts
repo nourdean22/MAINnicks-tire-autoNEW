@@ -70,12 +70,6 @@ export interface ServiceData {
     label: string;
     description: string;
   }[];
-  /** Service-specific proof quotes from real reviews */
-  proofQuotes?: {
-    name: string;
-    text: string;
-    attribute: string; // e.g., "honesty", "fair_price", "women_safe", "speed"
-  }[];
 }
 
 export const SERVICES: ServiceData[] = [
@@ -85,8 +79,8 @@ export const SERVICES: ServiceData[] = [
     title: "TIRES",
     shortDesc: "New and used tires. Mounting, balancing, rotation, TPMS sensors, and flat repair. We carry all major brands at fair prices.",
     metaTitle: "Tire Shop Cleveland OH | New & Used Tires | Nick's Tire & Auto",
-    metaDescription: "New & used tires from $60 in Cleveland. Same-day mounting & balancing. 4.9★ (1,700+ reviews). Walk-ins welcome. Call (216) 862-0005.",
-    heroHeadline: "NEED TIRES? CLEVELAND'S TRUSTED SHOP.",
+    metaDescription: "Cleveland's trusted tire shop. New and used tires, mounting, balancing, rotation, TPMS sensors, and flat repair. Fair prices. Call (216) 862-0005.",
+    heroHeadline: "CLEVELAND'S TIRE EXPERTS",
     heroSubline: "New tires, used tires, flat repair, TPMS sensors, mounting, and balancing. We carry all major brands at prices that make sense.",
     heroCTA: "GET A TIRE QUOTE",
     turnaround: "Most tire installations completed in under an hour. Walk-ins welcome.",
@@ -169,10 +163,7 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "30-60 min",
     startingPrice: "See tire prices",
-    proofQuotes: [
-      { name: "Tammy H.", text: "She made sure I got the best tires for my vehicle at a great price. Fast and professional.", attribute: "fair_price" },
-      { name: "Marcus T.", text: "Walked in needing tires ASAP. They had me out in 45 minutes. Best tire shop in Cleveland.", attribute: "speed" },
-    ],
+
   },
   {
     slug: "brakes",
@@ -180,8 +171,8 @@ export const SERVICES: ServiceData[] = [
     title: "BRAKES",
     shortDesc: "Brake pads, rotors, calipers, brake lines, and ABS diagnostics. We show you the problem before we fix it. Every time.",
     metaTitle: "Brake Repair Cleveland OH | Pads, Rotors, ABS | Nick's Tire & Auto",
-    metaDescription: "Brake repair starting at $89 in Euclid/Cleveland. Pads, rotors, calipers. 36-month warranty on labor. Book online or call (216) 862-0005.",
-    heroHeadline: "BRAKE NOISE? WE'LL FIX IT RIGHT.",
+    metaDescription: "Expert brake repair in Cleveland. Brake pads, rotors, calipers, brake lines, and ABS diagnostics. We show you the problem before we fix it. Call (216) 862-0005.",
+    heroHeadline: "BRAKE REPAIR DONE RIGHT",
     heroSubline: "Squealing, grinding, or soft pedal? We diagnose the exact problem, show you the worn parts, and fix it at a fair price. No guesswork.",
     heroCTA: "SCHEDULE BRAKE INSPECTION",
     turnaround: "Most brake jobs completed same day. Drop off in the morning, drive home by afternoon.",
@@ -264,10 +255,7 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "1-3 hours",
     startingPrice: "FREE inspection",
-    proofQuotes: [
-      { name: "Nurse Summer", text: "The FIRST shop I felt I could trust! Especially as a woman — honest and well done work.", attribute: "women_safe" },
-      { name: "Amber S.", text: "Good, honest work that doesn't break the bank. Today I found them.", attribute: "honesty" },
-    ],
+
   },
   {
     slug: "diagnostics",
@@ -275,8 +263,8 @@ export const SERVICES: ServiceData[] = [
     title: "DIAGNOSTICS",
     shortDesc: "Check engine light, OBD-II code reading, advanced computer diagnostics. We pinpoint the exact cause so you only pay for what you need.",
     metaTitle: "Check Engine Light Repair Cleveland | OBD-II Diagnostics | Nick's Tire & Auto",
-    metaDescription: "Check engine light? OBD-II diagnostics in Cleveland. We find the real problem — no guessing. 4.9★ rated. Call (216) 862-0005.",
-    heroHeadline: "CHECK ENGINE LIGHT ON? WE'LL FIND IT.",
+    metaDescription: "Check engine light on? Advanced OBD-II diagnostics in Cleveland. We pinpoint the exact cause so you only pay for what you need. Call (216) 862-0005.",
+    heroHeadline: "ADVANCED DIAGNOSTICS",
     heroSubline: "Check engine light, warning lights, performance problems. We use advanced OBD-II scanners to find the exact cause — not guess at it.",
     heroCTA: "SCHEDULE DIAGNOSTICS",
     turnaround: "Most diagnostic scans completed within the hour. Complex issues may require extended testing.",
@@ -357,10 +345,7 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "30-60 min",
     startingPrice: "$59.99 (credited toward repair)",
-    proofQuotes: [
-      { name: "David R.", text: "They actually found the real problem — not just what the code said. Saved me hundreds.", attribute: "diagnostic_skill" },
-      { name: "Jennifer M.", text: "Explained everything clearly and didn't try to sell me anything I didn't need.", attribute: "no_pressure" },
-    ],
+
   },
   {
     slug: "emissions",
@@ -451,10 +436,7 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "20-40 min (test) / 1-2 days (repair)",
     startingPrice: "From $24.99",
-    proofQuotes: [
-      { name: "Carlos P.", text: "Failed E-Check twice. They found the real issue and I passed on the first retest.", attribute: "diagnostic_skill" },
-      { name: "Angela W.", text: "Fair price and they explained every step of the emissions repair.", attribute: "transparency" },
-    ],
+
   },
   {
     slug: "oil-change",
@@ -462,8 +444,8 @@ export const SERVICES: ServiceData[] = [
     title: "OIL CHANGE",
     shortDesc: "Conventional and synthetic oil changes with filter replacement. Quick, affordable, done right.",
     metaTitle: "Oil Change Cleveland OH | Synthetic & Conventional | Nick's Tire & Auto",
-    metaDescription: "Quick oil changes in Euclid/Cleveland. Conventional from $39, synthetic from $69. No appointment needed. (216) 862-0005.",
-    heroHeadline: "DUE FOR AN OIL CHANGE? QUICK & HONEST.",
+    metaDescription: "Quick, affordable oil changes in Cleveland. Conventional and full synthetic options with filter replacement. No appointment needed. Call (216) 862-0005.",
+    heroHeadline: "OIL CHANGE SERVICE",
     heroSubline: "Conventional and synthetic oil changes with filter replacement. Quick service, fair prices, and we check your vehicle while it is here.",
     heroCTA: "SCHEDULE OIL CHANGE",
     turnaround: "Most oil changes done in under 30 minutes. No appointment needed.",
@@ -553,7 +535,7 @@ export const SERVICES: ServiceData[] = [
     shortDesc: "Suspension, steering, exhaust, cooling systems, belts, hoses, and more. If it is broken, we fix it.",
     metaTitle: "Auto Repair Cleveland OH | Suspension, Steering, Exhaust | Nick's Tire & Auto",
     metaDescription: "Full-service auto repair in Cleveland. Suspension, steering, exhaust, cooling systems, belts, hoses, and more. Honest work at fair prices. Call (216) 862-0005.",
-    heroHeadline: "SOMETHING WRONG WITH YOUR CAR? WE'LL HELP.",
+    heroHeadline: "FULL-SERVICE AUTO REPAIR",
     heroSubline: "Suspension, steering, exhaust, cooling systems, belts, hoses, electrical, and more. If it is broken, we diagnose it and fix it right.",
     heroCTA: "DESCRIBE YOUR PROBLEM",
     turnaround: "Most repairs completed same day or next day. We call you with updates.",
@@ -604,7 +586,7 @@ export const SERVICES: ServiceData[] = [
     quickAnswers: [
       {
         question: "How do I find a trustworthy mechanic in Cleveland?",
-        answer: "Look for a shop with a high volume of verified Google reviews, transparent pricing, and technicians who explain repairs before performing them. Nick's Tire & Auto has over 1,700 Google reviews at 4.9 stars. We provide written estimates, show you the problem before we fix it, and never pressure you into unnecessary repairs."
+        answer: "Look for a shop with a high volume of verified Google reviews, transparent pricing, and technicians who explain repairs before performing them. Nick's Tire & Auto has over 1,685 Google reviews at 4.9 stars. We provide written estimates, show you the problem before we fix it, and never pressure you into unnecessary repairs."
       },
       {
         question: "What are signs my car needs suspension repair?",
@@ -804,7 +786,7 @@ export const SERVICES: ServiceData[] = [
     shortDesc: "Transmission fluid service, diagnostics, repair, and rebuilds. We handle both automatic and manual transmissions.",
     metaTitle: "Transmission Repair Cleveland OH | Nick's Tire & Auto",
     metaDescription: "Transmission repair and service in Cleveland. Fluid changes, diagnostics, solenoid repair, rebuilds. Automatic and manual. Honest diagnosis. (216) 862-0005.",
-    heroHeadline: "TRANSMISSION SLIPPING? DON'T WAIT.",
+    heroHeadline: "TRANSMISSION SERVICE & REPAIR",
     heroSubline: "Transmission problems get expensive fast if ignored. Our technicians diagnose transmission issues accurately and give you honest repair options — from a simple fluid service to a full rebuild.",
     heroCTA: "DIAGNOSE MY TRANSMISSION",
     turnaround: "Fluid service same day. Repairs 1-3 days. Rebuilds quoted individually.",
@@ -859,7 +841,7 @@ export const SERVICES: ServiceData[] = [
     shortDesc: "Battery, alternator, starter, wiring, fuses, power windows, and complete electrical diagnostics.",
     metaTitle: "Auto Electrical Repair Cleveland OH | Nick's Tire & Auto",
     metaDescription: "Auto electrical repair in Cleveland. Battery, alternator, starter, wiring, power windows, fuses. Expert diagnostics. Walk-ins welcome. (216) 862-0005.",
-    heroHeadline: "ELECTRICAL ISSUES? WE TRACE THE PROBLEM.",
+    heroHeadline: "ELECTRICAL DIAGNOSTICS & REPAIR",
     heroSubline: "Modern vehicles have thousands of circuits. When electrical problems strike, our technicians use advanced diagnostic tools to trace the issue to the exact component — no guesswork.",
     heroCTA: "DIAGNOSE ELECTRICAL ISSUE",
     turnaround: "Battery and alternator: same day. Wiring issues: 1-2 days.",
@@ -913,7 +895,7 @@ export const SERVICES: ServiceData[] = [
     shortDesc: "Battery testing, replacement, terminal cleaning, and charging system diagnostics. Don't get stranded.",
     metaTitle: "Battery Testing & Replacement Cleveland | Nick's Tire & Auto",
     metaDescription: "Car battery testing and replacement in Cleveland. Free battery test. Charging system check. All makes and models. Walk-ins welcome. (216) 862-0005.",
-    heroHeadline: "DEAD BATTERY? WE'LL GET YOU GOING.",
+    heroHeadline: "BATTERY TESTING & REPLACEMENT",
     heroSubline: "Cleveland winters kill batteries. Don't wait until you're stranded. We test your battery for free and replace it on the spot if needed.",
     heroCTA: "TEST MY BATTERY FREE",
     turnaround: "Battery replacement done in 15–30 minutes. Walk in anytime.",
@@ -961,7 +943,7 @@ export const SERVICES: ServiceData[] = [
     shortDesc: "Muffler, catalytic converter, exhaust pipe, manifold, and resonator repair. Quiet your ride and pass emissions.",
     metaTitle: "Exhaust & Muffler Repair Cleveland OH | Nick's Tire & Auto",
     metaDescription: "Exhaust and muffler repair in Cleveland. Catalytic converter, exhaust pipe, manifold, resonator. Pass Ohio E-Check. Walk-ins welcome. (216) 862-0005.",
-    heroHeadline: "LOUD EXHAUST? WE'LL QUIET IT DOWN.",
+    heroHeadline: "EXHAUST & MUFFLER REPAIR",
     heroSubline: "Loud exhaust, failed emissions, or a check engine light for a catalytic converter — we handle the entire exhaust system from manifold to tailpipe.",
     heroCTA: "FIX MY EXHAUST",
     turnaround: "Most exhaust repairs completed same day.",
@@ -1009,8 +991,8 @@ export const SERVICES: ServiceData[] = [
     title: "COOLING SYSTEM",
     shortDesc: "Radiator, water pump, thermostat, coolant flush, hoses, and overheating diagnostics. Don't blow a head gasket.",
     metaTitle: "Cooling System Repair Cleveland OH | Radiator Service | Nick's Tire & Auto",
-    metaDescription: "Cooling system & radiator repair in Cleveland. Water pump, thermostat, coolant flush, hose replacement. Walk-ins welcome. (216) 862-0005.",
-    heroHeadline: "OVERHEATING? WE FIX IT BEFORE IT'S WORSE.",
+    metaDescription: "Cooling system and radiator repair in Cleveland. Water pump, thermostat, coolant flush, hose replacement. Don't risk overheating. Walk-ins welcome. (216) 862-0005.",
+    heroHeadline: "COOLING SYSTEM & RADIATOR",
     heroSubline: "An overheating engine can destroy itself in minutes. We diagnose cooling system problems fast and get your engine running at the right temperature.",
     heroCTA: "FIX OVERHEATING",
     turnaround: "Most cooling repairs completed same day. Coolant flush: 1 hour.",
@@ -1061,7 +1043,7 @@ export const SERVICES: ServiceData[] = [
     shortDesc: "Buying a used car? We inspect it bumper-to-bumper before you hand over your money. Don't buy someone else's problems.",
     metaTitle: "Pre-Purchase Car Inspection Cleveland | Nick's Tire & Auto",
     metaDescription: "Used car inspection in Cleveland before you buy. Bumper-to-bumper check. Engine, transmission, brakes, frame, tires. Know what you're buying. (216) 862-0005.",
-    heroHeadline: "BUYING A USED CAR? GET IT INSPECTED FIRST.",
+    heroHeadline: "PRE-PURCHASE INSPECTION",
     heroSubline: "Buying a used car is a gamble — unless you get it inspected first. Our technicians check everything from engine health to frame condition so you know exactly what you are buying.",
     heroCTA: "SCHEDULE INSPECTION",
     turnaround: "Inspections completed in 1-2 hours. Walk-ins welcome.",
@@ -1108,7 +1090,7 @@ export const SERVICES: ServiceData[] = [
     shortDesc: "Serpentine belt, timing belt, radiator hoses, heater hoses. Prevent breakdowns with preventive replacement.",
     metaTitle: "Belt & Hose Replacement Cleveland OH | Nick's Tire & Auto",
     metaDescription: "Serpentine belt, timing belt, and hose replacement in Cleveland. Prevent breakdowns. Expert service, fair prices. Walk-ins welcome. (216) 862-0005.",
-    heroHeadline: "SQUEALING BELT? LEAKING HOSE? WE FIX IT.",
+    heroHeadline: "BELT & HOSE SERVICE",
     heroSubline: "Belts and hoses are rubber — they crack, dry out, and fail with age and heat. A $50 belt replacement prevents a $500 tow and a ruined day.",
     heroCTA: "CHECK MY BELTS",
     turnaround: "Serpentine belt: under 1 hour. Timing belt: 4-8 hours.",
@@ -1157,7 +1139,7 @@ export const SERVICES: ServiceData[] = [
     shortDesc: "Starter motor, alternator, and charging system diagnostics and replacement. Get back on the road fast.",
     metaTitle: "Starter & Alternator Repair Cleveland OH | Nick's Tire & Auto",
     metaDescription: "Starter and alternator repair in Cleveland. Charging system diagnostics. Same-day replacement. All makes and models. Walk-ins welcome. (216) 862-0005.",
-    heroHeadline: "CAR WON'T START? WE DIAGNOSE IT FAST.",
+    heroHeadline: "STARTER & ALTERNATOR",
     heroSubline: "If your car won't start or your battery keeps dying, the starter or alternator is likely the culprit. We test both and replace only what actually failed.",
     heroCTA: "DIAGNOSE NO-START",
     turnaround: "Most starter and alternator replacements completed same day.",

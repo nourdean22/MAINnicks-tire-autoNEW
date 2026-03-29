@@ -31,7 +31,7 @@ export default function FollowUpsSection() {
 
   const runFollowUps = trpc.followUps.run.useMutation({
     onSuccess: (data) => {
-      toast.success(`Processed ${data.processed} follow-ups (${data.sent} sent)`);
+      toast.success(`Processed ${data.total} follow-ups`);
       utils.followUps.pending.invalidate();
       utils.followUps.recent.invalidate();
     },
@@ -40,8 +40,8 @@ export default function FollowUpsSection() {
 
   const isLoading = pendingLoading || recentLoading;
   const pendingCount = pending?.length ?? 0;
-  const sentCount = recent?.filter((n: any) => n.status === "sent").length ?? 0;
-  const failedCount = recent?.filter((n: any) => n.status === "failed").length ?? 0;
+  const sentCount = recent?.filter(n => n.status === "sent").length ?? 0;
+  const failedCount = recent?.filter(n => n.status === "failed").length ?? 0;
 
   return (
     <div className="space-y-6">
@@ -90,7 +90,7 @@ export default function FollowUpsSection() {
                 <AlertCircle className="w-4 h-4" /> PENDING ({pendingCount})
               </h3>
               <div className="space-y-2">
-                {pending?.map((fu: any) => {
+                {pending?.map(fu => {
                   const cfg = TYPE_CONFIG[fu.notificationType] || TYPE_CONFIG.follow_up;
                   return (
                     <div key={fu.id} className="bg-card border border-border/30 p-4 flex items-center gap-4">
@@ -127,7 +127,7 @@ export default function FollowUpsSection() {
               </div>
             ) : (
               <div className="space-y-2">
-                {recent?.map((fu: any) => {
+                {recent?.map(fu => {
                   const cfg = TYPE_CONFIG[fu.notificationType] || TYPE_CONFIG.follow_up;
                   return (
                     <div key={fu.id} className="bg-card border border-border/30 p-4 flex items-center gap-4">

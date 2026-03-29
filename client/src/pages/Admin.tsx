@@ -46,7 +46,6 @@ const CallTrackingSection = lazy(() => import("./admin/CallTrackingSection"));
 const ExportSection = lazy(() => import("./admin/ExportSection"));
 const CampaignsSection = lazy(() => import("./admin/CampaignsSection"));
 const FinancingSection = lazy(() => import("./admin/FinancingSection"));
-const NourOsBridgeSection = lazy(() => import("./admin/NourOsBridgeSection"));
 
 function SectionSpinner() {
   return (
@@ -92,7 +91,6 @@ function SectionContent({ section }: { section: AdminSection }) {
       {section === "analyticsView" && <AnalyticsSection />}
       {section === "callTrackingView" && <CallTrackingSection />}
       {section === "exportView" && <ExportSection />}
-      {section === "nourOsBridge" && <NourOsBridgeSection />}
     </Suspense>
   );
 }
@@ -195,13 +193,6 @@ export default function Admin() {
             <X className="w-4 h-4" />
           </button>
         </div>
-
-        {/* Control Center Quick Link */}
-        <Link href="/cc" className="mx-3 mt-3 flex items-center gap-2 px-3 py-2.5 rounded-lg bg-[#FDB913]/10 border border-[#FDB913]/20 hover:bg-[#FDB913]/20 transition-colors group">
-          <Sparkles className="w-4 h-4 text-[#FDB913]" />
-          <span className="text-xs font-semibold text-[#FDB913] tracking-tight">Control Center</span>
-          <ChevronRight className="w-3 h-3 text-[#FDB913]/50 ml-auto group-hover:translate-x-0.5 transition-transform" />
-        </Link>
 
         {/* Nav Items — Grouped */}
         <nav className="flex-1 py-3 px-3 space-y-4 overflow-y-auto">

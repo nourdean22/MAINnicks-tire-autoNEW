@@ -18,6 +18,10 @@
 
 import { ENV } from "./_core/env";
 import { notifyOwner } from "./_core/notification";
+import { exec } from "child_process";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
 
 // ─── Delivery Log (in-memory ring buffer, last 100 entries) ───
 interface DeliveryLogEntry {
@@ -90,45 +94,68 @@ const ROUTING_TABLE: Record<NotifyCategory, RouteConfig> = {
   sms_reply:     { shopEmail: true,  ceoEmail: false, pushNotify: true },
 };
 
-// ─── Email Sender via Resend ──────────────────────────────
-let _resend: any = null;
-
-async function getResend() {
-  if (!_resend) {
-    const apiKey = process.env.RESEND_API_KEY;
-    if (!apiKey) return null;
-    const { Resend } = await import("resend");
-    _resend = new Resend(apiKey);
-  }
-  return _resend;
-}
-
-async function sendEmailResend(
+// ─── Email Sender via Gmail MCP ───────────────────────────
+async function sendGmailMCP(
   to: string[],
   subject: string,
   content: string,
-): Promise<{ sent: boolean }> {
+  cc?: string[]
+): Promise<{ sent: boolean; messageIds?: string[] }> {
   try {
-    const resend = await getResend();
-    if (!resend) {
-      console.warn("[Email] Resend not configured (missing RESEND_API_KEY)");
-      return { sent: false };
+    const message: Record<string, unknown> = {
+      subject,
+      to,
+      content,
+    };
+    if (cc && cc.length > 0) {
+      message.cc = cc;
     }
 
-    const fromAddress = process.env.EMAIL_FROM || "Nick's Tire & Auto <noreply@nickstire.org>";
+    const input = JSON.stringify({ messages: [message] });
+    // Escape single quotes in the JSON for shell
+    const escapedInput = input.replace(/'/g, "'\\''");
 
-    await resend.emails.send({
-      from: fromAddress,
-      to,
-      subject,
-      text: content,
-    });
+    const { stdout } = await execAsync(
+      `manus-mcp-cli tool call gmail_send_messages --server gmail --input '${escapedInput}'`,
+      { timeout: 30000 }
+    );
 
-    console.log(`[Email] Sent via Resend: "${subject}" → ${to.length} recipient(s)`);
-    return { sent: true };
+    // Try to extract message IDs from the result for label application
+    const messageIds: string[] = [];
+    const idMatch = stdout.match(/message[_ ]?id["\s:]+([a-zA-Z0-9]+)/gi);
+    if (idMatch) {
+      for (const m of idMatch) {
+        const id = m.replace(/.*[:\s"]+/, "").trim();
+        if (id) messageIds.push(id);
+      }
+    }
+
+    return { sent: true, messageIds };
   } catch (error) {
-    console.warn("[Email] Resend send failed:", error);
+    console.warn("[Email] Gmail MCP send failed:", error);
     return { sent: false };
+  }
+}
+
+// ─── Apply Gmail Label to messages ────────────────────────
+async function applyGmailLabel(messageIds: string[], labelId: string): Promise<void> {
+  if (!messageIds.length || !labelId) return;
+
+  try {
+    const input = JSON.stringify({
+      operation: "apply",
+      label_id: labelId,
+      message_ids: messageIds,
+    });
+    const escapedInput = input.replace(/'/g, "'\\''");
+
+    await execAsync(
+      `manus-mcp-cli tool call gmail_manage_labels --server gmail --input '${escapedInput}'`,
+      { timeout: 15000 }
+    );
+    console.log(`[Email] Applied label ${labelId} to ${messageIds.length} message(s)`);
+  } catch (error) {
+    console.warn("[Email] Label application failed:", error);
   }
 }
 
@@ -167,13 +194,38 @@ export async function sendNotification(input: NotifyInput): Promise<{
   let emailSent = false;
   let retried = false;
   if (recipients.length > 0) {
-    let result = await sendEmailResend(recipients, input.subject, input.body);
+    let result = await sendGmailMCP(recipients, input.subject, input.body);
     if (!result.sent) {
+      // Retry once after 2 second delay
       retried = true;
       await new Promise(r => setTimeout(r, 2000));
-      result = await sendEmailResend(recipients, input.subject, input.body);
+      result = await sendGmailMCP(recipients, input.subject, input.body);
     }
     emailSent = result.sent;
+
+    // Apply Gmail label to the sent message for organization
+    if (result.sent && route.gmailLabel) {
+      // Search for the recently sent message to get its ID for labeling
+      try {
+        const searchInput = JSON.stringify({
+          query: `subject:"${input.subject.slice(0, 50)}" newer_than:1m`,
+          max_results: 1,
+        });
+        const escapedSearch = searchInput.replace(/'/g, "'\\''");
+        const { stdout } = await execAsync(
+          `manus-mcp-cli tool call gmail_search_messages --server gmail --input '${escapedSearch}'`,
+          { timeout: 15000 }
+        );
+
+        // Extract message ID from search result
+        const msgIdMatch = stdout.match(/"id"\s*:\s*"([^"]+)"/);
+        if (msgIdMatch && msgIdMatch[1]) {
+          await applyGmailLabel([msgIdMatch[1]], route.gmailLabel);
+        }
+      } catch (labelErr) {
+        console.warn("[Email] Could not apply label after send:", labelErr);
+      }
+    }
   }
 
   // Send push notification (Manus notification service)
@@ -200,23 +252,9 @@ export async function sendNotification(input: NotifyInput): Promise<{
     retried,
   });
 
-  // Log to persistent communication_log (fire-and-forget)
-  try {
-    const { getDb } = await import("./db");
-    const { communicationLog } = await import("../drizzle/schema");
-    const db = await getDb();
-    if (db) {
-      await db.insert(communicationLog).values({
-        type: "email",
-        direction: "outbound",
-        subject: input.subject,
-        body: input.body.slice(0, 5000),
-        metadata: { category: input.category, recipients, emailSent, pushSent },
-      });
-    }
-  } catch {
-    // Don't let logging failures break notifications
-  }
+  console.log(
+    `[Notify] category=${input.category} email=${emailSent ? "sent" : "skipped"}${retried ? " (retried)" : ""} push=${pushSent ? "sent" : "skipped"} recipients=${recipients.join(",") || "none"}`
+  );
 
   return { emailSent, pushSent, recipients };
 }
