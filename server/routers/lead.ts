@@ -15,7 +15,7 @@ import { logIntegrationFailure } from "../integration-failures";
 import { withRetry } from "../retry";
 import { sendSms, leadConfirmationSms } from "../sms";
 import { SITE_URL } from "@shared/business";
-import { handleAfterHoursCapture } from "../services/afterHours";
+import { handleAfterHoursCapture, isAfterHours } from "../services/afterHours";
 import { alertNewLead } from "../services/telegram";
 
 async function db() {
@@ -182,23 +182,26 @@ export const leadRouter = router({
         });
       }
 
-      // Send SMS confirmation to customer
-      withRetry(
-        () => sendSms(input.phone, leadConfirmationSms(input.name)),
-        { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (lead confirmation)" }
-      ).catch(err => {
-        console.error("[SMS] Lead confirmation failed:", err);
-        logIntegrationFailure({
-          failureType: "sms",
-          entityId: leadId,
-          entityType: "lead",
-          errorMessage: err instanceof Error ? err.message : String(err),
-          errorDetails: err,
+      // Send SMS: after-hours gets a different message than during business hours
+      if (isAfterHours()) {
+        handleAfterHoursCapture({ name, phone, type: "lead" }).catch(() => {});
+      } else {
+        withRetry(
+          () => sendSms(input.phone, leadConfirmationSms(input.name)),
+          { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (lead confirmation)" }
+        ).catch(err => {
+          console.error("[SMS] Lead confirmation failed:", err);
+          logIntegrationFailure({
+            failureType: "sms",
+            entityId: leadId,
+            entityType: "lead",
+            errorMessage: err instanceof Error ? err.message : String(err),
+            errorDetails: err,
+          });
         });
-      });
+      }
 
-      // After-hours auto-SMS + Telegram alert (fire-and-forget)
-      handleAfterHoursCapture({ name, phone, type: "lead" }).catch(() => {});
+      // Telegram alert (always, regardless of hours)
       alertNewLead({ name, phone, service: scoring.recommendedService, source: input.source }).catch(() => {});
 
       return {
