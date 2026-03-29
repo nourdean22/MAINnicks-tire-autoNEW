@@ -41,7 +41,10 @@ export type NourOsEventType =
   | "nickstire:revenue"
   | "nickstire:vendor_health"
   | "nickstire:vendor_degraded"
-  | "nickstire:vendor_recovered";
+  | "nickstire:vendor_recovered"
+  | "nickstire:work_order"
+  | "nickstire:work_order:status"
+  | "nickstire:shop_floor";
 
 export interface NourOsEvent {
   type: NourOsEventType;
@@ -335,4 +338,48 @@ export async function dispatchVendorHealthSnapshot(results: Array<{
 
     previousVendorStates.set(result.vendor, result.status);
   }
+}
+
+// ─── Shop Floor Snapshot ────────────────────────────────
+
+/**
+ * Dispatch shop floor snapshot to NOUR OS.
+ * Contains work order stats for the command deck card and daily brief.
+ */
+export async function dispatchShopFloorSnapshot(): Promise<void> {
+  try {
+    const { getWorkOrderStats } = await import("./services/workOrderService");
+    const stats = await getWorkOrderStats();
+
+    await dispatchEvent("nickstire:shop_floor", {
+      active: stats.active,
+      inProgress: stats.inProgress,
+      blocked: stats.blocked,
+      overdue: stats.overdue,
+      readyForPickup: stats.readyForPickup,
+      totalValueInProgress: stats.totalValueInProgress,
+      byStatus: stats.byStatus,
+    });
+  } catch (err) {
+    log.warn("Shop floor snapshot dispatch failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/** Dispatch work order status change event */
+export function onWorkOrderStatusChange(details: {
+  workOrderId: string;
+  orderNumber: string;
+  fromStatus: string;
+  toStatus: string;
+  service?: string;
+}) {
+  return dispatchEvent("nickstire:work_order:status", {
+    workOrderId: details.workOrderId,
+    orderNumber: details.orderNumber,
+    fromStatus: details.fromStatus,
+    toStatus: details.toStatus,
+    service: details.service || null,
+  });
 }

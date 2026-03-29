@@ -17,4 +17,17 @@ export const nourOsBridgeRouter = router({
     .query(({ input }) => {
       return getRecentEvents(input?.limit || 50);
     }),
+
+  /** Get shop floor snapshot (work order stats for command deck) */
+  shopFloor: adminProcedure.query(async () => {
+    const { getWorkOrderStats } = await import("../services/workOrderService");
+    return getWorkOrderStats();
+  }),
+
+  /** Force push shop floor snapshot to NOUR OS */
+  pushShopFloor: adminProcedure.mutation(async () => {
+    const { dispatchShopFloorSnapshot } = await import("../nour-os-bridge");
+    await dispatchShopFloorSnapshot();
+    return { success: true };
+  }),
 });
