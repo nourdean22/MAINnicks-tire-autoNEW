@@ -6,6 +6,7 @@ import path from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import rateLimit from "express-rate-limit";
 import { registerOAuthRoutes } from "./oauth";
+import { registerBridgeRoutes } from "../routes/bridge";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { healthHandler, pingHandler, readyHandler } from "../lib/health";
@@ -127,6 +128,9 @@ async function startServer() {
   app.get("/api/ping", pingHandler);        // Lightweight liveness probe
   app.get("/api/ready", readyHandler);      // Readiness probe (checks DB)
   app.get("/api/health", healthHandler);    // Full health check (DB latency, memory, services)
+
+  // Bridge API — NOUR OS integration (auth via X-Bridge-Key header)
+  registerBridgeRoutes(app);
 
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);

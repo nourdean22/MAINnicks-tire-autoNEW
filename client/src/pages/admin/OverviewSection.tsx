@@ -11,7 +11,7 @@ import {
   Activity, AlertTriangle, BarChart3, Bell, CalendarClock, CheckCircle2,
   ChevronRight, ExternalLink, FileSpreadsheet, FileText, Globe, Hash,
   Loader2, MessageSquare, Newspaper, PieChart, Send, Sparkles, Star,
-  TrendingUp, Users, XCircle, Zap,
+  TrendingUp, Users, XCircle, Zap, Radio, PhoneCall, Clock, Cpu,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
@@ -95,6 +95,67 @@ export default function OverviewSection() {
           trend={stats.chat.thisWeek > 0 ? "up" : "neutral"}
           trendLabel={`${stats.chat.thisWeek} this week`}
         />
+      </div>
+
+      {/* ─── PRIORITY RAIL — Today's hot items ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        {/* Urgent Leads */}
+        <div className={`stat-card !p-4 ${stats.leads.urgent > 0 ? "!border-red-500/30" : ""}`}>
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className={`w-3.5 h-3.5 ${stats.leads.urgent > 0 ? "text-red-400" : "text-muted-foreground"}`} />
+            <span className="text-[11px] font-semibold text-muted-foreground tracking-wide uppercase">Urgent Leads</span>
+          </div>
+          <p className={`text-2xl font-bold tracking-tight ${stats.leads.urgent > 0 ? "text-red-400" : "text-muted-foreground"}`}>
+            {stats.leads.urgent}
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            {stats.leads.urgent > 0 ? "Uncontacted 2h+" : "All clear"}
+          </p>
+        </div>
+
+        {/* Today's Bookings */}
+        <div className="stat-card !p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <CalendarClock className="w-3.5 h-3.5 text-blue-400" />
+            <span className="text-[11px] font-semibold text-muted-foreground tracking-wide uppercase">This Week</span>
+          </div>
+          <p className="text-2xl font-bold tracking-tight text-foreground">{stats.bookings.thisWeek}</p>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            {stats.bookings.new} new, {stats.bookings.confirmed} confirmed
+          </p>
+        </div>
+
+        {/* Callbacks */}
+        <div className={`stat-card !p-4 ${stats.callbacks.new > 0 ? "!border-amber-500/30" : ""}`}>
+          <div className="flex items-center gap-2 mb-2">
+            <PhoneCall className={`w-3.5 h-3.5 ${stats.callbacks.new > 0 ? "text-amber-400" : "text-muted-foreground"}`} />
+            <span className="text-[11px] font-semibold text-muted-foreground tracking-wide uppercase">Callbacks</span>
+          </div>
+          <p className={`text-2xl font-bold tracking-tight ${stats.callbacks.new > 0 ? "text-amber-400" : "text-muted-foreground"}`}>
+            {stats.callbacks.new}
+          </p>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            {stats.callbacks.total} total, {stats.callbacks.completed} done
+          </p>
+        </div>
+
+        {/* NOUR OS Bridge */}
+        <a
+          href="https://autonicks.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="stat-card !p-4 !border-primary/20 hover:!border-primary/40 transition-colors group cursor-pointer"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <Cpu className="w-3.5 h-3.5 text-primary" />
+            <span className="text-[11px] font-semibold text-muted-foreground tracking-wide uppercase">NOUR OS</span>
+            <ExternalLink className="w-3 h-3 text-muted-foreground/40 group-hover:text-primary ml-auto transition-colors" />
+          </div>
+          <p className="text-sm font-medium text-primary/80">Awaiting connection</p>
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Owner Command Center
+          </p>
+        </a>
       </div>
 
       {/* ─── SECONDARY METRICS ─── */}
