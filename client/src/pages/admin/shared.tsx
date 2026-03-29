@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing";
+export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -88,6 +88,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Operations",
     items: [
+      { id: "workOrders", label: "Work Orders", icon: <Wrench className="w-4 h-4" /> },
       { id: "inspections", label: "Inspections", icon: <ClipboardList className="w-4 h-4" /> },
       { id: "loyalty", label: "Loyalty", icon: <Trophy className="w-4 h-4" /> },
       { id: "qa", label: "Q&A", icon: <MessageSquare className="w-4 h-4" /> },
@@ -140,6 +141,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   callTrackingView: "Call Tracking",
   exportView: "Export Data",
   financing: "Financing Command",
+  workOrders: "Work Order Board",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────

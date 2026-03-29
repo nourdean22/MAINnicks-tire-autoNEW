@@ -39,3 +39,4 @@ export { emergencyRouter } from "./emergency";
 export { messengerBotRouter } from "./messengerBot";
 export { financingRouter } from "./financing";
 export { nourOsBridgeRouter } from "./nourOsBridge";
+export { workOrdersRouter } from "./workOrders";
