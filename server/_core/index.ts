@@ -367,6 +367,14 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+
+    // Start cron jobs after server is listening
+    import("../cron").then(({ startAllJobs }) => {
+      startAllJobs();
+      console.log("[Cron] Background jobs started");
+    }).catch((err) => {
+      console.error("[Cron] Failed to start background jobs:", err);
+    });
   });
 }
 

@@ -169,6 +169,25 @@ export function leadConfirmationSms(name: string): string {
   const firstName = name.split(" ")[0];
   return `Thanks for contacting ${STORE_NAME}! We received your request and will call you shortly. Questions? Call us at ${STORE_PHONE}`;
 }
+/**
+ * Appointment reminder — 24 hours before
+ */
+export function appointmentReminder24hSms(name: string, service: string, vehicle?: string, preferredTime?: string): string {
+  const firstName = name.split(" ")[0];
+  const vehicleNote = vehicle ? ` for your ${vehicle}` : "";
+  const timeNote = preferredTime ? ` at ${preferredTime}` : "";
+  return `Hi ${firstName}, reminder: your ${service.toLowerCase()} appointment${vehicleNote} is tomorrow${timeNote}. If you need to reschedule, call ${STORE_PHONE}.\n\n— ${STORE_NAME}`;
+}
+
+/**
+ * Appointment reminder — 1 hour before
+ */
+export function appointmentReminder1hSms(name: string, vehicle?: string): string {
+  const firstName = name.split(" ")[0];
+  const vehicleNote = vehicle ? ` with your ${vehicle}` : "";
+  return `Hi ${firstName}, your appointment at ${STORE_NAME} is in about 1 hour${vehicleNote}. See you soon! ${STORE_PHONE}`;
+}
+
 // ─── EXPORTS ───────────────────────────────────────────
 
 export { normalizePhone, STORE_PHONE, STORE_NAME };
