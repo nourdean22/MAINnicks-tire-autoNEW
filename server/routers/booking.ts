@@ -23,6 +23,8 @@ import { bookings } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { logIntegrationFailure } from "../integration-failures";
 import { withRetry } from "../retry";
+import { handleAfterHoursCapture } from "../services/afterHours";
+import { alertNewBooking } from "../services/telegram";
 
 // ─── LABOR GUIDE REFERENCE (for auto-invoice labor estimation) ───
 const SERVICE_LABOR_MAP: Record<string, { hours: number; description: string }> = {
@@ -323,6 +325,10 @@ export const bookingRouter = router({
           });
         });
       }
+
+      // After-hours auto-SMS + Telegram alert (fire-and-forget)
+      handleAfterHoursCapture({ name, phone, type: "booking" }).catch(() => {});
+      alertNewBooking({ name, phone, service, date: input.preferredDate || undefined }).catch(() => {});
 
       return { ...result, referenceCode: refCode };
       } catch (err) {
