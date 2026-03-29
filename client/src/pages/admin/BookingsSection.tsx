@@ -226,6 +226,19 @@ export default function BookingsSection() {
         </div>
       </div>
 
+      {/* Quick Actions */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Link href="/book" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-[11px] tracking-wide hover:bg-primary/90 transition-colors">
+          <CalendarClock className="w-3 h-3" /> New Booking
+        </Link>
+        <a href={`tel:${BUSINESS.phone}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border/30 text-foreground/60 text-[11px] tracking-wide hover:text-foreground hover:border-primary/30 transition-colors">
+          <Phone className="w-3 h-3" /> Call Shop
+        </a>
+        <a href="https://autonicks.com" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-primary/20 text-primary/70 text-[11px] tracking-wide hover:text-primary hover:border-primary/40 transition-colors ml-auto">
+          <Eye className="w-3 h-3" /> NOUR OS
+        </a>
+      </div>
+
       {/* Bookings List */}
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
