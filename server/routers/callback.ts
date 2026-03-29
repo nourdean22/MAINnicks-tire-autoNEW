@@ -12,6 +12,8 @@ import { leads } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone } from "../sanitize";
 import { sendLeadEvent } from "../meta-capi";
 import { SITE_URL } from "@shared/business";
+import { handleAfterHoursCapture } from "../services/afterHours";
+import { alertNewLead } from "../services/telegram";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -116,6 +118,10 @@ export const callbackRouter = router({
           contentCategory: input.sourcePage || "website",
         }).catch(err => console.error("[CAPI] Callback lead event failed:", err));
       }
+
+      // After-hours auto-SMS + Telegram alert (fire-and-forget)
+      handleAfterHoursCapture({ name, phone, type: "callback" }).catch(() => {});
+      alertNewLead({ name, phone, service: input.context || "Callback", source: "callback" }).catch(() => {});
 
       return result;
       } catch (err) {

@@ -105,7 +105,7 @@ export function emitRevenueUpdate(data: { todayRevenue: number; jobCount: number
   emitToAdmin("revenue-update", { ...data, timestamp: Date.now() });
 }
 
-export function emitNewReview(review: { rating: number; text?: string; author?: string }): void {
+export function emitNewReview(review: { rating: number; text?: string; author?: string; trustTags?: string[]; service?: string; isProof?: boolean }): void {
   emitToAdmin("new-review", { ...review, timestamp: Date.now() });
 }
 

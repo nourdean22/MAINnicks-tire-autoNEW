@@ -15,6 +15,8 @@ import { logIntegrationFailure } from "../integration-failures";
 import { withRetry } from "../retry";
 import { sendSms, leadConfirmationSms } from "../sms";
 import { SITE_URL } from "@shared/business";
+import { handleAfterHoursCapture } from "../services/afterHours";
+import { alertNewLead } from "../services/telegram";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -194,6 +196,10 @@ export const leadRouter = router({
           errorDetails: err,
         });
       });
+
+      // After-hours auto-SMS + Telegram alert (fire-and-forget)
+      handleAfterHoursCapture({ name, phone, type: "lead" }).catch(() => {});
+      alertNewLead({ name, phone, service: scoring.recommendedService, source: input.source }).catch(() => {});
 
       return {
         success: true,
