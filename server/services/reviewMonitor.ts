@@ -124,9 +124,9 @@ export function detectService(text: string): string {
   if (/brake|brakes|rotor|pads|stopping/.test(lower)) return "brakes";
   if (/tire|tires|flat|alignment|rotation/.test(lower)) return "tires";
   if (/check engine|diagnostic|code|light|scan/.test(lower)) return "diagnostics";
-  if (/oil change|oil|lube/.test(lower)) return "oil_change";
+  if (/oil change|\boil\b|\blube\b/.test(lower)) return "oil_change";
   if (/emission|e.check|inspection|smog/.test(lower)) return "emissions";
-  if (/ac |a\/c|air condition|cool/.test(lower)) return "ac_repair";
+  if (/\bac\b|a\/c|air condition|cooling|heat/.test(lower)) return "ac_repair";
   if (/transmission|trans/.test(lower)) return "transmission";
   return "general";
 }
