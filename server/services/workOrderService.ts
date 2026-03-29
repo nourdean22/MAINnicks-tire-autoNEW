@@ -30,6 +30,28 @@ const ACTIVE_STATUSES: WorkOrderStatus[] = [
   "qc_review", "ready_for_pickup", "customer_notified", "on_hold",
 ];
 
+// ─── Legal state transitions ────────────────────────
+// Enforced in updateStatus() to prevent illegal state jumps
+const LEGAL_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
+  draft: ["approved", "cancelled"],
+  approved: ["parts_needed", "ready_for_bay", "in_progress", "cancelled", "on_hold"],
+  parts_needed: ["parts_ordered", "cancelled", "on_hold"],
+  parts_ordered: ["parts_partial", "parts_received", "cancelled", "on_hold"],
+  parts_partial: ["parts_received", "parts_ordered", "cancelled", "on_hold"],
+  parts_received: ["ready_for_bay"],
+  ready_for_bay: ["assigned", "in_progress"],
+  assigned: ["in_progress", "ready_for_bay"],
+  in_progress: ["qc_review", "on_hold", "parts_needed"],
+  qc_review: ["ready_for_pickup", "in_progress"],
+  ready_for_pickup: ["customer_notified", "picked_up"],
+  customer_notified: ["picked_up"],
+  picked_up: ["invoiced", "closed"],
+  invoiced: ["closed"],
+  closed: [],
+  on_hold: ["approved", "parts_needed", "ready_for_bay", "in_progress", "cancelled"],
+  cancelled: [],
+};
+
 // Status display config
 export const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
   draft: { label: "Draft", color: "text-foreground/50", bgColor: "bg-foreground/5" },
@@ -192,9 +214,32 @@ export async function updateStatus(
   const { db, workOrders } = await getDbAndSchema();
 
   // Get current status
-  const [current] = await db.select({ status: workOrders.status })
+  const [current] = await db.select({ status: workOrders.status, blockerType: workOrders.blockerType })
     .from(workOrders).where(eq(workOrders.id, workOrderId)).limit(1);
   if (!current) throw new Error("Work order not found");
+
+  // ─── Transition guard ─────────────────────────────────
+  const currentStatus = current.status as WorkOrderStatus;
+  const allowed = LEGAL_TRANSITIONS[currentStatus] || [];
+  if (allowed.length > 0 && !allowed.includes(newStatus)) {
+    throw new Error(
+      `Invalid transition: ${currentStatus} → ${newStatus}. Allowed: ${allowed.join(", ")}`
+    );
+  }
+  if (allowed.length === 0 && currentStatus !== newStatus) {
+    throw new Error(`Work order is in terminal state "${currentStatus}" and cannot be changed`);
+  }
+
+  // ─── Blocker enforcement ──────────────────────────────
+  // Cannot advance past certain statuses while a blocker is active (unless clearing it)
+  if (current.blockerType && !opts?.blockerType && newStatus !== "on_hold" && newStatus !== "cancelled") {
+    const advanceStatuses: WorkOrderStatus[] = ["in_progress", "qc_review", "ready_for_pickup"];
+    if (advanceStatuses.includes(newStatus)) {
+      throw new Error(
+        `Cannot advance to "${newStatus}" while blocker "${current.blockerType}" is active. Clear the blocker first or move to on_hold.`
+      );
+    }
+  }
 
   const updates: Record<string, any> = {
     status: newStatus,
