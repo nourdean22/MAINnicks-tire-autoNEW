@@ -1,0 +1,414 @@
+[
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "How to Check Your Tire Pressure",
+    "description": "Step-by-step guide to checking your tire pressure correctly. Proper tire pressure improves fuel economy, extends tire life, and keeps you safe on Cleveland's rough roads.",
+    "totalTime": "PT10M",
+    "supply": [
+      { "@type": "HowToSupply", "name": "Tire pressure gauge (digital or stick)" },
+      { "@type": "HowToSupply", "name": "Air compressor or gas station air pump" }
+    ],
+    "step": [
+      {
+        "@type": "HowToStep",
+        "name": "Find the recommended PSI",
+        "text": "Check the sticker on the driver's door jamb or your owner's manual for the recommended tire pressure. Do NOT use the number on the tire sidewall — that's the maximum, not the recommended PSI."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Check tires when cold",
+        "text": "Tire pressure should be checked when tires are cold — before driving or at least 3 hours after driving. Driving heats tires and increases pressure readings by 2-5 PSI."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Remove the valve cap",
+        "text": "Unscrew the small plastic cap from the tire's valve stem. Set it somewhere you won't lose it."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Press the gauge onto the valve stem",
+        "text": "Press the tire pressure gauge firmly onto the valve stem. You may hear a brief hiss — press harder until the hissing stops and you get a stable reading."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Read the pressure",
+        "text": "Compare the reading to your recommended PSI. Most passenger vehicles call for 30-35 PSI. If low, add air. If over-inflated, press the small pin in the center of the valve to release air."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Repeat for all four tires and the spare",
+        "text": "Check all four tires and the spare. Uneven pressure causes uneven wear and poor handling — especially dangerous on Cleveland's pothole-heavy streets in spring."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Replace valve caps",
+        "text": "Screw the valve caps back on to keep dirt and moisture out. If a cap is missing, replace it — they cost under $1 at any auto parts store."
+      }
+    ],
+    "tip": {
+      "@type": "HowToTip",
+      "text": "Cleveland tip: Check tire pressure monthly, and always after the first big temperature drop in fall. For every 10°F drop in temperature, tires lose about 1 PSI. If your TPMS light comes on, Nick's Tire & Auto checks and adjusts pressure for free — no appointment needed."
+    }
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "How to Check Your Brake Pads",
+    "description": "Learn how to visually inspect your brake pads to know if they need replacement. Catching worn brakes early saves money and keeps you safe.",
+    "totalTime": "PT15M",
+    "supply": [
+      { "@type": "HowToSupply", "name": "Flashlight" },
+      { "@type": "HowToSupply", "name": "Ruler or brake pad gauge (optional)" }
+    ],
+    "step": [
+      {
+        "@type": "HowToStep",
+        "name": "Look through the wheel spokes",
+        "text": "With the car parked on a flat surface, look through the gaps in your wheel spokes. You should be able to see the brake caliper and brake pad pressed against the rotor (the shiny metal disc)."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Check the pad thickness",
+        "text": "The brake pad is the friction material between the caliper and rotor. It should be at least 1/4 inch (6mm) thick. If it looks thinner than 1/8 inch (3mm), it needs replacement soon."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Listen for warning signs",
+        "text": "When driving, listen for high-pitched squealing (the wear indicator is touching the rotor) or grinding/metal-on-metal sounds (the pad is completely worn and the caliper is damaging the rotor). Grinding means you need service immediately."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Feel for brake pedal changes",
+        "text": "Press the brake pedal. If it feels spongy, pulses, or the car pulls to one side, your brakes need professional inspection. A pulsing pedal often means a warped rotor."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Check the dashboard brake warning light",
+        "text": "If your brake warning light is on, do not ignore it. It may indicate low brake fluid (which can mean worn pads) or a hydraulic issue. Get it checked right away."
+      }
+    ],
+    "tip": {
+      "@type": "HowToTip",
+      "text": "Cleveland driving wears brake pads faster due to stop-and-go traffic and hilly terrain. Nick's Tire & Auto offers free brake inspections — they'll show you exactly how much pad life is left before recommending any work. Brake pads start at $89 per axle."
+    }
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "How to Jump Start a Car Battery",
+    "description": "Safe step-by-step instructions to jump start a dead car battery using jumper cables. Essential knowledge for Cleveland winters when battery failures spike.",
+    "totalTime": "PT15M",
+    "supply": [
+      { "@type": "HowToSupply", "name": "Jumper cables (at least 10-gauge, 12-20 feet long)" },
+      { "@type": "HowToSupply", "name": "A working vehicle with a charged battery" },
+      { "@type": "HowToSupply", "name": "Safety glasses (recommended)" }
+    ],
+    "step": [
+      {
+        "@type": "HowToStep",
+        "name": "Position the vehicles",
+        "text": "Park the working vehicle close to the dead vehicle so the jumper cables can reach both batteries. Turn off both engines, headlights, and all accessories. Engage parking brakes on both vehicles."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Identify battery terminals",
+        "text": "Locate the positive (+) and negative (-) terminals on both batteries. Positive is usually marked with a + sign and has a red cap or cable. Negative has a - sign with a black cap or cable."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Connect the red (positive) cables first",
+        "text": "Clamp one red jumper cable to the positive (+) terminal of the DEAD battery. Then clamp the other red cable to the positive (+) terminal of the GOOD battery."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Connect the black (negative) cables",
+        "text": "Clamp one black cable to the negative (-) terminal of the GOOD battery. Clamp the other black cable to an unpainted metal surface on the dead car's engine block — NOT to the dead battery's negative terminal. This prevents sparks near the battery."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Start the working vehicle",
+        "text": "Start the working vehicle and let it idle for 2-3 minutes. This allows the dead battery to charge slightly."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Start the dead vehicle",
+        "text": "Try starting the dead vehicle. If it doesn't start, wait another 3-5 minutes and try again. If it still won't start after 3 attempts, the battery may need replacement."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Remove cables in reverse order",
+        "text": "Once running, remove cables in reverse order: black from engine block, black from good battery, red from good battery, red from formerly-dead battery. Do not let clamps touch each other."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Drive the vehicle for at least 20 minutes",
+        "text": "Drive or idle the jumped vehicle for at least 20 minutes to recharge the battery. If the battery dies again soon, it likely needs replacement."
+      }
+    ],
+    "tip": {
+      "@type": "HowToTip",
+      "text": "Cleveland winter tip: Car batteries lose about 35% of their power at 32°F and 60% at 0°F. If your battery is more than 3-4 years old, get it tested before winter. Nick's Tire & Auto offers free battery testing — stop by any time, no appointment needed."
+    }
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "How to Check Your Oil Level",
+    "description": "Quick guide to checking your engine oil level and condition. Regular oil checks prevent engine damage and extend vehicle life.",
+    "totalTime": "PT5M",
+    "supply": [
+      { "@type": "HowToSupply", "name": "Paper towel or clean rag" }
+    ],
+    "step": [
+      {
+        "@type": "HowToStep",
+        "name": "Park on a level surface and wait",
+        "text": "Park your car on level ground. If the engine has been running, wait at least 5-10 minutes for oil to drain back to the oil pan. Some manufacturers recommend checking when cold."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Locate the dipstick",
+        "text": "Open the hood and find the oil dipstick — usually a yellow or orange loop or T-handle near the engine. Check your owner's manual if unsure. Note: Some newer vehicles have electronic oil level monitors instead of dipsticks."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Pull the dipstick and wipe it clean",
+        "text": "Pull the dipstick out completely. Wipe it clean with a paper towel or rag. This gives you a fresh reading."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Reinsert and pull out again to read",
+        "text": "Push the dipstick all the way back in, then pull it out again. Look at where the oil film ends. It should be between the two marks (dots, lines, or cross-hatched area) — the lower mark is 'low' and the upper mark is 'full'."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Check the oil color and consistency",
+        "text": "Fresh oil is amber/golden. Dark brown or black oil needs changing. If the oil looks milky or has metal particles, get it checked immediately — this can indicate coolant leak or internal engine damage."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Add oil if needed",
+        "text": "If the level is below the low mark, add oil in small amounts (half a quart at a time), recheck, and repeat until it's in the safe range. Use the oil weight specified in your owner's manual (e.g., 5W-30, 0W-20)."
+      }
+    ],
+    "tip": {
+      "@type": "HowToTip",
+      "text": "Check oil every 2-3 weeks or before long trips. Nick's Tire & Auto offers conventional oil changes from $39.99 and full synthetic from $69.99 — includes filter, multi-point inspection, and tire pressure check. No appointment needed."
+    }
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "How to Read a Tire Size",
+    "description": "Decode the numbers and letters on your tire sidewall to understand tire size, load rating, and speed rating. Essential for buying the right replacement tires.",
+    "totalTime": "PT5M",
+    "supply": [
+      { "@type": "HowToSupply", "name": "Your tire (or a photo of the sidewall)" }
+    ],
+    "step": [
+      {
+        "@type": "HowToStep",
+        "name": "Find the tire size on the sidewall",
+        "text": "Look at the side of your tire for a string like 'P225/65R17 102H'. This is on every tire. You can also find it on the sticker inside the driver's door jamb."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Understand the tire type letter",
+        "text": "The first letter indicates tire type: P = Passenger vehicle, LT = Light Truck, ST = Special Trailer. Most sedans, SUVs, and minivans use P-metric tires."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Read the width (first 3 numbers)",
+        "text": "The first 3-digit number (e.g., 225) is the tire width in millimeters, measured from sidewall to sidewall. A wider tire provides more grip; a narrower tire is more fuel-efficient."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Read the aspect ratio (after the slash)",
+        "text": "The number after the slash (e.g., 65) is the aspect ratio — the sidewall height as a percentage of the width. A 225/65 tire has a sidewall height of 65% of 225mm = 146mm. Lower numbers mean a lower-profile tire."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Identify the construction type",
+        "text": "The letter after the aspect ratio (usually R) means Radial construction — virtually all modern tires are radial. You may rarely see B (Bias-ply) or D (Diagonal)."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Read the wheel diameter",
+        "text": "The last 2-digit number (e.g., 17) is the wheel diameter in inches. This must match your wheel size exactly. Common sizes are 15, 16, 17, 18, 19, and 20 inches."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Understand load index and speed rating",
+        "text": "The numbers and letter after the size (e.g., 102H) indicate load capacity and max speed. 102 means 1,874 lbs per tire. H means rated up to 130 mph. Always match or exceed your vehicle's original specs."
+      }
+    ],
+    "tip": {
+      "@type": "HowToTip",
+      "text": "Not sure which tires you need? Use the tire finder at nickstire.org/tires — enter your vehicle year, make, and model to see matching tires with installed prices. Or call Nick's Tire & Auto at (216) 862-0005 for free help."
+    }
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "How to Know When You Need New Tires",
+    "description": "Learn the warning signs that your tires need replacement. Driving on worn tires is dangerous — especially on Cleveland's wet and snowy roads.",
+    "totalTime": "PT10M",
+    "supply": [
+      { "@type": "HowToSupply", "name": "A penny (for the penny test)" },
+      { "@type": "HowToSupply", "name": "Tire tread depth gauge (optional)" }
+    ],
+    "step": [
+      {
+        "@type": "HowToStep",
+        "name": "Do the penny test",
+        "text": "Insert a penny into the tire tread with Lincoln's head pointing down. If you can see all of Lincoln's head, your tread depth is below 2/32 of an inch and the tire needs immediate replacement. The legal minimum in Ohio is 2/32 inch."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Check tread wear indicators",
+        "text": "All tires have built-in tread wear indicator bars — small raised bridges between the tread grooves. When the tread is worn flush with these bars, the tire is at 2/32 and must be replaced."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Look for uneven wear patterns",
+        "text": "Wear only on the edges means under-inflation. Wear only in the center means over-inflation. Wear on one side means alignment issues. Cupping or scalloping means suspension problems. All require attention."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Inspect for damage",
+        "text": "Look for bulges, bubbles, cracks, or cuts in the sidewall. These are structural failures — the tire can blow out at highway speed. Bulges from Cleveland potholes are common and always require replacement."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Check the tire age",
+        "text": "Find the DOT code on the sidewall. The last 4 digits indicate the manufacture date (e.g., 2321 = week 23 of 2021). Tires older than 6 years should be replaced regardless of tread depth, as rubber degrades over time."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Notice driving changes",
+        "text": "If you experience longer stopping distances, hydroplaning in rain, vibration at highway speeds, or poor traction in snow, your tires may be worn even if they look OK. Trust how the car feels."
+      }
+    ],
+    "tip": {
+      "@type": "HowToTip",
+      "text": "Cleveland roads are especially hard on tires — potholes, salt, and freeze-thaw cycles accelerate wear. Nick's Tire & Auto carries new tires from all major brands with a free premium installation package ($289+ value), plus quality-inspected used tires starting at $60 installed. Walk-ins welcome 7 days."
+    }
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "How to Prepare Your Car for Winter in Cleveland",
+    "description": "Complete winter car preparation checklist for Cleveland, Ohio drivers. Cold temperatures, lake-effect snow, road salt, and potholes make winter prep critical in Northeast Ohio.",
+    "totalTime": "PT60M",
+    "supply": [
+      { "@type": "HowToSupply", "name": "Winter tires or all-season tires with good tread" },
+      { "@type": "HowToSupply", "name": "Winter windshield washer fluid (-20°F rated)" },
+      { "@type": "HowToSupply", "name": "Ice scraper and snow brush" },
+      { "@type": "HowToSupply", "name": "Emergency kit (blanket, flashlight, jumper cables, sand/cat litter)" }
+    ],
+    "step": [
+      {
+        "@type": "HowToStep",
+        "name": "Check or install winter tires",
+        "text": "All-season tires lose grip below 45°F. If you can, switch to dedicated winter tires — they make a massive difference in Cleveland's lake-effect snow. At minimum, ensure your all-seasons have at least 4/32 inch of tread (use a quarter: if Washington's head is visible, you need new tires)."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Test your battery",
+        "text": "Cold weather kills weak batteries. If your battery is 3+ years old, get it tested before the first freeze. A battery that barely starts your car in September won't make it through a Cleveland January."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Check your antifreeze/coolant",
+        "text": "Your coolant should be at a 50/50 mix of antifreeze and water, protecting to at least -34°F. A coolant test takes 30 seconds and can prevent a cracked engine block."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Inspect brakes",
+        "text": "You need full braking power on icy roads. Have brakes inspected before winter. Worn pads increase stopping distance on slick surfaces — which is already 2-10x longer than dry roads."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Switch to winter windshield washer fluid",
+        "text": "Standard washer fluid freezes around 32°F. Switch to winter formula rated to -20°F or lower. Road salt spray will coat your windshield constantly — you'll use more washer fluid than you expect."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Check heater, defroster, and wiper blades",
+        "text": "Test your heater and defroster before you need them. Replace wiper blades if they streak or skip — consider winter-specific blades that resist ice buildup. Rear defroster should also be tested."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Check tire pressure regularly",
+        "text": "Tires lose about 1 PSI for every 10°F temperature drop. A tire at 35 PSI in September could be at 28 PSI by December. Check monthly and keep at the recommended PSI listed on the driver's door jamb."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Pack a winter emergency kit",
+        "text": "Keep in your trunk: warm blanket, flashlight, phone charger, jumper cables, bag of sand or cat litter (for traction), ice scraper, small shovel, and bottled water. Cleveland lake-effect storms can strand you quickly."
+      }
+    ],
+    "tip": {
+      "@type": "HowToTip",
+      "text": "Nick's Tire & Auto offers a complete winter preparation package: battery test (free), brake inspection (free), tire check, coolant test, and fluid top-off. Walk in any day of the week. Located at 17625 Euclid Ave, serving all of Greater Cleveland. Call (216) 862-0005."
+    }
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "How to Pass Ohio E-Check Emissions Test",
+    "description": "Everything you need to know about passing Ohio's E-Check emissions test. Required for vehicles registered in Cuyahoga, Lorain, Medina, Portage, Summit, Lake, and Geauga counties.",
+    "totalTime": "PT30M",
+    "supply": [
+      { "@type": "HowToSupply", "name": "Vehicle registration (to check if E-Check is due)" },
+      { "@type": "HowToSupply", "name": "Vehicle with at least 1/4 tank of gas" }
+    ],
+    "step": [
+      {
+        "@type": "HowToStep",
+        "name": "Check if your vehicle needs E-Check",
+        "text": "Ohio E-Check is required for gas-powered vehicles in 7 Northeast Ohio counties: Cuyahoga, Geauga, Lake, Lorain, Medina, Portage, and Summit. Vehicles 4-25 model years old need testing. Brand-new vehicles and those over 25 years old are exempt. Diesel and electric vehicles are exempt."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Make sure your check engine light is off",
+        "text": "Your vehicle will automatically fail E-Check if the check engine light (MIL) is on. If the light is on, get the codes read and the issue fixed before going for testing. Common causes: oxygen sensor, catalytic converter, EVAP system leak, or loose gas cap."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Drive at least 50-100 miles before testing",
+        "text": "If your battery was recently disconnected or codes were cleared, the OBD-II system needs time to run all self-tests (readiness monitors). Drive a mix of city and highway for 50-100 miles. If monitors aren't ready, you'll get an 'incomplete' result."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Fill the gas tank to at least 1/4",
+        "text": "Don't go with a near-empty tank. But also don't top off the tank right before — overfilling can trigger EVAP system codes. Between 1/4 and 3/4 full is ideal."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Make sure the gas cap seals properly",
+        "text": "A loose or worn gas cap is one of the most common E-Check failure causes. Check that it clicks when tightened. If the cap is cracked or the seal is worn, replace it — they cost $5-15 and can save you a failed test."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Get the vehicle warmed up before testing",
+        "text": "Drive for at least 15-20 minutes before arriving at the testing station. A cold engine produces more emissions and the catalytic converter needs to be at operating temperature (400°F+) to function properly."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Go to the E-Check station",
+        "text": "The test is an OBD-II scan — they plug into the diagnostic port under your dashboard. The test checks for stored trouble codes, pending codes, and readiness monitor status. If everything passes, you get a certificate. The test itself usually takes about 15-20 minutes."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "If you fail, get repairs and retest",
+        "text": "If you fail, you'll get a report showing what failed. Get the repairs done, drive 50-100 miles to reset monitors, then retest. Ohio allows one free retest within 60 days. If repairs are too expensive, you may qualify for a waiver (up to $600 in repair costs for certain vehicles)."
+      }
+    ],
+    "tip": {
+      "@type": "HowToTip",
+      "text": "Nick's Tire & Auto is a certified Ohio E-Check station and performs emissions repair. If your check engine light is on before E-Check, bring it in — diagnostics start at $49.99, credited toward the repair. Common Cleveland E-Check fixes: oxygen sensor replacement, catalytic converter repair, EVAP system leak repair. Walk-ins welcome. (216) 862-0005."
+    }
+  }
+]

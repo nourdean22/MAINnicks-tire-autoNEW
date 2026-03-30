@@ -20,6 +20,7 @@ import { GBP_REVIEW_URL } from "@shared/const";
 import TrustStrip from "@/components/TrustStrip";
 import TrustBadges from "@/components/TrustBadges";
 import FastPaths from "@/components/FastPaths";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
@@ -472,46 +473,6 @@ function Contact() {
   );
 }
 
-// ─── LOCAL BUSINESS SCHEMA ───────────────────────────────
-function LocalBusinessSchema() {
-  const schema = {
-    "@context": "https://schema.org",
-    "@type": "AutoRepair",
-    "name": "Nick's Tire & Auto",
-    "alternateName": "Nick's Tire And Auto Euclid",
-    "image": HERO_IMG,
-    "@id": "https://nickstire.org",
-    "url": "https://nickstire.org",
-    "telephone": "+1-" + BUSINESS.phone.dashed,
-    "priceRange": "$$",
-    "address": {
-      "@type": "PostalAddress",
-      "streetAddress": BUSINESS.address.street,
-      "addressLocality": "Cleveland",
-      "addressRegion": "OH",
-      "postalCode": "44112",
-      "addressCountry": "US"
-    },
-    "geo": { "@type": "GeoCoordinates", "latitude": 41.5525118, "longitude": -81.5571875 },
-    "openingHoursSpecification": [
-      { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"], "opens": "08:00", "closes": "18:00" },
-      { "@type": "OpeningHoursSpecification", "dayOfWeek": "Sunday", "opens": "09:00", "closes": "16:00" }
-    ],
-    "aggregateRating": { "@type": "AggregateRating", "ratingValue": String(BUSINESS.reviews.rating), "reviewCount": String(BUSINESS.reviews.count), "bestRating": "5" },
-    "areaServed": [
-      { "@type": "City", "name": "Cleveland", "sameAs": "https://en.wikipedia.org/wiki/Cleveland" },
-      { "@type": "City", "name": "Euclid" },
-      { "@type": "City", "name": "East Cleveland" },
-      { "@type": "City", "name": "South Euclid" },
-      { "@type": "City", "name": "Richmond Heights" }
-    ],
-    "sameAs": [...BUSINESS.sameAs],
-    "hasMap": BUSINESS.urls.googleBusiness
-  };
-
-  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />;
-}
-
 // ─── PAGE ────────────────────────────────────────────────
 export default function Home() {
   return (
@@ -521,7 +482,7 @@ export default function Home() {
         description={`Cleveland's top-rated new & used tire specialist + full-service auto repair. Free premium installation ($289 value). Flat repair $15. Brakes, diagnostics, emissions. ${BUSINESS.reviews.countDisplay} reviews, 4.9 stars. Walk-ins 7 days. $10 down financing.`}
         canonicalPath="/"
       />
-      <LocalBusinessSchema />
+      <LocalBusinessSchema includeHowTo includeReviews includeServices />
       <Hero />
       <TrustStrip />
       <TrustBadges />

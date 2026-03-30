@@ -1,0 +1,395 @@
+[
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Tire Sales and Installation",
+    "name": "New Tire Sales & Installation",
+    "description": "New tires from all major brands with FREE premium installation package valued at $289+. Includes professional mounting, computer balancing, new valve stems, TPMS reset, alignment check, 20-point safety inspection, rim cleaning, and old tire disposal. Buy tires online at nickstire.org/tires or walk in 7 days a week.",
+    "provider": {
+      "@type": "AutoRepair",
+      "name": "Nick's Tire & Auto",
+      "telephone": "+1-216-862-0005",
+      "url": "https://nickstire.org",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "17625 Euclid Ave",
+        "addressLocality": "Euclid",
+        "addressRegion": "OH",
+        "postalCode": "44112",
+        "addressCountry": "US"
+      }
+    },
+    "areaServed": [
+      { "@type": "City", "name": "Cleveland" },
+      { "@type": "City", "name": "Euclid" },
+      { "@type": "City", "name": "Parma" },
+      { "@type": "City", "name": "Lakewood" },
+      { "@type": "City", "name": "Cleveland Heights" },
+      { "@type": "City", "name": "Shaker Heights" }
+    ],
+    "offers": {
+      "@type": "Offer",
+      "priceCurrency": "USD",
+      "price": "0",
+      "description": "Installation FREE with tire purchase. Tire prices vary by size and brand.",
+      "availability": "https://schema.org/InStock"
+    },
+    "termsOfService": "36-month / 36,000-mile labor warranty on all installations",
+    "hoursAvailable": [
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+        "opens": "08:00",
+        "closes": "18:00"
+      },
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": "Sunday",
+        "opens": "09:00",
+        "closes": "16:00"
+      }
+    ]
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Used Tire Sales",
+    "name": "Used Tires",
+    "description": "Quality-inspected used tires starting at $60 each installed. Every used tire is checked for tread depth, sidewall condition, bead integrity, belt separation, dry rot, and DOT date code before sale. Wide selection of popular sizes always in stock.",
+    "provider": {
+      "@type": "AutoRepair",
+      "name": "Nick's Tire & Auto",
+      "telephone": "+1-216-862-0005",
+      "url": "https://nickstire.org"
+    },
+    "areaServed": { "@type": "City", "name": "Cleveland" },
+    "offers": {
+      "@type": "Offer",
+      "priceCurrency": "USD",
+      "price": "60",
+      "description": "Starting at $60 per tire, installed. Price varies by size and brand.",
+      "availability": "https://schema.org/InStock"
+    },
+    "estimatedDuration": "PT45M"
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Flat Tire Repair",
+    "name": "Flat Tire Repair",
+    "description": "Professional plug-and-patch flat tire repair. Industry-standard internal patch plus plug method for a permanent, safe repair. Most flat repairs completed in 15 minutes. Walk-ins welcome, no appointment needed.",
+    "provider": {
+      "@type": "AutoRepair",
+      "name": "Nick's Tire & Auto",
+      "telephone": "+1-216-862-0005",
+      "url": "https://nickstire.org"
+    },
+    "areaServed": { "@type": "City", "name": "Cleveland" },
+    "offers": {
+      "@type": "Offer",
+      "priceCurrency": "USD",
+      "priceSpecification": {
+        "@type": "PriceSpecification",
+        "minPrice": "15",
+        "maxPrice": "25",
+        "priceCurrency": "USD"
+      },
+      "availability": "https://schema.org/InStock"
+    },
+    "estimatedDuration": "PT15M"
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Brake Repair",
+    "name": "Brake Repair",
+    "description": "Complete brake service: pads, rotors, calipers, brake lines, and ABS diagnostics. Free brake inspection — we show you the problem before any work begins. Same-day service available for most brake jobs.",
+    "provider": {
+      "@type": "AutoRepair",
+      "name": "Nick's Tire & Auto",
+      "telephone": "+1-216-862-0005",
+      "url": "https://nickstire.org"
+    },
+    "areaServed": { "@type": "City", "name": "Cleveland" },
+    "offers": {
+      "@type": "Offer",
+      "priceCurrency": "USD",
+      "priceSpecification": {
+        "@type": "PriceSpecification",
+        "minPrice": "89",
+        "priceCurrency": "USD",
+        "description": "Starting at $89 per axle for brake pads. Rotors $49-89 each."
+      },
+      "availability": "https://schema.org/InStock"
+    },
+    "estimatedDuration": "PT90M"
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Oil Change",
+    "name": "Oil Change — Conventional",
+    "description": "Conventional oil change with new filter, multi-point inspection, and tire pressure check. Quick service, no appointment needed. Uses quality conventional motor oil meeting manufacturer specs.",
+    "provider": {
+      "@type": "AutoRepair",
+      "name": "Nick's Tire & Auto",
+      "telephone": "+1-216-862-0005",
+      "url": "https://nickstire.org"
+    },
+    "areaServed": { "@type": "City", "name": "Cleveland" },
+    "offers": {
+      "@type": "Offer",
+      "priceCurrency": "USD",
+      "price": "39.99",
+      "availability": "https://schema.org/InStock"
+    },
+    "estimatedDuration": "PT30M"
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Oil Change",
+    "name": "Oil Change — Full Synthetic",
+    "description": "Full synthetic oil change with premium filter. Mobil 1, Pennzoil Platinum, Valvoline, or equivalent. Includes multi-point inspection and tire pressure check. Recommended for newer vehicles and those requiring synthetic oil.",
+    "provider": {
+      "@type": "AutoRepair",
+      "name": "Nick's Tire & Auto",
+      "telephone": "+1-216-862-0005",
+      "url": "https://nickstire.org"
+    },
+    "areaServed": { "@type": "City", "name": "Cleveland" },
+    "offers": {
+      "@type": "Offer",
+      "priceCurrency": "USD",
+      "price": "69.99",
+      "availability": "https://schema.org/InStock"
+    },
+    "estimatedDuration": "PT30M"
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Engine Diagnostics",
+    "name": "Engine Diagnostics",
+    "description": "Check engine light diagnosis using advanced OBD-II scanners and computer diagnostics. Full code reading, freeze frame data analysis, and root cause identification. Diagnostic fee credited toward approved repair.",
+    "provider": {
+      "@type": "AutoRepair",
+      "name": "Nick's Tire & Auto",
+      "telephone": "+1-216-862-0005",
+      "url": "https://nickstire.org"
+    },
+    "areaServed": { "@type": "City", "name": "Cleveland" },
+    "offers": {
+      "@type": "Offer",
+      "priceCurrency": "USD",
+      "price": "49.99",
+      "description": "Diagnostic fee credited toward repair if you proceed with the fix.",
+      "availability": "https://schema.org/InStock"
+    },
+    "estimatedDuration": "PT45M"
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Emissions Testing",
+    "name": "Ohio E-Check Emissions Testing & Repair",
+    "description": "Certified Ohio E-Check emissions testing station. OBD-II emissions scan, readiness monitor verification, and pass/fail determination. Full emissions repair services including oxygen sensors, EVAP systems, catalytic converters, and EGR valves. Walk-ins welcome, most tests completed in 20-30 minutes.",
+    "provider": {
+      "@type": "AutoRepair",
+      "name": "Nick's Tire & Auto",
+      "telephone": "+1-216-862-0005",
+      "url": "https://nickstire.org"
+    },
+    "areaServed": [
+      { "@type": "State", "name": "Ohio" },
+      { "@type": "City", "name": "Cleveland" },
+      { "@type": "City", "name": "Euclid" }
+    ],
+    "offers": {
+      "@type": "Offer",
+      "priceCurrency": "USD",
+      "description": "E-Check test fee set by Ohio EPA. Emissions repair pricing varies by issue.",
+      "availability": "https://schema.org/InStock"
+    },
+    "estimatedDuration": "PT30M"
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Wheel Alignment",
+    "name": "4-Wheel Computerized Alignment",
+    "description": "Precision 4-wheel computerized alignment. Corrects pulling, uneven tire wear, and off-center steering. Uses laser-guided equipment for accurate toe, camber, and caster adjustment. Recommended after hitting potholes, installing new tires, or if vehicle pulls to one side.",
+    "provider": {
+      "@type": "AutoRepair",
+      "name": "Nick's Tire & Auto",
+      "telephone": "+1-216-862-0005",
+      "url": "https://nickstire.org"
+    },
+    "areaServed": { "@type": "City", "name": "Cleveland" },
+    "offers": {
+      "@type": "Offer",
+      "priceCurrency": "USD",
+      "price": "79",
+      "availability": "https://schema.org/InStock"
+    },
+    "estimatedDuration": "PT45M"
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "AC Repair",
+    "name": "AC & Heating Repair",
+    "description": "Complete AC and heating system repair. AC recharge, compressor replacement, condenser and evaporator repair, heater core replacement, blower motor service. Stay comfortable through Cleveland's hot summers and cold winters.",
+    "provider": {
+      "@type": "AutoRepair",
+      "name": "Nick's Tire & Auto",
+      "telephone": "+1-216-862-0005",
+      "url": "https://nickstire.org"
+    },
+    "areaServed": { "@type": "City", "name": "Cleveland" },
+    "offers": {
+      "@type": "Offer",
+      "priceCurrency": "USD",
+      "priceSpecification": {
+        "@type": "PriceSpecification",
+        "minPrice": "49",
+        "priceCurrency": "USD",
+        "description": "AC recharge from $49. Full repair pricing depends on parts and labor."
+      },
+      "availability": "https://schema.org/InStock"
+    },
+    "estimatedDuration": "PT60M"
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Suspension Repair",
+    "name": "Suspension & Steering Repair",
+    "description": "Full suspension and steering repair: struts, shocks, control arms, ball joints, tie rods, wheel bearings, and sway bar links. Cleveland's potholes cause constant suspension wear — we fix it right the first time with a 36-month warranty.",
+    "provider": {
+      "@type": "AutoRepair",
+      "name": "Nick's Tire & Auto",
+      "telephone": "+1-216-862-0005",
+      "url": "https://nickstire.org"
+    },
+    "areaServed": { "@type": "City", "name": "Cleveland" },
+    "offers": {
+      "@type": "Offer",
+      "priceCurrency": "USD",
+      "description": "Pricing varies by vehicle and component. Free inspection and estimate.",
+      "availability": "https://schema.org/InStock"
+    },
+    "estimatedDuration": "PT120M"
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Transmission Service",
+    "name": "Transmission Services",
+    "description": "Transmission diagnostics, fluid flush, fluid and filter change, and repair for automatic and manual transmissions. Expert diagnosis before recommending expensive repairs.",
+    "provider": {
+      "@type": "AutoRepair",
+      "name": "Nick's Tire & Auto",
+      "telephone": "+1-216-862-0005",
+      "url": "https://nickstire.org"
+    },
+    "areaServed": { "@type": "City", "name": "Cleveland" },
+    "offers": {
+      "@type": "Offer",
+      "priceCurrency": "USD",
+      "description": "Transmission fluid flush starting around $149. Full repair pricing varies by vehicle.",
+      "availability": "https://schema.org/InStock"
+    },
+    "estimatedDuration": "PT120M"
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Electrical System Repair",
+    "name": "Electrical System — Battery, Alternator, Starter",
+    "description": "Free battery testing, battery replacement, alternator repair and replacement, starter motor service, and wiring diagnosis. Critical for Cleveland winters when battery and charging system failures spike.",
+    "provider": {
+      "@type": "AutoRepair",
+      "name": "Nick's Tire & Auto",
+      "telephone": "+1-216-862-0005",
+      "url": "https://nickstire.org"
+    },
+    "areaServed": { "@type": "City", "name": "Cleveland" },
+    "offers": {
+      "@type": "Offer",
+      "priceCurrency": "USD",
+      "description": "Free battery testing. Replacement and repair pricing varies by vehicle.",
+      "availability": "https://schema.org/InStock"
+    },
+    "estimatedDuration": "PT60M"
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Exhaust Repair",
+    "name": "Exhaust System Repair",
+    "description": "Muffler repair and replacement, catalytic converter service, exhaust manifold repair, flex pipe and exhaust pipe replacement. Fix exhaust leaks, reduce noise, and pass emissions testing.",
+    "provider": {
+      "@type": "AutoRepair",
+      "name": "Nick's Tire & Auto",
+      "telephone": "+1-216-862-0005",
+      "url": "https://nickstire.org"
+    },
+    "areaServed": { "@type": "City", "name": "Cleveland" },
+    "offers": {
+      "@type": "Offer",
+      "priceCurrency": "USD",
+      "description": "Pricing varies by vehicle and component. Free exhaust inspection.",
+      "availability": "https://schema.org/InStock"
+    },
+    "estimatedDuration": "PT90M"
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Engine Repair",
+    "name": "General Engine Repair",
+    "description": "Water pump, timing belt and chain, head gasket, radiator, thermostat, serpentine belt, hoses, and coolant flush. Comprehensive engine repair backed by 36-month / 36,000-mile warranty.",
+    "provider": {
+      "@type": "AutoRepair",
+      "name": "Nick's Tire & Auto",
+      "telephone": "+1-216-862-0005",
+      "url": "https://nickstire.org"
+    },
+    "areaServed": { "@type": "City", "name": "Cleveland" },
+    "offers": {
+      "@type": "Offer",
+      "priceCurrency": "USD",
+      "description": "Pricing varies by vehicle and repair scope. Free estimate provided.",
+      "availability": "https://schema.org/InStock"
+    },
+    "estimatedDuration": "PT180M"
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Fleet Service",
+    "name": "Commercial Fleet Services",
+    "description": "Commercial fleet maintenance with priority scheduling, custom service intervals, volume pricing, and dedicated account management. Service vans, trucks, delivery vehicles, and company cars. Keep your fleet running and reduce downtime.",
+    "provider": {
+      "@type": "AutoRepair",
+      "name": "Nick's Tire & Auto",
+      "telephone": "+1-216-862-0005",
+      "url": "https://nickstire.org"
+    },
+    "areaServed": [
+      { "@type": "City", "name": "Cleveland" },
+      { "@type": "City", "name": "Euclid" },
+      { "@type": "City", "name": "Parma" },
+      { "@type": "City", "name": "Lakewood" },
+      { "@type": "City", "name": "Mentor" },
+      { "@type": "City", "name": "Strongsville" }
+    ],
+    "offers": {
+      "@type": "Offer",
+      "priceCurrency": "USD",
+      "description": "Volume pricing and custom service contracts available. Contact for fleet quote.",
+      "availability": "https://schema.org/InStock"
+    }
+  }
+]

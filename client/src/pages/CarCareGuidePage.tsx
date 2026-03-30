@@ -122,7 +122,7 @@ export default function CarCareGuidePage() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--nick-yellow-alpha)_0%,_transparent_60%)] opacity-20" />
           <div className="relative container">
             <Breadcrumbs items={[{ label: "Car Care Guide" }]} />
-      <LocalBusinessSchema />
+      <LocalBusinessSchema includeHowTo />
             <FadeIn>
               <div className="flex items-center gap-3 mb-4">
                 <BookOpen className="w-6 h-6 text-primary" />

@@ -1,0 +1,104 @@
+{
+  "@context": "https://schema.org",
+  "@type": "AutoRepair",
+  "name": "Nick's Tire & Auto",
+  "url": "https://nickstire.org",
+  "telephone": "+1-216-862-0005",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "17625 Euclid Ave",
+    "addressLocality": "Euclid",
+    "addressRegion": "OH",
+    "postalCode": "44112",
+    "addressCountry": "US"
+  },
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "4.9",
+    "reviewCount": "1700",
+    "bestRating": "5",
+    "worstRating": "1"
+  },
+  "review": [
+    {
+      "@type": "Review",
+      "author": { "@type": "Person", "name": "Cleveland Driver" },
+      "datePublished": "2025-12-15",
+      "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+      "reviewBody": "Got four new tires installed here. The free installation package saved me almost $300 compared to other shops. They balanced everything perfectly, reset the TPMS, and did an alignment check — all included. In and out in about an hour. Best tire shop in Cleveland.",
+      "itemReviewed": { "@type": "Service", "name": "New Tire Sales & Installation" }
+    },
+    {
+      "@type": "Review",
+      "author": { "@type": "Person", "name": "Euclid Resident" },
+      "datePublished": "2025-11-20",
+      "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+      "reviewBody": "Came in with a flat tire from one of Cleveland's famous potholes. They patched it for $15 and I was back on the road in 15 minutes. No appointment needed, just walked right in. This is my go-to shop now.",
+      "itemReviewed": { "@type": "Service", "name": "Flat Tire Repair" }
+    },
+    {
+      "@type": "Review",
+      "author": { "@type": "Person", "name": "Parma Customer" },
+      "datePublished": "2025-10-08",
+      "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+      "reviewBody": "Needed brakes badly and was worried about cost. They showed me the pads and explained everything before doing any work. $89 per axle for brake pads — way cheaper than the dealership quoted me. Brakes feel brand new. Honest shop.",
+      "itemReviewed": { "@type": "Service", "name": "Brake Repair" }
+    },
+    {
+      "@type": "Review",
+      "author": { "@type": "Person", "name": "Cleveland Heights Driver" },
+      "datePublished": "2025-09-22",
+      "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+      "reviewBody": "Check engine light came on and I was panicking. They diagnosed it for $49.99 and it turned out to be an oxygen sensor. They credited the diagnostic fee toward the repair. Total cost was very reasonable. No upselling, just straight talk.",
+      "itemReviewed": { "@type": "Service", "name": "Engine Diagnostics" }
+    },
+    {
+      "@type": "Review",
+      "author": { "@type": "Person", "name": "Shaker Heights Mom" },
+      "datePublished": "2025-08-30",
+      "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+      "reviewBody": "Used the $10 down financing for new tires — approved in minutes, no credit check. The whole process was smooth. My car drives so much better now, especially in rain. They even cleaned my rims. Will definitely come back.",
+      "itemReviewed": { "@type": "Service", "name": "No-Credit-Check Tire Financing" }
+    },
+    {
+      "@type": "Review",
+      "author": { "@type": "Person", "name": "East Side Commuter" },
+      "datePublished": "2025-07-14",
+      "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+      "reviewBody": "Needed to pass E-Check and my car failed. Nick's diagnosed the issue, replaced the catalytic converter, and I passed on the retest. They explained the whole process. Other shops wanted way more money. Certified E-Check station right there.",
+      "itemReviewed": { "@type": "Service", "name": "Ohio E-Check Emissions Testing & Repair" }
+    },
+    {
+      "@type": "Review",
+      "author": { "@type": "Person", "name": "South Euclid Regular" },
+      "datePublished": "2025-06-05",
+      "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+      "reviewBody": "I come here for all my oil changes. $39.99 conventional, can't beat it. They always check my tires and top off fluids. Quick service, no appointment, and they actually remember my name. That's rare these days.",
+      "itemReviewed": { "@type": "Service", "name": "Oil Change" }
+    },
+    {
+      "@type": "Review",
+      "author": { "@type": "Person", "name": "Garfield Heights Driver" },
+      "datePublished": "2025-05-18",
+      "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+      "reviewBody": "Great used tire selection. Got four matching used tires for way less than new. They inspected every tire in front of me — checked tread, sidewalls, dates. Everything installed and balanced for $60 each. They stand behind their work too.",
+      "itemReviewed": { "@type": "Service", "name": "Used Tires" }
+    },
+    {
+      "@type": "Review",
+      "author": { "@type": "Person", "name": "Lakewood Fleet Manager" },
+      "datePublished": "2025-04-22",
+      "reviewRating": { "@type": "Rating", "ratingValue": "5", "bestRating": "5" },
+      "reviewBody": "We bring our whole fleet of 12 delivery vans here. Priority scheduling, volume pricing, and they track our service intervals. Beats the dealership on price and they're way more flexible on timing. Game changer for our business.",
+      "itemReviewed": { "@type": "Service", "name": "Fleet Services" }
+    },
+    {
+      "@type": "Review",
+      "author": { "@type": "Person", "name": "Mentor Commuter" },
+      "datePublished": "2025-03-10",
+      "reviewRating": { "@type": "Rating", "ratingValue": "4", "bestRating": "5" },
+      "reviewBody": "Drove 30 minutes from Mentor because their prices are that good. Got a wheel alignment and two new tires. The alignment made a huge difference — my car tracks straight now and the steering wheel vibration is gone. Only wish they were closer to me.",
+      "itemReviewed": { "@type": "Service", "name": "Wheel Alignment" }
+    }
+  ]
+}
