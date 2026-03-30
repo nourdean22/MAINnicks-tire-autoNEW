@@ -123,12 +123,12 @@
         "name": "Auto Repair & Tire Services",
         "itemListElement": [
           { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Online Tire Sales & Installation", "description": "Buy tires online with free premium installation package ($289+ value). Mounting, balancing, valve stems, TPMS reset, alignment check, and 20-point inspection included." } },
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Flat Tire Repair", "description": "Professional flat tire repair starting at $15-25. Plug and patch service. Most repairs done in 15 minutes." } },
+          { "@type": "Offer", "priceSpecification": { "@type": "PriceSpecification", "priceCurrency": "USD", "minPrice": "15", "maxPrice": "25" }, "itemOffered": { "@type": "Service", "name": "Flat Tire Repair", "description": "Professional flat tire repair starting at $15-25. Plug and patch service. Most repairs done in 15 minutes." } },
           { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Used Tires", "description": "Quality inspected used tires at affordable prices. Every tire checked for tread depth, sidewall condition, and safety." } },
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Brake Repair", "description": "Brake pads, rotors, calipers, brake lines, ABS diagnostics. We show you the problem before we fix it." } },
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Engine Diagnostics", "description": "Check engine light, OBD-II code reading, advanced computer diagnostics. We pinpoint the exact cause." } },
+          { "@type": "Offer", "priceSpecification": { "@type": "PriceSpecification", "priceCurrency": "USD", "minPrice": "89" }, "itemOffered": { "@type": "Service", "name": "Brake Repair", "description": "Brake pads, rotors, calipers, brake lines, ABS diagnostics. Starting at $89 per axle. We show you the problem before we fix it." } },
+          { "@type": "Offer", "priceSpecification": { "@type": "PriceSpecification", "priceCurrency": "USD", "minPrice": "49.99" }, "itemOffered": { "@type": "Service", "name": "Engine Diagnostics", "description": "Check engine light, OBD-II code reading, advanced computer diagnostics starting at $49.99. Diagnostic fee credited toward repair." } },
           { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Ohio E-Check & Emissions Repair", "description": "Emissions diagnostics and repair — oxygen sensors, EVAP leaks, catalytic converters. We get you passing." } },
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Oil Change", "description": "Conventional and synthetic oil changes with filter replacement. Quick, affordable, done right." } },
+          { "@type": "Offer", "priceSpecification": { "@type": "PriceSpecification", "priceCurrency": "USD", "minPrice": "39.99" }, "itemOffered": { "@type": "Service", "name": "Oil Change", "description": "Conventional oil change from $39.99, full synthetic from $69.99. Filter replacement and multi-point inspection included." } },
           { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Suspension & Steering Repair", "description": "Suspension, steering, exhaust, cooling systems, belts, hoses, and general repair." } }
         ]
       },
@@ -139,6 +139,7 @@
       "image": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/og-share-image-b6xtjfHGwFJnz4MtsoFkCp.png",
       "paymentAccepted": ["Cash", "Credit Card", "Debit Card"],
       "currenciesAccepted": "USD",
+      "foundingDate": "2018",
       "knowsAbout": [
         "Tire installation",
         "Flat tire repair",
@@ -151,7 +152,100 @@
         "Used tires",
         "TPMS sensors",
         "Wheel alignment",
-        "Auto repair Cleveland"
+        "Auto repair Cleveland",
+        "Winter tires Cleveland",
+        "No credit check auto financing",
+        "Pothole damage repair"
+      ]
+    }
+    </script>
+
+    <!-- Structured Data: FAQPage -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Do I need an appointment at Nick's Tire & Auto?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Walk-ins are welcome 7 days a week. For faster service, you can book online at nickstire.org/booking."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How much does a flat tire repair cost in Cleveland?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Flat tire repair at Nick's Tire & Auto costs $15-25. Most repairs are completed in about 15 minutes using the professional plug-and-patch method."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What are Nick's Tire & Auto's hours?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Monday through Saturday 8:00 AM to 6:00 PM, Sunday 9:00 AM to 4:00 PM. Open 7 days a week, walk-ins welcome."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does Nick's Tire & Auto offer financing with no credit check?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Four no-credit-check financing providers: Acima (up to $5,000), Snap Finance (up to $5,000), Koalafi (up to $7,500), and American First Finance (up to $5,000). Apply online or at the counter in minutes."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How much does an oil change cost at Nick's Tire & Auto?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Conventional oil change from $39.99, synthetic blend from $54.99, full synthetic from $69.99. Every oil change includes new filter, multi-point inspection, and tire pressure check."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does Nick's Tire & Auto do Ohio E-Check emissions testing?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Nick's is a certified Ohio E-Check emissions testing station. Walk-ins welcome, usually completed in 20-30 minutes. They also perform emissions repair if your vehicle fails."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How much does brake repair cost in Cleveland?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Brake pads start at $89 per axle at Nick's Tire & Auto. Rotor replacement $49-89 per rotor. Free brake inspection — they show you the problem before any work begins. Same-day service available."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does Nick's sell used tires?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Quality-inspected used tires starting at $60 each including installation. Every used tire is checked for tread depth, sidewall condition, and safety before sale."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How does Nick's Tire & Auto pricing compare to dealerships?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Nick's typically charges 30-50% less than dealerships. Examples: oil change $39.99 vs dealership $69.99+, brake pads $89/axle vs $199+, diagnostics $49.99 vs $99+. Plus Nick's offers a 36-month warranty vs most dealerships' 12-month warranty."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What should I do if my check engine light is on?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "If the check engine light is solid, you can drive to the shop safely but get it checked soon. If the light is flashing, pull over and do not drive — this indicates a severe misfire that can damage the catalytic converter. Nick's charges $49.99 for diagnostics, credited toward the repair."
+          }
+        }
       ]
     }
     </script>

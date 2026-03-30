@@ -1,0 +1,315 @@
+{
+  "@context": "https://schema.org",
+  "@type": ["AutoRepair", "TireShop"],
+  "name": "Nick's Tire & Auto",
+  "alternateName": "Nicks Tire and Auto",
+  "description": "Cleveland's #1 independent auto repair shop and tire dealer. 4.9 stars with 1,700+ Google reviews. New and used tires, brake repair, engine diagnostics, Ohio E-Check, oil changes, and full-service auto repair. Walk-ins welcome 7 days. No-credit-check financing available.",
+  "url": "https://nickstire.org",
+  "telephone": "+1-216-862-0005",
+  "email": "info@nickstire.org",
+  "foundingDate": "2018",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "17625 Euclid Ave",
+    "addressLocality": "Euclid",
+    "addressRegion": "OH",
+    "postalCode": "44112",
+    "addressCountry": "US"
+  },
+  "geo": {
+    "@type": "GeoCoordinates",
+    "latitude": 41.5827,
+    "longitude": -81.5233
+  },
+  "openingHoursSpecification": [
+    {
+      "@type": "OpeningHoursSpecification",
+      "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+      "opens": "08:00",
+      "closes": "18:00"
+    },
+    {
+      "@type": "OpeningHoursSpecification",
+      "dayOfWeek": "Sunday",
+      "opens": "09:00",
+      "closes": "16:00"
+    }
+  ],
+  "priceRange": "$$",
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "4.9",
+    "reviewCount": "1700",
+    "bestRating": "5",
+    "worstRating": "1"
+  },
+  "areaServed": [
+    {"@type": "City", "name": "Cleveland", "sameAs": "https://en.wikipedia.org/wiki/Cleveland"},
+    {"@type": "City", "name": "Euclid"},
+    {"@type": "City", "name": "East Cleveland"},
+    {"@type": "City", "name": "South Euclid"},
+    {"@type": "City", "name": "Cleveland Heights"},
+    {"@type": "City", "name": "Shaker Heights"},
+    {"@type": "City", "name": "Richmond Heights"},
+    {"@type": "City", "name": "Lyndhurst"},
+    {"@type": "City", "name": "Wickliffe"},
+    {"@type": "City", "name": "Willoughby"},
+    {"@type": "City", "name": "Mentor"},
+    {"@type": "City", "name": "Parma"},
+    {"@type": "City", "name": "Parma Heights"},
+    {"@type": "City", "name": "Garfield Heights"},
+    {"@type": "City", "name": "Maple Heights"},
+    {"@type": "City", "name": "Bedford"},
+    {"@type": "City", "name": "Warrensville Heights"},
+    {"@type": "City", "name": "Lakewood"},
+    {"@type": "City", "name": "Strongsville"},
+    {"@type": "City", "name": "University Heights"},
+    {"@type": "City", "name": "Beachwood"},
+    {"@type": "City", "name": "Solon"},
+    {"@type": "City", "name": "Mayfield Heights"},
+    {"@type": "City", "name": "Highland Heights"},
+    {"@type": "City", "name": "North Olmsted"},
+    {"@type": "City", "name": "Westlake"},
+    {"@type": "City", "name": "Rocky River"},
+    {"@type": "City", "name": "Brook Park"},
+    {"@type": "City", "name": "Middleburg Heights"},
+    {"@type": "City", "name": "Pepper Pike"},
+    {"@type": "City", "name": "Collinwood"}
+  ],
+  "hasOfferCatalog": {
+    "@type": "OfferCatalog",
+    "name": "Auto Repair & Tire Services",
+    "itemListElement": [
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "New Tire Sales & Installation",
+          "description": "New tires from all major brands with FREE premium installation package ($289+ value). Includes mounting, balancing, valve stems, TPMS reset, alignment check, 20-point inspection, rim cleaning, and disposal."
+        },
+        "priceSpecification": {
+          "@type": "PriceSpecification",
+          "priceCurrency": "USD",
+          "price": "0",
+          "description": "Installation FREE with tire purchase. Tire prices vary by size and brand."
+        }
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Used Tires",
+          "description": "Quality-inspected used tires. Every tire checked for tread depth, sidewall condition, bead integrity, belt separation, dry rot, and date code."
+        },
+        "priceSpecification": {
+          "@type": "PriceSpecification",
+          "priceCurrency": "USD",
+          "minPrice": "60",
+          "description": "Starting at $60 per tire, installed"
+        }
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Flat Tire Repair",
+          "description": "Professional plug-and-patch flat tire repair. Most repairs completed in 15 minutes."
+        },
+        "priceSpecification": {
+          "@type": "PriceSpecification",
+          "priceCurrency": "USD",
+          "minPrice": "15",
+          "maxPrice": "25"
+        }
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Brake Repair",
+          "description": "Brake pads, rotors, calipers, brake lines, ABS diagnostics. Free brake inspection. Same-day service available."
+        },
+        "priceSpecification": {
+          "@type": "PriceSpecification",
+          "priceCurrency": "USD",
+          "minPrice": "89",
+          "description": "Starting at $89 per axle for brake pads"
+        }
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Oil Change — Conventional",
+          "description": "Conventional oil change with filter replacement. Includes multi-point inspection and tire pressure check."
+        },
+        "priceSpecification": {
+          "@type": "PriceSpecification",
+          "priceCurrency": "USD",
+          "minPrice": "39.99"
+        }
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Oil Change — Full Synthetic",
+          "description": "Full synthetic oil change with filter replacement. Mobil 1, Pennzoil Platinum, Valvoline, or equivalent."
+        },
+        "priceSpecification": {
+          "@type": "PriceSpecification",
+          "priceCurrency": "USD",
+          "minPrice": "69.99"
+        }
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Engine Diagnostics",
+          "description": "Check engine light diagnosis, OBD-II code reading, advanced computer diagnostics. Diagnostic fee credited toward repair."
+        },
+        "priceSpecification": {
+          "@type": "PriceSpecification",
+          "priceCurrency": "USD",
+          "minPrice": "49.99"
+        }
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Ohio E-Check Emissions Testing & Repair",
+          "description": "Certified Ohio E-Check station. Emissions diagnostics and repair including oxygen sensors, EVAP systems, catalytic converters. Walk-ins welcome, usually done in 20-30 minutes."
+        }
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Wheel Alignment",
+          "description": "4-wheel computerized alignment. Corrects pulling, uneven tire wear, and steering issues."
+        },
+        "priceSpecification": {
+          "@type": "PriceSpecification",
+          "priceCurrency": "USD",
+          "minPrice": "79"
+        }
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "AC & Heating Repair",
+          "description": "AC recharge, compressor replacement, evaporator/condenser repair, heater core, blower motor."
+        },
+        "priceSpecification": {
+          "@type": "PriceSpecification",
+          "priceCurrency": "USD",
+          "minPrice": "49",
+          "description": "AC recharge from $49"
+        }
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Suspension & Steering Repair",
+          "description": "Struts, shocks, control arms, ball joints, tie rods, wheel bearings, sway bar links."
+        }
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Transmission Services",
+          "description": "Transmission diagnostics, fluid flush, fluid and filter change, repair for automatic and manual transmissions."
+        }
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Electrical System",
+          "description": "Free battery testing, battery replacement, alternator, starter motor, wiring repair."
+        }
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Exhaust System",
+          "description": "Muffler, catalytic converter, exhaust manifold, exhaust pipe and flex pipe repair."
+        }
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "General Engine Repair",
+          "description": "Water pump, timing belt/chain, head gasket, radiator, thermostat, serpentine belt, hoses, coolant flush."
+        }
+      },
+      {
+        "@type": "Offer",
+        "itemOffered": {
+          "@type": "Service",
+          "name": "Fleet Services",
+          "description": "Commercial fleet maintenance with priority scheduling, custom service intervals, and volume pricing."
+        }
+      }
+    ]
+  },
+  "paymentAccepted": ["Cash", "Visa", "Mastercard", "Discover", "American Express", "Debit Card", "Acima", "Snap Finance", "Koalafi", "American First Finance"],
+  "currenciesAccepted": "USD",
+  "image": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/og-share-image-b6xtjfHGwFJnz4MtsoFkCp.png",
+  "logo": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/og-share-image-b6xtjfHGwFJnz4MtsoFkCp.png",
+  "sameAs": [
+    "https://www.google.com/maps/place/Nick's+Tire+%26+Auto/@41.5827,-81.5233",
+    "https://www.instagram.com/nickstireandauto/"
+  ],
+  "knowsAbout": [
+    "Tire installation", "Flat tire repair", "Brake repair", "Engine diagnostics",
+    "Ohio E-Check", "Emissions repair", "Oil change", "Suspension repair",
+    "Used tires", "TPMS sensors", "Wheel alignment", "Auto repair Cleveland",
+    "Winter tires Cleveland", "Pothole damage repair", "No credit check auto financing",
+    "Cleveland auto repair", "Euclid tire shop", "Cleveland tire shop"
+  ],
+  "additionalProperty": [
+    {
+      "@type": "PropertyValue",
+      "name": "walkInsWelcome",
+      "value": "true"
+    },
+    {
+      "@type": "PropertyValue",
+      "name": "appointmentRequired",
+      "value": "false"
+    },
+    {
+      "@type": "PropertyValue",
+      "name": "laborWarranty",
+      "value": "36 months / 36,000 miles"
+    },
+    {
+      "@type": "PropertyValue",
+      "name": "noCreditCheckFinancing",
+      "value": "true"
+    },
+    {
+      "@type": "PropertyValue",
+      "name": "certifiedECheckStation",
+      "value": "true"
+    },
+    {
+      "@type": "PropertyValue",
+      "name": "freeEstimates",
+      "value": "true"
+    },
+    {
+      "@type": "PropertyValue",
+      "name": "sameDayService",
+      "value": "true"
+    }
+  ]
+}

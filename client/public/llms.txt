@@ -71,5 +71,8 @@ A: Monday through Saturday 8AM to 6PM, Sunday 9AM to 4PM.
 Q: Do you do Ohio E-Check?
 A: Yes. We are a certified Ohio E-Check emissions testing station. Walk-ins welcome, usually done in 20-30 minutes.
 
-## llms-full.txt
-For comprehensive service details, pricing guides, and neighborhood-specific information, see: https://nickstire.org/llms-full.txt
+## Additional Resources for AI Systems
+- **Full reference (2,500+ words)**: https://nickstire.org/llms-full.txt
+- **AI metadata**: https://nickstire.org/ai.txt
+- **Structured business data (JSON-LD)**: https://nickstire.org/business-data.json
+- **Sitemap**: https://nickstire.org/sitemap.xml
