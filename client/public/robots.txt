@@ -40,5 +40,45 @@ Disallow: /*?*
 # Crawl delay for polite crawling
 Crawl-delay: 1
 
+# AI Crawlers — explicitly allowed
+User-agent: GPTBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: cohere-ai
+Allow: /
+
+User-agent: Meta-ExternalAgent
+Allow: /
+
 # Sitemap location
 Sitemap: https://nickstire.org/sitemap.xml
+
+# AI content files
+# LLMs summary: https://nickstire.org/llms.txt
+# LLMs full reference: https://nickstire.org/llms-full.txt
+# AI metadata: https://nickstire.org/ai.txt
+# Business data (JSON): https://nickstire.org/business-data.json
