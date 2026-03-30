@@ -69,7 +69,12 @@ export const bookings = mysqlTable("bookings", {
   referrer: varchar("referrer", { length: 500 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  index("idx_booking_phone").on(table.phone),
+  index("idx_booking_status").on(table.status),
+  index("idx_booking_created").on(table.createdAt),
+  index("idx_booking_ref").on(table.referenceCode),
+]);
 
 export type Booking = typeof bookings.$inferSelect;
 export type InsertBooking = typeof bookings.$inferInsert;
@@ -114,7 +119,12 @@ export const leads = mysqlTable("leads", {
   referrer: varchar("referrer", { length: 500 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  index("idx_lead_phone").on(table.phone),
+  index("idx_lead_status").on(table.status),
+  index("idx_lead_source").on(table.source),
+  index("idx_lead_created").on(table.createdAt),
+]);
 
 export type Lead = typeof leads.$inferSelect;
 export type InsertLead = typeof leads.$inferInsert;
@@ -545,7 +555,12 @@ export const reviewRequests = mysqlTable("review_requests", {
   twilioSid: varchar("twilioSid", { length: 64 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  index("idx_review_booking").on(table.bookingId),
+  index("idx_review_phone").on(table.phone),
+  index("idx_review_status").on(table.status),
+  index("idx_review_scheduled").on(table.scheduledAt),
+]);
 
 export type ReviewRequest = typeof reviewRequests.$inferSelect;
 export type InsertReviewRequest = typeof reviewRequests.$inferInsert;
@@ -805,7 +820,12 @@ export const customers = mysqlTable("customers", {
   smsOptOut: int("smsOptOut").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  index("idx_customer_phone").on(table.phone),
+  index("idx_customer_segment").on(table.segment),
+  index("idx_customer_last_visit").on(table.lastVisitDate),
+  index("idx_customer_als_id").on(table.alsCustomerId),
+]);
 
 export type Customer = typeof customers.$inferSelect;
 export type InsertCustomer = typeof customers.$inferInsert;
@@ -1008,7 +1028,12 @@ export const invoices = mysqlTable("invoices", {
   source: mysqlEnum("source", ["shopdriver", "manual", "stripe"]).default("manual").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  index("idx_invoice_booking").on(table.bookingId),
+  index("idx_invoice_customer").on(table.customerName),
+  index("idx_invoice_date").on(table.invoiceDate),
+  index("idx_invoice_payment_status").on(table.paymentStatus),
+]);
 
 export type Invoice = typeof invoices.$inferSelect;
 export type InsertInvoice = typeof invoices.$inferInsert;
@@ -1066,7 +1091,10 @@ export const portalSessions = mysqlTable("portal_sessions", {
   /** Session expiry */
   sessionExpiresAt: timestamp("sessionExpiresAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => [
+  index("idx_portal_phone").on(table.phone),
+  index("idx_portal_token").on(table.sessionToken),
+]);
 
 export type PortalSession = typeof portalSessions.$inferSelect;
 export type InsertPortalSession = typeof portalSessions.$inferInsert;
