@@ -7,6 +7,7 @@
 import { createLogger } from "../lib/logger";
 import { analyzeSentiment } from "./sentimentAnalysis";
 import { emitNewReview, emitAlert } from "./realtime";
+import { alertLowReview } from "./telegram";
 
 const log = createLogger("review-monitor");
 
@@ -27,18 +28,29 @@ export async function processNewReview(review: Review): Promise<{
   sentiment: ReturnType<typeof analyzeSentiment>;
   responseDraft: string;
   alertSent: boolean;
+  trustTags: string[];
+  service: string;
+  isProof: boolean;
 }> {
   // Analyze sentiment
   const sentiment = analyzeSentiment(review.text);
 
+  // Detect trust tags & service type for marketing intelligence
+  const trustTags = detectTrustTags(review.text);
+  const service = detectService(review.text);
+  const isProof = isProofCandidate(review);
+
   // Generate response draft
   const responseDraft = generateResponseDraft(review, sentiment);
 
-  // Emit to admin real-time feed
+  // Emit to admin real-time feed with intelligence data
   emitNewReview({
     rating: review.rating,
     text: review.text.slice(0, 100),
     author: review.authorName,
+    trustTags,
+    service,
+    isProof,
   });
 
   // Alert on low ratings
@@ -50,6 +62,8 @@ export async function processNewReview(review: Review): Promise<{
       severity: "urgent",
     });
     alertSent = true;
+    // Push to Telegram
+    alertLowReview({ rating: review.rating, author: review.authorName, text: review.text, platform: review.platform }).catch(() => {});
     log.warn("Low rating review received", { rating: review.rating, author: review.authorName });
   }
 
@@ -58,9 +72,12 @@ export async function processNewReview(review: Review): Promise<{
     rating: review.rating,
     sentiment: sentiment.overall,
     author: review.authorName,
+    trustTags,
+    service,
+    isProof,
   });
 
-  return { sentiment, responseDraft, alertSent };
+  return { sentiment, responseDraft, alertSent, trustTags, service, isProof };
 }
 
 /** Generate a response draft based on rating and sentiment */
@@ -83,6 +100,40 @@ function generateResponseDraft(review: Review, sentiment: ReturnType<typeof anal
 
   // Negative (1-2 stars)
   return `${firstName}, I'm sorry to hear about your experience. This isn't the standard we set for ourselves. I'd like to make this right — please call me directly at (216) 862-0005 so we can discuss what happened. We take every review seriously. — Nour, Owner`;
+}
+
+// ─── Trust Tag Auto-Detection ────────────────────────
+// Automatically detects trust signals in review text for marketing proof
+export function detectTrustTags(text: string): string[] {
+  const lower = text.toLowerCase();
+  const tags: string[] = [];
+  if (/honest|told me|didn.t need|truth|straightforward|upfront/.test(lower)) tags.push("honesty");
+  if (/fair|reasonable|price|value|affordable|worth|good deal/.test(lower)) tags.push("fair_price");
+  if (/no pressure|no.pressure|pushy|forced|my decision|no hassle|didn.t push/.test(lower)) tags.push("no_pressure");
+  if (/woman|female|comfortable|respected|welcoming|wife|daughter|mom|lady/.test(lower)) tags.push("women_safe");
+  if (/fast|quick|same.day|right away|immediately|in and out/.test(lower)) tags.push("speed");
+  if (/found|diagnosed|missed|caught|figured out|other shop|couldn.t find/.test(lower)) tags.push("diagnostic_skill");
+  if (/explained|showed|understood|clear|walked me through|told me what/.test(lower)) tags.push("transparency");
+  if (/always|years|every time|keep coming|go.to|regular|loyal/.test(lower)) tags.push("repeat_customer");
+  return tags;
+}
+
+// Detect which service a review references
+export function detectService(text: string): string {
+  const lower = text.toLowerCase();
+  if (/brake|brakes|rotor|pads|stopping/.test(lower)) return "brakes";
+  if (/tire|tires|flat|alignment|rotation/.test(lower)) return "tires";
+  if (/check engine|diagnostic|code|light|scan/.test(lower)) return "diagnostics";
+  if (/oil change|\boil\b|\blube\b/.test(lower)) return "oil_change";
+  if (/emission|e.check|inspection|smog/.test(lower)) return "emissions";
+  if (/\bac\b|a\/c|air condition|cooling|heat/.test(lower)) return "ac_repair";
+  if (/transmission|trans/.test(lower)) return "transmission";
+  return "general";
+}
+
+// Check if a review qualifies as proof material
+export function isProofCandidate(review: { rating: number; text: string }): boolean {
+  return review.rating >= 4 && !!review.text && review.text.length > 30;
 }
 
 /** Get review velocity stats */

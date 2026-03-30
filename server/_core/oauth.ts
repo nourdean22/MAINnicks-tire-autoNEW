@@ -20,8 +20,9 @@ export function registerOAuthRoutes(app: Express) {
     }
 
     try {
-      // Build the redirect URI (must match what was sent in the login URL)
-      const redirectUri = `${req.protocol}://${req.get("host")}/api/oauth/callback`;
+      // Build the redirect URI — respect x-forwarded-proto behind Railway proxy
+      const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0]?.trim() || req.protocol;
+      const redirectUri = `${proto}://${req.get("host")}/api/oauth/callback`;
 
       const tokenResponse = await sdk.exchangeCodeForToken(code, redirectUri);
       const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
@@ -31,9 +32,7 @@ export function registerOAuthRoutes(app: Express) {
         return;
       }
 
-      // Check if this is the owner (first admin)
-      const ownerOpenId = process.env.OWNER_OPEN_ID;
-
+      // Upsert user — admin role auto-granted in db.ts if openId matches OWNER_OPEN_ID
       await db.upsertUser({
         openId: userInfo.openId,
         name: userInfo.name || null,
@@ -50,10 +49,13 @@ export function registerOAuthRoutes(app: Express) {
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
 
-      res.redirect(302, "/");
+      // Redirect to admin if user has admin role, otherwise homepage
+      const freshUser = await db.getUserByOpenId(userInfo.openId);
+      const dest = freshUser?.role === "admin" ? "/admin" : "/";
+      res.redirect(302, dest);
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
-      res.status(500).json({ error: "OAuth callback failed" });
+      res.redirect(302, "/admin?error=auth_failed");
     }
   });
 }

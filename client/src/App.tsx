@@ -57,6 +57,7 @@ const CustomerPortal = lazy(() => import("./pages/CustomerPortal"));
 const TireFinder = lazy(() => import("./pages/TireFinder"));
 const ServicesOverview = lazy(() => import("./pages/ServicesOverview"));
 const AlignmentPage = lazy(() => import("./pages/AlignmentPage"));
+const TrackJob = lazy(() => import("./pages/TrackJob"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const Terms = lazy(() => import("./pages/Terms"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -67,6 +68,7 @@ const LandingPage = lazy(() => import("./pages/LandingPage"));
 const SharePage = lazy(() => import("./pages/SharePage"));
 const NeighborhoodPage = lazy(() => import("./pages/NeighborhoodPage"));
 const Careers = lazy(() => import("./pages/Careers"));
+const BookingPage = lazy(() => import("./pages/BookingPage"));
 
 function Router() {
   const [location] = useLocation();
@@ -102,6 +104,9 @@ function Router() {
         <Route path={"/belts-hoses"} component={ServicePage} />
         <Route path={"/starter-alternator"} component={ServicePage} />
         <Route path={"/alignment"} component={AlignmentPage} />
+        {/* Booking / Appointment */}
+        <Route path={"/appointment"} component={BookingPage} />
+        <Route path={"/booking"} component={BookingPage} />
         {/* Standalone pages */}
         <Route path={"/contact"} component={Contact} />
         <Route path={"/about"} component={About} />
@@ -179,6 +184,7 @@ function Router() {
         <Route path={"/review"} component={ReviewPage} />
         {/* Status Tracker */}
         <Route path={"/status"} component={StatusTracker} />
+        <Route path={"/track"} component={TrackJob} />
         {/* Price Estimator */}
         <Route path={"/pricing"} component={PriceEstimator} />
         <Route path={"/estimate"} component={LaborEstimator} />

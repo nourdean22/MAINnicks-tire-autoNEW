@@ -2,6 +2,7 @@
  * Integration failure tracking utility
  * Logs failed integrations (Sheets sync, email, SMS, CAPI) for visibility in admin dashboard
  */
+import { eq } from "drizzle-orm";
 import { getDb } from "./db";
 import { integrationFailures } from "../drizzle/schema";
 import { eq } from "drizzle-orm";

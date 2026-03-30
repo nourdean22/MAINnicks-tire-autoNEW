@@ -14,7 +14,7 @@ import { withRetry } from "../retry";
 import { logIntegrationFailure } from "../integration-failures";
 import { TRPCError } from "@trpc/server";
 
-const STORE_OWNER_PHONE = process.env.OWNER_PHONE || "(216) 862-0005";
+const STORE_OWNER_PHONE = process.env.OWNER_PHONE_NUMBER || "(216) 862-0005";
 
 async function db() {
   const { getDb } = await import("../db");

@@ -369,28 +369,26 @@ export const kpiRouter = router({
     const [newCustomerCount] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(gte(customers.createdAt, monthAgo));
 
     // Booking by day of week (OPTIMIZED: SQL aggregation instead of fetching all rows)
-    const dayOfWeekResults = await d.select({
-      dayOfWeek: sql<number>`DAYOFWEEK(${bookings.createdAt})`,
-      count: sql<number>`count(*)`,
-    }).from(bookings).groupBy(sql`DAYOFWEEK(${bookings.createdAt})`);
+    // NOTE: Use raw SQL to avoid TiDB mismatch between SELECT/GROUP BY column qualification
+    const dayOfWeekRaw = await d.execute(
+      sql`SELECT DAYOFWEEK(createdAt) as dow, count(*) as cnt FROM bookings GROUP BY dow`
+    );
 
     const dayOfWeekCounts = [0, 0, 0, 0, 0, 0, 0]; // Sun-Sat
-    dayOfWeekResults.forEach(r => {
-      // MySQL DAYOFWEEK: 1=Sun, 2=Mon, ..., 7=Sat
-      const idx = r.dayOfWeek - 1;
-      if (idx >= 0 && idx < 7) dayOfWeekCounts[idx] = r.count;
-    });
+    for (const r of dayOfWeekRaw as any[]) {
+      const idx = Number(r.dow) - 1;
+      if (idx >= 0 && idx < 7) dayOfWeekCounts[idx] = Number(r.cnt);
+    }
 
     // Booking by hour (OPTIMIZED: SQL aggregation)
-    const hourResults = await d.select({
-      hour: sql<number>`HOUR(${bookings.createdAt})`,
-      count: sql<number>`count(*)`,
-    }).from(bookings).groupBy(sql`HOUR(${bookings.createdAt})`);
+    const hourRaw = await d.execute(
+      sql`SELECT HOUR(createdAt) as hr, count(*) as cnt FROM bookings GROUP BY hr`
+    );
 
     const hourCounts = new Array(24).fill(0);
-    hourResults.forEach(r => {
-      if (r.hour >= 0 && r.hour < 24) hourCounts[r.hour] = r.count;
-    });
+    for (const r of hourRaw as any[]) {
+      if (Number(r.hr) >= 0 && Number(r.hr) < 24) hourCounts[Number(r.hr)] = Number(r.cnt);
+    }
 
     return {
       weekBookings: weekBookings.length,

@@ -198,6 +198,11 @@ const LABOR_CATEGORIES: Record<string, { name: string; jobs: { name: string; min
   },
 };
 
+// ─── Freshness & session tracking ─────────────────────
+let lastShopDriverAuthAt: string | null = null;
+let lastShopDriverAuthSuccess = false;
+let laborLookupCount = 0;
+
 export const autoLaborRouter = router({
   /** Check ShopDriver Elite connection status */
   status: adminProcedure.query(async () => {
@@ -209,15 +214,26 @@ export const autoLaborRouter = router({
         connected: false,
         error: "Auto Labor Guide credentials not configured",
         portal: SHOPDRIVER_BASE,
+        usingFallback: true,
+        fallbackCategories: Object.keys(LABOR_CATEGORIES).length,
+        fallbackJobs: Object.values(LABOR_CATEGORIES).reduce((sum, cat) => sum + cat.jobs.length, 0),
       };
     }
 
     const session = await getShopDriverSession();
+    lastShopDriverAuthAt = new Date().toISOString();
+    lastShopDriverAuthSuccess = !!session;
+
     return {
       connected: !!session,
       portal: SHOPDRIVER_BASE,
       accountId: username,
       error: session ? null : "Could not authenticate — using built-in labor guide",
+      usingFallback: !session,
+      fallbackCategories: Object.keys(LABOR_CATEGORIES).length,
+      fallbackJobs: Object.values(LABOR_CATEGORIES).reduce((sum, cat) => sum + cat.jobs.length, 0),
+      lastAuthCheck: lastShopDriverAuthAt,
+      totalLookups: laborLookupCount,
     };
   }),
 
@@ -246,6 +262,7 @@ export const autoLaborRouter = router({
   searchJobs: adminProcedure
     .input(z.object({ query: z.string().min(2) }))
     .query(({ input }) => {
+      laborLookupCount++;
       const q = input.query.toLowerCase();
       const results: Array<{
         categoryId: string;

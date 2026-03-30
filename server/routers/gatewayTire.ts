@@ -217,6 +217,60 @@ const PACKAGE_VALUE_PER_SET = NICKS_PACKAGE.services.reduce((sum, s) => sum + s.
 // Service fee is $0 — everything is included in the tire price
 const SERVICE_FEE_PER_TIRE = 0;
 
+// ─── Data Freshness Tracking ────────────────────────
+interface SearchCacheEntry {
+  results: any;
+  fetchedAt: number;
+  source: "live" | "catalog";
+}
+const searchCache = new Map<string, SearchCacheEntry>();
+const SEARCH_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+let lastLiveFetchAt: string | null = null;
+let lastLiveFetchSuccess = false;
+
+function getCachedSearch(key: string): SearchCacheEntry | null {
+  const entry = searchCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.fetchedAt > SEARCH_CACHE_TTL) {
+    searchCache.delete(key);
+    return null;
+  }
+  return entry;
+}
+
+function setCachedSearch(key: string, results: any, source: "live" | "catalog") {
+  // Keep cache bounded
+  if (searchCache.size > 100) {
+    const oldest = [...searchCache.entries()].sort((a, b) => a[1].fetchedAt - b[1].fetchedAt)[0];
+    if (oldest) searchCache.delete(oldest[0]);
+  }
+  searchCache.set(key, { results, fetchedAt: Date.now(), source });
+}
+
+// ─── Order Idempotency ──────────────────────────────
+const recentOrderKeys = new Map<string, { orderNumber: string; at: number }>();
+const IDEMPOTENCY_WINDOW = 5 * 60 * 1000; // 5 minutes
+
+function getIdempotencyKey(input: { customerPhone: string; tireBrand: string; tireModel: string; tireSize: string; quantity: number }): string {
+  return `${input.customerPhone}|${input.tireBrand}|${input.tireModel}|${input.tireSize}|${input.quantity}`;
+}
+
+function checkDuplicateOrder(key: string): string | null {
+  const existing = recentOrderKeys.get(key);
+  if (existing && Date.now() - existing.at < IDEMPOTENCY_WINDOW) {
+    return existing.orderNumber;
+  }
+  return null;
+}
+
+function recordOrder(key: string, orderNumber: string) {
+  recentOrderKeys.set(key, { orderNumber, at: Date.now() });
+  // Prune old entries
+  for (const [k, v] of recentOrderKeys) {
+    if (Date.now() - v.at > IDEMPOTENCY_WINDOW) recentOrderKeys.delete(k);
+  }
+}
+
 // ─── Order number generator ──────────────────────────
 function generateOrderNumber(): string {
   const now = new Date();
@@ -382,6 +436,13 @@ export const gatewayTireRouter = router({
         ? `${sizeClean.slice(0, 3)}/${sizeClean.slice(3, 5)}R${sizeClean.slice(5)}`
         : input.size;
 
+      // Check search cache first
+      const cacheKey = `${sizeClean}|${input.category}|${input.sortBy}|${markup}`;
+      const cached = getCachedSearch(cacheKey);
+      if (cached) {
+        return { ...cached.results, cached: true, cachedAt: new Date(cached.fetchedAt).toISOString() };
+      }
+
       // Try live Gateway Tire API first
       const res = await gatewayFetch(`/api/products/search?q=${encodeURIComponent(sizeClean)}`);
 
@@ -427,14 +488,19 @@ export const gatewayTireRouter = router({
               }
             });
 
-            return {
+            lastLiveFetchAt = new Date().toISOString();
+            lastLiveFetchSuccess = true;
+            const liveResult = {
               tires,
               source: "live" as const,
               serviceFee: 0,
               sizeFormatted,
               package: NICKS_PACKAGE,
               packageValue: PACKAGE_VALUE_PER_SET,
+              dataFreshness: lastLiveFetchAt,
             };
+            setCachedSearch(cacheKey, liveResult, "live");
+            return liveResult;
           }
         } catch { /* fall through to catalog */ }
       }
@@ -476,14 +542,17 @@ export const gatewayTireRouter = router({
         }
       });
 
-      return {
+      const catalogResult = {
         tires,
         source: "catalog" as const,
         serviceFee: 0,
         sizeFormatted,
         package: NICKS_PACKAGE,
         packageValue: PACKAGE_VALUE_PER_SET,
+        dataFreshness: null as string | null,
       };
+      setCachedSearch(cacheKey, catalogResult, "catalog");
+      return catalogResult;
     }),
 
   // ─── PUBLIC: Place a tire order ────────────────────
@@ -504,7 +573,16 @@ export const gatewayTireRouter = router({
       const d = await db();
       if (!d) return { success: false, error: "Service unavailable" };
 
+      // Idempotency check — prevent duplicate orders within 5 minutes
+      const idemKey = getIdempotencyKey(input);
+      const existingOrder = checkDuplicateOrder(idemKey);
+      if (existingOrder) {
+        console.log(`[TireOrder] Duplicate blocked — existing order ${existingOrder}`);
+        return { success: true, orderNumber: existingOrder, totalAmount: 0, duplicate: true };
+      }
+
       const orderNumber = generateOrderNumber();
+      recordOrder(idemKey, orderNumber);
       // No service fee — everything included in tire price
       const serviceFeePerTire = 0;
       const totalAmount = input.pricePerTireCents * input.quantity;
@@ -790,6 +868,9 @@ export const gatewayTireRouter = router({
       portal: GATEWAY_BASE,
       accountId: username,
       error: session ? null : "Could not authenticate with Gateway Tire",
+      lastLiveFetch: lastLiveFetchAt,
+      lastLiveFetchSuccess,
+      cachedSearches: searchCache.size,
     };
   }),
 
