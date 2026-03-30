@@ -26,6 +26,7 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import rateLimit from "express-rate-limit";
 import { registerOAuthRoutes } from "./oauth";
 import { registerBridgeRoutes } from "./bridge-routes";
+import { healthHandler, pingHandler, readyHandler } from "../lib/health";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -62,9 +63,9 @@ async function startServer() {
   const server = createServer(app);
   // Trust proxy — required for rate limiting behind reverse proxy
   app.set("trust proxy", 1);
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  // Body parser — 2MB default, photo uploads handled separately
+  app.use(express.json({ limit: "2mb" }));
+  app.use(express.urlencoded({ limit: "2mb", extended: true }));
 
   // Security headers
   app.use((_req, res, next) => {
@@ -128,6 +129,11 @@ async function startServer() {
     });
   });
 
+  // ─── Health Endpoints ──────────────────────────────────
+  app.get("/api/health", healthHandler);
+  app.get("/api/ping", pingHandler);
+  app.get("/api/ready", readyHandler);
+
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
 
@@ -135,6 +141,9 @@ async function startServer() {
   // These are plain REST endpoints (not tRPC) that NOUR OS calls
   // to pull shop data. Authenticated via X-Bridge-Key header.
   registerBridgeRoutes(app);
+
+  // Higher body limit for photo upload (base64 encoded images up to 7.5MB)
+  app.use("/api/trpc/booking.uploadPhoto", express.json({ limit: "12mb" }));
 
   // tRPC API
   app.use(
