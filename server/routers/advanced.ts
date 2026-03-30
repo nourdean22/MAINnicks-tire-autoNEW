@@ -371,7 +371,7 @@ export const kpiRouter = router({
     // Booking by day of week (OPTIMIZED: SQL aggregation instead of fetching all rows)
     // NOTE: Use raw SQL to avoid TiDB mismatch between SELECT/GROUP BY column qualification
     const dayOfWeekRaw = await d.execute(
-      sql`SELECT DAYOFWEEK(created_at) as dow, count(*) as cnt FROM bookings GROUP BY dow`
+      sql`SELECT DAYOFWEEK(createdAt) as dow, count(*) as cnt FROM bookings GROUP BY dow`
     );
 
     const dayOfWeekCounts = [0, 0, 0, 0, 0, 0, 0]; // Sun-Sat
@@ -382,7 +382,7 @@ export const kpiRouter = router({
 
     // Booking by hour (OPTIMIZED: SQL aggregation)
     const hourRaw = await d.execute(
-      sql`SELECT HOUR(created_at) as hr, count(*) as cnt FROM bookings GROUP BY hr`
+      sql`SELECT HOUR(createdAt) as hr, count(*) as cnt FROM bookings GROUP BY hr`
     );
 
     const hourCounts = new Array(24).fill(0);
