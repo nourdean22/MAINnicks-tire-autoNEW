@@ -199,7 +199,7 @@ export const bookingRouter = router({
         vehicleModel: input.vehicleModel || null,
         preferredDate: input.preferredDate || null,
         preferredTime: input.preferredTime,
-        message: input.message || null,
+        message: message || null,
         photoUrls: input.photoUrls?.length ? JSON.stringify(input.photoUrls) : null,
         urgency: input.urgency,
         referenceCode: refCode,

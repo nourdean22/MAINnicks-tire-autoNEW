@@ -45,7 +45,7 @@ export interface SmsResult {
  * Send an SMS message via Twilio.
  * Returns success/failure with Twilio message SID.
  */
-export async function sendSms(to: string, body: string): Promise<SmsResult> {
+export async function sendSms(to: string, body: string, opts?: { skipOptOutCheck?: boolean }): Promise<SmsResult> {
   const client = getTwilioClient();
   const from = getFromNumber();
 
@@ -58,6 +58,26 @@ export async function sendSms(to: string, body: string): Promise<SmsResult> {
   const normalized = normalizePhone(to);
   if (!normalized) {
     return { success: false, error: `Invalid phone number: ${to}` };
+  }
+
+  // TCPA compliance: check SMS opt-out before sending (unless explicitly skipped for transactional)
+  if (!opts?.skipOptOutCheck) {
+    try {
+      const { getDb } = await import("./db");
+      const { customers } = await import("../drizzle/schema");
+      const { like } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        const last10 = normalized.slice(-10);
+        const [customer] = await db.select({ smsOptOut: customers.smsOptOut })
+          .from(customers).where(like(customers.phone, `%${last10}`)).limit(1);
+        if (customer?.smsOptOut) {
+          return { success: false, error: "Customer opted out of SMS" };
+        }
+      }
+    } catch {
+      // If opt-out check fails, proceed — better to send than to silently fail
+    }
   }
 
   try {
