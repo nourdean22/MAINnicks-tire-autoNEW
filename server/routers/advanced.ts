@@ -445,7 +445,8 @@ export const portalRouter = router({
       }
 
       // Generate 6-digit code
-      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const { randomInt } = await import("crypto");
+      const code = String(randomInt(100000, 999999));
       const codeExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
 
       // Find customer
