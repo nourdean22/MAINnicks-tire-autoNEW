@@ -167,7 +167,10 @@ export default function OverviewSection() {
     if (!allBookings) return [];
     const today = new Date().toISOString().split("T")[0];
     return allBookings
-      .filter((b: any) => b.preferredDate === today || b.createdAt?.startsWith(today))
+      .filter((b: any) => {
+        const d = typeof b.createdAt === "string" ? b.createdAt : new Date(b.createdAt).toISOString();
+        return b.preferredDate === today || d.startsWith(today);
+      })
       .sort((a: any, b: any) => {
         const timeOrder: Record<string, number> = { morning: 0, afternoon: 1, "no-preference": 2 };
         return (timeOrder[a.preferredTime] ?? 2) - (timeOrder[b.preferredTime] ?? 2);
