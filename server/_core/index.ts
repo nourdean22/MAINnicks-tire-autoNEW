@@ -3,7 +3,7 @@ import "dotenv/config";
 // ─── Startup env validation ─────────────────────────
 const REQUIRED_ENV = ["DATABASE_URL"] as const;
 const RECOMMENDED_ENV = [
-  "JWT_SECRET", "OWNER_OPEN_ID", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
+  "JWT_SECRET", "OWNER_OPEN_ID", "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET",
   "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER",
   "BRIDGE_API_KEY", "OPENAI_API_KEY",
 ] as const;
