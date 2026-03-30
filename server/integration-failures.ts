@@ -5,7 +5,6 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "./db";
 import { integrationFailures } from "../drizzle/schema";
-import { eq } from "drizzle-orm";
 
 export type FailureType = "sheets_sync" | "email" | "sms" | "capi" | "review_request" | "reminders" | "invoice";
 
