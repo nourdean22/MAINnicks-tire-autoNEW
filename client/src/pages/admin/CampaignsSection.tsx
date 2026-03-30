@@ -424,5 +424,3 @@ function CampaignRow({ campaign }: { campaign: any }) {
     </div>
   );
 }
-
-export default CampaignsSection;
