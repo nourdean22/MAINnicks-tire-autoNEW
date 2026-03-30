@@ -110,7 +110,7 @@ export async function createBooking(booking: InsertBooking) {
 export async function getBookings() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(bookings).orderBy(desc(bookings.createdAt));
+  return db.select().from(bookings).orderBy(desc(bookings.createdAt)).limit(500);
 }
 
 export async function updateBookingStatus(id: number, status: "new" | "confirmed" | "completed" | "cancelled") {
@@ -1258,20 +1258,37 @@ export async function getNextInvoiceNumber(): Promise<string> {
   const prefix = `INV-${dateStr}-`;
 
   if (db) {
+    // Use MAX to find the highest sequence number (avoids COUNT gaps on deletes)
     const [row] = await db
-      .select({ cnt: sql<number>`COUNT(*)` })
+      .select({ maxNum: sql<string | null>`MAX(invoiceNumber)` })
       .from(invoices)
       .where(sql`invoiceNumber LIKE ${prefix + "%"}`);
-    const seq = ((row?.cnt ?? 0) + 1).toString().padStart(3, "0");
+    const lastSeq = row?.maxNum ? parseInt(row.maxNum.slice(-3), 10) : 0;
+    const seq = (lastSeq + 1).toString().padStart(3, "0");
     return prefix + seq;
   }
   return prefix + "001";
 }
 
-/** Create an invoice record in the database */
+/** Create an invoice record with retry on unique constraint collision */
 export async function createInvoice(data: InsertInvoice): Promise<{ success: boolean; id: number }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(invoices).values(data);
-  return { success: true, id: Number(result[0].insertId) };
+
+  // Retry up to 3 times on unique constraint violations (concurrent invoice creation)
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const result = await db.insert(invoices).values(data);
+      return { success: true, id: Number(result[0].insertId) };
+    } catch (err: any) {
+      const isDuplicate = err?.code === "ER_DUP_ENTRY" || err?.message?.includes("Duplicate entry");
+      if (isDuplicate && data.invoiceNumber && attempt < 2) {
+        // Regenerate invoice number and retry
+        data.invoiceNumber = await getNextInvoiceNumber();
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Failed to create invoice after 3 attempts");
 }

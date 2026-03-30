@@ -73,7 +73,7 @@ export const leadRouter = router({
         scoring.recommendedService = "Fleet Services";
       }
 
-      await d.insert(leads).values({
+      const insertedRows = await d.insert(leads).values({
         name,
         phone,
         email: email || null,
@@ -91,15 +91,8 @@ export const leadRouter = router({
         utmCampaign: input.utmCampaign || null,
         landingPage: input.landingPage || null,
         referrer: input.referrer || null,
-      });
-
-      // Get the lead ID after insert to associate failures with the lead
-      const insertedLead = await d
-        .select()
-        .from(leads)
-        .orderBy(desc(leads.createdAt))
-        .limit(1);
-      const leadId = insertedLead[0]?.id || null;
+      }).$returningId();
+      const leadId = insertedRows[0]?.id ?? null;
 
       withRetry(
         () => syncLeadToSheet({

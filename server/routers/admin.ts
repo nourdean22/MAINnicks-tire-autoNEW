@@ -262,7 +262,7 @@ export const exportRouter = router({
   bookings: adminProcedure.query(async () => {
     const d = await db();
     if (!d) return { csv: "", count: 0 };
-    const rows = await d.select().from(bookings).orderBy(desc(bookings.createdAt));
+    const rows = await d.select().from(bookings).orderBy(desc(bookings.createdAt)).limit(10000);
     const headers = ["ID", "Name", "Phone", "Email", "Service", "Vehicle", "Status", "Urgency", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
     const csvRows = rows.map(r => [
       r.id, r.name, r.phone, r.email || "", r.service, r.vehicle || "", r.status, r.urgency || "",
@@ -275,7 +275,7 @@ export const exportRouter = router({
   leads: adminProcedure.query(async () => {
     const d = await db();
     if (!d) return { csv: "", count: 0 };
-    const rows = await d.select().from(leads).orderBy(desc(leads.createdAt));
+    const rows = await d.select().from(leads).orderBy(desc(leads.createdAt)).limit(10000);
     const headers = ["ID", "Name", "Phone", "Email", "Source", "Problem", "Urgency Score", "Status", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
     const csvRows = rows.map(r => [
       r.id, r.name, r.phone, r.email || "", r.source, r.problem || "", r.urgencyScore ?? "", r.status,
@@ -288,7 +288,7 @@ export const exportRouter = router({
   calls: adminProcedure.query(async () => {
     const d = await db();
     if (!d) return { csv: "", count: 0 };
-    const rows = await d.select().from(callEvents).orderBy(desc(callEvents.createdAt));
+    const rows = await d.select().from(callEvents).orderBy(desc(callEvents.createdAt)).limit(10000);
     const headers = ["ID", "Phone Number", "Source Page", "Click Element", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
     const csvRows = rows.map(r => [
       r.id, r.phoneNumber, r.sourcePage || "", r.clickElement || "",
@@ -301,7 +301,7 @@ export const exportRouter = router({
   callbacks: adminProcedure.query(async () => {
     const d = await db();
     if (!d) return { csv: "", count: 0 };
-    const rows = await d.select().from(callbackRequests).orderBy(desc(callbackRequests.createdAt));
+    const rows = await d.select().from(callbackRequests).orderBy(desc(callbackRequests.createdAt)).limit(10000);
     const headers = ["ID", "Name", "Phone", "Context", "Source Page", "Status", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
     const csvRows = rows.map(r => [
       r.id, r.name, r.phone, r.context || "", r.sourcePage || "", r.status,
