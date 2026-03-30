@@ -16,26 +16,30 @@ export const financingRouter = router({
   trackApplication: publicProcedure
     .input(
       z.object({
-        provider: z.enum(["acima", "snap", "koalafi", "synchrony"]),
-        customerName: z.string().optional(),
-        customerPhone: z.string().optional(),
-        customerEmail: z.string().optional(),
-        sourcePage: z.string().default("/financing"),
-        estimatedAmount: z.string().optional(),
+        provider: z.enum(["acima", "snap", "koalafi", "american-first"]),
+        customerName: z.string().max(200).optional(),
+        customerPhone: z.string().max(20).optional(),
+        customerEmail: z.string().max(254).optional(),
+        sourcePage: z.string().max(500).default("/financing"),
+        estimatedAmount: z.string().max(20).optional(),
       })
     )
     .mutation(async ({ input }) => {
+      const { sanitizeName, sanitizePhone } = await import("../sanitize");
       const providerInfo = PROVIDER_MAP[input.provider];
       if (!providerInfo) {
         return { success: false, error: "Unknown provider" };
       }
 
+      const safeName = input.customerName ? sanitizeName(input.customerName) : undefined;
+      const safePhone = input.customerPhone ? sanitizePhone(input.customerPhone) : undefined;
+
       // Sync to Google Sheets
       const synced = await syncFinancingToSheet({
         provider: providerInfo.name,
         providerType: providerInfo.typeLabel,
-        customerName: input.customerName,
-        customerPhone: input.customerPhone,
+        customerName: safeName,
+        customerPhone: safePhone,
         customerEmail: input.customerEmail,
         sourcePage: input.sourcePage,
         estimatedAmount: input.estimatedAmount,
@@ -81,7 +85,7 @@ export const financingRouter = router({
   logApplication: adminProcedure
     .input(
       z.object({
-        provider: z.enum(["acima", "snap", "koalafi", "synchrony"]),
+        provider: z.enum(["acima", "snap", "koalafi", "american-first"]),
         customerName: z.string().min(1),
         customerPhone: z.string().min(1),
         customerEmail: z.string().optional(),

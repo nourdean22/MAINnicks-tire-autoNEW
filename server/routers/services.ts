@@ -299,12 +299,14 @@ export const inspectionRouter = router({
     .input(z.object({
       base64: z.string().max(10_000_000, "File too large (max 7.5MB)"),
       filename: z.string().max(255),
-      mimeType: z.string().max(100),
+      mimeType: z.enum(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]),
     }))
     .mutation(async ({ input }) => {
+      const { randomInt } = await import("crypto");
       const buffer = Buffer.from(input.base64, "base64");
-      const suffix = Math.random().toString(36).substring(2, 8);
-      const key = `inspection-photos/${Date.now()}-${suffix}-${input.filename}`;
+      const safeFilename = input.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const suffix = randomInt(100000, 999999).toString();
+      const key = `inspection-photos/${Date.now()}-${suffix}-${safeFilename}`;
       const { url } = await storagePut(key, buffer, input.mimeType);
       return { url };
     }),

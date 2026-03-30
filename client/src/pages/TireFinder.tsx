@@ -806,7 +806,7 @@ export default function TireFinder() {
                       {/* Quantity selector */}
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs text-muted-foreground">Qty:</span>
-                        {[2, 4].map((q) => (
+                        {[1, 2, 3, 4].map((q) => (
                           <button
                             key={q}
                             onClick={() => setQuantity(q)}

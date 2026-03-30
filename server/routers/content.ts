@@ -26,7 +26,7 @@ export const contentRouter = router({
     return getPublishedArticles();
   }),
   articleBySlug: publicProcedure
-    .input(z.object({ slug: z.string() }))
+    .input(z.object({ slug: z.string().max(200) }))
     .query(async ({ input }) => {
       return getDynamicArticleBySlug(input.slug);
     }),
@@ -53,10 +53,10 @@ export const contentAdminRouter = router({
   updateArticleContent: adminProcedure
     .input(z.object({
       id: z.number(),
-      title: z.string().optional(),
-      excerpt: z.string().optional(),
-      metaDescription: z.string().optional(),
-      sectionsJson: z.string().optional(),
+      title: z.string().max(500).optional(),
+      excerpt: z.string().max(2000).optional(),
+      metaDescription: z.string().max(500).optional(),
+      sectionsJson: z.string().max(100000).optional(),
     }))
     .mutation(async ({ input }) => {
       const { id, ...updates } = input;
@@ -82,7 +82,7 @@ export const contentAdminRouter = router({
     return getGenerationLog();
   }),
   generateContent: adminProcedure
-    .input(z.object({ topic: z.string().optional() }).optional())
+    .input(z.object({ topic: z.string().max(500).optional() }).optional())
     .mutation(async ({ input: _input }) => {
       const result = await runContentGeneration();
       if (result.article) {
@@ -95,7 +95,7 @@ export const contentAdminRouter = router({
       return result;
     }),
   generateArticle: adminProcedure
-    .input(z.object({ topic: z.string() }))
+    .input(z.object({ topic: z.string().max(500) }))
     .mutation(async ({ input }) => {
       const article = await generateArticle(input.topic);
       const id = await saveGeneratedArticle(article);

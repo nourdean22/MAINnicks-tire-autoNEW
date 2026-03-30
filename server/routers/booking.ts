@@ -66,8 +66,10 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
   } catch {}
 
   const laborCost = Math.round(labor.hours * laborRate * 100); // cents
-  const taxRate = 0.08; // 8% Ohio sales tax on labor
-  const taxAmount = Math.round(laborCost * taxRate);
+  // Ohio does NOT tax auto repair labor — only parts/materials are taxable.
+  // Parts are $0 on auto-generated invoices (added manually by shop later).
+  // Tax will be recalculated when parts are added via the invoice editor.
+  const taxAmount = 0;
   const totalAmount = laborCost + taxAmount;
 
   // Create invoice in database
@@ -132,9 +134,10 @@ async function db() {
 }
 
 function generateRefCode(): string {
+  const { randomInt } = require("crypto");
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "NT-";
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < 6; i++) code += chars[randomInt(chars.length)];
   return code;
 }
 
@@ -142,28 +145,28 @@ export const bookingRouter = router({
   create: publicProcedure
     .input(
       z.object({
-        name: z.string().min(1, "Name is required"),
+        name: z.string().min(1, "Name is required").max(200),
         phone: z.string().min(7, "Phone number is required").max(20, "Phone number too long"),
-        email: z.string().email().optional().or(z.literal("")),
-        service: z.string().min(1, "Service is required"),
-        vehicle: z.string().optional(),
-        vehicleYear: z.string().optional(),
-        vehicleMake: z.string().optional(),
-        vehicleModel: z.string().optional(),
-        preferredDate: z.string().optional(),
+        email: z.string().email().max(254).optional().or(z.literal("")),
+        service: z.string().min(1, "Service is required").max(500),
+        vehicle: z.string().max(200).optional(),
+        vehicleYear: z.string().max(4).optional(),
+        vehicleMake: z.string().max(50).optional(),
+        vehicleModel: z.string().max(50).optional(),
+        preferredDate: z.string().max(30).optional(),
         preferredTime: z.enum(["morning", "afternoon", "no-preference"]).default("no-preference"),
         message: z.string().max(2000, "Message too long").optional(),
-        photoUrls: z.array(z.string()).optional(),
+        photoUrls: z.array(z.string().max(2048)).max(10).optional(),
         urgency: z.enum(["emergency", "this-week", "whenever"]).default("whenever"),
         // Meta Pixel event IDs for server-side CAPI deduplication
         pixelEventIds: z.object({
-          leadEventId: z.string(),
-          scheduleEventId: z.string(),
+          leadEventId: z.string().max(100),
+          scheduleEventId: z.string().max(100),
         }).optional(),
         pixelUserData: z.object({
-          client_user_agent: z.string(),
-          fbc: z.string().optional(),
-          fbp: z.string().optional(),
+          client_user_agent: z.string().max(500),
+          fbc: z.string().max(500).optional(),
+          fbp: z.string().max(500).optional(),
         }).optional(),
         // UTM source attribution
         utmSource: z.string().max(100).optional(),
@@ -187,30 +190,56 @@ export const bookingRouter = router({
         ? `${sanitizeText(input.vehicleYear)} ${sanitizeText(input.vehicleMake)} ${sanitizeText(input.vehicleModel)}`.trim()
         : sanitizeText(input.vehicle) || null;
 
-      const refCode = generateRefCode();
-      const result = await createBooking({
-        name,
-        phone,
-        email,
-        service,
-        vehicle: vehicleStr,
-        vehicleYear: input.vehicleYear || null,
-        vehicleMake: input.vehicleMake || null,
-        vehicleModel: input.vehicleModel || null,
-        preferredDate: input.preferredDate || null,
-        preferredTime: input.preferredTime,
-        message: message || null,
-        photoUrls: input.photoUrls?.length ? JSON.stringify(input.photoUrls) : null,
-        urgency: input.urgency,
-        referenceCode: refCode,
-        priority: input.urgency === "emergency" ? 1 : input.urgency === "this-week" ? 5 : 10,
-        utmSource: input.utmSource || null,
-        utmMedium: input.utmMedium || null,
-        utmCampaign: input.utmCampaign || null,
-        utmTerm: input.utmTerm || null,
-        utmContent: input.utmContent || null,
-        landingPage: input.landingPage || null,
-        referrer: input.referrer || null,
+      // Retry refCode generation on collision (unique index)
+      let refCode = generateRefCode();
+      let result!: { success: boolean; id: number };
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          result = await createBooking({
+            name,
+            phone,
+            email,
+            service,
+            vehicle: vehicleStr,
+            vehicleYear: input.vehicleYear || null,
+            vehicleMake: input.vehicleMake || null,
+            vehicleModel: input.vehicleModel || null,
+            preferredDate: input.preferredDate || null,
+            preferredTime: input.preferredTime,
+            message: message || null,
+            photoUrls: input.photoUrls?.length ? JSON.stringify(input.photoUrls) : null,
+            urgency: input.urgency,
+            referenceCode: refCode,
+            priority: input.urgency === "emergency" ? 1 : input.urgency === "this-week" ? 5 : 10,
+            utmSource: input.utmSource || null,
+            utmMedium: input.utmMedium || null,
+            utmCampaign: input.utmCampaign || null,
+            utmTerm: input.utmTerm || null,
+            utmContent: input.utmContent || null,
+            landingPage: input.landingPage || null,
+            referrer: input.referrer || null,
+          });
+          break; // Success — exit retry loop
+        } catch (err: any) {
+          const isDuplicate = err?.message?.includes("Duplicate") || err?.code === "ER_DUP_ENTRY";
+          if (isDuplicate && attempt < 2) { refCode = generateRefCode(); continue; }
+          throw err;
+        }
+      }
+
+      // Dispatch to NOUR OS event bus (non-blocking)
+      import("../nour-os-bridge").then(({ onBookingCreated }) =>
+        onBookingCreated({
+          id: result.id,
+          name,
+          phone,
+          service,
+          vehicle: vehicleStr,
+          urgency: input.urgency,
+          refCode,
+        })
+      ).catch(err => {
+        console.error("[NourOS] Booking event dispatch failed:", err);
       });
 
       withRetry(
@@ -336,12 +365,15 @@ export const bookingRouter = router({
     .input(z.object({
       base64: z.string().max(10_000_000, "File too large (max 7.5MB)"),
       filename: z.string().max(255),
-      mimeType: z.string().max(100),
+      mimeType: z.enum(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]),
     }))
     .mutation(async ({ input }) => {
+      const { randomInt } = await import("crypto");
       const buffer = Buffer.from(input.base64, "base64");
-      const suffix = Math.random().toString(36).substring(2, 8);
-      const key = `booking-photos/${Date.now()}-${suffix}-${input.filename}`;
+      // Strip path traversal and unsafe chars from filename
+      const safeFilename = input.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const suffix = randomInt(100000, 999999).toString();
+      const key = `booking-photos/${Date.now()}-${suffix}-${safeFilename}`;
       const { url } = await storagePut(key, buffer, input.mimeType);
       return { url };
     }),
@@ -417,7 +449,7 @@ export const bookingRouter = router({
     }),
 
   updateNotes: adminProcedure
-    .input(z.object({ id: z.number(), notes: z.string() }))
+    .input(z.object({ id: z.number(), notes: z.string().max(10000) }))
     .mutation(async ({ input }) => {
       return updateBookingNotes(input.id, input.notes);
     }),
@@ -472,19 +504,36 @@ export const bookingRouter = router({
               });
             });
           }
+
+          // Dispatch stage change to NOUR OS (non-blocking)
+          import("../nour-os-bridge").then(({ onStageChanged }) =>
+            onStageChanged({
+              bookingId: booking.id,
+              phone: booking.phone,
+              stage: input.stage,
+              refCode: booking.referenceCode || null,
+            })
+          ).catch(err => {
+            console.error("[NourOS] Stage change event dispatch failed:", err);
+          });
         }
       }
       return result;
     }),
 
   statusByPhone: publicProcedure
-    .input(z.object({ phone: z.string().min(7).max(20) }))
+    .input(z.object({ phone: z.string().min(7).max(20), ref: z.string().min(3).optional() }))
     .query(async ({ input }) => {
-      return getBookingByPhone(input.phone);
+      const booking = await getBookingByPhone(input.phone);
+      // If ref code provided, verify it matches — prevents phone-only enumeration
+      if (input.ref && booking && (booking as any).referenceCode !== input.ref) {
+        return null;
+      }
+      return booking;
     }),
 
   statusByRef: publicProcedure
-    .input(z.object({ ref: z.string().min(3) }))
+    .input(z.object({ ref: z.string().min(3).max(20) }))
     .query(async ({ input }) => {
       return getBookingByRef(input.ref);
     }),

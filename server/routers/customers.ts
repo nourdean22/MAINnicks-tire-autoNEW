@@ -18,7 +18,7 @@ export const customersRouter = router({
       z.object({
         page: z.number().default(1),
         pageSize: z.number().default(25),
-        search: z.string().optional(),
+        search: z.string().max(200).optional(),
         segment: z.enum(["all", "recent", "lapsed", "unknown"]).default("all"),
         sortBy: z.enum(["name", "visits", "lastVisit"]).default("lastVisit"),
         sortDir: z.enum(["asc", "desc"]).default("desc"),
@@ -42,13 +42,15 @@ export const customersRouter = router({
         conditions.push(eq(customers.segment, segment));
       }
       if (search) {
+        // Escape LIKE wildcards to prevent pattern injection (% and _ are SQL LIKE wildcards)
+        const escaped = search.replace(/[%_\\]/g, ch => `\\${ch}`);
         conditions.push(
           or(
-            like(customers.firstName, `%${search}%`),
-            like(customers.lastName, `%${search}%`),
-            like(customers.phone, `%${search}%`),
-            like(customers.email, `%${search}%`),
-            like(customers.city, `%${search}%`),
+            like(customers.firstName, `%${escaped}%`),
+            like(customers.lastName, `%${escaped}%`),
+            like(customers.phone, `%${escaped}%`),
+            like(customers.email, `%${escaped}%`),
+            like(customers.city, `%${escaped}%`),
           )
         );
       }
@@ -176,15 +178,18 @@ export const customersRouter = router({
       }
       const results = await query.orderBy(desc(customers.lastVisitDate));
 
+      // Sanitize CSV cell value to prevent formula injection (=, +, -, @, tab, CR)
+      const csvSafe = (val: string) => /^[=+\-@\t\r]/.test(val) ? `'${val}` : val;
+
       // Build CSV
       const headers = ["First Name", "Last Name", "Phone", "Email", "City", "State", "Segment", "Total Visits", "Last Visit", "Customer Type"];
       const rows = results.map(c => [
-        c.firstName || "",
-        c.lastName || "",
-        c.phone || "",
-        c.email || "",
-        c.city || "",
-        c.state || "",
+        csvSafe(c.firstName || ""),
+        csvSafe(c.lastName || ""),
+        csvSafe(c.phone || ""),
+        csvSafe(c.email || ""),
+        csvSafe(c.city || ""),
+        csvSafe(c.state || ""),
         c.segment || "",
         String(c.totalVisits ?? 0),
         c.lastVisitDate ? new Date(c.lastVisitDate).toLocaleDateString() : "",
@@ -246,7 +251,7 @@ export const customersRouter = router({
       // Get untexted customers, prioritize recent → lapsed → unknown
       const untexted = await d.select()
         .from(customers)
-        .where(sql`${customers.smsCampaignSent} = 0 AND ${customers.phone} IS NOT NULL AND LENGTH(${customers.phone}) >= 10 AND ${customers.phone} LIKE '+1%'`)
+        .where(sql`${customers.smsCampaignSent} = 0 AND ${customers.smsOptOut} = 0 AND ${customers.phone} IS NOT NULL AND LENGTH(${customers.phone}) >= 10 AND ${customers.phone} LIKE '+1%'`)
         .orderBy(sql`FIELD(${customers.segment}, 'recent', 'lapsed', 'unknown'), ${customers.lastVisitDate} DESC`)
         .limit(batchSize);
 
@@ -297,7 +302,7 @@ export const customersRouter = router({
 
   /** Customer timeline — aggregated chronological history by phone */
   timeline: adminProcedure
-    .input(z.object({ phone: z.string() }))
+    .input(z.object({ phone: z.string().max(20) }))
     .query(async ({ input }) => {
       const d = await db();
       if (!d) return [];

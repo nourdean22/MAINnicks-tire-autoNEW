@@ -15,6 +15,17 @@ async function db() {
   return getDb();
 }
 
+/**
+ * Sanitize a CSV cell value to prevent formula injection (CSV injection / DDE attacks).
+ * If a cell starts with =, +, -, @, tab, or CR, prefix with a single quote to neutralize it.
+ * These characters trigger formula execution when opened in Excel/Google Sheets.
+ */
+function csvSafe(val: unknown): string {
+  const s = String(val ?? "");
+  if (/^[=+\-@\t\r]/.test(s)) return `'${s}`;
+  return s;
+}
+
 export const adminDashboardRouter = router({
   stats: adminProcedure.query(async () => {
     return getDashboardStats();
@@ -72,7 +83,7 @@ export const adminDashboardRouter = router({
   /** Get integration event log */
   integrationLog: adminProcedure
     .input(z.object({
-      vendor: z.string().optional(),
+      vendor: z.string().max(100).optional(),
       limit: z.number().int().min(1).max(200).default(50),
     }).optional())
     .query(async ({ input }) => {
@@ -213,15 +224,15 @@ export const callTrackingRouter = router({
   /** Log a phone click event from the frontend */
   logCall: publicProcedure
     .input(z.object({
-      phoneNumber: z.string(),
-      sourcePage: z.string().optional(),
-      clickElement: z.string().optional(),
-      utmSource: z.string().optional(),
-      utmMedium: z.string().optional(),
-      utmCampaign: z.string().optional(),
-      landingPage: z.string().optional(),
-      referrer: z.string().optional(),
-      userAgent: z.string().optional(),
+      phoneNumber: z.string().max(20),
+      sourcePage: z.string().max(500).optional(),
+      clickElement: z.string().max(200).optional(),
+      utmSource: z.string().max(100).optional(),
+      utmMedium: z.string().max(100).optional(),
+      utmCampaign: z.string().max(255).optional(),
+      landingPage: z.string().max(500).optional(),
+      referrer: z.string().max(500).optional(),
+      userAgent: z.string().max(500).optional(),
     }))
     .mutation(async ({ input }) => {
       const d = await db();
@@ -265,10 +276,10 @@ export const exportRouter = router({
     const rows = await d.select().from(bookings).orderBy(desc(bookings.createdAt)).limit(10000);
     const headers = ["ID", "Name", "Phone", "Email", "Service", "Vehicle", "Status", "Urgency", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
     const csvRows = rows.map(r => [
-      r.id, r.name, r.phone, r.email || "", r.service, r.vehicle || "", r.status, r.urgency || "",
-      r.utmSource || "", r.utmMedium || "", r.utmCampaign || "", r.landingPage || "", r.referrer || "",
+      r.id, csvSafe(r.name), csvSafe(r.phone), csvSafe(r.email), csvSafe(r.service), csvSafe(r.vehicle), r.status, r.urgency || "",
+      csvSafe(r.utmSource), csvSafe(r.utmMedium), csvSafe(r.utmCampaign), csvSafe(r.landingPage), csvSafe(r.referrer),
       new Date(r.createdAt).toISOString(),
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    ].map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","));
     return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
   }),
 
@@ -278,10 +289,10 @@ export const exportRouter = router({
     const rows = await d.select().from(leads).orderBy(desc(leads.createdAt)).limit(10000);
     const headers = ["ID", "Name", "Phone", "Email", "Source", "Problem", "Urgency Score", "Status", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
     const csvRows = rows.map(r => [
-      r.id, r.name, r.phone, r.email || "", r.source, r.problem || "", r.urgencyScore ?? "", r.status,
-      r.utmSource || "", r.utmMedium || "", r.utmCampaign || "", r.landingPage || "", r.referrer || "",
+      r.id, csvSafe(r.name), csvSafe(r.phone), csvSafe(r.email), r.source, csvSafe(r.problem), r.urgencyScore ?? "", r.status,
+      csvSafe(r.utmSource), csvSafe(r.utmMedium), csvSafe(r.utmCampaign), csvSafe(r.landingPage), csvSafe(r.referrer),
       new Date(r.createdAt).toISOString(),
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    ].map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","));
     return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
   }),
 
@@ -291,10 +302,10 @@ export const exportRouter = router({
     const rows = await d.select().from(callEvents).orderBy(desc(callEvents.createdAt)).limit(10000);
     const headers = ["ID", "Phone Number", "Source Page", "Click Element", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
     const csvRows = rows.map(r => [
-      r.id, r.phoneNumber, r.sourcePage || "", r.clickElement || "",
-      r.utmSource || "", r.utmMedium || "", r.utmCampaign || "", r.landingPage || "", r.referrer || "",
+      r.id, csvSafe(r.phoneNumber), csvSafe(r.sourcePage), csvSafe(r.clickElement),
+      csvSafe(r.utmSource), csvSafe(r.utmMedium), csvSafe(r.utmCampaign), csvSafe(r.landingPage), csvSafe(r.referrer),
       new Date(r.createdAt).toISOString(),
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    ].map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","));
     return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
   }),
 
@@ -304,10 +315,10 @@ export const exportRouter = router({
     const rows = await d.select().from(callbackRequests).orderBy(desc(callbackRequests.createdAt)).limit(10000);
     const headers = ["ID", "Name", "Phone", "Context", "Source Page", "Status", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
     const csvRows = rows.map(r => [
-      r.id, r.name, r.phone, r.context || "", r.sourcePage || "", r.status,
-      r.utmSource || "", r.utmMedium || "", r.utmCampaign || "", r.landingPage || "", r.referrer || "",
+      r.id, csvSafe(r.name), csvSafe(r.phone), csvSafe(r.context), csvSafe(r.sourcePage), r.status,
+      csvSafe(r.utmSource), csvSafe(r.utmMedium), csvSafe(r.utmCampaign), csvSafe(r.landingPage), csvSafe(r.referrer),
       new Date(r.createdAt).toISOString(),
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    ].map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","));
     return { csv: [headers.join(","), ...csvRows].join("\n"), count: rows.length };
   }),
 });

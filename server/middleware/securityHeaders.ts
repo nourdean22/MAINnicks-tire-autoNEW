@@ -1,6 +1,7 @@
 /**
  * Security Headers Middleware
  * Hardens HTTP responses against common attacks.
+ * Aligned with OWASP security header recommendations.
  */
 
 import type { Request, Response, NextFunction } from "express";
@@ -12,8 +13,9 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
   // Prevent clickjacking
   res.setHeader("X-Frame-Options", "DENY");
 
-  // XSS protection (legacy browsers)
-  res.setHeader("X-XSS-Protection", "1; mode=block");
+  // Disable the broken legacy XSS auditor — it causes more vulnerabilities than it prevents.
+  // CSP is the correct protection layer.
+  res.setHeader("X-XSS-Protection", "0");
 
   // Force HTTPS
   res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
@@ -21,8 +23,8 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
   // Referrer policy
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
 
-  // Permissions policy (restrict sensitive APIs)
-  res.setHeader("Permissions-Policy", "camera=(self), microphone=(), geolocation=(self)");
+  // Permissions policy (restrict ALL sensitive APIs — the site doesn't need camera/mic/geo)
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
 
   // Content Security Policy
   res.setHeader("Content-Security-Policy", [
@@ -34,6 +36,7 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
     "connect-src 'self' https://www.google-analytics.com https://www.facebook.com https://d2xsxph8kpxj0f.cloudfront.net https://api.nhtsa.gov",
     "frame-src https://www.google.com https://maps.google.com",
     "media-src 'self' blob:",
+    "frame-ancestors 'none'",
   ].join("; "));
 
   next();

@@ -10,7 +10,7 @@ export interface GBPQAEntry {
 }
 
 export const SEED_QA: GBPQAEntry[] = [
-  { question: "What are your hours?", answer: "We're open Mon-Sat 8AM-6PM and Sunday 9AM-4PM. Walk-ins welcome! Call (216) 862-0005.", category: "hours" },
+  { question: "What are your hours?", answer: "We're open Mon-Sat 8AM-6PM, Sunday 9AM-4PM. Walk-ins welcome! Call (216) 862-0005.", category: "hours" },
   { question: "Do you do alignments?", answer: "Yes! We offer full 4-wheel precision alignment starting at $79. Call (216) 862-0005 or book online at nickstire.org.", category: "services" },
   { question: "Do you sell tires?", answer: "Yes — new and used tires. We carry all major brands and can match or beat any price. Visit nickstire.org/tires or call (216) 862-0005.", category: "services" },
   { question: "Do you offer financing?", answer: "Yes! We work with Acima, Snap Finance, Koalafi, and American First Finance. Bad credit or no credit — we can help. Apply in store or online.", category: "financing" },
@@ -21,7 +21,7 @@ export const SEED_QA: GBPQAEntry[] = [
   { question: "How long does a brake job take?", answer: "Most brake jobs are completed same-day, typically 1-3 hours depending on what's needed. We'll give you an accurate time estimate before starting.", category: "services" },
   { question: "Do you have a warranty?", answer: "Yes! We stand behind our work with warranties on parts and labor. Specific warranty terms vary by service — ask your advisor for details.", category: "warranty" },
   { question: "Where are you located?", answer: "We're at 17625 Euclid Ave, Euclid, OH 44112 — right on the Euclid/East Cleveland border. Easy to find, plenty of parking.", category: "location" },
-  { question: "Do you accept walk-ins?", answer: "Yes! Walk-ins are welcome Mon-Sat 8AM-6PM and Sunday 9AM-4PM. For faster service, you can also book online at nickstire.org.", category: "hours" },
+  { question: "Do you accept walk-ins?", answer: "Yes! Walk-ins are welcome Mon-Sat 8AM-6PM, Sunday 9AM-4PM. For faster service, you can also book online at nickstire.org.", category: "hours" },
   { question: "Can you diagnose my check engine light?", answer: "Yes — we have professional-grade diagnostic equipment. Check engine light diagnostics start at $49.99 and include a full report.", category: "services" },
   { question: "Do you do transmission work?", answer: "Yes, we handle transmission diagnostics, fluid flushes, and repairs. Call (216) 862-0005 for an estimate.", category: "services" },
   { question: "Is there a waiting area?", answer: "Yes, we have a comfortable waiting area with Wi-Fi. Most services can be done while you wait.", category: "location" },

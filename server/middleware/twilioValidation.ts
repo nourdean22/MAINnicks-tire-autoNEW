@@ -67,5 +67,19 @@ export function validateTwilioRequest(req: Request, res: Response, next: NextFun
     return;
   }
 
+  // Replay protection: reject requests older than 5 minutes
+  // Twilio includes a timestamp in the request body as DateCreated or DateSent
+  const twilioTimestamp = req.body?.DateCreated || req.body?.DateSent;
+  if (twilioTimestamp) {
+    const msgTime = new Date(twilioTimestamp).getTime();
+    const now = Date.now();
+    const MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
+    if (isNaN(msgTime) || Math.abs(now - msgTime) > MAX_AGE_MS) {
+      log.warn("Twilio webhook replay rejected (stale timestamp)", { path: req.path, age: now - msgTime });
+      res.status(403).type("text/xml").send("<Response></Response>");
+      return;
+    }
+  }
+
   next();
 }

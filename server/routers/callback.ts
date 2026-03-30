@@ -23,16 +23,16 @@ async function db() {
 export const callbackRouter = router({
   submit: publicProcedure
     .input(z.object({
-      name: z.string().min(1),
+      name: z.string().min(1).max(200),
       phone: z.string().min(7).max(20),
-      context: z.string().optional(),
-      sourcePage: z.string().optional(),
+      context: z.string().max(1000).optional(),
+      sourcePage: z.string().max(500).optional(),
       // Meta Pixel event ID for server-side CAPI deduplication
-      pixelEventId: z.string().optional(),
+      pixelEventId: z.string().max(100).optional(),
       pixelUserData: z.object({
-        client_user_agent: z.string(),
-        fbc: z.string().optional(),
-        fbp: z.string().optional(),
+        client_user_agent: z.string().max(500),
+        fbc: z.string().max(500).optional(),
+        fbp: z.string().max(500).optional(),
       }).optional(),
       // UTM source attribution
       utmSource: z.string().max(100).optional(),
@@ -142,7 +142,7 @@ export const callbackRouter = router({
     .input(z.object({
       id: z.number(),
       status: z.enum(["new", "called", "no-answer", "completed"]),
-      notes: z.string().optional(),
+      notes: z.string().max(5000).optional(),
     }))
     .mutation(async ({ input }) => {
       return updateCallbackStatus(input.id, input.status, input.notes);

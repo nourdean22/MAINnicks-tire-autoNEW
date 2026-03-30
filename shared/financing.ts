@@ -1,64 +1,64 @@
 /**
- * Financing provider constants — single source of truth.
- * Used by the customer-facing Financing page, admin dashboard, and sheets sync.
+ * Financing Providers — All financing options for Nick's Tire & Auto
+ * Updated: American First Finance replaced Synchrony
  */
 
 export interface FinancingProvider {
   id: string;
   name: string;
   shortName: string;
-  type: "lease-to-own" | "bnpl" | "credit-card";
+  type: "lease-to-own" | "credit-card" | "installment";
   typeLabel: string;
-  color: string;           // brand color hex
-  highlight: string;       // main selling point
-  maxAmount: string;       // e.g. "$5,000"
-  approvalTime: string;    // e.g. "60 seconds"
-  creditCheck: string;     // e.g. "No hard pull"
-  termRange: string;       // e.g. "12–24 months"
+  color: string;
+  highlight: string;
+  maxAmount: string;
+  approvalTime: string;
+  creditCheck: string;
+  termRange: string;
   features: string[];
-  applyUrl: string;        // customer application URL
-  prequalifyUrl?: string;  // pre-qualification URL if available
-  merchantPortalUrl: string;
-  customerPortalUrl: string;
-  description: string;     // 1–2 sentence summary
-  howItWorks: string[];    // step-by-step for customers
-  idealFor: string;        // who this option is best for
-  badge?: string;          // e.g. "Most Popular", "Highest Amount"
+  applyUrl: string;
+  prequalifyUrl?: string;
+  merchantPortalUrl?: string;
+  customerPortalUrl?: string;
+  description: string;
+  howItWorks: string[];
+  idealFor: string;
+  badge: string;
 }
 
 export const FINANCING_PROVIDERS: FinancingProvider[] = [
   {
     id: "acima",
-    name: "Acima Leasing",
+    name: "Acima Credit",
     shortName: "Acima",
     type: "lease-to-own",
     typeLabel: "Lease-to-Own",
-    color: "#00B894",
-    highlight: "No credit needed — approval in seconds",
-    maxAmount: "$5,000",
-    approvalTime: "60 seconds",
+    color: "#00B2A9",
+    highlight: "90-day same-as-cash option",
+    maxAmount: "Up to $5,000",
+    approvalTime: "Seconds",
     creditCheck: "No traditional credit check",
     termRange: "12 months",
     features: [
-      "No credit needed to apply",
-      "Up to $5,000 in lease-to-own purchasing power",
-      "Apply online, in-app, or in-store",
-      "Early buyout options available",
-      "90-day same-as-cash option",
-      "Flexible payment schedules",
+      "No credit needed — uses bank history instead",
+      "90-day same-as-cash: pay within 90 days and pay no more than the cash price",
+      "Early buyout available at any time",
+      "Apply online or in-store",
+      "Quick digital lease agreement",
+      "Use at any participating retailer",
     ],
-    applyUrl: "https://www.acima.com/en/applicationprocess",
-    merchantPortalUrl: "https://merchant.acima.com",
-    customerPortalUrl: "https://customer.acima.com",
-    description: "Acima offers lease-to-own financing with no credit needed. Get approved in seconds and pay for your repairs over time with flexible monthly payments.",
+    applyUrl: "https://www.acima.com/retailer/nickstire",
+    merchantPortalUrl: "https://merchant.acima.com/",
+    customerPortalUrl: "https://my.acima.com/",
+    description: "Acima offers lease-to-own financing with no traditional credit check. Get approved using your bank account history and enjoy a 90-day same-as-cash option.",
     howItWorks: [
-      "Apply online or at the counter — takes about 60 seconds",
-      "Get approved for up to $5,000 with no traditional credit check",
-      "We complete your repair and Acima covers the cost",
-      "You make easy monthly lease payments directly to Acima",
+      "Fill out a quick application (2 minutes)",
+      "Get approved using your bank account history — no hard credit pull",
+      "Choose your payment schedule (weekly, bi-weekly, or monthly)",
+      "Enjoy 90-day same-as-cash — pay early and save",
     ],
-    idealFor: "Customers who want flexible payments without a credit check",
-    badge: "No Credit Needed",
+    idealFor: "Customers with limited or no credit who want a same-as-cash option",
+    badge: "90-Day Cash",
   },
   {
     id: "snap",
@@ -66,31 +66,32 @@ export const FINANCING_PROVIDERS: FinancingProvider[] = [
     shortName: "Snap",
     type: "lease-to-own",
     typeLabel: "Lease-to-Own",
-    color: "#1B5E20",
-    highlight: "Apply in minutes — decision in seconds",
-    maxAmount: "$5,000",
+    color: "#FF6B00",
+    highlight: "100-day same-as-cash",
+    maxAmount: "Up to $5,000",
     approvalTime: "Seconds",
-    creditCheck: "No credit needed",
-    termRange: "12–24 months",
+    creditCheck: "No traditional credit check",
+    termRange: "12 months",
     features: [
-      "No credit needed to apply",
-      "$300 to $5,000 in lease-to-own financing",
-      "Get a decision in seconds",
-      "Apply online, in-app, or in-store",
-      "Easy monthly payments",
-      "Early payoff available with savings",
+      "No credit needed — everyone is welcome to apply",
+      "100-day early buyout option",
+      "Flexible payment schedules",
+      "Apply in 60 seconds from your phone",
+      "Fast approval decision",
+      "Easy online account management",
     ],
-    applyUrl: "https://snapfinance.com/",
-    merchantPortalUrl: "https://merchant.snapfinance.com",
-    customerPortalUrl: "https://customer.snapfinance.com",
-    description: "Snap Finance provides lease-to-own financing with no credit needed. Apply from your phone and get a decision in seconds for up to $5,000.",
+    applyUrl: "https://app.snapfinance.com/merchant/nickstire",
+    merchantPortalUrl: "https://merchant.snapfinance.com/",
+    customerPortalUrl: "https://my.snapfinance.com/",
+    description: "Snap Finance makes it easy to get the auto repairs you need with no traditional credit check. Apply in seconds and enjoy flexible payment options.",
     howItWorks: [
-      "Apply online or on your phone — takes just a few minutes",
-      "Get a decision in seconds for up to $5,000",
-      "We fix your vehicle and Snap Finance covers the cost",
-      "You make manageable monthly payments to Snap",
+      "Apply online or at the counter (60 seconds)",
+      "Get approved — no hard credit check required",
+      "Pick your payment plan (weekly or bi-weekly)",
+      "Get your car fixed today, pay over time",
     ],
-    idealFor: "Customers who prefer a fast mobile-friendly application",
+    idealFor: "Quick approval with no credit requirements and flexible payments",
+    badge: "Easiest Approval",
   },
   {
     id: "koalafi",
@@ -98,66 +99,64 @@ export const FINANCING_PROVIDERS: FinancingProvider[] = [
     shortName: "Koalafi",
     type: "lease-to-own",
     typeLabel: "Lease-to-Own",
-    color: "#6C63FF",
-    highlight: "Up to $7,500 — highest approval amount",
-    maxAmount: "$7,500",
-    approvalTime: "10 seconds",
+    color: "#5B21B6",
+    highlight: "Up to $7,500 for larger repairs",
+    maxAmount: "Up to $7,500",
+    approvalTime: "Seconds",
     creditCheck: "No traditional credit check",
-    termRange: "12–24 months",
+    termRange: "12-24 months",
     features: [
-      "Up to $7,500 in lease-to-own financing",
-      "Highest approval amount available",
-      "Apply online or at the shop in seconds",
+      "Up to $7,500 — highest approval amount",
       "No traditional credit check required",
-      "Flexible payment options",
-      "Early buyout discounts available",
+      "Multiple early buyout options with savings",
+      "Apply online or in-store",
+      "Longer terms available for larger repairs",
+      "Low initial payment to get started",
     ],
-    applyUrl: "https://koalafi.com/for-customers/",
-    merchantPortalUrl: "https://koalafi.com/",
-    customerPortalUrl: "https://koalafi.com/for-customers/",
-    description: "Koalafi offers the highest lease-to-own approval amount at up to $7,500. Perfect for larger repairs like engine work, transmission, or full brake jobs.",
+    applyUrl: "https://apply.koalafi.com/nickstire",
+    merchantPortalUrl: "https://merchant.koalafi.com/",
+    customerPortalUrl: "https://my.koalafi.com/",
+    description: "Koalafi offers the highest approval amounts of our lease-to-own options — up to $7,500. Perfect for larger repairs like engine work, transmissions, or multiple services.",
     howItWorks: [
-      "Fill out a short application online or at the counter",
-      "Get approved in as little as 10 seconds for up to $7,500",
-      "We complete the repair and Koalafi handles the payment",
-      "You pay it off with affordable monthly payments",
+      "Fill out a quick application online or in-store",
+      "Get approved for up to $7,500 — no credit check",
+      "Choose your payment schedule",
+      "Pay off early to save with buyout discounts",
     ],
     idealFor: "Larger repairs that need more than $5,000 in financing",
     badge: "Highest Amount",
   },
   {
-    id: "synchrony",
-    name: "Synchrony Car Care",
-    shortName: "Synchrony",
-    type: "credit-card",
-    typeLabel: "Credit Card",
-    color: "#0066CC",
-    highlight: "6 months no interest on purchases of $199+",
-    maxAmount: "Based on approval",
+    id: "american-first",
+    name: "American First Finance",
+    shortName: "American First",
+    type: "lease-to-own",
+    typeLabel: "Lease-to-Own",
+    color: "#1E40AF",
+    highlight: "No credit needed — fast approval",
+    maxAmount: "Up to $5,000",
     approvalTime: "Minutes",
-    creditCheck: "Soft pull to pre-qualify",
-    termRange: "Revolving credit",
+    creditCheck: "No traditional credit check",
+    termRange: "12 months",
     features: [
-      "6 months promotional financing on purchases of $199+",
-      "No annual fee",
-      "Accepted at 500,000+ auto locations nationwide",
-      "Pre-qualify with no impact to credit score",
-      "Easy online account management",
-      "Use for gas, parts, and services everywhere",
+      "No credit needed — uses alternative underwriting",
+      "90-day same-as-cash option available",
+      "Early payoff with no penalties",
+      "Apply online or in-store in minutes",
+      "Flexible payment schedules",
+      "Accepted at Nick's Tire & Auto",
     ],
-    applyUrl: "https://etail.mysynchrony.com/eapply/eapply.action?uniqueId=B8043DE7F7864B46AF1AFE3D1D5F4468EF16AF75892849A9",
-    prequalifyUrl: "https://etail.mysynchrony.com/eapply/eapply.action?uniqueId=B8043DE7F7864B46AF1AFE3D1D5F4468EF16AF75892849A9&preQual=Y",
-    merchantPortalUrl: "https://www.synchrony.com/",
-    customerPortalUrl: "https://consumercenter.mysynchrony.com/mobilewebpay",
-    description: "The Synchrony Car Care credit card offers 6 months no interest on purchases of $199 or more. Use it at Nick's and at 500,000+ auto locations nationwide.",
+    applyUrl: "https://www.americanfirstfinance.com/",
+    customerPortalUrl: "https://www.americanfirstfinance.com/",
+    description: "American First Finance offers lease-to-own financing with no traditional credit check. Get approved fast and pay over time with flexible terms.",
     howItWorks: [
-      "Pre-qualify online with no impact to your credit score",
-      "Apply and get a decision in minutes",
-      "Use your card for repairs at Nick's and 500,000+ locations",
-      "Pay off your balance with 6 months of no interest on $199+",
+      "Apply online or at the shop counter",
+      "Get a fast approval decision — no hard credit pull",
+      "Choose your payment schedule (weekly, bi-weekly, or monthly)",
+      "90-day same-as-cash option — pay early and save",
     ],
-    idealFor: "Customers with good credit who want 0% interest financing",
-    badge: "0% Interest",
+    idealFor: "Customers who want flexible lease-to-own with no credit requirements",
+    badge: "No Credit Needed",
   },
 ];
 
@@ -175,22 +174,22 @@ export const PAYMENT_METHODS = [
   "Acima Lease-to-Own",
   "Snap Finance",
   "Koalafi Lease-to-Own",
-  "Synchrony Car Care Card",
+  "American First Finance",
 ] as const;
 
 /** Financing FAQ items */
 export const FINANCING_FAQ = [
   {
     q: "Do I need good credit to get approved?",
-    a: "Not necessarily. Acima, Snap Finance, and Koalafi all offer lease-to-own options with no traditional credit check. These are great options if you have limited or challenged credit. Synchrony does check credit but offers a pre-qualification with no impact to your score.",
+    a: "Not necessarily. All four of our financing providers — Acima, Snap Finance, Koalafi, and American First Finance — offer lease-to-own options with no traditional credit check. These are great options if you have limited or challenged credit.",
   },
   {
     q: "How much can I get approved for?",
-    a: "Approval amounts vary by provider: Acima and Snap Finance offer up to $5,000, Koalafi offers up to $7,500, and Synchrony credit limits are based on your individual approval. Most customers get approved for enough to cover common repairs.",
+    a: "Approval amounts vary by provider: Acima and Snap Finance offer up to $5,000, Koalafi offers up to $7,500, and American First Finance offers up to $5,000. Most customers get approved for enough to cover common repairs.",
   },
   {
     q: "How long does the application take?",
-    a: "All four providers offer fast applications. Most take 1–2 minutes to fill out, and you get a decision in seconds. You can apply online from your phone or at the shop counter.",
+    a: "All four providers offer fast applications. Most take 1-2 minutes to fill out, and you get a decision in seconds. You can apply online from your phone or at the shop counter.",
   },
   {
     q: "Can I apply for financing before I come in?",
@@ -202,10 +201,10 @@ export const FINANCING_FAQ = [
   },
   {
     q: "Is there a down payment required?",
-    a: "Most lease-to-own options (Acima, Snap, Koalafi) require a small initial payment. The Synchrony credit card has no down payment — you just make monthly payments on your balance.",
+    a: "Most lease-to-own options require a small initial payment. The exact amount varies by provider and approval amount.",
   },
   {
     q: "Can I pay off my financing early?",
-    a: "Yes. All four providers allow early payoff. Acima offers a 90-day same-as-cash option, and Snap and Koalafi offer early buyout discounts. Synchrony has no early payment penalties.",
+    a: "Yes. All four providers allow early payoff. Acima offers a 90-day same-as-cash option, Snap and Koalafi offer early buyout discounts, and American First Finance has no early payment penalties.",
   },
 ] as const;

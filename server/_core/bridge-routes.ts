@@ -9,6 +9,12 @@
  */
 
 import type { Express, Request, Response, NextFunction } from "express";
+import { timingSafeEqual } from "crypto";
+
+function safeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
 
 // ─── Auth middleware ────────────────────────────────────
 function bridgeAuth(req: Request, res: Response, next: NextFunction): void {
@@ -19,7 +25,7 @@ function bridgeAuth(req: Request, res: Response, next: NextFunction): void {
   }
 
   const provided = req.headers["x-bridge-key"];
-  if (provided !== key) {
+  if (typeof provided !== "string" || !safeCompare(provided, key)) {
     res.status(401).json({ error: "Invalid bridge key" });
     return;
   }
@@ -56,7 +62,7 @@ export function registerBridgeRoutes(app: Express): void {
     } catch (err: any) {
       res.status(500).json({
         status: "error",
-        error: err.message,
+        error: "Internal error",
         timestamp: new Date().toISOString(),
       });
     }
@@ -131,7 +137,7 @@ export function registerBridgeRoutes(app: Express): void {
     } catch (err: any) {
       res.status(500).json({
         shop: "nickstire",
-        error: err.message,
+        error: "Internal error",
         timestamp: new Date().toISOString(),
       });
     }
@@ -152,7 +158,8 @@ export function registerBridgeRoutes(app: Express): void {
       await db.update(leads).set({ status: "contacted" }).where(eq(leads.id, leadId));
       res.json({ success: true, leadId });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      console.error("[Bridge] Action error:", err);
+      res.status(500).json({ error: "Internal error" });
     }
   });
 
@@ -164,7 +171,8 @@ export function registerBridgeRoutes(app: Express): void {
       console.log(`[Bridge Note] ${context || "general"}: ${note}`);
       res.json({ success: true, logged: true });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      console.error("[Bridge] Action error:", err);
+      res.status(500).json({ error: "Internal error" });
     }
   });
 
@@ -174,7 +182,8 @@ export function registerBridgeRoutes(app: Express): void {
       const { getJobStatuses } = await import("../cron/index");
       res.json({ jobs: getJobStatuses(), timestamp: new Date().toISOString() });
     } catch (err: any) {
-      res.json({ jobs: [], error: err.message });
+      console.error("[Bridge] Cron status error:", err);
+      res.json({ jobs: [], error: "Internal error" });
     }
   });
 }

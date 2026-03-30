@@ -221,10 +221,10 @@ export const winbackRouter = router({
         .where(eq(winbackMessages.campaignId, input.campaignId))
         .orderBy(winbackMessages.step);
 
-      // Get all target customers
+      // Get all target customers (exclude SMS opt-outs — TCPA compliance)
       const targetCustomers = await d.select()
         .from(customers)
-        .where(eq(customers.segment, campaign.targetSegment as any));
+        .where(sql`${customers.segment} = ${campaign.targetSegment} AND ${customers.smsOptOut} = 0`);
 
       const now = new Date();
       let created = 0;

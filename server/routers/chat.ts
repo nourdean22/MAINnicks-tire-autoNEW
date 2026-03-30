@@ -17,7 +17,7 @@ export const chatRouter = router({
   message: publicProcedure
     .input(z.object({
       sessionId: z.number().optional(),
-      message: z.string().min(1),
+      message: z.string().min(1).max(2000),
     }))
     .mutation(async ({ input }) => {
       const d = await db();
@@ -36,6 +36,11 @@ export const chatRouter = router({
 
       const cleanMessage = sanitizeText(input.message);
       sessionMessages.push({ role: "user", content: cleanMessage });
+
+      // Cap session history to prevent unbounded growth
+      if (sessionMessages.length > 30) {
+        sessionMessages = sessionMessages.slice(-30);
+      }
 
       const { reply, extractedInfo } = await chatWithAssistant(sessionMessages);
 

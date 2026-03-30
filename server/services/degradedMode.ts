@@ -43,7 +43,7 @@ const DEGRADED_RULES: Record<string, DegradedRule> = {
   },
   stripe: {
     vendor: "Stripe Payments",
-    fallback: "Financing providers (Acima, Snap, Koalafi, Synchrony) remain available. Cash/check accepted in-shop.",
+    fallback: "Financing providers (Acima, Snap, Koalafi, American First Finance) remain available. Cash/check accepted in-shop.",
     available: ["Financing applications", "Invoice creation", "Cash payments"],
     disabled: ["Online card payments", "Payment status webhooks"],
     customerMessage: "Online payments temporarily unavailable. We accept cash, check, or financing through our in-shop financing partners.",

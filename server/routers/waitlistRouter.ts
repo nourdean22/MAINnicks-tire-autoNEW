@@ -5,6 +5,7 @@ import { z } from "zod";
 import { eq, desc } from "drizzle-orm";
 import { router, publicProcedure, adminProcedure } from "../_core/trpc";
 import { randomUUID } from "crypto";
+import { sanitizeName, sanitizePhone, sanitizeText } from "../sanitize";
 
 export const waitlistRouter = router({
   join: publicProcedure
@@ -12,9 +13,9 @@ export const waitlistRouter = router({
       customerName: z.string().min(1).max(200),
       customerPhone: z.string().min(10).max(20),
       customerEmail: z.string().email().optional(),
-      serviceType: z.string().optional(),
-      preferredDate: z.string().optional(),
-      notes: z.string().optional(),
+      serviceType: z.string().max(200).optional(),
+      preferredDate: z.string().max(30).optional(),
+      notes: z.string().max(1000).optional(),
     }))
     .mutation(async ({ input }) => {
       const { getDb } = await import("../db");
@@ -24,12 +25,12 @@ export const waitlistRouter = router({
       const id = randomUUID();
       await db.insert(waitlist).values({
         id,
-        customerName: input.customerName,
-        customerPhone: input.customerPhone,
+        customerName: sanitizeName(input.customerName),
+        customerPhone: sanitizePhone(input.customerPhone),
         customerEmail: input.customerEmail,
-        serviceType: input.serviceType,
+        serviceType: input.serviceType ? sanitizeText(input.serviceType) : undefined,
         preferredDate: input.preferredDate ? new Date(input.preferredDate) : null,
-        notes: input.notes,
+        notes: input.notes ? sanitizeText(input.notes) : undefined,
       });
       return { id, position: "You'll be notified when a slot opens." };
     }),

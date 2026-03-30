@@ -8,14 +8,17 @@
  * Also fires HTTP webhooks to the Vercel cloud endpoint for real-time sync.
  *
  * Event Types:
- *   nickstire:booking    — new booking created
+ *   nickstire:booking         — new booking created
  *   nickstire:booking:complete — booking marked completed
- *   nickstire:lead       — new lead captured
- *   nickstire:tire_order — tire order placed
- *   nickstire:invoice    — invoice auto-created
- *   nickstire:callback   — callback requested
- *   nickstire:review     — review received
- *   nickstire:revenue    — revenue milestone
+ *   nickstire:lead            — new lead captured
+ *   nickstire:tire_order      — tire order placed
+ *   nickstire:invoice         — invoice created (manual or auto)
+ *   nickstire:callback        — callback requested
+ *   nickstire:review          — Google review detected
+ *   nickstire:revenue         — revenue milestone
+ *   nickstire:stage-change    — booking stage transition (received→inspecting→in-progress→ready)
+ *   nickstire:campaign-result — SMS campaign batch completed
+ *   nickstire:emergency       — after-hours emergency request
  */
 
 import { writeFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
@@ -44,7 +47,10 @@ export type NourOsEventType =
   | "nickstire:vendor_recovered"
   | "nickstire:work_order"
   | "nickstire:work_order:status"
-  | "nickstire:shop_floor";
+  | "nickstire:shop_floor"
+  | "nickstire:stage-change"
+  | "nickstire:campaign-result"
+  | "nickstire:emergency";
 
 export interface NourOsEvent {
   type: NourOsEventType;
@@ -254,6 +260,64 @@ export function onRevenueMilestone(details: {
     milestone: details.milestone,
     totalRevenue: details.totalRevenue,
     period: details.period,
+  });
+}
+
+/** Booking stage changed (received → inspecting → in-progress → ready → completed) */
+export function onStageChanged(details: {
+  bookingId: number;
+  phone: string;
+  stage: string;
+  refCode: string | null;
+}) {
+  return dispatchEvent("nickstire:stage-change", {
+    bookingId: details.bookingId,
+    phone: details.phone,
+    stage: details.stage,
+    refCode: details.refCode || null,
+  });
+}
+
+/** Google review detected by review monitor cron */
+export function onReviewDetected(details: {
+  rating: number;
+  reviewText: string;
+  customerName: string;
+}) {
+  return dispatchEvent("nickstire:review", {
+    rating: details.rating,
+    reviewText: details.reviewText,
+    customerName: details.customerName,
+  });
+}
+
+/** SMS campaign batch completed */
+export function onCampaignResult(details: {
+  campaignId: number;
+  sent: number;
+  failed: number;
+  campaignType: string;
+}) {
+  return dispatchEvent("nickstire:campaign-result", {
+    campaignId: details.campaignId,
+    sent: details.sent,
+    failed: details.failed,
+    campaignType: details.campaignType,
+  });
+}
+
+/** After-hours emergency request submitted */
+export function onEmergencyRequest(details: {
+  name: string;
+  phone: string;
+  description: string;
+  urgency: string;
+}) {
+  return dispatchEvent("nickstire:emergency", {
+    name: details.name,
+    phone: details.phone,
+    description: details.description,
+    urgency: details.urgency,
   });
 }
 

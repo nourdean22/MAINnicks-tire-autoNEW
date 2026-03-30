@@ -110,7 +110,7 @@ export const emergencyRouter = router({
       z.object({
         name: z.string().min(1).max(100),
         phone: z.string().min(7).max(20),
-        vehicle: z.string().optional(),
+        vehicle: z.string().max(200).optional(),
         problem: z.string().min(1).max(1000),
         urgency: z.enum(["emergency", "next-day"]).default("emergency"),
       })
@@ -153,6 +153,18 @@ export const emergencyRouter = router({
         const emergencyId = created[0]?.id || null;
 
         const nextOpenTime = getNextOpenTime();
+
+        // Dispatch emergency to NOUR OS (non-blocking, high priority)
+        import("../nour-os-bridge").then(({ onEmergencyRequest }) =>
+          onEmergencyRequest({
+            name,
+            phone,
+            description: problem || "No description",
+            urgency: input.urgency,
+          })
+        ).catch(err => {
+          console.error("[NourOS] Emergency event dispatch failed:", err);
+        });
 
         // Sync to Google Sheets asynchronously (fire and forget with retry)
         withRetry(
