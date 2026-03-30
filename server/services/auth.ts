@@ -60,8 +60,20 @@ export async function requestOTP(phone: string): Promise<{ success: boolean; err
 /**
  * Verify OTP — checks code, issues JWT if valid
  */
+// OTP brute force protection: max 5 failed attempts per phone per 15 minutes
+const otpAttemptMap = new Map<string, { count: number; resetAt: number }>();
+const MAX_OTP_ATTEMPTS = 5;
+const OTP_LOCKOUT_MS = 15 * 60 * 1000;
+
 export async function verifyOTP(phone: string, code: string): Promise<{ token?: string; customerId?: string; error?: string }> {
   const normalized = phone.replace(/\D/g, "").slice(-10);
+
+  // Check brute force lockout
+  const now = Date.now();
+  const attempt = otpAttemptMap.get(normalized);
+  if (attempt && now < attempt.resetAt && attempt.count >= MAX_OTP_ATTEMPTS) {
+    return { error: "Too many attempts. Please wait 15 minutes and try again." };
+  }
 
   try {
     const { getDb } = await import("../db");
@@ -84,7 +96,19 @@ export async function verifyOTP(phone: string, code: string): Promise<{ token?: 
       .orderBy(desc(otpCodes.createdAt))
       .limit(1);
 
-    if (!otp) return { error: "Invalid or expired code" };
+    if (!otp) {
+      // Track failed attempt
+      const entry = otpAttemptMap.get(normalized);
+      if (!entry || now > entry.resetAt) {
+        otpAttemptMap.set(normalized, { count: 1, resetAt: now + OTP_LOCKOUT_MS });
+      } else {
+        entry.count++;
+      }
+      return { error: "Invalid or expired code" };
+    }
+
+    // Success — clear attempt tracker
+    otpAttemptMap.delete(normalized);
 
     // Mark as used
     await db.update(otpCodes).set({ used: true }).where(eq(otpCodes.id, otp.id));
@@ -98,10 +122,10 @@ export async function verifyOTP(phone: string, code: string): Promise<{ token?: 
 
     if (!customer) return { error: "No account found for this phone number" };
 
-    // Issue JWT (30-day expiry)
+    // Issue JWT (7-day expiry)
     const token = await new (await import("jose")).SignJWT({ customerId: customer.id, phone: normalized })
       .setProtectedHeader({ alg: "HS256" })
-      .setExpirationTime("30d")
+      .setExpirationTime("7d")
       .setIssuedAt()
       .sign(getJwtSecret());
 

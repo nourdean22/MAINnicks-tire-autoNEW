@@ -140,7 +140,7 @@ export const campaignsRouter = router({
     .input(z.object({
       template: z.enum(["maintenance", "seasonal", "special_offer", "winback"]),
       segment: z.enum(["recent", "lapsed", "all"]),
-      customMessage: z.string().optional(),
+      customMessage: z.string().max(1600).optional(),
     }))
     .query(async ({ input }) => {
       const targetCustomers = await getSegmentCustomers(input.segment);
@@ -329,6 +329,19 @@ async function processCampaignSends(campaignId: number, batchSize: number = 50):
     status: "completed",
     completedAt: new Date(),
   }).where(eq(smsCampaigns.id, campaignId));
+
+  // Dispatch campaign result to NOUR OS (non-blocking)
+  const [campaign] = await d.select().from(smsCampaigns).where(eq(smsCampaigns.id, campaignId));
+  import("../nour-os-bridge").then(({ onCampaignResult }) =>
+    onCampaignResult({
+      campaignId,
+      sent: totalSent,
+      failed: totalFailed,
+      campaignType: campaign?.template || "unknown",
+    })
+  ).catch(err => {
+    console.error("[NourOS] Campaign result event dispatch failed:", err);
+  });
 
   console.log(`[Campaigns] Campaign ${campaignId} completed: ${totalSent} sent, ${totalFailed} failed`);
 }

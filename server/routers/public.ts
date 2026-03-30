@@ -57,7 +57,7 @@ export const laborEstimateRouter = router({
         year: z.string().min(4).max(4),
         make: z.string().min(1).max(50),
         model: z.string().min(1).max(50),
-        mileage: z.string().optional(),
+        mileage: z.string().max(20).optional(),
         repairDescription: z.string().min(3).max(1000),
       })
     )
@@ -77,12 +77,12 @@ export const diagnoseRouter = router({
   analyze: publicProcedure
     .input(
       z.object({
-        vehicleYear: z.string().optional(),
-        vehicleMake: z.string().optional(),
-        vehicleModel: z.string().optional(),
-        mileage: z.string().optional(),
-        symptoms: z.array(z.string()).min(1),
-        additionalInfo: z.string().optional(),
+        vehicleYear: z.string().max(4).optional(),
+        vehicleMake: z.string().max(50).optional(),
+        vehicleModel: z.string().max(50).optional(),
+        mileage: z.string().max(20).optional(),
+        symptoms: z.array(z.string().max(200)).min(1).max(20),
+        additionalInfo: z.string().max(2000).optional(),
       })
     )
     .mutation(async ({ input }) => {

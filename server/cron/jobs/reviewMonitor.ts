@@ -68,6 +68,17 @@ export async function processReviewMonitor(): Promise<{ recordsProcessed: number
 
       newCount++;
 
+      // Dispatch to NOUR OS (non-blocking)
+      import("../../nour-os-bridge").then(({ onReviewDetected }) =>
+        onReviewDetected({
+          rating: review.rating || 3,
+          reviewText: review.text || "",
+          customerName: review.author_name || "Anonymous",
+        })
+      ).catch(err => {
+        log.warn("Review event dispatch to NOUR OS failed", { error: err instanceof Error ? err.message : String(err) });
+      });
+
       if (review.rating <= 3) {
         lowRatingCount++;
       }

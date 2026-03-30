@@ -134,7 +134,7 @@ export function getObjectionCoaching(
   const coaching: Record<string, { script: string; tip: string }> = {
     price_concern: {
       script:
-        "I understand the concern. Let me show you what happens if we don't address this now — the repair cost typically doubles. We also offer financing through Sunbit with 0% for 6 months.",
+        "I understand the concern. Let me show you what happens if we don't address this now — the repair cost typically doubles. We also offer financing through Acima, Snap, Koalafi, or American First Finance — no credit check needed.",
       tip: "Lead with cost-of-delay, then offer financing. Never discount first.",
     },
     timing: {

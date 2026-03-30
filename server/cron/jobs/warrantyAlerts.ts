@@ -19,11 +19,14 @@ export async function processWarrantyAlerts(): Promise<{ recordsProcessed: numbe
     if (!db) return { recordsProcessed: 0 };
 
     // Find warranties expiring in 12-16 days that haven't been alerted yet
+    // Use ET timezone since shop is in Cleveland
     const now = new Date();
     const from = new Date(now);
     from.setDate(from.getDate() + 12);
     const to = new Date(now);
     to.setDate(to.getDate() + 16);
+    const fromStr = from.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    const toStr = to.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
     const expiring = await db
       .select()
@@ -31,8 +34,8 @@ export async function processWarrantyAlerts(): Promise<{ recordsProcessed: numbe
       .where(
         and(
           eq(warranties.status, "active"),
-          gte(warranties.expiresAt, sql`${from.toISOString().split("T")[0]}`),
-          lte(warranties.expiresAt, sql`${to.toISOString().split("T")[0]}`),
+          gte(warranties.expiresAt, sql`${fromStr}`),
+          lte(warranties.expiresAt, sql`${toStr}`),
           eq(warranties.reminderSent, false)
         )
       )

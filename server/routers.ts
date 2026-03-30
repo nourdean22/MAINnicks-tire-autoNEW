@@ -57,6 +57,17 @@ import {
   nourOsBridgeRouter,
   workOrdersRouter,
   dispatchRouter,
+  controlCenterRouter,
+  estimatesRouter,
+  fleetRouter,
+  inventoryRouter,
+  nourOsQuoteRouter,
+  segmentsRouter,
+  serviceMatcherRouter,
+  shopStatusRouter,
+  specialsRouter,
+  waitlistRouter,
+  warrantiesRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -145,6 +156,21 @@ export const appRouter = router({
 
   // Dispatch + QC + Customer Messaging
   dispatch: dispatchRouter,
+
+  // Operations & Inventory
+  controlCenter: controlCenterRouter,
+  estimates: estimatesRouter,
+  fleet: fleetRouter,
+  inventory: inventoryRouter,
+  segments: segmentsRouter,
+  serviceMatcher: serviceMatcherRouter,
+  shopStatus: shopStatusRouter,
+  specials: specialsRouter,
+  waitlist: waitlistRouter,
+  warranties: warrantiesRouter,
+
+  // NOUR OS Quote Bridge
+  nourOsQuote: nourOsQuoteRouter,
 });
 
 export type AppRouter = typeof appRouter;

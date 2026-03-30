@@ -27,21 +27,21 @@ export const leadRouter = router({
   submit: publicProcedure
     .input(
       z.object({
-        name: z.string().min(1),
+        name: z.string().min(1).max(200),
         phone: z.string().min(7).max(20),
-        email: z.string().email().optional().or(z.literal("")),
-        vehicle: z.string().optional(),
-        problem: z.string().optional(),
+        email: z.string().email().max(254).optional().or(z.literal("")),
+        vehicle: z.string().max(200).optional(),
+        problem: z.string().max(2000).optional(),
         source: z.enum(["popup", "chat", "booking", "manual", "callback", "fleet"]).default("popup"),
-        companyName: z.string().optional(),
+        companyName: z.string().max(200).optional(),
         fleetSize: z.number().optional(),
-        vehicleTypes: z.string().optional(),
+        vehicleTypes: z.string().max(500).optional(),
         // Meta Pixel event ID for server-side CAPI deduplication
-        pixelEventId: z.string().optional(),
+        pixelEventId: z.string().max(100).optional(),
         pixelUserData: z.object({
-          client_user_agent: z.string(),
-          fbc: z.string().optional(),
-          fbp: z.string().optional(),
+          client_user_agent: z.string().max(500),
+          fbc: z.string().max(500).optional(),
+          fbp: z.string().max(500).optional(),
         }).optional(),
         // UTM source attribution
         utmSource: z.string().max(100).optional(),
@@ -93,6 +93,22 @@ export const leadRouter = router({
         referrer: input.referrer || null,
       }).$returningId();
       const leadId = insertedRows[0]?.id ?? null;
+
+      // Dispatch to NOUR OS event bus (non-blocking)
+      if (leadId) {
+        import("../nour-os-bridge").then(({ onLeadCaptured }) =>
+          onLeadCaptured({
+            id: leadId,
+            name,
+            phone,
+            source: input.source,
+            urgencyScore: scoring.score,
+            interest: scoring.recommendedService,
+          })
+        ).catch(err => {
+          console.error("[NourOS] Lead event dispatch failed:", err);
+        });
+      }
 
       withRetry(
         () => syncLeadToSheet({
@@ -220,8 +236,8 @@ export const leadRouter = router({
         id: z.number(),
         status: z.enum(["new", "contacted", "booked", "completed", "closed", "lost"]).optional(),
         contacted: z.number().min(0).max(1).optional(),
-        contactedBy: z.string().optional(),
-        contactNotes: z.string().optional(),
+        contactedBy: z.string().max(200).optional(),
+        contactNotes: z.string().max(5000).optional(),
       })
     )
     .mutation(async ({ input }) => {

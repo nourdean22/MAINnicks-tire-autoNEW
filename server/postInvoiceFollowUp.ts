@@ -62,9 +62,9 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
     // This gives a ±1 day buffer so we don't miss anyone
     const now = new Date();
     const sixDaysAgo = new Date(now);
-    sixDaysAgo.setDate(sixDaysAgo.getDate() - 8);
+    sixDaysAgo.setDate(sixDaysAgo.getDate() - 6);
     const eightDaysAgo = new Date(now);
-    eightDaysAgo.setDate(eightDaysAgo.getDate() - 6);
+    eightDaysAgo.setDate(eightDaysAgo.getDate() - 8);
 
     // Query customers:
     // - lastVisitDate between 6 and 8 days ago

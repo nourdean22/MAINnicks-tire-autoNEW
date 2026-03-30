@@ -12,9 +12,9 @@ export const fleetRouter = router({
       contactPhone: z.string().min(10).max(20),
       contactEmail: z.string().email().optional(),
       fleetSize: z.number().min(1),
-      vehicleTypes: z.string().optional(),
-      servicesNeeded: z.string().optional(),
-      notes: z.string().optional(),
+      vehicleTypes: z.string().max(500).optional(),
+      servicesNeeded: z.string().max(500).optional(),
+      notes: z.string().max(2000).optional(),
     }))
     .mutation(async ({ input }) => {
       // Create as a lead with fleet tag

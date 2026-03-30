@@ -514,7 +514,7 @@ export const controlCenterRouter = router({
 
   // ─── TOGGLE HABIT ────────────────────────────────────
   toggleHabit: adminProcedure
-    .input(z.object({ habitKey: z.string(), completed: z.boolean() }))
+    .input(z.object({ habitKey: z.string().max(100), completed: z.boolean() }))
     .mutation(async ({ input }) => {
       const d = await db();
       if (!d) throw new Error("Database unavailable");
@@ -535,7 +535,7 @@ export const controlCenterRouter = router({
 
   // ─── SET MISSION ─────────────────────────────────────
   setMission: adminProcedure
-    .input(z.object({ mission: z.string() }))
+    .input(z.object({ mission: z.string().max(500) }))
     .mutation(async ({ input }) => {
       const d = await db();
       if (!d) throw new Error("Database unavailable");
@@ -556,8 +556,8 @@ export const controlCenterRouter = router({
   logAction: adminProcedure
     .input(z.object({
       action: z.enum(["done", "skip", "defer", "open", "habit_toggle", "mission_set", "command"]),
-      target: z.string().optional(),
-      meta: z.record(z.string(), z.string()).optional(),
+      target: z.string().max(500).optional(),
+      meta: z.record(z.string().max(100), z.string().max(500)).optional(),
     }))
     .mutation(async ({ input }) => {
       const d = await db();

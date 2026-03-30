@@ -3,7 +3,13 @@
  * Protected by X-Bridge-Key header matching BRIDGE_API_KEY env var.
  */
 import type { Express, Request, Response, NextFunction } from "express";
+import { timingSafeEqual } from "crypto";
 import { getDashboardStats } from "../admin-stats";
+
+function safeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
 
 function bridgeAuth(req: Request, res: Response, next: NextFunction): void {
   const bridgeKey = process.env.BRIDGE_API_KEY;
@@ -14,7 +20,7 @@ function bridgeAuth(req: Request, res: Response, next: NextFunction): void {
   }
 
   const provided = req.headers["x-bridge-key"];
-  if (provided !== bridgeKey) {
+  if (typeof provided !== "string" || !safeCompare(provided, bridgeKey)) {
     res.status(401).json({ error: "Invalid bridge key", code: "UNAUTHORIZED" });
     return;
   }

@@ -18,32 +18,32 @@ import FadeIn from "@/components/FadeIn";
 /* ── Provider card data (static, inline) ──────────────────── */
 const PROVIDERS = [
   {
-    id: "sunbit",
-    name: "Sunbit",
+    id: "acima",
+    name: "Acima",
     primary: true,
-    tagline: "90% approval rate, 3-month 0% APR, 30-second application",
-    features: ["90% of customers approved", "0% APR for first 3 months", "Apply in 30 seconds at the counter", "No hard credit check"],
-  },
-  {
-    id: "koalafi",
-    name: "Koalafi",
-    primary: false,
-    tagline: "Lease-to-own up to $7,500, no credit score requirement",
-    features: ["Lease-to-own up to $7,500", "No credit score requirement", "Flexible payment schedules", "Early buyout option available"],
+    tagline: "90-day same-as-cash, no credit needed, instant approval",
+    features: ["No credit needed — uses bank history", "90-day same-as-cash option", "Apply in 2 minutes from your phone", "Early buyout saves you money"],
   },
   {
     id: "snap",
     name: "Snap Finance",
     primary: false,
-    tagline: "Up to $3,000 for tires and wheels, 100-day early payoff",
-    features: ["Up to $3,000 for tires & wheels", "100-day early payoff option", "All credit types accepted", "Quick online application"],
+    tagline: "100-day early payoff, everyone welcome to apply",
+    features: ["100-day early payoff option", "All credit types accepted", "Up to $5,000 approved", "Quick 60-second application"],
   },
   {
-    id: "acima",
-    name: "Acima",
+    id: "koalafi",
+    name: "Koalafi",
     primary: false,
-    tagline: "Lease-to-own, no credit needed, early buyout available",
-    features: ["Lease-to-own, no credit needed", "Early buyout saves you money", "90-day purchase option", "Flexible payment schedule"],
+    tagline: "Highest amount — up to $7,500, no credit check",
+    features: ["Up to $7,500 — highest approval", "No credit score requirement", "Flexible payment schedules", "Early buyout discounts available"],
+  },
+  {
+    id: "american-first",
+    name: "American First Finance",
+    primary: false,
+    tagline: "No credit needed, fast approval, flexible terms",
+    features: ["No credit needed", "90-day same-as-cash option", "No early payment penalties", "Flexible payment schedules"],
   },
 ];
 
@@ -190,7 +190,7 @@ export default function Financing() {
 
   const handleApplyClick = useCallback((providerId: string) => {
     trackMutation.mutate({
-      provider: providerId as "acima" | "snap" | "koalafi" | "synchrony",
+      provider: providerId as "acima" | "snap" | "koalafi" | "american-first",
       sourcePage: "/financing",
     });
   }, [trackMutation]);
@@ -199,7 +199,7 @@ export default function Financing() {
     <PageLayout activeHref="/financing">
       <SEOHead
         title="Financing Options | Nick's Tire & Auto Cleveland OH"
-        description="$0 down auto repair financing in Cleveland. Instant approval, no hard credit check. Sunbit, Koalafi, Snap Finance, Acima. Apply online in minutes."
+        description="$0 down auto repair financing in Cleveland. Instant approval, no hard credit check. Acima, Snap Finance, Koalafi, American First Finance. Apply online in minutes."
         canonicalPath="/financing"
       />
       <Breadcrumbs items={[{ label: "Financing", href: "/financing" }]} />

@@ -8,6 +8,7 @@ import { useState } from "react";
 import { AlertTriangle, Phone, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 
 interface EmergencyFormData {
@@ -20,6 +21,7 @@ interface EmergencyFormData {
 
 export function EmergencyMode() {
   const { isOpen, nextOpenTime } = useBusinessHours();
+  const [location] = useLocation();
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<EmergencyFormData>({
     name: "",
@@ -56,8 +58,8 @@ export function EmergencyMode() {
     });
   };
 
-  // Only show emergency UI if closed
-  if (isOpen) {
+  // Never show on admin pages; only show on customer-facing pages when closed
+  if (isOpen || location.startsWith("/admin")) {
     return null;
   }
 

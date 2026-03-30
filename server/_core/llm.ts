@@ -314,6 +314,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
       authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
     },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(30000), // 30s timeout — don't hang forever
   });
 
   if (!response.ok) {

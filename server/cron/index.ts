@@ -199,6 +199,16 @@ export function registerAllJobs(): void {
     return processRetention90Day();
   });
 
+  registerJob("retention-180day", 24 * 60 * 60 * 1000, async () => {
+    const { processRetention180Day } = await import("./jobs/retentionSequences");
+    return processRetention180Day();
+  });
+
+  registerJob("retention-365day", 24 * 60 * 60 * 1000, async () => {
+    const { processRetention365Day } = await import("./jobs/retentionSequences");
+    return processRetention365Day();
+  });
+
   // Warranty expiration alerts (every 24 hours)
   registerJob("warranty-alerts", 24 * 60 * 60 * 1000, async () => {
     const { processWarrantyAlerts } = await import("./jobs/warrantyAlerts");
@@ -247,9 +257,10 @@ export function registerAllJobs(): void {
     if (!db) return { recordsProcessed: 0, details: "No DB" };
     const { bookings, leads } = await import("../../drizzle/schema");
     const { sql } = await import("drizzle-orm");
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const [bookingCount] = await db.select({ count: sql<number>`count(*)` }).from(bookings).where(sql`${bookings.createdAt} >= ${today}`);
-    const [leadCount] = await db.select({ count: sql<number>`count(*)` }).from(leads).where(sql`${leads.createdAt} >= ${today}`);
+    // Use ET date for "today" since shop is in Cleveland
+    const todayET = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    const [bookingCount] = await db.select({ count: sql<number>`count(*)` }).from(bookings).where(sql`DATE(${bookings.createdAt}) = ${todayET}`);
+    const [leadCount] = await db.select({ count: sql<number>`count(*)` }).from(leads).where(sql`DATE(${leads.createdAt}) = ${todayET}`);
     await sendDailySummary({
       leads: Number(leadCount?.count || 0),
       bookings: Number(bookingCount?.count || 0),
@@ -265,6 +276,12 @@ export function registerAllJobs(): void {
     const ledger = await getDeclinedWorkLedger(20);
     return { recordsProcessed: ledger.length, details: `${ledger.length} declined items checked` };
   });
+
+  // Review monitor (every 6 hours — checks for new Google reviews)
+  registerJob("review-monitor", 6 * 60 * 60 * 1000, async () => {
+    const { processReviewMonitor } = await import("./jobs/reviewMonitor");
+    return processReviewMonitor();
+  }, !!process.env.GOOGLE_PLACES_API_KEY); // Auto-enable when API key is set
 
   // Competitor monitor (every 24 hours — runs weekly check internally)
   registerJob("competitor-monitor", 24 * 60 * 60 * 1000, async () => {

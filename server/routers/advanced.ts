@@ -22,8 +22,8 @@ export const jobAssignmentsRouter = router({
     .input(z.object({
       bookingId: z.number(),
       technicianId: z.number(),
-      estimatedHours: z.string().optional(),
-      notes: z.string().optional(),
+      estimatedHours: z.string().max(20).optional(),
+      notes: z.string().max(5000).optional(),
     }))
     .mutation(async ({ input }) => {
       const d = await db();
@@ -166,9 +166,9 @@ export const invoicesRouter = router({
     .input(z.object({
       limit: z.number().default(100),
       offset: z.number().default(0),
-      startDate: z.string().optional(),
-      endDate: z.string().optional(),
-      search: z.string().optional(),
+      startDate: z.string().max(30).optional(),
+      endDate: z.string().max(30).optional(),
+      search: z.string().max(200).optional(),
     }).optional())
     .query(async ({ input }) => {
       const d = await db();
@@ -177,7 +177,9 @@ export const invoicesRouter = router({
       if (input?.startDate) conditions.push(gte(invoices.invoiceDate, new Date(input.startDate)));
       if (input?.endDate) conditions.push(lte(invoices.invoiceDate, new Date(input.endDate)));
       if (input?.search) {
-        conditions.push(sql`(${invoices.customerName} LIKE ${'%' + input.search + '%'} OR ${invoices.invoiceNumber} LIKE ${'%' + input.search + '%'} OR ${invoices.serviceDescription} LIKE ${'%' + input.search + '%'})`);
+        // Escape LIKE wildcards to prevent pattern injection
+        const escaped = input.search.replace(/[%_\\]/g, ch => `\\${ch}`);
+        conditions.push(sql`(${invoices.customerName} LIKE ${'%' + escaped + '%'} OR ${invoices.invoiceNumber} LIKE ${'%' + escaped + '%'} OR ${invoices.serviceDescription} LIKE ${'%' + escaped + '%'})`);
       }
       const where = conditions.length > 0 ? and(...conditions) : undefined;
       const items = await d.select().from(invoices)
@@ -192,17 +194,17 @@ export const invoicesRouter = router({
   /** Create an invoice */
   create: adminProcedure
     .input(z.object({
-      customerName: z.string().min(1, "Customer name is required"),
-      customerPhone: z.string().optional(),
+      customerName: z.string().min(1, "Customer name is required").max(200),
+      customerPhone: z.string().max(20).optional(),
       customerId: z.number().optional(),
       bookingId: z.number().optional(),
-      invoiceNumber: z.string().optional(),
+      invoiceNumber: z.string().max(50).optional(),
       totalAmount: z.number().min(0),
       partsCost: z.number().default(0),
       laborCost: z.number().default(0),
       taxAmount: z.number().default(0),
-      serviceDescription: z.string().optional(),
-      vehicleInfo: z.string().optional(),
+      serviceDescription: z.string().max(2000).optional(),
+      vehicleInfo: z.string().max(200).optional(),
       paymentMethod: z.enum(["cash", "card", "check", "financing", "other"]).default("card"),
       paymentStatus: z.enum(["paid", "pending", "partial", "refunded"]).default("paid"),
       invoiceDate: z.string().optional(),
@@ -215,21 +217,35 @@ export const invoicesRouter = router({
         ...input,
         invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : new Date(),
       });
-      return { success: true, id: Number(result[0].insertId) };
+      const invoiceId = Number(result[0].insertId);
+
+      // Dispatch invoice event to NOUR OS (non-blocking)
+      import("../nour-os-bridge").then(({ onInvoiceCreated }) =>
+        onInvoiceCreated({
+          invoiceNumber: input.invoiceNumber || `INV-${invoiceId}`,
+          customerName: input.customerName,
+          totalAmount: input.totalAmount,
+          source: input.source,
+        })
+      ).catch(err => {
+        console.error("[NourOS] Invoice event dispatch failed:", err);
+      });
+
+      return { success: true, id: invoiceId };
     }),
 
   /** Update an invoice */
   update: adminProcedure
     .input(z.object({
       id: z.number(),
-      customerName: z.string().optional(),
-      customerPhone: z.string().optional(),
+      customerName: z.string().max(200).optional(),
+      customerPhone: z.string().max(20).optional(),
       totalAmount: z.number().optional(),
       partsCost: z.number().optional(),
       laborCost: z.number().optional(),
       taxAmount: z.number().optional(),
-      serviceDescription: z.string().optional(),
-      vehicleInfo: z.string().optional(),
+      serviceDescription: z.string().max(2000).optional(),
+      vehicleInfo: z.string().max(200).optional(),
       paymentMethod: z.enum(["cash", "card", "check", "financing", "other"]).optional(),
       paymentStatus: z.enum(["paid", "pending", "partial", "refunded"]).optional(),
     }))
@@ -426,7 +442,7 @@ export const kpiRouter = router({
 export const portalRouter = router({
   /** Request a verification code (public) — with rate limiting */
   requestCode: publicProcedure
-    .input(z.object({ phone: z.string().min(10) }))
+    .input(z.object({ phone: z.string().min(10).max(20) }))
     .mutation(async ({ input }) => {
       const d = await db();
       if (!d) throw new Error("Database not available");
@@ -480,7 +496,7 @@ export const portalRouter = router({
 
   /** Verify code and create session (public) — cleans up expired sessions */
   verifyCode: publicProcedure
-    .input(z.object({ phone: z.string(), code: z.string() }))
+    .input(z.object({ phone: z.string().max(20), code: z.string().max(6) }))
     .mutation(async ({ input }) => {
       const d = await db();
       if (!d) throw new Error("Database not available");
@@ -504,7 +520,8 @@ export const portalRouter = router({
       if (!session) throw new Error("Invalid or expired code");
 
       // Generate session token
-      const token = Array.from({ length: 64 }, () => "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)]).join("");
+      const { randomInt } = await import("crypto");
+      const token = Array.from({ length: 64 }, () => "abcdefghijklmnopqrstuvwxyz0123456789"[randomInt(36)]).join("");
       const sessionExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
       await d.update(portalSessions).set({
@@ -518,7 +535,7 @@ export const portalRouter = router({
 
   /** Get customer data by portal session token (public) */
   myData: publicProcedure
-    .input(z.object({ token: z.string() }))
+    .input(z.object({ token: z.string().max(500) }))
     .query(async ({ input }) => {
       const d = await db();
       if (!d) throw new Error("Database not available");

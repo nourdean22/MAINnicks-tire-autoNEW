@@ -13,18 +13,22 @@ export async function generateDailyReport(): Promise<{ recordsProcessed: number;
   }
 
   try {
+    // Only send at evening (after 6 PM ET) — skip morning run
+    const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+    if (etHour < 18) return { recordsProcessed: 0, details: "Not yet evening — skipped" };
+
     const { getDb } = await import("../../db");
     const { bookings } = await import("../../../drizzle/schema");
     const { sql } = await import("drizzle-orm");
     const db = await getDb();
     if (!db) return { recordsProcessed: 0, details: "No database" };
 
-    // Count today's bookings
-    const today = new Date().toISOString().split("T")[0];
+    // Count today's bookings (ET timezone — shop is in Cleveland)
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
     const [result] = await db.execute(sql`SELECT COUNT(*) as cnt FROM bookings WHERE DATE(createdAt) = ${today}`);
     const bookingCount = (result as any)?.cnt || 0;
 
-    const message = `📊 Daily Report (${today}): ${bookingCount} bookings today. Check admin dashboard for full details. — Nick's Tire & Auto`;
+    const message = `Daily Report (${today}): ${bookingCount} bookings today. Check admin dashboard for full details. — Nick's Tire & Auto`;
     await sendSms(ownerPhone, message);
 
     log.info("Daily report sent", { bookingCount });

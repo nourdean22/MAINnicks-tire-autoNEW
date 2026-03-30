@@ -97,12 +97,19 @@ export const nourOsQuoteRouter = router({
       })
     )
     .mutation(async ({ input }) => {
+      const { sanitizeName, sanitizePhone, sanitizeText } = await import("../sanitize");
+      const sanitized = {
+        ...input,
+        customerName: input.customerName ? sanitizeName(input.customerName) : undefined,
+        customerPhone: input.customerPhone ? sanitizePhone(input.customerPhone) : undefined,
+        vehicleMake: sanitizeText(input.vehicleMake),
+        vehicleModel: sanitizeText(input.vehicleModel),
+        vehicleEngine: input.vehicleEngine ? sanitizeText(input.vehicleEngine) : undefined,
+        source: "website",
+      };
       const result = await fetchNourOS("/api/quotes", {
         method: "POST",
-        body: JSON.stringify({
-          ...input,
-          source: "website",
-        }),
+        body: JSON.stringify(sanitized),
       });
       return result;
     }),

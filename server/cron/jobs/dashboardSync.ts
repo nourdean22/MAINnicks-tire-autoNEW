@@ -20,9 +20,8 @@ export async function processDashboardSync(): Promise<{ recordsProcessed: number
     const hour = parseInt(etHour, 10);
     if (hour < 8 || hour > 19) return { recordsProcessed: 0, details: "Outside business hours" };
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split("T")[0];
+    // Use ET timezone for "today" — shop is in Cleveland
+    const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
     // Query today's metrics
     const [todayBookings] = await db

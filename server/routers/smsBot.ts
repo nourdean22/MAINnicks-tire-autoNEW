@@ -100,7 +100,7 @@ export async function handleIncomingSMS(from: string, body: string): Promise<str
 
   // Handle HELP keyword
   if (message === "HELP") {
-    return "Nick's Tire & Auto, Cleveland OH. Hours: M-Sat 8AM-6PM, Sun 9AM-4PM. Call (216) 862-0005.";
+    return "Nick's Tire & Auto, Cleveland OH. Hours: Mon-Sat 8AM-6PM, Sun 9AM-4PM. Call (216) 862-0005.";
   }
 
   // Rate limit check

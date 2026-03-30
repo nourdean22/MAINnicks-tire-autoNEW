@@ -49,15 +49,30 @@ export interface SmsResult {
 const smsCountMap = new Map<string, { count: number; resetAt: number }>();
 const MAX_SMS_PER_PHONE_PER_DAY = 8;
 
+// Per-phone short-term cooldown (prevents burst SMS from rapid stage changes)
+// 5-minute cooldown between messages to the same phone
+const smsLastSentMap = new Map<string, number>();
+const SMS_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+
 function checkDailyLimit(phone: string): boolean {
   const now = Date.now();
+
+  // Short-term cooldown: reject if last SMS was < 5 min ago
+  const lastSent = smsLastSentMap.get(phone);
+  if (lastSent && now - lastSent < SMS_COOLDOWN_MS) {
+    console.warn(`[SMS] Cooldown active for ${phone} — last sent ${Math.round((now - lastSent) / 1000)}s ago`);
+    return false;
+  }
+
   const entry = smsCountMap.get(phone);
   if (!entry || now > entry.resetAt) {
     smsCountMap.set(phone, { count: 1, resetAt: now + 24 * 60 * 60 * 1000 });
+    smsLastSentMap.set(phone, now);
     return true;
   }
   if (entry.count >= MAX_SMS_PER_PHONE_PER_DAY) return false;
   entry.count++;
+  smsLastSentMap.set(phone, now);
   return true;
 }
 
@@ -160,7 +175,7 @@ export function statusUpdateSms(name: string, stage: string, refCode?: string): 
     "waiting-parts": `we're waiting for parts to arrive for your repair. We'll update you as soon as they're in`,
     "in-progress": `your vehicle is actively being repaired`,
     "quality-check": `your repair is done and going through our quality check`,
-    ready: `your vehicle is READY FOR PICKUP! Come by anytime during business hours (Mon-Sat 9AM-6PM)`,
+    ready: `your vehicle is READY FOR PICKUP! Come by anytime during business hours (Mon-Sat 8AM-6PM, Sun 9AM-4PM)`,
   };
 
   const statusMsg = stageMessages[stage] || "your vehicle status has been updated";
@@ -191,7 +206,7 @@ export function reviewRequestSms(name: string): string {
  */
 export function callbackConfirmationSms(name: string): string {
   const firstName = name.split(" ")[0];
-  return `Hi ${firstName}, we received your callback request at ${STORE_NAME}. One of our team members will call you back shortly during business hours (Mon-Sat 9AM-6PM). — ${STORE_PHONE}`;
+  return `Hi ${firstName}, we received your callback request at ${STORE_NAME}. One of our team members will call you back shortly during business hours (Mon-Sat 8AM-6PM, Sun 9AM-4PM). — ${STORE_PHONE}`;
 }
 
 /**

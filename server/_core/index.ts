@@ -1,9 +1,9 @@
 import "dotenv/config";
 
 // ─── Startup env validation ─────────────────────────
-const REQUIRED_ENV = ["DATABASE_URL"] as const;
+const REQUIRED_ENV = ["DATABASE_URL", "JWT_SECRET"] as const;
 const RECOMMENDED_ENV = [
-  "JWT_SECRET", "OWNER_OPEN_ID", "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET",
+  "OWNER_OPEN_ID", "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET",
   "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER",
   "BRIDGE_API_KEY", "OPENAI_API_KEY",
 ] as const;
@@ -11,6 +11,11 @@ const RECOMMENDED_ENV = [
 const missingRequired = REQUIRED_ENV.filter(k => !process.env[k]);
 if (missingRequired.length) {
   console.error(`FATAL: Missing required env vars: ${missingRequired.join(", ")}`);
+  process.exit(1);
+}
+// JWT_SECRET must be at least 32 characters to be cryptographically useful
+if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
+  console.error("FATAL: JWT_SECRET must be at least 32 characters long");
   process.exit(1);
 }
 const missingRec = RECOMMENDED_ENV.filter(k => !process.env[k]);
@@ -67,16 +72,28 @@ async function startServer() {
   app.use(express.json({ limit: "2mb" }));
   app.use(express.urlencoded({ limit: "2mb", extended: true }));
 
-  // Security headers
+  // Security headers — hardened per OWASP recommendations
   app.use((_req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("X-Frame-Options", "SAMEORIGIN");
-    res.setHeader("X-XSS-Protection", "1; mode=block");
+    res.setHeader("X-Frame-Options", "DENY");
+    // X-XSS-Protection: 0 — modern best practice, the legacy XSS auditor causes more
+    // vulnerabilities than it prevents. CSP is the real protection.
+    res.setHeader("X-XSS-Protection", "0");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)");
-    if (process.env.NODE_ENV === "production") {
-      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-    }
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    // Content Security Policy
+    res.setHeader("Content-Security-Policy", [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://www.google-analytics.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https: http:",
+      "connect-src 'self' https://www.google-analytics.com https://www.facebook.com https://d2xsxph8kpxj0f.cloudfront.net https://api.nhtsa.gov",
+      "frame-src https://www.google.com https://maps.google.com",
+      "media-src 'self' blob:",
+      "frame-ancestors 'none'",
+    ].join("; "));
     next();
   });
   // Rate limiting for public API endpoints to prevent spam/abuse
@@ -111,20 +128,24 @@ async function startServer() {
   app.use("/api/trpc/booking.create", formLimiter);
   app.use("/api/trpc/lead.submit", formLimiter);
   app.use("/api/trpc/callback.submit", formLimiter);
+  app.use("/api/trpc/waitlist.join", formLimiter);
+  app.use("/api/trpc/emergency.submit", formLimiter);
+  app.use("/api/trpc/financing.trackApplication", formLimiter);
   app.use("/api/trpc/chat", aiLimiter);
   app.use("/api/trpc/public.diagnose", aiLimiter);
   app.use("/api/trpc/public.askMechanic", aiLimiter);
   app.use("/api/trpc/public.aiSearch", aiLimiter);
   app.use("/api/trpc/laborEstimate.generate", aiLimiter);
+  app.use("/api/trpc/costEstimator.estimate", aiLimiter);
+  app.use("/api/trpc/estimates.generate", aiLimiter);
+  app.use("/api/trpc/nourOsQuote.createQuote", formLimiter);
+  app.use("/api/trpc/fleet.submit", formLimiter);
 
   // ─── Deploy Version Endpoint ──────────────────────────
   // Proves which commit is actually running on Railway
   app.get("/api/version", (_req, res) => {
     res.json({
-      commit: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.COMMIT_SHA || "unknown",
-      branch: process.env.RAILWAY_GIT_BRANCH || "unknown",
-      deployedAt: process.env.RAILWAY_DEPLOYMENT_CREATED_AT || "unknown",
-      nodeVersion: process.version,
+      status: "ok",
       uptime: Math.round(process.uptime()),
     });
   });
@@ -135,7 +156,16 @@ async function startServer() {
   app.get("/api/ready", readyHandler);
 
   // ─── Cron Status (admin) ──────────────────────────────
-  app.get("/api/admin/cron-status", (_req, res) => {
+  app.get("/api/admin/cron-status", (req, res) => {
+    const auth = req.headers.authorization;
+    const expected = process.env.ADMIN_API_KEY;
+    if (!expected || typeof auth !== "string") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const expectedFull = `Bearer ${expected}`;
+    if (auth.length !== expectedFull.length || !require("crypto").timingSafeEqual(Buffer.from(auth), Buffer.from(expectedFull))) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
     import("../cron/index").then(({ getJobStatuses }) => {
       res.json({ jobs: getJobStatuses(), timestamp: new Date().toISOString() });
     }).catch(() => res.json({ jobs: [], error: "Failed to load cron status" }));
@@ -202,8 +232,10 @@ async function startServer() {
 
   // ─── SMS Bot Webhook (Twilio) ───────────────────────────
   // Receives inbound SMS messages and returns Twilio XML response
+  // Protected by Twilio signature validation in production
   const { handleIncomingSMS } = await import("../routers/smsBot");
-  app.post("/api/sms-webhook", express.urlencoded({ extended: false }), async (req, res) => {
+  const { validateTwilioRequest } = await import("../middleware/twilioValidation");
+  app.post("/api/sms-webhook", express.urlencoded({ extended: false }), validateTwilioRequest, async (req, res) => {
     try {
       const { Body, From } = req.body;
       const reply = await handleIncomingSMS(From, Body);
@@ -279,7 +311,11 @@ async function startServer() {
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
 
-    if (mode === "subscribe" && token === process.env.FB_VERIFY_TOKEN) {
+    const fbToken = process.env.FB_VERIFY_TOKEN;
+    const tokenStr = typeof token === "string" ? token : "";
+    const isValid = mode === "subscribe" && fbToken && tokenStr.length === fbToken.length &&
+      require("crypto").timingSafeEqual(Buffer.from(tokenStr), Buffer.from(fbToken));
+    if (isValid) {
       res.status(200).send(challenge);
     } else {
       res.sendStatus(403);

@@ -29,7 +29,7 @@ const SECTION_SHORTCUTS: { id: AdminSection; label: string; keywords: string[] }
   { id: "estimates", label: "Estimate Pipeline", keywords: ["estimate", "pipeline", "quote", "approval"] },
   { id: "customers", label: "Customers", keywords: ["customer", "client", "database"] },
   { id: "sms", label: "SMS Messaging", keywords: ["sms", "text", "message"] },
-  { id: "financing", label: "Financing Command", keywords: ["financing", "payment", "acima", "snap", "koalafi", "synchrony"] },
+  { id: "financing", label: "Financing Command", keywords: ["financing", "payment", "acima", "snap", "koalafi", "american first finance"] },
   { id: "revenue", label: "Revenue Center", keywords: ["revenue", "money", "income"] },
   { id: "reviewRequests", label: "Review Requests", keywords: ["review", "rating", "star", "proof"] },
   { id: "callTrackingView", label: "Call Tracking", keywords: ["call", "phone", "tracking", "missed"] },

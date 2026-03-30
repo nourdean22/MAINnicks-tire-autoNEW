@@ -129,11 +129,11 @@ export function extractSource(referrer?: string, utmSource?: string): string {
  * Get today's analytics snapshot
  */
 export async function getTodaySnapshot() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
   const db = await getDb();
-  
+
   if (!db) return null;
-  
+
   const snapshots = await db
     .select()
     .from(analyticsSnapshots)
