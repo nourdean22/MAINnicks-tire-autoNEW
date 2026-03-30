@@ -40,11 +40,16 @@ export const warrantiesRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
       const id = randomUUID();
-      const startsAt = new Date().toISOString().split("T")[0];
+      const { warrantyMonths, ...rest } = input;
+      const startsAt = new Date();
       const expiresAt = new Date();
-      expiresAt.setMonth(expiresAt.getMonth() + input.warrantyMonths);
+      expiresAt.setMonth(expiresAt.getMonth() + warrantyMonths);
       await db.insert(warranties).values({
-        id, ...input, startsAt, expiresAt: expiresAt.toISOString().split("T")[0],
+        id,
+        ...rest,
+        warrantyMonths,
+        startsAt,
+        expiresAt,
       });
       return { id };
     }),

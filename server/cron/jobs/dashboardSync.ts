@@ -50,9 +50,9 @@ export async function processDashboardSync(): Promise<{ recordsProcessed: number
 
     // Write to Google Sheets Dashboard tab
     try {
-      const { syncDashboardToSheet } = await import("../../sheets-sync");
-      if (typeof syncDashboardToSheet === "function") {
-        await syncDashboardToSheet(metrics);
+      const sheetsSync = await import("../../sheets-sync") as any;
+      if (typeof sheetsSync.syncDashboardToSheet === "function") {
+        await sheetsSync.syncDashboardToSheet(metrics);
       }
     } catch {
       // Sheets sync is optional — don't fail the cron job

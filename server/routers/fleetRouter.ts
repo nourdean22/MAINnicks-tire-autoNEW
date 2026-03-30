@@ -25,10 +25,12 @@ export const fleetRouter = router({
       await db.insert(leads).values({
         name: `${input.contactName} (${input.companyName})`,
         phone: input.contactPhone,
-        email: input.contactEmail,
-        service: `Fleet: ${input.fleetSize} vehicles - ${input.servicesNeeded || "General"}`,
+        email: input.contactEmail ?? undefined,
+        problem: `Fleet: ${input.fleetSize} vehicles - ${input.servicesNeeded || "General"}. ${input.notes || `Vehicle types: ${input.vehicleTypes || "Mixed"}`}`,
         source: "fleet",
-        problemDescription: input.notes || `Fleet size: ${input.fleetSize}. Vehicle types: ${input.vehicleTypes || "Mixed"}`,
+        companyName: input.companyName,
+        fleetSize: input.fleetSize,
+        vehicleTypes: input.vehicleTypes || null,
       });
       return { success: true, message: "Fleet inquiry received. We'll call you within 1 business day." };
     }),

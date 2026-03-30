@@ -71,7 +71,7 @@ setInterval(() => {
     try { client.write(heartbeat); } catch { adminClients.delete(client); }
   });
   for (const [orderId, clients] of orderClients) {
-    clients.forEach((client) => {
+    clients.forEach((client: Response) => {
       try { client.write(heartbeat); } catch { clients.delete(client); }
     });
     if (clients.size === 0) orderClients.delete(orderId);

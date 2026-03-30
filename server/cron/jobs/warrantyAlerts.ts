@@ -44,10 +44,11 @@ export async function processWarrantyAlerts(): Promise<{ recordsProcessed: numbe
     let processed = 0;
 
     for (const w of expiring) {
+      // warranties.customerId is the ALS external ID — match via alsCustomerId
       const [customer] = await db
         .select()
         .from(customers)
-        .where(eq(customers.id, w.customerId))
+        .where(eq(customers.alsCustomerId, w.customerId))
         .limit(1);
 
       if (!customer?.phone) continue;

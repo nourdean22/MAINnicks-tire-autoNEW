@@ -42,27 +42,33 @@ async function getSegmentCustomers(segment: "recent" | "lapsed" | "all"): Promis
   const d = await db();
   if (!d) return [];
 
-  const baseQuery = d.select({
-    id: customers.id,
-    firstName: customers.firstName,
-    phone: customers.phone,
-  }).from(customers).where(sql`${customers.phone} IS NOT NULL AND LENGTH(${customers.phone}) >= 10`);
+  const phoneFilter = sql`${customers.phone} IS NOT NULL AND LENGTH(${customers.phone}) >= 10`;
 
   if (segment === "recent") {
     // Active in last 90 days
-    return baseQuery
-      .where(
-        sql`${customers.lastVisitDate} IS NOT NULL AND DATEDIFF(CURDATE(), ${customers.lastVisitDate}) <= 90`
-      );
+    return d.select({
+      id: customers.id,
+      firstName: customers.firstName,
+      phone: customers.phone,
+    }).from(customers).where(
+      and(phoneFilter, sql`${customers.lastVisitDate} IS NOT NULL AND DATEDIFF(CURDATE(), ${customers.lastVisitDate}) <= 90`)
+    );
   } else if (segment === "lapsed") {
     // Haven't visited in 91-365 days
-    return baseQuery
-      .where(
-        sql`${customers.lastVisitDate} IS NOT NULL AND DATEDIFF(CURDATE(), ${customers.lastVisitDate}) BETWEEN 91 AND 365`
-      );
+    return d.select({
+      id: customers.id,
+      firstName: customers.firstName,
+      phone: customers.phone,
+    }).from(customers).where(
+      and(phoneFilter, sql`${customers.lastVisitDate} IS NOT NULL AND DATEDIFF(CURDATE(), ${customers.lastVisitDate}) BETWEEN 91 AND 365`)
+    );
   } else {
     // All customers
-    return baseQuery;
+    return d.select({
+      id: customers.id,
+      firstName: customers.firstName,
+      phone: customers.phone,
+    }).from(customers).where(phoneFilter);
   }
 }
 
@@ -180,7 +186,7 @@ export const campaignsRouter = router({
       const messageBody = campaign.customMessage ||
         CAMPAIGN_TEMPLATES[campaign.template](
           "{firstName}",
-          campaign.customMessage
+          campaign.customMessage ?? undefined
         );
 
       for (const customer of targetCustomers) {

@@ -15,7 +15,6 @@ import {
   sendSms,
   appointmentReminder24hSms,
   appointmentReminder1hSms,
-  serviceCompleteSms,
   thankYouSms,
   reviewRequestSms,
   maintenanceReminderSms,

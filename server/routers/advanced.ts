@@ -462,11 +462,17 @@ export const portalRouter = router({
         codeExpiresAt,
       });
 
-      // In development, log to console. In production, use Twilio SMS.
-      if (process.env.NODE_ENV !== "production") {
+      // Send verification code via SMS
+      try {
+        const { sendSms } = await import("../sms");
+        const result = await sendSms(normalized, `Your Nick's Tire & Auto verification code is: ${code}. Valid for 10 minutes.`);
+        if (!result.success) {
+          console.warn(`[Portal] SMS failed for ${normalized}:`, result);
+        }
+      } catch (err) {
+        // In dev without Twilio, log the code so local testing works
         console.log(`[Portal] Verification code for ${normalized}: ${code}`);
       }
-      // TODO: When Twilio is active, send SMS here
 
       return { success: true, message: "Verification code sent" };
     }),

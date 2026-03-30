@@ -16,6 +16,8 @@ interface InstagramPost {
   likes: number;
   comments: number;
   posted: string;
+  mediaUrl?: string;
+  thumbnailUrl?: string;
 }
 
 interface InstagramAccount {

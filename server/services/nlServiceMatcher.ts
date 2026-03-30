@@ -75,6 +75,6 @@ export function matchService(description: string): ServiceMatch[] {
     return [{ service: "General Diagnosis", slug: "diagnostics", urgency: "medium", matchedKeyword: "none", confidence: "ai" }];
   }
 
-  const urgencyOrder = { high: 0, medium: 1, low: 2 };
-  return unique.sort((a, b) => urgencyOrder[a.urgency] - urgencyOrder[b.urgency]);
+  const urgencyOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+  return unique.sort((a, b) => (urgencyOrder[a.urgency] ?? 1) - (urgencyOrder[b.urgency] ?? 1));
 }

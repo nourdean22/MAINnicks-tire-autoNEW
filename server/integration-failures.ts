@@ -4,6 +4,7 @@
  */
 import { getDb } from "./db";
 import { integrationFailures } from "../drizzle/schema";
+import { eq } from "drizzle-orm";
 
 export type FailureType = "sheets_sync" | "email" | "sms" | "capi" | "review_request" | "reminders" | "invoice";
 
@@ -60,7 +61,7 @@ export async function resolveIntegrationFailure(id: number): Promise<void> {
     await d
       .update(integrationFailures)
       .set({ resolvedAt: new Date() })
-      .where((t: any) => t.id === id);
+      .where(eq(integrationFailures.id, id));
   } catch (err) {
     console.error("[IntegrationFailures] Failed to resolve failure #" + id, err);
   }
