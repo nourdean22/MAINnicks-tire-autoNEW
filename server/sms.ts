@@ -45,6 +45,22 @@ export interface SmsResult {
  * Send an SMS message via Twilio.
  * Returns success/failure with Twilio message SID.
  */
+// Per-phone daily rate limit (prevents SMS spam from rapid stage changes)
+const smsCountMap = new Map<string, { count: number; resetAt: number }>();
+const MAX_SMS_PER_PHONE_PER_DAY = 8;
+
+function checkDailyLimit(phone: string): boolean {
+  const now = Date.now();
+  const entry = smsCountMap.get(phone);
+  if (!entry || now > entry.resetAt) {
+    smsCountMap.set(phone, { count: 1, resetAt: now + 24 * 60 * 60 * 1000 });
+    return true;
+  }
+  if (entry.count >= MAX_SMS_PER_PHONE_PER_DAY) return false;
+  entry.count++;
+  return true;
+}
+
 export async function sendSms(to: string, body: string, opts?: { skipOptOutCheck?: boolean }): Promise<SmsResult> {
   const client = getTwilioClient();
   const from = getFromNumber();
@@ -58,6 +74,11 @@ export async function sendSms(to: string, body: string, opts?: { skipOptOutCheck
   const normalized = normalizePhone(to);
   if (!normalized) {
     return { success: false, error: `Invalid phone number: ${to}` };
+  }
+
+  // Rate limit: max 8 SMS per phone per 24h
+  if (!opts?.skipOptOutCheck && !checkDailyLimit(normalized)) {
+    return { success: false, error: "Daily SMS limit reached for this number" };
   }
 
   // TCPA compliance: check SMS opt-out before sending (unless explicitly skipped for transactional)
