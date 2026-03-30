@@ -469,8 +469,10 @@ export const portalRouter = router({
           console.warn(`[Portal] SMS failed for ${normalized}:`, result);
         }
       } catch (err) {
-        // In dev without Twilio, log the code so local testing works
-        console.log(`[Portal] Verification code for ${normalized}: ${code}`);
+        if (process.env.NODE_ENV !== "production") {
+          // Only log codes in dev — never leak OTPs in production logs
+          console.log(`[Portal] Verification code for ${normalized}: ${code}`);
+        }
       }
 
       return { success: true, message: "Verification code sent" };
