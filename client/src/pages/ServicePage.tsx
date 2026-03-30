@@ -26,14 +26,24 @@ import EstimateTrustBlock from "@/components/EstimateTrustBlock";
 import { getProofConfig } from "@shared/proof";
 
 // CDN images
+const DEFAULT_HERO = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
+
 const HERO_IMAGES: Record<string, string> = {
   tires: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp",
   brakes: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-brakes-nKAKuxmW2WAmNrbCFRD9zL.webp",
   diagnostics: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
-  emissions: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
-  "oil-change": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
-  "general-repair": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
-  "ac-repair": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+  emissions: DEFAULT_HERO,
+  "oil-change": DEFAULT_HERO,
+  "general-repair": DEFAULT_HERO,
+  "ac-repair": DEFAULT_HERO,
+  transmission: DEFAULT_HERO,
+  electrical: DEFAULT_HERO,
+  battery: DEFAULT_HERO,
+  exhaust: DEFAULT_HERO,
+  cooling: DEFAULT_HERO,
+  "pre-purchase-inspection": DEFAULT_HERO,
+  "belts-hoses": DEFAULT_HERO,
+  "starter-alternator": DEFAULT_HERO,
 };
 
 const SERVICE_ICONS: Record<string, React.ReactNode> = {
@@ -44,6 +54,14 @@ const SERVICE_ICONS: Record<string, React.ReactNode> = {
   "oil-change": <Droplets className="w-8 h-8" />,
   "general-repair": <Wrench className="w-8 h-8" />,
   "ac-repair": <Snowflake className="w-8 h-8" />,
+  transmission: <Wrench className="w-8 h-8" />,
+  electrical: <Zap className="w-8 h-8" />,
+  battery: <Zap className="w-8 h-8" />,
+  exhaust: <ThermometerSun className="w-8 h-8" />,
+  cooling: <Droplets className="w-8 h-8" />,
+  "pre-purchase-inspection": <Shield className="w-8 h-8" />,
+  "belts-hoses": <Gauge className="w-8 h-8" />,
+  "starter-alternator": <Zap className="w-8 h-8" />,
 };
 
 // ─── SERVICE NAVBAR ────────────────────────────────────
@@ -248,6 +266,14 @@ function Problems({ service }: { service: ServiceData }) {
                 {service.slug === "oil-change" && "Oil changes are the most important routine maintenance for your engine. Here are the questions Cleveland drivers ask us about oil service."}
                 {service.slug === "general-repair" && "From strange noises to overheating, these are the general repair concerns Cleveland drivers bring to us most often."}
                 {service.slug === "ac-repair" && "These are the AC and heating problems Cleveland drivers bring to us most often. Knowing the symptoms helps you get the right repair — not just a refrigerant top-off that won't fix the real issue."}
+                {service.slug === "transmission" && "Transmission problems are some of the most expensive repairs if ignored. These are the warning signs Cleveland drivers ask us about most."}
+                {service.slug === "electrical" && "Modern vehicles rely on complex electrical systems. These are the electrical problems Cleveland drivers bring to us most often."}
+                {service.slug === "battery" && "A dead or weak battery is the #1 reason for roadside breakdowns. Here are the battery questions Cleveland drivers ask us most."}
+                {service.slug === "exhaust" && "Exhaust leaks and muffler problems affect both your vehicle and your health. Here is what Cleveland drivers ask about exhaust repair."}
+                {service.slug === "cooling" && "Overheating can destroy an engine in minutes. These are the cooling system questions Cleveland drivers bring to us most often."}
+                {service.slug === "pre-purchase-inspection" && "Buying a used car is risky without a professional inspection. Here is what Cleveland buyers ask us before making a decision."}
+                {service.slug === "belts-hoses" && "Worn belts and cracked hoses cause breakdowns without warning. These are the questions Cleveland drivers ask about preventive replacement."}
+                {service.slug === "starter-alternator" && "If your car won't start or the battery keeps dying, the starter or alternator may be the cause. Here is what Cleveland drivers ask us most."}
               </p>
               <div className="mt-8 flex items-center gap-3 text-foreground/50">
                 <div className="flex gap-0.5">
@@ -412,6 +438,14 @@ function WhyUs({ service }: { service: ServiceData }) {
                 {service.slug === "oil-change" && "We use the correct oil weight per your manufacturer specification and quality filters. Every oil change includes a free multi-point inspection so we can catch small problems before they become expensive ones."}
                 {service.slug === "general-repair" && "From suspension and steering to exhaust and cooling systems, we diagnose the root cause and explain every repair in plain language. Written estimates before any work begins — no surprises on the bill."}
                 {service.slug === "ac-repair" && "We diagnose before we repair. Too many shops just dump refrigerant in and send you on your way — then it blows warm again in two weeks because the leak was never fixed. We find the actual problem, explain it, and give you a written estimate before we touch anything."}
+                {service.slug === "transmission" && "Transmission work requires precision and experience. We diagnose shifting problems, fluid leaks, and slipping with proper scan tools and road testing — not guesswork. You get an honest assessment and fair price."}
+                {service.slug === "electrical" && "Electrical problems stump a lot of shops. We use wiring diagrams, multimeters, and systematic testing to find the actual fault — not just replace parts until the light goes off."}
+                {service.slug === "battery" && "We test your battery and charging system for free before recommending anything. If you need a replacement, we install quality batteries at fair prices with a warranty."}
+                {service.slug === "exhaust" && "We inspect your entire exhaust system from manifold to tailpipe. Whether it is a leak repair, muffler replacement, or catalytic converter issue, you get a written estimate before we start."}
+                {service.slug === "cooling" && "Overheating damage is preventable with proper cooling system service. We pressure test for leaks, check your thermostat and water pump, and flush the system with the correct coolant for your vehicle."}
+                {service.slug === "pre-purchase-inspection" && "Buying a used car without an inspection is a gamble. Our detailed inspection covers the engine, transmission, brakes, suspension, electrical, and body — so you know exactly what you are getting before you sign."}
+                {service.slug === "belts-hoses" && "Belts and hoses deteriorate from the inside out — they can look fine but be ready to fail. We inspect them during every service visit and recommend replacement before they leave you stranded."}
+                {service.slug === "starter-alternator" && "When your car won't start, we test the battery, starter, and alternator to find the actual cause. No parts-swapping guesswork — just accurate diagnosis and fair repair prices."}
               </p>
             </div>
           </FadeIn>
