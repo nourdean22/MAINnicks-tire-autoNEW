@@ -191,13 +191,13 @@ export function registerAllJobs(): void {
   registerJob("customer-segmentation", 24 * 60 * 60 * 1000, async () => {
     const { processCustomerSegmentation } = await import("./jobs/customerSegmentation");
     return processCustomerSegmentation();
-  }, false); // Disabled by default
+  });
 
   // Retention sequences (every 24 hours)
   registerJob("retention-90day", 24 * 60 * 60 * 1000, async () => {
     const { processRetention90Day } = await import("./jobs/retentionSequences");
     return processRetention90Day();
-  }, false); // Disabled by default
+  });
 
   // Warranty expiration alerts (every 24 hours)
   registerJob("warranty-alerts", 24 * 60 * 60 * 1000, async () => {
@@ -227,6 +227,57 @@ export function registerAllJobs(): void {
   registerJob("statenour-sync", 4 * 60 * 60 * 1000, async () => {
     const { syncToStatenour } = await import("./jobs/statenourSync");
     return syncToStatenour();
+  });
+
+  // ═══ INTELLIGENCE SYSTEMS ═══
+
+  // Vendor health probes (every 15 min)
+  registerJob("vendor-health", 15 * 60 * 1000, async () => {
+    const { getVendorHealthReport } = await import("../services/vendorHealth");
+    const report = await getVendorHealthReport();
+    const unhealthy = report.results.filter((s: any) => s.status === "down").length;
+    return { recordsProcessed: report.results.length, details: `${unhealthy} unhealthy` };
+  });
+
+  // Telegram daily digest (every 12 hours — sends at 6:30 AM ET)
+  registerJob("telegram-digest", 12 * 60 * 60 * 1000, async () => {
+    const { sendDailySummary } = await import("../services/telegram");
+    const { getDb } = await import("../db");
+    const db = await getDb();
+    if (!db) return { recordsProcessed: 0, details: "No DB" };
+    const { bookings, leads } = await import("../../drizzle/schema");
+    const { sql } = await import("drizzle-orm");
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const [bookingCount] = await db.select({ count: sql<number>`count(*)` }).from(bookings).where(sql`${bookings.createdAt} >= ${today}`);
+    const [leadCount] = await db.select({ count: sql<number>`count(*)` }).from(leads).where(sql`${leads.createdAt} >= ${today}`);
+    await sendDailySummary({
+      leads: Number(leadCount?.count || 0),
+      bookings: Number(bookingCount?.count || 0),
+      revenue: 0,
+      reviews: 0,
+    });
+    return { recordsProcessed: 1, details: "Digest sent" };
+  });
+
+  // Declined work recovery (every 24 hours)
+  registerJob("declined-work-recovery", 24 * 60 * 60 * 1000, async () => {
+    const { getDeclinedWorkLedger } = await import("../services/declinedWorkRecovery");
+    const ledger = await getDeclinedWorkLedger(20);
+    return { recordsProcessed: ledger.length, details: `${ledger.length} declined items checked` };
+  });
+
+  // Competitor monitor (every 24 hours — runs weekly check internally)
+  registerJob("competitor-monitor", 24 * 60 * 60 * 1000, async () => {
+    const { fetchCompetitorSnapshot } = await import("../services/competitorMonitor");
+    const data = await fetchCompetitorSnapshot();
+    return { recordsProcessed: data.length, details: `${data.length} competitors checked` };
+  }, false); // Disabled until GOOGLE_PLACES_API_KEY is set
+
+  // Staff performance rollup (every 24 hours)
+  registerJob("staff-performance", 24 * 60 * 60 * 1000, async () => {
+    const { getTeamPerformance } = await import("../services/staffPerformance");
+    const perf = await getTeamPerformance();
+    return { recordsProcessed: perf.techs?.length || 0, details: "Performance rollup complete" };
   });
 
   log.info("All cron jobs registered");

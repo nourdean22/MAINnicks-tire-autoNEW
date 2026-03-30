@@ -134,6 +134,13 @@ async function startServer() {
   app.get("/api/ping", pingHandler);
   app.get("/api/ready", readyHandler);
 
+  // ─── Cron Status (admin) ──────────────────────────────
+  app.get("/api/admin/cron-status", (_req, res) => {
+    import("../cron/index").then(({ getJobStatuses }) => {
+      res.json({ jobs: getJobStatuses(), timestamp: new Date().toISOString() });
+    }).catch(() => res.json({ jobs: [], error: "Failed to load cron status" }));
+  });
+
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
 
