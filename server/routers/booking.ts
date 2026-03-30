@@ -276,6 +276,7 @@ export const bookingRouter = router({
 
       // Meta Conversions API: Send server-side Lead + Schedule events
       if (input.pixelEventIds) {
+        const pixelEventIds = input.pixelEventIds;
         const capiUserData = {
           phone: input.phone,
           email: input.email || undefined,
@@ -286,7 +287,7 @@ export const bookingRouter = router({
         };
         withRetry(
           () => sendLeadEvent({
-            eventId: input.pixelEventIds.leadEventId,
+            eventId: pixelEventIds.leadEventId,
             sourceUrl: SITE_URL,
             contentName: "Booking Form Submission",
             contentCategory: input.service,
@@ -305,7 +306,7 @@ export const bookingRouter = router({
         });
         withRetry(
           () => sendScheduleEvent({
-            eventId: input.pixelEventIds.scheduleEventId,
+            eventId: pixelEventIds.scheduleEventId,
             sourceUrl: SITE_URL,
             service: input.service,
             vehicle: vehicleStr || undefined,

@@ -64,19 +64,18 @@ export function CampaignsSection() {
 
   const { data: campaigns, refetch: refetchCampaigns } = trpc.campaigns.list.useQuery();
   const { data: stats } = trpc.campaigns.stats.useQuery();
-  const previewMutation = trpc.campaigns.preview.useMutation();
+  const previewQuery = trpc.campaigns.preview.useQuery(
+    { template: selectedTemplate, segment: selectedSegment, customMessage: customMessage || undefined },
+    { enabled: false }
+  );
   const createMutation = trpc.campaigns.create.useMutation();
   const sendMutation = trpc.campaigns.send.useMutation();
 
   async function handlePreview() {
     setPreviewLoading(true);
     try {
-      const result = await previewMutation.mutateAsync({
-        template: selectedTemplate,
-        segment: selectedSegment,
-        customMessage: customMessage || undefined,
-      });
-      setPreview(result);
+      const result = await previewQuery.refetch();
+      if (result.data) setPreview(result.data);
     } catch (e) {
       console.error("Failed to load preview:", e);
     } finally {
@@ -425,3 +424,5 @@ function CampaignRow({ campaign }: { campaign: any }) {
     </div>
   );
 }
+
+export default CampaignsSection;

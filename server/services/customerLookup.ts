@@ -5,7 +5,6 @@
 
 import { eq, like } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
-import { randomUUID } from "crypto";
 
 const log = createLogger("customer-lookup");
 
@@ -72,21 +71,18 @@ export async function findOrCreateCustomer(data: {
 
   const nameParts = data.name.trim().split(/\s+/);
   const firstName = nameParts[0] || "";
-  const lastName = nameParts.slice(1).join(" ") || "";
-  const referralCode = `NICK${randomUUID().slice(0, 6).toUpperCase()}`;
+  const lastName = nameParts.slice(1).join(" ") || null;
 
   // ID is auto-increment int — don't pass it, let DB generate
   const result = await db.insert(customers).values({
     firstName,
     lastName,
     phone: data.phone,
-    email: data.email?.toLowerCase(),
-    source: data.source || "website",
-    referralCode,
+    email: data.email?.toLowerCase() ?? undefined,
   });
 
   // Fetch by phone since we just created with that phone
   const newCustomer = await findCustomer({ phone: data.phone });
-  log.info("New customer created", { name: data.name, referralCode });
+  log.info("New customer created", { name: data.name });
   return { customer: newCustomer!, isNew: true };
 }
