@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+  <!-- ═══ SERVICE OVERVIEW ═══ -->
+  <url><loc>https://nickstire.org/services</loc><lastmod>2026-03-30</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+
+  <!-- ═══ CORE SERVICES ═══ -->
+  <url><loc>https://nickstire.org/tires</loc><lastmod>2026-03-30</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://nickstire.org/tires/info</loc><lastmod>2026-03-30</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://nickstire.org/brakes</loc><lastmod>2026-03-30</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://nickstire.org/diagnostics</loc><lastmod>2026-03-30</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://nickstire.org/emissions</loc><lastmod>2026-03-30</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://nickstire.org/oil-change</loc><lastmod>2026-03-30</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://nickstire.org/general-repair</loc><lastmod>2026-03-30</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://nickstire.org/ac-repair</loc><lastmod>2026-03-30</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://nickstire.org/transmission</loc><lastmod>2026-03-30</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://nickstire.org/electrical</loc><lastmod>2026-03-30</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://nickstire.org/battery</loc><lastmod>2026-03-30</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://nickstire.org/exhaust</loc><lastmod>2026-03-30</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://nickstire.org/cooling</loc><lastmod>2026-03-30</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://nickstire.org/pre-purchase-inspection</loc><lastmod>2026-03-30</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://nickstire.org/belts-hoses</loc><lastmod>2026-03-30</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://nickstire.org/starter-alternator</loc><lastmod>2026-03-30</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://nickstire.org/alignment</loc><lastmod>2026-03-30</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+
+  <!-- ═══ SEO SERVICE PAGES (long-tail keywords) ═══ -->
+  <url><loc>https://nickstire.org/brake-repair-cleveland</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/check-engine-light-cleveland</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/tire-repair-cleveland</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/suspension-repair-cleveland</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/ac-repair-cleveland</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/diagnostics-cleveland</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+  <!-- ═══ VEHICLE MAKE PAGES ═══ -->
+  <url><loc>https://nickstire.org/toyota-repair-cleveland</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/honda-repair-cleveland</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/ford-repair-cleveland</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/chevy-repair-cleveland</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/nissan-repair-cleveland</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/hyundai-repair-cleveland</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/kia-repair-cleveland</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/jeep-repair-cleveland</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/bmw-repair-cleveland</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/dodge-ram-repair-cleveland</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+  <!-- ═══ PROBLEM PAGES ═══ -->
+  <url><loc>https://nickstire.org/car-shaking-while-driving</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/brakes-grinding</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/check-engine-light-flashing</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/car-overheating</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/car-wont-start</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/steering-wheel-shaking</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/car-pulling-to-one-side</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/transmission-slipping</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/ac-not-blowing-cold</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/battery-keeps-dying</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/oil-leak-under-car</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/grinding-noise-when-braking</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://nickstire.org/check-engine-light-on</loc><lastmod>2026-03-30</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+</urlset>

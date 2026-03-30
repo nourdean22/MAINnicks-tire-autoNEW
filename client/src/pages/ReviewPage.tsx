@@ -107,7 +107,7 @@ export default function ReviewPage() {
         { label: "Home", href: "/" },
         { label: "Leave a Review" },
       ]} />
-      <LocalBusinessSchema />
+      <LocalBusinessSchema includeReviews />
 
       {/* Hero Section */}
       <section className="relative bg-background pt-28 pb-16 lg:pt-36 lg:pb-24">

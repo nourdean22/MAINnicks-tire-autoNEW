@@ -665,7 +665,7 @@ export default function TireFinder() {
         description="Cleveland's #1 new & used tire shop. Buy tires online — free premium installation ($289 value). Flat repair $15. Every tire inspected. Walk-ins 7 days. $10 down financing."
         canonicalPath="/tires"
       />
-      <LocalBusinessSchema />
+      <LocalBusinessSchema includeServices />
       <div className="min-h-screen bg-background text-foreground">
 
       {/* ─── HERO ─── */}
