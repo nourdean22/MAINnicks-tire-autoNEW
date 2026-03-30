@@ -123,31 +123,66 @@ export default function SiteFooter() {
               </div>
             </div>
 
-            {/* ─── COL 4: AREAS SERVED ─── */}
+            {/* ─── COL 4: AREAS SERVED (branched by region) ─── */}
             <div>
               <h4 className={HEADING_CLASS}>Areas Served</h4>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {[
-                  { href: "/cleveland-auto-repair", label: "Cleveland" },
-                  { href: "/euclid-auto-repair", label: "Euclid" },
-                  { href: "/east-cleveland-auto-repair", label: "East Cleveland" },
-                  { href: "/lakewood-auto-repair", label: "Lakewood" },
-                  { href: "/parma-auto-repair", label: "Parma" },
-                  { href: "/south-euclid-auto-repair", label: "South Euclid" },
-                  { href: "/garfield-heights-auto-repair", label: "Garfield Heights" },
-                  { href: "/cleveland-heights-auto-repair", label: "Cleveland Heights" },
-                  { href: "/shaker-heights-auto-repair", label: "Shaker Heights" },
-                  { href: "/richmond-heights-auto-repair", label: "Richmond Heights" },
-                  { href: "/lyndhurst-auto-repair", label: "Lyndhurst" },
-                  { href: "/mentor-auto-repair", label: "Mentor" },
-                  { href: "/strongsville-auto-repair", label: "Strongsville" },
-                  { href: "/willoughby-auto-repair", label: "Willoughby" },
-                  { href: "/maple-heights-auto-repair", label: "Maple Heights" },
-                  { href: "/bedford-auto-repair", label: "Bedford" },
-                  { href: "/warrensville-heights-auto-repair", label: "Warrensville Heights" },
-                ].map((l) => (
-                  <Link key={l.href} href={l.href} className={LINK_CLASS}>{l.label}</Link>
+                  {
+                    region: "East Side",
+                    cities: [
+                      { href: "/euclid-auto-repair", label: "Euclid" },
+                      { href: "/east-cleveland-auto-repair", label: "East Cleveland" },
+                      { href: "/south-euclid-auto-repair", label: "South Euclid" },
+                      { href: "/richmond-heights-auto-repair", label: "Richmond Heights" },
+                      { href: "/lyndhurst-auto-repair", label: "Lyndhurst" },
+                      { href: "/cleveland-heights-auto-repair", label: "Cleveland Heights" },
+                      { href: "/shaker-heights-auto-repair", label: "Shaker Heights" },
+                    ],
+                  },
+                  {
+                    region: "Lake County",
+                    cities: [
+                      { href: "/willoughby-auto-repair", label: "Willoughby" },
+                      { href: "/mentor-auto-repair", label: "Mentor" },
+                      { href: "/wickliffe-auto-repair", label: "Wickliffe" },
+                    ],
+                  },
+                  {
+                    region: "South & West",
+                    cities: [
+                      { href: "/parma-auto-repair", label: "Parma" },
+                      { href: "/garfield-heights-auto-repair", label: "Garfield Heights" },
+                      { href: "/maple-heights-auto-repair", label: "Maple Heights" },
+                      { href: "/bedford-auto-repair", label: "Bedford" },
+                      { href: "/strongsville-auto-repair", label: "Strongsville" },
+                      { href: "/lakewood-auto-repair", label: "Lakewood" },
+                    ],
+                  },
+                  {
+                    region: "Greater Cleveland",
+                    cities: [
+                      { href: "/cleveland-auto-repair", label: "Cleveland" },
+                      { href: "/warrensville-heights-auto-repair", label: "Warrensville Hts" },
+                      { href: "/collinwood-auto-repair", label: "Collinwood" },
+                    ],
+                  },
+                ].map((group) => (
+                  <details key={group.region} className="group">
+                    <summary className="text-[12px] font-medium text-foreground/40 hover:text-foreground/60 cursor-pointer select-none flex items-center gap-1 transition-colors">
+                      <span className="text-[10px] text-foreground/20 group-open:rotate-90 transition-transform duration-200">&#9654;</span>
+                      {group.region}
+                    </summary>
+                    <div className="mt-1.5 ml-3 space-y-1.5">
+                      {group.cities.map((c) => (
+                        <Link key={c.href} href={c.href} className={LINK_CLASS}>{c.label}</Link>
+                      ))}
+                    </div>
+                  </details>
                 ))}
+                <Link href="/areas-served" className="block text-[11px] text-[#FDB913]/60 hover:text-[#FDB913] transition-colors mt-2">
+                  View all 50+ neighborhoods →
+                </Link>
               </div>
             </div>
           </div>
