@@ -2,17 +2,18 @@
  * ReviewRequestsSection — admin panel for managing automated Google review SMS requests.
  * Shows stats, request list, settings, and backfill blast controls.
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { StatCard } from "./shared";
 import {
   Loader2, Star, Send, RefreshCw, CheckCircle2, XCircle,
   Clock, MousePointerClick, Settings, Zap, AlertTriangle,
-  MessageSquare, ChevronDown, ChevronUp
+  MessageSquare, ChevronDown, ChevronUp, Shield, Copy, Filter, Search,
 } from "lucide-react";
+import { GLOBAL_QUOTES, PROOF_CONFIG, type ProofQuote } from "@shared/proof";
 
-type SettingsTab = "requests" | "settings" | "backfill";
+type SettingsTab = "requests" | "settings" | "backfill" | "proofbank";
 
 export default function ReviewRequestsSection() {
   const [tab, setTab] = useState<SettingsTab>("requests");
@@ -139,6 +140,7 @@ export default function ReviewRequestsSection() {
           { id: "requests" as const, label: "Review Requests", icon: <MessageSquare className="w-4 h-4" /> },
           { id: "settings" as const, label: "Settings", icon: <Settings className="w-4 h-4" /> },
           { id: "backfill" as const, label: "Backfill Blast", icon: <Zap className="w-4 h-4" /> },
+          { id: "proofbank" as const, label: "Proof Bank", icon: <Shield className="w-4 h-4" /> },
         ]).map(t => (
           <button
             key={t.id}
@@ -470,6 +472,197 @@ export default function ReviewRequestsSection() {
           )}
         </div>
       )}
+
+      {/* Proof Bank Tab */}
+      {tab === "proofbank" && <ProofBankPanel />}
+    </div>
+  );
+}
+
+// ─── PROOF BANK PANEL ──────────────────────────────────
+function ProofBankPanel() {
+  const [serviceFilter, setServiceFilter] = useState<string>("all");
+  const [objectionFilter, setObjectionFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Aggregate all proof quotes from the config
+  const allQuotes = useMemo(() => {
+    const quotes: (ProofQuote & { configService: string })[] = [];
+
+    // Global quotes
+    GLOBAL_QUOTES.forEach(q => quotes.push({ ...q, configService: "global" }));
+
+    // Service-specific quotes
+    Object.entries(PROOF_CONFIG).forEach(([slug, cfg]) => {
+      cfg.featuredQuotes.forEach(q => quotes.push({ ...q, configService: slug }));
+      Object.values(cfg.objectionQuotes).forEach(group => {
+        if (group) group.forEach(q => quotes.push({ ...q, configService: slug }));
+      });
+    });
+
+    // Deduplicate by author+text
+    const seen = new Set<string>();
+    return quotes.filter(q => {
+      const key = `${q.author}:${q.text.slice(0, 50)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, []);
+
+  // Available services and objections for filter dropdowns
+  const services = useMemo(() => {
+    const s = new Set(allQuotes.map(q => q.configService));
+    return ["all", ...Array.from(s).sort()];
+  }, [allQuotes]);
+
+  const objections = useMemo(() => {
+    const o = new Set(allQuotes.filter(q => q.objection).map(q => q.objection!));
+    return ["all", ...Array.from(o).sort()];
+  }, [allQuotes]);
+
+  // Filter
+  const filtered = useMemo(() => {
+    let result = allQuotes;
+    if (serviceFilter !== "all") {
+      result = result.filter(q => q.configService === serviceFilter);
+    }
+    if (objectionFilter !== "all") {
+      result = result.filter(q => q.objection === objectionFilter);
+    }
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(r =>
+        r.text.toLowerCase().includes(q) ||
+        r.author.toLowerCase().includes(q) ||
+        r.service.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [allQuotes, serviceFilter, objectionFilter, searchQuery]);
+
+  const copyForGBP = (quote: ProofQuote) => {
+    const text = `"${quote.text}"\n— ${quote.author}${quote.badge ? ` (${quote.badge})` : ""}`;
+    navigator.clipboard.writeText(text);
+    toast.success("Copied for GBP post");
+  };
+
+  // Stats
+  const objectionCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    allQuotes.forEach(q => {
+      if (q.objection) counts[q.objection] = (counts[q.objection] || 0) + 1;
+    });
+    return counts;
+  }, [allQuotes]);
+
+  return (
+    <div className="space-y-6">
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatCard label="Total Quotes" value={allQuotes.length} icon={<Star className="w-4 h-4" />} />
+        <StatCard label="Services Covered" value={Object.keys(PROOF_CONFIG).length} icon={<Shield className="w-4 h-4" />} color="text-blue-400" />
+        <StatCard label="Objections Covered" value={Object.keys(objectionCounts).length} icon={<MessageSquare className="w-4 h-4" />} color="text-emerald-400" />
+        <StatCard label="Global Quotes" value={GLOBAL_QUOTES.length} icon={<Star className="w-4 h-4" />} color="text-primary" />
+      </div>
+
+      {/* Objection Coverage Bar */}
+      <div className="stat-card !p-5">
+        <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-3">Objection Coverage</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {Object.entries(objectionCounts).sort((a, b) => b[1] - a[1]).map(([obj, count]) => (
+            <button
+              key={obj}
+              onClick={() => setObjectionFilter(objectionFilter === obj ? "all" : obj)}
+              className={`p-2.5 rounded text-center border transition-all ${
+                objectionFilter === obj
+                  ? "border-primary/40 bg-primary/10"
+                  : "border-border/30 hover:border-primary/20"
+              }`}
+            >
+              <div className="text-lg font-bold text-foreground">{count}</div>
+              <div className="text-[10px] text-muted-foreground capitalize">{obj}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search quotes..."
+            className="w-full bg-background border border-border/30 pl-9 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50"
+          />
+        </div>
+        <select
+          value={serviceFilter}
+          onChange={(e) => setServiceFilter(e.target.value)}
+          className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/50"
+        >
+          {services.map(s => (
+            <option key={s} value={s}>{s === "all" ? "All Services" : s.charAt(0).toUpperCase() + s.slice(1).replace("-", " ")}</option>
+          ))}
+        </select>
+        <select
+          value={objectionFilter}
+          onChange={(e) => setObjectionFilter(e.target.value)}
+          className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/50"
+        >
+          {objections.map(o => (
+            <option key={o} value={o}>{o === "all" ? "All Objections" : o.charAt(0).toUpperCase() + o.slice(1)}</option>
+          ))}
+        </select>
+        <span className="text-[11px] text-muted-foreground">{filtered.length} quotes</span>
+      </div>
+
+      {/* Quote Cards */}
+      <div className="space-y-2">
+        {filtered.length === 0 ? (
+          <div className="stat-card !p-8 text-center">
+            <Search className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">No quotes match your filters</p>
+          </div>
+        ) : (
+          filtered.map((quote, i) => (
+            <div key={i} className="stat-card !p-4 hover:!border-primary/30 transition-all group">
+              <div className="flex items-start gap-3">
+                <Star className="w-4 h-4 text-primary/40 shrink-0 mt-1" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-foreground leading-relaxed italic">"{quote.text}"</p>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <span className="text-[12px] font-medium text-foreground/70">— {quote.author}</span>
+                    {quote.badge && (
+                      <span className="text-[9px] font-semibold tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary">
+                        {quote.badge}
+                      </span>
+                    )}
+                    <span className="text-[9px] font-semibold tracking-wider px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 capitalize">
+                      {quote.configService}
+                    </span>
+                    {quote.objection && (
+                      <span className="text-[9px] font-semibold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 capitalize">
+                        {quote.objection}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => copyForGBP(quote)}
+                  className="shrink-0 p-1.5 text-foreground/20 hover:text-primary hover:bg-primary/10 rounded transition-all opacity-0 group-hover:opacity-100"
+                  title="Copy for GBP post"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }

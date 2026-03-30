@@ -52,7 +52,7 @@ const SEGMENT_CONFIG: Record<Segment, { label: string; description: string }> = 
   },
 };
 
-export function CampaignsSection() {
+export default function CampaignsSection() {
   const [view, setView] = useState<View>("list");
   const [selectedTemplate, setSelectedTemplate] = useState<Template>("maintenance");
   const [selectedSegment, setSelectedSegment] = useState<Segment>("recent");

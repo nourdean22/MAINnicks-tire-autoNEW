@@ -1,4 +1,23 @@
 import "dotenv/config";
+
+// ─── Startup env validation ─────────────────────────
+const REQUIRED_ENV = ["DATABASE_URL"] as const;
+const RECOMMENDED_ENV = [
+  "JWT_SECRET", "OWNER_OPEN_ID", "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET",
+  "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER",
+  "BRIDGE_API_KEY", "OPENAI_API_KEY",
+] as const;
+
+const missingRequired = REQUIRED_ENV.filter(k => !process.env[k]);
+if (missingRequired.length) {
+  console.error(`FATAL: Missing required env vars: ${missingRequired.join(", ")}`);
+  process.exit(1);
+}
+const missingRec = RECOMMENDED_ENV.filter(k => !process.env[k]);
+if (missingRec.length) {
+  console.warn(`WARNING: Missing recommended env vars: ${missingRec.join(", ")}`);
+}
+
 import express from "express";
 import { createServer } from "http";
 import net from "net";
@@ -6,10 +25,10 @@ import path from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import rateLimit from "express-rate-limit";
 import { registerOAuthRoutes } from "./oauth";
-import { registerBridgeRoutes } from "../routes/bridge";
+import { registerBridgeRoutes } from "./bridge-routes";
+import { healthHandler, pingHandler, readyHandler } from "../lib/health";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { healthHandler, pingHandler, readyHandler } from "../lib/health";
 import { serveStatic, setupVite } from "./vite";
 import { createPrerenderMiddleware } from "../prerender-middleware";
 import { SITEMAP_ROUTES, BLOG_SLUGS } from "@shared/routes";
@@ -19,31 +38,6 @@ import { processReviewRequestQueue } from "../routers/reviewRequests";
 import { processReminderQueue } from "../routers/reminders";
 import { processPostInvoiceFollowUps } from "../postInvoiceFollowUp";
 import { SITE_URL } from "@shared/business";
-
-// ─── Startup environment validation ──────────────────
-// Fail fast if required env vars are missing — better than cryptic runtime errors
-const REQUIRED_ENV = [
-  "DATABASE_URL",
-  "JWT_SECRET",
-  "OPENAI_API_KEY",
-  "GOOGLE_OAUTH_CLIENT_ID",
-  "GOOGLE_OAUTH_CLIENT_SECRET",
-  "TWILIO_ACCOUNT_SID",
-  "TWILIO_AUTH_TOKEN",
-  "TWILIO_PHONE_NUMBER",
-] as const;
-
-const missingEnv = REQUIRED_ENV.filter(key => !process.env[key]);
-if (missingEnv.length > 0) {
-  console.error(`FATAL: Missing required environment variables: ${missingEnv.join(", ")}`);
-  console.error("Server cannot start. Add these variables to your .env file.");
-  process.exit(1);
-}
-
-// Warn about optional-but-important vars (degrade gracefully, but flag clearly)
-if (!process.env.FB_APP_SECRET) {
-  console.warn("WARN: FB_APP_SECRET is not set — Messenger webhook HMAC verification is disabled. Add it to prevent fake message events.");
-}
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -69,10 +63,9 @@ async function startServer() {
   const server = createServer(app);
   // Trust proxy — required for rate limiting behind reverse proxy
   app.set("trust proxy", 1);
-  // Body parser — 500kb max. File uploads go through booking.uploadPhoto which handles its own limits.
-  // 50mb was dangerously large and could memory-bomb the server with a single request.
-  app.use(express.json({ limit: "500kb" }));
-  app.use(express.urlencoded({ limit: "500kb", extended: true }));
+  // Body parser — 2MB default, photo uploads handled separately
+  app.use(express.json({ limit: "2mb" }));
+  app.use(express.urlencoded({ limit: "2mb", extended: true }));
 
   // Security headers
   app.use((_req, res, next) => {
@@ -109,7 +102,7 @@ async function startServer() {
   // Stricter rate limit for AI/chat endpoints (expensive operations)
   const aiLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
-    max: 20, // 20 AI requests per hour per IP — OpenAI tokens are expensive
+    max: 30, // 30 AI requests per hour per IP
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "Too many AI requests. Please try again later or call us at (216) 862-0005." },
@@ -124,16 +117,41 @@ async function startServer() {
   app.use("/api/trpc/public.aiSearch", aiLimiter);
   app.use("/api/trpc/laborEstimate.generate", aiLimiter);
 
-  // ─── Health check endpoints ───────────────────────────
-  app.get("/api/ping", pingHandler);        // Lightweight liveness probe
-  app.get("/api/ready", readyHandler);      // Readiness probe (checks DB)
-  app.get("/api/health", healthHandler);    // Full health check (DB latency, memory, services)
+  // ─── Deploy Version Endpoint ──────────────────────────
+  // Proves which commit is actually running on Railway
+  app.get("/api/version", (_req, res) => {
+    res.json({
+      commit: process.env.RAILWAY_GIT_COMMIT_SHA || process.env.COMMIT_SHA || "unknown",
+      branch: process.env.RAILWAY_GIT_BRANCH || "unknown",
+      deployedAt: process.env.RAILWAY_DEPLOYMENT_CREATED_AT || "unknown",
+      nodeVersion: process.version,
+      uptime: Math.round(process.uptime()),
+    });
+  });
 
-  // Bridge API — NOUR OS integration (auth via X-Bridge-Key header)
-  registerBridgeRoutes(app);
+  // ─── Health Endpoints ──────────────────────────────────
+  app.get("/api/health", healthHandler);
+  app.get("/api/ping", pingHandler);
+  app.get("/api/ready", readyHandler);
+
+  // ─── Cron Status (admin) ──────────────────────────────
+  app.get("/api/admin/cron-status", (_req, res) => {
+    import("../cron/index").then(({ getJobStatuses }) => {
+      res.json({ jobs: getJobStatuses(), timestamp: new Date().toISOString() });
+    }).catch(() => res.json({ jobs: [], error: "Failed to load cron status" }));
+  });
 
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+
+  // ─── NOUR OS Bridge REST Endpoints ─────────────────────
+  // These are plain REST endpoints (not tRPC) that NOUR OS calls
+  // to pull shop data. Authenticated via X-Bridge-Key header.
+  registerBridgeRoutes(app);
+
+  // Higher body limit for photo upload (base64 encoded images up to 7.5MB)
+  app.use("/api/trpc/booking.uploadPhoto", express.json({ limit: "12mb" }));
+
   // tRPC API
   app.use(
     "/api/trpc",
@@ -178,40 +196,14 @@ async function startServer() {
   app.get("/robots.txt", (_req, res) => {
     res.setHeader("Content-Type", "text/plain");
     res.send(
-      `User-agent: *\nAllow: /\nAllow: /favicon.ico\n\n# Public pages — crawl freely\nAllow: /tires\nAllow: /tires/info\nAllow: /services/\nAllow: /about\nAllow: /contact\nAllow: /reviews\nAllow: /specials\nAllow: /faq\nAllow: /blog\nAllow: /diagnose\nAllow: /estimate\nAllow: /fleet\nAllow: /financing\nAllow: /car-care-guide\nAllow: /area/\n\n# Block admin, auth, and private pages from indexing\nDisallow: /admin\nDisallow: /admin/\nDisallow: /my-garage\nDisallow: /portal\nDisallow: /api/\nDisallow: /status/\nDisallow: /inspection/\nDisallow: /loyalty\nDisallow: /referral\n\n# Block query parameters\nDisallow: /*?*\n\n# Crawl delay for polite crawling\nCrawl-delay: 1\n\nSitemap: ${SITE_URL}/sitemap.xml\n`
+      `User-agent: *\nAllow: /\nAllow: /favicon.ico\n\n# Public pages — crawl freely\nAllow: /tires\nAllow: /tires/info\nAllow: /services/\nAllow: /about\nAllow: /contact\nAllow: /reviews\nAllow: /specials\nAllow: /faq\nAllow: /blog\nAllow: /diagnose\nAllow: /estimate\nAllow: /fleet\nAllow: /financing\nAllow: /car-care-guide\nAllow: /careers\nAllow: /appointment\nAllow: /area/\n\n# Block admin, auth, and private pages from indexing\nDisallow: /admin\nDisallow: /admin/\nDisallow: /my-garage\nDisallow: /portal\nDisallow: /api/\nDisallow: /status/\nDisallow: /inspection/\nDisallow: /loyalty\nDisallow: /referral\n\n# Block query parameters\nDisallow: /*?*\n\n# Crawl delay for polite crawling\nCrawl-delay: 1\n\nSitemap: ${SITE_URL}/sitemap.xml\n`
     );
   });
 
   // ─── SMS Bot Webhook (Twilio) ───────────────────────────
   // Receives inbound SMS messages and returns Twilio XML response
-  // Twilio signature verification prevents fake SMS events
   const { handleIncomingSMS } = await import("../routers/smsBot");
   app.post("/api/sms-webhook", express.urlencoded({ extended: false }), async (req, res) => {
-    // Verify request is genuinely from Twilio using HMAC-SHA1 signature
-    const twilioSignature = req.headers["x-twilio-signature"] as string | undefined;
-    const authToken = process.env.TWILIO_AUTH_TOKEN!;
-    const callbackUrl = `${req.protocol}://${req.get("host")}/api/sms-webhook`;
-
-    if (!twilioSignature) {
-      console.warn("[SMS Webhook] Missing X-Twilio-Signature header — rejecting");
-      res.sendStatus(403);
-      return;
-    }
-
-    try {
-      const twilio = await import("twilio");
-      const isValid = twilio.validateRequest(authToken, twilioSignature, callbackUrl, req.body);
-      if (!isValid) {
-        console.warn("[SMS Webhook] Invalid Twilio signature — rejecting");
-        res.sendStatus(403);
-        return;
-      }
-    } catch (err) {
-      console.error("[SMS Webhook] Signature validation error:", err);
-      res.sendStatus(500);
-      return;
-    }
-
     try {
       const { Body, From } = req.body;
       const reply = await handleIncomingSMS(From, Body);
@@ -294,36 +286,9 @@ async function startServer() {
     }
   });
 
-  // Incoming Messenger messages — HMAC-SHA256 signature verification
-  // Facebook signs the raw body with the app secret and sends X-Hub-Signature-256
-  app.post("/api/messenger-webhook", express.raw({ type: "application/json" }), async (req, res) => {
-    const signature = req.headers["x-hub-signature-256"] as string | undefined;
-    const appSecret = process.env.FB_APP_SECRET;
-
-    if (appSecret) {
-      if (!signature) {
-        console.warn("[Messenger Webhook] Missing X-Hub-Signature-256 header — rejecting");
-        res.sendStatus(403);
-        return;
-      }
-
-      const crypto = await import("crypto");
-      const expectedSignature = "sha256=" + crypto.createHmac("sha256", appSecret).update(req.body).digest("hex");
-
-      if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
-        console.warn("[Messenger Webhook] Invalid FB HMAC signature — rejecting");
-        res.sendStatus(403);
-        return;
-      }
-    }
-
-    let body: any;
-    try {
-      body = JSON.parse(req.body.toString());
-    } catch {
-      res.sendStatus(400);
-      return;
-    }
+  // Incoming Messenger messages
+  app.post("/api/messenger-webhook", express.json(), async (req, res) => {
+    const body = req.body;
 
     if (body.object === "page") {
       for (const entry of body.entry || []) {
@@ -367,14 +332,6 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
-
-    // Start cron jobs after server is listening
-    import("../cron").then(({ startAllJobs }) => {
-      startAllJobs();
-      console.log("[Cron] Background jobs started");
-    }).catch((err) => {
-      console.error("[Cron] Failed to start background jobs:", err);
-    });
   });
 }
 

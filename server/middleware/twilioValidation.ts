@@ -4,6 +4,13 @@
  * using the X-Twilio-Signature header + HMAC-SHA1 validation.
  *
  * Without this, anyone can forge webhook requests to trigger SMS actions.
+ *
+ * WARNING: This middleware must NEVER be mounted globally with app.use(twilioWebhookRouter).
+ * It must ONLY be applied to the specific webhook router (server/routes/webhooks/twilio.ts).
+ *
+ * A March 2026 incident caused a full site outage because this was mounted globally,
+ * applying Twilio signature validation to ALL requests including the homepage.
+ * Non-Twilio requests returned 403 + XML <Response/>, making the entire site inaccessible.
  */
 
 import type { Request, Response, NextFunction } from "express";

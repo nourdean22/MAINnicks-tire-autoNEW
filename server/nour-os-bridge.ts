@@ -38,7 +38,13 @@ export type NourOsEventType =
   | "nickstire:invoice"
   | "nickstire:callback"
   | "nickstire:review"
-  | "nickstire:revenue";
+  | "nickstire:revenue"
+  | "nickstire:vendor_health"
+  | "nickstire:vendor_degraded"
+  | "nickstire:vendor_recovered"
+  | "nickstire:work_order"
+  | "nickstire:work_order:status"
+  | "nickstire:shop_floor";
 
 export interface NourOsEvent {
   type: NourOsEventType;
@@ -277,4 +283,138 @@ export function getSyncStatus(): {
     localPath: NOUR_OS_EVENTS_PATH,
     cloudUrl: STATENOUR_URL,
   };
+}
+
+// ─── Vendor Health Alerts ─────────────────────────────
+
+/** Track which vendors were previously down so we can detect recovery */
+const previousVendorStates = new Map<string, "healthy" | "degraded" | "down" | "not_configured">();
+
+/**
+ * Dispatch vendor health snapshot to NOUR OS.
+ * Detects state transitions (healthy→down, down→healthy) and dispatches alerts.
+ */
+export async function dispatchVendorHealthSnapshot(results: Array<{
+  vendor: string;
+  status: "healthy" | "degraded" | "down" | "not_configured";
+  checks: Array<{ name: string; passed: boolean; latencyMs: number; error?: string }>;
+}>): Promise<void> {
+  // Dispatch overall health snapshot
+  const downVendors = results.filter(r => r.status === "down" || r.status === "degraded");
+  const healthyCount = results.filter(r => r.status === "healthy").length;
+
+  await dispatchEvent("nickstire:vendor_health", {
+    totalVendors: results.length,
+    healthyCount,
+    degradedCount: results.filter(r => r.status === "degraded").length,
+    downCount: results.filter(r => r.status === "down").length,
+    vendors: results.map(r => ({ vendor: r.vendor, status: r.status })),
+  });
+
+  // Check for state transitions
+  for (const result of results) {
+    const prev = previousVendorStates.get(result.vendor);
+
+    if (prev && (prev === "healthy") && (result.status === "down" || result.status === "degraded")) {
+      // Vendor went down — alert
+      await dispatchEvent("nickstire:vendor_degraded", {
+        vendor: result.vendor,
+        previousStatus: prev,
+        currentStatus: result.status,
+        errors: result.checks.filter(c => !c.passed).map(c => c.error).filter(Boolean),
+      });
+      console.error(`[ALERT] Vendor ${result.vendor} degraded: ${prev} → ${result.status}`);
+    }
+
+    if (prev && (prev === "down" || prev === "degraded") && result.status === "healthy") {
+      // Vendor recovered — notify
+      await dispatchEvent("nickstire:vendor_recovered", {
+        vendor: result.vendor,
+        previousStatus: prev,
+        currentStatus: result.status,
+      });
+      console.log(`[RECOVERY] Vendor ${result.vendor} recovered: ${prev} → ${result.status}`);
+    }
+
+    previousVendorStates.set(result.vendor, result.status);
+  }
+}
+
+// ─── Shop Floor Snapshot ────────────────────────────────
+
+/**
+ * Dispatch shop floor snapshot to NOUR OS.
+ * Contains work order stats for the command deck card and daily brief.
+ */
+export async function dispatchShopFloorSnapshot(): Promise<void> {
+  try {
+    const { getWorkOrderStats } = await import("./services/workOrderService");
+    const stats = await getWorkOrderStats();
+
+    // Enrich with dispatch + QC + risk data
+    let dispatchData: Record<string, unknown> = {};
+    try {
+      const { getDispatchLoad } = await import("./services/dispatch");
+      const load = await getDispatchLoad();
+      const clockedIn = load.techs.filter(t => t.clockedIn).length;
+      const freeBays = load.bays.filter(b => !b.occupied).length;
+      dispatchData = { techsClockedIn: clockedIn, freeBays: freeBays, totalBays: load.bays.length };
+    } catch (_) {}
+
+    let qcData: Record<string, unknown> = {};
+    try {
+      const { getQcStats } = await import("./services/qcService");
+      const qc = await getQcStats();
+      qcData = { qcPassRate: qc.passRate, qcPending: qc.qcPending, comebacks30d: qc.comebacks30d };
+    } catch (_) {}
+
+    let riskData: Record<string, unknown> = {};
+    try {
+      const { getPromiseRiskSummary } = await import("./services/promiseRisk");
+      const risk = await getPromiseRiskSummary();
+      riskData = { atRisk: risk.atRisk, likelyLate: risk.likelyLate, overdue: risk.overdue };
+    } catch (_) {}
+
+    let declinedData: Record<string, unknown> = {};
+    try {
+      const { getDeclinedWorkStats } = await import("./services/declinedWorkRecovery");
+      const declined = await getDeclinedWorkStats();
+      declinedData = { declinedValue30d: declined.totalDeclinedValue, declinedItems30d: declined.totalDeclinedItems };
+    } catch (_) {}
+
+    await dispatchEvent("nickstire:shop_floor", {
+      active: stats.active,
+      inProgress: stats.inProgress,
+      blocked: stats.blocked,
+      overdue: stats.overdue,
+      readyForPickup: stats.readyForPickup,
+      totalValueInProgress: stats.totalValueInProgress,
+      byStatus: stats.byStatus,
+      ...dispatchData,
+      ...qcData,
+      ...riskData,
+      ...declinedData,
+    });
+  } catch (err) {
+    log.warn("Shop floor snapshot dispatch failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/** Dispatch work order status change event */
+export function onWorkOrderStatusChange(details: {
+  workOrderId: string;
+  orderNumber: string;
+  fromStatus: string;
+  toStatus: string;
+  service?: string;
+}) {
+  return dispatchEvent("nickstire:work_order:status", {
+    workOrderId: details.workOrderId,
+    orderNumber: details.orderNumber,
+    fromStatus: details.fromStatus,
+    toStatus: details.toStatus,
+    service: details.service || null,
+  });
 }

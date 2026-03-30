@@ -9,12 +9,13 @@ import { getLoginUrl } from "@/const";
 import { useState, lazy, Suspense } from "react";
 import { Link } from "wouter";
 import {
-  Loader2, Shield, XCircle, ArrowLeft, Menu, X, Sparkles, ChevronRight, Search,
+  Loader2, Shield, XCircle, ArrowLeft, Menu, X, Sparkles, ChevronRight,
 } from "lucide-react";
 import {
   AdminSection, NAV_GROUPS, SECTION_TITLES,
 } from "./admin/shared";
-import AdminCommandBar from "./admin/AdminCommandBar";
+import { CommandSearch } from "@/components/admin/CommandSearch";
+import { CustomerDrawer } from "@/components/admin/CustomerDrawer";
 
 // Lazy-load each section for code splitting
 const OverviewSection = lazy(() => import("./admin/OverviewSection"));
@@ -47,6 +48,8 @@ const CallTrackingSection = lazy(() => import("./admin/CallTrackingSection"));
 const ExportSection = lazy(() => import("./admin/ExportSection"));
 const CampaignsSection = lazy(() => import("./admin/CampaignsSection"));
 const FinancingSection = lazy(() => import("./admin/FinancingSection"));
+const WorkOrdersSection = lazy(() => import("./admin/WorkOrdersSection"));
+const DispatchSection = lazy(() => import("./admin/DispatchSection"));
 
 function SectionSpinner() {
   return (
@@ -92,6 +95,8 @@ function SectionContent({ section }: { section: AdminSection }) {
       {section === "analyticsView" && <AnalyticsSection />}
       {section === "callTrackingView" && <CallTrackingSection />}
       {section === "exportView" && <ExportSection />}
+      {section === "workOrders" && <WorkOrdersSection />}
+      {section === "dispatch" && <DispatchSection />}
     </Suspense>
   );
 }
@@ -100,11 +105,22 @@ export default function Admin() {
   const { user, loading: authLoading } = useAuth();
   const [section, setSection] = useState<AdminSection>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [drawerCustomerId, setDrawerCustomerId] = useState<number | null>(null);
 
   const { data: stats } = trpc.adminDashboard.stats.useQuery(undefined, {
     enabled: !!user && user.role === "admin",
     refetchInterval: 60000,
   });
+
+  const { data: callbacks } = trpc.callback.list.useQuery(undefined, {
+    enabled: !!user && user.role === "admin",
+    refetchInterval: 60000,
+  });
+
+  // Pending callback count for badge
+  const pendingCallbacks = (callbacks as any[] | undefined)?.filter(
+    (c: any) => c.status === "new" || c.status === "pending"
+  ).length ?? 0;
 
   // ─── AUTH GATE ───────────────────────────────────────
   if (authLoading) {
@@ -206,6 +222,7 @@ export default function Admin() {
                   let badge = 0;
                   if (item.id === "bookings") badge = newBookings;
                   if (item.id === "leads") badge = urgentLeads + newLeads;
+                  if (item.id === "callTrackingView") badge = pendingCallbacks;
 
                   return (
                     <button
@@ -267,16 +284,10 @@ export default function Admin() {
             {SECTION_TITLES[section]}
           </h1>
           <div className="flex-1" />
-          <button
-            onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
-            className="flex items-center gap-1.5 bg-muted/50 border border-border px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:border-foreground/20 transition-all text-xs font-medium"
-          >
-            <Search className="w-3 h-3" />
-            <span className="hidden sm:inline">Search</span>
-            <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[10px] text-muted-foreground">
-              ⌘K
-            </kbd>
-          </button>
+          <CommandSearch
+            onNavigate={(s) => setSection(s)}
+            onSelectCustomer={(id) => setDrawerCustomerId(id)}
+          />
           <Link
             href="/admin/content"
             className="flex items-center gap-1.5 bg-muted/50 border border-border px-3 py-1.5 rounded-md text-muted-foreground hover:text-primary hover:border-primary/30 transition-all text-xs font-medium"
@@ -292,8 +303,12 @@ export default function Admin() {
         </div>
       </main>
 
-      {/* Command bar — Ctrl/Cmd+K */}
-      <AdminCommandBar onNavigate={(s) => { setSection(s); setSidebarOpen(false); }} />
+      {/* Customer side drawer */}
+      <CustomerDrawer
+        customerId={drawerCustomerId}
+        onClose={() => setDrawerCustomerId(null)}
+        onNavigateToSection={(s) => setSection(s as AdminSection)}
+      />
     </div>
   );
 }

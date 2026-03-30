@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing";
+export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -88,6 +88,8 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Operations",
     items: [
+      { id: "workOrders", label: "Work Orders", icon: <Wrench className="w-4 h-4" /> },
+      { id: "dispatch", label: "Bay Dispatch", icon: <Gauge className="w-4 h-4" /> },
       { id: "inspections", label: "Inspections", icon: <ClipboardList className="w-4 h-4" /> },
       { id: "loyalty", label: "Loyalty", icon: <Trophy className="w-4 h-4" /> },
       { id: "qa", label: "Q&A", icon: <MessageSquare className="w-4 h-4" /> },
@@ -99,7 +101,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "System",
     items: [
       { id: "shopdriver", label: "ShopDriver Sync", icon: <Upload className="w-4 h-4" /> },
-      { id: "estimates", label: "Estimate Log", icon: <DollarSign className="w-4 h-4" /> },
+      { id: "estimates", label: "Estimate Pipeline", icon: <DollarSign className="w-4 h-4" /> },
       { id: "activity", label: "Activity Feed", icon: <Activity className="w-4 h-4" /> },
       { id: "settings", label: "Shop Settings", icon: <Settings className="w-4 h-4" /> },
     ],
@@ -131,7 +133,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   autoFollowUp: "Automated Follow-Ups",
   settings: "Shop Settings",
   shopdriver: "ShopDriver Sync",
-  estimates: "Estimate Log",
+  estimates: "Estimate Pipeline",
   activity: "Activity Feed",
   revenue: "Revenue Command Center",
   integrations: "Integrations Hub",
@@ -139,7 +141,9 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   analyticsView: "Analytics & Attribution",
   callTrackingView: "Call Tracking",
   exportView: "Export Data",
-  financing: "Financing Providers",
+  financing: "Financing Command",
+  workOrders: "Work Order Board",
+  dispatch: "Bay Dispatch",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────

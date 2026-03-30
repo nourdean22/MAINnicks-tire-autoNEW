@@ -4,7 +4,7 @@
 import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq, like, or, sql, desc, asc } from "drizzle-orm";
-import { customers } from "../../drizzle/schema";
+import { customers, bookings, leads, callbackRequests, callEvents } from "../../drizzle/schema";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -293,5 +293,70 @@ export const customersRouter = router({
       if (!d) return { success: false };
       await d.update(customers).set({ segment: input.segment }).where(eq(customers.id, input.id));
       return { success: true };
+    }),
+
+  /** Customer timeline — aggregated chronological history by phone */
+  timeline: adminProcedure
+    .input(z.object({ phone: z.string() }))
+    .query(async ({ input }) => {
+      const d = await db();
+      if (!d) return [];
+
+      const phone = input.phone;
+      const events: Array<{
+        type: "booking" | "lead" | "callback" | "call";
+        title: string;
+        detail: string;
+        status: string;
+        date: Date;
+      }> = [];
+
+      try {
+        // Bookings
+        const bks = await d.select().from(bookings).where(eq(bookings.phone, phone)).orderBy(desc(bookings.createdAt));
+        bks.forEach(b => events.push({
+          type: "booking",
+          title: `Booking: ${b.service || "General"}`,
+          detail: b.vehicle || "",
+          status: b.status || "new",
+          date: new Date(b.createdAt),
+        }));
+
+        // Leads
+        const lds = await d.select().from(leads).where(eq(leads.phone, phone)).orderBy(desc(leads.createdAt));
+        lds.forEach(l => events.push({
+          type: "lead",
+          title: `Lead: ${l.source || "Direct"}`,
+          detail: l.problem || l.vehicle || "",
+          status: l.status || "new",
+          date: new Date(l.createdAt),
+        }));
+
+        // Callbacks
+        const cbs = await d.select().from(callbackRequests).where(eq(callbackRequests.phone, phone)).orderBy(desc(callbackRequests.createdAt));
+        cbs.forEach(c => events.push({
+          type: "callback",
+          title: "Callback Request",
+          detail: (c as any).context || (c as any).reason || "",
+          status: (c as any).status || "new",
+          date: new Date(c.createdAt),
+        }));
+
+        // Call events
+        const cls = await d.select().from(callEvents).where(eq(callEvents.phoneNumber, phone)).orderBy(desc(callEvents.createdAt));
+        cls.forEach(c => events.push({
+          type: "call",
+          title: "Phone Call",
+          detail: c.sourcePage || "",
+          status: "completed",
+          date: new Date(c.createdAt),
+        }));
+      } catch {
+        // Some tables may not exist yet
+      }
+
+      // Sort chronologically, newest first
+      events.sort((a, b) => b.date.getTime() - a.date.getTime());
+      return events;
     }),
 });
