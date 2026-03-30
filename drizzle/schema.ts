@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, index, decimal, date } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, index, uniqueIndex, decimal, date } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -73,7 +73,7 @@ export const bookings = mysqlTable("bookings", {
   index("idx_booking_phone").on(table.phone),
   index("idx_booking_status").on(table.status),
   index("idx_booking_created").on(table.createdAt),
-  index("idx_booking_ref").on(table.referenceCode),
+  uniqueIndex("idx_booking_ref").on(table.referenceCode),
 ]);
 
 export type Booking = typeof bookings.$inferSelect;
@@ -347,7 +347,7 @@ export const analyticsSnapshots = mysqlTable("analytics_snapshots", {
   serviceBreakdownJson: text("serviceBreakdownJson"),
   /** JSON: { "Cleveland": 10, "Euclid": 5, ... } */
   geoBreakdownJson: text("geoBreakdownJson"),
-  avgReviewRating: int("avgReviewRating"),
+  avgReviewRating: decimal("avgReviewRating", { precision: 3, scale: 1 }),
   newReviewCount: int("newReviewCount").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
@@ -1005,7 +1005,7 @@ export const invoices = mysqlTable("invoices", {
   customerName: varchar("customerName", { length: 255 }).notNull(),
   customerPhone: varchar("customerPhone", { length: 30 }),
   /** Invoice number from shop management system */
-  invoiceNumber: varchar("invoiceNumber", { length: 50 }),
+  invoiceNumber: varchar("invoiceNumber", { length: 50 }).unique(),
   /** Total amount in cents */
   totalAmount: int("totalAmount").default(0).notNull(),
   /** Parts cost in cents */

@@ -58,7 +58,8 @@ export async function processWarrantyAlerts(): Promise<{ recordsProcessed: numbe
       }
 
       const firstName = customer.firstName || "there";
-      const message = `Hi ${firstName}, your warranty on ${w.serviceDescription || "your service"} at Nick's Tire & Auto expires on ${w.expiresAt}. Schedule a check before it's up: (216) 862-0005`;
+      const expiryDate = new Date(w.expiresAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "America/New_York" });
+      const message = `Hi ${firstName}, your warranty on ${w.serviceDescription || "your service"} at Nick's Tire & Auto expires on ${expiryDate}. Schedule a check before it's up: (216) 862-0005`;
 
       const result = await sendSms(customer.phone, message);
       if (result.success) {

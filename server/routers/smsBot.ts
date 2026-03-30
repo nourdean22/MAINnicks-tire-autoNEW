@@ -83,9 +83,18 @@ export async function handleIncomingSMS(from: string, body: string): Promise<str
     return "";
   }
 
-  // Handle STOP keyword
+  // Handle STOP keyword — persist to DB so opt-out survives restarts
   if (message === "STOP" || message === "HALT") {
     optOutSet.add(phone);
+    try {
+      const { getDb } = await import("../db");
+      const { customers } = await import("../../drizzle/schema");
+      const { like } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        await db.update(customers).set({ smsOptOut: 1 }).where(like(customers.phone, `%${phone}`));
+      }
+    } catch {}
     return "You've been opted out. Text UNSTOP to re-enable.";
   }
 
@@ -113,7 +122,7 @@ export async function handleIncomingSMS(from: string, body: string): Promise<str
 
   // Collect name
   if (conv.state === "AWAITING_NAME") {
-    conv.customerName = sanitizeName(message);
+    conv.customerName = sanitizeName(sanitizeText(body).trim());
     if (!conv.customerName) {
       return "Please provide a valid name.";
     }
@@ -194,9 +203,11 @@ async function saveBooking(phone: string, conv: ConversationState) {
 
     // Notify owner via SMS
     try {
-      const OWNER_PHONE = "2167699977"; // Twilio number
-      const notifMsg = `New SMS booking from ${conv.customerName}: ${conv.vehicleInfo} - ${conv.problemDescription}`;
-      await sendSms(OWNER_PHONE, notifMsg);
+      const ownerPhone = process.env.OWNER_PHONE_NUMBER || process.env.ADMIN_PHONE;
+      if (ownerPhone) {
+        const notifMsg = `New SMS booking from ${conv.customerName}: ${conv.vehicleInfo} - ${conv.problemDescription}`;
+        await sendSms(ownerPhone, notifMsg, { skipOptOutCheck: true });
+      }
     } catch (err) {
       console.error("[SMS Bot] Owner notification failed:", err);
     }
