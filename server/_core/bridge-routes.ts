@@ -136,4 +136,45 @@ export function registerBridgeRoutes(app: Express): void {
       });
     }
   });
+
+  // ─── BRIDGE ACTIONS (bidirectional — NOUR OS triggers actions) ────
+
+  // Mark a lead as contacted
+  app.post("/api/bridge/actions/mark-contacted", bridgeAuth, async (req, res) => {
+    try {
+      const { leadId } = req.body;
+      if (!leadId) { res.status(400).json({ error: "leadId required" }); return; }
+      const { getDb } = await import("../db");
+      const { leads } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
+      await db.update(leads).set({ status: "contacted" }).where(eq(leads.id, leadId));
+      res.json({ success: true, leadId });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Add a quick note to a customer or work order
+  app.post("/api/bridge/actions/quick-note", bridgeAuth, async (req, res) => {
+    try {
+      const { note, context } = req.body;
+      if (!note) { res.status(400).json({ error: "note required" }); return; }
+      console.log(`[Bridge Note] ${context || "general"}: ${note}`);
+      res.json({ success: true, logged: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Get cron status (read-only action)
+  app.get("/api/bridge/cron-status", bridgeAuth, async (_req, res) => {
+    try {
+      const { getJobStatuses } = await import("../cron/index");
+      res.json({ jobs: getJobStatuses(), timestamp: new Date().toISOString() });
+    } catch (err: any) {
+      res.json({ jobs: [], error: err.message });
+    }
+  });
 }

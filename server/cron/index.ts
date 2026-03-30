@@ -280,5 +280,26 @@ export function registerAllJobs(): void {
     return { recordsProcessed: perf.techs?.length || 0, details: "Performance rollup complete" };
   });
 
+  // ═══ HERCULES EXPANSION ═══
+
+  // Weather intelligence (every 12 hours)
+  registerJob("weather-intel", 12 * 60 * 60 * 1000, async () => {
+    const { checkWeatherTriggers } = await import("../services/weatherIntelligence");
+    const result = await checkWeatherTriggers();
+    return { recordsProcessed: result.triggered.length, details: result.details };
+  });
+
+  // Fleet scoring (every 24 hours)
+  registerJob("fleet-scoring", 24 * 60 * 60 * 1000, async () => {
+    const { identifyFleetProspects } = await import("../services/fleetScoring");
+    return identifyFleetProspects();
+  });
+
+  // Self-healing watchdog (every 5 min)
+  registerJob("self-healing", 5 * 60 * 1000, async () => {
+    const { runSelfHealingChecks } = await import("../services/selfHealing");
+    return runSelfHealingChecks();
+  });
+
   log.info("All cron jobs registered");
 }
