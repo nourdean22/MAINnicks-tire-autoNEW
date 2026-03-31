@@ -624,8 +624,10 @@ function OrderTracker() {
 
 // ─── MAIN PAGE ────────────────────────────────────────
 export default function TireFinder() {
-  const [searchInput, setSearchInput] = useState("");
-  const [activeSearch, setActiveSearch] = useState("");
+  // Read ?size= from URL for shareable/bookmarkable searches
+  const urlSize = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("size") : null;
+  const [searchInput, setSearchInput] = useState(urlSize || "");
+  const [activeSearch, setActiveSearch] = useState(urlSize || "");
   const [quantity, setQuantity] = useState(4);
   const [sortBy, setSortBy] = useState<SortOption>("price-low");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
