@@ -182,7 +182,7 @@ export default function SiteFooter() {
                   </details>
                 ))}
                 <Link href="/areas-served" className="block text-[11px] text-[#FDB913]/60 hover:text-[#FDB913] transition-colors mt-2">
-                  View all 50+ neighborhoods →
+                  View all 150+ locations →
                 </Link>
               </div>
             </div>
