@@ -1333,3 +1333,19 @@ export const GUIDES: GuideData[] = [
     ],
   },
 ];
+
+/** Look up a single guide by its URL slug. */
+export function getGuideBySlug(slug: string): GuideData | undefined {
+  return GUIDES.find((g) => g.slug === slug);
+}
+
+/** Human-readable labels for each guide category. */
+export const GUIDE_CATEGORY_LABELS: Record<GuideCategory, string> = {
+  "tire-guide": "Tire Guides",
+  maintenance: "Maintenance",
+  "cleveland-local": "Cleveland Local",
+  "cost-guide": "Cost Guides",
+  seasonal: "Seasonal",
+  "buying-guide": "Buying Guides",
+  safety: "Safety",
+};

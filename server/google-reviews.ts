@@ -3,9 +3,15 @@
  * Fetches live review data from Google Places API via the Manus proxy.
  * Uses text search as primary lookup (more reliable than Place ID through proxy).
  * Caches results for 1 hour to avoid excessive API calls.
+ *
+ * When the API key is not configured, falls back to DB-stored review stats
+ * (editable from admin dashboard) instead of returning null.
  */
 
 import { makeRequest, type PlaceDetailsResult, type PlacesSearchResult } from "./_core/map";
+import { eq } from "drizzle-orm";
+import { shopSettings } from "../drizzle/schema";
+import { BUSINESS } from "@shared/business";
 
 // Cache configuration
 let cachedData: GoogleReviewData | null = null;
@@ -37,9 +43,88 @@ export interface GoogleReviewData {
 }
 
 /**
+ * Read admin-managed review stats from the shop_settings table.
+ * Keys: "reviewCount" and "reviewRating" in category "general".
+ */
+async function getReviewStatsFromDb(): Promise<{ count: number; rating: number } | null> {
+  try {
+    const { getDb } = await import("./db");
+    const d = await getDb();
+    if (!d) return null;
+
+    const rows = await d
+      .select()
+      .from(shopSettings)
+      .where(
+        eq(shopSettings.key, "reviewCount")
+      );
+    const ratingRows = await d
+      .select()
+      .from(shopSettings)
+      .where(
+        eq(shopSettings.key, "reviewRating")
+      );
+
+    const count = rows[0]?.value ? Number(rows[0].value) : null;
+    const rating = ratingRows[0]?.value ? Number(ratingRows[0].value) : null;
+
+    if (count === null && rating === null) return null;
+    return {
+      count: count ?? BUSINESS.reviews.count,
+      rating: rating ?? BUSINESS.reviews.rating,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save review stats to the DB (used by admin mutation).
+ */
+export async function saveReviewStatsToDb(stats: { count?: number; rating?: number }): Promise<void> {
+  const { getDb } = await import("./db");
+  const d = await getDb();
+  if (!d) throw new Error("Database not available");
+
+  if (stats.count !== undefined) {
+    const existing = await d.select().from(shopSettings).where(eq(shopSettings.key, "reviewCount")).limit(1);
+    if (existing.length > 0) {
+      await d.update(shopSettings).set({ value: String(stats.count), updatedBy: "admin" }).where(eq(shopSettings.key, "reviewCount"));
+    } else {
+      await d.insert(shopSettings).values({
+        key: "reviewCount",
+        value: String(stats.count),
+        label: "Google Review Count",
+        category: "general",
+        updatedBy: "admin",
+      });
+    }
+  }
+
+  if (stats.rating !== undefined) {
+    const existing = await d.select().from(shopSettings).where(eq(shopSettings.key, "reviewRating")).limit(1);
+    if (existing.length > 0) {
+      await d.update(shopSettings).set({ value: String(stats.rating), updatedBy: "admin" }).where(eq(shopSettings.key, "reviewRating"));
+    } else {
+      await d.insert(shopSettings).values({
+        key: "reviewRating",
+        value: String(stats.rating),
+        label: "Google Review Rating",
+        category: "general",
+        updatedBy: "admin",
+      });
+    }
+  }
+
+  // Bust the in-memory cache so next fetch picks up new values
+  cachedData = null;
+  cacheTimestamp = 0;
+}
+
+/**
  * Fetch live review data from Google Places API.
  * Primary: text search → get Place ID → fetch details.
- * This is more reliable through the Manus proxy than direct Place ID lookup.
+ * Falls back to DB-stored stats (admin-editable) when API is unavailable.
  */
 export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
   // Return cached data if fresh
@@ -64,7 +149,7 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
     if (search.status !== "OK" || !search.results?.length) {
       console.warn("[GoogleReviews] Text search returned:", search.status);
       failCount++;
-      return cachedData || null;
+      return cachedData || await buildFallbackData();
     }
 
     const placeId = search.results[0].place_id;
@@ -81,7 +166,7 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
     if (details.status !== "OK" || !details.result) {
       console.warn("[GoogleReviews] Place details failed for ID", placeId, ":", details.status);
       failCount++;
-      return cachedData || null;
+      return cachedData || await buildFallbackData();
     }
 
     const r = details.result;
@@ -116,9 +201,31 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
   } catch (error) {
     console.error("[GoogleReviews] Failed to fetch:", error);
     failCount++;
-    // Return cached data even if stale, or null
-    return cachedData || null;
+    // Return cached data even if stale, or DB-stored fallback
+    return cachedData || await buildFallbackData();
   }
+}
+
+/**
+ * Build fallback review data from DB-stored stats (admin-editable)
+ * or hardcoded BUSINESS constants as last resort.
+ */
+async function buildFallbackData(): Promise<GoogleReviewData> {
+  const dbStats = await getReviewStatsFromDb();
+
+  return {
+    placeId: "",
+    name: BUSINESS.name,
+    rating: dbStats?.rating ?? BUSINESS.reviews.rating,
+    totalReviews: dbStats?.count ?? BUSINESS.reviews.count,
+    reviews: [],
+    address: BUSINESS.address.full,
+    phone: BUSINESS.phone.display,
+    website: BUSINESS.urls.website,
+    openNow: null,
+    hours: [],
+    lastUpdated: Date.now(),
+  };
 }
 
 function getRelativeTime(unixTimestamp: number): string {

@@ -69,6 +69,8 @@ const SharePage = lazy(() => import("./pages/SharePage"));
 const NeighborhoodPage = lazy(() => import("./pages/NeighborhoodPage"));
 const Careers = lazy(() => import("./pages/Careers"));
 const BookingPage = lazy(() => import("./pages/BookingPage"));
+const GuidesIndex = lazy(() => import("./pages/GuidesIndex"));
+const GuidePage = lazy(() => import("./pages/GuidePage"));
 
 function Router() {
   const [location] = useLocation();
@@ -205,6 +207,9 @@ function Router() {
         {/* Blog / Tips */}
         <Route path={"/blog"} component={Blog} />
         <Route path={"/blog/:slug"} component={BlogPost} />
+        {/* Guides */}
+        <Route path={"/guides"} component={GuidesIndex} />
+        <Route path={"/guides/:slug"} component={GuidePage} />
         {/* Phase 5: Cost Estimator */}
         <Route path={"/cost-estimator"} component={CostEstimator} />
         {/* Phase 5: Google Ads Landing Pages (no nav, conversion-only) */}
