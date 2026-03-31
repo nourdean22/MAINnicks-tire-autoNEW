@@ -2,6 +2,7 @@
  * Admin router — dashboard stats, analytics, weekly reports, follow-ups.
  */
 import { adminProcedure, publicProcedure, router } from "../_core/trpc";
+import { TRPCError } from "@trpc/server";
 import { sendNotification, getDeliveryLog } from "../email-notify";
 import { getAnalyticsSnapshots, getBookingServiceBreakdown } from "../db";
 import { getDashboardStats, getSiteHealth } from "../admin-stats";
@@ -9,6 +10,7 @@ import { z } from "zod";
 import { eq, desc, gte, sql } from "drizzle-orm";
 import { bookings, leads, callbackRequests, customerNotifications, callEvents } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone } from "../sanitize";
+import { saveReviewStatsToDb } from "../google-reviews";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -73,6 +75,20 @@ export const adminDashboardRouter = router({
     clearHealthCache();
     return getVendorHealthReport();
   }),
+
+  /** Update Google review stats (count/rating) from the admin dashboard */
+  updateReviewStats: adminProcedure
+    .input(z.object({
+      count: z.number().int().min(0).max(100000).optional(),
+      rating: z.number().min(1).max(5).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      if (input.count === undefined && input.rating === undefined) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Provide at least count or rating" });
+      }
+      await saveReviewStatsToDb({ count: input.count, rating: input.rating });
+      return { success: true, count: input.count, rating: input.rating };
+    }),
 
   /** Run smoke tests on all integrations */
   smokeTest: adminProcedure.mutation(async () => {

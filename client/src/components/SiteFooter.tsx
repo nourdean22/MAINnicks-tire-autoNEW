@@ -108,6 +108,7 @@ export default function SiteFooter() {
                 {[
                   { href: "/reviews", label: "Reviews" },
                   { href: "/blog", label: "Blog" },
+                  { href: "/guides", label: "Guides" },
                   { href: "/faq", label: "FAQ" },
                   { href: "/car-care-guide", label: "Car Care Guide" },
                   { href: "/diagnose", label: "Diagnose My Car" },
