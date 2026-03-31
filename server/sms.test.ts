@@ -124,7 +124,7 @@ describe("SMS Module", () => {
       const msg = callbackConfirmationSms("Lisa Park");
       expect(msg).toContain("Lisa");
       expect(msg).toContain("callback request");
-      expect(msg).toContain("Mon-Sat 9AM-6PM");
+      expect(msg).toContain("Mon-Sat 8AM-6PM");
     });
 
     it("maintenance reminder SMS includes service and store info", () => {

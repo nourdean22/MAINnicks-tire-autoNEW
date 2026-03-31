@@ -76,7 +76,6 @@ export const INTERSECTIONS: IntersectionData[] = [
   { slug: "vine-st-erie-st-willoughby", name: "Vine St & Erie St", lat: 41.6395, lng: -81.4067, zip: "44094", driveMinutes: 15, neighborhood: "Willoughby", localContent: "Downtown Willoughby residents choose Nick's Tire & Auto for the same reason 1,700+ reviewers gave us 4.9 stars: honest work, fair prices, and techs who actually explain what your car needs." },
 
   // ─── SOUTH EUCLID & LYNDHURST ────────────────────
-  { slug: "mayfield-rd-green-rd", name: "Mayfield Rd & Green Rd", lat: 41.5081, lng: -81.5267, zip: "44121", driveMinutes: 12, neighborhood: "South Euclid", localContent: "South Euclid drivers near Mayfield and Green — take Green Rd north to I-271, then Euclid Ave. 12 minutes to Nick's, where we handle everything from flat repairs to engine diagnostics." },
   { slug: "cedar-rd-brainard-rd", name: "Cedar Rd & Brainard Rd", lat: 41.4933, lng: -81.4940, zip: "44124", driveMinutes: 14, neighborhood: "Lyndhurst", localContent: "Lyndhurst residents near Legacy Village — Nick's Tire & Auto is 14 minutes north. Skip the dealer, get the same quality at half the price. We warranty our labor for 36 months." },
   { slug: "monticello-blvd-warrensville", name: "Monticello Blvd & Warrensville Center Rd", lat: 41.5100, lng: -81.5340, zip: "44121", driveMinutes: 13, neighborhood: "South Euclid", localContent: "The Monticello corridor in South Euclid is 13 minutes from Nick's. We see a lot of vehicles from this area — especially for tire replacement and brake work after harsh Cleveland winters." },
 
@@ -85,11 +84,9 @@ export const INTERSECTIONS: IntersectionData[] = [
   { slug: "lee-rd-libby-rd", name: "Lee Rd & Libby Rd", lat: 41.4150, lng: -81.5610, zip: "44137", driveMinutes: 18, neighborhood: "Maple Heights", localContent: "Maple Heights to Nick's is 18 minutes on I-480 to I-90. Worth the drive — especially for tire deals and brake work. We've been the go-to shop for Maple Heights families who want honest service." },
 
   // ─── GARFIELD HEIGHTS & WARRENSVILLE ─────────────
-  { slug: "turney-rd-granger-rd", name: "Turney Rd & Granger Rd", lat: 41.4200, lng: -81.6060, zip: "44125", driveMinutes: 20, neighborhood: "Garfield Heights", localContent: "Garfield Heights residents drive to Nick's for one reason: trust. Our 4.9-star rating and 1,700+ reviews mean you're getting honest work at fair prices. No pressure, no upselling." },
   { slug: "warrensville-center-miles", name: "Warrensville Center Rd & Miles Ave", lat: 41.4330, lng: -81.5340, zip: "44128", driveMinutes: 17, neighborhood: "Warrensville Heights", localContent: "From Warrensville Heights, take I-480 to I-90 east — 17 minutes to Nick's Tire & Auto. We serve dozens of customers from the Warrensville area weekly, especially for tires and diagnostics." },
 
   // ─── RICHMOND HEIGHTS & HIGHLAND HILLS ───────────
-  { slug: "richmond-rd-wilson-mills", name: "Richmond Rd & Wilson Mills Rd", lat: 41.5500, lng: -81.5060, zip: "44143", driveMinutes: 10, neighborhood: "Richmond Heights", localContent: "Richmond Heights drivers — we're just 10 minutes west on Euclid Ave. Whether you need an oil change, tire rotation, or check engine diagnostic, Nick's has you covered with same-day service." },
   { slug: "highland-rd-bishop-rd", name: "Highland Rd & Bishop Rd", lat: 41.4480, lng: -81.5250, zip: "44122", driveMinutes: 16, neighborhood: "Highland Hills", localContent: "Highland Hills to Nick's is a straight shot north. We're the neighborhood shop that treats every car like our own — because your mechanic should be someone you trust, not someone you dread visiting." },
 
   // ─── MENTOR & EASTLAKE ──────────────────────────

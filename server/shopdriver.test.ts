@@ -23,7 +23,7 @@ describe("ShopDriver & Settings Router", () => {
     });
 
     it("should validate shop hours format", () => {
-      const validHours = "Mon-Sat 9AM-6PM";
+      const validHours = "Mon-Sat 8AM-6PM";
       expect(validHours).toMatch(/\w+/);
       expect(validHours.length).toBeGreaterThan(0);
       expect(validHours.length).toBeLessThan(200);

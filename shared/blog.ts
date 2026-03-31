@@ -1446,7 +1446,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get It Diagnosed Right the First Time",
-        content: "The worst thing you can do is guess. Replacing a battery when the alternator is bad wastes $200. Replacing an alternator when the battery is the problem wastes even more. At Nick's Tire and Auto, we diagnose it correctly the first time — no parts-swapping, no guessing. Drive in or call (216) 862-0005. We are at 22570 Lakeshore Blvd, Euclid — serving Cleveland, Euclid, and all of Northeast Ohio."
+        content: "The worst thing you can do is guess. Replacing a battery when the alternator is bad wastes $200. Replacing an alternator when the battery is the problem wastes even more. At Nick's Tire and Auto, we diagnose it correctly the first time — no parts-swapping, no guessing. Drive in or call (216) 862-0005. We are at 17625 Euclid Ave, Euclid — serving Cleveland, Euclid, and all of Northeast Ohio."
       }
     ],
     relatedServices: ["/diagnostics", "/general-repair"],
@@ -1481,7 +1481,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Power Steering Repair at Nick's Tire & Auto",
-        content: "We diagnose and repair both hydraulic and electric power steering systems. Our technicians identify the exact leak point or failed component so you only pay for what is actually broken. All power steering repairs are covered by our 36-month, 36,000-mile warranty. Call (216) 862-0005 or drive to 22570 Lakeshore Blvd, Euclid. We serve Cleveland, Euclid, Collinwood, and all of Northeast Ohio."
+        content: "We diagnose and repair both hydraulic and electric power steering systems. Our technicians identify the exact leak point or failed component so you only pay for what is actually broken. All power steering repairs are covered by our 36-month, 36,000-mile warranty. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. We serve Cleveland, Euclid, Collinwood, and all of Northeast Ohio."
       }
     ],
     relatedServices: ["/general-repair", "/diagnostics"],
@@ -1516,7 +1516,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Brakes, Wipers, and Lights",
-        content: "Salt and moisture accelerate brake wear and rotor rust. Spring is a good time to inspect brake pads, rotors, and brake lines. Replace worn wiper blades — winter destroys them. Check all exterior lights — bulbs burn out more frequently in cold weather. These are small items that make a big safety difference. Come to Nick's Tire and Auto for your complete spring checkup. Call (216) 862-0005 or drive in — 22570 Lakeshore Blvd, Euclid. Serving Cleveland and Northeast Ohio."
+        content: "Salt and moisture accelerate brake wear and rotor rust. Spring is a good time to inspect brake pads, rotors, and brake lines. Replace worn wiper blades — winter destroys them. Check all exterior lights — bulbs burn out more frequently in cold weather. These are small items that make a big safety difference. Come to Nick's Tire and Auto for your complete spring checkup. Call (216) 862-0005 or drive in — 17625 Euclid Ave, Euclid. Serving Cleveland and Northeast Ohio."
       }
     ],
     relatedServices: ["/tires", "/brakes", "/oil-change", "/diagnostics"],
@@ -1551,7 +1551,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get Summer Ready at Nick's",
-        content: "Drive in for a summer prep inspection — we check the AC, coolant system, tires, battery, belts, and hoses in one visit. Catch problems before they strand you. Call (216) 862-0005 or visit us at 22570 Lakeshore Blvd, Euclid. Nick's Tire and Auto — Cleveland's year-round shop."
+        content: "Drive in for a summer prep inspection — we check the AC, coolant system, tires, battery, belts, and hoses in one visit. Catch problems before they strand you. Call (216) 862-0005 or visit us at 17625 Euclid Ave, Euclid. Nick's Tire and Auto — Cleveland's year-round shop."
       }
     ],
     relatedServices: ["/general-repair", "/tires", "/oil-change", "/diagnostics"],
@@ -1586,7 +1586,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Emergency Kit for Your Trunk",
-        content: "Every Cleveland driver should carry a winter emergency kit: jumper cables or a portable jump starter, flashlight with fresh batteries, blanket, ice scraper and snow brush, small bag of kitty litter or sand for traction, phone charger, and basic first aid kit. If you commute on I-90 along the lake, add extra warm clothing. Lake effect snow can turn a 30-minute commute into a 3-hour ordeal. Prep your car and your trunk. Come to Nick's Tire and Auto for your complete fall winter prep. Call (216) 862-0005 — 22570 Lakeshore Blvd, Euclid."
+        content: "Every Cleveland driver should carry a winter emergency kit: jumper cables or a portable jump starter, flashlight with fresh batteries, blanket, ice scraper and snow brush, small bag of kitty litter or sand for traction, phone charger, and basic first aid kit. If you commute on I-90 along the lake, add extra warm clothing. Lake effect snow can turn a 30-minute commute into a 3-hour ordeal. Prep your car and your trunk. Come to Nick's Tire and Auto for your complete fall winter prep. Call (216) 862-0005 — 17625 Euclid Ave, Euclid."
       }
     ],
     relatedServices: ["/tires", "/brakes", "/oil-change", "/diagnostics"],
@@ -1621,7 +1621,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get Your Undercarriage Inspected",
-        content: "Bring your vehicle to Nick's Tire and Auto for an undercarriage rust inspection. We will tell you exactly what condition your vehicle is in and what needs attention now versus what can wait. No charge for the visual inspection during any scheduled service. Call (216) 862-0005 or drive in — 22570 Lakeshore Blvd, Euclid. Protecting Cleveland cars from salt damage since day one."
+        content: "Bring your vehicle to Nick's Tire and Auto for an undercarriage rust inspection. We will tell you exactly what condition your vehicle is in and what needs attention now versus what can wait. No charge for the visual inspection during any scheduled service. Call (216) 862-0005 or drive in — 17625 Euclid Ave, Euclid. Protecting Cleveland cars from salt damage since day one."
       }
     ],
     relatedServices: ["/brakes", "/general-repair", "/diagnostics"],
@@ -1656,7 +1656,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get Your Car Winter-Ready at Nick's",
-        content: "Come in for a winter safety check — we inspect tires, brakes, battery, heater, wipers, and fluids. Everything that keeps you safe and mobile when Cleveland does its worst. Call (216) 862-0005 or drive to 22570 Lakeshore Blvd, Euclid. Nick's Tire and Auto — we drive these same roads."
+        content: "Come in for a winter safety check — we inspect tires, brakes, battery, heater, wipers, and fluids. Everything that keeps you safe and mobile when Cleveland does its worst. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. Nick's Tire and Auto — we drive these same roads."
       }
     ],
     relatedServices: ["/tires", "/brakes", "/oil-change"],
@@ -1691,7 +1691,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get Your Tires Checked Before the Rain",
-        content: "Come to Nick's Tire and Auto for a free tread depth and tire condition check. If your tires are marginal, we have new and quality used options for every budget. Do not wait until you are sliding through an intersection to find out your tires are worn. Call (216) 862-0005 — 22570 Lakeshore Blvd, Euclid. Keeping Cleveland drivers safe in every season."
+        content: "Come to Nick's Tire and Auto for a free tread depth and tire condition check. If your tires are marginal, we have new and quality used options for every budget. Do not wait until you are sliding through an intersection to find out your tires are worn. Call (216) 862-0005 — 17625 Euclid Ave, Euclid. Keeping Cleveland drivers safe in every season."
       }
     ],
     relatedServices: ["/tires"],
@@ -1726,7 +1726,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get an Honest AC Diagnosis at Nick's",
-        content: "We diagnose the actual problem before recommending any repair. A proper AC diagnosis includes pressure testing, leak detection, and component testing. We tell you exactly what is wrong and what it costs before we do any work. No surprises. Call (216) 862-0005 or drive to 22570 Lakeshore Blvd, Euclid. All AC repairs backed by our 36-month, 36,000-mile warranty."
+        content: "We diagnose the actual problem before recommending any repair. A proper AC diagnosis includes pressure testing, leak detection, and component testing. We tell you exactly what is wrong and what it costs before we do any work. No surprises. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. All AC repairs backed by our 36-month, 36,000-mile warranty."
       }
     ],
     relatedServices: ["/general-repair", "/diagnostics"],
@@ -1761,7 +1761,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Honest Transmission Diagnosis at Nick's",
-        content: "We start with a proper diagnosis — fluid condition, scan tool data, road test, and if needed, a pan inspection. We tell you exactly what is wrong and give you real options with real costs. No pressure, no upselling. Call (216) 862-0005 or visit us at 22570 Lakeshore Blvd, Euclid. Serving Cleveland, Euclid, and Northeast Ohio."
+        content: "We start with a proper diagnosis — fluid condition, scan tool data, road test, and if needed, a pan inspection. We tell you exactly what is wrong and give you real options with real costs. No pressure, no upselling. Call (216) 862-0005 or visit us at 17625 Euclid Ave, Euclid. Serving Cleveland, Euclid, and Northeast Ohio."
       }
     ],
     relatedServices: ["/general-repair", "/diagnostics"],
@@ -1796,7 +1796,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Schedule Your Pre-Purchase Inspection",
-        content: "Bring the vehicle to Nick's Tire and Auto before you sign anything. A pre-purchase inspection takes about an hour and costs far less than buying someone else's problem. If the seller will not allow an independent inspection, that tells you everything you need to know. Call (216) 862-0005 to schedule — 22570 Lakeshore Blvd, Euclid. We are on your side, not the seller's."
+        content: "Bring the vehicle to Nick's Tire and Auto before you sign anything. A pre-purchase inspection takes about an hour and costs far less than buying someone else's problem. If the seller will not allow an independent inspection, that tells you everything you need to know. Call (216) 862-0005 to schedule — 17625 Euclid Ave, Euclid. We are on your side, not the seller's."
       }
     ],
     relatedServices: ["/diagnostics", "/general-repair"],
@@ -1831,7 +1831,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Save Smart at Nick's Tire & Auto",
-        content: "We help Cleveland drivers keep their cars running without overpaying. Honest diagnosis, quality parts, real warranties, and financing when you need it. No unnecessary repairs, no pressure, no games. Call (216) 862-0005 or drive to 22570 Lakeshore Blvd, Euclid. Saving Cleveland drivers money the right way."
+        content: "We help Cleveland drivers keep their cars running without overpaying. Honest diagnosis, quality parts, real warranties, and financing when you need it. No unnecessary repairs, no pressure, no games. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. Saving Cleveland drivers money the right way."
       }
     ],
     relatedServices: ["/oil-change", "/brakes", "/diagnostics", "/general-repair"],
@@ -1866,7 +1866,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get Repairs You Can Trust",
-        content: "At Nick's Tire and Auto, every repair comes with our 36-month, 36,000-mile warranty. We use quality parts, our technicians take the time to do it right, and we stand behind every job. Call (216) 862-0005 or visit 22570 Lakeshore Blvd, Euclid. Cleveland's most trusted warranty in auto repair."
+        content: "At Nick's Tire and Auto, every repair comes with our 36-month, 36,000-mile warranty. We use quality parts, our technicians take the time to do it right, and we stand behind every job. Call (216) 862-0005 or visit 17625 Euclid Ave, Euclid. Cleveland's most trusted warranty in auto repair."
       }
     ],
     relatedServices: ["/brakes", "/general-repair", "/diagnostics"],
@@ -1889,7 +1889,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Our Four Financing Providers",
-        content: "We work with four financing companies, each with different approval criteria. Synchrony Car Care covers customers with fair to good credit and offers promotional no-interest periods. EasyPay Finance specializes in customers with challenged credit — they approve many applicants that traditional lenders decline. Snap Finance works with bad credit and no credit, using income verification rather than credit score. Acima Credit is a lease-to-own option that requires no credit check — approval is based on income and banking history. Between these four providers, we get most applicants approved for the repairs they need."
+        content: "We work with four financing companies, each with different approval criteria. Acima Credit is a lease-to-own option that requires no credit check — approval is based on income and banking history, with a 90-day same-as-cash option. Snap Finance works with bad credit and no credit, using income verification rather than credit score, with a 100-day same-as-cash option. Koalafi offers the highest approval amounts up to $7,500 for larger repairs. American First Finance rounds out our lineup with no-credit-needed lease-to-own and a 90-day same-as-cash option. Between these four providers, we get most applicants approved for the repairs they need."
       },
       {
         heading: "How It Works — $10 Down, Same-Day Approval",
@@ -1901,7 +1901,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get Approved Today",
-        content: "Do not put off safety repairs because of money. Apply at the shop or call ahead and we can walk you through the process over the phone. Most applications take 5 minutes and approval is immediate. Call (216) 862-0005 or drive to 22570 Lakeshore Blvd, Euclid. Nick's Tire and Auto — because safe brakes should not wait until payday."
+        content: "Do not put off safety repairs because of money. Apply at the shop or call ahead and we can walk you through the process over the phone. Most applications take 5 minutes and approval is immediate. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. Nick's Tire and Auto — because safe brakes should not wait until payday."
       }
     ],
     relatedServices: ["/brakes", "/tires", "/general-repair", "/diagnostics"],
@@ -1936,7 +1936,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get the Honest Answer at Nick's",
-        content: "We do not benefit from selling you a repair that does not make sense — it just creates an unhappy customer. We will give you the real repair cost, the real vehicle value, and our honest recommendation. Sometimes the answer is fix it. Sometimes the answer is walk away. We help you make the right call. Call (216) 862-0005 or visit 22570 Lakeshore Blvd, Euclid."
+        content: "We do not benefit from selling you a repair that does not make sense — it just creates an unhappy customer. We will give you the real repair cost, the real vehicle value, and our honest recommendation. Sometimes the answer is fix it. Sometimes the answer is walk away. We help you make the right call. Call (216) 862-0005 or visit 17625 Euclid Ave, Euclid."
       }
     ],
     relatedServices: ["/diagnostics", "/general-repair"],
@@ -1975,7 +1975,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "The Common Thread: Maintenance",
-        content: "Every single one of these expensive repairs has a cheaper preventive step. The pattern is always the same — a $50 to $200 maintenance service prevents a $1,000 to $7,000 repair. At Nick's Tire and Auto, we focus on keeping your car maintained so you never face these bills. Call (216) 862-0005 or drive to 22570 Lakeshore Blvd, Euclid. Prevention is what we do best."
+        content: "Every single one of these expensive repairs has a cheaper preventive step. The pattern is always the same — a $50 to $200 maintenance service prevents a $1,000 to $7,000 repair. At Nick's Tire and Auto, we focus on keeping your car maintained so you never face these bills. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. Prevention is what we do best."
       }
     ],
     relatedServices: ["/oil-change", "/brakes", "/diagnostics", "/general-repair"],
@@ -2010,7 +2010,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get It Diagnosed at Nick's",
-        content: "Do not guess — a pull can be a $0 tire pressure fix or a $400 brake caliper replacement. We check all the possible causes and tell you exactly what is wrong. Drive to 22570 Lakeshore Blvd, Euclid or call (216) 862-0005. Serving Cleveland, Euclid, and all of Northeast Ohio."
+        content: "Do not guess — a pull can be a $0 tire pressure fix or a $400 brake caliper replacement. We check all the possible causes and tell you exactly what is wrong. Drive to 17625 Euclid Ave, Euclid or call (216) 862-0005. Serving Cleveland, Euclid, and all of Northeast Ohio."
       }
     ],
     relatedServices: ["/tires", "/brakes", "/diagnostics"],
@@ -2045,7 +2045,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Do Not Ignore Dashboard Lights",
-        content: "Every warning light is there for a reason. Ignoring a yellow light today often creates a red light tomorrow at triple the cost. Come to Nick's Tire and Auto for fast, accurate diagnosis. We read codes, test components, and tell you exactly what is happening and what it costs to fix. Call (216) 862-0005 or drive to 22570 Lakeshore Blvd, Euclid."
+        content: "Every warning light is there for a reason. Ignoring a yellow light today often creates a red light tomorrow at triple the cost. Come to Nick's Tire and Auto for fast, accurate diagnosis. We read codes, test components, and tell you exactly what is happening and what it costs to fix. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid."
       }
     ],
     relatedServices: ["/diagnostics", "/brakes", "/general-repair"],
@@ -2080,7 +2080,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Smell Something Weird? Bring It In",
-        content: "Your nose caught a problem — now let us find it. Strange smells are your car telling you something is wrong before it becomes a breakdown. The sooner you get it checked, the cheaper the fix. Call (216) 862-0005 or drive to Nick's Tire and Auto — 22570 Lakeshore Blvd, Euclid. Serving Cleveland and Northeast Ohio."
+        content: "Your nose caught a problem — now let us find it. Strange smells are your car telling you something is wrong before it becomes a breakdown. The sooner you get it checked, the cheaper the fix. Call (216) 862-0005 or drive to Nick's Tire and Auto — 17625 Euclid Ave, Euclid. Serving Cleveland and Northeast Ohio."
       }
     ],
     relatedServices: ["/diagnostics", "/general-repair"],
@@ -2115,7 +2115,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Do Not Ignore New Noises",
-        content: "New noises mean something changed. The sooner you identify what changed, the cheaper the fix. A worn CV joint caught early is $250. Caught late, it is a tow plus $500. A brake pad indicator caught early is a $250 pad replacement. Caught late, it is $500 with new rotors. Bring your clicking car to Nick's Tire and Auto. We will listen, diagnose, and give you a straight answer. Call (216) 862-0005 — 22570 Lakeshore Blvd, Euclid. Cleveland's honest diagnostic shop."
+        content: "New noises mean something changed. The sooner you identify what changed, the cheaper the fix. A worn CV joint caught early is $250. Caught late, it is a tow plus $500. A brake pad indicator caught early is a $250 pad replacement. Caught late, it is $500 with new rotors. Bring your clicking car to Nick's Tire and Auto. We will listen, diagnose, and give you a straight answer. Call (216) 862-0005 — 17625 Euclid Ave, Euclid. Cleveland's honest diagnostic shop."
       }
     ],
     relatedServices: ["/diagnostics", "/brakes", "/general-repair"],
@@ -2150,7 +2150,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Our Recommendation for Cleveland Drivers",
-        content: "If you drive on I-90, I-271, or any Cleveland East Side roads regularly from November to March, winter tires are worth it. Period. The lake effect snow, the freeze-thaw cycles, the black ice on side streets — all-season tires were not designed for this. Stop by Nick's Tire and Auto at 22570 Lakeshore Blvd, Euclid or call (216) 862-0005. We will check your current tires, recommend the right setup for your vehicle and budget, and get you ready for whatever Lake Erie throws at us. Walk-ins welcome, open 7 days a week. Check our full [tire selection](/tires) or book a [tire consultation](/contact)."
+        content: "If you drive on I-90, I-271, or any Cleveland East Side roads regularly from November to March, winter tires are worth it. Period. The lake effect snow, the freeze-thaw cycles, the black ice on side streets — all-season tires were not designed for this. Stop by Nick's Tire and Auto at 17625 Euclid Ave, Euclid or call (216) 862-0005. We will check your current tires, recommend the right setup for your vehicle and budget, and get you ready for whatever Lake Erie throws at us. Walk-ins welcome, open 7 days a week. Check our full [tire selection](/tires) or book a [tire consultation](/contact)."
       }
     ],
     relatedServices: ["/tires"],
@@ -2220,7 +2220,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Free Tire Pressure Checks at Nick's",
-        content: "Drive into Nick's Tire and Auto any day of the week and we will check and adjust your tire pressure for free. No appointment, no purchase necessary. We set them to the manufacturer spec for your vehicle. If we spot anything else — uneven wear, a slow leak, a cracked valve stem — we will let you know. We are at 22570 Lakeshore Blvd, Euclid. Call (216) 862-0005 or just pull in. Also check our [tire finder](/tires) if you are due for new rubber, or learn about our [$39 oil change special](/oil-change)."
+        content: "Drive into Nick's Tire and Auto any day of the week and we will check and adjust your tire pressure for free. No appointment, no purchase necessary. We set them to the manufacturer spec for your vehicle. If we spot anything else — uneven wear, a slow leak, a cracked valve stem — we will let you know. We are at 17625 Euclid Ave, Euclid. Call (216) 862-0005 or just pull in. Also check our [tire finder](/tires) if you are due for new rubber, or learn about our [$39 oil change special](/oil-change)."
       }
     ],
     relatedServices: ["/tires"],
@@ -2255,7 +2255,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "What To Do When You Spot Uneven Wear",
-        content: "Do not just buy new tires and hope for the best. If you put new tires on without fixing the underlying cause, the new set will wear unevenly too. Bring the car to Nick's Tire and Auto for a free tire inspection. We will identify the wear pattern, check alignment, measure suspension components, and tell you exactly what needs to be addressed before you invest in new rubber. Used tires start at $60, new tires at competitive prices, and alignment at $80 to $100. We are at 22570 Lakeshore Blvd, Euclid — call (216) 862-0005 or walk in any day. See our [tire inventory](/tires) and [alignment service](/alignment)."
+        content: "Do not just buy new tires and hope for the best. If you put new tires on without fixing the underlying cause, the new set will wear unevenly too. Bring the car to Nick's Tire and Auto for a free tire inspection. We will identify the wear pattern, check alignment, measure suspension components, and tell you exactly what needs to be addressed before you invest in new rubber. Used tires start at $60, new tires at competitive prices, and alignment at $80 to $100. We are at 17625 Euclid Ave, Euclid — call (216) 862-0005 or walk in any day. See our [tire inventory](/tires) and [alignment service](/alignment)."
       }
     ],
     relatedServices: ["/tires", "/alignment", "/general-repair"],
@@ -2290,7 +2290,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get the Right Tires at the Right Price",
-        content: "Stop by Nick's Tire and Auto and tell us your vehicle, your driving habits, and your budget. We will give you an honest recommendation — not the most expensive tire on the rack, but the right tire for your situation. We carry new and used tires in most common sizes and can special order anything within a day or two. Used tires from $60, new budget tires competitively priced, all mounted and balanced on site. We are at 22570 Lakeshore Blvd, Euclid, open 7 days a week. Call (216) 862-0005 or browse our [tire finder](/tires). Need [brakes](/brakes) while you are here? We do that too — $89 brake specials."
+        content: "Stop by Nick's Tire and Auto and tell us your vehicle, your driving habits, and your budget. We will give you an honest recommendation — not the most expensive tire on the rack, but the right tire for your situation. We carry new and used tires in most common sizes and can special order anything within a day or two. Used tires from $60, new budget tires competitively priced, all mounted and balanced on site. We are at 17625 Euclid Ave, Euclid, open 7 days a week. Call (216) 862-0005 or browse our [tire finder](/tires). Need [brakes](/brakes) while you are here? We do that too — $89 brake specials."
       }
     ],
     relatedServices: ["/tires"],
@@ -2325,7 +2325,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "When to Replace — The Nick's Standard",
-        content: "Here is our recommendation for Cleveland drivers. Replace tires when any of these are true: tread depth is at 4/32 or below (the quarter test), the tire is 6 years old or older regardless of tread, there are visible sidewall cracks or bulges, or there is any sign of belt separation — bumps or waves in the tread surface. Do not wait for all four conditions. Any one of them is enough. Come to Nick's Tire and Auto for a free tire inspection any day of the week. We check tread depth, age, sidewall condition, and wear patterns. If your tires are fine, we will tell you. If they need replacing, we have quality used tires from $60 and new tires at competitive prices. Call (216) 862-0005 or stop by 22570 Lakeshore Blvd, Euclid. Browse our [tire inventory](/tires)."
+        content: "Here is our recommendation for Cleveland drivers. Replace tires when any of these are true: tread depth is at 4/32 or below (the quarter test), the tire is 6 years old or older regardless of tread, there are visible sidewall cracks or bulges, or there is any sign of belt separation — bumps or waves in the tread surface. Do not wait for all four conditions. Any one of them is enough. Come to Nick's Tire and Auto for a free tire inspection any day of the week. We check tread depth, age, sidewall condition, and wear patterns. If your tires are fine, we will tell you. If they need replacing, we have quality used tires from $60 and new tires at competitive prices. Call (216) 862-0005 or stop by 17625 Euclid Ave, Euclid. Browse our [tire inventory](/tires)."
       }
     ],
     relatedServices: ["/tires"],
@@ -2360,7 +2360,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Free Tire Safety Inspections at Nick's",
-        content: "Drive into Nick's Tire and Auto any day and we will inspect your tires for free — pressure, tread depth, sidewall condition, age, and signs of internal damage. If something is wrong, we will tell you exactly what it is and what your options are. Used tires from $60, new tires at competitive prices, all mounted and balanced on site. Do not gamble on old or damaged tires — a blowout on I-90 or the Shoreway is not worth the risk. Visit us at 22570 Lakeshore Blvd, Euclid or call (216) 862-0005. Check our [tire inventory](/tires) or schedule a [tire inspection](/contact)."
+        content: "Drive into Nick's Tire and Auto any day and we will inspect your tires for free — pressure, tread depth, sidewall condition, age, and signs of internal damage. If something is wrong, we will tell you exactly what it is and what your options are. Used tires from $60, new tires at competitive prices, all mounted and balanced on site. Do not gamble on old or damaged tires — a blowout on I-90 or the Shoreway is not worth the risk. Visit us at 17625 Euclid Ave, Euclid or call (216) 862-0005. Check our [tire inventory](/tires) or schedule a [tire inspection](/contact)."
       }
     ],
     relatedServices: ["/tires"],
@@ -2395,7 +2395,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "When to Get an Alignment",
-        content: "Get an alignment whenever you install new tires — starting a fresh set on a misaligned car is throwing money away. Get one after any significant pothole impact. Get one if you notice any pulling, wandering, off-center steering, or uneven tire wear. And get a check at least annually as preventive maintenance, especially after Cleveland winter. Walk into Nick's Tire and Auto at 22570 Lakeshore Blvd, Euclid or call (216) 862-0005. Alignment, [tires](/tires), and [brake repair](/brakes) — all under one roof, 7 days a week."
+        content: "Get an alignment whenever you install new tires — starting a fresh set on a misaligned car is throwing money away. Get one after any significant pothole impact. Get one if you notice any pulling, wandering, off-center steering, or uneven tire wear. And get a check at least annually as preventive maintenance, especially after Cleveland winter. Walk into Nick's Tire and Auto at 17625 Euclid Ave, Euclid or call (216) 862-0005. Alignment, [tires](/tires), and [brake repair](/brakes) — all under one roof, 7 days a week."
       }
     ],
     relatedServices: ["/tires", "/alignment"],
@@ -2430,7 +2430,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get Your Brakes Done Right",
-        content: "Whether you need ceramic or semi-metallic, the quality of the installation matters as much as the pad material. Proper brake jobs include cleaning and lubricating slide pins, checking and resurfacing or replacing rotors if needed, inspecting brake hardware, and testing the system after installation. A cheap brake pad slapped on dirty hardware with glazed rotors is going to squeal and underperform regardless of the material. At Nick's, we do brake jobs right. $89 brake special, honest service, no upselling. Call (216) 862-0005 or stop by 22570 Lakeshore Blvd, Euclid. Learn more about our [brake repair service](/brakes) or check our [tire deals](/tires)."
+        content: "Whether you need ceramic or semi-metallic, the quality of the installation matters as much as the pad material. Proper brake jobs include cleaning and lubricating slide pins, checking and resurfacing or replacing rotors if needed, inspecting brake hardware, and testing the system after installation. A cheap brake pad slapped on dirty hardware with glazed rotors is going to squeal and underperform regardless of the material. At Nick's, we do brake jobs right. $89 brake special, honest service, no upselling. Call (216) 862-0005 or stop by 17625 Euclid Ave, Euclid. Learn more about our [brake repair service](/brakes) or check our [tire deals](/tires)."
       }
     ],
     relatedServices: ["/brakes"],
@@ -2465,7 +2465,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Honest Rotor Assessment at Nick's",
-        content: "We measure every rotor with a micrometer during brake service. If your rotors are above minimum thickness and can be resurfaced to a flat, smooth surface, we will tell you and save you the cost of new rotors. If they are at or near minimum, or too deeply scored to machine, we will recommend replacement and explain why. No guessing, no unnecessary parts. Our $89 brake special includes pads, rotor inspection, and all the honest information you need to make the right call. If rotors need replacing, we price them fairly and install them as part of the brake job. Call (216) 862-0005 or come to 22570 Lakeshore Blvd, Euclid for a [brake inspection](/brakes)."
+        content: "We measure every rotor with a micrometer during brake service. If your rotors are above minimum thickness and can be resurfaced to a flat, smooth surface, we will tell you and save you the cost of new rotors. If they are at or near minimum, or too deeply scored to machine, we will recommend replacement and explain why. No guessing, no unnecessary parts. Our $89 brake special includes pads, rotor inspection, and all the honest information you need to make the right call. If rotors need replacing, we price them fairly and install them as part of the brake job. Call (216) 862-0005 or come to 17625 Euclid Ave, Euclid for a [brake inspection](/brakes)."
       }
     ],
     relatedServices: ["/brakes"],
@@ -2500,7 +2500,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Caliper Repair and Replacement Costs",
-        content: "At Nick's Tire and Auto, caliper service depends on what is wrong. If the slide pins are corroded but the caliper itself is fine, cleaning, lubricating, and re-booting the pins is part of a standard brake job — no extra charge on our $89 brake service. If the caliper piston is sticking and needs to be rebuilt, or if the caliper is seized or leaking, replacement is the repair. Caliper replacement typically runs $150 to $350 per caliper depending on the vehicle, including parts and labor. We always replace calipers in pairs — both fronts or both rears — to maintain even braking. Call (216) 862-0005 to get a quote for your specific vehicle, or bring it in to 22570 Lakeshore Blvd, Euclid for a [brake inspection](/brakes)."
+        content: "At Nick's Tire and Auto, caliper service depends on what is wrong. If the slide pins are corroded but the caliper itself is fine, cleaning, lubricating, and re-booting the pins is part of a standard brake job — no extra charge on our $89 brake service. If the caliper piston is sticking and needs to be rebuilt, or if the caliper is seized or leaking, replacement is the repair. Caliper replacement typically runs $150 to $350 per caliper depending on the vehicle, including parts and labor. We always replace calipers in pairs — both fronts or both rears — to maintain even braking. Call (216) 862-0005 to get a quote for your specific vehicle, or bring it in to 17625 Euclid Ave, Euclid for a [brake inspection](/brakes)."
       }
     ],
     relatedServices: ["/brakes"],
@@ -2535,7 +2535,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Parking Brake Repair at Nick's",
-        content: "Parking brake cable adjustment is quick and affordable — usually done as part of a brake service. Cable replacement typically runs $150 to $300 depending on the vehicle, because the cable routes underneath the car and may require dropping exhaust or heat shields to access. On severely rusted Cleveland vehicles, access can take extra time. Drum-in-hat cleaning and adjustment is straightforward. Electronic parking brake motor replacement varies widely by vehicle. Bring your car to Nick's Tire and Auto and we will diagnose exactly what is wrong with your parking brake and give you an honest quote. A working parking brake is not optional — it is a safety requirement. Call (216) 862-0005 or walk in at 22570 Lakeshore Blvd, Euclid. Learn about our full [brake service](/brakes)."
+        content: "Parking brake cable adjustment is quick and affordable — usually done as part of a brake service. Cable replacement typically runs $150 to $300 depending on the vehicle, because the cable routes underneath the car and may require dropping exhaust or heat shields to access. On severely rusted Cleveland vehicles, access can take extra time. Drum-in-hat cleaning and adjustment is straightforward. Electronic parking brake motor replacement varies widely by vehicle. Bring your car to Nick's Tire and Auto and we will diagnose exactly what is wrong with your parking brake and give you an honest quote. A working parking brake is not optional — it is a safety requirement. Call (216) 862-0005 or walk in at 17625 Euclid Ave, Euclid. Learn about our full [brake service](/brakes)."
       }
     ],
     relatedServices: ["/brakes"],
@@ -2570,7 +2570,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Do Not Ignore Brake Line Rust",
-        content: "This is not a repair you put off. A rusted brake line is a ticking clock. When it fails, you lose brakes — partially or completely — with zero warning. It can happen on I-90 at highway speed, in stop-and-go traffic on Lakeshore Boulevard, or pulling into your driveway. If your vehicle is 10 or more years old and has lived in Cleveland its whole life, get the brake lines inspected. If your mechanic has mentioned rust on the undercarriage, get the lines checked. This is a safety item, not a convenience item. Bring your vehicle to Nick's Tire and Auto for a brake line inspection. We put it on the lift, look at every line, and tell you honestly where things stand. Call (216) 862-0005 or walk in at 22570 Lakeshore Blvd, Euclid. Full [brake service](/brakes) including lines, pads, rotors, and calipers."
+        content: "This is not a repair you put off. A rusted brake line is a ticking clock. When it fails, you lose brakes — partially or completely — with zero warning. It can happen on I-90 at highway speed, in stop-and-go traffic on Lakeshore Boulevard, or pulling into your driveway. If your vehicle is 10 or more years old and has lived in Cleveland its whole life, get the brake lines inspected. If your mechanic has mentioned rust on the undercarriage, get the lines checked. This is a safety item, not a convenience item. Bring your vehicle to Nick's Tire and Auto for a brake line inspection. We put it on the lift, look at every line, and tell you honestly where things stand. Call (216) 862-0005 or walk in at 17625 Euclid Ave, Euclid. Full [brake service](/brakes) including lines, pads, rotors, and calipers."
       }
     ],
     relatedServices: ["/brakes"],
@@ -2605,7 +2605,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Still Squeaking? Come Back In",
-        content: "If you had brakes done at Nick's and they are squeaking after the break-in period, come back. We stand behind our work. We will pull the wheels, inspect the pads and rotors, check hardware and lubrication, and make it right. No charge for correcting our work. If you had brakes done somewhere else and they squeak, bring it to us for an honest assessment. Our $89 brake special gets you quality pads, proper installation, and brakes that actually work quietly. We are at 22570 Lakeshore Blvd, Euclid, open 7 days. Call (216) 862-0005. Check out our full [brake repair service](/brakes) or browse our [tire deals](/tires) while you are here."
+        content: "If you had brakes done at Nick's and they are squeaking after the break-in period, come back. We stand behind our work. We will pull the wheels, inspect the pads and rotors, check hardware and lubrication, and make it right. No charge for correcting our work. If you had brakes done somewhere else and they squeak, bring it to us for an honest assessment. Our $89 brake special gets you quality pads, proper installation, and brakes that actually work quietly. We are at 17625 Euclid Ave, Euclid, open 7 days. Call (216) 862-0005. Check out our full [brake repair service](/brakes) or browse our [tire deals](/tires) while you are here."
       }
     ],
     relatedServices: ["/brakes"],
@@ -2640,7 +2640,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "E-Check and Emissions Consequences",
-        content: "In Cuyahoga County, you need to pass the Ohio E-Check emissions test to register your vehicle. A missing or failed catalytic converter will fail E-Check every time. A check engine light with catalyst efficiency codes — P0420, P0430 — also fails E-Check. If your converter was stolen and you installed a cheap replacement that does not work properly, you will fail the emissions test. We handle E-Check failures regularly at Nick's Tire and Auto — diagnostics start at $49. We will scan the codes, verify the converter function, check oxygen sensor readings, and tell you exactly what needs to happen to pass. Call (216) 862-0005 or stop by 22570 Lakeshore Blvd, Euclid. We handle [diagnostics](/diagnostics) and [general repair](/general-repair) 7 days a week."
+        content: "In Cuyahoga County, you need to pass the Ohio E-Check emissions test to register your vehicle. A missing or failed catalytic converter will fail E-Check every time. A check engine light with catalyst efficiency codes — P0420, P0430 — also fails E-Check. If your converter was stolen and you installed a cheap replacement that does not work properly, you will fail the emissions test. We handle E-Check failures regularly at Nick's Tire and Auto — diagnostics start at $49. We will scan the codes, verify the converter function, check oxygen sensor readings, and tell you exactly what needs to happen to pass. Call (216) 862-0005 or stop by 17625 Euclid Ave, Euclid. We handle [diagnostics](/diagnostics) and [general repair](/general-repair) 7 days a week."
       }
     ],
     relatedServices: ["/general-repair", "/diagnostics"],
@@ -2675,7 +2675,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Diagnostics Before Replacement",
-        content: "We never just replace an O2 sensor because a code scanner says O2 sensor. A code tells you the computer detected a problem in that circuit — it does not tell you the sensor itself is bad. A vacuum leak, exhaust leak, or fuel system problem can trigger O2 sensor codes without the sensor being at fault. Our $49 diagnostic service includes code reading, live data analysis of sensor waveforms, and system testing to verify the sensor is actually the problem before we replace it. This saves you money and prevents the frustration of replacing a sensor only to have the light come back. Come to Nick's Tire and Auto at 22570 Lakeshore Blvd, Euclid or call (216) 862-0005 for a [diagnostic appointment](/diagnostics). E-Check failure? We fix those too — [general repair](/general-repair)."
+        content: "We never just replace an O2 sensor because a code scanner says O2 sensor. A code tells you the computer detected a problem in that circuit — it does not tell you the sensor itself is bad. A vacuum leak, exhaust leak, or fuel system problem can trigger O2 sensor codes without the sensor being at fault. Our $49 diagnostic service includes code reading, live data analysis of sensor waveforms, and system testing to verify the sensor is actually the problem before we replace it. This saves you money and prevents the frustration of replacing a sensor only to have the light come back. Come to Nick's Tire and Auto at 17625 Euclid Ave, Euclid or call (216) 862-0005 for a [diagnostic appointment](/diagnostics). E-Check failure? We fix those too — [general repair](/general-repair)."
       }
     ],
     relatedServices: ["/diagnostics", "/general-repair"],
@@ -2710,7 +2710,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Replacement Costs and What to Expect",
-        content: "Timing belt replacement at Nick's typically runs $600 to $1,200 depending on the vehicle. The belt itself is inexpensive — $30 to $80 — but the labor is significant because the front of the engine has to come apart. We always replace the water pump at the same time if it is driven by the timing belt, because the labor to access the water pump later is the same as the belt job — do it once and save. We also replace the tensioner and idler pulleys. Timing chain replacement is more expensive — typically $800 to $2,000 — because chains are deeper inside the engine and the job is more complex. If you are approaching your belt interval or hearing chain rattle, do not wait. Call (216) 862-0005 or come to 22570 Lakeshore Blvd, Euclid. We handle [general repair](/general-repair) and [diagnostics](/diagnostics) on all makes and models."
+        content: "Timing belt replacement at Nick's typically runs $600 to $1,200 depending on the vehicle. The belt itself is inexpensive — $30 to $80 — but the labor is significant because the front of the engine has to come apart. We always replace the water pump at the same time if it is driven by the timing belt, because the labor to access the water pump later is the same as the belt job — do it once and save. We also replace the tensioner and idler pulleys. Timing chain replacement is more expensive — typically $800 to $2,000 — because chains are deeper inside the engine and the job is more complex. If you are approaching your belt interval or hearing chain rattle, do not wait. Call (216) 862-0005 or come to 17625 Euclid Ave, Euclid. We handle [general repair](/general-repair) and [diagnostics](/diagnostics) on all makes and models."
       }
     ],
     relatedServices: ["/general-repair"],
@@ -2745,7 +2745,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get It Diagnosed Properly",
-        content: "Poor acceleration has dozens of possible causes, and guessing is expensive. A $49 diagnostic at Nick's Tire and Auto tells you exactly what is wrong before you spend money on parts. We read codes, analyze live sensor data, check fuel pressure, test ignition components, and inspect the intake and exhaust systems. We find the actual cause — not just the code — and give you an honest repair estimate. No guessing, no throwing parts at it, no unnecessary work. If it is a $10 air filter or a $200 fuel pump, we tell you straight. Come to 22570 Lakeshore Blvd, Euclid or call (216) 862-0005. Walk-ins welcome 7 days a week. [Diagnostics start at $49](/diagnostics) and we handle all [general repairs](/general-repair)."
+        content: "Poor acceleration has dozens of possible causes, and guessing is expensive. A $49 diagnostic at Nick's Tire and Auto tells you exactly what is wrong before you spend money on parts. We read codes, analyze live sensor data, check fuel pressure, test ignition components, and inspect the intake and exhaust systems. We find the actual cause — not just the code — and give you an honest repair estimate. No guessing, no throwing parts at it, no unnecessary work. If it is a $10 air filter or a $200 fuel pump, we tell you straight. Come to 17625 Euclid Ave, Euclid or call (216) 862-0005. Walk-ins welcome 7 days a week. [Diagnostics start at $49](/diagnostics) and we handle all [general repairs](/general-repair)."
       }
     ],
     relatedServices: ["/diagnostics", "/general-repair"],
@@ -2780,7 +2780,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Head Gasket Repair Cost and Options",
-        content: "A head gasket replacement is a major repair — typically $1,200 to $2,500 depending on the vehicle. The gasket itself is $30 to $100 but the labor to remove the cylinder head, machine it flat, and reassemble the engine is 8 to 15 hours. On some vehicles — V6 engines where the rear head is against the firewall, or Subaru boxer engines where both heads are difficult to access — the labor is even more. For older or high-mileage vehicles, a head gasket repair may not make financial sense. We always give you the honest math — repair cost vs vehicle value — so you can make an informed decision. If the repair costs more than the car is worth, we will tell you that. Come to Nick's Tire and Auto at 22570 Lakeshore Blvd, Euclid or call (216) 862-0005 for a [diagnostic evaluation](/diagnostics). Honest answers, fair prices, 7 days a week."
+        content: "A head gasket replacement is a major repair — typically $1,200 to $2,500 depending on the vehicle. The gasket itself is $30 to $100 but the labor to remove the cylinder head, machine it flat, and reassemble the engine is 8 to 15 hours. On some vehicles — V6 engines where the rear head is against the firewall, or Subaru boxer engines where both heads are difficult to access — the labor is even more. For older or high-mileage vehicles, a head gasket repair may not make financial sense. We always give you the honest math — repair cost vs vehicle value — so you can make an informed decision. If the repair costs more than the car is worth, we will tell you that. Come to Nick's Tire and Auto at 17625 Euclid Ave, Euclid or call (216) 862-0005 for a [diagnostic evaluation](/diagnostics). Honest answers, fair prices, 7 days a week."
       }
     ],
     relatedServices: ["/diagnostics", "/general-repair"],
@@ -2815,7 +2815,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Diagnose It Right at Nick's",
-        content: "A shaking car at idle has multiple possible causes, and the right diagnosis saves you from wasting money on wrong guesses. Our $49 diagnostic checks for misfire codes and live engine data, tests for vacuum leaks with a smoke machine, inspects the throttle body for carbon buildup, evaluates engine and transmission mount condition, and checks all related sensors and systems. We find the actual problem and give you a clear repair estimate before any work starts. Most rough idle causes are fixable for a few hundred dollars or less. Come to Nick's Tire and Auto at 22570 Lakeshore Blvd, Euclid or call (216) 862-0005. We do [diagnostics](/diagnostics), [general repair](/general-repair), [brakes](/brakes), and [tires](/tires) — all under one roof, 7 days a week."
+        content: "A shaking car at idle has multiple possible causes, and the right diagnosis saves you from wasting money on wrong guesses. Our $49 diagnostic checks for misfire codes and live engine data, tests for vacuum leaks with a smoke machine, inspects the throttle body for carbon buildup, evaluates engine and transmission mount condition, and checks all related sensors and systems. We find the actual problem and give you a clear repair estimate before any work starts. Most rough idle causes are fixable for a few hundred dollars or less. Come to Nick's Tire and Auto at 17625 Euclid Ave, Euclid or call (216) 862-0005. We do [diagnostics](/diagnostics), [general repair](/general-repair), [brakes](/brakes), and [tires](/tires) — all under one roof, 7 days a week."
       }
     ],
     relatedServices: ["/diagnostics", "/general-repair"],
