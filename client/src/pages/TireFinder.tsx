@@ -198,6 +198,8 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
   const [email, setEmail] = useState("");
   const [vehicle, setVehicle] = useState("");
   const [notes, setNotes] = useState("");
+  const [deliveryMethod, setDeliveryMethod] = useState<"pickup" | "ship">("pickup");
+  const [shippingAddress, setShippingAddress] = useState("");
   const [orderResult, setOrderResult] = useState<{ orderNumber: string; totalAmount: number } | null>(null);
 
   const orderMutation = trpc.gatewayTire.placeOrder.useMutation({
@@ -231,7 +233,9 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
           <h3 className="text-2xl font-semibold text-foreground mb-2">Order Placed</h3>
           <p className="text-sm text-primary font-medium mb-4">Order #{orderResult.orderNumber}</p>
           <p className="text-muted-foreground mb-6 leading-relaxed text-sm">
-            We will confirm availability and contact you within 1 business hour to finalize your order and schedule installation.
+            {deliveryMethod === "ship"
+              ? "We'll confirm availability and contact you within 1 business hour with shipping cost. Payment required before shipping."
+              : "We'll confirm availability and contact you within 1 business hour to finalize your order and schedule installation. Most tires in stock — walk in anytime!"}
           </p>
           <div className="bg-background/50 border border-border/30 rounded-md p-4 mb-6 text-left space-y-2">
             <div className="flex justify-between text-sm">
@@ -325,6 +329,37 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
           </div>
         </div>
 
+        {/* Delivery Method */}
+        <div className="mb-6">
+          <label className="block text-sm text-muted-foreground mb-2">How do you want your tires?</label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setDeliveryMethod("pickup")}
+              className={`p-3 rounded-md border text-left transition-colors ${
+                deliveryMethod === "pickup"
+                  ? "border-primary bg-primary/10 text-foreground"
+                  : "border-border/50 text-muted-foreground hover:border-border"
+              }`}
+            >
+              <div className="font-medium text-sm">🏪 Come Get Them</div>
+              <div className="text-xs mt-0.5 opacity-70">In stock — walk in anytime</div>
+              <div className="text-xs mt-1 text-green-400 font-medium">FREE installation included</div>
+            </button>
+            <button
+              onClick={() => setDeliveryMethod("ship")}
+              className={`p-3 rounded-md border text-left transition-colors ${
+                deliveryMethod === "ship"
+                  ? "border-primary bg-primary/10 text-foreground"
+                  : "border-border/50 text-muted-foreground hover:border-border"
+              }`}
+            >
+              <div className="font-medium text-sm">📦 Ship to Me</div>
+              <div className="text-xs mt-0.5 opacity-70">Prepay — we ship to your door</div>
+              <div className="text-xs mt-1 text-muted-foreground">Shipping calculated at checkout</div>
+            </button>
+          </div>
+        </div>
+
         {/* Form */}
         <div className="space-y-4">
           <div>
@@ -359,12 +394,23 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
               placeholder="2020 Honda Civic"
             />
           </div>
+          {deliveryMethod === "ship" && (
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1.5">Shipping Address *</label>
+              <textarea
+                value={shippingAddress} onChange={(e) => setShippingAddress(e.target.value)} rows={2}
+                className="w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors resize-none"
+                placeholder="123 Main St, Cleveland, OH 44112"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">Prepayment required for shipping. We'll contact you with shipping cost before charging.</p>
+            </div>
+          )}
           <div>
             <label className="block text-sm text-muted-foreground mb-1.5">Notes (optional)</label>
             <textarea
               value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
               className="w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors resize-none"
-              placeholder="Preferred day/time for installation..."
+              placeholder={deliveryMethod === "ship" ? "Any special shipping instructions..." : "Preferred day/time for installation..."}
             />
           </div>
         </div>
@@ -375,6 +421,13 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
               toast.error("Name and phone number are required.");
               return;
             }
+            if (deliveryMethod === "ship" && !shippingAddress.trim()) {
+              toast.error("Shipping address is required for delivery orders.");
+              return;
+            }
+            const deliveryNote = deliveryMethod === "ship"
+              ? `[SHIP TO: ${shippingAddress.trim()}] ${notes.trim()}`
+              : notes.trim();
             orderMutation.mutate({
               tireBrand: tire.brand,
               tireModel: tire.model,
@@ -385,7 +438,7 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
               customerPhone: phone.trim(),
               customerEmail: email.trim() || undefined,
               vehicleInfo: vehicle.trim() || undefined,
-              customerNotes: notes.trim() || undefined,
+              customerNotes: deliveryNote || undefined,
             });
           }}
           disabled={orderMutation.isPending}
