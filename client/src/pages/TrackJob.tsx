@@ -4,6 +4,7 @@
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { SEOHead } from "@/components/SEO";
 import { Loader2, CheckCircle2, Clock, Wrench, Truck, Search, ArrowRight } from "lucide-react";
 
 const STATUS_STEPS = [
@@ -38,6 +39,11 @@ export default function TrackJob() {
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center p-4">
+      <SEOHead
+        title="Track Your Vehicle Repair | Nick's Tire & Auto Cleveland"
+        description="Track your vehicle repair status in real-time at Nick's Tire & Auto. Enter your order number and phone to see live updates on your service."
+        canonicalPath="/track"
+      />
       <div className="w-full max-w-md space-y-6">
         {/* Header */}
         <div className="text-center">

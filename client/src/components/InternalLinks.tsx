@@ -14,24 +14,47 @@ interface LinkItem {
 }
 
 const ALL_LINKS: LinkItem[] = [
+  // Core services
   { href: "/tires", label: "Tire Sales & Service", desc: "New tires, mounting, balancing, TPMS" },
   { href: "/brakes", label: "Brake Repair", desc: "Pads, rotors, calipers, ABS diagnostics" },
   { href: "/diagnostics", label: "Engine Diagnostics", desc: "Check engine light, OBD-II scanning" },
   { href: "/emissions", label: "Emissions & E-Check", desc: "Ohio E-Check repair and testing" },
   { href: "/oil-change", label: "Oil Change", desc: "Conventional and synthetic oil changes" },
   { href: "/general-repair", label: "General Repair", desc: "Suspension, steering, exhaust, cooling" },
+  { href: "/ac-repair", label: "AC & Heating Repair", desc: "AC diagnosis, recharge, compressor repair" },
+  { href: "/transmission", label: "Transmission Repair", desc: "Shifting problems, fluid service, diagnostics" },
+  { href: "/electrical", label: "Electrical Repair", desc: "Wiring, sensors, modules diagnostics" },
+  { href: "/battery", label: "Battery Service", desc: "Free testing, quality replacement with warranty" },
+  { href: "/alignment", label: "Wheel Alignment", desc: "Precision alignment for tire life and handling" },
+  { href: "/exhaust", label: "Exhaust Repair", desc: "Muffler, catalytic converter, manifold repair" },
+  { href: "/cooling", label: "Cooling System", desc: "Radiator, thermostat, water pump service" },
+  { href: "/starter-alternator", label: "Starter & Alternator", desc: "Car won't start? We diagnose and fix it" },
+  { href: "/belts-hoses", label: "Belts & Hoses", desc: "Timing belt, serpentine belt replacement" },
+  { href: "/pre-purchase-inspection", label: "Pre-Purchase Inspection", desc: "Know what you're buying before you sign" },
+  // Tools & resources
   { href: "/diagnose", label: "Diagnose My Car", desc: "AI-powered symptom analysis" },
   { href: "/pricing", label: "Price Estimator", desc: "Get an instant repair cost estimate" },
+  { href: "/services", label: "All Services", desc: "Complete list of everything we do" },
   { href: "/specials", label: "Specials & Coupons", desc: "Current deals and discounts" },
   { href: "/reviews", label: "Customer Reviews", desc: `4.9 stars from ${BUSINESS.reviews.countDisplay} reviews` },
   { href: "/blog", label: "Repair Tips Blog", desc: "Expert car care advice" },
   { href: "/faq", label: "FAQ", desc: "Common auto repair questions answered" },
   { href: "/contact", label: "Contact & Booking", desc: "Schedule your appointment today" },
+  { href: "/booking", label: "Book Appointment", desc: "Online scheduling — walk-ins also welcome" },
   { href: "/fleet", label: "Fleet Accounts", desc: "Commercial vehicle maintenance" },
-  { href: "/financing?utm_source=internal_links", label: "Payment Options", desc: "Lease-to-own & financing available" },
+  { href: "/financing", label: "Financing Options", desc: "No credit check — 4 providers, apply in 2 min" },
   { href: "/rewards", label: "Rewards Program", desc: "Earn points on every service" },
   { href: "/car-care-guide", label: "Car Care Guide", desc: "Seasonal maintenance tips" },
   { href: "/about", label: "About Us", desc: "Cleveland's trusted shop since day one" },
+  { href: "/careers", label: "Careers at Nick's", desc: "Join our team — mechanics and service advisors" },
+  // City pages for local SEO
+  { href: "/cleveland-auto-repair", label: "Cleveland Auto Repair", desc: "Serving Cleveland drivers 7 days a week" },
+  { href: "/euclid-auto-repair", label: "Euclid Auto Repair", desc: "Your neighborhood auto shop on Euclid Ave" },
+  { href: "/lakewood-auto-repair", label: "Lakewood Auto Repair", desc: "Lakewood's trusted tire and repair shop" },
+  { href: "/parma-auto-repair", label: "Parma Auto Repair", desc: "Serving Parma with honest auto repair" },
+  { href: "/shaker-heights-auto-repair", label: "Shaker Heights Auto Repair", desc: "Quality service for Shaker Heights vehicles" },
+  { href: "/cleveland-heights-auto-repair", label: "Cleveland Heights Repair", desc: "Trusted by Cleveland Heights drivers" },
+  { href: "/mentor-auto-repair", label: "Mentor Auto Repair", desc: "Mentor's go-to for tires and repair" },
 ];
 
 interface Props {

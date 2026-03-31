@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Link } from "wouter";
+import { SEOHead } from "@/components/SEO";
 import NotificationBar from "@/components/NotificationBar";
 import {
   Phone, Shield, Car, FileText, Clock, ChevronRight, Loader2,
@@ -87,6 +88,11 @@ export default function CustomerPortal() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEOHead
+        title="Customer Portal | Nick's Tire & Auto Cleveland"
+        description="Access your vehicle service history, upcoming maintenance reminders, and invoices at Nick's Tire & Auto in Cleveland. Log in with your phone number."
+        canonicalPath="/portal"
+      />
       <NotificationBar />
       {/* Header */}
       <nav className="bg-background/95 border-b border-border/20">

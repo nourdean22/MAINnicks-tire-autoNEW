@@ -5,6 +5,7 @@
  */
 
 import InternalLinks from "@/components/InternalLinks";
+import RelatedServices from "@/components/RelatedServices";
 import PageLayout from "@/components/PageLayout";
 import { useState, useEffect } from "react";
 import { useRoute, Link } from "wouter";
@@ -711,7 +712,7 @@ function RelatedLinks({ service }: { service: ServiceData }) {
         <FadeIn>
           <span className="font-mono text-primary text-sm tracking-wide">Related Pages</span>
           <h2 className="font-semibold font-bold text-2xl lg:text-4xl text-foreground mt-3 tracking-tight">
-            LEARN MORE ABOUT <span className="text-primary">YOUR AC</span>
+            LEARN MORE ABOUT <span className="text-primary">{service.title}</span>
           </h2>
         </FadeIn>
 
@@ -1070,9 +1071,10 @@ export default function ServicePage() {
         <RelatedLinks service={service} />
         <BookingSection service={service} />
         <OtherServices currentSlug={service.slug} />
+        <RelatedServices current={service.slug} />
 
-      
-      <InternalLinks title="Related Services" />
+
+      <InternalLinks title="More From Nick's Tire & Auto" />
     </PageLayout>
   );
 }

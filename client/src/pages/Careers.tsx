@@ -301,7 +301,7 @@ export default function Careers() {
   return (
     <PageLayout activeHref="/careers">
       <SEOHead
-        title="Jobs at Nick's Tire & Auto — Automotive Technician, Service Advisor, Tire Tech | Cleveland OH"
+        title="Careers | Nick's Tire & Auto Cleveland — We're Hiring"
         description="We're hiring automotive technicians, service advisors, and tire techs in Cleveland, Ohio. Family-owned shop. Honest work environment. No flat-rate grind. Apply now."
         canonicalPath="/careers"
       />

@@ -60,6 +60,8 @@ function Hero() {
           src={HERO_IMG}
           alt="Nick's Tire and Auto repair shop in Cleveland Ohio"
           className="w-full h-full object-cover"
+          loading="eager"
+          fetchPriority="high"
         />
         <div
           className="absolute inset-0"
@@ -493,6 +495,94 @@ export default function Home() {
       <Reviews />
       <ComparisonTable />
       <Contact />
+      {/* SEO: Comprehensive internal link section for homepage link equity */}
+      <section className="bg-[oklch(0.055_0.004_260)] py-16 border-t border-border/30">
+        <div className="container">
+          <h2 className="font-heading text-2xl font-bold text-foreground tracking-tight uppercase mb-8">
+            Everything You Need — One Shop
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Services column */}
+            <div>
+              <h3 className="text-xs font-semibold text-foreground/30 uppercase tracking-widest mb-4">Our Services</h3>
+              <ul className="space-y-2">
+                {[
+                  { href: "/tires", label: "Tires — New & Used" },
+                  { href: "/brakes", label: "Brake Repair" },
+                  { href: "/diagnostics", label: "Engine Diagnostics" },
+                  { href: "/emissions", label: "Emissions & E-Check" },
+                  { href: "/oil-change", label: "Oil Change" },
+                  { href: "/general-repair", label: "General Repair" },
+                  { href: "/ac-repair", label: "AC & Heating" },
+                  { href: "/transmission", label: "Transmission" },
+                  { href: "/alignment", label: "Wheel Alignment" },
+                  { href: "/electrical", label: "Electrical Repair" },
+                  { href: "/battery", label: "Battery Service" },
+                  { href: "/services", label: "View All Services" },
+                ].map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className="text-sm text-foreground/50 hover:text-primary transition-colors">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            {/* Tools & Resources column */}
+            <div>
+              <h3 className="text-xs font-semibold text-foreground/30 uppercase tracking-widest mb-4">Tools & Resources</h3>
+              <ul className="space-y-2">
+                {[
+                  { href: "/diagnose", label: "Diagnose My Car" },
+                  { href: "/pricing", label: "Price Estimator" },
+                  { href: "/financing", label: "Financing — No Credit Check" },
+                  { href: "/booking", label: "Book Appointment Online" },
+                  { href: "/specials", label: "Specials & Coupons" },
+                  { href: "/blog", label: "Repair Tips Blog" },
+                  { href: "/car-care-guide", label: "Car Care Guide" },
+                  { href: "/faq", label: "FAQ" },
+                  { href: "/reviews", label: "Customer Reviews" },
+                  { href: "/fleet", label: "Fleet Accounts" },
+                  { href: "/rewards", label: "Rewards Program" },
+                  { href: "/about", label: "About Us" },
+                ].map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className="text-sm text-foreground/50 hover:text-primary transition-colors">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            {/* Service Areas column */}
+            <div>
+              <h3 className="text-xs font-semibold text-foreground/30 uppercase tracking-widest mb-4">Areas We Serve</h3>
+              <ul className="space-y-2">
+                {[
+                  { href: "/cleveland-auto-repair", label: "Cleveland" },
+                  { href: "/euclid-auto-repair", label: "Euclid" },
+                  { href: "/lakewood-auto-repair", label: "Lakewood" },
+                  { href: "/parma-auto-repair", label: "Parma" },
+                  { href: "/east-cleveland-auto-repair", label: "East Cleveland" },
+                  { href: "/shaker-heights-auto-repair", label: "Shaker Heights" },
+                  { href: "/cleveland-heights-auto-repair", label: "Cleveland Heights" },
+                  { href: "/mentor-auto-repair", label: "Mentor" },
+                  { href: "/strongsville-auto-repair", label: "Strongsville" },
+                  { href: "/south-euclid-auto-repair", label: "South Euclid" },
+                  { href: "/garfield-heights-auto-repair", label: "Garfield Heights" },
+                  { href: "/richmond-heights-auto-repair", label: "Richmond Heights" },
+                ].map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className="text-sm text-foreground/50 hover:text-primary transition-colors">
+                      Auto Repair in {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
       <InternalLinks title="Explore More" />
       <LeadPopup />
     </PageLayout>

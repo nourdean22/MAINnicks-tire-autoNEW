@@ -37,6 +37,8 @@ interface SEOHeadProps {
   twitterTitle?: string;
   twitterDescription?: string;
   twitterImage?: string;
+  /** Set to "noindex, nofollow" for pages that should not appear in search results (e.g. ad landing pages, internal tools) */
+  robots?: string;
 }
 
 /**
@@ -55,6 +57,7 @@ export function SEOHead({
   twitterTitle,
   twitterDescription,
   twitterImage,
+  robots,
 }: SEOHeadProps) {
   useEffect(() => {
     const canonicalUrl = ogUrl || `${BASE_URL}${canonicalPath}`;
@@ -78,6 +81,11 @@ export function SEOHead({
 
     // Meta description
     upsertMeta('meta[name="description"]', "name", "description", description);
+
+    // Robots directive (override index.html default when specified)
+    if (robots) {
+      upsertMeta('meta[name="robots"]', "name", "robots", robots);
+    }
 
     // Canonical link
     let canonicalLink = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
@@ -105,11 +113,18 @@ export function SEOHead({
     upsertMeta('meta[name="twitter:image"]', "name", "twitter:image", twitterImage || defaultOgImage);
 
     // Cleanup: remove canonical on unmount so next page can set its own
+    // Also reset robots to default indexable state to prevent noindex from persisting across routes
     return () => {
       const link = document.querySelector('link[rel="canonical"]');
       if (link) link.remove();
+      if (robots) {
+        const robotsMeta = document.querySelector('meta[name="robots"]');
+        if (robotsMeta) {
+          robotsMeta.setAttribute("content", "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1");
+        }
+      }
     };
-  }, [title, description, canonicalPath, ogImage, ogTitle, ogDescription, ogUrl, twitterCard, twitterTitle, twitterDescription, twitterImage]);
+  }, [title, description, canonicalPath, ogImage, ogTitle, ogDescription, ogUrl, twitterCard, twitterTitle, twitterDescription, twitterImage, robots]);
 
   return null;
 }
