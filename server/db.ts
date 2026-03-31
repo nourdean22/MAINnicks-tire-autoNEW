@@ -64,7 +64,12 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     if (user.role !== undefined) {
       values.role = user.role;
       updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
+    } else if (
+      // Auto-grant admin if openId matches OWNER_OPEN_ID
+      (ENV.ownerOpenId && user.openId === ENV.ownerOpenId) ||
+      // OR if OWNER_OPEN_ID is not set and email matches CEO_EMAIL (first-login bootstrap)
+      (!ENV.ownerOpenId && ENV.ceoEmail && user.email && user.email.toLowerCase() === ENV.ceoEmail.toLowerCase())
+    ) {
       values.role = 'admin';
       updateSet.role = 'admin';
     }
