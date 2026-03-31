@@ -294,9 +294,30 @@ export default function CityPage() {
               </div>
             </FadeIn>
 
-            <p className="text-sm text-foreground/50 mt-6 text-center">
-              Payment options available — <Link href="/financing?utm_source=city_page" className="text-emerald-400">lease-to-own from $10 down</Link>
-            </p>
+            <FadeIn delay={0.4}>
+              <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {SERVICES.slice(6).map((s) => (
+                  <Link key={s.slug} href={`/${s.slug}`} className="bg-card/80 border border-border/50 rounded-lg p-4 text-center hover:border-primary/30 hover:bg-card transition-colors group">
+                    <span className="font-semibold text-xs text-foreground/60 group-hover:text-primary transition-colors tracking-wider">{s.title}</span>
+                  </Link>
+                ))}
+                <Link href="/alignment" className="bg-card/80 border border-border/50 rounded-lg p-4 text-center hover:border-primary/30 hover:bg-card transition-colors group">
+                  <span className="font-semibold text-xs text-foreground/60 group-hover:text-primary transition-colors tracking-wider">ALIGNMENT</span>
+                </Link>
+              </div>
+            </FadeIn>
+
+            <div className="mt-8 flex flex-wrap justify-center gap-4 text-sm text-foreground/50">
+              <Link href="/financing" className="text-emerald-400 hover:underline">Financing from $10 down</Link>
+              <span className="text-foreground/20">|</span>
+              <Link href="/booking" className="hover:text-primary transition-colors">Book online</Link>
+              <span className="text-foreground/20">|</span>
+              <Link href="/diagnose" className="hover:text-primary transition-colors">Diagnose my car</Link>
+              <span className="text-foreground/20">|</span>
+              <Link href="/blog" className="hover:text-primary transition-colors">Repair tips blog</Link>
+              <span className="text-foreground/20">|</span>
+              <Link href="/reviews" className="hover:text-primary transition-colors">Read reviews</Link>
+            </div>
           </div>
         </section>
 

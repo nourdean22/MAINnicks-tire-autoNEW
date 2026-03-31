@@ -326,11 +326,13 @@
       });
     </script>
 
-    <!-- Ahrefs Analytics -->
-    <script src="https://analytics.ahrefs.com/analytics.js" data-key="DCheKV/YJsF9d6vmJuHNBg" async></script>
+    <!-- Ahrefs Analytics — defer to avoid render-blocking -->
+    <script src="https://analytics.ahrefs.com/analytics.js" data-key="DCheKV/YJsF9d6vmJuHNBg" defer></script>
 
     <!-- CDN Preconnect for hero images -->
     <link rel="preconnect" href="https://d2xsxph8kpxj0f.cloudfront.net" />
+    <!-- Preload hero image for fastest LCP -->
+    <link rel="preload" as="image" href="https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp" type="image/webp" />
 
     <!-- Fonts: Inter (headings), Roboto Mono (body), Oswald (nav/labels) — slimmed to critical weights -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

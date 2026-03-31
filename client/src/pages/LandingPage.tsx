@@ -8,6 +8,7 @@
 import { useState, useMemo } from "react";
 import { useRoute, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { SEOHead } from "@/components/SEO";
 import { getUtmData } from "@/lib/utm";
 import { BUSINESS } from "@shared/business";
 import { motion } from "framer-motion";
@@ -212,6 +213,12 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#0A0A0A] text-white">
+      <SEOHead
+        title={`${variant.headline} | Nick's Tire & Auto Cleveland`}
+        description={`${variant.subline}. ${variant.offer}. Call (216) 862-0005 for same-day service.`}
+        canonicalPath={`/lp/${service}`}
+        robots="noindex, nofollow"
+      />
       {/* Sticky Header */}
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0A0A0A]/95 backdrop-blur-sm">
         <div className="container flex items-center justify-between h-16">

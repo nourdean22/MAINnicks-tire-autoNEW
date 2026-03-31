@@ -1,11 +1,19 @@
 import BookingWizard from "@/components/BookingWizard";
 import SiteNavbar from "@/components/SiteNavbar";
 import SiteFooter from "@/components/SiteFooter";
+import { SEOHead } from "@/components/SEO";
+import InternalLinks from "@/components/InternalLinks";
 import { BUSINESS } from "@shared/business";
+import { Link } from "wouter";
 
 export default function BookingPage() {
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <SEOHead
+        title="Book Auto Repair Appointment | Nick's Tire & Auto Cleveland"
+        description="Schedule your auto repair or tire service online at Nick's Tire & Auto in Cleveland. Walk-ins welcome 7 days a week. Same-day service available. Call (216) 862-0005."
+        canonicalPath="/booking"
+      />
       <SiteNavbar />
       <main className="max-w-3xl mx-auto px-4 py-12 sm:py-16">
         <div className="text-center mb-8">
@@ -23,7 +31,12 @@ export default function BookingPage() {
           </p>
         </div>
         <BookingWizard />
+        <div className="mt-12 text-center text-sm text-foreground/50 space-y-2">
+          <p>Need help choosing a service? Check our <Link href="/services" className="text-primary hover:underline">services overview</Link> or use our <Link href="/diagnose" className="text-primary hover:underline">diagnostic tool</Link>.</p>
+          <p>Payment plans available — <Link href="/financing" className="text-primary hover:underline">see financing options</Link>.</p>
+        </div>
       </main>
+      <InternalLinks title="Explore Our Services" maxLinks={6} />
       <SiteFooter />
     </div>
   );
