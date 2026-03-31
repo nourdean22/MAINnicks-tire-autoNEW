@@ -34,8 +34,19 @@ Disallow: /inspection/
 Disallow: /loyalty
 Disallow: /referral
 
-# Block query parameters
-Disallow: /*?*
+# Allow static assets
+Allow: /favicon.ico
+Allow: /manifest.json
+Allow: /*.js$
+Allow: /*.css$
+Allow: /*.png$
+Allow: /*.jpg$
+Allow: /*.webp$
+
+# Block internal query parameter pages (but not search)
+Disallow: /*?utm_*
+Disallow: /*?ref=*
+Disallow: /*?fbclid=*
 
 # Crawl delay for polite crawling
 Crawl-delay: 1
