@@ -11,7 +11,9 @@ export type GuideCategory =
   | "maintenance"
   | "cleveland-local"
   | "cost-guide"
-  | "seasonal";
+  | "seasonal"
+  | "buying-guide"
+  | "safety";
 
 export interface GuideSection {
   heading: string;
