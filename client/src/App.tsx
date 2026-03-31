@@ -67,6 +67,7 @@ const CostEstimator = lazy(() => import("./pages/CostEstimator"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const SharePage = lazy(() => import("./pages/SharePage"));
 const NeighborhoodPage = lazy(() => import("./pages/NeighborhoodPage"));
+const IntersectionPage = lazy(() => import("./pages/IntersectionPage"));
 const Careers = lazy(() => import("./pages/Careers"));
 const BookingPage = lazy(() => import("./pages/BookingPage"));
 const GuidesIndex = lazy(() => import("./pages/GuidesIndex"));
@@ -238,6 +239,8 @@ function Router() {
         <Route path={"/mayfield-heights"} component={NeighborhoodPage} />
         <Route path={"/highland-heights"} component={NeighborhoodPage} />
         <Route path={"/beachwood"} component={NeighborhoodPage} />
+        {/* Intersection pages (hyper-local SEO — /near/:slug) */}
+        <Route path={"/near/:slug"} component={IntersectionPage} />
         {/* Careers */}
         <Route path={"/careers"} component={Careers} />
         {/* Legal pages */}
