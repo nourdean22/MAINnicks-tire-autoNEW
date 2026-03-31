@@ -1239,7 +1239,7 @@ export default function TireFinder() {
             Nick's Tire & Auto — 17625 Euclid Ave, Cleveland, OH 44112 — (216) 862-0005
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Mon-Sat 9AM-6PM — <a href="/" className="text-primary hover:underline">Back to Main Site</a>
+            Mon-Sat 8AM-6PM — <a href="/" className="text-primary hover:underline">Back to Main Site</a>
           </p>
         </div>
       </footer>
