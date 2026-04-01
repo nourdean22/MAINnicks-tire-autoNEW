@@ -3524,6 +3524,375 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     ],
     relatedServices: ["/tires", "/brakes", "/diagnostics", "/general-repair"],
     tags: ["Nick's Tire story", "Cleveland auto shop history", "honest mechanic Cleveland", "Euclid Ave auto repair", "Nick's Tire and Auto about us"]
+  },
+  {
+    slug: "ac-not-blowing-cold-air",
+    title: "Car AC Not Blowing Cold Air? Here's What to Check",
+    metaTitle: "Car AC Not Cold? Common Causes & Fix | Nick's Tire & Auto Cleveland",
+    metaDescription: "Car AC blowing warm air? Learn the most common causes — from low refrigerant to compressor failure — and what repairs cost in Cleveland.",
+    category: "AC & Heating",
+    publishDate: "2026-03-08",
+    readTime: "5 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "Cleveland summers are humid and hot. When your AC stops working, driving becomes miserable. Here are the most common causes and what to expect for repairs.",
+    sections: [
+      { heading: "Low Refrigerant (Most Common)", content: "The most frequent cause of weak AC is low refrigerant. AC systems are sealed, so if refrigerant is low, there is a leak somewhere. Simply recharging the system without finding the leak is a temporary fix — the refrigerant will escape again. At Nick's Tire & Auto, we use UV dye and electronic leak detectors to find the exact leak location before recommending any repair." },
+      { heading: "Compressor Problems", content: "The AC compressor is the heart of the system — it pressurizes and circulates refrigerant. A failing compressor may make grinding or squealing noises, or the AC clutch may not engage at all. Compressor failure is a more expensive repair, but catching it early can prevent metal debris from contaminating the entire system, which would require flushing all the lines and replacing the expansion valve and dryer." },
+      { heading: "Electrical Issues", content: "AC systems rely on multiple electrical components: the compressor clutch relay, pressure switches, blower motor resistor, and control module. A blown fuse, faulty relay, or corroded connector can stop the system from working even though all the mechanical components are fine. We check the electrical system first because these are often the cheapest and quickest fixes." },
+      { heading: "Clogged Condenser or Cabin Filter", content: "The condenser sits in front of the radiator and dissipates heat from the refrigerant. If it is clogged with bugs, leaves, or road debris, the system cannot cool efficiently. Similarly, a clogged cabin air filter restricts airflow through the vents. Replacing the cabin filter is a quick and inexpensive fix that many shops overlook." },
+      { heading: "What AC Repair Costs in Cleveland", content: "Simple recharges run $100-$200. Leak repairs vary from $150 for a hose to $800+ for an evaporator replacement. Compressor replacement typically runs $600-$1,200 depending on the vehicle. At Nick's Tire & Auto, we diagnose first and give you the full picture before any work starts. No surprise charges." }
+    ],
+    relatedServices: ["/general-repair", "/diagnostics"],
+    tags: ["AC repair Cleveland", "car AC not cold", "AC recharge", "compressor repair", "auto AC service near me"]
+  },
+  {
+    slug: "steering-wheel-shaking-causes",
+    title: "Why Is My Steering Wheel Shaking? Common Causes Explained",
+    metaTitle: "Steering Wheel Shaking? Causes & Fixes | Nick's Tire & Auto Cleveland",
+    metaDescription: "Steering wheel vibrating at highway speed or when braking? Learn the most common causes from unbalanced tires to warped rotors. Cleveland auto repair experts explain.",
+    category: "Suspension & Steering",
+    publishDate: "2026-03-10",
+    readTime: "5 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "A shaking steering wheel is more than annoying — it often signals a problem that gets worse over time. Here are the most common causes and when to worry.",
+    sections: [
+      { heading: "Unbalanced Tires (Most Common at Highway Speed)", content: "If the shaking starts or gets worse at 55-70 mph, the most likely cause is unbalanced tires. When a tire is out of balance, it wobbles at speed, and that vibration transfers through the steering components to the wheel. Tire balancing costs $15-$25 per tire and takes about 30 minutes for all four. This should be done every time tires are mounted or rotated." },
+      { heading: "Warped Brake Rotors (Shaking When Braking)", content: "If the steering wheel only shakes when you press the brake pedal, the front brake rotors are likely warped. Rotors warp from heat — either from heavy braking or from driving with worn pads. The uneven rotor surface creates a pulsation that you feel through the steering wheel. Resurfacing or replacing the rotors fixes this." },
+      { heading: "Worn Tie Rods or Ball Joints", content: "Tie rods connect the steering rack to the wheel hubs. Ball joints connect the control arms to the steering knuckles. When these wear out, they develop play that causes vibration, wandering steering, and uneven tire wear. Worn steering components are a safety issue — if a ball joint fails completely, you lose steering control." },
+      { heading: "Bent Wheel or Tire Damage", content: "Cleveland potholes are notorious for bending wheels. A bent wheel causes vibration that no amount of balancing can fix. Run your hand around the tire sidewall and check for bulges or flat spots — these indicate internal tire damage that also causes vibration. Bent wheels can sometimes be straightened, but severely bent wheels need replacement." },
+      { heading: "When to Get It Checked", content: "Any new vibration should be inspected sooner rather than later. What starts as a minor imbalance can become uneven tire wear ($400+ in premature tire replacement) or a worn ball joint ($200-$400 per side). At Nick's Tire & Auto, we inspect the tires, balance, brakes, and suspension components to find the exact cause. Walk-ins welcome." }
+    ],
+    relatedServices: ["/tires", "/brakes", "/alignment"],
+    tags: ["steering wheel shaking", "tire balance Cleveland", "warped rotors", "suspension repair", "vibration at highway speed"]
+  },
+  {
+    slug: "how-long-do-tires-last",
+    title: "How Long Do Tires Last? A Complete Guide for Cleveland Drivers",
+    metaTitle: "How Long Do Tires Last? Tire Life Guide | Nick's Tire & Auto Cleveland",
+    metaDescription: "Most tires last 40,000-80,000 miles depending on type and driving habits. Learn what affects tire life, when to replace, and tire care tips for Cleveland roads.",
+    category: "Tire Care",
+    publishDate: "2026-03-12",
+    readTime: "6 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "Tires are one of the most important safety components on your vehicle and one of the most expensive to replace. Understanding tire lifespan helps you budget and stay safe.",
+    sections: [
+      { heading: "Average Tire Lifespan by Type", content: "Budget tires: 30,000-40,000 miles. Mid-range all-season: 50,000-65,000 miles. Premium touring: 65,000-80,000 miles. Performance tires: 25,000-40,000 miles. Winter tires: 25,000-40,000 miles (3-4 seasons). These are averages — actual life depends heavily on driving habits, road conditions, and maintenance." },
+      { heading: "What Kills Tires Faster in Cleveland", content: "Cleveland roads are tough on tires. Potholes cause sidewall damage and internal belt separation. Road salt and temperature swings accelerate rubber degradation. Stop-and-go city driving wears tires faster than highway cruising. Under-inflated tires wear the edges prematurely, while over-inflated tires wear the center. Misalignment causes one-sided wear that can halve tire life." },
+      { heading: "The Penny Test and Tread Depth", content: "The legal minimum tread depth in Ohio is 2/32 inch. At that depth, tires have almost no wet traction and are dangerous in rain or snow. We recommend replacing tires at 4/32 inch for Cleveland driving — that extra 2/32 inch makes a significant difference in wet and winter stopping distances. The penny test: insert a penny head-first into the tread. If you can see all of Lincoln's head, the tread is at 2/32 or less. Use a quarter for the 4/32 test — if you can see the top of Washington's head, it is time to start shopping." },
+      { heading: "Age Matters Too", content: "Even tires with plenty of tread should be replaced after 6-10 years. Rubber degrades from UV exposure, ozone, and temperature cycling regardless of use. Check the DOT code on your tire sidewall — the last four digits show the week and year of manufacture (e.g., 2524 means week 25 of 2024). Tires over 6 years old should be inspected annually. Tires over 10 years old should be replaced regardless of tread depth." },
+      { heading: "How to Make Tires Last Longer", content: "Rotate every 5,000-7,500 miles (we do this during every other oil change at Nick's). Check pressure monthly — proper inflation is the single biggest factor in tire life. Get an alignment check annually and after hitting a major pothole. Avoid hard braking and aggressive cornering. Store seasonal tires in a cool, dry place away from electric motors (ozone accelerates rubber breakdown). At Nick's Tire & Auto, we carry all major brands and help you find the right tire for your budget and driving needs." }
+    ],
+    relatedServices: ["/tires"],
+    tags: ["tire lifespan", "how long tires last", "tire replacement Cleveland", "tire tread depth", "when to replace tires", "tire care tips"]
+  },
+  {
+    slug: "power-steering-fluid-leak",
+    title: "Power Steering Fluid Leak: Signs, Causes, and What to Do",
+    metaTitle: "Power Steering Leak Signs & Repair | Nick's Tire & Auto Cleveland",
+    metaDescription: "Whining steering, puddle under car, or hard-to-turn wheel? Learn about power steering fluid leaks — causes, costs, and why ignoring it makes it worse.",
+    category: "Suspension & Steering",
+    publishDate: "2026-03-14",
+    readTime: "4 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "Power steering makes turning effortless. When the fluid leaks, steering becomes heavy and the pump can be destroyed. Catching leaks early saves expensive repairs.",
+    sections: [
+      { heading: "Signs of a Power Steering Leak", content: "Whining or groaning noise when turning the steering wheel (gets louder the harder you turn). Difficulty turning the wheel, especially at low speeds or when parking. Red, brown, or amber fluid puddle on the driver side of the vehicle. Low fluid level in the power steering reservoir (check it like you check oil — there is a dipstick in the reservoir cap). Foamy or bubbly fluid when you check the reservoir (air getting into the system through the leak)." },
+      { heading: "Common Leak Locations", content: "Power steering hoses (high-pressure and return lines) are the most common leak source — they deteriorate from heat and age. The rack and pinion steering gear develops internal seal leaks over time. The power steering pump shaft seal can leak where the drive belt pulley attaches. Connections and fittings loosen from vibration. O-rings in the reservoir or lines harden and crack." },
+      { heading: "Why You Should Not Ignore It", content: "Running a power steering pump without adequate fluid destroys the pump quickly — air in the system causes cavitation that scores the internal surfaces. A pump replacement is $300-$600 versus $50-$150 for a hose repair. Complete power steering rack replacement can run $800-$1,500. Catching a small hose leak early saves hundreds." },
+      { heading: "Repair Cost Expectations", content: "Hose replacement: $100-$250. Pump replacement: $300-$600. Rack and pinion: $800-$1,500. Fluid flush and refill: $80-$120. At Nick's Tire & Auto, we diagnose the exact leak location before recommending repairs. Sometimes a simple hose clamp tightening is all that is needed." }
+    ],
+    relatedServices: ["/general-repair"],
+    tags: ["power steering leak", "steering fluid leak", "whining steering", "power steering repair Cleveland", "hard to turn steering wheel"]
+  },
+  {
+    slug: "car-battery-life-tips-cleveland",
+    title: "How to Make Your Car Battery Last Longer in Cleveland",
+    metaTitle: "Car Battery Life Tips for Cleveland Drivers | Nick's Tire & Auto",
+    metaDescription: "Cleveland weather kills car batteries fast. Learn how to extend battery life, signs of a dying battery, and when to replace. Free battery testing at Nick's.",
+    category: "Electrical",
+    publishDate: "2026-03-16",
+    readTime: "5 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "The average car battery lasts 3-5 years, but Cleveland's extreme temperatures can shorten that. Here is how to get the most out of your battery.",
+    sections: [
+      { heading: "Why Cleveland Is Hard on Batteries", content: "Extreme cold reduces battery capacity by up to 50%. Extreme heat (which Cleveland gets in summer) actually causes more long-term battery damage than cold — it accelerates the chemical degradation inside the battery. The combination of hot summers weakening the battery and cold winters demanding maximum power is why Cleveland drivers replace batteries more often than drivers in mild climates." },
+      { heading: "Signs Your Battery Is Dying", content: "Slow cranking when starting the engine. Dim headlights at idle that brighten when you rev the engine. Battery warning light on the dashboard. Electrical accessories (radio, power windows) working slowly. Needing a jump start more than once. The battery case looks swollen or bloated. Corrosion buildup on the terminals. If you notice any of these, get the battery tested before it leaves you stranded." },
+      { heading: "Tips to Extend Battery Life", content: "Keep terminals clean — corrosion increases resistance and reduces charging efficiency. A wire brush and baking soda solution clean terminals in minutes. Make sure the battery is secured tightly — vibration is a leading cause of internal battery failure. Limit short trips when possible — the alternator needs 15-20 minutes of driving to fully recharge the battery after starting. Turn off all accessories before turning off the engine. If the vehicle sits for more than a week, consider a battery maintainer/tender." },
+      { heading: "Free Battery Testing at Nick's", content: "Walk into Nick's Tire & Auto anytime during business hours and we will test your battery for free. The test takes 5 minutes and tells you the battery's cold cranking amps versus its rating, internal resistance, and estimated remaining life. No appointment needed, no purchase required. If you do need a new battery, we carry all major brands and install most batteries in under 20 minutes. We also properly recycle your old battery." }
+    ],
+    relatedServices: ["/battery", "/diagnostics"],
+    tags: ["car battery Cleveland", "battery life tips", "free battery test", "battery replacement near me", "dead battery", "car won't start Cleveland"]
+  },
+  {
+    slug: "wheel-alignment-guide",
+    title: "Do I Need a Wheel Alignment? A Complete Guide",
+    metaTitle: "Wheel Alignment Guide — Signs, Cost & Benefits | Nick's Tire & Auto",
+    metaDescription: "Is your car pulling to one side or wearing tires unevenly? Learn when you need a wheel alignment, what it costs, and how it saves you money on tires.",
+    category: "Tire Care",
+    publishDate: "2026-03-18",
+    readTime: "5 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "A wheel alignment keeps your tires wearing evenly, your steering straight, and your vehicle tracking properly. It is one of the most overlooked maintenance items.",
+    sections: [
+      { heading: "Signs You Need an Alignment", content: "Vehicle pulls to the left or right on a straight, flat road. Steering wheel is off-center when driving straight. Uneven tire wear — one edge of the tire is significantly more worn than the other. Steering wheel vibrates or the vehicle feels unstable. The vehicle drifts when you let go of the steering wheel momentarily. You recently hit a major pothole, curb, or road debris." },
+      { heading: "What Causes Misalignment", content: "Potholes are the number one cause in Cleveland. Curb impacts, even minor ones. Normal wear on suspension components (ball joints, tie rods, control arm bushings). Lowering or lifting a vehicle. Fender benders or minor accidents. Springs sagging with age. Even small alignment changes add up over time — a car that was aligned perfectly 6 months ago may need adjustment now." },
+      { heading: "What Alignment Adjusts", content: "Toe — whether the front of the tires point inward or outward (the biggest factor in tire wear). Camber — the tilt of the tire when viewed from the front (affects shoulder wear). Caster — the angle of the steering axis (affects steering feel and stability). Most vehicles only allow toe adjustment on the rear axle, while front wheels are fully adjustable. Four-wheel alignment checks and adjusts all available angles." },
+      { heading: "How Often and What It Costs", content: "We recommend checking alignment annually and after any significant pothole hit. A four-wheel alignment at Nick's Tire & Auto typically costs $80-$120 and takes about an hour. Compare that to the $400-$800 cost of prematurely replacing two tires because of alignment wear. The alignment pays for itself many times over. We also recommend alignment any time you install new tires." }
+    ],
+    relatedServices: ["/alignment", "/tires"],
+    tags: ["wheel alignment Cleveland", "tire alignment cost", "car pulling to one side", "uneven tire wear", "alignment near me"]
+  },
+  {
+    slug: "coolant-leak-warning-signs",
+    title: "Coolant Leak? Warning Signs You Should Not Ignore",
+    metaTitle: "Coolant Leak Signs & What to Do | Nick's Tire & Auto Cleveland",
+    metaDescription: "Sweet smell, puddle under car, or temperature gauge rising? Learn the warning signs of a coolant leak and why fast action prevents engine damage.",
+    category: "Engine & Cooling",
+    publishDate: "2026-03-19",
+    readTime: "4 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "A coolant leak left unaddressed leads to overheating, which can warp heads, blow gaskets, and destroy engines. Catching it early is critical.",
+    sections: [
+      { heading: "Warning Signs of a Coolant Leak", content: "Sweet, maple-syrup-like smell inside or outside the vehicle. Green, orange, pink, or yellow puddle under the vehicle (color depends on coolant type). Temperature gauge rising above normal. Low coolant warning light. Heater blowing cool air when it should be warm (the heater uses coolant for heat). White smoke from the exhaust (may indicate an internal leak — head gasket). Steam from under the hood." },
+      { heading: "Common Leak Sources", content: "Radiator — plastic end tanks crack with age and heat cycling. Radiator hoses — rubber deteriorates over time, especially near clamps. Water pump — the shaft seal or gasket fails. Heater core — leaks into the passenger compartment (sweet smell inside, foggy windshield). Thermostat housing gasket. Intake manifold gasket. Head gasket (most expensive — internal leak that mixes coolant with oil or combustion)." },
+      { heading: "What Happens If You Ignore It", content: "Running an engine with low coolant causes overheating. Overheating warps cylinder heads ($1,500-$3,000 to repair). Continued overheating cracks the engine block (engine replacement needed — $3,000-$7,000+). A $100 hose repair ignored can become a $5,000 engine replacement. If your temperature gauge goes above normal, pull over safely and turn off the engine. Do NOT open the radiator cap on a hot engine." },
+      { heading: "Diagnosis and Repair at Nick's", content: "We use a pressure tester to find external leaks quickly — it pressurizes the system and shows exactly where coolant escapes. For suspected internal leaks (head gasket), we test for combustion gases in the coolant. Most external leak repairs are $100-$500. Head gasket repair is $1,200-$2,500 depending on the engine. We always show you what we find and explain your options." }
+    ],
+    relatedServices: ["/general-repair", "/diagnostics"],
+    tags: ["coolant leak", "overheating car", "radiator leak Cleveland", "head gasket", "car overheating fix", "coolant repair near me"]
+  },
+  {
+    slug: "suspension-noise-guide",
+    title: "Clunking, Creaking, or Popping? Suspension Noise Decoded",
+    metaTitle: "Suspension Noise Guide — Clunks & Creaks Explained | Nick's Tire & Auto",
+    metaDescription: "Hearing clunks over bumps, creaking when turning, or popping sounds? Learn what different suspension noises mean and when to get them checked.",
+    category: "Suspension & Steering",
+    publishDate: "2026-03-20",
+    readTime: "5 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "Your suspension absorbs Cleveland's rough roads silently when it is healthy. When components wear out, they start talking. Here is what the noises mean.",
+    sections: [
+      { heading: "Clunking Over Bumps", content: "A solid clunk when hitting bumps or dips usually means a worn sway bar link, ball joint, or strut mount. Sway bar links are the most common and least expensive ($100-$200 per side). Ball joints are more serious — a failed ball joint can cause loss of steering. We check for play in all these joints during a free suspension inspection." },
+      { heading: "Creaking When Turning", content: "A creaking or groaning sound during low-speed turns often points to dry or worn ball joints, strut mounts, or sway bar bushings. In cold weather, rubber bushings can creak temporarily until they warm up — this is normal. If the creaking persists after driving for 10 minutes, the bushings likely need replacement." },
+      { heading: "Popping or Clicking", content: "A popping sound during turns, especially tight turns, is a classic symptom of worn CV (constant velocity) joints. CV joints connect the transmission to the wheels on front-wheel-drive vehicles. The protective CV boot cracks, grease leaks out, dirt gets in, and the joint wears. Catching a torn boot early ($150-$250 boot replacement) saves the entire CV axle ($300-$500)." },
+      { heading: "Squeaking Over Every Bump", content: "Squeaking with every bump often means worn shock absorbers or struts. When the internal seals wear, the shock loses its damping ability and starts bouncing. Press down firmly on each corner of the car and release — if the vehicle bounces more than once, the shocks are worn. Worn shocks increase stopping distances and cause uneven tire wear." },
+      { heading: "What Cleveland Roads Do to Suspension", content: "Potholes, frost heaves, and deteriorating road surfaces put Cleveland suspensions under constant stress. Components that might last 100,000 miles in a southern state may need replacement at 60,000-70,000 here. Annual suspension inspections catch wear before it becomes dangerous. At Nick's Tire & Auto, suspension inspections are always free — just stop by and we will put it on the lift." }
+    ],
+    relatedServices: ["/general-repair", "/alignment"],
+    tags: ["suspension noise", "clunking over bumps", "suspension repair Cleveland", "ball joint replacement", "strut repair", "CV joint noise"]
+  },
+  {
+    slug: "oil-change-frequency-guide",
+    title: "How Often Should You Really Change Your Oil?",
+    metaTitle: "Oil Change Frequency Guide 2026 | Nick's Tire & Auto Cleveland",
+    metaDescription: "Still changing oil every 3,000 miles? The real answer depends on your oil type, engine, and driving habits. Cleveland mechanics explain modern oil change intervals.",
+    category: "Maintenance",
+    publishDate: "2026-03-21",
+    readTime: "5 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "The old 3,000-mile rule is outdated. Modern engines and oils last much longer between changes. But driving in Cleveland conditions can shorten the interval.",
+    sections: [
+      { heading: "The 3,000-Mile Myth", content: "The 3,000-mile oil change interval dates back to the 1970s when engines used conventional oil with shorter additive packages. Modern engines with modern oils can go significantly longer. Following the 3,000-mile rule wastes money and oil. Your owner's manual has the correct interval for your specific engine — that is the number to follow, not a sticker on your windshield." },
+      { heading: "Modern Oil Change Intervals", content: "Conventional oil: 5,000-7,500 miles. Synthetic blend: 5,000-7,500 miles. Full synthetic: 7,500-10,000 miles. Some vehicles with oil life monitors: up to 15,000 miles. These intervals assume normal driving conditions. Your owner's manual defines what counts as severe service for your vehicle." },
+      { heading: "Cleveland Driving = Severe Service", content: "Most Cleveland driving actually qualifies as severe service conditions: frequent short trips (less than 10 miles), stop-and-go traffic, extreme temperatures (both summer heat and winter cold), dusty conditions, towing or heavy loads. If most of your driving fits these descriptions, use the shorter interval in your owner's manual. For example, if the manual says 7,500 miles normal or 5,000 miles severe, Cleveland drivers should use 5,000." },
+      { heading: "Oil Type Matters", content: "Full synthetic oil costs more per change but lasts longer and provides better protection — especially in extreme temperatures. For Cleveland's climate swings, synthetic is worth the extra cost. Most modern vehicles require synthetic. If your manual specifies conventional oil, upgrading to synthetic still provides benefits but is not required." },
+      { heading: "Oil Changes at Nick's Tire & Auto", content: "We use quality oil and filters, not the cheapest options available. Every oil change includes a courtesy inspection of fluids, belts, hoses, tires, and brakes. We check your vehicle's specific requirements and use the correct oil weight and specification. Walk-ins welcome, or book online. Most oil changes take 20-30 minutes." }
+    ],
+    relatedServices: ["/oil-change"],
+    tags: ["oil change frequency", "how often change oil", "synthetic oil", "oil change Cleveland", "oil change near me", "severe service oil change"]
+  },
+  {
+    slug: "exhaust-smoke-colors-meaning",
+    title: "What the Color of Your Exhaust Smoke Means",
+    metaTitle: "Exhaust Smoke Colors Explained — White, Blue, Black | Nick's Tire & Auto",
+    metaDescription: "White, blue, or black smoke from your exhaust? Each color indicates a different engine problem. Cleveland mechanics explain what to watch for.",
+    category: "Diagnostics",
+    publishDate: "2026-03-22",
+    readTime: "4 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
+    excerpt: "Exhaust smoke is your engine trying to tell you something. The color of the smoke points directly to the type of problem.",
+    sections: [
+      { heading: "White Smoke (Thin Wisps on Cold Starts)", content: "Thin white smoke or vapor on cold mornings is completely normal — it is condensation in the exhaust system evaporating as the engine warms up. It should disappear within a few minutes of driving. This is especially common in Cleveland's cold weather. No repair needed." },
+      { heading: "White Smoke (Thick, Persistent)", content: "Thick white smoke that continues after the engine is warm is coolant burning in the combustion chamber. This usually means a blown head gasket, cracked cylinder head, or cracked engine block. Check your coolant level — if it is dropping without visible leaks, coolant is leaking internally. This requires professional diagnosis and is not something to ignore — continued driving causes severe engine damage." },
+      { heading: "Blue or Gray Smoke", content: "Blue or bluish-gray smoke means oil is burning in the combustion chamber. The oil gets in through worn piston rings, worn valve seals, or a failed PCV system. A small amount of oil burning in a high-mileage engine is common but should be monitored. Heavy blue smoke means significant oil consumption and the engine needs attention. Oil burning also fouls catalytic converters and oxygen sensors." },
+      { heading: "Black Smoke", content: "Black smoke means the engine is running too rich — burning too much fuel. On older vehicles this could be a stuck choke or bad carburetor. On modern fuel-injected vehicles, common causes include faulty fuel injectors, bad oxygen sensors, stuck fuel pressure regulator, or a dirty air filter restricting airflow. Black smoke wastes fuel and damages the catalytic converter." },
+      { heading: "Diagnosis at Nick's", content: "We use OBD-II diagnostics, compression testing, and leak-down testing to pinpoint exhaust smoke causes. Many smoke issues trigger check engine light codes that narrow down the source. Bring the vehicle in when you first notice the smoke — do not wait until it gets worse." }
+    ],
+    relatedServices: ["/diagnostics", "/general-repair"],
+    tags: ["exhaust smoke color", "white smoke from exhaust", "blue smoke", "black smoke", "engine burning oil", "head gasket symptoms"]
+  },
+  {
+    slug: "when-replace-shocks-struts",
+    title: "When to Replace Shocks and Struts — Signs & Costs",
+    metaTitle: "Shock & Strut Replacement Guide | Nick's Tire & Auto Cleveland",
+    metaDescription: "Bouncy ride, nose dives when braking, or cupped tire wear? Your shocks or struts may need replacing. Learn the signs and what it costs in Cleveland.",
+    category: "Suspension & Steering",
+    publishDate: "2026-03-23",
+    readTime: "4 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "Shocks and struts wear gradually, so you may not notice the decline. But they directly affect stopping distance, handling, and tire life.",
+    sections: [
+      { heading: "Shocks vs Struts — What Is the Difference?", content: "Shocks (shock absorbers) are standalone components that dampen spring oscillation. Struts are structural components that combine a shock absorber with a coil spring and strut mount — they are part of the vehicle's structure. Most modern vehicles have struts in the front and either struts or shocks in the rear. The distinction matters because strut replacement is more involved and more expensive." },
+      { heading: "Signs They Need Replacing", content: "Vehicle bounces excessively over bumps or dips. Nose dives forward when braking hard. Body rolls excessively in turns. Rear end squats when accelerating. Cupped or scalloped tire wear pattern. Oil leaking from the shock body. Vehicle feels loose or floaty on the highway. Unusual noises over bumps. The bounce test: press down hard on each corner and release — if it bounces more than once, the damping is worn." },
+      { heading: "Why It Matters for Safety", content: "Worn shocks and struts increase stopping distances by up to 20 percent because the tires bounce instead of maintaining contact with the road. They also reduce steering response and increase body roll, making emergency maneuvers less effective. On Cleveland's pothole-filled roads, good damping also prevents secondary impacts from bottoming out." },
+      { heading: "Replacement Cost and Timing", content: "Most shocks and struts should be inspected at 50,000 miles and typically need replacement between 60,000-100,000 miles. Cleveland's rough roads tend toward the lower end of that range. Shock replacement: $200-$400 per pair (rear). Strut assembly replacement: $400-$800 per pair (front). We always replace in pairs (both fronts or both rears) for even handling. At Nick's, we also recommend a wheel alignment after strut replacement since it changes the alignment angles." }
+    ],
+    relatedServices: ["/general-repair", "/alignment"],
+    tags: ["shock replacement Cleveland", "strut replacement cost", "bouncy ride", "suspension repair near me", "worn struts symptoms"]
+  },
+  {
+    slug: "alternator-failure-signs",
+    title: "Signs Your Alternator Is Failing (Before It Leaves You Stranded)",
+    metaTitle: "Alternator Failure Signs & Repair | Nick's Tire & Auto Cleveland",
+    metaDescription: "Dim lights, dead battery, or warning light? Your alternator might be failing. Learn the early signs and why a new battery won't fix an alternator problem.",
+    category: "Electrical",
+    publishDate: "2026-03-24",
+    readTime: "4 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "A failing alternator is often misdiagnosed as a bad battery. If you just replaced your battery and it keeps dying, the alternator is the likely culprit.",
+    sections: [
+      { heading: "What the Alternator Does", content: "The alternator charges the battery and powers all electrical systems while the engine is running. Without it, the battery drains in 20-30 minutes and the vehicle dies. The alternator converts mechanical energy (from the serpentine belt) into electrical energy. A typical alternator outputs 12-14.5 volts and 80-150 amps." },
+      { heading: "Early Warning Signs", content: "Battery/charging warning light on the dashboard (the most direct indicator). Headlights dim at idle but brighten when revving the engine. Electrical accessories (radio, power windows, heated seats) working intermittently. Dashboard lights flickering. A whining or grinding noise from the alternator area. Battery keeps dying even though it tests good. Smell of burning rubber (from a slipping belt) or hot wire." },
+      { heading: "Battery vs Alternator — How to Tell", content: "If the car starts fine after a jump but dies while driving, the alternator is not charging. If the battery is dead but the car runs fine once jumped, the battery is the problem. We test both with a digital multimeter and a load tester. A healthy alternator outputs 13.5-14.5 volts at idle. Below 13 volts indicates failure. We also test the diode pattern — a failing diode can cause the alternator to undercharge even if the voltage looks acceptable." },
+      { heading: "Repair Cost", content: "Alternator replacement: $350-$700 depending on the vehicle (luxury and European vehicles are on the higher end). The alternator itself costs $150-$400 and labor is typically 1-2 hours. We also check and replace the serpentine belt if it shows wear since we are already in that area. A new battery installed at the same time as an alternator failure will just die again — always test the alternator before replacing the battery." }
+    ],
+    relatedServices: ["/battery", "/diagnostics", "/general-repair"],
+    tags: ["alternator failure signs", "car alternator repair Cleveland", "battery keeps dying", "charging system", "alternator replacement cost"]
+  },
+  {
+    slug: "pothole-damage-guide-cleveland",
+    title: "Pothole Damage: What to Check After Hitting One in Cleveland",
+    metaTitle: "Pothole Damage Guide for Cleveland Drivers | Nick's Tire & Auto",
+    metaDescription: "Hit a Cleveland pothole? Check for tire, wheel, alignment, and suspension damage. Learn what to inspect and when to bring it in for repair.",
+    category: "Seasonal Tips",
+    publishDate: "2026-03-25",
+    readTime: "5 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "Cleveland potholes damage thousands of vehicles every spring. Knowing what to check after a bad hit can prevent expensive secondary damage.",
+    sections: [
+      { heading: "Immediate Signs of Pothole Damage", content: "Tire going flat or losing air slowly. New vibration in the steering wheel. Vehicle pulling to one side. Visible bulge or bubble in the tire sidewall. Steering wheel off-center. Clunking or rattling noise that was not there before. If you hit a large pothole at speed, pull over safely and inspect the tires visually before continuing to drive." },
+      { heading: "Tire Damage", content: "Potholes cause sidewall bulges (internal belt separation), pinch flats (where the tire gets pinched between the pothole edge and the wheel rim), and tread separation. Sidewall bulges cannot be repaired — the tire must be replaced because the structural integrity is compromised. Even if the tire looks fine, a hard hit can cause internal damage that leads to a blowout later." },
+      { heading: "Wheel Damage", content: "Alloy wheels bend and crack from pothole impacts. A bent wheel causes vibration that cannot be fixed with balancing. Minor bends can sometimes be straightened by a wheel repair specialist ($75-$150 per wheel). Cracked wheels must be replaced. Steel wheels are more flexible and bend rather than crack, but a severely bent steel wheel also needs replacement." },
+      { heading: "Alignment and Suspension", content: "A hard pothole hit knocks the alignment out of specification. Even a small change in toe or camber causes accelerated tire wear — you might not feel the difference in the steering, but the tires wear unevenly. Suspension components (tie rods, ball joints, control arm bushings, struts) can also be damaged by severe impacts. After any significant pothole hit, we recommend an alignment check at minimum." },
+      { heading: "Can You File a Claim?", content: "In Cleveland and Cuyahoga County, you can file a pothole damage claim with the city. Document the pothole with photos (including location), save repair receipts, and file within the specified timeframe. Ohio municipalities have limited liability but claims are sometimes paid, especially for known problem areas. We provide detailed repair invoices that include the diagnosis and the cause of damage." }
+    ],
+    relatedServices: ["/tires", "/alignment", "/general-repair"],
+    tags: ["pothole damage Cleveland", "pothole tire damage", "bent wheel pothole", "alignment after pothole", "Cleveland road damage claim"]
+  },
+  {
+    slug: "serpentine-belt-replacement",
+    title: "Serpentine Belt: What It Does, When to Replace, and Warning Signs",
+    metaTitle: "Serpentine Belt Replacement Guide | Nick's Tire & Auto Cleveland",
+    metaDescription: "Squealing from under the hood? Your serpentine belt might be worn. Learn what it drives, warning signs, and replacement cost from Cleveland mechanics.",
+    category: "Maintenance",
+    publishDate: "2026-03-26",
+    readTime: "4 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "One belt drives your alternator, AC compressor, power steering pump, and water pump. When it breaks, everything stops. Here is what to know.",
+    sections: [
+      { heading: "What the Serpentine Belt Drives", content: "The serpentine belt is a single long belt that snakes around multiple pulleys, driving the alternator (electrical power), water pump (engine cooling), AC compressor (air conditioning), power steering pump (steering assist), and sometimes the air pump. If this belt breaks, you lose all of these systems simultaneously. The engine will overheat within minutes without the water pump running." },
+      { heading: "Warning Signs", content: "Squealing noise from the front of the engine, especially on startup or when turning the steering wheel. Visible cracks, fraying, or glazing on the belt surface. AC stops working. Power steering becomes stiff. Battery light comes on. Chirping noise that changes with engine RPM. Modern belts are made of EPDM rubber that wears differently from older neoprene belts — instead of cracking, they slowly lose material from the rib side, like a tire wearing down. This wear is hard to see without a belt wear gauge." },
+      { heading: "Replacement Interval", content: "Most manufacturers recommend inspecting the serpentine belt at 60,000 miles and replacing it between 60,000-100,000 miles. Heat, cold cycling, and age deteriorate the rubber. Cleveland's temperature extremes (summer heat under the hood, winter cold on startup) stress the belt more than mild climates. If you are over 60,000 miles and cannot remember when the belt was last replaced, have it inspected." },
+      { heading: "Replacement Cost", content: "The serpentine belt itself costs $25-$75. Labor is typically $75-$150. Total: $100-$225 at Nick's Tire & Auto. We also inspect and replace the belt tensioner if it is weak — a worn tensioner causes the new belt to slip and squeal. This is a quick preventive repair that can save you from a roadside breakdown." }
+    ],
+    relatedServices: ["/general-repair"],
+    tags: ["serpentine belt replacement", "belt squealing", "drive belt Cleveland", "belt replacement cost", "engine belt noise"]
+  },
+  {
+    slug: "tire-pressure-monitoring-system",
+    title: "TPMS Light On? What Your Tire Pressure Warning Means",
+    metaTitle: "TPMS Light Guide — Tire Pressure Warning | Nick's Tire & Auto Cleveland",
+    metaDescription: "Tire pressure light on your dashboard? Learn what TPMS means, why it triggers in cold weather, and when it indicates a real problem vs normal temperature changes.",
+    category: "Tire Care",
+    publishDate: "2026-03-27",
+    readTime: "4 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "The TPMS light is one of the most common dashboard warnings Cleveland drivers see, especially when temperatures drop. Here is when to worry and when not to.",
+    sections: [
+      { heading: "How TPMS Works", content: "Your vehicle has a pressure sensor inside each tire (mounted on the valve stem or wheel rim). These sensors transmit real-time pressure readings to the vehicle's computer. When any tire drops below 25% of the recommended pressure, the TPMS warning light illuminates. Some vehicles show individual tire pressures on the dashboard, while others just show a warning light." },
+      { heading: "Cold Weather and TPMS", content: "Tire pressure drops about 1 PSI for every 10 degrees Fahrenheit of temperature change. In Cleveland, where overnight temperatures can drop 30+ degrees from daytime highs, it is common for the TPMS light to come on during cold mornings and go off as the tires warm up from driving. If the light only appears on very cold mornings, your tires are likely on the edge — adding 2-3 PSI brings them above the threshold." },
+      { heading: "When TPMS Indicates a Real Problem", content: "The light stays on all the time, not just on cold mornings. The light comes on and stays on during warm weather. One tire is visibly lower than the others. You need to add air more than once a month. The TPMS light flashes and then stays solid (this means the sensor itself has failed). A nail, screw, or other puncture causes a slow leak that the TPMS catches early." },
+      { heading: "TPMS Service at Nick's", content: "We check tire pressures and TPMS function during every service visit. If a TPMS sensor has failed (battery dies after 7-10 years), replacement costs $50-$100 per sensor installed. When installing new tires, we replace the TPMS valve stem hardware (seal, nut, core) to prevent air leaks. We also reprogram TPMS sensors when tires are rotated to the correct wheel position if your vehicle requires it." }
+    ],
+    relatedServices: ["/tires"],
+    tags: ["TPMS light", "tire pressure warning", "tire pressure cold weather", "TPMS sensor replacement", "low tire pressure Cleveland"]
+  },
+  {
+    slug: "catalytic-converter-theft-prevention",
+    title: "Catalytic Converter Theft: How to Protect Your Vehicle in Cleveland",
+    metaTitle: "Catalytic Converter Theft Prevention | Nick's Tire & Auto Cleveland",
+    metaDescription: "Catalytic converter theft is surging in Cleveland. Learn which vehicles are targeted, how to protect yours, and what replacement costs if it happens.",
+    category: "Safety & Security",
+    publishDate: "2026-03-28",
+    readTime: "5 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "Catalytic converter theft has exploded nationwide, and Cleveland is a hotspot. Here is what you need to know to protect your vehicle and what to do if it happens.",
+    sections: [
+      { heading: "Why Thieves Target Catalytic Converters", content: "Catalytic converters contain precious metals — platinum, palladium, and rhodium — worth up to $500 per converter at scrap. A thief with a battery-powered saw can remove one in under 2 minutes. The metals are nearly impossible to trace once recycled. Ohio passed a law requiring scrap dealers to record seller information, but enforcement is difficult." },
+      { heading: "Most Targeted Vehicles in Cleveland", content: "Toyota Prius (hybrid converters contain more precious metals). Honda CR-V, Accord, and Element. Toyota Tacoma and Tundra (high ground clearance = easy access). Ford F-series trucks (high ground clearance). Jeep Grand Cherokee. Any vehicle with high ground clearance is easier to target because the thief does not need a jack. Fleet vehicles parked in lots overnight are frequent targets." },
+      { heading: "Prevention Measures", content: "Install a catalytic converter shield or cage ($200-$500 installed — the most effective deterrent). Park in well-lit areas or inside a garage. Install a motion-activated security camera or light where you park. Engrave your VIN on the converter (makes it harder to sell). Use high-temperature automotive paint to mark the converter with a bright color. Consider a tilt-sensor alarm that triggers when someone jacks up the vehicle. Park close to curbs or walls to reduce clearance access." },
+      { heading: "What Happens If Yours Is Stolen", content: "You will know immediately — the vehicle will be extremely loud when started (sounds like a race car). File a police report immediately. Contact your insurance company — comprehensive coverage typically covers theft. Replacement cost: $1,000-$3,000 depending on the vehicle (some hybrids are higher). Aftermarket converters are less expensive than OEM but may not meet Ohio's emission standards for eCheck. At Nick's Tire & Auto, we can install a replacement converter and a protective shield at the same time." }
+    ],
+    relatedServices: ["/general-repair", "/diagnostics"],
+    tags: ["catalytic converter theft Cleveland", "converter theft prevention", "catalytic converter shield", "converter replacement cost", "car theft prevention"]
+  },
+  {
+    slug: "differential-fluid-change",
+    title: "Differential Fluid: The Maintenance Most People Forget",
+    metaTitle: "Differential Fluid Change Guide | Nick's Tire & Auto Cleveland",
+    metaDescription: "Differential fluid is critical for AWD and 4WD vehicles but often overlooked. Learn when to change it, what happens if you don't, and costs in Cleveland.",
+    category: "Maintenance",
+    publishDate: "2026-03-29",
+    readTime: "4 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "If you drive an AWD, 4WD, or rear-wheel-drive vehicle, your differential fluid needs periodic replacement. Neglecting it leads to expensive drivetrain damage.",
+    sections: [
+      { heading: "What the Differential Does", content: "The differential is a gearbox that allows your wheels to rotate at different speeds when turning corners. Without it, the inside wheel would skip and the vehicle would handle terribly. The differential contains thick gear oil that lubricates and cools the ring and pinion gears. AWD vehicles have both a front and rear differential, plus a transfer case — all with their own fluid." },
+      { heading: "When to Change It", content: "Most manufacturers recommend differential fluid changes every 30,000-60,000 miles. Severe service (towing, off-road, Cleveland winter driving with 4WD engaged frequently) calls for the shorter interval. Transfer case fluid typically follows the same schedule. Check your owner's manual for the exact interval and fluid specification — using the wrong fluid type in a limited-slip differential can cause chattering and damage." },
+      { heading: "What Happens If You Skip It", content: "Differential fluid breaks down and loses its lubricating properties over time. Metal shavings from normal gear wear contaminate the fluid. Eventually, inadequate lubrication causes accelerated wear, whining noises, and eventually gear failure. A differential fluid change costs $75-$150. A differential rebuild or replacement costs $1,500-$3,000+. The math is clear." },
+      { heading: "Service at Nick's", content: "We drain the old fluid, inspect the magnetic drain plug for excessive metal particles (an early warning of internal wear), and fill with the correct manufacturer-specified fluid. For vehicles with limited-slip differentials, we use the proper friction modifier additive. The service takes about 30 minutes per differential. If you are not sure when your differential fluid was last changed, bring it in and we will check it." }
+    ],
+    relatedServices: ["/general-repair", "/oil-change"],
+    tags: ["differential fluid change", "AWD maintenance", "4WD service Cleveland", "transfer case fluid", "differential repair", "drivetrain maintenance"]
+  },
+  {
+    slug: "summer-car-care-checklist-cleveland",
+    title: "Summer Car Care Checklist for Cleveland Drivers",
+    metaTitle: "Summer Car Maintenance Checklist | Nick's Tire & Auto Cleveland",
+    metaDescription: "Prepare your vehicle for Cleveland's hot, humid summers. AC check, coolant flush, tire inspection, and more. Complete checklist from your local mechanics.",
+    category: "Seasonal Tips",
+    publishDate: "2026-03-30",
+    readTime: "5 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "Cleveland summers bring heat, humidity, and road construction. This checklist covers everything your vehicle needs to stay reliable through the warm months.",
+    sections: [
+      { heading: "AC System Check", content: "Test your AC before the first hot day — waiting until it is 90 degrees means longer wait times for repairs. Run the AC on max cold and check that the air from the center vents reaches at least 40 degrees below the outside temperature. If the air is not cold enough, the system may need refrigerant, have a leak, or have a component issue. AC service is faster and often less expensive in spring than mid-summer." },
+      { heading: "Coolant System Inspection", content: "Summer heat puts maximum stress on your cooling system. Check coolant level and condition. If the coolant looks rusty, muddy, or has floating particles, it needs flushing. Check hoses for soft spots, bulges, or cracks — hoses deteriorate from the inside out, so they can look fine externally but fail without warning. Replace any hose that feels mushy when squeezed. Inspect the radiator for debris blocking airflow between the fins." },
+      { heading: "Switch from Winter Tires", content: "If you are running winter tires, switch to all-season or summer tires by April. Winter tire rubber compound is designed for cold temperatures — in warm weather, it wears extremely fast and handling suffers. Store winter tires in a cool, dry place. Check your all-season tires for adequate tread depth and any pothole damage from the winter. This is also a good time for an alignment check after winter pothole season." },
+      { heading: "Battery Check", content: "Paradoxically, summer heat causes more battery damage than winter cold. High under-hood temperatures accelerate the chemical degradation inside the battery. A battery weakened by summer heat then fails when cold weather demands maximum cranking power. Get your battery tested in late spring — if it is marginal, replace it before it leaves you stranded at the worst time." },
+      { heading: "Fluid Top-Off and Inspection", content: "Check all fluid levels: engine oil, transmission fluid, brake fluid, power steering fluid, windshield washer fluid. Summer driving (longer trips, AC running, higher engine temps) puts more demand on all fluids. Also check the wiper blades — summer thunderstorms demand good visibility. At Nick's Tire & Auto, our summer readiness inspection covers all of these items plus a brake check, tire inspection, and belt and hose review." }
+    ],
+    relatedServices: ["/general-repair", "/oil-change", "/tires"],
+    tags: ["summer car care Cleveland", "AC check", "summer maintenance", "coolant flush", "seasonal car care", "summer tire swap"]
+  },
+  {
+    slug: "fleet-maintenance-cleveland",
+    title: "Fleet Maintenance Programs for Cleveland Businesses",
+    metaTitle: "Fleet Maintenance & Repair Cleveland | Nick's Tire & Auto",
+    metaDescription: "Keep your fleet running with Nick's Tire & Auto fleet maintenance program. Priority scheduling, bulk pricing, detailed records, and a dedicated fleet manager.",
+    category: "Fleet Services",
+    publishDate: "2026-03-31",
+    readTime: "5 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "Downtime costs money. Our fleet maintenance program keeps your vehicles on the road with priority scheduling, preventive maintenance plans, and transparent reporting.",
+    sections: [
+      { heading: "Why Fleet Maintenance Matters", content: "Every day a fleet vehicle sits in a shop is lost revenue. Reactive maintenance (fixing things when they break) costs 5-10 times more than preventive maintenance because breakdowns cause cascading problems: tow bills, rental vehicles, missed appointments, overtime for other drivers, and lost customers. A structured maintenance program catches problems early and schedules repairs around your business needs." },
+      { heading: "Our Fleet Program Includes", content: "Priority scheduling — fleet vehicles go to the front of the line. Dedicated fleet account manager. Preventive maintenance scheduling based on each vehicle's mileage and service history. Bulk pricing on tires, oil changes, and common repairs. Detailed digital records for each vehicle (service history, upcoming needs, total spend). Monthly reporting on fleet health and upcoming maintenance needs. Emergency roadside coordination." },
+      { heading: "Industries We Serve", content: "Delivery and courier services. HVAC and plumbing companies. Property management. Real estate agencies. Landscaping and lawn care. Construction companies. Food service and catering. Medical supply delivery. Any Cleveland business that depends on vehicles to operate. We handle everything from compact cars to heavy-duty pickup trucks and cargo vans." },
+      { heading: "Getting Started", content: "Contact us to set up a fleet account. We will catalog your vehicles, review service histories, create a maintenance schedule, and provide a cost estimate. There is no minimum fleet size — we work with 2-vehicle operations and 50+ vehicle fleets. Walk-ins always welcome, but fleet accounts get priority scheduling and dedicated support. Call (216) 862-0005 or stop by at 17625 Euclid Ave." }
+    ],
+    relatedServices: ["/fleet"],
+    tags: ["fleet maintenance Cleveland", "fleet repair program", "commercial vehicle maintenance", "fleet tire service", "business vehicle repair"]
   }
 ];
 
