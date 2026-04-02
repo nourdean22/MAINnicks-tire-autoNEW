@@ -633,6 +633,74 @@ export const gatewayTireRouter = router({
       const pricePerTire = input.pricePerTireCents / 100;
       const totalDollars = totalAmount / 100;
 
+      // Create invoice IMMEDIATELY — invoice = job is real, customer owes
+      let invoiceNumber = "";
+      try {
+        invoiceNumber = await getNextInvoiceNumber();
+        let laborRate = 115;
+        try {
+          const [setting] = await d.select().from(shopSettings).where(eq(shopSettings.key, "laborRate")).limit(1);
+          if (setting) laborRate = parseFloat(setting.value);
+        } catch {}
+
+        const installHours = 0.7; // Mount + balance from Auto Labor Guide
+        const laborCostCents = Math.round(installHours * laborRate * 100);
+        const partsCostCents = totalAmount; // tires are "parts"
+        const taxRate = 0.08;
+        const taxAmountCents = Math.round((laborCostCents + partsCostCents) * taxRate);
+        const grandTotalCents = laborCostCents + partsCostCents + taxAmountCents;
+
+        await createInvoice({
+          customerName: input.customerName,
+          customerPhone: input.customerPhone,
+          invoiceNumber,
+          totalAmount: grandTotalCents,
+          partsCost: partsCostCents,
+          laborCost: laborCostCents,
+          taxAmount: taxAmountCents,
+          serviceDescription: `Tire Order & Install — ${input.quantity}x ${input.tireBrand} ${input.tireModel} (${input.tireSize})\nOrder: ${orderNumber}`,
+          vehicleInfo: input.vehicleInfo || null,
+          paymentMethod: "pending",
+          paymentStatus: "pending",
+          source: "manual",
+          invoiceDate: new Date(),
+        });
+
+        // Fire invoice event to NOUR OS
+        import("../nour-os-bridge").then(({ onInvoiceCreated }) =>
+          onInvoiceCreated({
+            invoiceNumber,
+            customerName: input.customerName,
+            totalAmount: grandTotalCents / 100,
+            source: "tire_order",
+          })
+        ).catch(() => {});
+
+        // Sync invoice to Sheets
+        syncInvoiceToSheet({
+          invoiceNumber,
+          customerName: input.customerName,
+          customerPhone: input.customerPhone,
+          vehicleInfo: input.vehicleInfo,
+          serviceDescription: `Tire Install: ${input.quantity}x ${input.tireBrand} ${input.tireModel}`,
+          laborHours: installHours,
+          laborRate,
+          laborCost: laborCostCents / 100,
+          partsCost: partsCostCents / 100,
+          taxAmount: taxAmountCents / 100,
+          totalAmount: grandTotalCents / 100,
+          paymentMethod: "pending",
+          paymentStatus: "pending",
+          source: "tire_order",
+          orderRef: orderNumber,
+          notes: `Auto-created with tire order ${orderNumber}`,
+        }).catch(err => console.error("[TireOrder] Invoice sheet sync error:", err));
+
+        console.log(`[Invoice] Created ${invoiceNumber} for tire order ${orderNumber} — $${(grandTotalCents / 100).toFixed(2)} (pending payment)`);
+      } catch (err) {
+        console.error("[TireOrder] Invoice creation failed:", err instanceof Error ? err.message : err);
+      }
+
       // Sync to Google Sheets (async, don't block)
       syncOrderToGoogleSheet({
         orderNumber,
@@ -682,6 +750,7 @@ export const gatewayTireRouter = router({
       return {
         success: true,
         orderNumber,
+        invoiceNumber: invoiceNumber || undefined,
         totalAmount: totalDollars,
       };
     }),
