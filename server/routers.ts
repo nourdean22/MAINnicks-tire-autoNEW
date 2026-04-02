@@ -70,6 +70,7 @@ import {
   warrantiesRouter,
   pipelinesRouter,
   nickActionsRouter,
+  paymentsRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -179,6 +180,7 @@ export const appRouter = router({
 
   // Nick AI Agent Actions (quotes, work orders, follow-ups, competitor intel)
   nickActions: nickActionsRouter,
+  payments: paymentsRouter,
 });
 
 export type AppRouter = typeof appRouter;
