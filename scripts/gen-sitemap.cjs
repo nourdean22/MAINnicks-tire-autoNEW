@@ -52,27 +52,14 @@ const seoPages = [
   'pre-purchase-inspection-cleveland', 'fleet-maintenance-cleveland',
 ];
 
-// ── Neighborhood/Area Pages ──────────────────────────────
-const neighborhoods = [
-  'east-185th-street-auto-repair', 'euclid-square-mall-area', 'richmond-heights-mechanic',
-  'collinwood', 'nottingham', 'five-points', 'waterloo-arts-district',
-  'shore-cultural-centre', 'severance-town-center', 'university-circle',
-  'wickliffe', 'willowick', 'eastlake', 'south-euclid-mechanic',
-  'lyndhurst-mechanic', 'mayfield-heights', 'highland-heights', 'beachwood',
-  // Phase 2 (doubled)
-  'mentor-on-the-lake', 'willoughby-hills', 'euclid-ohio', 'east-cleveland',
-  'cleveland-heights-mechanic', 'garfield-heights', 'maple-heights', 'parma-heights',
-  'shaker-heights', 'warrensville-heights', 'lakewood-auto-repair', 'willoughby-ohio',
-  'bedford-ohio', 'north-collinwood', 'downtown-cleveland', 'tremont-cleveland',
-  'ohio-city', 'rocky-river', 'solon-ohio', 'broadview-heights', 'chagrin-falls',
-  // Phase 3 (tripled — full Greater Cleveland coverage)
-  'bainbridge-ohio', 'pepper-pike', 'gates-mills', 'independence-ohio',
-  'strongsville-ohio', 'north-royalton', 'bay-village', 'westlake-ohio',
-  'north-olmsted', 'middleburg-heights', 'brook-park', 'avon-ohio',
-  'avon-lake', 'twinsburg-ohio', 'aurora-ohio', 'streetsboro',
-  'chardon-ohio', 'painesville-ohio', 'mentor-ohio', 'university-heights',
-  'parma-ohio',
-];
+// ── Neighborhood/Area Pages (read dynamically from data) ──
+const neighborhoodFile = fs.readFileSync(path.join(__dirname, '..', 'shared', 'neighborhoods.ts'), 'utf8');
+const neighborhoods = [];
+const nSlugRegex = /slug:\s*"([^"]+)"/g;
+let nMatch;
+while ((nMatch = nSlugRegex.exec(neighborhoodFile)) !== null) {
+  neighborhoods.push(nMatch[1]);
+}
 
 // ── Blog Slugs (read dynamically from blog.ts) ──────────
 const blogFile = fs.readFileSync(path.join(__dirname, '..', 'shared', 'blog.ts'), 'utf8');
