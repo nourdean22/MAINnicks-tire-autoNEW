@@ -212,8 +212,49 @@ export default function IntersectionPage() {
         </div>
       </section>
 
-      {/* ─── SERVICES ─── */}
+      {/* ─── WHY NICK'S ─── */}
       <section className="py-16 lg:py-24 bg-[oklch(0.055_0.004_260)]">
+        <div className="container max-w-4xl">
+          <FadeIn>
+            <span className="font-mono text-nick-blue-light text-sm tracking-wide">The Nick's Difference</span>
+            <h2 className="font-semibold font-bold text-2xl lg:text-4xl text-foreground mt-3 tracking-tight">
+              WHAT TO EXPECT AT OUR SHOP
+            </h2>
+            <p className="mt-6 text-foreground/70 leading-relaxed text-lg">
+              Nick's Tire & Auto is a {BUSINESS.reviews.rating}-star shop with {BUSINESS.reviews.countDisplay} Google reviews — and there's a reason {intersection.neighborhood || "Cleveland"} drivers keep coming back. We're located at {BUSINESS.address.full}, just {intersection.driveMinutes} minutes from {intersection.name}.
+            </p>
+          </FadeIn>
+          <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FadeIn delay={0.05}>
+              <div className="bg-card/30 border border-border/50 rounded-lg p-5">
+                <h3 className="font-semibold font-bold text-foreground text-sm mb-2">WALK-INS WELCOME</h3>
+                <p className="text-foreground/60 text-sm leading-relaxed">No appointment needed for most services. We operate first-come, first-served — drive in and we'll take care of you. Open {BUSINESS.hours.display} and Sundays 9 AM to 4 PM.</p>
+              </div>
+            </FadeIn>
+            <FadeIn delay={0.1}>
+              <div className="bg-card/30 border border-border/50 rounded-lg p-5">
+                <h3 className="font-semibold font-bold text-foreground text-sm mb-2">HONEST QUOTES UPFRONT</h3>
+                <p className="text-foreground/60 text-sm leading-relaxed">We tell you what's wrong, what it costs, and let you decide. No upsells, no pressure. If something changes mid-repair, we call you before doing any additional work.</p>
+              </div>
+            </FadeIn>
+            <FadeIn delay={0.15}>
+              <div className="bg-card/30 border border-border/50 rounded-lg p-5">
+                <h3 className="font-semibold font-bold text-foreground text-sm mb-2">FINANCING FROM $10 DOWN</h3>
+                <p className="text-foreground/60 text-sm leading-relaxed">Can't pay in full today? <Link href="/financing" className="text-nick-blue-light hover:underline">We offer financing starting at $10 down</Link> on tires and major repairs. Get the fix now, pay over time.</p>
+              </div>
+            </FadeIn>
+            <FadeIn delay={0.2}>
+              <div className="bg-card/30 border border-border/50 rounded-lg p-5">
+                <h3 className="font-semibold font-bold text-foreground text-sm mb-2">FULL-SERVICE SHOP</h3>
+                <p className="text-foreground/60 text-sm leading-relaxed">From <Link href="/tires" className="text-nick-blue-light hover:underline">tires</Link> and <Link href="/brakes" className="text-nick-blue-light hover:underline">brakes</Link> to <Link href="/check-engine-light-cleveland" className="text-nick-blue-light hover:underline">check engine lights</Link> and <Link href="/emissions-testing" className="text-nick-blue-light hover:underline">emissions testing</Link>, we handle it all under one roof. Most repairs are completed same-day.</p>
+              </div>
+            </FadeIn>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── SERVICES ─── */}
+      <section className="py-16 lg:py-24 bg-[oklch(0.065_0.004_260)]">
         <div className="container">
           <FadeIn>
             <span className="font-mono text-nick-blue-light text-sm tracking-wide">Our Services</span>

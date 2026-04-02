@@ -321,6 +321,144 @@ export default function CityPage() {
           </div>
         </section>
 
+        {/* Why Choose Nick's */}
+        <section className="py-16 lg:py-24 bg-[oklch(0.055_0.004_260)]">
+          <div className="container max-w-4xl">
+            <FadeIn>
+              <span className="font-mono text-nick-blue-light text-sm tracking-wide">The Nick's Difference</span>
+              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+                WHY {city.name.toUpperCase()} DRIVERS TRUST NICK'S
+              </h2>
+              <p className="mt-6 text-foreground/70 leading-relaxed text-lg">
+                Finding an honest mechanic shouldn't feel like a gamble. At Nick's Tire & Auto on Euclid Ave in Cleveland, we've built our reputation one car at a time — and {BUSINESS.reviews.countDisplay} Google reviews at {BUSINESS.reviews.rating} stars prove it. Here's what {city.name} drivers can count on every visit.
+              </p>
+            </FadeIn>
+            <div className="mt-10 space-y-6">
+              <FadeIn delay={0.05}>
+                <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                  <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Transparent Pricing, No Surprises</h3>
+                    <p className="text-foreground/70 leading-relaxed">We quote you a price before we start any work. If something changes during the repair, we call you first. No hidden fees, no upsells, no pressure. What we quote is what you pay.</p>
+                  </div>
+                </div>
+              </FadeIn>
+              <FadeIn delay={0.1}>
+                <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                  <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Walk-Ins Welcome, First Come First Served</h3>
+                    <p className="text-foreground/70 leading-relaxed">No appointment needed for most services. Drive in from {city.name} and we'll get you taken care of. We operate on a first-come, first-served basis — the earlier you arrive, the sooner you're back on the road. Our shop is open {BUSINESS.hours.display}, including Sundays from 9 to 4.</p>
+                  </div>
+                </div>
+              </FadeIn>
+              <FadeIn delay={0.15}>
+                <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                  <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Affordable Financing From $10 Down</h3>
+                    <p className="text-foreground/70 leading-relaxed">Need tires or a major repair but can't pay in full today? We offer <Link href="/financing" className="text-nick-blue-light hover:underline">financing starting at just $10 down</Link>. Get the repair done now and pay over time — so you're never stuck driving on unsafe brakes or bald tires.</p>
+                  </div>
+                </div>
+              </FadeIn>
+              <FadeIn delay={0.2}>
+                <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                  <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Real Mechanics, Real Experience</h3>
+                    <p className="text-foreground/70 leading-relaxed">Our technicians work on everything from daily drivers to trucks and SUVs. Whether it's a <Link href="/check-engine-light-cleveland" className="text-nick-blue-light hover:underline">check engine light</Link>, <Link href="/brakes" className="text-nick-blue-light hover:underline">brake job</Link>, or <Link href="/tires" className="text-nick-blue-light hover:underline">full tire replacement</Link>, we diagnose the actual problem — not just the most expensive one.</p>
+                  </div>
+                </div>
+              </FadeIn>
+            </div>
+          </div>
+        </section>
+
+        {/* Common Services for Area */}
+        <section className="py-16 lg:py-24 bg-[oklch(0.065_0.004_260)]">
+          <div className="container max-w-4xl">
+            <FadeIn>
+              <span className="font-mono text-nick-blue-light text-sm tracking-wide">Popular in {city.name}</span>
+              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+                COMMON REPAIRS FOR {city.name.toUpperCase()} VEHICLES
+              </h2>
+              <p className="mt-6 text-foreground/70 leading-relaxed text-lg">
+                Ohio roads are tough on cars. Between potholes, salt, and temperature swings, {city.name} drivers deal with wear and tear that drivers in milder climates never see. These are the repairs we handle most often for customers coming from {city.name}.
+              </p>
+            </FadeIn>
+            <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FadeIn delay={0.05}>
+                <Link href="/tires" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
+                  <h3 className="font-semibold font-bold text-foreground mb-2">Tire Replacement & Repair</h3>
+                  <p className="text-foreground/60 text-sm leading-relaxed">Potholes on {city.name} roads cause flats, sidewall damage, and uneven wear. We carry new and used tires from all major brands — mounted and balanced while you wait.</p>
+                </Link>
+              </FadeIn>
+              <FadeIn delay={0.1}>
+                <Link href="/brakes" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
+                  <h3 className="font-semibold font-bold text-foreground mb-2">Brake Pads, Rotors & Lines</h3>
+                  <p className="text-foreground/60 text-sm leading-relaxed">Stop-and-go traffic wears brakes fast. Squealing, grinding, or a soft pedal? We inspect and replace pads, rotors, calipers, and brake lines same-day in most cases.</p>
+                </Link>
+              </FadeIn>
+              <FadeIn delay={0.15}>
+                <Link href="/check-engine-light-cleveland" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
+                  <h3 className="font-semibold font-bold text-foreground mb-2">Check Engine Light Diagnostics</h3>
+                  <p className="text-foreground/60 text-sm leading-relaxed">That dashboard warning could be a loose gas cap or a failing catalytic converter. We pull codes, run full diagnostics, and tell you exactly what's wrong before recommending any repairs.</p>
+                </Link>
+              </FadeIn>
+              <FadeIn delay={0.2}>
+                <Link href="/oil-change" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
+                  <h3 className="font-semibold font-bold text-foreground mb-2">Oil Changes & Fluid Services</h3>
+                  <p className="text-foreground/60 text-sm leading-relaxed">Regular oil changes are the cheapest way to avoid expensive engine damage. We do conventional and synthetic oil changes with a courtesy inspection included — no appointment needed.</p>
+                </Link>
+              </FadeIn>
+              <FadeIn delay={0.25}>
+                <Link href="/emissions-testing" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
+                  <h3 className="font-semibold font-bold text-foreground mb-2">E-Check & Emissions Testing</h3>
+                  <p className="text-foreground/60 text-sm leading-relaxed">Need to pass Ohio E-Check for your registration renewal? We handle emissions testing and can fix whatever's causing a failure so you pass the first time.</p>
+                </Link>
+              </FadeIn>
+              <FadeIn delay={0.3}>
+                <Link href="/suspension" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
+                  <h3 className="font-semibold font-bold text-foreground mb-2">Suspension & Steering</h3>
+                  <p className="text-foreground/60 text-sm leading-relaxed">Hitting Cleveland potholes takes a toll on struts, shocks, tie rods, and ball joints. If your car pulls, bounces, or the steering feels loose, bring it in before it gets worse.</p>
+                </Link>
+              </FadeIn>
+            </div>
+          </div>
+        </section>
+
+        {/* FAQ */}
+        <section className="py-16 lg:py-24 bg-[oklch(0.055_0.004_260)]">
+          <div className="container max-w-4xl">
+            <FadeIn>
+              <span className="font-mono text-nick-blue-light text-sm tracking-wide">Common Questions</span>
+              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight mb-10">
+                FREQUENTLY ASKED QUESTIONS
+              </h2>
+            </FadeIn>
+            <div className="space-y-6">
+              <FadeIn delay={0.05}>
+                <div className="border border-border/40 p-6 bg-card/30 rounded-lg">
+                  <h3 className="font-semibold font-bold text-lg text-foreground mb-3">Do I need an appointment, or can I just walk in?</h3>
+                  <p className="text-foreground/70 leading-relaxed">Walk-ins are welcome for most services including oil changes, tire work, brake inspections, and diagnostics. We work on a first-come, first-served basis. If you want to guarantee a specific time, you can <Link href="/booking" className="text-nick-blue-light hover:underline">book online</Link> or call us at {BUSINESS.phone.display}. We're open {BUSINESS.hours.display} and Sundays 9 AM to 4 PM.</p>
+                </div>
+              </FadeIn>
+              <FadeIn delay={0.1}>
+                <div className="border border-border/40 p-6 bg-card/30 rounded-lg">
+                  <h3 className="font-semibold font-bold text-lg text-foreground mb-3">How far is Nick's from {city.name}?</h3>
+                  <p className="text-foreground/70 leading-relaxed">Our shop at {BUSINESS.address.full} is about {city.distance} from {city.name} — roughly a {city.driveTime} drive. We're right on Euclid Ave with easy access from I-90 and Route 2. Plenty of {city.name} residents already make the drive because of our honest pricing and fast turnaround.</p>
+                </div>
+              </FadeIn>
+              <FadeIn delay={0.15}>
+                <div className="border border-border/40 p-6 bg-card/30 rounded-lg">
+                  <h3 className="font-semibold font-bold text-lg text-foreground mb-3">What if I can't afford the repair right now?</h3>
+                  <p className="text-foreground/70 leading-relaxed">We offer <Link href="/financing" className="text-nick-blue-light hover:underline">financing from just $10 down</Link> on tires and major repairs. Get the work done today and pay over time. We never want you driving on unsafe equipment because of cost — we'll find a way to make it work.</p>
+                </div>
+              </FadeIn>
+            </div>
+          </div>
+        </section>
+
         {/* Neighborhoods */}
         <section className="py-16 lg:py-20 bg-[oklch(0.065_0.004_260)]">
           <div className="container">
