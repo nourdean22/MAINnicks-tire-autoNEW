@@ -371,68 +371,59 @@ export default function NotificationBar() {
       : strategyStyles[current.strategy];
 
   return (
-    <div className={`fixed top-0 left-0 right-0 z-[60] border-b ${barStyle} backdrop-blur-xl transition-colors duration-700`}>
-      <div className="container relative flex items-center justify-center min-h-[36px] py-1.5">
-        {/* Progress dots */}
-        <div className="absolute left-4 hidden sm:flex items-center gap-1.5">
-          {activeNotifications.slice(0, 8).map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrentIndex(i)}
-              className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-                i === currentIndex % Math.min(activeNotifications.length, 8)
-                  ? "bg-white scale-125"
-                  : "bg-white/30 hover:bg-white/50"
-              }`}
-            />
-          ))}
-        </div>
-
-        {/* Notification content */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={current.id}
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            transition={{ duration: 0.3 }}
-            className="flex items-center gap-2 text-center px-10 sm:px-16"
-          >
-            <span className="text-white/80 shrink-0">{current.icon}</span>
-            <span className="text-white/90 text-[12px] sm:text-[13px] font-medium tracking-[-0.005em]">
+    <div className="fixed bottom-4 left-4 z-50 max-w-[360px] sm:max-w-[420px]">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={current.id}
+          initial={{ opacity: 0, y: 12, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -8, scale: 0.95 }}
+          transition={{ duration: 0.3 }}
+          className={`relative flex items-start gap-2.5 px-4 py-3 rounded-xl border shadow-lg ${barStyle} backdrop-blur-xl`}
+        >
+          <span className="text-white/80 shrink-0 mt-0.5">{current.icon}</span>
+          <div className="flex-1 min-w-0">
+            <span className="text-white/90 text-[12px] font-medium leading-snug block">
               {current.text}
-              {current.disclosure && (
-                <span className="hidden sm:inline text-white/40 text-[9px] ml-1">{current.disclosure}</span>
-              )}
             </span>
+            {current.disclosure && (
+              <span className="text-white/30 text-[9px] block mt-0.5">{current.disclosure}</span>
+            )}
             {current.cta && current.ctaHref && (
               <a
                 href={current.ctaHref}
-                className="shrink-0 ml-3 text-[oklch(0.10_0.005_260)] font-semibold text-[11px] tracking-wide bg-white/90 px-3 py-1 rounded-full hover:bg-white transition-colors hidden sm:inline-block"
+                className="inline-block mt-1.5 text-[oklch(0.10_0.005_260)] font-semibold text-[10px] tracking-wide bg-white/90 px-3 py-1 rounded-full hover:bg-white transition-colors"
               >
                 {current.cta}
               </a>
             )}
-          </motion.div>
-        </AnimatePresence>
-
-        {/* Weather badge for weather alerts */}
-        {current.strategy === "weather" && weatherData?.weather && (
-          <div className="absolute right-12 hidden lg:flex items-center gap-1.5 text-white/50 text-xs">
-            <Thermometer className="w-3 h-3" />
-            <span>{weatherData.weather.temperature_f}°F</span>
           </div>
-        )}
+          <button
+            onClick={handleDismiss}
+            className="text-white/40 hover:text-white transition-colors p-0.5 shrink-0"
+            aria-label="Dismiss notification"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </motion.div>
+      </AnimatePresence>
 
-        {/* Dismiss button */}
-        <button
-          onClick={handleDismiss}
-          className="absolute right-4 text-white/50 hover:text-white transition-colors p-1"
-          aria-label="Dismiss notification"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
-      </div>
+      {/* Progress dots */}
+      {activeNotifications.length > 1 && (
+        <div className="flex items-center justify-center gap-1 mt-2">
+          {activeNotifications.slice(0, 8).map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setCurrentIndex(i)}
+              className={`w-1 h-1 rounded-full transition-all duration-300 ${
+                i === currentIndex % Math.min(activeNotifications.length, 8)
+                  ? "bg-white/70 scale-125"
+                  : "bg-white/20 hover:bg-white/40"
+              }`}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
