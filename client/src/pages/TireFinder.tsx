@@ -200,12 +200,12 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
   const [notes, setNotes] = useState("");
   const [deliveryMethod, setDeliveryMethod] = useState<"walk-in" | "drop-off-morning" | "drop-off-afternoon" | "ship">("walk-in");
   const [shippingAddress, setShippingAddress] = useState("");
-  const [orderResult, setOrderResult] = useState<{ orderNumber: string; totalAmount: number } | null>(null);
+  const [orderResult, setOrderResult] = useState<{ orderNumber: string; invoiceNumber?: string; totalAmount: number } | null>(null);
 
   const orderMutation = trpc.gatewayTire.placeOrder.useMutation({
     onSuccess: (data) => {
       if (data.success) {
-        setOrderResult({ orderNumber: data.orderNumber!, totalAmount: data.totalAmount! });
+        setOrderResult({ orderNumber: data.orderNumber!, invoiceNumber: data.invoiceNumber, totalAmount: data.totalAmount! });
       } else {
         toast.error("Something went wrong. Please call us at (216) 862-0005.");
       }
@@ -231,7 +231,10 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
             <CheckCircle2 className="w-8 h-8 text-green-500" />
           </div>
           <h3 className="text-2xl font-semibold text-foreground mb-2">Order Placed</h3>
-          <p className="text-sm text-primary font-medium mb-4">Order #{orderResult.orderNumber}</p>
+          <p className="text-sm text-primary font-medium mb-1">Order #{orderResult.orderNumber}</p>
+          {orderResult.invoiceNumber && (
+            <p className="text-xs text-muted-foreground mb-4">Invoice: {orderResult.invoiceNumber}</p>
+          )}
           <p className="text-muted-foreground mb-6 leading-relaxed text-sm">
             {deliveryMethod === "ship"
               ? "We'll confirm availability and contact you within 1 business hour with shipping cost. Payment required before shipping."
