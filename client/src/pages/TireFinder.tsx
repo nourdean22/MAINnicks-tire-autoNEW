@@ -198,7 +198,7 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
   const [email, setEmail] = useState("");
   const [vehicle, setVehicle] = useState("");
   const [notes, setNotes] = useState("");
-  const [deliveryMethod, setDeliveryMethod] = useState<"pickup" | "ship">("pickup");
+  const [deliveryMethod, setDeliveryMethod] = useState<"walk-in" | "drop-off-morning" | "drop-off-afternoon" | "ship">("walk-in");
   const [shippingAddress, setShippingAddress] = useState("");
   const [orderResult, setOrderResult] = useState<{ orderNumber: string; totalAmount: number } | null>(null);
 
@@ -235,7 +235,9 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
           <p className="text-muted-foreground mb-6 leading-relaxed text-sm">
             {deliveryMethod === "ship"
               ? "We'll confirm availability and contact you within 1 business hour with shipping cost. Payment required before shipping."
-              : "We'll confirm availability and contact you within 1 business hour to finalize your order and schedule installation. Most tires in stock — walk in anytime!"}
+              : deliveryMethod.startsWith("drop-off")
+              ? "We'll confirm availability and contact you within 1 business hour. Drop off your vehicle and we'll get it done — your spot is held in line!"
+              : "We'll confirm availability and contact you within 1 business hour. Walk in anytime we're open — first come first serve!"}
           </p>
           <div className="bg-background/50 border border-border/30 rounded-md p-4 mb-6 text-left space-y-2">
             <div className="flex justify-between text-sm">
@@ -329,34 +331,30 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
           </div>
         </div>
 
-        {/* Delivery Method */}
+        {/* Install / Delivery Method */}
         <div className="mb-6">
-          <label className="block text-sm text-muted-foreground mb-2">How do you want your tires?</label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => setDeliveryMethod("pickup")}
-              className={`p-3 rounded-md border text-left transition-colors ${
-                deliveryMethod === "pickup"
-                  ? "border-primary bg-primary/10 text-foreground"
-                  : "border-border/50 text-muted-foreground hover:border-border"
-              }`}
-            >
-              <div className="font-medium text-sm">🏪 Come Get Them</div>
-              <div className="text-xs mt-0.5 opacity-70">In stock — walk in anytime</div>
-              <div className="text-xs mt-1 text-green-400 font-medium">FREE installation included</div>
-            </button>
-            <button
-              onClick={() => setDeliveryMethod("ship")}
-              className={`p-3 rounded-md border text-left transition-colors ${
-                deliveryMethod === "ship"
-                  ? "border-primary bg-primary/10 text-foreground"
-                  : "border-border/50 text-muted-foreground hover:border-border"
-              }`}
-            >
-              <div className="font-medium text-sm">📦 Ship to Me</div>
-              <div className="text-xs mt-0.5 opacity-70">Prepay — we ship to your door</div>
-              <div className="text-xs mt-1 text-muted-foreground">Shipping calculated at checkout</div>
-            </button>
+          <label className="block text-sm text-muted-foreground mb-2">How do you want your tires installed?</label>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { id: "walk-in" as const, icon: "🏪", title: "Walk In", desc: "Come anytime we're open", note: "FREE install" },
+              { id: "drop-off-morning" as const, icon: "🌅", title: "Drop Off AM", desc: "Leave it before noon", note: "FREE install" },
+              { id: "drop-off-afternoon" as const, icon: "🌇", title: "Drop Off PM", desc: "Leave it afternoon", note: "FREE install" },
+              { id: "ship" as const, icon: "📦", title: "Ship to Me", desc: "We ship to your door", note: "Shipping extra" },
+            ]).map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => setDeliveryMethod(opt.id)}
+                className={`p-3 rounded-md border text-left transition-colors ${
+                  deliveryMethod === opt.id
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-border/50 text-muted-foreground hover:border-border"
+                }`}
+              >
+                <div className="font-medium text-sm">{opt.icon} {opt.title}</div>
+                <div className="text-[11px] mt-0.5 opacity-70">{opt.desc}</div>
+                <div className={`text-[11px] mt-1 font-medium ${opt.id === "ship" ? "text-muted-foreground" : "text-green-400"}`}>{opt.note}</div>
+              </button>
+            ))}
           </div>
         </div>
 
@@ -439,6 +437,7 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
               customerEmail: email.trim() || undefined,
               vehicleInfo: vehicle.trim() || undefined,
               customerNotes: deliveryNote || undefined,
+              installPreference: deliveryMethod,
             });
           }}
           disabled={orderMutation.isPending}
