@@ -59,12 +59,19 @@ const neighborhoods = [
   'shore-cultural-centre', 'severance-town-center', 'university-circle',
   'wickliffe', 'willowick', 'eastlake', 'south-euclid-mechanic',
   'lyndhurst-mechanic', 'mayfield-heights', 'highland-heights', 'beachwood',
-  // New (doubled)
+  // Phase 2 (doubled)
   'mentor-on-the-lake', 'willoughby-hills', 'euclid-ohio', 'east-cleveland',
   'cleveland-heights-mechanic', 'garfield-heights', 'maple-heights', 'parma-heights',
   'shaker-heights', 'warrensville-heights', 'lakewood-auto-repair', 'willoughby-ohio',
   'bedford-ohio', 'north-collinwood', 'downtown-cleveland', 'tremont-cleveland',
   'ohio-city', 'rocky-river', 'solon-ohio', 'broadview-heights', 'chagrin-falls',
+  // Phase 3 (tripled — full Greater Cleveland coverage)
+  'bainbridge-ohio', 'pepper-pike', 'gates-mills', 'independence-ohio',
+  'strongsville-ohio', 'north-royalton', 'bay-village', 'westlake-ohio',
+  'north-olmsted', 'middleburg-heights', 'brook-park', 'avon-ohio',
+  'avon-lake', 'twinsburg-ohio', 'aurora-ohio', 'streetsboro',
+  'chardon-ohio', 'painesville-ohio', 'mentor-ohio', 'university-heights',
+  'parma-ohio',
 ];
 
 // ── Blog Slugs (read dynamically from blog.ts) ──────────
