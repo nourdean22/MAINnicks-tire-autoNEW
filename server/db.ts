@@ -547,10 +547,9 @@ export async function seedDefaultPricing() {
 // ─── VEHICLE INSPECTION QUERIES ─────────────────────
 
 function generateShareToken(): string {
-  const { randomInt } = require("crypto");
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
   let token = "";
-  for (let i = 0; i < 32; i++) token += chars[randomInt(chars.length)];
+  for (let i = 0; i < 32; i++) token += chars[Math.floor(Math.random() * chars.length)];
   return token;
 }
 
