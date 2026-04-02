@@ -157,8 +157,12 @@ export function getCacheStats(): { type: "redis" | "memory"; keys: number } {
 }
 
 // Auto-cleanup expired in-memory cache entries every 5 minutes
-setInterval(() => {
+const cacheCleanupInterval = setInterval(() => {
   if (!redisClient) {
     cleanupMemCache();
   }
 }, 5 * 60 * 1000);
+
+export function shutdownCache() {
+  clearInterval(cacheCleanupInterval);
+}

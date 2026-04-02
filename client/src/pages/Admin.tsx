@@ -50,6 +50,7 @@ const CampaignsSection = lazy(() => import("./admin/CampaignsSection"));
 const FinancingSection = lazy(() => import("./admin/FinancingSection"));
 const WorkOrdersSection = lazy(() => import("./admin/WorkOrdersSection"));
 const DispatchSection = lazy(() => import("./admin/DispatchSection"));
+const CommandCenterSection = lazy(() => import("./admin/CommandCenterSection"));
 
 function SectionSpinner() {
   return (
@@ -65,6 +66,7 @@ function SectionSpinner() {
 function SectionContent({ section }: { section: AdminSection }) {
   return (
     <Suspense fallback={<SectionSpinner />}>
+      {section === "commandCenter" && <CommandCenterSection />}
       {section === "overview" && <OverviewSection />}
       {section === "bookings" && <BookingsSection />}
       {section === "leads" && <LeadsSection />}
@@ -103,7 +105,7 @@ function SectionContent({ section }: { section: AdminSection }) {
 
 export default function Admin() {
   const { user, loading: authLoading } = useAuth();
-  const [section, setSection] = useState<AdminSection>("overview");
+  const [section, setSection] = useState<AdminSection>("commandCenter");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [drawerCustomerId, setDrawerCustomerId] = useState<number | null>(null);
 

@@ -172,7 +172,7 @@ function cleanup(maxAge = 24 * 60 * 60 * 1000): number {
 }
 
 // Auto-cleanup completed/failed jobs every 10 minutes (prevents unbounded growth)
-setInterval(() => {
+const cleanupInterval = setInterval(() => {
   cleanup(2 * 60 * 60 * 1000); // Remove completed/failed jobs older than 2 hours
   // Hard cap: if still over 10k jobs, purge oldest completed first
   if (jobs.size > 10000) {
@@ -185,6 +185,10 @@ setInterval(() => {
     }
   }
 }, 10 * 60 * 1000);
+
+export function shutdownJobQueue() {
+  clearInterval(cleanupInterval);
+}
 
 export const jobQueue = {
   register,
