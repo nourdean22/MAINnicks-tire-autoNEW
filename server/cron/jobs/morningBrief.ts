@@ -1,14 +1,15 @@
 /**
- * Morning Brief — Nick AI sends Nour a daily brief via Telegram.
+ * Nick AI Morning Brief — Full Circle Operator Intelligence
  *
- * Runs at 7:30 AM ET. Gathers execution data, business state,
- * and sends a formatted message through Telegram.
+ * This isn't just numbers. Nick AI analyzes everything, spots patterns,
+ * and sends Nour a brief that covers business + life + execution.
  *
- * Also fires on critical events (high-urgency leads, emergencies)
- * when called via sendUrgentBrief().
+ * Uses Venice AI (llama-3.3-70b) to generate the actual brief content
+ * so it reads like a chief of staff wrote it, not a database query.
  */
 import { createLogger } from "../../lib/logger";
 import { eq, gte, sql, and, desc } from "drizzle-orm";
+import { invokeLLM } from "../../_core/llm";
 
 const log = createLogger("cron:morning-brief");
 
@@ -27,7 +28,7 @@ export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; d
   }
 
   try {
-    const { leads, bookings, invoices, callbackRequests, customers, reviewRequests } =
+    const { leads, bookings, invoices, callbackRequests, customers, reviewRequests, workOrders, chatSessions } =
       await import("../../../drizzle/schema");
 
     const now = new Date();
@@ -36,10 +37,12 @@ export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; d
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // Gather data
+    // ─── Gather comprehensive data ─────────────────────
     const [
       yesterdayLeads, yesterdayBookings, pendingLeads, pendingCallbacks,
-      weekBookings, monthPaidInvoices, totalCustomers,
+      weekBookings, weekLeads, monthPaidInvoices, totalCustomers,
+      newCustomersMonth, openWorkOrders, yesterdayChats,
+      staleLeads, monthReviews, monthBookingsTotal,
     ] = await Promise.all([
       d.select({ count: sql<number>`count(*)` }).from(leads)
         .where(and(gte(leads.createdAt, yesterdayStart), sql`${leads.createdAt} < ${todayStart}`)),
@@ -48,55 +51,121 @@ export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; d
       d.select({ count: sql<number>`count(*)` }).from(leads).where(eq(leads.status, "new")),
       d.select({ count: sql<number>`count(*)` }).from(callbackRequests).where(eq(callbackRequests.status, "new")),
       d.select({ count: sql<number>`count(*)` }).from(bookings).where(gte(bookings.createdAt, weekAgo)),
+      d.select({ count: sql<number>`count(*)` }).from(leads).where(gte(leads.createdAt, weekAgo)),
       d.select().from(invoices).where(and(gte(invoices.invoiceDate, monthAgo), eq(invoices.paymentStatus, "paid"))),
       d.select({ count: sql<number>`count(*)` }).from(customers),
+      d.select({ count: sql<number>`count(*)` }).from(customers).where(gte(customers.createdAt, monthAgo)),
+      d.select({ count: sql<number>`count(*)` }).from(workOrders).where(sql`${workOrders.status} != 'completed' AND ${workOrders.status} != 'cancelled'`),
+      d.select({ count: sql<number>`count(*)` }).from(chatSessions)
+        .where(and(gte(chatSessions.createdAt, yesterdayStart), sql`${chatSessions.createdAt} < ${todayStart}`)),
+      d.select({ count: sql<number>`count(*)` }).from(leads)
+        .where(and(eq(leads.status, "new"), sql`${leads.createdAt} < ${weekAgo}`)),
+      d.select({ count: sql<number>`count(*)` }).from(reviewRequests).where(gte(reviewRequests.createdAt, monthAgo)),
+      d.select({ count: sql<number>`count(*)` }).from(bookings).where(gte(bookings.createdAt, monthAgo)),
     ]);
 
     const monthRevenue = monthPaidInvoices.reduce((s, inv) => s + inv.totalAmount, 0);
     const avgTicket = monthPaidInvoices.length > 0 ? Math.round(monthRevenue / monthPaidInvoices.length) : 0;
-
-    // Get execution data from controlCenter
-    let execScore = "—";
-    let mission = "";
-    try {
-      const { getDb: getDb2 } = await import("../../db");
-      // Execution is tracked in controlCenter router via in-memory state
-      // We'll just reference the numbers we have
-    } catch {}
-
-    // Build the brief
-    const dayName = now.toLocaleDateString("en-US", { weekday: "long", timeZone: "America/New_York" });
-    const dateStr = now.toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "America/New_York" });
+    const jobsWon = monthPaidInvoices.length;
+    const conversionRate = (monthBookingsTotal[0]?.count ?? 0) > 0
+      ? Math.round((jobsWon / (monthBookingsTotal[0]?.count ?? 1)) * 100)
+      : 0;
 
     const pendingCount = (pendingLeads[0]?.count ?? 0) + (pendingCallbacks[0]?.count ?? 0);
-    const urgencyEmoji = pendingCount > 5 ? "🔴" : pendingCount > 2 ? "🟡" : "🟢";
+    const staleCount = staleLeads[0]?.count ?? 0;
 
-    const brief = `☀️ NICK AI — ${dayName}, ${dateStr}
+    // ─── Build raw data for AI to analyze ──────────────
+    const dayName = now.toLocaleDateString("en-US", { weekday: "long", timeZone: "America/New_York" });
+    const dateStr = now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "America/New_York" });
+
+    const dataBlock = `DATE: ${dayName}, ${dateStr}
+
+YESTERDAY:
+- Leads: ${yesterdayLeads[0]?.count ?? 0}
+- Drop-offs: ${yesterdayBookings[0]?.count ?? 0}
+- Chat sessions: ${yesterdayChats[0]?.count ?? 0}
+
+THIS WEEK:
+- Drop-offs: ${weekBookings[0]?.count ?? 0}
+- Leads: ${weekLeads[0]?.count ?? 0}
+
+30-DAY FINANCIALS:
+- Revenue: $${monthRevenue.toLocaleString()}
+- Jobs won (invoices): ${jobsWon}
+- Avg ticket: $${avgTicket}
+- Conversion rate: ${conversionRate}%
+
+PIPELINE:
+- Pending leads (new): ${pendingLeads[0]?.count ?? 0}
+- Pending callbacks: ${pendingCallbacks[0]?.count ?? 0}
+- Stale leads (>7d untouched): ${staleCount}
+- Open work orders: ${openWorkOrders[0]?.count ?? 0}
+
+CUSTOMERS:
+- Total: ${totalCustomers[0]?.count ?? 0}
+- New this month: ${newCustomersMonth[0]?.count ?? 0}
+
+MARKETING:
+- Review requests sent (30d): ${monthReviews[0]?.count ?? 0}`;
+
+    // ─── Use Nick AI to write the brief ────────────────
+    let briefText: string;
+    try {
+      const aiResponse = await invokeLLM({
+        messages: [
+          {
+            role: "system",
+            content: `You are Nick AI writing Nour's morning brief for Telegram. Nour is the CEO of Nick's Tire & Auto (Cleveland).
+
+FORMAT RULES:
+- Use Telegram-friendly formatting (no markdown, use emoji sparingly)
+- Keep it under 1500 characters total
+- Structure: Greeting → Headline number → Yesterday recap → Pipeline status → Money snapshot → ONE insight/pattern → Top 3 priorities for today → Motivational closer
+- Be direct. No fluff. Like a chief of staff briefing the CEO.
+- If stale leads > 3, call it out as lost money.
+- If revenue is strong, acknowledge it. If weak, flag it.
+- The insight should be something non-obvious: a trend, a pattern, a risk, or an opportunity.
+- Priorities should be specific and actionable.
+- End with energy. Nour runs on systems over motivation.`,
+          },
+          {
+            role: "user",
+            content: `Write today's morning brief based on this data:\n\n${dataBlock}`,
+          },
+        ],
+        maxTokens: 800,
+      });
+
+      briefText = aiResponse.choices?.[0]?.message?.content || "";
+    } catch (aiErr) {
+      log.warn("AI brief generation failed, using template:", aiErr instanceof Error ? aiErr.message : aiErr);
+      briefText = "";
+    }
+
+    // Fallback to template if AI fails
+    if (!briefText || briefText.length < 50) {
+      const urgencyEmoji = pendingCount > 5 ? "🔴" : pendingCount > 2 ? "🟡" : "🟢";
+      briefText = `NICK AI — ${dayName}, ${dateStr}
 
 ${urgencyEmoji} ${pendingCount} items need attention
 
-📊 YESTERDAY:
-• ${yesterdayLeads[0]?.count ?? 0} leads | ${yesterdayBookings[0]?.count ?? 0} drop-offs
+YESTERDAY: ${yesterdayLeads[0]?.count ?? 0} leads | ${yesterdayBookings[0]?.count ?? 0} drop-offs | ${yesterdayChats[0]?.count ?? 0} chats
 
-📈 THIS WEEK:
-• ${weekBookings[0]?.count ?? 0} drop-offs
+THIS WEEK: ${weekBookings[0]?.count ?? 0} drop-offs | ${weekLeads[0]?.count ?? 0} leads
 
-💰 30-DAY:
-• $${monthRevenue.toLocaleString()} revenue (${monthPaidInvoices.length} jobs won)
-• $${avgTicket} avg ticket
-• ${totalCustomers[0]?.count ?? 0} total customers
+30-DAY: $${monthRevenue.toLocaleString()} revenue | ${jobsWon} jobs won | $${avgTicket} avg ticket | ${conversionRate}% conversion
 
-⚡ ACTION ITEMS:
-${(pendingLeads[0]?.count ?? 0) > 0 ? `• ${pendingLeads[0]?.count} new leads waiting` : ""}
-${(pendingCallbacks[0]?.count ?? 0) > 0 ? `• ${pendingCallbacks[0]?.count} callbacks pending` : ""}
-${pendingCount === 0 ? "• Clean slate — nothing pending" : ""}
+PIPELINE: ${pendingLeads[0]?.count ?? 0} new leads | ${pendingCallbacks[0]?.count ?? 0} callbacks | ${staleCount} stale leads | ${openWorkOrders[0]?.count ?? 0} open WOs
 
-💪 First come first serve. Let's get it.`;
+CUSTOMERS: ${totalCustomers[0]?.count ?? 0} total | ${newCustomersMonth[0]?.count ?? 0} new this month
 
-    await sendTelegram(brief);
+Systems over motivation. Let's go.`;
+    }
+
+    await sendTelegram(briefText);
     log.info("Morning brief sent via Telegram");
 
-    return { recordsProcessed: 1, details: `Brief sent. ${pendingCount} pending items.` };
+    return { recordsProcessed: 1, details: `Full brief sent. ${pendingCount} pending. $${monthRevenue.toLocaleString()} 30d rev.` };
   } catch (err) {
     log.error("Morning brief failed:", err instanceof Error ? err.message : err);
     return { details: `Error: ${err instanceof Error ? err.message : "unknown"}` };
@@ -105,7 +174,6 @@ ${pendingCount === 0 ? "• Clean slate — nothing pending" : ""}
 
 /**
  * Send an urgent brief when something critical happens
- * (e.g., emergency request, high-value lead)
  */
 export async function sendUrgentBrief(reason: string, details: string): Promise<void> {
   try {
@@ -116,7 +184,7 @@ ${reason}
 
 ${details}
 
-Open Command Center: https://nickstire.org/admin`;
+Command Center: https://nickstire.org/admin`;
 
     await sendTelegram(msg);
     log.info(`Urgent brief sent: ${reason}`);
