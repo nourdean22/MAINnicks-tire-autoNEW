@@ -404,7 +404,7 @@ async function startServer() {
     const fbToken = process.env.FB_VERIFY_TOKEN;
     const tokenStr = typeof token === "string" ? token : "";
     const isValid = mode === "subscribe" && fbToken && tokenStr.length === fbToken.length &&
-      require("crypto").timingSafeEqual(Buffer.from(tokenStr), Buffer.from(fbToken));
+      timingSafeEqual(Buffer.from(tokenStr), Buffer.from(fbToken));
     if (isValid) {
       res.status(200).send(challenge);
     } else {
