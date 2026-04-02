@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { timingSafeEqual, randomUUID } from "crypto";
 
 // ─── Startup env validation ─────────────────────────
 const REQUIRED_ENV = ["DATABASE_URL", "JWT_SECRET"] as const;
@@ -204,7 +205,7 @@ async function startServer() {
       return res.status(401).json({ error: "Unauthorized" });
     }
     const expectedFull = `Bearer ${expected}`;
-    if (auth.length !== expectedFull.length || !require("crypto").timingSafeEqual(Buffer.from(auth), Buffer.from(expectedFull))) {
+    if (auth.length !== expectedFull.length || !timingSafeEqual(Buffer.from(auth), Buffer.from(expectedFull))) {
       return res.status(401).json({ error: "Unauthorized" });
     }
     import("../cron/index").then(({ getJobStatuses }) => {

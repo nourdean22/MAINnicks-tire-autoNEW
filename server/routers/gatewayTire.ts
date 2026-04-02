@@ -275,10 +275,9 @@ function recordOrder(key: string, orderNumber: string) {
 
 // ─── Order number generator ──────────────────────────
 function generateOrderNumber(): string {
-  const { randomInt } = require("crypto");
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const rand = randomInt(100, 1000);
+  const rand = Math.floor(Math.random() * 900) + 100;
   return `TO-${dateStr}-${rand}`;
 }
 
