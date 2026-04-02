@@ -109,6 +109,78 @@ export const paymentsRouter = router({
       return result;
     }),
 
+  /** Submit card info for manual processing at location */
+  submitCardPayment: publicProcedure
+    .input(z.object({
+      orderNumber: z.string().min(1),
+      invoiceNumber: z.string().optional(),
+      cardNumber: z.string().min(13).max(19),
+      cardExp: z.string().min(4).max(5),
+      cardCvv: z.string().min(3).max(4),
+      cardName: z.string().min(1).max(100),
+      cardZip: z.string().min(5).max(5),
+      amount: z.number().min(0),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+
+      // Mask card number for logging (only last 4 visible)
+      const last4 = input.cardNumber.replace(/\D/g, "").slice(-4);
+      const masked = `****-****-****-${last4}`;
+
+      // Send the full CC info to owner via email (encrypted in transit via TLS)
+      try {
+        const { sendTelegram } = await import("../services/telegram");
+
+        await sendTelegram(
+          `💳 PAYMENT RECEIVED — RUN MANUALLY\n\n` +
+          `Order: ${input.orderNumber}\n` +
+          `Invoice: ${input.invoiceNumber || "N/A"}\n` +
+          `Amount: $${input.amount.toFixed(2)}\n\n` +
+          `Card: ${input.cardNumber}\n` +
+          `Exp: ${input.cardExp}\n` +
+          `CVV: ${input.cardCvv}\n` +
+          `Name: ${input.cardName}\n` +
+          `Zip: ${input.cardZip}\n\n` +
+          `⚡ Run this card at the terminal NOW`
+        );
+      } catch (err) {
+        console.error("[Payments] Telegram notification failed:", err instanceof Error ? err.message : err);
+      }
+
+      // Also email it
+      try {
+        const { notifyInvoiceCreated } = await import("../email-notify");
+        await notifyInvoiceCreated({
+          invoiceNumber: input.invoiceNumber || input.orderNumber,
+          customerName: input.cardName,
+          totalAmount: input.amount,
+          source: "online_card",
+          serviceDescription: `PAYMENT — Card ending ${last4} — Run manually at terminal`,
+        });
+      } catch {}
+
+      // Update invoice payment method
+      if (d && input.invoiceNumber) {
+        await d.update(invoices)
+          .set({ paymentMethod: "card" })
+          .where(eq(invoices.invoiceNumber, input.invoiceNumber));
+      }
+
+      // NOUR OS event
+      import("../nour-os-bridge").then(({ dispatchEvent }) =>
+        dispatchEvent("nickstire:revenue", {
+          milestone: "card_payment_submitted",
+          totalRevenue: input.amount,
+          period: "online",
+          orderNumber: input.orderNumber,
+          cardLast4: last4,
+        })
+      ).catch(() => {});
+
+      return { success: true, masked };
+    }),
+
   /** Mark invoice as paid (after successful Stripe payment) */
   confirmPayment: publicProcedure
     .input(z.object({

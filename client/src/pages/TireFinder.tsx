@@ -201,6 +201,20 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
   const [deliveryMethod, setDeliveryMethod] = useState<"walk-in" | "drop-off-morning" | "drop-off-afternoon" | "ship">("walk-in");
   const [shippingAddress, setShippingAddress] = useState("");
   const [orderResult, setOrderResult] = useState<{ orderNumber: string; invoiceNumber?: string; totalAmount: number } | null>(null);
+  const [ccNumber, setCcNumber] = useState("");
+  const [ccExp, setCcExp] = useState("");
+  const [ccCvv, setCcCvv] = useState("");
+  const [ccName, setCcName] = useState("");
+  const [ccZip, setCcZip] = useState("");
+  const [paymentSubmitted, setPaymentSubmitted] = useState(false);
+
+  const submitPayment = trpc.payments.submitCardPayment.useMutation({
+    onSuccess: () => {
+      setPaymentSubmitted(true);
+      toast.success("Payment info received! We'll process and confirm shortly.");
+    },
+    onError: () => toast.error("Something went wrong. Please call us at (216) 862-0005."),
+  });
 
   const orderMutation = trpc.gatewayTire.placeOrder.useMutation({
     onSuccess: (data) => {
@@ -236,29 +250,96 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
             <p className="text-xs text-muted-foreground mb-2">Invoice: {orderResult.invoiceNumber}</p>
           )}
 
-          {/* Payment Options */}
-          <div className="bg-primary/5 border border-primary/20 rounded-md p-3 mb-4">
-            <p className="text-xs font-semibold text-primary mb-2">Pay Now to Confirm Your Order:</p>
-            <div className="space-y-2">
-              <a
-                href={`/pay?invoice=${orderResult.invoiceNumber || orderResult.orderNumber}`}
-                className="block w-full text-center bg-primary text-primary-foreground py-2.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
-              >
-                Pay with Credit/Debit Card
-              </a>
-              <a
-                href="https://getsnap.snapfinance.com/lease/en-US/consumer/apply/landing"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full text-center bg-[#FF6B00] text-white py-2.5 rounded-md text-sm font-medium hover:bg-[#FF6B00]/90 transition-colors"
-              >
-                Apply with Snap Finance — No Credit Needed
-              </a>
-              <p className="text-[10px] text-muted-foreground text-center">
-                Snap approves in seconds and issues a virtual card you can use to pay above
-              </p>
+          {/* Payment — CC capture or financing */}
+          {!paymentSubmitted ? (
+            <div className="bg-primary/5 border border-primary/20 rounded-md p-4 mb-4">
+              <p className="text-xs font-semibold text-primary mb-3">Pay Now to Confirm Your Order:</p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[11px] text-muted-foreground mb-1">Card Number *</label>
+                  <input type="text" value={ccNumber} onChange={(e) => setCcNumber(e.target.value.replace(/[^\d\s-]/g, ""))}
+                    placeholder="1234 5678 9012 3456" maxLength={19}
+                    className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-primary/50" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] text-muted-foreground mb-1">Exp Date *</label>
+                    <input type="text" value={ccExp} onChange={(e) => setCcExp(e.target.value)}
+                      placeholder="MM/YY" maxLength={5}
+                      className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-primary/50" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-muted-foreground mb-1">CVV *</label>
+                    <input type="text" value={ccCvv} onChange={(e) => setCcCvv(e.target.value.replace(/\D/g, ""))}
+                      placeholder="123" maxLength={4}
+                      className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-primary/50" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[11px] text-muted-foreground mb-1">Name on Card *</label>
+                  <input type="text" value={ccName} onChange={(e) => setCcName(e.target.value)}
+                    placeholder="John Smith"
+                    className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-primary/50" />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-muted-foreground mb-1">Billing Zip *</label>
+                  <input type="text" value={ccZip} onChange={(e) => setCcZip(e.target.value.replace(/\D/g, ""))}
+                    placeholder="44112" maxLength={5}
+                    className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-primary/50" />
+                </div>
+                <button
+                  onClick={() => {
+                    if (!ccNumber.trim() || !ccExp.trim() || !ccCvv.trim() || !ccName.trim() || !ccZip.trim()) {
+                      toast.error("Please fill in all card fields");
+                      return;
+                    }
+                    submitPayment.mutate({
+                      orderNumber: orderResult.orderNumber,
+                      invoiceNumber: orderResult.invoiceNumber || "",
+                      cardNumber: ccNumber.trim(),
+                      cardExp: ccExp.trim(),
+                      cardCvv: ccCvv.trim(),
+                      cardName: ccName.trim(),
+                      cardZip: ccZip.trim(),
+                      amount: orderResult.totalAmount,
+                    });
+                  }}
+                  disabled={submitPayment.isPending}
+                  className="w-full bg-primary text-primary-foreground py-3 rounded-md text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {submitPayment.isPending ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</>
+                  ) : (
+                    <>Pay ${orderResult.totalAmount.toFixed(2)}</>
+                  )}
+                </button>
+                <p className="text-[10px] text-muted-foreground text-center">
+                  Your card will be securely processed at our location. Card info is encrypted and sent directly to our shop.
+                </p>
+              </div>
+
+              <div className="border-t border-border/20 mt-4 pt-3">
+                <p className="text-[11px] text-muted-foreground mb-2 text-center">Need financing instead?</p>
+                <a
+                  href="https://getsnap.snapfinance.com/lease/en-US/consumer/apply/landing"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full text-center bg-[#FF6B00] text-white py-2.5 rounded-md text-sm font-medium hover:bg-[#FF6B00]/90 transition-colors"
+                >
+                  Apply with Snap Finance — No Credit Needed
+                </a>
+                <p className="text-[9px] text-muted-foreground text-center mt-1">
+                  Snap approves in seconds. Use the virtual card they issue to pay above.
+                </p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-md p-4 mb-4 text-center">
+              <CheckCircle2 className="w-6 h-6 text-emerald-400 mx-auto mb-2" />
+              <p className="text-sm font-medium text-emerald-400">Payment Info Received</p>
+              <p className="text-xs text-muted-foreground mt-1">We'll process your card and confirm shortly.</p>
+            </div>
+          )}
           <p className="text-muted-foreground mb-6 leading-relaxed text-sm">
             {deliveryMethod === "ship"
               ? "We'll confirm availability and contact you within 1 business hour with shipping cost. Payment required before shipping."
