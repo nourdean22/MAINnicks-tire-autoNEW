@@ -12,7 +12,7 @@ import {
   ArrowRight, TrendingUp, XCircle, Loader2, Sparkles, Timer,
   CheckSquare, Square, Edit3, Save, X,
   DollarSign, Users, UserPlus, Receipt, Wrench, Car, FileText, CreditCard,
-  ExternalLink, Hash,
+  ExternalLink, Hash, Search, BarChart3,
 } from "lucide-react";
 
 // ─── LOCAL STORAGE HELPERS (tasks, decisions, commitments, loops) ───
@@ -101,6 +101,11 @@ export default function CommandCenterSection() {
   const { data: recentInvoices } = trpc.invoices.list.useQuery({ limit: 8 }, { refetchInterval: 60_000 });
   const { data: customerStats } = trpc.customers.stats.useQuery(undefined, { refetchInterval: 120_000 });
   const { data: laborStatus } = trpc.autoLabor.status.useQuery(undefined, { refetchInterval: 300_000 });
+  const { data: laborResults } = trpc.autoLabor.searchJobs.useQuery(
+    { query: laborSearch },
+    { enabled: laborSearch.length >= 2 }
+  );
+  const { data: kpiHistory } = trpc.kpi.history.useQuery({ weeks: 4 }, { refetchInterval: 300_000 });
 
   const toggleHabit = trpc.controlCenter.toggleHabit.useMutation({
     onSuccess: () => refetchBrief(),
@@ -125,6 +130,7 @@ export default function CommandCenterSection() {
   const [newLoopName, setNewLoopName] = useState("");
   const [newLoopFreq, setNewLoopFreq] = useState<"daily" | "weekly">("daily");
   const [activePanel, setActivePanel] = useState<"tasks" | "decisions" | "commitments" | "loops">("tasks");
+  const [laborSearch, setLaborSearch] = useState("");
 
   // Nick AI command state
   const [nickCommand, setNickCommand] = useState("");
@@ -879,6 +885,123 @@ export default function CommandCenterSection() {
             )}
           </Card>
         </div>
+      </div>
+
+      {/* ─── QUICK LABOR LOOKUP + WEEKLY TRENDS ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Quick Labor Lookup */}
+        <Card>
+          <SectionLabel icon={Search} label="Quick Labor Lookup" />
+          <input
+            type="text"
+            value={laborSearch}
+            onChange={(e) => setLaborSearch(e.target.value)}
+            placeholder="Search jobs... (e.g. brake pads, timing belt, oil change)"
+            className="w-full bg-background/50 border border-border/40 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50 placeholder:text-muted-foreground/40 mb-3"
+          />
+          {laborSearch.length >= 2 && laborResults && (
+            <div className="space-y-1.5 max-h-[220px] overflow-y-auto">
+              {laborResults.results.length > 0 ? (
+                laborResults.results.slice(0, 8).map((r: any, i: number) => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-2 bg-background/50 rounded">
+                    <Wrench className="w-3.5 h-3.5 text-primary/40 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{r.job.name}</div>
+                      <div className="text-[10px] text-muted-foreground">{r.categoryName}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-sm font-bold text-primary">{r.job.avgHours}h</div>
+                      <div className="text-[9px] text-muted-foreground">{r.job.minHours}–{r.job.maxHours}h</div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-4 text-muted-foreground text-xs">No jobs match "{laborSearch}"</div>
+              )}
+            </div>
+          )}
+          {laborSearch.length < 2 && (
+            <div className="text-center py-6 text-muted-foreground text-xs">
+              Type 2+ characters to search {laborStatus?.fallbackJobs ?? 60}+ jobs across {laborStatus?.fallbackCategories ?? 8} categories
+            </div>
+          )}
+        </Card>
+
+        {/* Weekly Performance Trends */}
+        <Card>
+          <SectionLabel icon={BarChart3} label="Weekly Performance" />
+          {kpis ? (
+            <div className="space-y-3">
+              {/* This Week vs Month */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="px-3 py-3 bg-background/50 rounded-lg">
+                  <div className="text-[10px] text-muted-foreground tracking-wider mb-1">THIS WEEK</div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xl font-bold text-foreground">{kpis.weekBookings}</span>
+                    <span className="text-[10px] text-muted-foreground">drop-offs</span>
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-lg font-bold text-foreground">{kpis.weekLeads}</span>
+                    <span className="text-[10px] text-muted-foreground">leads</span>
+                  </div>
+                </div>
+                <div className="px-3 py-3 bg-background/50 rounded-lg">
+                  <div className="text-[10px] text-muted-foreground tracking-wider mb-1">THIS MONTH</div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xl font-bold text-foreground">{kpis.monthBookings}</span>
+                    <span className="text-[10px] text-muted-foreground">drop-offs</span>
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-lg font-bold text-foreground">{kpis.monthLeads}</span>
+                    <span className="text-[10px] text-muted-foreground">leads</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Key Metrics */}
+              <div className="space-y-2">
+                {[
+                  { label: "Completed This Week", value: kpis.completedThisWeek, total: kpis.weekBookings, color: "bg-emerald-400" },
+                  { label: "Completed This Month", value: kpis.completedThisMonth, total: kpis.monthBookings, color: "bg-blue-400" },
+                  { label: "Lead → Booking Rate", value: kpis.conversionRate, total: 100, color: "bg-purple-400" },
+                ].map(({ label, value, total, color }) => (
+                  <div key={label}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-muted-foreground">{label}</span>
+                      <span className="text-xs font-bold">{value}{total === 100 ? "%" : `/${total}`}</span>
+                    </div>
+                    <div className="h-1.5 bg-foreground/5 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full ${color} rounded-full transition-all duration-500`}
+                        style={{ width: `${total > 0 ? Math.min((value / total) * 100, 100) : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Emergency Jobs */}
+              {kpis.emergencyThisWeek > 0 && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-red-500/5 border border-red-500/20 rounded text-xs">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                  <span className="text-red-400 font-medium">{kpis.emergencyThisWeek} emergency jobs this week</span>
+                </div>
+              )}
+
+              {/* Review Performance */}
+              {kpis.reviewsSent > 0 && (
+                <div className="flex items-center justify-between px-3 py-2 bg-background/50 rounded text-xs">
+                  <span className="text-muted-foreground">Reviews: {kpis.reviewsSent} sent</span>
+                  <span className="font-bold text-foreground">
+                    {kpis.reviewsClicked > 0 ? `${Math.round((kpis.reviewsClicked / kpis.reviewsSent) * 100)}% click rate` : "0 clicks yet"}
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground text-xs">Loading KPIs...</div>
+          )}
+        </Card>
       </div>
 
       {/* ─── DROP-OFF QUEUE NOTE ─── */}
