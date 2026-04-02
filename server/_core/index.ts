@@ -25,6 +25,7 @@ if (missingRec.length) {
 }
 
 import express from "express";
+import compression from "compression";
 import { createServer } from "http";
 import crypto from "crypto";
 import net from "net";
@@ -77,6 +78,8 @@ async function startServer() {
   const server = createServer(app);
   // Trust proxy — required for rate limiting behind reverse proxy
   app.set("trust proxy", 1);
+  // Compression — gzip/deflate all responses (fixes Ahrefs "Not compressed" for all pages)
+  app.use(compression({ threshold: 1024 }));
   // Body parser — 2MB default, photo uploads handled separately
   app.use(express.json({ limit: "2mb" }));
   app.use(express.urlencoded({ limit: "2mb", extended: true }));
@@ -315,9 +318,64 @@ async function startServer() {
   // Robots.txt — controls crawler access
   app.get("/robots.txt", (_req, res) => {
     res.setHeader("Content-Type", "text/plain");
-    res.send(
-      `User-agent: *\nAllow: /\nAllow: /favicon.ico\n\n# Public pages — crawl freely\nAllow: /tires\nAllow: /tires/info\nAllow: /services/\nAllow: /about\nAllow: /contact\nAllow: /reviews\nAllow: /specials\nAllow: /faq\nAllow: /blog\nAllow: /diagnose\nAllow: /estimate\nAllow: /fleet\nAllow: /financing\nAllow: /car-care-guide\nAllow: /careers\nAllow: /appointment\nAllow: /area/\n\n# Block admin, auth, and private pages from indexing\nDisallow: /admin\nDisallow: /admin/\nDisallow: /my-garage\nDisallow: /portal\nDisallow: /api/\nDisallow: /status/\nDisallow: /inspection/\nDisallow: /loyalty\nDisallow: /referral\n\n# Block query parameters\nDisallow: /*?*\n\n# Crawl delay for polite crawling\nCrawl-delay: 1\n\nSitemap: ${SITE_URL}/sitemap.xml\nSitemap: ${SITE_URL}/sitemap-locations.xml\nSitemap: ${SITE_URL}/sitemap-services.xml\n`
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.send(`User-agent: *
+Allow: /
+
+# Block admin, auth, and private pages
+Disallow: /admin
+Disallow: /admin/
+Disallow: /my-garage
+Disallow: /portal
+Disallow: /api/
+Disallow: /status/
+Disallow: /inspection/
+Disallow: /loyalty
+Disallow: /referral
+
+# Block tracking parameters only
+Disallow: /*?utm_*
+Disallow: /*?ref=*
+Disallow: /*?fbclid=*
+Disallow: /*?gclid=*
+
+Crawl-delay: 1
+
+Sitemap: ${SITE_URL}/sitemap.xml
+Sitemap: ${SITE_URL}/sitemap-services.xml
+Sitemap: ${SITE_URL}/sitemap-locations.xml
+`);
+  });
+
+  // Sub-sitemaps for services and locations
+  app.get("/sitemap-services.xml", (_req, res) => {
+    const baseUrl = SITE_URL;
+    const now = new Date().toISOString().split("T")[0];
+    const serviceRoutes = SITEMAP_ROUTES.filter(r =>
+      r.group === "service" || r.group === "seo-service" || r.group === "vehicle" || r.group === "problem" || r.group === "seasonal"
     );
+    const urls = serviceRoutes.map(p =>
+      `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
+    );
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>`;
+    res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.send(xml);
+  });
+
+  app.get("/sitemap-locations.xml", (_req, res) => {
+    const baseUrl = SITE_URL;
+    const now = new Date().toISOString().split("T")[0];
+    const locationRoutes = SITEMAP_ROUTES.filter(r =>
+      r.group === "city" || r.group === "neighborhood"
+    );
+    const urls = locationRoutes.map(p =>
+      `  <url>\n    <loc>${baseUrl}${p.path}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
+    );
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>`;
+    res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.send(xml);
   });
 
   // ─── SMS Bot Webhook (Twilio) ───────────────────────────

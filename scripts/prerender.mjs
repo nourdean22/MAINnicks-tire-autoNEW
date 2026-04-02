@@ -186,11 +186,20 @@ async function main() {
               );
             }
 
-            // Fix canonical URL
-            html = html.replace(
-              /(<link\s+rel="canonical"\s+href=")[^"]*(")/,
-              `$1${routePath === "/" ? BASE_URL + "/" : canonicalUrl}$2`
-            );
+            // Fix or INSERT canonical URL
+            if (html.includes('rel="canonical"')) {
+              html = html.replace(
+                /(<link\s+rel="canonical"\s+href=")[^"]*(")/,
+                `$1${routePath === "/" ? BASE_URL + "/" : canonicalUrl}$2`
+              );
+            } else {
+              html = html.replace("</head>", `  <link rel="canonical" href="${routePath === "/" ? BASE_URL + "/" : canonicalUrl}" />\n  </head>`);
+            }
+
+            // INSERT meta description if missing
+            if (!html.includes('name="description"') && routeInfo.description) {
+              html = html.replace("</head>", `  <meta name="description" content="${routeInfo.description}" />\n  </head>`);
+            }
 
             // Fix OG tags
             html = html.replace(
@@ -215,6 +224,17 @@ async function main() {
               /(<meta\s+name="twitter:description"\s+content=")[^"]*(")/,
               `$1${routeInfo.description}$2`
             );
+          }
+
+          // INSERT H1 if missing (critical for SEO — fixes "H1 tag missing" errors)
+          if (routeInfo && !/<h1[\s>]/i.test(html)) {
+            // Inject a visually-hidden H1 into <main> or <body>
+            const h1Tag = `<h1 style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0">${routeInfo.title}</h1>`;
+            if (html.includes('id="main-content"')) {
+              html = html.replace('id="main-content">', `id="main-content">${h1Tag}`);
+            } else if (html.includes('<main')) {
+              html = html.replace(/<main([^>]*)>/, `<main$1>${h1Tag}`);
+            }
           }
 
           // Add prerendered marker
