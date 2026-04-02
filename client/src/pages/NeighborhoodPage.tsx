@@ -303,7 +303,7 @@ export default function NeighborhoodPage() {
                   loading="lazy"
                   allowFullScreen
                   referrerPolicy="no-referrer-when-downgrade"
-                  src={`https://www.google.com/maps/embed/v1/directions?key=AIzaSyDHtuYf-3IHBeT8FmF4atVPfXqq9r_AWbo&origin=${neighborhood.lat},${neighborhood.lng}&destination=${BUSINESS.geo.lat},${BUSINESS.geo.lng}`}
+                  src={`https://www.google.com/maps/embed/v1/directions?key=${import.meta.env.VITE_GOOGLE_MAPS_EMBED_KEY || "AIzaSyDHtuYf-3IHBeT8FmF4atVPfXqq9r_AWbo"}&origin=${neighborhood.lat},${neighborhood.lng}&destination=${BUSINESS.geo.lat},${BUSINESS.geo.lng}`}
                 />
               </div>
             </FadeIn>
