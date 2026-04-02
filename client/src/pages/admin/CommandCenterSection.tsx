@@ -12,7 +12,7 @@ import {
   ArrowRight, TrendingUp, XCircle, Loader2, Sparkles, Timer,
   CheckSquare, Square, Edit3, Save, X,
   DollarSign, Users, UserPlus, Receipt, Wrench, Car, FileText, CreditCard,
-  ExternalLink, Hash, Search, BarChart3,
+  ExternalLink, Hash, Search, BarChart3, Radio, Activity, Wifi, Globe,
 } from "lucide-react";
 
 // ─── LOCAL STORAGE HELPERS (tasks, decisions, commitments, loops) ───
@@ -106,6 +106,11 @@ export default function CommandCenterSection() {
     { enabled: laborSearch.length >= 2 }
   );
   const { data: kpiHistory } = trpc.kpi.history.useQuery({ weeks: 4 }, { refetchInterval: 300_000 });
+
+  // ─── BRIDGE & PIPELINE DATA ───────────────────────────
+  const { data: bridgeStatus } = trpc.nourOsBridge.status.useQuery(undefined, { refetchInterval: 30_000 });
+  const { data: bridgeEvents } = trpc.nourOsBridge.recentEvents.useQuery({ limit: 10 }, { refetchInterval: 30_000 });
+  const { data: pipelineDash } = trpc.pipelines.dashboard.useQuery(undefined, { refetchInterval: 120_000 });
 
   const toggleHabit = trpc.controlCenter.toggleHabit.useMutation({
     onSuccess: () => refetchBrief(),
@@ -769,9 +774,9 @@ export default function CommandCenterSection() {
 
       {/* ─── RECENT INVOICES + SHOP INTEGRATIONS ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Recent Invoices */}
+        {/* WINS — Completed Jobs */}
         <Card className="lg:col-span-2">
-          <SectionLabel icon={Receipt} label="Recent Invoices" />
+          <SectionLabel icon={Receipt} label="Wins — Jobs Completed" />
           {recentInvoices && recentInvoices.items.length > 0 ? (
             <div className="space-y-1.5">
               {recentInvoices.items.slice(0, 6).map((inv: any) => (
@@ -807,10 +812,12 @@ export default function CommandCenterSection() {
                 </div>
               ))}
               <div className="flex items-center justify-between pt-2">
-                <span className="text-[10px] text-muted-foreground">{recentInvoices.total} total invoices</span>
+                <span className="text-[10px] text-muted-foreground">
+                  <strong className="text-emerald-400">{recentInvoices.total}</strong> jobs won
+                </span>
                 {kpis && (
                   <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                    <span>Parts: <strong className="text-foreground">{kpis.completedThisMonth}</strong> jobs/mo</span>
+                    <span>This month: <strong className="text-emerald-400">{kpis.completedThisMonth}</strong> completed</span>
                     <span>Reviews: <strong className="text-foreground">{kpis.reviewsSent}</strong> sent</span>
                   </div>
                 )}
@@ -1021,42 +1028,128 @@ export default function CommandCenterSection() {
         </div>
       </Card>
 
-      {/* ─── SYSTEM STATUS ─── */}
-      <Card>
-        <SectionLabel icon={Zap} label="System Status" />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {[
-            {
-              label: "Database",
-              status: overview?.systemHealth.dbStatus ?? "unknown",
-              ok: overview?.systemHealth.dbStatus === "connected",
-            },
-            {
-              label: "AI Gateway",
-              status: overview?.aiGateway.ollamaHealthy ? "Venice Active" : "Cloud Fallback",
-              ok: true,
-            },
-            {
-              label: "Uptime",
-              status: overview?.systemHealth.uptime ? `${Math.floor((overview.systemHealth.uptime) / 3600)}h ${Math.floor(((overview.systemHealth.uptime) % 3600) / 60)}m` : "—",
-              ok: true,
-            },
-            {
-              label: "AI Requests (5m)",
-              status: `${overview?.aiGateway.recentRequests ?? 0} req`,
-              ok: (overview?.aiGateway.fallbackRate ?? 0) < 50,
-            },
-          ].map(({ label, status, ok }) => (
-            <div key={label} className="flex items-center gap-3 px-3 py-2.5 bg-background/50 rounded-lg">
-              <div className={`w-2 h-2 rounded-full ${ok ? "bg-emerald-400" : "bg-amber-400"}`} />
-              <div>
-                <div className="text-[10px] text-muted-foreground tracking-wider">{label}</div>
-                <div className="text-xs font-medium">{status}</div>
+      {/* ─── SYSTEM & BRIDGE STATUS ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* System + Bridge Health */}
+        <Card>
+          <SectionLabel icon={Zap} label="System Health" />
+          <div className="grid grid-cols-2 gap-2.5 mb-4">
+            {[
+              { label: "Database", status: overview?.systemHealth.dbStatus ?? "unknown", ok: overview?.systemHealth.dbStatus === "connected" },
+              { label: "AI Gateway", status: overview?.aiGateway.ollamaHealthy ? "Venice Active" : "Cloud", ok: true },
+              { label: "Uptime", status: overview?.systemHealth.uptime ? `${Math.floor(overview.systemHealth.uptime / 3600)}h ${Math.floor((overview.systemHealth.uptime % 3600) / 60)}m` : "—", ok: true },
+              { label: "AI Reqs (5m)", status: `${overview?.aiGateway.recentRequests ?? 0}`, ok: (overview?.aiGateway.fallbackRate ?? 0) < 50 },
+            ].map(({ label, status, ok }) => (
+              <div key={label} className="flex items-center gap-2.5 px-3 py-2 bg-background/50 rounded">
+                <div className={`w-2 h-2 rounded-full shrink-0 ${ok ? "bg-emerald-400" : "bg-amber-400"}`} />
+                <div>
+                  <div className="text-[9px] text-muted-foreground tracking-wider">{label}</div>
+                  <div className="text-xs font-medium">{status}</div>
+                </div>
               </div>
+            ))}
+          </div>
+
+          {/* NOUR OS Bridge */}
+          <SectionLabel icon={Radio} label="NOUR OS Bridge" />
+          {bridgeStatus ? (
+            <div className="space-y-2">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="px-3 py-2 bg-background/50 rounded text-center">
+                  <div className="text-lg font-bold text-emerald-400">{bridgeStatus.totalEventsLocal}</div>
+                  <div className="text-[9px] text-muted-foreground tracking-wider">LOCAL</div>
+                </div>
+                <div className="px-3 py-2 bg-background/50 rounded text-center">
+                  <div className="text-lg font-bold text-blue-400">{bridgeStatus.totalEventsSent}</div>
+                  <div className="text-[9px] text-muted-foreground tracking-wider">CLOUD</div>
+                </div>
+                <div className="px-3 py-2 bg-background/50 rounded text-center">
+                  <div className="text-lg font-bold text-foreground">{bridgeStatus.eventsInMemory}</div>
+                  <div className="text-[9px] text-muted-foreground tracking-wider">IN MEM</div>
+                </div>
+              </div>
+              {bridgeStatus.lastSyncTime && (
+                <div className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                  <Wifi className="w-3 h-3" />
+                  Last sync: {new Date(bridgeStatus.lastSyncTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                </div>
+              )}
+              {bridgeStatus.lastError && (
+                <div className="text-[10px] text-red-400 flex items-center gap-1.5">
+                  <AlertTriangle className="w-3 h-3" />
+                  {bridgeStatus.lastError.slice(0, 60)}
+                </div>
+              )}
             </div>
-          ))}
-        </div>
-      </Card>
+          ) : (
+            <div className="text-center py-3 text-muted-foreground text-xs">Loading bridge status...</div>
+          )}
+        </Card>
+
+        {/* Pipelines + Event Feed */}
+        <Card>
+          <SectionLabel icon={Activity} label="Pipelines & Events" />
+          {/* Pipeline Status */}
+          {pipelineDash && (
+            <div className="space-y-2 mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className={`w-2 h-2 rounded-full ${
+                  pipelineDash.overallHealth === "healthy" ? "bg-emerald-400" :
+                  pipelineDash.overallHealth === "degraded" ? "bg-amber-400" : "bg-red-400"
+                }`} />
+                <span className="text-[10px] font-bold tracking-wider text-muted-foreground">
+                  {pipelineDash.overallHealth.toUpperCase()} · {pipelineDash.totalRunsToday} runs today
+                </span>
+              </div>
+              {pipelineDash.pipelines.map((p: any) => (
+                <div key={p.name} className="flex items-center gap-3 px-3 py-2 bg-background/50 rounded">
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${
+                    p.health === "healthy" ? "bg-emerald-400" :
+                    p.health === "degraded" ? "bg-amber-400" :
+                    p.health === "failing" ? "bg-red-400" : "bg-foreground/20"
+                  }`} />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-medium">{p.displayName}</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">
+                    {p.lastRun ? new Date(p.lastRun.startedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "never"}
+                  </span>
+                  <span className={`text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded ${
+                    p.health === "healthy" ? "bg-emerald-500/10 text-emerald-400" :
+                    p.health === "never-run" ? "bg-foreground/5 text-muted-foreground" :
+                    "bg-amber-500/10 text-amber-400"
+                  }`}>{p.health.toUpperCase()}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Recent Bridge Events */}
+          <div className="text-[10px] font-semibold tracking-[0.15em] text-muted-foreground uppercase mb-2">Recent Events</div>
+          {bridgeEvents && bridgeEvents.length > 0 ? (
+            <div className="space-y-1 max-h-[160px] overflow-y-auto">
+              {bridgeEvents.slice(0, 8).map((evt: any, i: number) => (
+                <div key={evt.eventId || i} className="flex items-center gap-2 px-2.5 py-1.5 bg-background/30 rounded text-[11px]">
+                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    evt.type.includes("booking") ? "bg-blue-400" :
+                    evt.type.includes("lead") ? "bg-amber-400" :
+                    evt.type.includes("invoice") ? "bg-emerald-400" :
+                    evt.type.includes("callback") ? "bg-orange-400" :
+                    evt.type.includes("emergency") ? "bg-red-400" : "bg-foreground/30"
+                  }`} />
+                  <span className="text-muted-foreground font-mono">{evt.type.replace("nickstire:", "")}</span>
+                  <span className="flex-1" />
+                  <span className="text-muted-foreground/60">
+                    {new Date(evt.timestamp).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-4 text-muted-foreground text-xs">No recent events</div>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }
