@@ -196,7 +196,8 @@ Return your response as JSON matching this exact schema.`,
     throw new Error("LLM returned empty or non-string content");
   }
 
-  const article: GeneratedArticle = JSON.parse(content);
+  let article: GeneratedArticle;
+  try { article = JSON.parse(content); } catch { throw new Error("LLM returned invalid JSON for article"); }
 
   // Validate and sanitize
   if (!article.slug || !article.title || !article.sections?.length) {
@@ -283,7 +284,8 @@ Return as JSON array.`,
     throw new Error("LLM returned empty content for notifications");
   }
 
-  const parsed = JSON.parse(content);
+  let parsed: any;
+  try { parsed = JSON.parse(content); } catch { throw new Error("LLM returned invalid JSON for notifications"); }
   return parsed.notifications;
 }
 
