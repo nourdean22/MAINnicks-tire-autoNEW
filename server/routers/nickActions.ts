@@ -1662,6 +1662,27 @@ CUSTOMERS:
 - Total: ${totalCustomers[0]?.count ?? 0} | New this month: ${newCustomersMonth[0]?.count ?? 0}
 REVIEWS: ${monthReviews[0]?.count ?? 0} requests sent this month
 SOURCES: Auto Labor Guide (ShopDriver Elite), Gateway for invoices`;
+
+          // Add intelligence data (conversion pipeline + revenue projections)
+          try {
+            const { analyzeConversionPipeline, projectRevenue, generateProactiveAlerts } = await import("../services/nickIntelligence");
+            const [pipeline, revenue, alerts] = await Promise.all([
+              analyzeConversionPipeline(),
+              projectRevenue(),
+              generateProactiveAlerts(),
+            ]);
+            bizContext += `
+INTELLIGENCE:
+- Estimate→Job conversion: ${pipeline.estimateToInvoice}%
+- Lead→Booking conversion: ${pipeline.leadToBooking}%
+- Drop-off→Completed: ${pipeline.bookingToInvoice}%
+- Stale leads: ${pipeline.staleLeads} | Stale estimates: ${pipeline.staleEstimates}
+- Week projection: $${revenue.thisWeekProjection} | Month projection: $${revenue.thisMonthProjection}
+- Week-over-week: ${revenue.weekOverWeek > 0 ? "+" : ""}${revenue.weekOverWeek}% (${revenue.trend})
+- Avg daily revenue: $${revenue.avgDailyRevenue}
+${pipeline.insights.length > 0 ? "WARNINGS: " + pipeline.insights.join(" | ") : ""}
+${alerts.length > 0 ? "ALERTS: " + alerts.join(" | ") : ""}`;
+          } catch {}
         } catch (err) {
           log.warn("Failed to gather biz context for operator command", { error: err instanceof Error ? err.message : String(err) });
         }
