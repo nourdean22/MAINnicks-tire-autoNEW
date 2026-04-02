@@ -175,6 +175,139 @@ export default function ProblemPage() {
           </div>
         </section>
 
+        {/* How We Fix This */}
+        <section className="py-16 lg:py-20 bg-[oklch(0.065_0.004_260)]">
+          <div className="container max-w-4xl">
+            <FadeIn>
+              <span className="font-mono text-primary text-sm tracking-wide">Our Repair Process</span>
+              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-6">
+                HOW WE FIX THIS AT NICK'S
+              </h2>
+              <p className="text-foreground/70 leading-relaxed text-lg mb-8">
+                Every repair at Nick's Tire & Auto starts with understanding the actual problem — not guessing. Here's what happens from the moment you pull into our shop on Euclid Ave to the moment you drive away with a fix that lasts.
+              </p>
+            </FadeIn>
+
+            <div className="space-y-6">
+              <FadeIn delay={0.05}>
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="font-semibold font-bold text-primary text-sm">1</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Drop Off or Wait</h3>
+                    <p className="text-foreground/70 leading-relaxed">Walk-ins are welcome — no appointment needed for diagnostics. Tell our front desk what you're experiencing and we'll get your vehicle into the bay. Most diagnostic inspections start within 30 minutes of arrival.</p>
+                  </div>
+                </div>
+              </FadeIn>
+              <FadeIn delay={0.1}>
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="font-semibold font-bold text-primary text-sm">2</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Full Diagnostic Inspection</h3>
+                    <p className="text-foreground/70 leading-relaxed">Our technicians use professional scan tools, visual inspection, and road testing when needed. We don't just read a code and guess — we trace the problem to its root cause so we fix it right the first time.</p>
+                  </div>
+                </div>
+              </FadeIn>
+              <FadeIn delay={0.15}>
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="font-semibold font-bold text-primary text-sm">3</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Honest Quote, Your Decision</h3>
+                    <p className="text-foreground/70 leading-relaxed">We'll call you with exactly what we found, what needs to be fixed, and what it costs. No pressure, no upsells. If you want a second opinion, no hard feelings. We give you the information and you make the call.</p>
+                  </div>
+                </div>
+              </FadeIn>
+              <FadeIn delay={0.2}>
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="font-semibold font-bold text-primary text-sm">4</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Repair & Quality Check</h3>
+                    <p className="text-foreground/70 leading-relaxed">Once approved, we get to work. Most standard repairs are completed same-day. Before handing your keys back, we verify the fix with a final inspection to make sure everything is solid.</p>
+                  </div>
+                </div>
+              </FadeIn>
+            </div>
+
+            <FadeIn delay={0.25}>
+              <div className="mt-10 bg-card/50 border border-border/50 rounded-lg p-6">
+                <h3 className="font-semibold font-bold text-foreground text-lg mb-3">Estimated Turnaround Times</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div className="flex justify-between text-foreground/70">
+                    <span>Diagnostic inspection</span>
+                    <span className="font-mono text-primary">30–60 min</span>
+                  </div>
+                  <div className="flex justify-between text-foreground/70">
+                    <span>Minor repair (sensors, filters)</span>
+                    <span className="font-mono text-primary">1–2 hours</span>
+                  </div>
+                  <div className="flex justify-between text-foreground/70">
+                    <span>Brake or suspension work</span>
+                    <span className="font-mono text-primary">2–4 hours</span>
+                  </div>
+                  <div className="flex justify-between text-foreground/70">
+                    <span>Engine or transmission repair</span>
+                    <span className="font-mono text-primary">1–3 days</span>
+                  </div>
+                </div>
+              </div>
+            </FadeIn>
+          </div>
+        </section>
+
+        {/* Trust Signals */}
+        <section className="py-16 lg:py-20 bg-[oklch(0.055_0.004_260)]">
+          <div className="container">
+            <FadeIn>
+              <span className="font-mono text-primary text-sm tracking-wide">Why Nick's</span>
+              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-10">
+                TRUSTED BY CLEVELAND DRIVERS
+              </h2>
+            </FadeIn>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <FadeIn delay={0.05}>
+                <div className="text-center p-6">
+                  <div className="text-4xl font-bold text-primary mb-2">{BUSINESS.reviews.rating}</div>
+                  <div className="text-foreground/60 text-sm">Google Rating</div>
+                  <div className="text-foreground/40 text-xs mt-1">{BUSINESS.reviews.countDisplay} reviews</div>
+                </div>
+              </FadeIn>
+              <FadeIn delay={0.1}>
+                <div className="text-center p-6">
+                  <div className="text-4xl font-bold text-primary mb-2">7</div>
+                  <div className="text-foreground/60 text-sm">Days a Week</div>
+                  <div className="text-foreground/40 text-xs mt-1">{BUSINESS.hours.display}</div>
+                </div>
+              </FadeIn>
+              <FadeIn delay={0.15}>
+                <div className="text-center p-6">
+                  <div className="text-4xl font-bold text-primary mb-2">$10</div>
+                  <div className="text-foreground/60 text-sm">Down Financing</div>
+                  <div className="text-foreground/40 text-xs mt-1"><Link href="/financing" className="text-nick-blue-light hover:underline">Learn more</Link></div>
+                </div>
+              </FadeIn>
+              <FadeIn delay={0.2}>
+                <div className="text-center p-6">
+                  <div className="text-4xl font-bold text-primary mb-2">FCFS</div>
+                  <div className="text-foreground/60 text-sm">Walk-Ins Welcome</div>
+                  <div className="text-foreground/40 text-xs mt-1">No appointment needed</div>
+                </div>
+              </FadeIn>
+            </div>
+            <FadeIn delay={0.25}>
+              <p className="mt-8 text-center text-foreground/60 max-w-2xl mx-auto leading-relaxed">
+                Located at {BUSINESS.address.full}, Nick's Tire & Auto has been serving Cleveland and Northeast Ohio since 2018. We fix the problem, explain the cost, and get you back on the road — that's it. No games. Read what our customers say on our <Link href="/reviews" className="text-nick-blue-light hover:underline">reviews page</Link>.
+              </p>
+            </FadeIn>
+          </div>
+        </section>
+
         {/* FAQs */}
         <section className="py-16 lg:py-20 bg-[oklch(0.055_0.004_260)]">
           <div className="container max-w-4xl">

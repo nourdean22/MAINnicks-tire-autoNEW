@@ -255,8 +255,129 @@ export default function SeasonalPage() {
           </div>
         </section>
 
+        {/* Seasonal Tips */}
+        <section className="py-16 lg:py-24 bg-[oklch(0.055_0.004_260)]">
+          <div className="container max-w-4xl">
+            <FadeIn>
+              <span className="font-mono text-nick-blue-light text-sm tracking-wide">Actionable Advice</span>
+              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+                {page.season.toUpperCase()} CAR CARE TIPS FROM OUR MECHANICS
+              </h2>
+              <p className="mt-6 text-foreground/70 leading-relaxed text-lg">
+                {page.season === "Winter"
+                  ? "Northeast Ohio winters punish vehicles. Salt, freezing temperatures, and black ice put extra stress on every system in your car. Our mechanics see the same preventable breakdowns every year — here's how to avoid them."
+                  : "Ohio summers bring heat, humidity, and road trips. Your car's cooling system, tires, and AC work harder than any other time of year. A few simple checks now prevent expensive breakdowns later."}
+              </p>
+            </FadeIn>
+            <div className="mt-10 space-y-6">
+              {page.season === "Winter" ? (
+                <>
+                  <FadeIn delay={0.05}>
+                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                      <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Check Your Battery Before the First Freeze</h3>
+                        <p className="text-foreground/70 leading-relaxed">Cold weather cuts battery capacity by up to 50%. If your battery is over three years old or your engine cranks slowly, get it tested before temperatures drop. A dead battery on a 10-degree morning is preventable. We test batteries for free — just stop by the shop.</p>
+                      </div>
+                    </div>
+                  </FadeIn>
+                  <FadeIn delay={0.1}>
+                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                      <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Switch to Winter Tires or Check Your Tread</h3>
+                        <p className="text-foreground/70 leading-relaxed">All-season tires lose grip below 45 degrees. If you're driving on tread below 4/32", you're sliding, not stopping. <Link href="/tires" className="text-nick-blue-light hover:underline">Winter tires</Link> make a real difference on Cleveland streets. Already have them? We'll mount and balance your winter set for a quick swap.</p>
+                      </div>
+                    </div>
+                  </FadeIn>
+                  <FadeIn delay={0.15}>
+                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                      <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Flush Your Coolant — Antifreeze Degrades</h3>
+                        <p className="text-foreground/70 leading-relaxed">Antifreeze protects your engine down to -34 degrees, but only if it's fresh. Old coolant loses its freeze protection and can cause a cracked block or blown head gasket. If it's been more than two years or 30,000 miles, get a <Link href="/coolant-flush-cleveland" className="text-nick-blue-light hover:underline">coolant flush</Link> before winter hits.</p>
+                      </div>
+                    </div>
+                  </FadeIn>
+                  <FadeIn delay={0.2}>
+                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                      <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Inspect Your Brakes Before Ice Season</h3>
+                        <p className="text-foreground/70 leading-relaxed">Stopping distances double on wet and icy roads. Worn <Link href="/brakes" className="text-nick-blue-light hover:underline">brake pads</Link> make it even worse. If you hear squealing or feel pulsation when braking, don't wait. A brake inspection takes 20 minutes and could save you from a winter collision.</p>
+                      </div>
+                    </div>
+                  </FadeIn>
+                  <FadeIn delay={0.25}>
+                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                      <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Top Off Washer Fluid & Check Wipers</h3>
+                        <p className="text-foreground/70 leading-relaxed">Salt spray from highway driving burns through washer fluid fast. Use winter-rated fluid that won't freeze in the reservoir. Replace wiper blades if they streak — visibility is everything when the sun sets at 5 PM and the roads are wet.</p>
+                      </div>
+                    </div>
+                  </FadeIn>
+                </>
+              ) : (
+                <>
+                  <FadeIn delay={0.05}>
+                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                      <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Get Your AC Checked Before the Heat Hits</h3>
+                        <p className="text-foreground/70 leading-relaxed">If your AC blew weak last summer, it won't magically fix itself. Low refrigerant, a failing compressor, or a clogged cabin filter all reduce cooling. Get an <Link href="/ac-repair-cleveland" className="text-nick-blue-light hover:underline">AC inspection</Link> in spring before every shop in Cleveland has a two-week wait.</p>
+                      </div>
+                    </div>
+                  </FadeIn>
+                  <FadeIn delay={0.1}>
+                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                      <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Check Tire Pressure as Temperatures Rise</h3>
+                        <p className="text-foreground/70 leading-relaxed">Tire pressure increases about 1 PSI for every 10-degree rise in temperature. Over-inflated tires wear unevenly and reduce grip. Check your pressure when tires are cold and adjust to the number on your door jamb — not the tire sidewall. Need new <Link href="/tires" className="text-nick-blue-light hover:underline">tires</Link>? We carry all major brands.</p>
+                      </div>
+                    </div>
+                  </FadeIn>
+                  <FadeIn delay={0.15}>
+                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                      <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Inspect Your Cooling System</h3>
+                        <p className="text-foreground/70 leading-relaxed">Summer heat is the number one engine killer. Check your coolant level, look for leaks around hoses and the radiator, and make sure your fans are working. If your temperature gauge creeps past the midpoint, bring it in immediately — overheating causes thousands of dollars in damage.</p>
+                      </div>
+                    </div>
+                  </FadeIn>
+                  <FadeIn delay={0.2}>
+                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                      <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Replace Worn Wiper Blades from Winter</h3>
+                        <p className="text-foreground/70 leading-relaxed">Ice and salt destroy wiper blades over the winter. Summer thunderstorms hit fast in Ohio, and streaky wipers are a visibility hazard. Good blades cost under $30 and take five minutes to install — we'll swap them while you wait.</p>
+                      </div>
+                    </div>
+                  </FadeIn>
+                  <FadeIn delay={0.25}>
+                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                      <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Get an Oil Change If You're Overdue</h3>
+                        <p className="text-foreground/70 leading-relaxed">Heat breaks down oil faster. If you're past your change interval, old oil can't protect your engine from the extra thermal stress of summer driving. A quick <Link href="/oil-change" className="text-nick-blue-light hover:underline">oil change</Link> with a courtesy inspection takes about 30 minutes and is the cheapest insurance against engine damage.</p>
+                      </div>
+                    </div>
+                  </FadeIn>
+                </>
+              )}
+            </div>
+            <FadeIn delay={0.3}>
+              <p className="mt-8 text-foreground/60 text-sm">
+                Not sure what your car needs? <Link href="/diagnose" className="text-nick-blue-light hover:underline">Use our online diagnosis tool</Link> or call us at {BUSINESS.phone.display}. Walk-ins welcome {BUSINESS.hours.display}.
+              </p>
+            </FadeIn>
+          </div>
+        </section>
+
         {/* Booking */}
-        <section id="booking" className="py-16 lg:py-24 bg-[oklch(0.055_0.004_260)]">
+        <section id="booking" className="py-16 lg:py-24 bg-[oklch(0.065_0.004_260)]">
           <div className="container max-w-3xl">
             <FadeIn>
               <div className="text-center mb-10">

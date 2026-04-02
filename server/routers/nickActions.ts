@@ -220,7 +220,7 @@ async function fetchSessionWithMessages(sessionId: number) {
       throw new Error("Empty or invalid message history");
     }
   } catch (err) {
-    log.error(`Failed to parse messages for session ${sessionId}:`, err);
+    log.error(`Failed to parse messages for session ${sessionId}:`, { error: err instanceof Error ? err.message : String(err) });
     throw new Error("Invalid chat session data");
   }
 
@@ -239,7 +239,7 @@ async function findReturningCustomer(d: any, messages: Array<{ role: string; con
   const phoneMatch = userMessages.match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
   const phone = phoneMatch?.[0]?.replace(/\D/g, "") || null;
 
-  if (!phone) return { phone: null, customer: null, history: [] };
+  if (!phone) return { phone: null, customer: null, history: null };
 
   // Check leads for this phone
   const matchingLeads = await d.select().from(leads)
@@ -508,7 +508,7 @@ export const nickActionsRouter = router({
       try {
         quote = JSON.parse(rawContent);
       } catch {
-        log.error("AI returned invalid JSON for quote:", rawContent.slice(0, 200));
+        log.error("AI returned invalid JSON for quote", { preview: rawContent.slice(0, 200) });
         throw new Error("Failed to parse quote — AI returned invalid JSON");
       }
 
@@ -622,7 +622,7 @@ export const nickActionsRouter = router({
       // ── WARRANTY INFO ─────────────────────────────────
       let warranty = null;
       if (input.includeWarranty) {
-        const categories = [...new Set(verifiedServices.map((s: any) => s.category))];
+        const categories = [...new Set(verifiedServices.map((s: any) => s.category))] as string[];
         warranty = categories.map((cat: string) => {
           const match = WARRANTY_SCHEDULE[cat] || WARRANTY_SCHEDULE["general_repair"];
           return { category: cat, ...match };
@@ -841,7 +841,7 @@ export const nickActionsRouter = router({
       try {
         await d.insert(workOrders).values(workOrderData);
       } catch (err) {
-        log.error("Failed to insert work order:", err);
+        log.error("Failed to insert work order", { error: err instanceof Error ? err.message : String(err) });
         throw new Error("Failed to create work order in database");
       }
 
@@ -862,8 +862,6 @@ export const nickActionsRouter = router({
       log.info(`Work order created: ${orderNumber} from session ${input.sessionId}, tech=${techMatch?.tech.name || "unassigned"}, bay=${bayMatch?.bay || "TBD"}, priority=${effectivePriority}`);
 
       return {
-        id: orderId,
-        orderNumber,
         ...workOrderData,
         estimatedCompletion: completion.readyBy,
         completionConfidence: completion.confidence,
@@ -1004,7 +1002,7 @@ Return JSON:
         },
       });
 
-      const chainRaw = response.choices?.[0]?.message?.content;
+      const chainRaw = chainResponse.choices?.[0]?.message?.content;
       let chainData: any;
       try {
         chainData = JSON.parse(typeof chainRaw === "string" ? chainRaw : "{}");
@@ -1665,7 +1663,7 @@ CUSTOMERS:
 REVIEWS: ${monthReviews[0]?.count ?? 0} requests sent this month
 SOURCES: Auto Labor Guide (ShopDriver Elite), Gateway for invoices`;
         } catch (err) {
-          log.warn("Failed to gather biz context for operator command:", err instanceof Error ? err.message : err);
+          log.warn("Failed to gather biz context for operator command", { error: err instanceof Error ? err.message : String(err) });
         }
       }
 
