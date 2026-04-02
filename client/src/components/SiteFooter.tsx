@@ -169,17 +169,14 @@ export default function SiteFooter() {
                     ],
                   },
                 ].map((group) => (
-                  <details key={group.region} className="group">
-                    <summary className="text-[12px] font-medium text-foreground/40 hover:text-foreground/60 cursor-pointer select-none flex items-center gap-1 transition-colors">
-                      <span className="text-[10px] text-foreground/20 group-open:rotate-90 transition-transform duration-200">&#9654;</span>
-                      {group.region}
-                    </summary>
-                    <div className="mt-1.5 ml-3 space-y-1.5">
+                  <div key={group.region}>
+                    <span className="text-[12px] font-medium text-foreground/40 block mb-1.5">{group.region}</span>
+                    <div className="ml-0 space-y-1.5">
                       {group.cities.map((c) => (
                         <Link key={c.href} href={c.href} className={LINK_CLASS}>{c.label}</Link>
                       ))}
                     </div>
-                  </details>
+                  </div>
                 ))}
                 <Link href="/areas-served" className="block text-[11px] text-[#FDB913]/60 hover:text-[#FDB913] transition-colors mt-2">
                   View all 150+ locations →
