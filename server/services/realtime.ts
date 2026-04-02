@@ -65,7 +65,7 @@ export function registerSSERoutes(router: Router): void {
 // ─── Periodic heartbeat + stale connection cleanup ──
 // Send a heartbeat comment every 30s. Dead connections will throw on write,
 // triggering cleanup. Also caps orderClients at 500 entries.
-setInterval(() => {
+const heartbeatInterval = setInterval(() => {
   const heartbeat = `:heartbeat ${Date.now()}\n\n`;
   adminClients.forEach((client) => {
     try { client.write(heartbeat); } catch { adminClients.delete(client); }

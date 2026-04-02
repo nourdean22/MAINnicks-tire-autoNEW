@@ -25,7 +25,7 @@ const partials = new Map<string, PartialFormData & { createdAt: Date; recoveryAt
 const MAX_PARTIALS = 2000;
 
 // Auto-cleanup every 20 minutes to prevent unbounded growth
-setInterval(() => {
+const abandonedCleanupInterval = setInterval(() => {
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
   for (const [id, p] of partials) {
     if (p.createdAt.getTime() < cutoff) partials.delete(id);

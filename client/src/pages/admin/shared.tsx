@@ -8,11 +8,11 @@ import {
   LayoutDashboard, FileText, Globe, Wrench, Gauge,
   ClipboardList, Trophy, Gift, Send, Star, UserCheck, RotateCcw, Timer,
   Settings, Upload, DollarSign, Activity, TrendingUp, Plug, ShoppingCart,
-  BarChart3, PhoneCall, Download, CreditCard,
+  BarChart3, PhoneCall, Download, CreditCard, Zap,
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch";
+export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -44,6 +44,12 @@ export const CHART_COLORS = ["#F5A623", "#3B82F6", "#10B981", "#EF4444", "#8B5CF
 export type NavGroup = { label: string; items: { id: AdminSection; label: string; icon: React.ReactNode; badge?: string }[] };
 
 export const NAV_GROUPS: NavGroup[] = [
+  {
+    label: "NOUR OS",
+    items: [
+      { id: "commandCenter", label: "Command Center", icon: <Zap className="w-4 h-4" /> },
+    ],
+  },
   {
     label: "Today",
     items: [
@@ -107,6 +113,7 @@ export const NAV_GROUPS: NavGroup[] = [
 export const NAV_ITEMS = NAV_GROUPS.flatMap(g => g.items);
 
 export const SECTION_TITLES: Record<AdminSection, string> = {
+  commandCenter: "Command Center",
   overview: "Dashboard Overview",
   bookings: "Booking Management",
   leads: "Lead Management",

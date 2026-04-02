@@ -1603,4 +1603,80 @@ Return JSON:
         generatedAt: new Date().toISOString(),
       };
     }),
+
+  // ─── OPERATOR COMMAND (Admin-only Nick AI interface) ──────
+  operatorCommand: adminProcedure
+    .input(z.object({
+      command: z.string().min(1).max(2000),
+      context: z.record(z.string(), z.string()).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+
+      // Gather live business context for Nick AI
+      let bizContext = "";
+      if (d) {
+        try {
+          const now = new Date();
+          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const [leadsToday, bookingsToday, callbacksPending, recentChats] = await Promise.all([
+            d.select({ count: sql<number>`count(*)` }).from(leads).where(gte(leads.createdAt, todayStart)),
+            d.select({ count: sql<number>`count(*)` }).from(bookings).where(gte(bookings.createdAt, todayStart)),
+            d.select({ count: sql<number>`count(*)` }).from(leads).where(eq(leads.status, "new")),
+            d.select({ count: sql<number>`count(*)` }).from(chatSessions).where(gte(chatSessions.createdAt, todayStart)),
+          ]);
+          bizContext = `\nLIVE BUSINESS STATE:
+- Leads today: ${leadsToday[0]?.count ?? 0}
+- Bookings today: ${bookingsToday[0]?.count ?? 0}
+- Pending leads (new): ${callbacksPending[0]?.count ?? 0}
+- Chat sessions today: ${recentChats[0]?.count ?? 0}
+- Time: ${now.toLocaleString("en-US", { timeZone: "America/New_York" })}`;
+        } catch (err) {
+          log.warn("Failed to gather biz context for operator command:", err instanceof Error ? err.message : err);
+        }
+      }
+
+      const response = await invokeLLM({
+        messages: [
+          {
+            role: "system",
+            content: `You are Nick AI — the operator brain for Nick's Tire & Auto and NOUR OS (Nour's personal operating system).
+
+You serve Nour, the CEO. When he gives you a command, you execute it or provide the exact information needed.
+
+CAPABILITIES:
+- Business intelligence: leads, bookings, revenue, customer data
+- Shop operations: work orders, bay assignments, scheduling
+- Marketing: campaigns, review management, content
+- Personal OS: task management, execution tracking, decisions, commitments
+- Strategy: competitive analysis, pricing, market positioning
+- Financial: revenue projections, cost analysis, ROI calculations
+
+RULES:
+1. Be direct. No fluff. Lead with the answer.
+2. If you can take action, describe exactly what you did.
+3. If you need data you don't have, say what's missing.
+4. Always include a "NEXT MOVE" at the end — what Nour should do right now.
+5. Format responses with clear sections using markdown.
+${bizContext}
+${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(([k, v]) => `${k}: ${v}`).join("\n") : ""}`,
+          },
+          { role: "user", content: input.command },
+        ],
+        maxTokens: 2000,
+      });
+
+      const reply = response.choices?.[0]?.message?.content;
+      if (!reply || typeof reply !== "string") {
+        throw new Error("Nick AI failed to respond");
+      }
+
+      log.info(`Operator command: "${input.command.slice(0, 80)}..." → ${reply.length} chars`);
+
+      return {
+        reply,
+        timestamp: new Date().toISOString(),
+        tokensUsed: response.usage?.total_tokens ?? 0,
+      };
+    }),
 });
