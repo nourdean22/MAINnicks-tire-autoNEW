@@ -106,6 +106,16 @@ const CORE_PAGES: RouteEntry[] = [
     sitemap: true,
     prerender: true,
   },
+  {
+    path: "/pay",
+    priority: 0.3,
+    changefreq: "yearly",
+    title: "Pay Invoice — Nick's Tire & Auto",
+    description: "Pay your Nick's Tire & Auto invoice online. Enter your invoice number and phone to look up your bill and pay securely with credit or debit card.",
+    group: "utility",
+    sitemap: false,
+    prerender: false,
+  },
 ];
 
 // ─── SERVICE PAGES ───────────────────────────────────────

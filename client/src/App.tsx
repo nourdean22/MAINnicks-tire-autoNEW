@@ -74,6 +74,7 @@ const BookingPage = lazy(() => import("./pages/BookingPage"));
 const GuidesIndex = lazy(() => import("./pages/GuidesIndex"));
 const GuidePage = lazy(() => import("./pages/GuidePage"));
 const AreasServed = lazy(() => import("./pages/AreasServed"));
+const PayInvoice = lazy(() => import("./pages/PayInvoice"));
 
 function Router() {
   const [location] = useLocation();
@@ -224,6 +225,7 @@ function Router() {
         <Route path={"/share/:token"} component={SharePage} />
         {/* Areas Served hub — links to all city/neighborhood/intersection pages */}
         <Route path={"/areas-served"} component={AreasServed} />
+        <Route path={"/pay"} component={PayInvoice} />
         {/* Neighborhood micro-pages — dynamic from NEIGHBORHOODS data (61 pages) */}
         {NEIGHBORHOODS.map((n) => (
           <Route key={n.slug} path={`/${n.slug}`} component={NeighborhoodPage} />
