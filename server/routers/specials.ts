@@ -21,7 +21,10 @@ export const specialsRouter = router({
           .limit(20);
         return results.filter((s: any) => !s.expiresAt || new Date(s.expiresAt) > now);
       });
-    } catch { return []; }
+    } catch (err) {
+      console.error("[Specials] Failed to fetch specials:", err instanceof Error ? err.message : err);
+      return [];
+    }
   }),
 
   create: adminProcedure

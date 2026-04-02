@@ -29,7 +29,10 @@ function getAuthToken(): string {
       const token = readFileSync(TOKEN_FILE, "utf-8").trim();
       if (token.length > 20) return token;
     }
-  } catch {}
+  } catch (err) {
+    // Token file read is best-effort
+    console.warn("[Sheets] Token file read failed:", err instanceof Error ? err.message : err);
+  }
   // Fallback to env vars
   const envToken = process.env.GOOGLE_DRIVE_TOKEN || process.env.GOOGLE_WORKSPACE_CLI_TOKEN || "";
   return envToken.length > 20 ? envToken : "";
@@ -42,7 +45,10 @@ try {
   if (token.length > 20) {
     writeFileSync(TOKEN_FILE, token, { mode: 0o600 });
   }
-} catch {}
+} catch (err) {
+  // Token file write is best-effort
+  console.warn("[Sheets] Token file write failed:", err instanceof Error ? err.message : err);
+}
 
 /**
  * Run a shell command and return stdout/stderr as a promise.
@@ -118,8 +124,8 @@ async function appendRow(sheetName: string, values: string[]): Promise<boolean> 
     return false;
   } finally {
     // Clean up temp files
-    try { unlinkSync(paramsFile); } catch {}
-    try { unlinkSync(bodyFile); } catch {}
+    try { unlinkSync(paramsFile); } catch { /* cleanup best-effort */ }
+    try { unlinkSync(bodyFile); } catch { /* cleanup best-effort */ }
   }
 }
 

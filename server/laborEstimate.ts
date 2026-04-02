@@ -20,7 +20,8 @@ async function getShopLaborRate(): Promise<number> {
     if (!d) return DEFAULT_LABOR_RATE;
     const result = await d.select().from(shopSettings).where(eq(shopSettings.key, "laborRate")).limit(1);
     return result.length > 0 ? parseFloat(result[0].value) || DEFAULT_LABOR_RATE : DEFAULT_LABOR_RATE;
-  } catch {
+  } catch (err) {
+    console.warn("[LaborEstimate] Failed to fetch labor rate, using default:", err instanceof Error ? err.message : err);
     return DEFAULT_LABOR_RATE;
   }
 }

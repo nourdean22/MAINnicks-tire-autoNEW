@@ -106,11 +106,12 @@ async function sdLogin(): Promise<boolean> {
           sdSessionExpiry = Date.now() + 30 * 60 * 1000;
           return true;
         }
-      } catch { /* not JSON */ }
+      } catch { /* response not JSON — expected for some auth flows */ }
     }
 
     return false;
-  } catch {
+  } catch (err) {
+    console.error("[ShopDriver] Login failed:", err instanceof Error ? err.message : err);
     return false;
   }
 }
@@ -128,7 +129,8 @@ async function sdFetch(path: string): Promise<Response | null> {
         Accept: "application/json",
       },
     });
-  } catch {
+  } catch (err) {
+    console.error("[ShopDriver] Fetch failed:", err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -272,7 +274,8 @@ export const shopdriverRouter = router({
             });
             newCount++;
           }
-        } catch {
+        } catch (err) {
+          console.warn("[ShopDriver] Customer import row skipped:", err instanceof Error ? err.message : err);
           skippedCount++;
         }
       }
@@ -382,7 +385,8 @@ export const shopdriverRouter = router({
       });
 
       return { success: true, synced, updated, total: tickets.length };
-    } catch {
+    } catch (err) {
+      console.error("[ShopDriver] Invoice sync parse failed:", err instanceof Error ? err.message : err);
       return { success: false, error: "Failed to parse ShopDriver response", synced: 0 };
     }
   }),
@@ -459,7 +463,8 @@ export const shopdriverRouter = router({
       });
 
       return { success: true, newCustomers: newCount, updatedCustomers: updatedCount };
-    } catch {
+    } catch (err) {
+      console.error("[ShopDriver] Customer sync parse failed:", err instanceof Error ? err.message : err);
       return { success: false, error: "Failed to parse customer data", synced: 0 };
     }
   }),
@@ -563,7 +568,8 @@ export const shopdriverRouter = router({
             serviceDescription: getValue("description") || null,
           });
           synced++;
-        } catch {
+        } catch (err) {
+          console.warn("[ShopDriver] Invoice row import skipped:", err instanceof Error ? err.message : err);
           skipped++;
         }
       }

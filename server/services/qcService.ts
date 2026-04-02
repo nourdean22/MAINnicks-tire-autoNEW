@@ -192,7 +192,9 @@ export async function passQc(params: {
         toStatus: "ready_for_pickup",
         service: wo.serviceDescription || undefined,
       });
-    } catch (_) {}
+    } catch (err) {
+      console.error("[QC] NOUR OS bridge event failed:", err instanceof Error ? err.message : err);
+    }
   }
 }
 

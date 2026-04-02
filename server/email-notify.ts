@@ -236,7 +236,8 @@ export async function sendNotification(input: NotifyInput): Promise<{
         title: input.subject,
         content: input.body,
       });
-    } catch {
+    } catch (err) {
+      console.error("[EmailNotify] Push notification failed:", err instanceof Error ? err.message : err);
       pushSent = false;
     }
   }

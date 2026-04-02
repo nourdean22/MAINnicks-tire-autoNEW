@@ -62,7 +62,8 @@ export async function cacheGet<T>(key: string): Promise<T | null> {
     }
     if (entry) memCache.delete(key); // Expired
     return null;
-  } catch {
+  } catch (err) {
+    log.warn("Cache get failed", { key, error: err instanceof Error ? err.message : String(err) });
     return null;
   }
 }
@@ -102,7 +103,9 @@ export async function cacheDelete(key: string): Promise<void> {
       return;
     }
     memCache.delete(key);
-  } catch {}
+  } catch (err) {
+    log.warn("Cache delete failed", { key, error: err instanceof Error ? err.message : String(err) });
+  }
 }
 
 /** Delete all keys matching pattern (Redis only, no-op for memory) */
@@ -117,7 +120,9 @@ export async function cacheDeletePattern(pattern: string): Promise<void> {
     for (const key of memCache.keys()) {
       if (key.startsWith(pattern.replace("*", ""))) memCache.delete(key);
     }
-  } catch {}
+  } catch (err) {
+    log.warn("Cache delete pattern failed", { pattern, error: err instanceof Error ? err.message : String(err) });
+  }
 }
 
 /** Helper: get-or-set pattern */

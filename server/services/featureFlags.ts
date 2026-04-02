@@ -58,8 +58,9 @@ async function refreshCache(): Promise<void> {
     const rows = await db.select().from(featureFlags);
     flagCache = new Map(rows.map((r: any) => [r.key, r.value]));
     lastCacheRefresh = Date.now();
-  } catch {
-    // Silent — use stale cache
+  } catch (err) {
+    // Use stale cache — log for visibility
+    console.warn("[FeatureFlags] Cache refresh failed, using stale:", err instanceof Error ? err.message : err);
   }
 }
 

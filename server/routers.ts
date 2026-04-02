@@ -68,6 +68,8 @@ import {
   specialsRouter,
   waitlistRouter,
   warrantiesRouter,
+  pipelinesRouter,
+  nickActionsRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -171,6 +173,12 @@ export const appRouter = router({
 
   // NOUR OS Quote Bridge
   nourOsQuote: nourOsQuoteRouter,
+
+  // Data Pipelines (GBP Reviews, GSC)
+  pipelines: pipelinesRouter,
+
+  // Nick AI Agent Actions (quotes, work orders, follow-ups, competitor intel)
+  nickActions: nickActionsRouter,
 });
 
 export type AppRouter = typeof appRouter;

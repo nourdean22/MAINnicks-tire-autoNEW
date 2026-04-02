@@ -423,28 +423,36 @@ export async function dispatchShopFloorSnapshot(): Promise<void> {
       const clockedIn = load.techs.filter(t => t.clockedIn).length;
       const freeBays = load.bays.filter(b => !b.occupied).length;
       dispatchData = { techsClockedIn: clockedIn, freeBays: freeBays, totalBays: load.bays.length };
-    } catch (_) {}
+    } catch (err) {
+      console.error("[NourOSBridge] Dispatch load fetch failed:", err instanceof Error ? err.message : err);
+    }
 
     let qcData: Record<string, unknown> = {};
     try {
       const { getQcStats } = await import("./services/qcService");
       const qc = await getQcStats();
       qcData = { qcPassRate: qc.passRate, qcPending: qc.qcPending, comebacks30d: qc.comebacks30d };
-    } catch (_) {}
+    } catch (err) {
+      console.error("[NourOSBridge] QC stats fetch failed:", err instanceof Error ? err.message : err);
+    }
 
     let riskData: Record<string, unknown> = {};
     try {
       const { getPromiseRiskSummary } = await import("./services/promiseRisk");
       const risk = await getPromiseRiskSummary();
       riskData = { atRisk: risk.atRisk, likelyLate: risk.likelyLate, overdue: risk.overdue };
-    } catch (_) {}
+    } catch (err) {
+      console.error("[NourOSBridge] Promise risk fetch failed:", err instanceof Error ? err.message : err);
+    }
 
     let declinedData: Record<string, unknown> = {};
     try {
       const { getDeclinedWorkStats } = await import("./services/declinedWorkRecovery");
       const declined = await getDeclinedWorkStats();
       declinedData = { declinedValue30d: declined.totalDeclinedValue, declinedItems30d: declined.totalDeclinedItems };
-    } catch (_) {}
+    } catch (err) {
+      console.error("[NourOSBridge] Declined work stats fetch failed:", err instanceof Error ? err.message : err);
+    }
 
     await dispatchEvent("nickstire:shop_floor", {
       active: stats.active,

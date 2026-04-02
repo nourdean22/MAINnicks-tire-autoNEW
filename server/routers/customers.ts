@@ -356,8 +356,9 @@ export const customersRouter = router({
           status: "completed",
           date: new Date(c.createdAt),
         }));
-      } catch {
+      } catch (err) {
         // Some tables may not exist yet
+        console.warn("[Customers] Activity timeline query failed:", err instanceof Error ? err.message : err);
       }
 
       // Sort chronologically, newest first

@@ -46,7 +46,9 @@ export function registerBridgeRoutes(app: Express): void {
         const { getDb } = await import("../db");
         const d = await getDb();
         dbHealthy = !!d;
-      } catch {}
+      } catch (err) {
+        console.error("[Bridge] DB health check failed:", err instanceof Error ? err.message : err);
+      }
 
       res.json({
         status: dbHealthy ? "healthy" : "degraded",
@@ -79,7 +81,9 @@ export function registerBridgeRoutes(app: Express): void {
       try {
         const { getWorkOrderStats } = await import("../services/workOrderService");
         workOrders = await getWorkOrderStats();
-      } catch {}
+      } catch (err) {
+        console.error("[Bridge] Work order stats failed:", err instanceof Error ? err.message : err);
+      }
 
       // Vendor health
       let vendors: unknown[] = [];
@@ -89,7 +93,9 @@ export function registerBridgeRoutes(app: Express): void {
         const report = await getVendorHealthReport();
         vendors = report.results;
         vendorOverall = report.overallStatus;
-      } catch {}
+      } catch (err) {
+        console.error("[Bridge] Vendor health failed:", err instanceof Error ? err.message : err);
+      }
 
       // Dispatch load
       let dispatch: Record<string, unknown> = {};
@@ -103,21 +109,27 @@ export function registerBridgeRoutes(app: Express): void {
           freeBays,
           totalBays: (load.bays as any[]).length,
         };
-      } catch {}
+      } catch (err) {
+        console.error("[Bridge] Dispatch load failed:", err instanceof Error ? err.message : err);
+      }
 
       // QC stats
       let qc: Record<string, unknown> = {};
       try {
         const { getQcStats } = await import("../services/qcService");
         qc = await getQcStats();
-      } catch {}
+      } catch (err) {
+        console.error("[Bridge] QC stats failed:", err instanceof Error ? err.message : err);
+      }
 
       // Promise risk
       let risk: Record<string, unknown> = {};
       try {
         const { getPromiseRiskSummary } = await import("../services/promiseRisk");
         risk = await getPromiseRiskSummary();
-      } catch {}
+      } catch (err) {
+        console.error("[Bridge] Promise risk failed:", err instanceof Error ? err.message : err);
+      }
 
       res.json({
         shop: "nickstire",

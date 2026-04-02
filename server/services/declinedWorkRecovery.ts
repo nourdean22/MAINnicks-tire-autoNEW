@@ -88,7 +88,9 @@ export async function getDeclinedWorkLedger(limit = 50): Promise<DeclinedWorkEnt
           phone = cust.phone;
         }
       }
-    } catch (_) {}
+    } catch (err) {
+      console.error("[DeclinedWork] Customer lookup for recovery failed:", err instanceof Error ? err.message : err);
+    }
 
     const declinedItems: DeclinedItem[] = items.map(item => ({
       id: item.id,

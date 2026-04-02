@@ -194,7 +194,8 @@ class SDKServer {
       }
 
       return { openId, appId, name };
-    } catch {
+    } catch (err) {
+      console.error("[SDK] Token verification failed:", err instanceof Error ? err.message : err);
       return null;
     }
   }

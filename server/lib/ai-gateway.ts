@@ -200,8 +200,9 @@ async function checkOllamaHealth(): Promise<boolean> {
     clearTimeout(timeout);
     ollamaHealthy = res.ok;
     if (res.ok) consecutiveOllamaFailures = 0;
-  } catch {
+  } catch (err) {
     ollamaHealthy = false;
+    log.debug("Ollama health check failed", { error: err instanceof Error ? err.message : String(err) });
   }
   lastHealthCheck = now;
   return ollamaHealthy;
@@ -533,7 +534,8 @@ export async function getAvailableModels(): Promise<{ provider: AIProvider; mode
       const data = await res.json();
       result.push({ provider: "ollama", models: data.models?.map((m: any) => m.name) || [] });
     }
-  } catch {
+  } catch (err) {
+    log.debug("Ollama model discovery failed", { error: err instanceof Error ? err.message : String(err) });
     result.push({ provider: "ollama", models: [] });
   }
 

@@ -3,10 +3,11 @@
  * When the AI detects wantsAppointment, auto-creates a lead and fires Telegram alert.
  */
 import { publicProcedure, router } from "../_core/trpc";
-import { chatWithAssistant, scoreLead } from "../gemini";
+import { chatWithAssistant, scoreLead, extractMemories } from "../gemini";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { chatSessions, leads } from "../../drizzle/schema";
+import { eq, desc, and } from "drizzle-orm";
+import { chatSessions, leads, conversationMemory } from "../../drizzle/schema";
+import type { InsertConversationMemory } from "../../drizzle/schema";
 import { sanitizeText } from "../sanitize";
 import { alertNewLead } from "../services/telegram";
 import { BUSINESS } from "@shared/business";
@@ -59,7 +60,7 @@ async function createChatLead(
   if (info.problem) {
     try {
       scoring = await scoreLead(info.problem, info.vehicle);
-    } catch { /* keep default */ }
+    } catch (err) { console.error("[Chat] Lead scoring failed, using defaults:", err instanceof Error ? err.message : err); }
   }
 
   const insertedRows = await d.insert(leads).values({
@@ -107,6 +108,102 @@ async function createChatLead(
 }
 
 /**
+ * Derive a visitor key from chat messages for memory lookup.
+ * Uses phone number if shared, otherwise falls back to sessionId-based key.
+ */
+function deriveVisitorKey(
+  messages: Array<{ role: string; content: string }>,
+  sessionId?: number,
+): string | null {
+  const phone = extractPhoneFromMessages(messages);
+  if (phone) {
+    // Normalize phone to digits only for consistent matching
+    return `phone:${phone.replace(/\D/g, "")}`;
+  }
+  // Without a phone, we can't reliably track across sessions
+  // sessionId is per-session so it won't help for cross-session memory
+  return null;
+}
+
+/**
+ * Look up existing memories for a visitor. Returns formatted context string.
+ */
+async function lookupMemories(
+  d: NonNullable<Awaited<ReturnType<typeof db>>>,
+  visitorKey: string,
+): Promise<string | undefined> {
+  const memories = await d
+    .select()
+    .from(conversationMemory)
+    .where(eq(conversationMemory.visitorKey, visitorKey))
+    .orderBy(desc(conversationMemory.lastAccessed))
+    .limit(10);
+
+  if (memories.length === 0) return undefined;
+
+  // Update lastAccessed for retrieved memories (fire-and-forget)
+  const memoryIds = memories.map(m => m.id);
+  Promise.all(
+    memoryIds.map(id =>
+      d.update(conversationMemory)
+        .set({ lastAccessed: new Date() })
+        .where(eq(conversationMemory.id, id))
+    )
+  ).catch(() => {});
+
+  return memories
+    .map(m => `- [${m.category}] ${m.content}`)
+    .join("\n");
+}
+
+/**
+ * Save extracted memories to the database. Handles deduplication by reinforcing
+ * existing memories with matching content instead of creating duplicates.
+ */
+async function saveMemories(
+  d: NonNullable<Awaited<ReturnType<typeof db>>>,
+  visitorKey: string,
+  sessionId: number,
+  memories: Array<{ category: string; content: string; confidence: number }>,
+): Promise<void> {
+  for (const mem of memories) {
+    // Check for existing similar memory (same visitor + category + content substring match)
+    const existing = await d
+      .select()
+      .from(conversationMemory)
+      .where(
+        and(
+          eq(conversationMemory.visitorKey, visitorKey),
+          eq(conversationMemory.category, mem.category),
+        )
+      )
+      .limit(20);
+
+    // Simple dedup: if content is substantially similar, reinforce instead of inserting
+    const duplicate = existing.find(e =>
+      e.content.toLowerCase().includes(mem.content.toLowerCase().slice(0, 30)) ||
+      mem.content.toLowerCase().includes(e.content.toLowerCase().slice(0, 30))
+    );
+
+    if (duplicate) {
+      await d.update(conversationMemory).set({
+        reinforcements: duplicate.reinforcements + 1,
+        lastAccessed: new Date(),
+        confidence: Math.min(1, duplicate.confidence + 0.05),
+      }).where(eq(conversationMemory.id, duplicate.id));
+    } else {
+      await d.insert(conversationMemory).values({
+        visitorKey,
+        category: mem.category,
+        content: mem.content,
+        sessionId,
+        confidence: mem.confidence,
+      });
+    }
+  }
+}
+
+/**
  * Append a booking CTA to Nick AI's reply when the customer wants to book.
  */
 function appendBookingCta(reply: string): string {
@@ -138,7 +235,9 @@ export const chatRouter = router({
         if (existing.length > 0) {
           try {
             sessionMessages = JSON.parse(existing[0].messagesJson);
-          } catch {}
+          } catch (err) {
+            console.error("[Chat] Failed to parse session messages JSON:", err instanceof Error ? err.message : err);
+          }
         }
       }
 
@@ -150,7 +249,18 @@ export const chatRouter = router({
         sessionMessages = sessionMessages.slice(-30);
       }
 
-      const { reply, extractedInfo } = await chatWithAssistant(sessionMessages);
+      // Look up cross-session memories for returning visitors
+      let memoryContext: string | undefined;
+      const visitorKey = deriveVisitorKey(sessionMessages, sessionId ?? undefined);
+      if (visitorKey && d) {
+        try {
+          memoryContext = await lookupMemories(d, visitorKey);
+        } catch (err) {
+          console.error("[Chat] Memory lookup failed:", err);
+        }
+      }
+
+      const { reply, extractedInfo } = await chatWithAssistant(sessionMessages, memoryContext);
 
       // If wantsAppointment, enhance the reply with booking CTA
       let finalReply = reply;
@@ -191,6 +301,21 @@ export const chatRouter = router({
             console.error("[Chat] Auto-lead creation failed:", err);
           });
         }
+      }
+
+      // Fire-and-forget: extract and save memories for cross-session recall
+      if (visitorKey && d && sessionId) {
+        extractMemories(sessionMessages)
+          .then(memories => {
+            if (memories.length > 0) {
+              saveMemories(d, visitorKey, sessionId!, memories).catch(err => {
+                console.error("[Chat] Memory save failed:", err);
+              });
+            }
+          })
+          .catch(err => {
+            console.error("[Chat] Memory extraction failed:", err);
+          });
       }
 
       return { sessionId, reply: finalReply, extractedInfo };

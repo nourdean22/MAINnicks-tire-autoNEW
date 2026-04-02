@@ -111,8 +111,9 @@ export async function sendSms(to: string, body: string, opts?: { skipOptOutCheck
           return { success: false, error: "Customer opted out of SMS" };
         }
       }
-    } catch {
+    } catch (err) {
       // If opt-out check fails, proceed — better to send than to silently fail
+      console.warn("[SMS] Opt-out check failed, proceeding with send:", err instanceof Error ? err.message : err);
     }
   }
 

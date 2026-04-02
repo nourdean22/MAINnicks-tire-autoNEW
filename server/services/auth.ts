@@ -147,7 +147,8 @@ export async function verifyToken(token: string): Promise<{ customerId: string; 
       customerId: payload.customerId as string,
       phone: payload.phone as string,
     };
-  } catch {
+  } catch (err) {
+    console.error("[Auth] JWT verification failed:", err instanceof Error ? err.message : err);
     return null;
   }
 }

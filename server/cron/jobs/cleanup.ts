@@ -11,13 +11,17 @@ export async function cleanupOldData(): Promise<{ recordsProcessed: number; deta
   try {
     const { jobQueue } = await import("../../lib/jobQueue");
     cleaned += jobQueue.cleanup(24 * 60 * 60 * 1000); // 24 hours
-  } catch {}
+  } catch (err) {
+    log.warn("Job queue cleanup failed", { error: err instanceof Error ? err.message : String(err) });
+  }
 
   // Clean memory cache
   try {
     const { cleanupMemCache } = await import("../../lib/cache");
     cleaned += cleanupMemCache();
-  } catch {}
+  } catch (err) {
+    log.warn("Memory cache cleanup failed", { error: err instanceof Error ? err.message : String(err) });
+  }
 
   // Clean expired OTP codes (older than 1 hour — they expire after 10 min, 1h is generous)
   try {

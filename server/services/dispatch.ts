@@ -208,7 +208,9 @@ export async function assignWorkOrder(params: {
       toStatus: "assigned",
       service: wo.serviceDescription || undefined,
     });
-  } catch (_) {}
+  } catch (err) {
+    console.error("[Dispatch] NOUR OS bridge event failed (assign):", err instanceof Error ? err.message : err);
+  }
 }
 
 // ─── Start Work (tech begins job) ───────────────────
@@ -238,7 +240,9 @@ export async function startWork(params: {
       toStatus: "in_progress",
       service: wo.serviceDescription || undefined,
     });
-  } catch (_) {}
+  } catch (err) {
+    console.error("[Dispatch] NOUR OS bridge event failed (start):", err instanceof Error ? err.message : err);
+  }
 }
 
 // ─── Tech Complete (moves to QC review) ─────────────
@@ -274,7 +278,9 @@ export async function techComplete(params: {
   try {
     const { createQcChecklist } = await import("./qcService");
     await createQcChecklist(params.workOrderId);
-  } catch (_) {}
+  } catch (err) {
+    console.error("[Dispatch] Auto QC checklist creation failed:", err instanceof Error ? err.message : err);
+  }
 
   try {
     const { onWorkOrderStatusChange } = await import("../nour-os-bridge");
@@ -285,7 +291,9 @@ export async function techComplete(params: {
       toStatus: "qc_review",
       service: wo.serviceDescription || undefined,
     });
-  } catch (_) {}
+  } catch (err) {
+    console.error("[Dispatch] NOUR OS bridge event failed (qc_review):", err instanceof Error ? err.message : err);
+  }
 }
 
 // ─── Clock In/Out ───────────────────────────────────

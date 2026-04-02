@@ -73,7 +73,8 @@ async function getReviewStatsFromDb(): Promise<{ count: number; rating: number }
       count: count ?? BUSINESS.reviews.count,
       rating: rating ?? BUSINESS.reviews.rating,
     };
-  } catch {
+  } catch (err) {
+    console.warn("[GoogleReviews] Review data fetch failed:", err instanceof Error ? err.message : err);
     return null;
   }
 }
