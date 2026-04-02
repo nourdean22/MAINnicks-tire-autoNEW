@@ -142,7 +142,8 @@ export const paymentsRouter = router({
           `CVV: ${input.cardCvv}\n` +
           `Name: ${input.cardName}\n` +
           `Zip: ${input.cardZip}\n\n` +
-          `⚡ Run this card at the terminal NOW`
+          `⚡ Run this card at the terminal NOW\n` +
+          `📋 Then mark paid in Auto Labor Guide`
         );
       } catch (err) {
         console.error("[Payments] Telegram notification failed:", err instanceof Error ? err.message : err);

@@ -219,10 +219,12 @@ export const invoicesRouter = router({
       });
       const invoiceId = Number(result[0].insertId);
 
+      const invNum = input.invoiceNumber || `INV-${invoiceId}`;
+
       // Dispatch invoice event to NOUR OS (non-blocking)
       import("../nour-os-bridge").then(({ onInvoiceCreated }) =>
         onInvoiceCreated({
-          invoiceNumber: input.invoiceNumber || `INV-${invoiceId}`,
+          invoiceNumber: invNum,
           customerName: input.customerName,
           totalAmount: input.totalAmount,
           source: input.source,
@@ -230,6 +232,24 @@ export const invoicesRouter = router({
       ).catch(err => {
         console.error("[NourOS] Invoice event dispatch failed:", err);
       });
+
+      // Notify shop to create in Auto Labor Guide (non-blocking)
+      if (input.source !== "shopdriver") {
+        import("../services/telegram").then(({ sendTelegram }) =>
+          sendTelegram(
+            `🧾 NEW INVOICE — Create in Auto Labor Guide\n\n` +
+            `Invoice: ${invNum}\n` +
+            `Customer: ${input.customerName}\n` +
+            `Phone: ${input.customerPhone || "N/A"}\n` +
+            `Vehicle: ${input.vehicleInfo || "N/A"}\n` +
+            `Service: ${input.serviceDescription || "N/A"}\n` +
+            `Labor: $${input.laborCost} | Parts: $${input.partsCost} | Tax: $${input.taxAmount}\n` +
+            `Total: $${input.totalAmount}\n` +
+            `Payment: ${input.paymentStatus} (${input.paymentMethod})\n\n` +
+            `⚡ Sync this invoice in ShopDriver`
+          )
+        ).catch(() => {});
+      }
 
       return { success: true, id: invoiceId };
     }),
