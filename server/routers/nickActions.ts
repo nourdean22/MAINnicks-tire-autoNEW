@@ -8,7 +8,7 @@
 import { adminProcedure, publicProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq, desc, and, gte, sql, like, or } from "drizzle-orm";
-import { chatSessions, leads, workOrders, bookings, serviceHistory, workOrderItems } from "../../drizzle/schema";
+import { chatSessions, leads, workOrders, bookings, serviceHistory, workOrderItems, invoices, customers, callbackRequests, reviewRequests } from "../../drizzle/schema";
 import { invokeLLM } from "../_core/llm";
 import { createLogger } from "../lib/logger";
 import { randomUUID } from "crypto";
@@ -1619,18 +1619,51 @@ Return JSON:
         try {
           const now = new Date();
           const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const [leadsToday, bookingsToday, callbacksPending, recentChats] = await Promise.all([
+          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+          const [
+            leadsToday, bookingsToday, callbacksPending, recentChats,
+            weekBookings, monthInvoicesPaid, totalCustomers,
+            newCustomersMonth, pendingCallbacks, staleLeads,
+            monthReviews, weekLeads,
+          ] = await Promise.all([
             d.select({ count: sql<number>`count(*)` }).from(leads).where(gte(leads.createdAt, todayStart)),
             d.select({ count: sql<number>`count(*)` }).from(bookings).where(gte(bookings.createdAt, todayStart)),
             d.select({ count: sql<number>`count(*)` }).from(leads).where(eq(leads.status, "new")),
             d.select({ count: sql<number>`count(*)` }).from(chatSessions).where(gte(chatSessions.createdAt, todayStart)),
+            d.select({ count: sql<number>`count(*)` }).from(bookings).where(gte(bookings.createdAt, weekAgo)),
+            d.select().from(invoices).where(and(gte(invoices.invoiceDate, monthAgo), eq(invoices.paymentStatus, "paid"))),
+            d.select({ count: sql<number>`count(*)` }).from(customers),
+            d.select({ count: sql<number>`count(*)` }).from(customers).where(gte(customers.createdAt, monthAgo)),
+            d.select({ count: sql<number>`count(*)` }).from(callbackRequests).where(eq(callbackRequests.status, "new")),
+            d.select({ count: sql<number>`count(*)` }).from(leads).where(and(eq(leads.status, "new"), gte(leads.createdAt, weekAgo))),
+            d.select({ count: sql<number>`count(*)` }).from(reviewRequests).where(gte(reviewRequests.createdAt, monthAgo)),
+            d.select({ count: sql<number>`count(*)` }).from(leads).where(gte(leads.createdAt, weekAgo)),
           ]);
-          bizContext = `\nLIVE BUSINESS STATE:
-- Leads today: ${leadsToday[0]?.count ?? 0}
-- Bookings today: ${bookingsToday[0]?.count ?? 0}
+
+          const monthRevenue = monthInvoicesPaid.reduce((s, inv) => s + inv.totalAmount, 0);
+          const avgTicket = monthInvoicesPaid.length > 0 ? Math.round(monthRevenue / monthInvoicesPaid.length) : 0;
+
+          bizContext = `\nLIVE BUSINESS STATE (Nick's Tire & Auto):
+- Time: ${now.toLocaleString("en-US", { timeZone: "America/New_York" })}
+- Model: First come first serve, drop-offs encouraged (holds place in line)
+TODAY:
+- Leads: ${leadsToday[0]?.count ?? 0} | Drop-offs: ${bookingsToday[0]?.count ?? 0}
+- Chat sessions: ${recentChats[0]?.count ?? 0}
+THIS WEEK:
+- Drop-offs: ${weekBookings[0]?.count ?? 0} | Leads: ${weekLeads[0]?.count ?? 0}
+PIPELINE:
 - Pending leads (new): ${callbacksPending[0]?.count ?? 0}
-- Chat sessions today: ${recentChats[0]?.count ?? 0}
-- Time: ${now.toLocaleString("en-US", { timeZone: "America/New_York" })}`;
+- Stale leads (new, 7d): ${staleLeads[0]?.count ?? 0}
+- Pending callbacks: ${pendingCallbacks[0]?.count ?? 0}
+FINANCIAL (30d):
+- Revenue: $${monthRevenue.toLocaleString()} from ${monthInvoicesPaid.length} paid invoices
+- Avg ticket: $${avgTicket}
+CUSTOMERS:
+- Total: ${totalCustomers[0]?.count ?? 0} | New this month: ${newCustomersMonth[0]?.count ?? 0}
+REVIEWS: ${monthReviews[0]?.count ?? 0} requests sent this month
+SOURCES: Auto Labor Guide (ShopDriver Elite), Gateway for invoices`;
         } catch (err) {
           log.warn("Failed to gather biz context for operator command:", err instanceof Error ? err.message : err);
         }
@@ -1640,24 +1673,29 @@ Return JSON:
         messages: [
           {
             role: "system",
-            content: `You are Nick AI — the operator brain for Nick's Tire & Auto and NOUR OS (Nour's personal operating system).
+            content: `You are Nick AI — the operator brain for Nick's Tire & Auto (Cleveland/Euclid area) and NOUR OS (Nour's personal operating system).
 
-You serve Nour, the CEO. When he gives you a command, you execute it or provide the exact information needed.
+You serve Nour, the CEO/owner-operator. When he gives a command, execute or provide exact info.
+
+SHOP MODEL: First come first serve. Drop-offs encouraged — holds place in line. No appointments.
+SOURCES: Auto Labor Guide (ShopDriver Elite at secure.autolaborexperts.com), Gateway for invoices/payments.
 
 CAPABILITIES:
-- Business intelligence: leads, bookings, revenue, customer data
-- Shop operations: work orders, bay assignments, scheduling
-- Marketing: campaigns, review management, content
-- Personal OS: task management, execution tracking, decisions, commitments
-- Strategy: competitive analysis, pricing, market positioning
-- Financial: revenue projections, cost analysis, ROI calculations
+- Real-time business pulse: leads, drop-offs, revenue, customer data, callbacks
+- Shop operations: work orders, bay dispatch, labor time estimates (60+ jobs / 8 categories)
+- Marketing: SMS campaigns, review requests, win-back, follow-ups
+- Personal OS: task queue, execution tracking, decisions, commitments, loops
+- Financial: monthly revenue, avg ticket, conversion rates, invoice pipeline
+- Competitive: pricing, positioning, local market analysis (Cleveland area)
 
 RULES:
 1. Be direct. No fluff. Lead with the answer.
-2. If you can take action, describe exactly what you did.
-3. If you need data you don't have, say what's missing.
-4. Always include a "NEXT MOVE" at the end — what Nour should do right now.
-5. Format responses with clear sections using markdown.
+2. Reference real numbers from the LIVE BUSINESS STATE below.
+3. If you can take action, describe exactly what you did.
+4. If you need data you don't have, say what's missing.
+5. Always end with "NEXT MOVE:" — what Nour should do right now.
+6. Use the financial data to back up recommendations.
+7. Format with clear headers. Keep it punchy.
 ${bizContext}
 ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(([k, v]) => `${k}: ${v}`).join("\n") : ""}`,
           },
