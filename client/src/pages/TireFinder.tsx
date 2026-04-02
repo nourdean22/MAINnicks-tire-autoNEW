@@ -571,7 +571,7 @@ function TireCard({ tire, quantity, onSelect }: TireCardProps) {
         <div>
           <span className="text-2xl font-semibold text-foreground">${tire.shopPrice.toFixed(2)}</span>
           <span className="text-xs text-muted-foreground ml-1">/tire</span>
-          <p className="text-xs text-muted-foreground mt-0.5">${setPrice} for set of {quantity} — installed</p>
+          <p className="text-xs text-muted-foreground mt-0.5">${setPrice} for {quantity} {quantity === 1 ? "tire" : "tires"} — installed</p>
         </div>
         <button
           onClick={onSelect}
@@ -861,7 +861,7 @@ export default function TireFinder() {
                       {/* Quantity selector */}
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs text-muted-foreground">Qty:</span>
-                        {[1, 2, 3, 4].map((q) => (
+                        {[1, 2, 3, 4, 5, 6].map((q) => (
                           <button
                             key={q}
                             onClick={() => setQuantity(q)}
@@ -874,6 +874,17 @@ export default function TireFinder() {
                             {q}
                           </button>
                         ))}
+                        <input
+                          type="number"
+                          min="1"
+                          max="20"
+                          value={quantity}
+                          onChange={(e) => {
+                            const v = parseInt(e.target.value, 10);
+                            if (v >= 1 && v <= 20) setQuantity(v);
+                          }}
+                          className="w-14 text-xs text-center px-2 py-1.5 rounded-md bg-card border border-border/30 text-foreground focus:outline-none focus:border-primary/50"
+                        />
                       </div>
 
                       {/* Category filter */}
@@ -927,7 +938,7 @@ export default function TireFinder() {
                       ${(Math.min(...data.tires.map((t: any) => t.shopPrice)) * quantity).toFixed(2)}
                     </p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      for a set of {quantity} — fully installed with Nick's Premium Package
+                      for {quantity} {quantity === 1 ? "tire" : "tires"} — fully installed with Nick's Premium Package
                     </p>
                     <div className="mt-4 flex flex-wrap justify-center gap-3 text-xs text-green-400">
                       <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Mounted</span>
