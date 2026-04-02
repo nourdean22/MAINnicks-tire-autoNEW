@@ -569,9 +569,10 @@ export const gatewayTireRouter = router({
       tireBrand: z.string().min(1),
       tireModel: z.string().min(1),
       tireSize: z.string().min(3),
-      quantity: z.number().int().min(1).max(8).default(4),
+      quantity: z.number().int().min(1).max(20).default(4),
       pricePerTireCents: z.number().int().min(0),
       customerNotes: z.string().max(1000).optional(),
+      installPreference: z.enum(["walk-in", "drop-off-morning", "drop-off-afternoon", "ship"]).default("walk-in"),
     }))
     .mutation(async ({ input }) => {
       const d = await db();
@@ -609,6 +610,14 @@ export const gatewayTireRouter = router({
         customerNotes: input.customerNotes || null,
       });
 
+      // Map install preference to booking time
+      const timeMap: Record<string, string> = {
+        "walk-in": "no-preference",
+        "drop-off-morning": "morning",
+        "drop-off-afternoon": "afternoon",
+        "ship": "no-preference",
+      };
+
       // Also create a booking for installation tracking
       await d.insert(bookings).values({
         name: input.customerName,
@@ -616,8 +625,8 @@ export const gatewayTireRouter = router({
         email: input.customerEmail || null,
         service: "Tire Order & Installation",
         vehicle: input.vehicleInfo || "Not specified",
-        message: `ONLINE TIRE ORDER ${orderNumber}\n${input.quantity}x ${input.tireBrand} ${input.tireModel} (${input.tireSize})\nNick's Premium Installation Package: INCLUDED\nTotal: $${(totalAmount / 100).toFixed(2)}${input.customerNotes ? `\nNotes: ${input.customerNotes}` : ""}`,
-        preferredTime: "no-preference",
+        message: `ONLINE TIRE ORDER ${orderNumber}\n${input.quantity}x ${input.tireBrand} ${input.tireModel} (${input.tireSize})\nInstall: ${input.installPreference.replace("-", " ")}\nNick's Premium Installation Package: INCLUDED\nTotal: $${(totalAmount / 100).toFixed(2)}${input.customerNotes ? `\nNotes: ${input.customerNotes}` : ""}`,
+        preferredTime: timeMap[input.installPreference] || "no-preference",
         stage: "received",
       });
 
@@ -656,6 +665,19 @@ export const gatewayTireRouter = router({
         totalAmount: totalDollars,
         notes: input.customerNotes || undefined,
       }).catch(err => console.error("[TireOrder] Notification error:", err));
+
+      // Dispatch to NOUR OS bridge (async, don't block)
+      import("../nour-os-bridge").then(({ onTireOrderPlaced }) =>
+        onTireOrderPlaced({
+          orderNumber,
+          customerName: input.customerName,
+          tireBrand: input.tireBrand,
+          tireModel: input.tireModel,
+          tireSize: input.tireSize,
+          quantity: input.quantity,
+          totalAmount: totalDollars,
+        })
+      ).catch(() => {});
 
       return {
         success: true,
