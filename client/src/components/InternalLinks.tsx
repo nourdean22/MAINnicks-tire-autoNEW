@@ -60,6 +60,8 @@ const ALL_LINKS: LinkItem[] = [
   { href: "/shaker-heights-auto-repair", label: "Shaker Heights Auto Repair", desc: "Quality service for Shaker Heights vehicles" },
   { href: "/cleveland-heights-auto-repair", label: "Cleveland Heights Repair", desc: "Trusted by Cleveland Heights drivers" },
   { href: "/mentor-auto-repair", label: "Mentor Auto Repair", desc: "Mentor's go-to for tires and repair" },
+  // Hub pages
+  { href: "/areas-served", label: "All Areas Served", desc: "150+ locations across Northeast Ohio" },
 ];
 
 interface Props {
@@ -68,8 +70,16 @@ interface Props {
   exclude?: string[];
 }
 
-export default function InternalLinks({ title = "Explore More Services", maxLinks = 6, exclude = [] }: Props) {
-  const currentPath = typeof window !== "undefined" ? window.location.pathname : "/";
+export default function InternalLinks({ title = "Explore More Services", maxLinks = 12, exclude = [] }: Props) {
+  // Safe for SSR/prerender: always attempt to read pathname, fallback to "/"
+  let currentPath = "/";
+  try {
+    if (typeof window !== "undefined" && window.location?.pathname) {
+      currentPath = window.location.pathname;
+    }
+  } catch {
+    // SSR or prerender environment — use fallback
+  }
 
   const available = ALL_LINKS.filter(
     (l) => l.href !== currentPath && !exclude.includes(l.href)
