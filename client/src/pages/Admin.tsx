@@ -260,9 +260,28 @@ export default function Admin() {
               <p className="text-[10px] text-muted-foreground">Administrator</p>
             </div>
           </div>
+          <div className="flex gap-2 mt-2.5">
+            <a
+              href="https://autonicks.com/chat"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 flex items-center justify-center gap-1.5 bg-primary/10 hover:bg-primary/20 text-primary transition-colors text-xs font-semibold py-1.5 rounded-md"
+            >
+              <Sparkles className="w-3 h-3" />
+              Ask Nick
+            </a>
+            <a
+              href="https://autonicks.com/command"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 flex items-center justify-center gap-1.5 bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors text-xs font-medium py-1.5 rounded-md"
+            >
+              NOUR OS
+            </a>
+          </div>
           <Link
             href="/"
-            className="flex items-center gap-1.5 mt-2.5 text-muted-foreground hover:text-primary transition-colors text-xs font-medium"
+            className="flex items-center gap-1.5 mt-2 text-muted-foreground hover:text-primary transition-colors text-[10px] font-medium"
           >
             <ArrowLeft className="w-3 h-3" />
             Back to site
