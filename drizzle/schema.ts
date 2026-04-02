@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, index, uniqueIndex, decimal, date } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, index, uniqueIndex, decimal, date, float } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -150,6 +150,35 @@ export const chatSessions = mysqlTable("chat_sessions", {
 
 export type ChatSession = typeof chatSessions.$inferSelect;
 export type InsertChatSession = typeof chatSessions.$inferInsert;
+
+/**
+ * Cross-session conversation memory — Nick remembers past chat topics.
+ * Each entry captures a key fact/preference from a chat session.
+ */
+export const conversationMemory = mysqlTable("conversation_memory", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Fingerprint/identifier for returning visitors (phone, IP hash, or sessionId chain) */
+  visitorKey: varchar("visitorKey", { length: 255 }).notNull(),
+  /** Topic category: vehicle, problem, preference, appointment, feedback */
+  category: varchar("category", { length: 50 }).notNull(),
+  /** The actual memory content */
+  content: text("content").notNull(),
+  /** Source chat session ID */
+  sessionId: int("sessionId"),
+  /** Confidence score 0-1 */
+  confidence: float("confidence").default(0.8).notNull(),
+  /** How many times this memory has been reinforced */
+  reinforcements: int("reinforcements").default(1).notNull(),
+  /** Last time this memory was accessed/reinforced */
+  lastAccessed: timestamp("lastAccessed").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_memory_visitor").on(table.visitorKey),
+  index("idx_memory_category").on(table.category),
+]);
+
+export type ConversationMemory = typeof conversationMemory.$inferSelect;
+export type InsertConversationMemory = typeof conversationMemory.$inferInsert;
 
 /**
  * AI-generated blog articles stored in the database.
@@ -1953,4 +1982,99 @@ export const customerStatusMessages = mysqlTable("customer_status_messages", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("idx_csm_wo").on(table.workOrderId),
+]);
+
+// ─── CHAT ANALYTICS ──────────────────────────────────────
+/**
+ * Temporal pattern tracking for chat sessions.
+ * Tracks when chats happen, conversion rates by time/day, and session duration.
+ * Powers insights like "most chats convert on Monday mornings."
+ */
+export const chatAnalytics = mysqlTable("chat_analytics", {
+  id: int("id").autoincrement().primaryKey(),
+  sessionId: int("sessionId"),
+  hourOfDay: int("hourOfDay").notNull(), // 0-23
+  dayOfWeek: int("dayOfWeek").notNull(), // 0=Sun, 6=Sat
+  month: int("month").notNull(), // 1-12
+  messageCount: int("messageCount").default(0).notNull(),
+  converted: int("converted").default(0).notNull(),
+  leadScore: int("leadScore"),
+  duration: int("duration"), // seconds from first to last message
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_chat_analytics_hour").on(table.hourOfDay),
+  index("idx_chat_analytics_day").on(table.dayOfWeek),
+  index("idx_chat_analytics_month").on(table.month),
+  index("idx_chat_analytics_session").on(table.sessionId),
+]);
+
+export type ChatAnalytic = typeof chatAnalytics.$inferSelect;
+export type InsertChatAnalytic = typeof chatAnalytics.$inferInsert;
+
+// ─── REVIEW PIPELINE ─────────────────────────────────────
+/**
+ * GBP review analysis pipeline — stores fetched reviews with AI sentiment
+ * analysis and suggested responses for admin review.
+ */
+export const reviewPipeline = mysqlTable("review_pipeline", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Google review author name */
+  authorName: varchar("authorName", { length: 255 }).notNull(),
+  /** Star rating 1-5 */
+  rating: int("rating").notNull(),
+  /** Full review text */
+  reviewText: text("reviewText"),
+  /** When the review was posted (epoch seconds from Google) */
+  reviewTime: int("reviewTime"),
+  /** Relative time string from Google (e.g. "2 weeks ago") */
+  relativeTime: varchar("relativeTime", { length: 100 }),
+  /** AI sentiment: positive, negative, neutral, mixed */
+  sentiment: varchar("sentiment", { length: 20 }),
+  /** AI-detected key topics (JSON string array) */
+  topicsJson: text("topicsJson"),
+  /** AI-suggested response text */
+  suggestedResponse: text("suggestedResponse"),
+  /** Whether admin has reviewed this entry */
+  reviewed: int("reviewed").default(0).notNull(),
+  /** Whether the suggested response was sent */
+  responseSent: int("responseSent").default(0).notNull(),
+  /** Admin notes */
+  adminNotes: text("adminNotes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_review_pipeline_rating").on(table.rating),
+  index("idx_review_pipeline_sentiment").on(table.sentiment),
+  index("idx_review_pipeline_reviewed").on(table.reviewed),
+]);
+
+export type ReviewPipelineEntry = typeof reviewPipeline.$inferSelect;
+export type InsertReviewPipelineEntry = typeof reviewPipeline.$inferInsert;
+
+// ─── SEARCH PERFORMANCE ──────────────────────────────────
+/**
+ * Google Search Console data — query-level performance metrics.
+ * Populated by the GSC data pipeline (daily or on-demand).
+ */
+export const searchPerformance = mysqlTable("search_performance", {
+  id: int("id").autoincrement().primaryKey(),
+  /** The search query string */
+  query: varchar("query", { length: 500 }).notNull(),
+  /** The page URL that appeared in search results */
+  page: varchar("page", { length: 1000 }),
+  /** Number of clicks */
+  clicks: int("clicks").default(0).notNull(),
+  /** Number of impressions */
+  impressions: int("impressions").default(0).notNull(),
+  /** Click-through rate (stored as percentage * 100, e.g. 5.5% = 550) */
+  ctr: int("ctr").default(0).notNull(),
+  /** Average position (stored * 100, e.g. 3.2 = 320) */
+  position: int("position").default(0).notNull(),
+  /** Date of the data point (YYYY-MM-DD) */
+  date: varchar("date", { length: 10 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_search_perf_query").on(table.query),
+  index("idx_search_perf_date").on(table.date),
+  index("idx_search_perf_page").on(table.page),
 ]);

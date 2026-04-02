@@ -94,7 +94,9 @@ export async function handleIncomingSMS(from: string, body: string): Promise<str
       if (db) {
         await db.update(customers).set({ smsOptOut: 1 }).where(like(customers.phone, `%${phone}`));
       }
-    } catch {}
+    } catch (err) {
+      console.error("[SMSBot] Failed to persist opt-out to DB:", err instanceof Error ? err.message : err);
+    }
     return "You've been opted out. Text UNSTOP to re-enable.";
   }
 

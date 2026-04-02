@@ -120,7 +120,8 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
         } else {
           result.failed++;
         }
-      } catch {
+      } catch (err) {
+        console.error("[PostInvoiceFollowUp] Follow-up send failed:", err instanceof Error ? err.message : err);
         result.failed++;
       }
 

@@ -88,7 +88,8 @@ async function getShopLaborRate(): Promise<number> {
     return result.length > 0
       ? parseFloat(result[0].value) || DEFAULT_LABOR_RATE
       : DEFAULT_LABOR_RATE;
-  } catch {
+  } catch (err) {
+    console.warn("[CostEstimator] Failed to fetch labor rate, using default:", err instanceof Error ? err.message : err);
     return DEFAULT_LABOR_RATE;
   }
 }

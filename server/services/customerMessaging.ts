@@ -91,7 +91,9 @@ export async function generateStatusMessage(params: {
         customerPhone = cust.phone;
       }
     }
-  } catch (_) {}
+  } catch (err) {
+    console.error("[CustomerMessaging] Customer lookup failed:", err instanceof Error ? err.message : err);
+  }
 
   const vehicle = [wo.vehicleYear, wo.vehicleMake, wo.vehicleModel].filter(Boolean).join(" ") || "your vehicle";
 

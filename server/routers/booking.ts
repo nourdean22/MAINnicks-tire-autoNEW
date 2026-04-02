@@ -63,7 +63,9 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
   try {
     const [setting] = await d.select().from(shopSettings).where(eq(shopSettings.key, "laborRate")).limit(1);
     if (setting) laborRate = parseFloat(setting.value);
-  } catch {}
+  } catch (err) {
+    console.error("[Booking] Failed to fetch labor rate, using default:", err instanceof Error ? err.message : err);
+  }
 
   const laborCost = Math.round(labor.hours * laborRate * 100); // cents
   // Ohio does NOT tax auto repair labor — only parts/materials are taxable.

@@ -245,7 +245,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         thisWeek: allCalls.filter(c => new Date(c.createdAt) >= weekAgo).length,
         byPage: Object.entries(callsByPage).map(([page, count]) => ({ page, count })).sort((a, b) => b.count - a.count),
       };
-    } catch {}
+    } catch (err) {
+      console.error("[AdminStats] Call tracking stats failed:", err instanceof Error ? err.message : err);
+    }
 
     // ─── CALLBACKS ─────────────────────────────────────
     let callbackStats = { total: 0, new: 0, completed: 0, thisWeek: 0 };
@@ -257,7 +259,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         completed: allCallbacks.filter(c => c.status === "completed").length,
         thisWeek: allCallbacks.filter(c => new Date(c.createdAt) >= weekAgo).length,
       };
-    } catch {}
+    } catch (err) {
+      console.error("[AdminStats] Callback stats failed:", err instanceof Error ? err.message : err);
+    }
 
     // Sort by timestamp descending
     recentActivity.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
@@ -307,7 +311,9 @@ export async function getSiteHealth(): Promise<SiteHealthInfo> {
     try {
       const published = await d.select().from(dynamicArticles).where(eq(dynamicArticles.status, "published"));
       dynamicBlogPosts = published.length;
-    } catch {}
+    } catch (err) {
+      console.error("[AdminStats] Dynamic blog post count failed:", err instanceof Error ? err.message : err);
+    }
   }
 
   // Import sheets info

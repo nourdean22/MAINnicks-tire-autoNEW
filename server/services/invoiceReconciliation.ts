@@ -61,7 +61,9 @@ export async function reconcileWorkOrder(workOrderId: string): Promise<WorkOrder
       const [cust] = await db.select().from(customers).where(eq(customers.id, custId));
       if (cust) customerName = `${cust.firstName} ${cust.lastName || ""}`.trim();
     }
-  } catch (_) {}
+  } catch (err) {
+    console.warn("[InvoiceRecon] Customer name lookup failed:", err instanceof Error ? err.message : err);
+  }
 
   const lineItems: LineItemMargin[] = items
     .filter(i => !i.declined)

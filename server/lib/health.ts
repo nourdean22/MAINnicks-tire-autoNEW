@@ -1,6 +1,7 @@
 /**
- * Health Check — /api/health, /api/ping, /api/ready
+ * Health Check — /api/health, /api/ping, /api/ready, POST /api/health/recover
  * Container-friendly endpoints for monitoring and orchestration.
+ * Enhanced with degraded state, self-healing integration, and manual recovery.
  */
 
 import type { Request, Response } from "express";
@@ -8,6 +9,14 @@ import { createLogger } from "./logger";
 
 const log = createLogger("health");
 const startTime = Date.now();
+
+// ─── AI fallback message for when AI is completely down ─────
+const AI_DOWN_FALLBACK_MESSAGE =
+  "Our AI assistant is temporarily unavailable. For immediate help, " +
+  "please call us at (216) 862-0005 or book online at nickstire.org. " +
+  "We're here to help Mon-Sat 8AM-6PM, Sun 9AM-4PM.";
+
+export { AI_DOWN_FALLBACK_MESSAGE };
 
 // ─── /api/ping — lightweight liveness probe ─────
 export function pingHandler(_req: Request, res: Response): void {
@@ -34,7 +43,7 @@ export async function readyHandler(_req: Request, res: Response): Promise<void> 
 
 // ─── /api/health — full health check ────────────
 export async function healthHandler(_req: Request, res: Response): Promise<void> {
-  const checks: Record<string, { status: string; responseTime?: number }> = {};
+  const checks: Record<string, { status: string; responseTime?: number; [key: string]: unknown }> = {};
   let overallStatus: "healthy" | "degraded" | "unhealthy" = "healthy";
 
   // Database check
@@ -50,9 +59,11 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
       checks.database = { status: "down" };
       overallStatus = "unhealthy";
     }
-  } catch {
-    checks.database = { status: "down" };
+  } catch (err) {
+    checks.database = { status: "down", error: err instanceof Error ? err.message : "connection failed" };
+    // DB down = degraded (not immediately unhealthy — self-healing may recover)
     overallStatus = "degraded";
+    log.error("Health check: database down", { error: err instanceof Error ? err.message : String(err) });
   }
 
   // Email check (configured?)
@@ -74,24 +85,63 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
   try {
     const { getGatewayHealth } = await import("./ai-gateway");
     const aiHealth = getGatewayHealth();
+    const failureRate = aiHealth.stats.last5min.total > 0
+      ? Math.round((aiHealth.stats.last5min.fallbacks / aiHealth.stats.last5min.total) * 100) + "%"
+      : "n/a";
+
     checks.aiGateway = {
-      status: "up",
+      status: aiHealth.circuitBreaker.open ? "degraded" : "up",
       ollamaHealthy: aiHealth.ollamaHealthy,
+      circuitBreakerOpen: aiHealth.circuitBreaker.open,
       recentRequests: aiHealth.stats.last5min.total,
-      fallbackRate: aiHealth.stats.last5min.total > 0
-        ? Math.round((aiHealth.stats.last5min.fallbacks / aiHealth.stats.last5min.total) * 100) + "%"
-        : "n/a",
-    } as any;
-  } catch {
+      recentFailures: aiHealth.stats.last5min.failures,
+      fallbackRate: failureRate,
+    };
+
+    // AI gateway issues = degraded, not unhealthy (fallbacks exist)
+    if (aiHealth.circuitBreaker.open && overallStatus === "healthy") {
+      overallStatus = "degraded";
+    }
+  } catch (err) {
     checks.aiGateway = { status: "not_loaded" };
+    log.warn("Health check: AI gateway not loaded", { error: err instanceof Error ? err.message : String(err) });
+  }
+
+  // Self-healing integration
+  let selfHealingState: Record<string, unknown> = {};
+  try {
+    const { getSystemHealth } = await import("./self-healing");
+    const sh = getSystemHealth();
+    selfHealingState = {
+      state: sh.state,
+      lastCheck: sh.lastCheck,
+      checkCount: sh.checkCount,
+      components: sh.components,
+    };
+
+    // Use self-healing state to inform overall status
+    if (sh.state === "critical" && overallStatus !== "unhealthy") {
+      overallStatus = "unhealthy";
+    } else if (sh.state === "degraded" && overallStatus === "healthy") {
+      overallStatus = "degraded";
+    }
+  } catch (err) {
+    selfHealingState = { state: "not_started" };
+    log.warn("Health check: self-healing not loaded", { error: err instanceof Error ? err.message : String(err) });
   }
 
   // Memory usage
   const mem = process.memoryUsage();
   const memUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
   const memTotalMB = Math.round(mem.heapTotal / 1024 / 1024);
+  const memPercent = memTotalMB > 0 ? Math.round((memUsedMB / memTotalMB) * 100) : 0;
 
-  // Degrade if any non-critical check is down
+  // Memory pressure = degraded
+  if (memPercent >= 90 && overallStatus === "healthy") {
+    overallStatus = "degraded";
+  }
+
+  // Degrade if critical services not configured
   if (checks.email.status === "not_configured" || checks.twilio.status === "not_configured") {
     if (overallStatus === "healthy") overallStatus = "degraded";
   }
@@ -104,10 +154,61 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
     uptime: Math.round((Date.now() - startTime) / 1000),
     version: process.env.npm_package_version || "1.0.0",
     checks,
+    selfHealing: selfHealingState,
     memory: {
       usedMB: memUsedMB,
       totalMB: memTotalMB,
-      percent: Math.round((memUsedMB / memTotalMB) * 100),
+      rssMB: Math.round(mem.rss / 1024 / 1024),
+      percent: memPercent,
+    },
+    gracefulDegradation: {
+      aiDownFallback: checks.aiGateway?.status !== "up",
+      dbReadOnlyMode: checks.database?.status !== "up",
     },
   });
+}
+
+// ─── POST /api/health/recover — admin-triggered recovery ────
+export async function recoverHandler(req: Request, res: Response): Promise<void> {
+  // Auth check: require ADMIN_API_KEY
+  const auth = req.headers.authorization;
+  const expected = process.env.ADMIN_API_KEY;
+
+  if (!expected || typeof auth !== "string") {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const expectedFull = `Bearer ${expected}`;
+  try {
+    const crypto = await import("crypto");
+    if (auth.length !== expectedFull.length || !crypto.timingSafeEqual(Buffer.from(auth), Buffer.from(expectedFull))) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+  } catch {
+    res.status(401).json({ error: "Auth verification failed" });
+    return;
+  }
+
+  log.info("Manual recovery triggered via admin endpoint");
+
+  try {
+    const { triggerManualRecovery } = await import("./self-healing");
+    const result = await triggerManualRecovery();
+
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      previousState: result.previousState,
+      newState: result.newState,
+      results: result.results,
+    });
+  } catch (err) {
+    log.error("Manual recovery failed", { error: err instanceof Error ? err.message : String(err) });
+    res.status(500).json({
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }

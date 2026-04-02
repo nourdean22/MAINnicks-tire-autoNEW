@@ -131,8 +131,9 @@ export const controlCenterRouter = router({
           : 0,
         topModels: ollamaModels.slice(0, 5),
       };
-    } catch {
+    } catch (err) {
       // AI gateway unavailable — defaults are fine
+      console.warn("[ControlCenter] AI gateway stats unavailable:", err instanceof Error ? err.message : err);
     }
 
     // ─── System Health ───────────────────────────────
@@ -141,8 +142,9 @@ export const controlCenterRouter = router({
       try {
         await d.execute(sql`SELECT 1`);
         dbStatus = "connected";
-      } catch {
+      } catch (err) {
         dbStatus = "degraded";
+        console.error("[ControlCenter] DB ping failed:", err instanceof Error ? err.message : err);
       }
     }
 
@@ -156,8 +158,9 @@ export const controlCenterRouter = router({
         tunnelUrl = status?.url ?? null;
         tunnelMode = status?.mode ?? "none";
       }
-    } catch {
-      // No tunnel module
+    } catch (err) {
+      // No tunnel module — expected in some environments
+      console.debug("[ControlCenter] Tunnel status unavailable:", err instanceof Error ? err.message : err);
     }
 
     const systemHealth = {
@@ -343,8 +346,9 @@ export const controlCenterRouter = router({
               action: "/admin#sms",
             };
           }
-        } catch {
+        } catch (err) {
           // SMS table might not exist yet
+          console.warn("[ControlCenter] SMS stats query failed:", err instanceof Error ? err.message : err);
         }
       }
     }
@@ -416,8 +420,9 @@ export const controlCenterRouter = router({
           else break;
         }
         execution.streak = streak;
-      } catch {
+      } catch (err) {
         // Tables might not exist yet — return defaults
+        console.warn("[ControlCenter] Execution tracking query failed:", err instanceof Error ? err.message : err);
       }
     }
 
@@ -675,7 +680,8 @@ export const controlCenterRouter = router({
         recentFiles,
         uncommittedCount,
       };
-    } catch {
+    } catch (err) {
+      console.warn("[ControlCenter] Git pulse query failed:", err instanceof Error ? err.message : err);
       return {
         branch: "unknown",
         commitsThisWeek: 0,
@@ -690,7 +696,9 @@ export const controlCenterRouter = router({
   getOperationalTwin: adminProcedure.query(async () => {
     const d = await db();
     let health: any = { ollamaHealthy: false, circuitBreaker: { open: false } };
-    try { health = getGatewayHealth(); } catch {}
+    try { health = getGatewayHealth(); } catch (err) {
+      console.warn("[ControlCenter] Gateway health unavailable for twin:", err instanceof Error ? err.message : err);
+    }
 
     return {
       version: "1.0",

@@ -37,7 +37,9 @@ async function autoCreateInvoiceFromTireOrder(d: any, orderId: number): Promise<
   try {
     const [setting] = await d.select().from(shopSettings).where(eq(shopSettings.key, "laborRate")).limit(1);
     if (setting) laborRate = parseFloat(setting.value);
-  } catch {}
+  } catch (err) {
+    console.error("[GatewayTire] Failed to fetch labor rate, using default:", err instanceof Error ? err.message : err);
+  }
 
   // Tire installation labor: 0.7 hours for mount + balance (from Auto Labor Guide)
   const installHours = 0.7;
@@ -503,7 +505,9 @@ export const gatewayTireRouter = router({
             setCachedSearch(cacheKey, liveResult, "live");
             return liveResult;
           }
-        } catch { /* fall through to catalog */ }
+        } catch (err) {
+          console.error("[GatewayTire] Live tire search failed, falling through to catalog:", err instanceof Error ? err.message : err);
+        }
       }
 
       // Curated catalog fallback
@@ -909,7 +913,9 @@ export const gatewayTireRouter = router({
             });
             return { tires, source: "live" as const, markup };
           }
-        } catch { /* fall through */ }
+        } catch (err) {
+          console.error("[GatewayTire] Admin tire search failed:", err instanceof Error ? err.message : err);
+        }
       }
 
       return {

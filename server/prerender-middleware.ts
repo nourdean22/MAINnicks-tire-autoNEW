@@ -111,8 +111,6 @@ function countHtmlFiles(dir: string): number {
     for (const entry of entries) {
       if (entry.isFile() && entry.name.endsWith(".html")) count++;
     }
-  } catch {
-    // ignore
-  }
+  } catch { /* directory read for counting prerendered files — non-critical */ }
   return count;
 }

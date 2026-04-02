@@ -31,7 +31,8 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import rateLimit from "express-rate-limit";
 import { registerOAuthRoutes } from "./oauth";
 import { registerBridgeRoutes } from "./bridge-routes";
-import { healthHandler, pingHandler, readyHandler } from "../lib/health";
+import { healthHandler, pingHandler, readyHandler, recoverHandler } from "../lib/health";
+import { startSelfHealing } from "../lib/self-healing";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -154,6 +155,10 @@ async function startServer() {
   app.get("/api/health", healthHandler);
   app.get("/api/ping", pingHandler);
   app.get("/api/ready", readyHandler);
+  app.post("/api/health/recover", recoverHandler);
+
+  // ─── Self-Healing Monitor ─────────────────────────────
+  startSelfHealing();
 
   // ─── Cron Status (admin) ──────────────────────────────
   app.get("/api/admin/cron-status", (req, res) => {
@@ -203,7 +208,9 @@ async function startServer() {
     try {
       const published = await getPublishedArticles();
       dynamicSlugs = published.map((a: any) => a.slug);
-    } catch {}
+    } catch (err) {
+      console.error("[Sitemap] Failed to fetch dynamic articles:", err instanceof Error ? err.message : err);
+    }
 
     const allBlogSlugs = Array.from(new Set([...BLOG_SLUGS, ...dynamicSlugs]));
 
@@ -226,7 +233,7 @@ async function startServer() {
   app.get("/robots.txt", (_req, res) => {
     res.setHeader("Content-Type", "text/plain");
     res.send(
-      `User-agent: *\nAllow: /\nAllow: /favicon.ico\n\n# Public pages — crawl freely\nAllow: /tires\nAllow: /tires/info\nAllow: /services/\nAllow: /about\nAllow: /contact\nAllow: /reviews\nAllow: /specials\nAllow: /faq\nAllow: /blog\nAllow: /diagnose\nAllow: /estimate\nAllow: /fleet\nAllow: /financing\nAllow: /car-care-guide\nAllow: /careers\nAllow: /appointment\nAllow: /area/\n\n# Block admin, auth, and private pages from indexing\nDisallow: /admin\nDisallow: /admin/\nDisallow: /my-garage\nDisallow: /portal\nDisallow: /api/\nDisallow: /status/\nDisallow: /inspection/\nDisallow: /loyalty\nDisallow: /referral\n\n# Block query parameters\nDisallow: /*?*\n\n# Crawl delay for polite crawling\nCrawl-delay: 1\n\nSitemap: ${SITE_URL}/sitemap.xml\n`
+      `User-agent: *\nAllow: /\nAllow: /favicon.ico\n\n# Public pages — crawl freely\nAllow: /tires\nAllow: /tires/info\nAllow: /services/\nAllow: /about\nAllow: /contact\nAllow: /reviews\nAllow: /specials\nAllow: /faq\nAllow: /blog\nAllow: /diagnose\nAllow: /estimate\nAllow: /fleet\nAllow: /financing\nAllow: /car-care-guide\nAllow: /careers\nAllow: /appointment\nAllow: /area/\n\n# Block admin, auth, and private pages from indexing\nDisallow: /admin\nDisallow: /admin/\nDisallow: /my-garage\nDisallow: /portal\nDisallow: /api/\nDisallow: /status/\nDisallow: /inspection/\nDisallow: /loyalty\nDisallow: /referral\n\n# Block query parameters\nDisallow: /*?*\n\n# Crawl delay for polite crawling\nCrawl-delay: 1\n\nSitemap: ${SITE_URL}/sitemap.xml\nSitemap: ${SITE_URL}/sitemap-locations.xml\nSitemap: ${SITE_URL}/sitemap-services.xml\n`
     );
   });
 

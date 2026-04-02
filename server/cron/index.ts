@@ -121,8 +121,9 @@ async function logCronRun(jobName: string, status: string, durationMs: number, r
       startedAt: new Date(Date.now() - durationMs),
       completedAt: new Date(),
     });
-  } catch {
-    // Silent — don't let log failures crash cron
+  } catch (err) {
+    // Don't let log failures crash cron — but record the error
+    console.error("[Cron] Log persistence failed:", err instanceof Error ? err.message : err);
   }
 }
 

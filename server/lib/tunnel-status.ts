@@ -87,8 +87,7 @@ export async function getTunnelStatus(): Promise<TunnelStatus> {
       url,
       mode,
     };
-  } catch {
-    // File doesn't exist or can't be read
+  } catch { /* Tunnel status file doesn't exist or can't be read — expected */
     return inactive;
   }
 }

@@ -338,7 +338,9 @@ async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus)
     }
     // Refresh shop floor snapshot on significant transitions
     dispatchShopFloorSnapshot().catch(() => {});
-  } catch {}
+  } catch (err) {
+    console.error("[WO] NOUR OS bridge dispatch failed:", err instanceof Error ? err.message : err);
+  }
 }
 
 // ─── Parts pipeline ──────────────────────────────────
