@@ -11,6 +11,8 @@ import {
   Trash2, ChevronDown, ChevronUp, Zap, Brain, Shield, RotateCcw,
   ArrowRight, TrendingUp, XCircle, Loader2, Sparkles, Timer,
   CheckSquare, Square, Edit3, Save, X,
+  DollarSign, Users, UserPlus, Receipt, Wrench, Car, FileText, CreditCard,
+  ExternalLink, Hash,
 } from "lucide-react";
 
 // ─── LOCAL STORAGE HELPERS (tasks, decisions, commitments, loops) ───
@@ -93,6 +95,12 @@ export default function CommandCenterSection() {
   const { data: yesterday } = trpc.controlCenter.getYesterday.useQuery();
   const { data: overview } = trpc.controlCenter.getOverview.useQuery(undefined, { refetchInterval: 30_000 });
   const { data: stats } = trpc.adminDashboard.stats.useQuery(undefined, { refetchInterval: 60_000 });
+
+  // ─── FINANCIAL / SHOP DATA ────────────────────────────
+  const { data: kpis } = trpc.kpi.current.useQuery(undefined, { refetchInterval: 60_000 });
+  const { data: recentInvoices } = trpc.invoices.list.useQuery({ limit: 8 }, { refetchInterval: 60_000 });
+  const { data: customerStats } = trpc.customers.stats.useQuery(undefined, { refetchInterval: 120_000 });
+  const { data: laborStatus } = trpc.autoLabor.status.useQuery(undefined, { refetchInterval: 300_000 });
 
   const toggleHabit = trpc.controlCenter.toggleHabit.useMutation({
     onSuccess: () => refetchBrief(),
@@ -733,6 +741,162 @@ export default function CommandCenterSection() {
           </div>
         ))}
       </div>
+
+      {/* ─── FINANCIAL KPIs ─── */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        {[
+          { label: "MONTH REVENUE", value: kpis ? `$${(kpis.monthRevenue / 1000).toFixed(1)}k` : "—", color: "text-emerald-400", bg: "from-emerald-500/10", icon: DollarSign },
+          { label: "AVG TICKET", value: kpis ? `$${kpis.avgTicket}` : "—", color: "text-blue-400", bg: "from-blue-500/10", icon: Receipt },
+          { label: "CONVERSION", value: kpis ? `${kpis.conversionRate}%` : "—", color: "text-purple-400", bg: "from-purple-500/10", icon: TrendingUp },
+          { label: "CUSTOMERS", value: customerStats ? customerStats.total.toLocaleString() : "—", color: "text-amber-400", bg: "from-amber-500/10", icon: Users },
+          { label: "NEW THIS MONTH", value: kpis ? `${kpis.newCustomersThisMonth}` : "—", color: "text-cyan-400", bg: "from-cyan-500/10", icon: UserPlus },
+        ].map(({ label, value, color, bg, icon: Icon }) => (
+          <div key={label} className={`bg-gradient-to-br ${bg} to-transparent border border-border/30 rounded-lg p-4`}>
+            <div className="flex items-center justify-between mb-2">
+              <Icon className={`w-4 h-4 ${color} opacity-60`} />
+            </div>
+            <div className={`text-2xl font-bold tracking-tight ${color}`}>{value}</div>
+            <div className="text-[10px] font-semibold tracking-[0.15em] text-muted-foreground mt-1">{label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ─── RECENT INVOICES + SHOP INTEGRATIONS ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Recent Invoices */}
+        <Card className="lg:col-span-2">
+          <SectionLabel icon={Receipt} label="Recent Invoices" />
+          {recentInvoices && recentInvoices.items.length > 0 ? (
+            <div className="space-y-1.5">
+              {recentInvoices.items.slice(0, 6).map((inv: any) => (
+                <div key={inv.id} className="flex items-center gap-3 px-3 py-2.5 bg-background/50 rounded-lg group">
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${
+                    inv.paymentStatus === "paid" ? "bg-emerald-400" :
+                    inv.paymentStatus === "pending" ? "bg-amber-400" : "bg-red-400"
+                  }`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium truncate">{inv.customerName}</span>
+                      {inv.vehicleInfo && (
+                        <span className="text-[10px] text-muted-foreground truncate hidden sm:inline">{inv.vehicleInfo}</span>
+                      )}
+                    </div>
+                    {inv.serviceDescription && (
+                      <p className="text-[11px] text-muted-foreground truncate mt-0.5">{inv.serviceDescription}</p>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-sm font-bold text-foreground">${inv.totalAmount?.toLocaleString()}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {inv.invoiceDate ? new Date(inv.invoiceDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
+                    </div>
+                  </div>
+                  <div className={`text-[9px] font-bold tracking-wider px-2 py-0.5 rounded-full ${
+                    inv.paymentStatus === "paid" ? "bg-emerald-500/10 text-emerald-400" :
+                    inv.paymentStatus === "pending" ? "bg-amber-500/10 text-amber-400" :
+                    inv.paymentStatus === "partial" ? "bg-blue-500/10 text-blue-400" : "bg-red-500/10 text-red-400"
+                  }`}>
+                    {(inv.paymentStatus || "pending").toUpperCase()}
+                  </div>
+                </div>
+              ))}
+              <div className="flex items-center justify-between pt-2">
+                <span className="text-[10px] text-muted-foreground">{recentInvoices.total} total invoices</span>
+                {kpis && (
+                  <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                    <span>Parts: <strong className="text-foreground">{kpis.completedThisMonth}</strong> jobs/mo</span>
+                    <span>Reviews: <strong className="text-foreground">{kpis.reviewsSent}</strong> sent</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground text-sm">No invoices found</div>
+          )}
+        </Card>
+
+        {/* Shop Integrations / Auto Labor + Customer Breakdown */}
+        <div className="space-y-4">
+          {/* Auto Labor Guide */}
+          <Card>
+            <SectionLabel icon={Wrench} label="Auto Labor Guide" />
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-3">
+                <div className={`w-2.5 h-2.5 rounded-full ${laborStatus?.connected ? "bg-emerald-400" : laborStatus?.usingFallback ? "bg-amber-400" : "bg-red-400"}`} />
+                <span className="text-xs font-medium">
+                  {laborStatus?.connected ? "ShopDriver Connected" : laborStatus?.usingFallback ? "Using Built-in Guide" : "Checking..."}
+                </span>
+              </div>
+              {laborStatus && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="px-3 py-2 bg-background/50 rounded text-center">
+                    <div className="text-lg font-bold text-foreground">{laborStatus.fallbackCategories}</div>
+                    <div className="text-[9px] text-muted-foreground tracking-wider">CATEGORIES</div>
+                  </div>
+                  <div className="px-3 py-2 bg-background/50 rounded text-center">
+                    <div className="text-lg font-bold text-foreground">{laborStatus.fallbackJobs}</div>
+                    <div className="text-[9px] text-muted-foreground tracking-wider">JOBS</div>
+                  </div>
+                </div>
+              )}
+              {laborStatus?.totalLookups !== undefined && laborStatus.totalLookups > 0 && (
+                <div className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                  <Hash className="w-3 h-3" />
+                  {laborStatus.totalLookups} lookups this session
+                </div>
+              )}
+              <a
+                href="https://secure.autolaborexperts.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-[10px] text-primary/60 hover:text-primary font-medium"
+              >
+                <ExternalLink className="w-3 h-3" /> Open ShopDriver Portal
+              </a>
+            </div>
+          </Card>
+
+          {/* Customer Breakdown */}
+          <Card>
+            <SectionLabel icon={Users} label="Customer Database" />
+            {customerStats ? (
+              <div className="space-y-2">
+                {[
+                  { label: "Total", value: customerStats.total, color: "text-foreground" },
+                  { label: "Recent", value: customerStats.recent, color: "text-emerald-400" },
+                  { label: "Lapsed", value: customerStats.lapsed, color: "text-amber-400" },
+                  { label: "Commercial", value: customerStats.commercial, color: "text-blue-400" },
+                  { label: "Has Email", value: customerStats.withEmail, color: "text-purple-400" },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="flex items-center justify-between px-3 py-1.5 bg-background/50 rounded">
+                    <span className="text-xs text-muted-foreground">{label}</span>
+                    <span className={`text-sm font-bold ${color}`}>{value.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4 text-muted-foreground text-xs">Loading...</div>
+            )}
+          </Card>
+        </div>
+      </div>
+
+      {/* ─── DROP-OFF QUEUE NOTE ─── */}
+      <Card className="!py-3 !px-4 border-primary/10 bg-primary/5">
+        <div className="flex items-center gap-3">
+          <Car className="w-4 h-4 text-primary/60 shrink-0" />
+          <div>
+            <span className="text-xs font-semibold text-foreground">First Come First Serve</span>
+            <span className="text-[11px] text-muted-foreground ml-2">Drop-offs encouraged — holds your place in line. No appointments needed.</span>
+          </div>
+          <div className="ml-auto flex items-center gap-2 shrink-0">
+            <div className="text-right">
+              <div className="text-lg font-bold text-primary">{kpis?.weekBookings ?? 0}</div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">DROP-OFFS/WK</div>
+            </div>
+          </div>
+        </div>
+      </Card>
 
       {/* ─── SYSTEM STATUS ─── */}
       <Card>
