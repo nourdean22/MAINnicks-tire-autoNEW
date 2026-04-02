@@ -96,6 +96,9 @@ export default function CommandCenterSection() {
   const { data: overview } = trpc.controlCenter.getOverview.useQuery(undefined, { refetchInterval: 30_000 });
   const { data: stats } = trpc.adminDashboard.stats.useQuery(undefined, { refetchInterval: 60_000 });
 
+  // ─── LOCAL STATE (must be before queries that reference them) ───
+  const [laborSearch, setLaborSearch] = useState("");
+
   // ─── FINANCIAL / SHOP DATA ────────────────────────────
   const { data: kpis } = trpc.kpi.current.useQuery(undefined, { refetchInterval: 60_000 });
   const { data: recentInvoices } = trpc.invoices.list.useQuery({ limit: 8 }, { refetchInterval: 60_000 });
@@ -135,7 +138,6 @@ export default function CommandCenterSection() {
   const [newLoopName, setNewLoopName] = useState("");
   const [newLoopFreq, setNewLoopFreq] = useState<"daily" | "weekly">("daily");
   const [activePanel, setActivePanel] = useState<"tasks" | "decisions" | "commitments" | "loops">("tasks");
-  const [laborSearch, setLaborSearch] = useState("");
 
   // Nick AI command state
   const [nickCommand, setNickCommand] = useState("");
