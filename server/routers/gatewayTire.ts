@@ -94,6 +94,33 @@ async function autoCreateInvoiceFromTireOrder(d: any, orderId: number): Promise<
     serviceDescription: `Tire Install: ${order.quantity}x ${order.tireBrand} ${order.tireModel}`,
   }).catch(() => {});
 
+  // Notify to create in Auto Labor Guide
+  import("../services/telegram").then(({ sendTelegram }) =>
+    sendTelegram(
+      `🧾 TIRE INVOICE — Create in Auto Labor Guide\n\n` +
+      `Invoice: ${invoiceNumber}\n` +
+      `Order: ${order.orderNumber}\n` +
+      `Customer: ${order.customerName} | ${order.customerPhone}\n` +
+      `Vehicle: ${order.vehicleInfo || "N/A"}\n` +
+      `Tires: ${order.quantity}x ${order.tireBrand} ${order.tireModel} (${order.tireSize})\n` +
+      `Labor: $${(laborCost / 100).toFixed(2)} (${installHours}h @ $${laborRate}/hr)\n` +
+      `Parts: $${(partsCost / 100).toFixed(2)}\n` +
+      `Tax: $${(taxAmount / 100).toFixed(2)}\n` +
+      `Total: $${(totalAmount / 100).toFixed(2)}\n\n` +
+      `⚡ Create this invoice in ShopDriver NOW`
+    )
+  ).catch(() => {});
+
+  // NOUR OS bridge
+  import("../nour-os-bridge").then(({ onInvoiceCreated }) =>
+    onInvoiceCreated({
+      invoiceNumber,
+      customerName: order.customerName,
+      totalAmount: totalAmount / 100,
+      source: "tire_order",
+    })
+  ).catch(() => {});
+
   console.log(`[Invoice] Auto-created ${invoiceNumber} for tire order ${order.orderNumber} — $${(totalAmount / 100).toFixed(2)}`);
 }
 
