@@ -304,5 +304,14 @@ export function registerAllJobs(): void {
     return runSelfHealingChecks();
   });
 
+  // Nick AI Proactive Intelligence (every 2 hours during business hours)
+  registerJob("nick-intelligence", 2 * 60 * 60 * 1000, async () => {
+    const hour = new Date().getHours();
+    // Only run during business-ish hours (7 AM - 9 PM ET)
+    if (hour < 7 || hour > 21) return { recordsProcessed: 0, details: "Outside business hours" };
+    const { runProactiveCheck } = await import("../services/nickIntelligence");
+    return runProactiveCheck();
+  });
+
   log.info("All cron jobs registered");
 }
