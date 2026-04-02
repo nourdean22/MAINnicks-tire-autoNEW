@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { captureUtmParams } from "@/lib/utm";
+import { NEIGHBORHOODS } from "@shared/neighborhoods";
 
 // ─── LOADING FALLBACK ─────────────────────────────────
 function PageLoader() {
@@ -220,25 +221,10 @@ function Router() {
         <Route path={"/lp/emergency"} component={LandingPage} />
         {/* Phase 5: Share My Repair card */}
         <Route path={"/share/:token"} component={SharePage} />
-        {/* Phase 5: Neighborhood micro-pages (hyper-local SEO) */}
-        <Route path={"/east-185th-street-auto-repair"} component={NeighborhoodPage} />
-        <Route path={"/euclid-square-mall-area"} component={NeighborhoodPage} />
-        <Route path={"/richmond-heights-mechanic"} component={NeighborhoodPage} />
-        <Route path={"/collinwood"} component={NeighborhoodPage} />
-        <Route path={"/nottingham"} component={NeighborhoodPage} />
-        <Route path={"/five-points"} component={NeighborhoodPage} />
-        <Route path={"/waterloo-arts-district"} component={NeighborhoodPage} />
-        <Route path={"/shore-cultural-centre"} component={NeighborhoodPage} />
-        <Route path={"/severance-town-center"} component={NeighborhoodPage} />
-        <Route path={"/university-circle"} component={NeighborhoodPage} />
-        <Route path={"/wickliffe"} component={NeighborhoodPage} />
-        <Route path={"/willowick"} component={NeighborhoodPage} />
-        <Route path={"/eastlake"} component={NeighborhoodPage} />
-        <Route path={"/south-euclid-mechanic"} component={NeighborhoodPage} />
-        <Route path={"/lyndhurst-mechanic"} component={NeighborhoodPage} />
-        <Route path={"/mayfield-heights"} component={NeighborhoodPage} />
-        <Route path={"/highland-heights"} component={NeighborhoodPage} />
-        <Route path={"/beachwood"} component={NeighborhoodPage} />
+        {/* Neighborhood micro-pages — dynamic from NEIGHBORHOODS data (61 pages) */}
+        {NEIGHBORHOODS.map((n) => (
+          <Route key={n.slug} path={`/${n.slug}`} component={NeighborhoodPage} />
+        ))}
         {/* Intersection pages (hyper-local SEO — /near/:slug) */}
         <Route path={"/near/:slug"} component={IntersectionPage} />
         {/* Careers */}
