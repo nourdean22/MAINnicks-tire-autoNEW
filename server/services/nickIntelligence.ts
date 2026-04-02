@@ -13,7 +13,7 @@
  */
 
 import { createLogger } from "../lib/logger";
-import { eq, gte, sql, and, desc, lte } from "drizzle-orm";
+import { eq, gte, sql, and, lte } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 
 const log = createLogger("nick-intelligence");
@@ -46,14 +46,14 @@ export async function analyzeConversionPipeline(): Promise<{
     totalBookings, completedBookings,
     staleNewLeads, staleEstimateLeads,
   ] = await Promise.all([
-    d.select({ count: sql<number>`count(*)` }).from(leads).where(and(eq(leads.source, "estimate"), gte(leads.createdAt, monthAgo))),
-    d.select({ count: sql<number>`count(*)` }).from(leads).where(and(eq(leads.source, "estimate"), eq(leads.status, "booked"), gte(leads.createdAt, monthAgo))),
-    d.select({ count: sql<number>`count(*)` }).from(leads).where(gte(leads.createdAt, monthAgo)),
-    d.select({ count: sql<number>`count(*)` }).from(leads).where(and(eq(leads.status, "booked"), gte(leads.createdAt, monthAgo))),
-    d.select({ count: sql<number>`count(*)` }).from(bookings).where(gte(bookings.createdAt, monthAgo)),
-    d.select({ count: sql<number>`count(*)` }).from(bookings).where(and(eq(bookings.status, "completed"), gte(bookings.createdAt, monthAgo))),
-    d.select({ count: sql<number>`count(*)` }).from(leads).where(and(eq(leads.status, "new"), lte(leads.createdAt, weekAgo))),
-    d.select({ count: sql<number>`count(*)` }).from(leads).where(and(eq(leads.source, "estimate"), eq(leads.status, "new"), lte(leads.createdAt, weekAgo))),
+    d.select({ count: sql<number>`count(*)` }).from(leads).where(and(sql`${leads.source} = 'estimate'`, sql`${leads.createdAt} >= ${monthAgo}`)),
+    d.select({ count: sql<number>`count(*)` }).from(leads).where(and(sql`${leads.source} = 'estimate'`, eq(leads.status, "booked"), sql`${leads.createdAt} >= ${monthAgo}`)),
+    d.select({ count: sql<number>`count(*)` }).from(leads).where(sql`${leads.createdAt} >= ${monthAgo}`),
+    d.select({ count: sql<number>`count(*)` }).from(leads).where(and(eq(leads.status, "booked"), sql`${leads.createdAt} >= ${monthAgo}`)),
+    d.select({ count: sql<number>`count(*)` }).from(bookings).where(sql`${bookings.createdAt} >= ${monthAgo}`),
+    d.select({ count: sql<number>`count(*)` }).from(bookings).where(and(eq(bookings.status, "completed"), sql`${bookings.createdAt} >= ${monthAgo}`)),
+    d.select({ count: sql<number>`count(*)` }).from(leads).where(and(eq(leads.status, "new"), sql`${leads.createdAt} <= ${weekAgo}`)),
+    d.select({ count: sql<number>`count(*)` }).from(leads).where(and(sql`${leads.source} = 'estimate'`, eq(leads.status, "new"), sql`${leads.createdAt} <= ${weekAgo}`)),
   ]);
 
   const estTotal = totalEstimateLeads[0]?.count ?? 0;
@@ -211,7 +211,8 @@ INSIGHTS: ${pipeline.insights.join("; ") || "None"}`;
       ],
       maxTokens: 300,
     });
-    return response.choices?.[0]?.message?.content || "No insight generated";
+    const content = response.choices?.[0]?.message?.content;
+    return (typeof content === "string" ? content : null) || "No insight generated";
   } catch {
     return pipeline.insights[0] || "Data analysis pending";
   }
@@ -240,7 +241,7 @@ export async function runProactiveCheck(): Promise<{ recordsProcessed?: number; 
 
       log.info(`Proactive check: ${allAlerts.length} alerts sent`);
     } catch (err) {
-      log.error("Proactive alert failed:", err instanceof Error ? err.message : err);
+      log.error("Proactive alert failed:", { error: err instanceof Error ? err.message : String(err) });
     }
   }
 

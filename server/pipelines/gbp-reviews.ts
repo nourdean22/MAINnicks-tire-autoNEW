@@ -114,7 +114,7 @@ export async function fetchRecentReviews(): Promise<RawReview[]> {
     return [];
   }
 
-  return details.result.reviews.map((r) => ({
+  return details.result.reviews.map((r: any) => ({
     authorName: r.author_name || "Unknown",
     rating: r.rating,
     text: r.text || "",
@@ -148,7 +148,7 @@ async function fetchCompetitorReviews(query: string): Promise<{ name: string; pl
 
     if (details.status !== "OK") return null;
 
-    const reviews = (details.result?.reviews || []).map((r) => ({
+    const reviews = (details.result?.reviews || []).map((r: any) => ({
       authorName: r.author_name || "Unknown",
       rating: r.rating,
       text: r.text || "",

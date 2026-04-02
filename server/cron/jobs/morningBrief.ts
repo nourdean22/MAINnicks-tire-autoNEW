@@ -136,9 +136,10 @@ FORMAT RULES:
         maxTokens: 800,
       });
 
-      briefText = aiResponse.choices?.[0]?.message?.content || "";
+      const rawContent = aiResponse.choices?.[0]?.message?.content;
+      briefText = (typeof rawContent === "string" ? rawContent : null) || "";
     } catch (aiErr) {
-      log.warn("AI brief generation failed, using template:", aiErr instanceof Error ? aiErr.message : aiErr);
+      log.warn("AI brief generation failed, using template:", { error: aiErr instanceof Error ? aiErr.message : String(aiErr) });
       briefText = "";
     }
 
@@ -167,7 +168,7 @@ Systems over motivation. Let's go.`;
 
     return { recordsProcessed: 1, details: `Full brief sent. ${pendingCount} pending. $${monthRevenue.toLocaleString()} 30d rev.` };
   } catch (err) {
-    log.error("Morning brief failed:", err instanceof Error ? err.message : err);
+    log.error("Morning brief failed:", { error: err instanceof Error ? err.message : String(err) });
     return { details: `Error: ${err instanceof Error ? err.message : "unknown"}` };
   }
 }
@@ -189,6 +190,6 @@ Command Center: https://nickstire.org/admin`;
     await sendTelegram(msg);
     log.info(`Urgent brief sent: ${reason}`);
   } catch (err) {
-    log.error("Urgent brief failed:", err instanceof Error ? err.message : err);
+    log.error("Urgent brief failed:", { error: err instanceof Error ? err.message : String(err) });
   }
 }

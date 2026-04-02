@@ -117,6 +117,98 @@ export default function SEOServicePage() {
           </section>
         ))}
 
+        {/* How We Handle This Service */}
+        <section className="py-16 lg:py-20 bg-[oklch(0.065_0.004_260)]">
+          <div className="container max-w-4xl">
+            <FadeIn>
+              <span className="font-mono text-primary text-sm tracking-wide">Our Process</span>
+              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-6">
+                WHAT HAPPENS WHEN YOU BRING YOUR CAR IN
+              </h2>
+              <p className="text-foreground/70 leading-relaxed text-lg mb-8">
+                At Nick's Tire & Auto, every service follows the same principle: diagnose first, explain clearly, then fix it right. Here's what the process looks like from start to finish.
+              </p>
+            </FadeIn>
+            <div className="space-y-4">
+              <FadeIn delay={0.05}>
+                <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-5">
+                  <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="font-semibold font-bold text-primary text-xs">1</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold font-bold text-foreground mb-1">Walk In or Book Online</h3>
+                    <p className="text-foreground/70 text-sm leading-relaxed">No appointment needed — we're first-come, first-served. You can also <Link href="/booking" className="text-nick-blue-light hover:underline">book online</Link> or call {BUSINESS.phone.display} to schedule a specific time. Open {BUSINESS.hours.display}, Sundays 9–4.</p>
+                  </div>
+                </div>
+              </FadeIn>
+              <FadeIn delay={0.1}>
+                <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-5">
+                  <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="font-semibold font-bold text-primary text-xs">2</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold font-bold text-foreground mb-1">Inspection & Diagnosis</h3>
+                    <p className="text-foreground/70 text-sm leading-relaxed">Our technicians inspect your vehicle and identify the root cause — not just the symptoms. We use professional diagnostic tools and hands-on testing to get it right the first time.</p>
+                  </div>
+                </div>
+              </FadeIn>
+              <FadeIn delay={0.15}>
+                <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-5">
+                  <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="font-semibold font-bold text-primary text-xs">3</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold font-bold text-foreground mb-1">Transparent Quote</h3>
+                    <p className="text-foreground/70 text-sm leading-relaxed">We explain what we found, what needs to be done, and exactly how much it costs. No surprises, no upsells. You approve the work before we start.</p>
+                  </div>
+                </div>
+              </FadeIn>
+              <FadeIn delay={0.2}>
+                <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-5">
+                  <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="font-semibold font-bold text-primary text-xs">4</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold font-bold text-foreground mb-1">Repair & Drive</h3>
+                    <p className="text-foreground/70 text-sm leading-relaxed">Most repairs are completed same-day. We verify the fix before handing your keys back. Need <Link href="/financing" className="text-nick-blue-light hover:underline">financing</Link>? We offer plans from $10 down so you can get the repair done now.</p>
+                  </div>
+                </div>
+              </FadeIn>
+            </div>
+          </div>
+        </section>
+
+        {/* Trust Signals */}
+        <section className="py-16 lg:py-20 bg-[oklch(0.055_0.004_260)]">
+          <div className="container">
+            <FadeIn>
+              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground tracking-tight mb-10">
+                WHY CLEVELAND DRIVERS CHOOSE NICK'S
+              </h2>
+            </FadeIn>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <FadeIn delay={0.05}>
+                <div className="bg-card/30 border border-border/50 rounded-lg p-6">
+                  <div className="text-3xl font-bold text-primary mb-2">{BUSINESS.reviews.rating} Stars</div>
+                  <p className="text-foreground/70 text-sm leading-relaxed">{BUSINESS.reviews.countDisplay} Google reviews from real Cleveland-area customers. Our reputation is built on honest work and fair pricing — read what drivers say on our <Link href="/reviews" className="text-nick-blue-light hover:underline">reviews page</Link>.</p>
+                </div>
+              </FadeIn>
+              <FadeIn delay={0.1}>
+                <div className="bg-card/30 border border-border/50 rounded-lg p-6">
+                  <div className="text-3xl font-bold text-primary mb-2">Open 7 Days</div>
+                  <p className="text-foreground/70 text-sm leading-relaxed">{BUSINESS.hours.display} and Sundays 9 AM–4 PM. Walk-ins welcome on a first-come, first-served basis. Located at {BUSINESS.address.street} on Euclid Ave with easy access from I-90.</p>
+                </div>
+              </FadeIn>
+              <FadeIn delay={0.15}>
+                <div className="bg-card/30 border border-border/50 rounded-lg p-6">
+                  <div className="text-3xl font-bold text-primary mb-2">$10 Down</div>
+                  <p className="text-foreground/70 text-sm leading-relaxed"><Link href="/financing" className="text-nick-blue-light hover:underline">Financing available</Link> on tires and major repairs. Don't put off a safety repair because of cost — get it fixed today and pay over time with affordable monthly payments.</p>
+                </div>
+              </FadeIn>
+            </div>
+          </div>
+        </section>
+
         {/* FAQs */}
         <section className="py-16 lg:py-20 border-t border-border/30">
           <div className="container max-w-4xl">

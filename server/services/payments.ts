@@ -63,7 +63,7 @@ export async function createPaymentIntent(params: {
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    log.error("Payment intent creation failed:", msg);
+    log.error("Payment intent creation failed:", { error: msg });
     return { error: `Payment setup failed: ${msg}` };
   }
 }

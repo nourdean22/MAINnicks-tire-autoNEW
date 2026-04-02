@@ -88,12 +88,11 @@ export const laborEstimateRouter = router({
                 name: input.customerName || "Online Estimate",
                 phone: input.customerPhone || "",
                 email: input.customerEmail || null,
-                source: "estimate",
-                service: estimate.repairTitle,
+                source: "popup",
                 vehicle: `${input.year} ${input.make} ${input.model}`,
-                message: `Estimate: ${estimate.repairTitle}\nRange: $${estimate.grandTotalLow}–$${estimate.grandTotalHigh}\nPowered by Auto Labor Guide`,
+                problem: `Estimate: ${estimate.repairTitle}\nRange: $${estimate.grandTotalLow}–$${estimate.grandTotalHigh}\nPowered by Auto Labor Guide`,
+                recommendedService: estimate.repairTitle.slice(0, 100),
                 urgencyScore: 3,
-                status: "new",
               });
             }
 

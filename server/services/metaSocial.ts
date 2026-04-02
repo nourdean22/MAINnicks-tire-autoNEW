@@ -118,7 +118,7 @@ export async function postToFacebook(params: {
 
     if (!res.ok) {
       const errMsg = data?.error?.message || `HTTP ${res.status}`;
-      log.error("Facebook post failed:", errMsg);
+      log.error("Facebook post failed:", { error: errMsg });
       return { success: false, error: errMsg };
     }
 
@@ -127,7 +127,7 @@ export async function postToFacebook(params: {
     return { success: true, postId };
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    log.error("Facebook post error:", errMsg);
+    log.error("Facebook post error:", { error: errMsg });
     return { success: false, error: errMsg };
   }
 }
@@ -161,7 +161,7 @@ export async function postToInstagram(params: {
 
     if (!containerRes.ok) {
       const errMsg = containerData?.error?.message || `Container creation failed: HTTP ${containerRes.status}`;
-      log.error("Instagram container error:", errMsg);
+      log.error("Instagram container error:", { error: errMsg });
       return { success: false, error: errMsg };
     }
 
@@ -184,7 +184,7 @@ export async function postToInstagram(params: {
 
     if (!publishRes.ok) {
       const errMsg = publishData?.error?.message || `Publish failed: HTTP ${publishRes.status}`;
-      log.error("Instagram publish error:", errMsg);
+      log.error("Instagram publish error:", { error: errMsg });
       return { success: false, error: errMsg };
     }
 
@@ -193,7 +193,7 @@ export async function postToInstagram(params: {
     return { success: true, postId };
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    log.error("Instagram post error:", errMsg);
+    log.error("Instagram post error:", { error: errMsg });
     return { success: false, error: errMsg };
   }
 }
@@ -269,7 +269,7 @@ export async function postInstagramCarousel(params: {
     return { success: true, postId: publishData.id };
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    log.error("Instagram carousel error:", errMsg);
+    log.error("Instagram carousel error:", { error: errMsg });
     return { success: false, error: errMsg };
   }
 }

@@ -653,7 +653,7 @@ export const gatewayTireRouter = router({
         service: "Tire Order & Installation",
         vehicle: input.vehicleInfo || "Not specified",
         message: `ONLINE TIRE ORDER ${orderNumber}\n${input.quantity}x ${input.tireBrand} ${input.tireModel} (${input.tireSize})\nInstall: ${input.installPreference.replace("-", " ")}\nNick's Premium Installation Package: INCLUDED\nTotal: $${(totalAmount / 100).toFixed(2)}${input.customerNotes ? `\nNotes: ${input.customerNotes}` : ""}`,
-        preferredTime: timeMap[input.installPreference] || "no-preference",
+        preferredTime: (timeMap[input.installPreference] || "no-preference") as "morning" | "afternoon" | "no-preference",
         stage: "received",
       });
 
@@ -687,7 +687,7 @@ export const gatewayTireRouter = router({
           taxAmount: taxAmountCents,
           serviceDescription: `Tire Order & Install — ${input.quantity}x ${input.tireBrand} ${input.tireModel} (${input.tireSize})\nOrder: ${orderNumber}`,
           vehicleInfo: input.vehicleInfo || null,
-          paymentMethod: "pending",
+          paymentMethod: "other",
           paymentStatus: "pending",
           source: "manual",
           invoiceDate: new Date(),
@@ -716,7 +716,7 @@ export const gatewayTireRouter = router({
           partsCost: partsCostCents / 100,
           taxAmount: taxAmountCents / 100,
           totalAmount: grandTotalCents / 100,
-          paymentMethod: "pending",
+          paymentMethod: "other",
           paymentStatus: "pending",
           source: "tire_order",
           orderRef: orderNumber,
@@ -768,7 +768,6 @@ export const gatewayTireRouter = router({
           customerName: input.customerName,
           tireBrand: input.tireBrand,
           tireModel: input.tireModel,
-          tireSize: input.tireSize,
           quantity: input.quantity,
           totalAmount: totalDollars,
         })
