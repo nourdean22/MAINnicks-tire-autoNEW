@@ -9,6 +9,88 @@ import { invokeLLM } from "./_core/llm";
 import { eq } from "drizzle-orm";
 import { shopSettings } from "../drizzle/schema";
 
+/** Search Auto Labor Guide for matching jobs to inject real labor times */
+async function findMatchingLaborJobs(repairDescription: string): Promise<string> {
+  try {
+    // Dynamic import to avoid circular dependency
+    const { autoLaborRouter } = await import("./routers/autoLabor");
+    // Search the built-in labor guide for matching jobs
+    const query = repairDescription.toLowerCase().split(" ").slice(0, 3).join(" ");
+    const categories = ["brakes", "engine", "electrical", "suspension", "cooling", "exhaust", "maintenance", "tires"];
+    const matches: string[] = [];
+
+    // Import the LABOR_CATEGORIES directly
+    const mod = await import("./routers/autoLabor");
+    // We can't access LABOR_CATEGORIES directly since it's not exported, but we can use the router
+    // Instead, let's just do a keyword search across common terms
+    const LABOR_DATA: Record<string, { name: string; avgHours: number; minHours: number; maxHours: number }[]> = {
+      brakes: [
+        { name: "Front Brake Pads (both sides)", avgHours: 1.0, minHours: 0.5, maxHours: 1.5 },
+        { name: "Rear Brake Pads (both sides)", avgHours: 1.0, minHours: 0.5, maxHours: 1.5 },
+        { name: "Front Brake Rotors (both sides)", avgHours: 1.5, minHours: 1.0, maxHours: 2.0 },
+        { name: "Brake Caliper Replacement (one)", avgHours: 1.5, minHours: 1.0, maxHours: 2.5 },
+        { name: "Brake Fluid Flush", avgHours: 0.7, minHours: 0.5, maxHours: 1.0 },
+      ],
+      engine: [
+        { name: "Spark Plugs (4-cylinder)", avgHours: 1.0, minHours: 0.5, maxHours: 1.5 },
+        { name: "Timing Belt Replacement", avgHours: 4.5, minHours: 3.0, maxHours: 6.0 },
+        { name: "Head Gasket Replacement", avgHours: 8.0, minHours: 6.0, maxHours: 12.0 },
+        { name: "Water Pump Replacement", avgHours: 2.5, minHours: 1.5, maxHours: 4.0 },
+        { name: "Thermostat Replacement", avgHours: 1.0, minHours: 0.5, maxHours: 2.0 },
+      ],
+      electrical: [
+        { name: "Check Engine Light Diagnosis", avgHours: 1.0, minHours: 0.5, maxHours: 1.5 },
+        { name: "Alternator Replacement", avgHours: 1.5, minHours: 1.0, maxHours: 2.5 },
+        { name: "Starter Replacement", avgHours: 2.0, minHours: 1.0, maxHours: 3.0 },
+        { name: "Battery Replacement", avgHours: 0.5, minHours: 0.3, maxHours: 1.0 },
+        { name: "Oxygen Sensor (one)", avgHours: 0.8, minHours: 0.5, maxHours: 1.5 },
+      ],
+      suspension: [
+        { name: "Strut Assembly (one side)", avgHours: 1.5, minHours: 1.0, maxHours: 2.0 },
+        { name: "Struts (both front)", avgHours: 2.5, minHours: 2.0, maxHours: 3.5 },
+        { name: "Tie Rod End (one)", avgHours: 1.0, minHours: 0.5, maxHours: 1.5 },
+        { name: "Wheel Bearing (one)", avgHours: 2.0, minHours: 1.0, maxHours: 3.0 },
+        { name: "Wheel Alignment", avgHours: 1.0, minHours: 0.5, maxHours: 1.5 },
+      ],
+      cooling: [
+        { name: "AC Recharge (R-134a)", avgHours: 0.7, minHours: 0.5, maxHours: 1.0 },
+        { name: "AC Compressor Replacement", avgHours: 3.0, minHours: 2.0, maxHours: 4.0 },
+        { name: "Radiator Replacement", avgHours: 2.0, minHours: 1.5, maxHours: 3.0 },
+      ],
+      maintenance: [
+        { name: "Oil Change (Synthetic)", avgHours: 0.3, minHours: 0.3, maxHours: 0.5 },
+        { name: "Transmission Fluid Change", avgHours: 1.0, minHours: 0.5, maxHours: 1.5 },
+        { name: "Serpentine Belt", avgHours: 0.7, minHours: 0.3, maxHours: 1.5 },
+      ],
+      exhaust: [
+        { name: "Catalytic Converter", avgHours: 2.0, minHours: 1.0, maxHours: 3.0 },
+        { name: "Muffler Replacement", avgHours: 1.0, minHours: 0.5, maxHours: 2.0 },
+        { name: "Ohio E-Check Repair", avgHours: 2.0, minHours: 1.0, maxHours: 4.0 },
+      ],
+      tires: [
+        { name: "Tire Mount & Balance (4)", avgHours: 0.7, minHours: 0.5, maxHours: 1.0 },
+        { name: "Flat Repair (plug/patch)", avgHours: 0.3, minHours: 0.3, maxHours: 0.5 },
+      ],
+    };
+
+    const desc = repairDescription.toLowerCase();
+    for (const [cat, jobs] of Object.entries(LABOR_DATA)) {
+      for (const job of jobs) {
+        const jobWords = job.name.toLowerCase();
+        // Check if any words in the repair description match the job name
+        if (desc.includes(cat) || jobWords.split(/\s+/).some(w => w.length > 3 && desc.includes(w))) {
+          matches.push(`- ${job.name}: ${job.minHours}-${job.maxHours}h (avg ${job.avgHours}h) [Auto Labor Guide]`);
+        }
+      }
+    }
+
+    if (matches.length === 0) return "";
+    return `\n\nAUTO LABOR GUIDE REFERENCE DATA (use these verified labor times):\n${matches.join("\n")}`;
+  } catch {
+    return "";
+  }
+}
+
 /** Default fallback labor rate */
 const DEFAULT_LABOR_RATE = 115;
 
@@ -109,12 +191,15 @@ export async function generateLaborEstimate(input: {
   const vehicleStr = `${input.year} ${input.make} ${input.model}`;
   const mileageStr = input.mileage ? `\nApproximate mileage: ${input.mileage}` : "";
 
+  // Pull matching labor times from Auto Labor Guide
+  const laborGuideData = await findMatchingLaborJobs(input.repairDescription);
+
   const userMessage = `Generate a detailed repair cost estimate for this vehicle and repair:
 
 Vehicle: ${vehicleStr}${mileageStr}
 Repair needed: ${input.repairDescription}
 
-Labor rate: $${laborRate}/hour
+Labor rate: $${laborRate}/hour${laborGuideData}
 
 Respond with a JSON object:
 {
