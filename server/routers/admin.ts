@@ -36,6 +36,12 @@ export const adminDashboardRouter = router({
     return getSiteHealth();
   }),
 
+  /** Full system diagnostics — predictive health, trends, anomalies, recovery history */
+  systemDiagnostics: adminProcedure.query(async () => {
+    const { generateDiagnosticReport } = await import("../lib/self-healing");
+    return generateDiagnosticReport();
+  }),
+
   /** Get recent notification delivery log */
   notificationLog: adminProcedure
     .input(z.object({ limit: z.number().default(50) }).optional())

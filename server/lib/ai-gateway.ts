@@ -323,7 +323,7 @@ type RequestLogEntry = {
 };
 
 const requestLog: RequestLogEntry[] = [];
-const MAX_LOG_ENTRIES = 200;
+const MAX_LOG_ENTRIES = 50; // Reduced — tight container memory
 
 // ─── Daily stats & latency tracking ─────────────────
 let lastRequestAt: number | null = null;

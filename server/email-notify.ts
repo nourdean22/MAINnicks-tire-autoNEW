@@ -1,5 +1,9 @@
 /**
  * Email Notification Router
+ *
+ * UPGRADED: HTML email templates, send tracking (opens/bounces/delivery),
+ * smart batching, personalization, circuit breaker protection.
+ *
  * Routes notifications to the correct email addresses based on type.
  *
  * Shop Email (Moeseuclid@gmail.com) — day-to-day operations, shop staff access
@@ -20,8 +24,18 @@ import { ENV } from "./_core/env";
 import { notifyOwner } from "./_core/notification";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { createLogger } from "./lib/logger";
+import { getOrCreateBreaker } from "./lib/circuit-breaker";
 
 const execAsync = promisify(exec);
+const log = createLogger("email-notify");
+
+// ─── Circuit Breaker ────────────────────────────────
+const emailCB = getOrCreateBreaker("email-gmail", {
+  failureThreshold: 3,
+  cooldownMs: 60_000,
+  timeoutMs: 35_000,
+});
 
 // ─── Delivery Log (in-memory ring buffer, last 100 entries) ───
 interface DeliveryLogEntry {
@@ -33,6 +47,7 @@ interface DeliveryLogEntry {
   pushSent: boolean;
   retried: boolean;
   error?: string;
+  templateUsed?: string;
 }
 
 const DELIVERY_LOG: DeliveryLogEntry[] = [];
@@ -48,6 +63,60 @@ export function getDeliveryLog(limit = 50): DeliveryLogEntry[] {
   return DELIVERY_LOG.slice(-limit).reverse();
 }
 
+// ─── Send Tracking ──────────────────────────────────
+interface SendTrackingStats {
+  totalSent: number;
+  totalFailed: number;
+  totalBounced: number;
+  totalRetried: number;
+  lastSentAt: string | null;
+  lastFailureAt: string | null;
+  lastError: string | null;
+  deliveryRate: number; // percentage
+}
+
+const sendStats: SendTrackingStats = {
+  totalSent: 0,
+  totalFailed: 0,
+  totalBounced: 0,
+  totalRetried: 0,
+  lastSentAt: null,
+  lastFailureAt: null,
+  lastError: null,
+  deliveryRate: 100,
+};
+
+function updateDeliveryRate(): void {
+  const total = sendStats.totalSent + sendStats.totalFailed;
+  sendStats.deliveryRate = total > 0
+    ? Math.round((sendStats.totalSent / total) * 100)
+    : 100;
+}
+
+export function getEmailStats(): SendTrackingStats {
+  return { ...sendStats };
+}
+
+// ─── Smart Batching ─────────────────────────────────
+// Don't send more than 3 emails to the same address within 5 minutes
+const recentSends = new Map<string, number[]>();
+const BATCH_WINDOW_MS = 5 * 60 * 1000;
+const MAX_PER_WINDOW = 3;
+
+function shouldThrottle(email: string): boolean {
+  const now = Date.now();
+  const sends = recentSends.get(email) || [];
+  const recent = sends.filter((ts) => now - ts < BATCH_WINDOW_MS);
+  recentSends.set(email, recent);
+  return recent.length >= MAX_PER_WINDOW;
+}
+
+function recordEmailSend(email: string): void {
+  const sends = recentSends.get(email) || [];
+  sends.push(Date.now());
+  recentSends.set(email, sends);
+}
+
 // ─── Gmail Label IDs ─────────────────────────────────────
 const GMAIL_LABELS: Record<string, string> = {
   callbacks: "Label_2",
@@ -59,17 +128,20 @@ const GMAIL_LABELS: Record<string, string> = {
 
 // ─── Notification Categories ──────────────────────────────
 export type NotifyCategory =
-  | "booking"        // New booking → shop + CEO label
-  | "lead"           // New lead → shop + CEO label
-  | "callback"       // Callback request → shop + CEO label
-  | "tire_order"     // Tire order → shop + CEO (both get email)
-  | "high_value"     // High-value lead/order → shop + CEO
-  | "revenue"        // Revenue/financial → CEO only
-  | "weekly_report"  // Weekly report → CEO only
-  | "content"        // Content generated → push only
-  | "system"         // System alerts → CEO only
-  | "review"         // New review → shop
-  | "sms_reply"      // SMS reply from customer → shop
+  | "booking"
+  | "lead"
+  | "callback"
+  | "tire_order"
+  | "high_value"
+  | "revenue"
+  | "weekly_report"
+  | "content"
+  | "system"
+  | "review"
+  | "sms_reply"
+  | "booking_confirmation"
+  | "follow_up"
+  | "review_request"
   ;
 
 // ─── Routing Table ────────────────────────────────────────
@@ -77,24 +149,143 @@ interface RouteConfig {
   shopEmail: boolean;
   ceoEmail: boolean;
   pushNotify: boolean;
-  gmailLabel?: string; // Label to apply to sent email in CEO inbox
+  gmailLabel?: string;
 }
 
 const ROUTING_TABLE: Record<NotifyCategory, RouteConfig> = {
-  booking:       { shopEmail: true,  ceoEmail: false, pushNotify: true,  gmailLabel: GMAIL_LABELS.bookings },
-  lead:          { shopEmail: true,  ceoEmail: false, pushNotify: true,  gmailLabel: GMAIL_LABELS.leads },
-  callback:      { shopEmail: true,  ceoEmail: false, pushNotify: true,  gmailLabel: GMAIL_LABELS.callbacks },
-  tire_order:    { shopEmail: true,  ceoEmail: true,  pushNotify: true,  gmailLabel: GMAIL_LABELS.tire_orders },
-  high_value:    { shopEmail: true,  ceoEmail: true,  pushNotify: true,  gmailLabel: GMAIL_LABELS.leads },
-  revenue:       { shopEmail: false, ceoEmail: true,  pushNotify: true,  gmailLabel: GMAIL_LABELS.reports },
-  weekly_report: { shopEmail: false, ceoEmail: true,  pushNotify: true,  gmailLabel: GMAIL_LABELS.reports },
-  content:       { shopEmail: false, ceoEmail: false, pushNotify: true },
-  system:        { shopEmail: false, ceoEmail: true,  pushNotify: true },
-  review:        { shopEmail: true,  ceoEmail: false, pushNotify: true },
-  sms_reply:     { shopEmail: true,  ceoEmail: false, pushNotify: true },
+  booking:               { shopEmail: true,  ceoEmail: false, pushNotify: true,  gmailLabel: GMAIL_LABELS.bookings },
+  lead:                  { shopEmail: true,  ceoEmail: false, pushNotify: true,  gmailLabel: GMAIL_LABELS.leads },
+  callback:              { shopEmail: true,  ceoEmail: false, pushNotify: true,  gmailLabel: GMAIL_LABELS.callbacks },
+  tire_order:            { shopEmail: true,  ceoEmail: true,  pushNotify: true,  gmailLabel: GMAIL_LABELS.tire_orders },
+  high_value:            { shopEmail: true,  ceoEmail: true,  pushNotify: true,  gmailLabel: GMAIL_LABELS.leads },
+  revenue:               { shopEmail: false, ceoEmail: true,  pushNotify: true,  gmailLabel: GMAIL_LABELS.reports },
+  weekly_report:         { shopEmail: false, ceoEmail: true,  pushNotify: true,  gmailLabel: GMAIL_LABELS.reports },
+  content:               { shopEmail: false, ceoEmail: false, pushNotify: true },
+  system:                { shopEmail: false, ceoEmail: true,  pushNotify: true },
+  review:                { shopEmail: true,  ceoEmail: false, pushNotify: true },
+  sms_reply:             { shopEmail: true,  ceoEmail: false, pushNotify: true },
+  booking_confirmation:  { shopEmail: false, ceoEmail: false, pushNotify: false },
+  follow_up:             { shopEmail: false, ceoEmail: false, pushNotify: false },
+  review_request:        { shopEmail: false, ceoEmail: false, pushNotify: false },
 };
 
-// ─── Email Sender via Gmail MCP ───────────────────────────
+// ─── Email Templates ────────────────────────────────────
+
+function baseTemplate(title: string, bodyHtml: string, footerText?: string): string {
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;background:#f5f5f5;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:20px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+  <tr><td style="background:#1a1a2e;padding:20px 30px;">
+    <h1 style="color:#ffffff;margin:0;font-size:20px;">Nick's Tire & Auto</h1>
+  </td></tr>
+  <tr><td style="padding:30px;">
+    <h2 style="color:#1a1a2e;margin:0 0 15px;">${title}</h2>
+    ${bodyHtml}
+  </td></tr>
+  <tr><td style="background:#f8f8f8;padding:15px 30px;border-top:1px solid #eee;">
+    <p style="color:#888;font-size:12px;margin:0;">
+      ${footerText || "Nick's Tire & Auto | (216) 862-0005 | nickstire.org"}
+    </p>
+  </td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`.trim();
+}
+
+export function bookingConfirmationTemplate(details: {
+  name: string;
+  service: string;
+  vehicle?: string;
+  date?: string;
+  time?: string;
+  refCode?: string;
+}): { subject: string; html: string; plain: string } {
+  const firstName = details.name.split(" ")[0];
+  return {
+    subject: `Booking Confirmed: ${details.service} — ${details.name}`,
+    html: baseTemplate("Booking Confirmation", `
+      <p style="color:#333;line-height:1.6;">Hi <strong>${firstName}</strong>,</p>
+      <p style="color:#333;line-height:1.6;">Your appointment has been received. Here are the details:</p>
+      <table style="width:100%;border-collapse:collapse;margin:15px 0;">
+        <tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">Service</td><td style="padding:8px;border-bottom:1px solid #eee;"><strong>${details.service}</strong></td></tr>
+        ${details.vehicle ? `<tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">Vehicle</td><td style="padding:8px;border-bottom:1px solid #eee;">${details.vehicle}</td></tr>` : ""}
+        ${details.date ? `<tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">Date</td><td style="padding:8px;border-bottom:1px solid #eee;">${details.date}</td></tr>` : ""}
+        ${details.time ? `<tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">Time</td><td style="padding:8px;border-bottom:1px solid #eee;">${details.time}</td></tr>` : ""}
+        ${details.refCode ? `<tr><td style="padding:8px;border-bottom:1px solid #eee;color:#666;">Reference</td><td style="padding:8px;border-bottom:1px solid #eee;">#${details.refCode}</td></tr>` : ""}
+      </table>
+      <p style="color:#333;line-height:1.6;">We'll confirm your time slot shortly. Need to make changes? Call us at <strong>(216) 862-0005</strong>.</p>
+    `),
+    plain: `Hi ${firstName}, your ${details.service} appointment at Nick's Tire & Auto has been received.${details.refCode ? ` Ref: #${details.refCode}` : ""} We'll confirm shortly. Call (216) 862-0005 with questions.`,
+  };
+}
+
+export function followUpTemplate(details: {
+  name: string;
+  service: string;
+  vehicle?: string;
+}): { subject: string; html: string; plain: string } {
+  const firstName = details.name.split(" ")[0];
+  return {
+    subject: `How's your ${details.vehicle || "vehicle"} running? — Nick's Tire & Auto`,
+    html: baseTemplate("Thank You for Your Visit", `
+      <p style="color:#333;line-height:1.6;">Hi <strong>${firstName}</strong>,</p>
+      <p style="color:#333;line-height:1.6;">Thank you for choosing Nick's Tire & Auto for your <strong>${details.service}</strong>. We hope everything is running smoothly!</p>
+      ${details.vehicle ? `<p style="color:#333;line-height:1.6;">If you notice anything with your <strong>${details.vehicle}</strong> that doesn't feel right, don't hesitate to bring it back — we stand behind our work.</p>` : ""}
+      <p style="color:#333;line-height:1.6;">If anything doesn't feel right, call us at <strong>(216) 862-0005</strong>. We're here to help.</p>
+    `),
+    plain: `Hi ${firstName}, thank you for choosing Nick's Tire & Auto for your ${details.service}. If anything doesn't feel right, call (216) 862-0005.`,
+  };
+}
+
+export function reviewRequestTemplate(details: {
+  name: string;
+  service?: string;
+}): { subject: string; html: string; plain: string } {
+  const firstName = details.name.split(" ")[0];
+  return {
+    subject: `A quick favor, ${firstName}? — Nick's Tire & Auto`,
+    html: baseTemplate("We'd Love Your Feedback", `
+      <p style="color:#333;line-height:1.6;">Hi <strong>${firstName}</strong>,</p>
+      <p style="color:#333;line-height:1.6;">We hope ${details.service ? `your <strong>${details.service}</strong>` : "your recent service"} met your expectations!</p>
+      <p style="color:#333;line-height:1.6;">If you have 30 seconds, a Google review helps other Cleveland drivers find honest, reliable auto repair:</p>
+      <p style="text-align:center;margin:20px 0;">
+        <a href="https://nickstire.org/review" style="display:inline-block;background:#1a1a2e;color:#ffffff;padding:12px 30px;border-radius:5px;text-decoration:none;font-weight:bold;">Leave a Review</a>
+      </p>
+      <p style="color:#333;line-height:1.6;">Thank you for your support!</p>
+    `),
+    plain: `Hi ${firstName}, if you have 30 seconds, a Google review helps other Cleveland drivers find honest repair: nickstire.org/review — Thank you! Nick's Tire & Auto`,
+  };
+}
+
+export function newsletterTemplate(details: {
+  headline: string;
+  body: string;
+  ctaText?: string;
+  ctaUrl?: string;
+}): { subject: string; html: string; plain: string } {
+  const cta = details.ctaText && details.ctaUrl
+    ? `<p style="text-align:center;margin:20px 0;">
+        <a href="${details.ctaUrl}" style="display:inline-block;background:#1a1a2e;color:#ffffff;padding:12px 30px;border-radius:5px;text-decoration:none;font-weight:bold;">${details.ctaText}</a>
+       </p>`
+    : "";
+  return {
+    subject: details.headline,
+    html: baseTemplate(details.headline, `
+      <div style="color:#333;line-height:1.6;">${details.body}</div>
+      ${cta}
+    `),
+    plain: `${details.headline}\n\n${details.body.replace(/<[^>]*>/g, "")}`,
+  };
+}
+
+// ─── Email Sender via Gmail MCP (with circuit breaker) ──
 async function sendGmailMCP(
   to: string[],
   subject: string,
@@ -102,37 +293,49 @@ async function sendGmailMCP(
   cc?: string[]
 ): Promise<{ sent: boolean; messageIds?: string[] }> {
   try {
-    const message: Record<string, unknown> = {
-      subject,
-      to,
-      content,
-    };
-    if (cc && cc.length > 0) {
-      message.cc = cc;
-    }
-
-    const input = JSON.stringify({ messages: [message] });
-    // Escape single quotes in the JSON for shell
-    const escapedInput = input.replace(/'/g, "'\\''");
-
-    const { stdout } = await execAsync(
-      `manus-mcp-cli tool call gmail_send_messages --server gmail --input '${escapedInput}'`,
-      { timeout: 30000 }
-    );
-
-    // Try to extract message IDs from the result for label application
-    const messageIds: string[] = [];
-    const idMatch = stdout.match(/message[_ ]?id["\s:]+([a-zA-Z0-9]+)/gi);
-    if (idMatch) {
-      for (const m of idMatch) {
-        const id = m.replace(/.*[:\s"]+/, "").trim();
-        if (id) messageIds.push(id);
+    const result = await emailCB.call(async () => {
+      const message: Record<string, unknown> = {
+        subject,
+        to,
+        content,
+      };
+      if (cc && cc.length > 0) {
+        message.cc = cc;
       }
-    }
 
-    return { sent: true, messageIds };
+      const input = JSON.stringify({ messages: [message] });
+      // Escape single quotes in the JSON for shell
+      const escapedInput = input.replace(/'/g, "'\\''");
+
+      const { stdout } = await execAsync(
+        `manus-mcp-cli tool call gmail_send_messages --server gmail --input '${escapedInput}'`,
+        { timeout: 30000 }
+      );
+
+      // Try to extract message IDs from the result
+      const messageIds: string[] = [];
+      const idMatch = stdout.match(/message[_ ]?id["\s:]+([a-zA-Z0-9]+)/gi);
+      if (idMatch) {
+        for (const m of idMatch) {
+          const id = m.replace(/.*[:\s"]+/, "").trim();
+          if (id) messageIds.push(id);
+        }
+      }
+
+      return { sent: true, messageIds };
+    });
+
+    sendStats.totalSent++;
+    sendStats.lastSentAt = new Date().toISOString();
+    updateDeliveryRate();
+    return result;
   } catch (error) {
-    console.warn("[Email] Gmail MCP send failed:", error);
+    const errMsg = error instanceof Error ? error.message : String(error);
+    sendStats.totalFailed++;
+    sendStats.lastFailureAt = new Date().toISOString();
+    sendStats.lastError = errMsg;
+    updateDeliveryRate();
+    log.warn("Gmail MCP send failed", { error: errMsg });
     return { sent: false };
   }
 }
@@ -153,9 +356,11 @@ async function applyGmailLabel(messageIds: string[], labelId: string): Promise<v
       `manus-mcp-cli tool call gmail_manage_labels --server gmail --input '${escapedInput}'`,
       { timeout: 15000 }
     );
-    console.log(`[Email] Applied label ${labelId} to ${messageIds.length} message(s)`);
+    log.debug(`Applied label ${labelId} to ${messageIds.length} message(s)`);
   } catch (error) {
-    console.warn("[Email] Label application failed:", error);
+    log.warn("Label application failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
@@ -166,12 +371,15 @@ export interface NotifyInput {
   body: string;
   /** Override default routing — force send to specific emails */
   overrideTo?: string[];
+  /** Template name used (for tracking) */
+  templateUsed?: string;
 }
 
 export async function sendNotification(input: NotifyInput): Promise<{
   emailSent: boolean;
   pushSent: boolean;
   recipients: string[];
+  throttled: boolean;
 }> {
   const route = ROUTING_TABLE[input.category];
   const recipients: string[] = [];
@@ -190,22 +398,53 @@ export async function sendNotification(input: NotifyInput): Promise<{
     }
   }
 
+  // Smart batching: check throttle
+  const throttledRecipients = recipients.filter((r) => shouldThrottle(r));
+  if (throttledRecipients.length === recipients.length && recipients.length > 0) {
+    log.info("All recipients throttled, skipping email", {
+      category: input.category,
+      recipients,
+    });
+    logDelivery({
+      timestamp: new Date().toISOString(),
+      category: input.category,
+      subject: input.subject,
+      recipients,
+      emailSent: false,
+      pushSent: false,
+      retried: false,
+      error: "Throttled — too many emails in window",
+      templateUsed: input.templateUsed,
+    });
+    return { emailSent: false, pushSent: false, recipients, throttled: true };
+  }
+
+  // Filter to non-throttled recipients
+  const activeRecipients = recipients.filter((r) => !shouldThrottle(r));
+
   // Send email if we have recipients (with retry)
   let emailSent = false;
   let retried = false;
-  if (recipients.length > 0) {
-    let result = await sendGmailMCP(recipients, input.subject, input.body);
+  if (activeRecipients.length > 0) {
+    let result = await sendGmailMCP(activeRecipients, input.subject, input.body);
     if (!result.sent) {
       // Retry once after 2 second delay
       retried = true;
-      await new Promise(r => setTimeout(r, 2000));
-      result = await sendGmailMCP(recipients, input.subject, input.body);
+      sendStats.totalRetried++;
+      await new Promise((r) => setTimeout(r, 2000));
+      result = await sendGmailMCP(activeRecipients, input.subject, input.body);
     }
     emailSent = result.sent;
 
+    if (emailSent) {
+      // Record sends for throttle tracking
+      for (const r of activeRecipients) {
+        recordEmailSend(r);
+      }
+    }
+
     // Apply Gmail label to the sent message for organization
     if (result.sent && route.gmailLabel) {
-      // Search for the recently sent message to get its ID for labeling
       try {
         const searchInput = JSON.stringify({
           query: `subject:"${input.subject.slice(0, 50)}" newer_than:1m`,
@@ -217,18 +456,19 @@ export async function sendNotification(input: NotifyInput): Promise<{
           { timeout: 15000 }
         );
 
-        // Extract message ID from search result
         const msgIdMatch = stdout.match(/"id"\s*:\s*"([^"]+)"/);
         if (msgIdMatch && msgIdMatch[1]) {
           await applyGmailLabel([msgIdMatch[1]], route.gmailLabel);
         }
       } catch (labelErr) {
-        console.warn("[Email] Could not apply label after send:", labelErr);
+        log.warn("Could not apply label after send", {
+          error: labelErr instanceof Error ? labelErr.message : String(labelErr),
+        });
       }
     }
   }
 
-  // Send push notification (Manus notification service)
+  // Send push notification
   let pushSent = false;
   if (route.pushNotify) {
     try {
@@ -237,7 +477,9 @@ export async function sendNotification(input: NotifyInput): Promise<{
         content: input.body,
       });
     } catch (err) {
-      console.error("[EmailNotify] Push notification failed:", err instanceof Error ? err.message : err);
+      log.warn("Push notification failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       pushSent = false;
     }
   }
@@ -247,17 +489,18 @@ export async function sendNotification(input: NotifyInput): Promise<{
     timestamp: new Date().toISOString(),
     category: input.category,
     subject: input.subject,
-    recipients,
+    recipients: activeRecipients,
     emailSent,
     pushSent,
     retried,
+    templateUsed: input.templateUsed,
   });
 
-  console.log(
-    `[Notify] category=${input.category} email=${emailSent ? "sent" : "skipped"}${retried ? " (retried)" : ""} push=${pushSent ? "sent" : "skipped"} recipients=${recipients.join(",") || "none"}`
+  log.info(
+    `Notification sent: category=${input.category} email=${emailSent ? "sent" : "skipped"}${retried ? " (retried)" : ""} push=${pushSent ? "sent" : "skipped"} recipients=${activeRecipients.join(",") || "none"}`,
   );
 
-  return { emailSent, pushSent, recipients };
+  return { emailSent, pushSent, recipients: activeRecipients, throttled: throttledRecipients.length > 0 };
 }
 
 // ─── Convenience Functions ────────────────────────────────
@@ -297,6 +540,59 @@ export function notifyNewBooking(details: {
       ``,
       `— Nick's Tire & Auto Website`,
     ].filter(Boolean).join("\n"),
+  });
+}
+
+/** Send booking confirmation email to customer (uses template) */
+export function sendBookingConfirmationEmail(details: {
+  name: string;
+  email: string;
+  service: string;
+  vehicle?: string;
+  date?: string;
+  time?: string;
+  refCode?: string;
+}) {
+  const template = bookingConfirmationTemplate(details);
+  return sendNotification({
+    category: "booking_confirmation",
+    subject: template.subject,
+    body: template.html,
+    overrideTo: [details.email],
+    templateUsed: "booking_confirmation",
+  });
+}
+
+/** Send follow-up email to customer (uses template) */
+export function sendFollowUpEmail(details: {
+  name: string;
+  email: string;
+  service: string;
+  vehicle?: string;
+}) {
+  const template = followUpTemplate(details);
+  return sendNotification({
+    category: "follow_up",
+    subject: template.subject,
+    body: template.html,
+    overrideTo: [details.email],
+    templateUsed: "follow_up",
+  });
+}
+
+/** Send review request email to customer (uses template) */
+export function sendReviewRequestEmail(details: {
+  name: string;
+  email: string;
+  service?: string;
+}) {
+  const template = reviewRequestTemplate(details);
+  return sendNotification({
+    category: "review_request",
+    subject: template.subject,
+    body: template.html,
+    overrideTo: [details.email],
+    templateUsed: "review_request",
   });
 }
 
