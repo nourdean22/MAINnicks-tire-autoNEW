@@ -59,6 +59,9 @@ export const laborEstimateRouter = router({
         model: z.string().min(1).max(50),
         mileage: z.string().max(20).optional(),
         repairDescription: z.string().min(3).max(1000),
+        customerName: z.string().max(100).optional(),
+        customerPhone: z.string().max(20).optional(),
+        customerEmail: z.string().email().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -69,7 +72,62 @@ export const laborEstimateRouter = router({
         mileage: sanitizeText(input.mileage),
         repairDescription: sanitizeText(input.repairDescription) || input.repairDescription,
       };
-      return generateLaborEstimate(sanitized);
+      const estimate = await generateLaborEstimate(sanitized);
+
+      // Push to Auto Labor Guide (ShopDriver) — they own the estimate lifecycle
+      // Also create a lead in our system for tracking
+      if (input.customerName || input.customerPhone || input.customerEmail) {
+        (async () => {
+          try {
+            // 1. Create lead in our DB for pipeline tracking
+            const { getDb } = await import("../db");
+            const d = await getDb();
+            if (d) {
+              const { leads } = await import("../../drizzle/schema");
+              await d.insert(leads).values({
+                name: input.customerName || "Online Estimate",
+                phone: input.customerPhone || "",
+                email: input.customerEmail || null,
+                source: "estimate",
+                service: estimate.repairTitle,
+                vehicle: `${input.year} ${input.make} ${input.model}`,
+                message: `Estimate: ${estimate.repairTitle}\nRange: $${estimate.grandTotalLow}–$${estimate.grandTotalHigh}\nPowered by Auto Labor Guide`,
+                urgencyScore: 3,
+                status: "new",
+              });
+            }
+
+            // 2. Notify shop to create estimate in Auto Labor Guide
+            const { sendTelegram } = await import("../services/telegram");
+            await sendTelegram(
+              `📋 NEW ESTIMATE REQUEST — Create in Auto Labor Guide\n\n` +
+              `Customer: ${input.customerName || "N/A"}\n` +
+              `Phone: ${input.customerPhone || "N/A"}\n` +
+              `Email: ${input.customerEmail || "N/A"}\n` +
+              `Vehicle: ${input.year} ${input.make} ${input.model}${input.mileage ? ` (${input.mileage} mi)` : ""}\n` +
+              `Repair: ${estimate.repairTitle}\n` +
+              `Range: $${estimate.grandTotalLow}–$${estimate.grandTotalHigh}\n` +
+              `Labor: ${estimate.totalLaborHours}h @ $${Math.round(estimate.totalLaborCost / Math.max(estimate.totalLaborHours, 0.1))}/hr\n\n` +
+              `Line items:\n${estimate.lineItems.map(li => `• ${li.description}: ${li.laborHours}h + $${li.partsLow}-$${li.partsHigh} parts`).join("\n")}\n\n` +
+              `⚡ Create this estimate in ShopDriver and email to customer`
+            );
+
+            // 3. Fire NOUR OS event
+            const { onLeadCaptured } = await import("../nour-os-bridge");
+            onLeadCaptured({
+              id: 0,
+              name: input.customerName || "Online Estimate",
+              phone: input.customerPhone || "",
+              source: "estimate",
+              urgencyScore: 3,
+            });
+          } catch (err) {
+            console.error("[Estimate] Pipeline failed:", err instanceof Error ? err.message : err);
+          }
+        })();
+      }
+
+      return estimate;
     }),
 });
 

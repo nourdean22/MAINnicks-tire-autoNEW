@@ -68,6 +68,9 @@ export default function LaborEstimator() {
   const [mileage, setMileage] = useState("");
   const [repairDescription, setRepairDescription] = useState("");
   const [customRepair, setCustomRepair] = useState(false);
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
 
   const estimateMutation = trpc.laborEstimate.generate.useMutation();
 
@@ -81,6 +84,9 @@ export default function LaborEstimator() {
       model,
       mileage: mileage || undefined,
       repairDescription,
+      customerName: customerName.trim() || undefined,
+      customerPhone: customerPhone.trim() || undefined,
+      customerEmail: customerEmail.trim() || undefined,
     });
   };
 
@@ -247,9 +253,25 @@ export default function LaborEstimator() {
                   </div>
                 )}
 
+                {/* Customer Info — to receive estimate via email */}
+                {canSubmit && (
+                  <div className="mt-6 pt-5 border-t border-border/30">
+                    <p className="text-sm font-semibold text-foreground mb-1">Get your estimate emailed to you</p>
+                    <p className="text-xs text-muted-foreground mb-4">We'll create your estimate in our shop system and send it directly to you.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <input type="text" value={customerName} onChange={(e) => setCustomerName(e.target.value)}
+                        placeholder="Your name" className="bg-background/60 border border-border/50 rounded-md px-3 py-2.5 text-sm focus:border-nick-teal outline-none placeholder:text-foreground/30" />
+                      <input type="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)}
+                        placeholder="Phone number" className="bg-background/60 border border-border/50 rounded-md px-3 py-2.5 text-sm focus:border-nick-teal outline-none placeholder:text-foreground/30" />
+                      <input type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)}
+                        placeholder="Email address" className="bg-background/60 border border-border/50 rounded-md px-3 py-2.5 text-sm focus:border-nick-teal outline-none placeholder:text-foreground/30" />
+                    </div>
+                  </div>
+                )}
+
                 {/* Submit */}
                 {canSubmit && (
-                  <div className="text-center pt-2">
+                  <div className="text-center pt-4">
                     <button
                       onClick={handleSubmit}
                       disabled={estimateMutation.isPending}
