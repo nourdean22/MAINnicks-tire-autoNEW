@@ -54,3 +54,4 @@ export { waitlistRouter } from "./waitlistRouter";
 export { warrantiesRouter } from "./warrantiesRouter";
 export { pipelinesRouter } from "./pipelines";
 export { nickActionsRouter } from "./nickActions";
+export { paymentsRouter } from "./payments";

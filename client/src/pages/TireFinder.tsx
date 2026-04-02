@@ -233,8 +233,32 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
           <h3 className="text-2xl font-semibold text-foreground mb-2">Order Placed</h3>
           <p className="text-sm text-primary font-medium mb-1">Order #{orderResult.orderNumber}</p>
           {orderResult.invoiceNumber && (
-            <p className="text-xs text-muted-foreground mb-4">Invoice: {orderResult.invoiceNumber}</p>
+            <p className="text-xs text-muted-foreground mb-2">Invoice: {orderResult.invoiceNumber}</p>
           )}
+
+          {/* Payment Options */}
+          <div className="bg-primary/5 border border-primary/20 rounded-md p-3 mb-4">
+            <p className="text-xs font-semibold text-primary mb-2">Pay Now to Confirm Your Order:</p>
+            <div className="space-y-2">
+              <a
+                href={`/pay?invoice=${orderResult.invoiceNumber || orderResult.orderNumber}`}
+                className="block w-full text-center bg-primary text-primary-foreground py-2.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+              >
+                Pay with Credit/Debit Card
+              </a>
+              <a
+                href="https://getsnap.snapfinance.com/lease/en-US/consumer/apply/landing"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full text-center bg-[#FF6B00] text-white py-2.5 rounded-md text-sm font-medium hover:bg-[#FF6B00]/90 transition-colors"
+              >
+                Apply with Snap Finance — No Credit Needed
+              </a>
+              <p className="text-[10px] text-muted-foreground text-center">
+                Snap approves in seconds and issues a virtual card you can use to pay above
+              </p>
+            </div>
+          </div>
           <p className="text-muted-foreground mb-6 leading-relaxed text-sm">
             {deliveryMethod === "ship"
               ? "We'll confirm availability and contact you within 1 business hour with shipping cost. Payment required before shipping."
