@@ -202,11 +202,16 @@ export const paymentsRouter = router({
         return { success: false, error: `Payment not confirmed: ${status.status}` };
       }
 
+      // Map payment methods to DB enum
+      const methodMap: Record<string, "cash" | "card" | "check" | "financing" | "other"> = {
+        card: "card", snap: "financing", acima: "financing", cash: "cash", other: "other",
+      };
+
       // Update invoice to paid
       await d.update(invoices)
         .set({
           paymentStatus: "paid",
-          paymentMethod: input.paymentMethod,
+          paymentMethod: methodMap[input.paymentMethod] || "other",
         })
         .where(and(
           eq(invoices.invoiceNumber, input.invoiceNumber),
