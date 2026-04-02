@@ -1,6 +1,9 @@
 /**
  * NOUR OS Event Bridge
  *
+ * UPGRADED: Event queuing with retry, deduplication, priority routing,
+ * health checks, event analytics, circuit breaker protection.
+ *
  * Dispatches business events from nickstire to NOUR OS Unified's event bus.
  * Events are written to NOUR OS's events.jsonl file so they flow through
  * the existing cloud-sync pipeline to statenour-os.vercel.app.
@@ -16,13 +19,14 @@
  *   nickstire:callback        — callback requested
  *   nickstire:review          — Google review detected
  *   nickstire:revenue         — revenue milestone
- *   nickstire:stage-change    — booking stage transition (received→inspecting→in-progress→ready)
+ *   nickstire:stage-change    — booking stage transition
  *   nickstire:campaign-result — SMS campaign batch completed
  *   nickstire:emergency       — after-hours emergency request
  */
 
 import { writeFileSync, appendFileSync, existsSync, mkdirSync } from "fs";
 import { createLogger } from "./lib/logger";
+import { getOrCreateBreaker } from "./lib/circuit-breaker";
 
 const log = createLogger("nour-os-bridge");
 
@@ -31,6 +35,13 @@ const NOUR_OS_EVENTS_PATH = process.env.NOUR_OS_EVENTS_PATH
   || "C:/Users/nourd/Documents/nour-os-unified/data/logs/events.jsonl";
 const STATENOUR_URL = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
 const SYNC_KEY = process.env.STATENOUR_SYNC_KEY || "";
+
+// ─── Circuit Breaker for cloud push ─────────────────
+const cloudCB = getOrCreateBreaker("nour-os-cloud", {
+  failureThreshold: 3,
+  cooldownMs: 60_000,
+  timeoutMs: 15_000,
+});
 
 // ─── Event Types ─────────────────────────────────────
 export type NourOsEventType =
@@ -57,32 +68,233 @@ export interface NourOsEvent {
   timestamp: string;
   source: "nickstire";
   data: Record<string, unknown>;
+  /** Unique event ID for deduplication */
+  eventId?: string;
+}
+
+// ─── Priority Config ────────────────────────────────
+// Critical events skip the queue and send immediately
+const CRITICAL_EVENTS: Set<NourOsEventType> = new Set([
+  "nickstire:booking",
+  "nickstire:lead",
+  "nickstire:emergency",
+  "nickstire:callback",
+]);
+
+// ─── Event Deduplication ────────────────────────────
+const DEDUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+const recentEventHashes = new Map<string, number>(); // hash → timestamp
+
+function computeEventHash(type: NourOsEventType, data: Record<string, unknown>): string {
+  // Hash based on event type + key data fields
+  const keyData = JSON.stringify({ type, ...pickKeyFields(type, data) });
+  // Simple hash: sum of char codes (fast, sufficient for dedup)
+  let hash = 0;
+  for (let i = 0; i < keyData.length; i++) {
+    hash = ((hash << 5) - hash + keyData.charCodeAt(i)) | 0;
+  }
+  return `${type}:${hash}`;
+}
+
+function pickKeyFields(type: NourOsEventType, data: Record<string, unknown>): Record<string, unknown> {
+  // Pick the fields that make an event unique
+  switch (type) {
+    case "nickstire:booking":
+      return { bookingId: data.bookingId };
+    case "nickstire:lead":
+      return { leadId: data.leadId };
+    case "nickstire:invoice":
+      return { invoiceNumber: data.invoiceNumber };
+    case "nickstire:review":
+      return { customerName: data.customerName, rating: data.rating };
+    case "nickstire:stage-change":
+      return { bookingId: data.bookingId, stage: data.stage };
+    case "nickstire:work_order:status":
+      return { workOrderId: data.workOrderId, toStatus: data.toStatus };
+    default:
+      return data;
+  }
+}
+
+function isDuplicate(type: NourOsEventType, data: Record<string, unknown>): boolean {
+  const hash = computeEventHash(type, data);
+  const now = Date.now();
+
+  // Clean old entries
+  if (recentEventHashes.size > 500) {
+    for (const [key, ts] of recentEventHashes) {
+      if (now - ts > DEDUP_WINDOW_MS) recentEventHashes.delete(key);
+    }
+  }
+
+  const existing = recentEventHashes.get(hash);
+  if (existing && now - existing < DEDUP_WINDOW_MS) {
+    return true; // Duplicate
+  }
+
+  recentEventHashes.set(hash, now);
+  return false;
+}
+
+// ─── Event Analytics ────────────────────────────────
+interface EventAnalytics {
+  totalDispatched: number;
+  totalLocalWrites: number;
+  totalCloudPushes: number;
+  totalCloudFailures: number;
+  totalDeduplicated: number;
+  totalRetried: number;
+  avgCloudLatencyMs: number;
+  cloudLatencySamples: number[];
+  lastEventAt: string | null;
+  lastCloudSuccessAt: string | null;
+  lastCloudErrorAt: string | null;
+  lastCloudError: string | null;
+  eventsByType: Record<string, number>;
+}
+
+const analytics: EventAnalytics = {
+  totalDispatched: 0,
+  totalLocalWrites: 0,
+  totalCloudPushes: 0,
+  totalCloudFailures: 0,
+  totalDeduplicated: 0,
+  totalRetried: 0,
+  avgCloudLatencyMs: 0,
+  cloudLatencySamples: [],
+  lastEventAt: null,
+  lastCloudSuccessAt: null,
+  lastCloudErrorAt: null,
+  lastCloudError: null,
+  eventsByType: {},
+};
+
+function recordCloudLatency(ms: number): void {
+  analytics.cloudLatencySamples.push(ms);
+  // Keep last 100 samples
+  if (analytics.cloudLatencySamples.length > 100) {
+    analytics.cloudLatencySamples.shift();
+  }
+  analytics.avgCloudLatencyMs = Math.round(
+    analytics.cloudLatencySamples.reduce((a, b) => a + b, 0) /
+    analytics.cloudLatencySamples.length
+  );
+}
+
+export function getEventAnalytics(): Omit<EventAnalytics, "cloudLatencySamples"> {
+  const { cloudLatencySamples, ...rest } = analytics;
+  return rest;
+}
+
+// ─── Retry Queue ────────────────────────────────────
+interface QueuedEvent {
+  event: NourOsEvent;
+  attempts: number;
+  nextRetryAt: number;
+}
+
+const retryQueue: QueuedEvent[] = [];
+const MAX_RETRY_ATTEMPTS = 5;
+const BASE_BACKOFF_MS = 5_000; // 5s, 10s, 20s, 40s, 80s
+
+function scheduleRetry(event: NourOsEvent, attempts: number): void {
+  if (attempts >= MAX_RETRY_ATTEMPTS) {
+    log.error("Event exceeded max retries, dropping", {
+      type: event.type,
+      eventId: event.eventId,
+      attempts,
+    });
+    return;
+  }
+
+  const backoff = BASE_BACKOFF_MS * Math.pow(2, attempts);
+  retryQueue.push({
+    event,
+    attempts,
+    nextRetryAt: Date.now() + backoff,
+  });
+  analytics.totalRetried++;
+  log.info("Event queued for retry", {
+    type: event.type,
+    eventId: event.eventId,
+    attempt: attempts + 1,
+    retryInMs: backoff,
+  });
+}
+
+// ─── Health Check ───────────────────────────────────
+let cloudHealthy = true;
+let lastHealthCheckAt: number = 0;
+const HEALTH_CHECK_INTERVAL_MS = 60_000; // 1 minute
+
+async function checkCloudHealth(): Promise<boolean> {
+  const now = Date.now();
+  if (now - lastHealthCheckAt < HEALTH_CHECK_INTERVAL_MS) {
+    return cloudHealthy;
+  }
+  lastHealthCheckAt = now;
+
+  try {
+    const res = await fetch(`${STATENOUR_URL}/api/health`, {
+      method: "GET",
+      signal: AbortSignal.timeout(5000),
+    });
+    cloudHealthy = res.ok || res.status === 404; // 404 is ok, endpoint might not exist
+    return cloudHealthy;
+  } catch {
+    cloudHealthy = false;
+    return false;
+  }
 }
 
 // ─── In-memory event log (last 200 events for admin dashboard) ────
 const EVENT_LOG: NourOsEvent[] = [];
 const MAX_EVENT_LOG = 200;
 
-// ─── Sync stats ──────────────────────────────────────
+// ─── Sync stats (legacy compat) ─────────────────────
 let totalEventsSent = 0;
 let totalEventsLocal = 0;
 let lastSyncTime: string | null = null;
 let lastError: string | null = null;
 
 /**
+ * Generate a unique event ID.
+ */
+function generateEventId(): string {
+  const ts = Date.now().toString(36);
+  const rand = Math.random().toString(36).substring(2, 8);
+  return `evt_${ts}_${rand}`;
+}
+
+/**
  * Dispatch a business event to NOUR OS.
- * Writes to local events.jsonl AND fires HTTP to cloud (non-blocking).
+ * - Deduplicates within 5-minute window
+ * - Critical events bypass queue and send immediately
+ * - Non-critical events also send immediately but queue for retry on failure
+ * - Writes to local events.jsonl AND fires HTTP to cloud
  */
 export async function dispatchEvent(
   type: NourOsEventType,
   data: Record<string, unknown>
 ): Promise<void> {
+  // Deduplication check
+  if (isDuplicate(type, data)) {
+    analytics.totalDeduplicated++;
+    log.debug("Event deduplicated, skipping", { type });
+    return;
+  }
+
   const event: NourOsEvent = {
     type,
     timestamp: new Date().toISOString(),
     source: "nickstire",
     data,
+    eventId: generateEventId(),
   };
+
+  analytics.totalDispatched++;
+  analytics.lastEventAt = event.timestamp;
+  analytics.eventsByType[type] = (analytics.eventsByType[type] || 0) + 1;
 
   // Store in memory for admin dashboard
   EVENT_LOG.push(event);
@@ -91,11 +303,28 @@ export async function dispatchEvent(
   // 1. Write to local NOUR OS events.jsonl (fast, synchronous)
   writeToLocalEventBus(event);
 
-  // 2. Push to cloud endpoint (async, non-blocking)
-  pushToCloud(event).catch(err => {
-    lastError = err instanceof Error ? err.message : String(err);
-    log.warn("Cloud push failed (non-blocking)", { error: lastError });
-  });
+  // 2. Push to cloud endpoint
+  const isCritical = CRITICAL_EVENTS.has(type);
+
+  if (isCritical) {
+    // Critical events: send immediately, queue for retry on failure
+    try {
+      await pushToCloud(event);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      lastError = errMsg;
+      log.warn("Critical event cloud push failed, queuing retry", { type, error: errMsg });
+      scheduleRetry(event, 0);
+    }
+  } else {
+    // Non-critical: fire and forget, queue for retry on failure
+    pushToCloud(event).catch((err) => {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      lastError = errMsg;
+      log.warn("Cloud push failed (non-blocking), queuing retry", { type, error: errMsg });
+      scheduleRetry(event, 0);
+    });
+  }
 }
 
 /**
@@ -112,6 +341,7 @@ function writeToLocalEventBus(event: NourOsEvent): void {
     const line = JSON.stringify(event) + "\n";
     appendFileSync(NOUR_OS_EVENTS_PATH, line, "utf-8");
     totalEventsLocal++;
+    analytics.totalLocalWrites++;
   } catch (err) {
     log.error("Failed to write to local event bus", {
       path: NOUR_OS_EVENTS_PATH,
@@ -121,10 +351,12 @@ function writeToLocalEventBus(event: NourOsEvent): void {
 }
 
 /**
- * Push event to statenour-os cloud endpoint
+ * Push event to statenour-os cloud endpoint (with circuit breaker)
  */
 async function pushToCloud(event: NourOsEvent): Promise<void> {
-  try {
+  const start = Date.now();
+
+  await cloudCB.call(async () => {
     const res = await fetch(`${STATENOUR_URL}/api/sync/events`, {
       method: "POST",
       headers: {
@@ -139,12 +371,67 @@ async function pushToCloud(event: NourOsEvent): Promise<void> {
       throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => "unknown")}`);
     }
 
+    const latency = Date.now() - start;
+    recordCloudLatency(latency);
     totalEventsSent++;
+    analytics.totalCloudPushes++;
+    analytics.lastCloudSuccessAt = new Date().toISOString();
     lastSyncTime = new Date().toISOString();
-  } catch (err) {
-    throw err;
+  });
+}
+
+// ─── Retry Queue Processor ──────────────────────────
+const RETRY_INTERVAL_MS = 10_000; // Check retry queue every 10 seconds
+let retryTimer: ReturnType<typeof setInterval> | null = null;
+
+async function processRetryQueue(): Promise<void> {
+  if (retryQueue.length === 0) return;
+
+  const now = Date.now();
+  const ready = retryQueue.filter((q) => now >= q.nextRetryAt);
+
+  for (const item of ready) {
+    const idx = retryQueue.indexOf(item);
+    if (idx !== -1) retryQueue.splice(idx, 1);
+
+    try {
+      await pushToCloud(item.event);
+      log.info("Retry succeeded", {
+        type: item.event.type,
+        eventId: item.event.eventId,
+        attempt: item.attempts + 1,
+      });
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      analytics.totalCloudFailures++;
+      analytics.lastCloudErrorAt = new Date().toISOString();
+      analytics.lastCloudError = errMsg;
+      scheduleRetry(item.event, item.attempts + 1);
+    }
   }
 }
+
+export function startRetryProcessor(): void {
+  if (retryTimer) return;
+  retryTimer = setInterval(() => {
+    processRetryQueue().catch((err) => {
+      log.warn("Retry queue processing failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }, RETRY_INTERVAL_MS);
+  log.info("NOUR OS Bridge retry processor started (10s interval)");
+}
+
+export function stopRetryProcessor(): void {
+  if (retryTimer) {
+    clearInterval(retryTimer);
+    retryTimer = null;
+  }
+}
+
+// Auto-start the retry processor
+startRetryProcessor();
 
 // ─── Convenience Dispatchers ─────────────────────────
 
@@ -263,7 +550,7 @@ export function onRevenueMilestone(details: {
   });
 }
 
-/** Booking stage changed (received → inspecting → in-progress → ready → completed) */
+/** Booking stage changed */
 export function onStageChanged(details: {
   bookingId: number;
   phone: string;
@@ -278,7 +565,7 @@ export function onStageChanged(details: {
   });
 }
 
-/** Google review detected by review monitor cron */
+/** Google review detected */
 export function onReviewDetected(details: {
   rating: number;
   reviewText: string;
@@ -306,7 +593,7 @@ export function onCampaignResult(details: {
   });
 }
 
-/** After-hours emergency request submitted */
+/** After-hours emergency request */
 export function onEmergencyRequest(details: {
   name: string;
   phone: string;
@@ -328,7 +615,7 @@ export function getRecentEvents(limit = 50): NourOsEvent[] {
   return EVENT_LOG.slice(-limit).reverse();
 }
 
-/** Get sync status for admin dashboard */
+/** Get sync status for admin dashboard (legacy + enhanced) */
 export function getSyncStatus(): {
   totalEventsLocal: number;
   totalEventsSent: number;
@@ -337,6 +624,9 @@ export function getSyncStatus(): {
   eventsInMemory: number;
   localPath: string;
   cloudUrl: string;
+  retryQueueSize: number;
+  cloudHealthy: boolean;
+  analytics: Omit<EventAnalytics, "cloudLatencySamples">;
 } {
   return {
     totalEventsLocal,
@@ -346,6 +636,9 @@ export function getSyncStatus(): {
     eventsInMemory: EVENT_LOG.length,
     localPath: NOUR_OS_EVENTS_PATH,
     cloudUrl: STATENOUR_URL,
+    retryQueueSize: retryQueue.length,
+    cloudHealthy,
+    analytics: getEventAnalytics(),
   };
 }
 
@@ -356,7 +649,7 @@ const previousVendorStates = new Map<string, "healthy" | "degraded" | "down" | "
 
 /**
  * Dispatch vendor health snapshot to NOUR OS.
- * Detects state transitions (healthy→down, down→healthy) and dispatches alerts.
+ * Detects state transitions (healthy->down, down->healthy) and dispatches alerts.
  */
 export async function dispatchVendorHealthSnapshot(results: Array<{
   vendor: string;
@@ -387,7 +680,17 @@ export async function dispatchVendorHealthSnapshot(results: Array<{
         currentStatus: result.status,
         errors: result.checks.filter(c => !c.passed).map(c => c.error).filter(Boolean),
       });
-      console.error(`[ALERT] Vendor ${result.vendor} degraded: ${prev} → ${result.status}`);
+
+      // Also fire Telegram alert for vendor down
+      try {
+        const { alertVendorDown } = await import("./services/telegram");
+        const firstError = result.checks.find(c => !c.passed)?.error;
+        alertVendorDown(result.vendor, firstError);
+      } catch {
+        // Telegram alert is best-effort
+      }
+
+      console.error(`[ALERT] Vendor ${result.vendor} degraded: ${prev} -> ${result.status}`);
     }
 
     if (prev && (prev === "down" || prev === "degraded") && result.status === "healthy") {
@@ -397,7 +700,15 @@ export async function dispatchVendorHealthSnapshot(results: Array<{
         previousStatus: prev,
         currentStatus: result.status,
       });
-      console.log(`[RECOVERY] Vendor ${result.vendor} recovered: ${prev} → ${result.status}`);
+
+      try {
+        const { alertVendorRecovered } = await import("./services/telegram");
+        alertVendorRecovered(result.vendor);
+      } catch {
+        // Telegram alert is best-effort
+      }
+
+      console.log(`[RECOVERY] Vendor ${result.vendor} recovered: ${prev} -> ${result.status}`);
     }
 
     previousVendorStates.set(result.vendor, result.status);

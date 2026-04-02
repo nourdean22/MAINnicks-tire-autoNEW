@@ -169,6 +169,8 @@ export const conversationMemory = mysqlTable("conversation_memory", {
   confidence: float("confidence").default(0.8).notNull(),
   /** How many times this memory has been reinforced */
   reinforcements: int("reinforcements").default(1).notNull(),
+  /** How many times this memory was used and led to a conversion */
+  conversionHits: int("conversionHits").default(0).notNull(),
   /** Last time this memory was accessed/reinforced */
   lastAccessed: timestamp("lastAccessed").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -2077,4 +2079,90 @@ export const searchPerformance = mysqlTable("search_performance", {
   index("idx_search_perf_query").on(table.query),
   index("idx_search_perf_date").on(table.date),
   index("idx_search_perf_page").on(table.page),
+]);
+
+// ─── PIPELINE RUNS ──────────────────────────────────────
+/**
+ * Tracks every pipeline execution — timing, status, results.
+ * Used by the orchestrator for scheduling and dashboard health.
+ */
+export const pipelineRuns = mysqlTable("pipeline_runs", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Pipeline identifier (e.g. "gbp-reviews", "gsc-data", "instagram") */
+  pipelineName: varchar("pipelineName", { length: 50 }).notNull(),
+  /** "running", "success", "error" */
+  status: varchar("status", { length: 20 }).notNull(),
+  /** Duration in milliseconds */
+  durationMs: int("durationMs"),
+  /** JSON blob of pipeline results */
+  resultJson: text("resultJson"),
+  /** Error message if failed */
+  errorMessage: text("errorMessage"),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+}, (table) => [
+  index("idx_pipeline_runs_name").on(table.pipelineName),
+  index("idx_pipeline_runs_status").on(table.status),
+  index("idx_pipeline_runs_started").on(table.startedAt),
+]);
+
+export type PipelineRun = typeof pipelineRuns.$inferSelect;
+
+// ─── INSTAGRAM ANALYTICS ────────────────────────────────
+/**
+ * Instagram post-level analytics data for trend tracking.
+ */
+export const instagramAnalytics = mysqlTable("instagram_analytics", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Instagram post ID */
+  postId: varchar("postId", { length: 100 }).notNull(),
+  postType: varchar("postType", { length: 30 }),
+  caption: text("caption"),
+  likes: int("likes").default(0).notNull(),
+  comments: int("comments").default(0).notNull(),
+  /** Engagement rate = (likes+comments) / followers at time of capture */
+  engagementRate: int("engagementRate").default(0).notNull(),
+  /** Stored as *10000, e.g. 3.5% = 350 */
+  postedAt: varchar("postedAt", { length: 30 }),
+  /** Day of week 0-6 */
+  dayOfWeek: int("dayOfWeek"),
+  /** Hour of day 0-23 */
+  hourOfDay: int("hourOfDay"),
+  /** AI-assigned content score 1-10 */
+  contentScore: int("contentScore"),
+  /** AI-detected content themes */
+  themesJson: text("themesJson"),
+  /** Follower count at time of snapshot */
+  followerSnapshot: int("followerSnapshot"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_ig_analytics_post").on(table.postId),
+  index("idx_ig_analytics_created").on(table.createdAt),
+]);
+
+export type InstagramAnalyticsRow = typeof instagramAnalytics.$inferSelect;
+
+// ─── REVIEW TREND SNAPSHOTS ─────────────────────────────
+/**
+ * Weekly snapshots of review health for trend tracking.
+ */
+export const reviewTrends = mysqlTable("review_trends", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Snapshot date (YYYY-MM-DD) */
+  snapshotDate: varchar("snapshotDate", { length: 10 }).notNull(),
+  /** Average rating in this period (stored * 100, e.g. 4.7 = 470) */
+  avgRating: int("avgRating").notNull(),
+  /** Total reviews counted in this snapshot */
+  totalReviews: int("totalReviews").notNull(),
+  /** Count of 1-2 star reviews */
+  negativeCount: int("negativeCount").default(0).notNull(),
+  /** Count of 4-5 star reviews */
+  positiveCount: int("positiveCount").default(0).notNull(),
+  /** Top keywords from reviews (JSON array) */
+  topKeywordsJson: text("topKeywordsJson"),
+  /** Sentiment distribution (JSON: {positive, negative, neutral, mixed}) */
+  sentimentDistJson: text("sentimentDistJson"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_review_trends_date").on(table.snapshotDate),
 ]);

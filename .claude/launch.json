@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "nickstire",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev"],
+      "port": 3000
+    },
+    {
       "name": "Nick's Tire Dev Server",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev"],

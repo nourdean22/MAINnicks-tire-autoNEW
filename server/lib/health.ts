@@ -114,9 +114,14 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
     const sh = getSystemHealth();
     selfHealingState = {
       state: sh.state,
+      healthScore: sh.healthScore,
       lastCheck: sh.lastCheck,
       checkCount: sh.checkCount,
       components: sh.components,
+      eventLoopLagMs: sh.eventLoopLagMs,
+      trends: sh.trends,
+      requestRate: sh.requestRate,
+      watchdog: sh.watchdog,
     };
 
     // Use self-healing state to inform overall status

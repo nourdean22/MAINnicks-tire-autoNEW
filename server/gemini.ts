@@ -97,6 +97,16 @@ export interface NickAIContext {
   now?: Date;
   /** Memory context string for returning visitors. */
   memories?: string;
+  /** Business intelligence snapshot (today's bookings, current wait time, etc.) */
+  businessIntel?: {
+    todayBookings?: number;
+    estimatedWaitMinutes?: number;
+    availableSlots?: string[];
+  };
+  /** Customer sentiment detected from conversation so far (positive/neutral/negative/frustrated) */
+  customerSentiment?: "positive" | "neutral" | "negative" | "frustrated";
+  /** Number of messages in conversation so far (used to adapt prompt detail level) */
+  conversationLength?: number;
 }
 
 /**
@@ -110,18 +120,63 @@ export function buildSystemPrompt(ctx: NickAIContext = {}): string {
     ? `\n--- RETURNING CUSTOMER CONTEXT ---\nYou remember the following from previous conversations with this customer. Use this naturally — don't list it back to them, but reference it when relevant (e.g., "How's the Camry running?" or "Last time you mentioned brake noise").\n${ctx.memories}`
     : "";
 
-  return `You are the AI assistant for Nick's Tire & Auto, a trusted independent auto repair and tire shop at 17625 Euclid Ave, Cleveland, OH 44112. Phone: (216) 862-0005. Hours: Mon-Sat 8AM-6PM, Sun 9AM-4PM.
+  // Business intelligence block
+  let businessIntelBlock = "";
+  if (ctx.businessIntel) {
+    const parts: string[] = [];
+    if (ctx.businessIntel.todayBookings !== undefined) {
+      parts.push(`Today's bookings so far: ${ctx.businessIntel.todayBookings}`);
+    }
+    if (ctx.businessIntel.estimatedWaitMinutes !== undefined) {
+      const wait = ctx.businessIntel.estimatedWaitMinutes;
+      if (wait <= 15) parts.push("Current wait: minimal — we can likely get them in right away.");
+      else if (wait <= 45) parts.push(`Current estimated wait: about ${wait} minutes.`);
+      else parts.push(`Current estimated wait: about ${Math.round(wait / 60)} hour(s). Suggest booking ahead.`);
+    }
+    if (ctx.businessIntel.availableSlots && ctx.businessIntel.availableSlots.length > 0) {
+      parts.push(`Next available slots: ${ctx.businessIntel.availableSlots.slice(0, 3).join(", ")}`);
+    }
+    if (parts.length > 0) {
+      businessIntelBlock = `\n--- LIVE SHOP STATUS ---\n${parts.join("\n")}\nUse this info naturally when the customer asks about availability or wait times. Don't volunteer it unprompted unless they're trying to book.`;
+    }
+  }
 
-Your personality:
+  // Customer sentiment adaptation
+  let sentimentDirective = "";
+  if (ctx.customerSentiment === "frustrated") {
+    sentimentDirective = "\nIMPORTANT: This customer seems frustrated. Lead with empathy, acknowledge their frustration, and focus on solutions. Be extra patient and avoid sounding scripted.";
+  } else if (ctx.customerSentiment === "negative") {
+    sentimentDirective = "\nNote: This customer may have concerns or hesitation. Be especially transparent about costs and timelines. Build trust before pushing for a booking.";
+  } else if (ctx.customerSentiment === "positive") {
+    sentimentDirective = "\nThis customer is engaged and positive. Match their energy, be warm, and guide them toward booking confidently.";
+  }
+
+  // Adapt prompt detail based on conversation stage
+  const convLen = ctx.conversationLength ?? 0;
+  const isFirstMessage = convLen <= 1;
+  const isDeepConversation = convLen >= 8;
+
+  // For first message, keep personality brief. For deep conversations, add more guidance.
+  const personalityBlock = isFirstMessage
+    ? `Your personality: Direct, calm, confident, professional. Speak like a knowledgeable mechanic. Keep your first response short and focused — greet them naturally, address their question, and keep it under 3 sentences.`
+    : `Your personality:
 - Direct, calm, confident, professional, knowledgeable
 - Speak like a knowledgeable mechanic explaining a repair to a customer
 - Never use hype, gimmicks, slang, or emojis
 - Never diagnose with certainty without seeing the vehicle — always recommend bringing it in
 - Always be honest about what could be wrong and what it might cost range-wise
-- Keep responses concise — 2-4 sentences for simple questions, up to a paragraph for complex ones
+- Keep responses concise — 2-4 sentences for simple questions, up to a paragraph for complex ones`;
+
+  const bookingGuidance = isDeepConversation
+    ? `\nConversation guidance: You've been talking for a while. If you haven't already, gently steer toward a concrete next step — booking, calling, or sharing contact info. Don't be pushy, but don't let the conversation drift without purpose.`
+    : "";
+
+  return `You are the AI assistant for Nick's Tire & Auto, a trusted independent auto repair and tire shop at 17625 Euclid Ave, Cleveland, OH 44112. Phone: (216) 862-0005. Hours: Mon-Sat 8AM-6PM, Sun 9AM-4PM.
+
+${personalityBlock}
 
 ${temporal}
-
+${sentimentDirective}
 Competitive positioning (use when relevant, don't force it):
 - 4.9 stars with 1,700+ Google reviews — one of the highest-rated shops in Northeast Ohio
 - 36-month warranty on most repairs (competitors typically offer 12 months)
@@ -140,7 +195,7 @@ Services offered:
 - Financing: Acima, Snap, Koalafi, American First Finance — no-credit-check options available
 
 Areas served: Cleveland, Euclid, East Cleveland, South Euclid, Richmond Heights, Northeast Ohio.
-${memoryBlock}
+${memoryBlock}${businessIntelBlock}
 When a customer describes a problem:
 1. Acknowledge the symptom clearly
 2. Explain the most likely causes in plain language
@@ -152,7 +207,7 @@ When a customer describes a problem:
 When a customer seems ready to book:
 - Direct them to the booking form at nickstire.org or ask them to call (216) 862-0005
 - Ask what day/time works best for them
-- Mention we offer free estimates on most services`;
+- Mention we offer free estimates on most services${bookingGuidance}`;
 }
 
 // Backward-compatible static prompt for code that doesn't pass context
@@ -237,10 +292,12 @@ Scoring guidelines:
  * Extraction only runs after 4+ messages (when enough context exists).
  *
  * @param memoryContext - Optional cross-session memories for returning visitors
+ * @param extraContext - Optional additional context (sentiment, business intel)
  */
 export async function chatWithAssistant(
   messages: Array<{ role: string; content: string }>,
   memoryContext?: string,
+  extraContext?: Omit<NickAIContext, "memories" | "now">,
 ): Promise<{
   reply: string;
   extractedInfo?: {
@@ -252,9 +309,10 @@ export async function chatWithAssistant(
   // Trim to last N messages to prevent unbounded context growth
   const recentMessages = messages.slice(-MAX_SESSION_MESSAGES);
 
-  // Build context-aware system prompt with temporal, seasonal, and memory layers
+  // Build context-aware system prompt with temporal, seasonal, memory, and intelligence layers
   const systemPrompt = buildSystemPrompt({
     memories: memoryContext,
+    ...extraContext,
   });
 
   try {

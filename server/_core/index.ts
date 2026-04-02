@@ -25,6 +25,7 @@ if (missingRec.length) {
 
 import express from "express";
 import { createServer } from "http";
+import crypto from "crypto";
 import net from "net";
 import path from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -32,7 +33,11 @@ import rateLimit from "express-rate-limit";
 import { registerOAuthRoutes } from "./oauth";
 import { registerBridgeRoutes } from "./bridge-routes";
 import { healthHandler, pingHandler, readyHandler, recoverHandler } from "../lib/health";
-import { startSelfHealing } from "../lib/self-healing";
+import { startSelfHealing, recordRequest } from "../lib/self-healing";
+import { createLogger } from "../lib/logger";
+import { errorTelemetry } from "../lib/error-telemetry";
+import { getAllBreakerHealth, resetAllBreakers } from "../lib/circuit-breaker";
+import { AppError, isAppError, errorToHttpResponse } from "../lib/errors";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -44,6 +49,8 @@ import { processReviewRequestQueue } from "../routers/reviewRequests";
 import { processReminderQueue } from "../routers/reminders";
 import { processPostInvoiceFollowUps } from "../postInvoiceFollowUp";
 import { SITE_URL } from "@shared/business";
+
+const serverLog = createLogger("server");
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -73,6 +80,32 @@ async function startServer() {
   app.use(express.json({ limit: "2mb" }));
   app.use(express.urlencoded({ limit: "2mb", extended: true }));
 
+  // ─── Request ID + Duration Tracking ──────────────────
+  // Generates a UUID per request, attaches to res.locals and response header.
+  // Logs slow requests (>5s) for performance investigation.
+  const SLOW_REQUEST_THRESHOLD_MS = 5_000;
+  app.use((req, res, next) => {
+    const requestId = crypto.randomUUID();
+    res.locals.requestId = requestId;
+    res.setHeader("X-Request-Id", requestId);
+
+    const start = Date.now();
+    res.on("finish", () => {
+      const duration = Date.now() - start;
+      if (duration > SLOW_REQUEST_THRESHOLD_MS) {
+        serverLog.warn(`Slow request: ${req.method} ${req.path} took ${duration}ms`, {
+          requestId,
+          method: req.method,
+          path: req.path,
+          status: res.statusCode,
+          duration,
+        });
+      }
+    });
+
+    next();
+  });
+
   // Security headers — hardened per OWASP recommendations
   app.use((_req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -97,6 +130,9 @@ async function startServer() {
     ].join("; "));
     next();
   });
+  // Request tracking for self-healing anomaly detection (non-blocking, ~0ms)
+  app.use((_req, _res, next) => { recordRequest(); next(); });
+
   // Rate limiting for public API endpoints to prevent spam/abuse
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -176,6 +212,49 @@ async function startServer() {
     }).catch(() => res.json({ jobs: [], error: "Failed to load cron status" }));
   });
 
+  // ─── Error Telemetry Report (admin) ────────────────
+  app.get("/api/admin/error-report", (req, res) => {
+    const auth = req.headers.authorization;
+    const expected = process.env.ADMIN_API_KEY;
+    if (!expected || typeof auth !== "string") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const expectedFull = `Bearer ${expected}`;
+    if (auth.length !== expectedFull.length || !crypto.timingSafeEqual(Buffer.from(auth), Buffer.from(expectedFull))) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    res.json({ ...errorTelemetry.getReport(), timestamp: new Date().toISOString() });
+  });
+
+  // ─── Circuit Breaker Health (admin) ───────────────
+  app.get("/api/admin/circuit-breakers", (req, res) => {
+    const auth = req.headers.authorization;
+    const expected = process.env.ADMIN_API_KEY;
+    if (!expected || typeof auth !== "string") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const expectedFull = `Bearer ${expected}`;
+    if (auth.length !== expectedFull.length || !crypto.timingSafeEqual(Buffer.from(auth), Buffer.from(expectedFull))) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    res.json({ breakers: getAllBreakerHealth(), timestamp: new Date().toISOString() });
+  });
+
+  // ─── Circuit Breaker Reset (admin) ────────────────
+  app.post("/api/admin/circuit-breakers/reset", (req, res) => {
+    const auth = req.headers.authorization;
+    const expected = process.env.ADMIN_API_KEY;
+    if (!expected || typeof auth !== "string") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const expectedFull = `Bearer ${expected}`;
+    if (auth.length !== expectedFull.length || !crypto.timingSafeEqual(Buffer.from(auth), Buffer.from(expectedFull))) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    resetAllBreakers();
+    res.json({ success: true, breakers: getAllBreakerHealth(), timestamp: new Date().toISOString() });
+  });
+
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
 
@@ -193,8 +272,11 @@ async function startServer() {
     createExpressMiddleware({
       router: appRouter,
       createContext,
-      onError: ({ path, error }) => {
-        console.error(`[tRPC Error] ${path ?? "unknown"}: ${error.message}`);
+      onError: ({ path, error, ctx }) => {
+        const route = path ? `/api/trpc/${path}` : "unknown";
+        const requestId = ctx?.res?.locals?.requestId as string | undefined;
+        serverLog.error(`[tRPC] ${route}: ${error.message}`, { route, requestId });
+        errorTelemetry.record(error, { route, requestId });
       },
     })
   );
@@ -378,4 +460,33 @@ async function startServer() {
   });
 }
 
-startServer().catch(console.error);
+// ─── Graceful Shutdown on Unhandled Rejection ───────
+// The logger already catches uncaughtException (exits) and unhandledRejection (logs).
+// This adds graceful HTTP server shutdown so in-flight requests finish before exit.
+let shuttingDown = false;
+
+process.on("unhandledRejection", (reason) => {
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  serverLog.error("Unhandled rejection detected in server process", { error: msg });
+  errorTelemetry.record(
+    reason instanceof Error ? reason : new Error(msg),
+    { route: "process:unhandledRejection" }
+  );
+});
+
+process.on("SIGTERM", () => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  serverLog.info("SIGTERM received — starting graceful shutdown");
+
+  // Give in-flight requests 10s to finish, then force exit
+  setTimeout(() => {
+    serverLog.warn("Graceful shutdown timeout — forcing exit");
+    process.exit(1);
+  }, 10_000).unref();
+});
+
+startServer().catch((err) => {
+  serverLog.fatal("Server failed to start", { error: err instanceof Error ? err.message : String(err) });
+  process.exit(1);
+});
