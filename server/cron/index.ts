@@ -250,25 +250,10 @@ export function registerAllJobs(): void {
     return { recordsProcessed: report.results.length, details: `${unhealthy} unhealthy` };
   });
 
-  // Telegram daily digest (every 12 hours — sends at 6:30 AM ET)
-  registerJob("telegram-digest", 12 * 60 * 60 * 1000, async () => {
-    const { sendDailySummary } = await import("../services/telegram");
-    const { getDb } = await import("../db");
-    const db = await getDb();
-    if (!db) return { recordsProcessed: 0, details: "No DB" };
-    const { bookings, leads } = await import("../../drizzle/schema");
-    const { sql } = await import("drizzle-orm");
-    // Use ET date for "today" since shop is in Cleveland
-    const todayET = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-    const [bookingCount] = await db.select({ count: sql<number>`count(*)` }).from(bookings).where(sql`DATE(${bookings.createdAt}) = ${todayET}`);
-    const [leadCount] = await db.select({ count: sql<number>`count(*)` }).from(leads).where(sql`DATE(${leads.createdAt}) = ${todayET}`);
-    await sendDailySummary({
-      leads: Number(leadCount?.count || 0),
-      bookings: Number(bookingCount?.count || 0),
-      revenue: 0,
-      reviews: 0,
-    });
-    return { recordsProcessed: 1, details: "Digest sent" };
+  // Nick AI Morning Brief (every 12 hours — hits ~7:30 AM ET + evening)
+  registerJob("nick-morning-brief", 12 * 60 * 60 * 1000, async () => {
+    const { sendMorningBrief } = await import("./jobs/morningBrief");
+    return sendMorningBrief();
   });
 
   // Declined work recovery (every 24 hours)

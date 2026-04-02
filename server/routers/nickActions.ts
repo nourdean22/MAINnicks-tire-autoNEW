@@ -1717,4 +1717,40 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
         tokensUsed: response.usage?.total_tokens ?? 0,
       };
     }),
+
+  /** Post to social media (Instagram/Facebook) via Meta Business Suite */
+  socialPost: adminProcedure
+    .input(z.object({
+      platforms: z.array(z.enum(["facebook", "instagram"])).min(1),
+      message: z.string().min(1).max(2200),
+      imageUrl: z.string().url().optional(),
+      link: z.string().url().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { socialPost } = await import("../services/metaSocial");
+      const result = await socialPost({
+        platforms: input.platforms,
+        message: input.message,
+        imageUrl: input.imageUrl,
+        link: input.link,
+      });
+
+      // Log to NOUR OS bridge
+      import("../nour-os-bridge").then(({ dispatchEvent }) =>
+        dispatchEvent("nickstire:campaign-result", {
+          campaignType: "social-post",
+          platforms: input.platforms.join(","),
+          sent: result.results.filter(r => r.success).length,
+          failed: result.results.filter(r => !r.success).length,
+        })
+      ).catch(() => {});
+
+      return result;
+    }),
+
+  /** Check social media posting status */
+  socialStatus: adminProcedure.query(async () => {
+    const { getMetaSocialStatus } = await import("../services/metaSocial");
+    return getMetaSocialStatus();
+  }),
 });
