@@ -247,3 +247,138 @@ export async function runProactiveCheck(): Promise<{ recordsProcessed?: number; 
 
   return { recordsProcessed: allAlerts.length, details: `${allAlerts.length} alerts, pipeline: ${pipeline.estimateToInvoice}% est→job` };
 }
+
+// ─── SHOP PULSE (real-time business awareness) ────────
+
+export async function getShopPulse(): Promise<{
+  today: {
+    jobsClosed: number;     // Invoices created today = jobs done
+    customersWalked: number; // Estimates without invoice = walked away
+    revenue: number;         // Today's paid invoice total
+    avgTicket: number;       // Average ticket today
+    dropOffs: number;        // Bookings/walk-ins today
+    pendingPayments: number; // Invoices with pending payment
+    callbacksWaiting: number;
+  };
+  thisWeek: {
+    jobsClosed: number;
+    revenue: number;
+    avgTicket: number;
+    walkRate: number;        // % of estimates that didn't convert
+  };
+  shopStatus: string;        // "busy" | "steady" | "slow" | "closed"
+  shopInsight: string;       // One-liner about current state
+}> {
+  const d = await db();
+  const empty = {
+    today: { jobsClosed: 0, customersWalked: 0, revenue: 0, avgTicket: 0, dropOffs: 0, pendingPayments: 0, callbacksWaiting: 0 },
+    thisWeek: { jobsClosed: 0, revenue: 0, avgTicket: 0, walkRate: 0 },
+    shopStatus: "unknown" as string,
+    shopInsight: "No data",
+  };
+  if (!d) return empty;
+
+  const { invoices, leads, bookings, callbackRequests } = await import("../../drizzle/schema");
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const hour = now.getHours();
+
+  const [
+    todayInvoicesPaid, todayInvoicesPending, todayEstimateLeads,
+    todayBookings, todayCallbacks,
+    weekInvoicesPaid, weekEstimateLeads,
+  ] = await Promise.all([
+    // Today's closed jobs (paid invoices)
+    d.select().from(invoices).where(and(
+      sql`${invoices.invoiceDate} >= ${todayStart}`,
+      eq(invoices.paymentStatus, "paid")
+    )),
+    // Today's pending payments
+    d.select({ count: sql<number>`count(*)` }).from(invoices).where(and(
+      sql`${invoices.invoiceDate} >= ${todayStart}`,
+      eq(invoices.paymentStatus, "pending")
+    )),
+    // Today's estimates (potential walks)
+    d.select({ count: sql<number>`count(*)` }).from(leads).where(and(
+      sql`${leads.source} = 'estimate'`,
+      sql`${leads.createdAt} >= ${todayStart}`
+    )),
+    // Today's drop-offs
+    d.select({ count: sql<number>`count(*)` }).from(bookings).where(
+      sql`${bookings.createdAt} >= ${todayStart}`
+    ),
+    // Pending callbacks
+    d.select({ count: sql<number>`count(*)` }).from(callbackRequests).where(
+      eq(callbackRequests.status, "new")
+    ),
+    // This week's closed jobs
+    d.select().from(invoices).where(and(
+      sql`${invoices.invoiceDate} >= ${weekAgo}`,
+      eq(invoices.paymentStatus, "paid")
+    )),
+    // This week's estimates
+    d.select({ count: sql<number>`count(*)` }).from(leads).where(and(
+      sql`${leads.source} = 'estimate'`,
+      sql`${leads.createdAt} >= ${weekAgo}`
+    )),
+  ]);
+
+  // Calculate today
+  const todayRevenue = todayInvoicesPaid.reduce((s, i) => s + i.totalAmount, 0) / 100;
+  const todayJobsClosed = todayInvoicesPaid.length;
+  const todayAvgTicket = todayJobsClosed > 0 ? Math.round(todayRevenue / todayJobsClosed) : 0;
+  const todayEstimates = todayEstimateLeads[0]?.count ?? 0;
+
+  // Calculate week
+  const weekRevenue = weekInvoicesPaid.reduce((s, i) => s + i.totalAmount, 0) / 100;
+  const weekJobsClosed = weekInvoicesPaid.length;
+  const weekAvgTicket = weekJobsClosed > 0 ? Math.round(weekRevenue / weekJobsClosed) : 0;
+  const weekEstimates = weekEstimateLeads[0]?.count ?? 0;
+  const weekWalkRate = weekEstimates > 0 && weekJobsClosed > 0
+    ? Math.round((1 - weekJobsClosed / (weekJobsClosed + weekEstimates)) * 100)
+    : 0;
+
+  // Determine shop status
+  let shopStatus: string;
+  const dayOfWeek = now.getDay();
+  if (dayOfWeek === 0 && hour >= 16) { shopStatus = "closed"; }
+  else if (hour < 8 || hour >= 18) { shopStatus = "closed"; }
+  else if (todayJobsClosed >= 8 || (todayJobsClosed >= 4 && hour < 12)) { shopStatus = "busy"; }
+  else if (todayJobsClosed >= 3 || (todayJobsClosed >= 1 && hour < 11)) { shopStatus = "steady"; }
+  else { shopStatus = "slow"; }
+
+  // Generate quick insight
+  let shopInsight: string;
+  if (shopStatus === "busy") {
+    shopInsight = `Strong day — ${todayJobsClosed} jobs closed, $${todayRevenue.toLocaleString()} revenue so far.`;
+  } else if (shopStatus === "slow" && hour >= 12) {
+    shopInsight = `Slow afternoon — only ${todayJobsClosed} jobs closed. ${todayEstimates} estimates given (potential walks). Push follow-ups.`;
+  } else if (todayEstimates > todayJobsClosed && todayEstimates > 0) {
+    shopInsight = `More estimates (${todayEstimates}) than closed jobs (${todayJobsClosed}). Customers are walking — check pricing or follow-up.`;
+  } else if (weekWalkRate > 40) {
+    shopInsight = `Walk rate is ${weekWalkRate}% this week. Nearly half of estimates aren't converting. Time to review pricing strategy.`;
+  } else {
+    shopInsight = `${todayJobsClosed} jobs, $${todayRevenue.toLocaleString()} today. Avg ticket: $${todayAvgTicket}.`;
+  }
+
+  return {
+    today: {
+      jobsClosed: todayJobsClosed,
+      customersWalked: todayEstimates, // estimates = inspections where customer walked
+      revenue: todayRevenue,
+      avgTicket: todayAvgTicket,
+      dropOffs: todayBookings[0]?.count ?? 0,
+      pendingPayments: todayInvoicesPending[0]?.count ?? 0,
+      callbacksWaiting: todayCallbacks[0]?.count ?? 0,
+    },
+    thisWeek: {
+      jobsClosed: weekJobsClosed,
+      revenue: weekRevenue,
+      avgTicket: weekAvgTicket,
+      walkRate: weekWalkRate,
+    },
+    shopStatus,
+    shopInsight,
+  };
+}

@@ -1673,11 +1673,12 @@ SOURCES: Auto Labor Guide (ShopDriver Elite), Gateway for invoices`;
 
           // Inject intelligence data
           try {
-            const { analyzeConversionPipeline, projectRevenue, generateProactiveAlerts } = await import("../services/nickIntelligence");
-            const [pipeline, revenue, alerts] = await Promise.all([
+            const { analyzeConversionPipeline, projectRevenue, generateProactiveAlerts, getShopPulse } = await import("../services/nickIntelligence");
+            const [pipeline, revenue, alerts, shopPulse] = await Promise.all([
               analyzeConversionPipeline(),
               projectRevenue(),
               generateProactiveAlerts(),
+              getShopPulse(),
             ]);
             bizContext += `
 INTELLIGENCE:
@@ -1688,6 +1689,21 @@ INTELLIGENCE:
 - Week projection: $${revenue.thisWeekProjection} | Month projection: $${revenue.thisMonthProjection}
 - Week-over-week: ${revenue.weekOverWeek > 0 ? "+" : ""}${revenue.weekOverWeek}% (${revenue.trend})
 - Avg daily revenue: $${revenue.avgDailyRevenue}
+
+SHOP PULSE (right now):
+- Status: ${shopPulse.shopStatus.toUpperCase()}
+- Today: ${shopPulse.today.jobsClosed} jobs closed, $${shopPulse.today.revenue.toLocaleString()} revenue, $${shopPulse.today.avgTicket} avg ticket
+- Walked customers (estimates only): ${shopPulse.today.customersWalked}
+- Drop-offs today: ${shopPulse.today.dropOffs} | Pending payments: ${shopPulse.today.pendingPayments} | Callbacks: ${shopPulse.today.callbacksWaiting}
+- This week: ${shopPulse.thisWeek.jobsClosed} jobs, $${shopPulse.thisWeek.revenue.toLocaleString()}, walk rate: ${shopPulse.thisWeek.walkRate}%
+- ${shopPulse.shopInsight}
+
+BUSINESS MODEL:
+- Invoice = closed job = money in. This is the WIN metric.
+- Estimate without invoice = customer got free inspection and WALKED. This is LOST revenue.
+- Walk rate = estimates / (estimates + invoices). Track this obsessively.
+- Auto Labor Guide (ShopDriver) is the shop CRM — all estimates and invoices live there.
+- The website pushes everything to Auto Labor Guide via Telegram for manual entry.
 ${pipeline.insights.length > 0 ? "WARNINGS: " + pipeline.insights.join(" | ") : ""}
 ${alerts.length > 0 ? "ALERTS: " + alerts.join(" | ") : ""}`;
           } catch {}
