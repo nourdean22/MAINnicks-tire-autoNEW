@@ -517,16 +517,16 @@ export const bookingRouter = router({
             });
           }
 
-          // Dispatch stage change to NOUR OS (non-blocking)
-          import("../nour-os-bridge").then(({ onStageChanged }) =>
-            onStageChanged({
+          // Unified event bus
+          import("../services/eventBus").then(({ dispatch }) =>
+            dispatch("stage_changed", {
               bookingId: booking.id,
               phone: booking.phone,
               stage: input.stage,
               refCode: booking.referenceCode || null,
             })
           ).catch(err => {
-            console.error("[NourOS] Stage change event dispatch failed:", err);
+            console.error("[EventBus] Stage change dispatch failed:", err);
           });
         }
       }

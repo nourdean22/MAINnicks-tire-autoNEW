@@ -112,9 +112,9 @@ async function autoCreateInvoiceFromTireOrder(d: any, orderId: number): Promise<
     )
   ).catch(() => {});
 
-  // NOUR OS bridge
-  import("../nour-os-bridge").then(({ onInvoiceCreated }) =>
-    onInvoiceCreated({
+  // Unified event bus
+  import("../services/eventBus").then(({ emit }) =>
+    emit.invoiceCreated({
       invoiceNumber,
       customerName: order.customerName,
       totalAmount: totalAmount / 100,
@@ -695,9 +695,9 @@ export const gatewayTireRouter = router({
           invoiceDate: new Date(),
         });
 
-        // Fire invoice event to NOUR OS
-        import("../nour-os-bridge").then(({ onInvoiceCreated }) =>
-          onInvoiceCreated({
+        // Unified event bus
+        import("../services/eventBus").then(({ emit }) =>
+          emit.invoiceCreated({
             invoiceNumber,
             customerName: input.customerName,
             totalAmount: grandTotalCents / 100,
@@ -779,9 +779,9 @@ export const gatewayTireRouter = router({
         })
       ).catch(() => {});
 
-      // Dispatch to NOUR OS bridge (async, don't block)
-      import("../nour-os-bridge").then(({ onTireOrderPlaced }) =>
-        onTireOrderPlaced({
+      // Unified event bus (→ NOUR OS + ShopDriver + Telegram + learning)
+      import("../services/eventBus").then(({ emit }) =>
+        emit.tireOrderPlaced({
           orderNumber,
           customerName: input.customerName,
           tireBrand: input.tireBrand,
