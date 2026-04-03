@@ -233,21 +233,22 @@ export const invoicesRouter = router({
         console.error("[NourOS] Invoice event dispatch failed:", err);
       });
 
-      // Notify shop to create in Auto Labor Guide (non-blocking)
+      // Push to Auto Labor Guide (tries API first, falls back to Telegram)
       if (input.source !== "shopdriver") {
-        import("../services/telegram").then(({ sendTelegram }) =>
-          sendTelegram(
-            `🧾 NEW INVOICE — Create in Auto Labor Guide\n\n` +
-            `Invoice: ${invNum}\n` +
-            `Customer: ${input.customerName}\n` +
-            `Phone: ${input.customerPhone || "N/A"}\n` +
-            `Vehicle: ${input.vehicleInfo || "N/A"}\n` +
-            `Service: ${input.serviceDescription || "N/A"}\n` +
-            `Labor: $${input.laborCost} | Parts: $${input.partsCost} | Tax: $${input.taxAmount}\n` +
-            `Total: $${input.totalAmount}\n` +
-            `Payment: ${input.paymentStatus} (${input.paymentMethod})\n\n` +
-            `⚡ Sync this invoice in ShopDriver`
-          )
+        import("../services/shopDriverSync").then(({ pushInvoice }) =>
+          pushInvoice({
+            invoiceNumber: invNum,
+            customerName: input.customerName,
+            customerPhone: input.customerPhone || "",
+            vehicleInfo: input.vehicleInfo || null,
+            serviceDescription: input.serviceDescription || null,
+            laborCost: input.laborCost,
+            partsCost: input.partsCost,
+            taxAmount: input.taxAmount,
+            totalAmount: input.totalAmount,
+            paymentStatus: input.paymentStatus,
+            paymentMethod: input.paymentMethod,
+          })
         ).catch(() => {});
       }
 
