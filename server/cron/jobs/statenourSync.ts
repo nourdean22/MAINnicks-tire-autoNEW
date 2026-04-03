@@ -16,9 +16,36 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
     const stats = await getDashboardStats();
     const health = await getSiteHealth();
 
+    // Gather intelligence data
+    let intelligence: any = {};
+    try {
+      const { analyzeConversionPipeline, projectRevenue, getShopPulse } = await import("../../services/nickIntelligence");
+      const [pipeline, revenue, pulse] = await Promise.all([
+        analyzeConversionPipeline(),
+        projectRevenue(),
+        getShopPulse(),
+      ]);
+      intelligence = { pipeline, revenue, pulse };
+    } catch {}
+
+    // Gather Nick AI memories
+    let memories: any[] = [];
+    try {
+      const { recall } = await import("../../services/nickMemory");
+      memories = await recall({ limit: 20 });
+    } catch {}
+
+    // Gather bridge analytics
+    let bridgeAnalytics: any = {};
+    try {
+      const { getEventAnalytics } = await import("../../nour-os-bridge");
+      bridgeAnalytics = getEventAnalytics();
+    } catch {}
+
     const payload = {
       source: "nickstire",
       timestamp: new Date().toISOString(),
+      version: "v2", // upgraded sync format
       bookings: {
         total: stats.bookings.total,
         thisWeek: stats.bookings.thisWeek,
@@ -71,6 +98,17 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
         bookingsBySource: stats.sourceAttribution.bookingsBySource.slice(0, 5),
         leadsBySource: stats.sourceAttribution.leadsBySource.slice(0, 5),
       },
+      // ═══ NEW: Intelligence layer data ═══
+      intelligence: {
+        conversionPipeline: intelligence.pipeline || null,
+        revenueProjection: intelligence.revenue || null,
+        shopPulse: intelligence.pulse || null,
+      },
+      nickAI: {
+        memories: memories.slice(0, 10),
+        memoryCount: memories.length,
+      },
+      bridge: bridgeAnalytics,
     };
 
     const res = await fetch(`${statenourUrl}/api/sync/business`, {
