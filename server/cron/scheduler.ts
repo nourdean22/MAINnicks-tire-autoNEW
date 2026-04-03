@@ -217,6 +217,28 @@ export function startTieredScheduler(): void {
     intervalMs: 24 * 60 * 60 * 1000,
     jobs: [
       {
+        name: "db-backup",
+        handler: async () => {
+          const { runDailyBackup } = await import("../services/dbBackup");
+          return runDailyBackup();
+        },
+      },
+      {
+        name: "engine-health",
+        handler: async () => {
+          const { runHealthCheck } = await import("../services/failover");
+          return runHealthCheck();
+        },
+      },
+      {
+        name: "shopdriver-mirror",
+        handler: async () => {
+          const { pullRecentTickets } = await import("../services/shopDriverSync");
+          const tickets = await pullRecentTickets();
+          return { recordsProcessed: tickets.length, details: `Pulled ${tickets.length} tickets from ShopDriver` };
+        },
+      },
+      {
         name: "cleanup",
         handler: async () => {
           const { cleanupOldData } = await import("./jobs/cleanup");
