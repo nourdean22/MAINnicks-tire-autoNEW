@@ -200,6 +200,14 @@ async function startServer() {
   // ─── Self-Healing Monitor ─────────────────────────────
   startSelfHealing();
 
+  // ─── Tiered Cron Scheduler ──────────────────────────────
+  // 4 tiers: heartbeat(5m), pulse(15m), hourly(2h), daily(24h)
+  // + 2 standalone: morning brief + daily report (12h)
+  import("../cron/scheduler").then(({ startTieredScheduler }) => {
+    startTieredScheduler();
+    serverLog.info("Tiered scheduler started");
+  }).catch(err => console.error("[Scheduler] Failed to start:", err));
+
   // ─── Cron Status (admin) ──────────────────────────────
   app.get("/api/admin/cron-status", (req, res) => {
     const auth = req.headers.authorization;
