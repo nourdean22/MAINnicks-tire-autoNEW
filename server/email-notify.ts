@@ -107,7 +107,19 @@ function shouldThrottle(email: string): boolean {
   const now = Date.now();
   const sends = recentSends.get(email) || [];
   const recent = sends.filter((ts) => now - ts < BATCH_WINDOW_MS);
-  recentSends.set(email, recent);
+  if (recent.length === 0) {
+    recentSends.delete(email); // Clean up stale keys
+  } else {
+    recentSends.set(email, recent);
+  }
+  // Periodic full cleanup if map gets large
+  if (recentSends.size > 200) {
+    for (const [key, val] of recentSends) {
+      if (val.length === 0 || val.every(ts => now - ts > BATCH_WINDOW_MS)) {
+        recentSends.delete(key);
+      }
+    }
+  }
   return recent.length >= MAX_PER_WINDOW;
 }
 
