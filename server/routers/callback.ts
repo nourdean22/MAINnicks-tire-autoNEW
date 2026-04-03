@@ -84,6 +84,11 @@ export const callbackRouter = router({
         sourcePage: input.sourcePage || undefined,
       }).catch(err => console.error("[Callback] Email notification failed:", err));
 
+      // Fire NOUR OS bridge event
+      import("../nour-os-bridge").then(({ onCallbackRequested }) =>
+        onCallbackRequested({ name, phone, reason: input.context || null })
+      ).catch(() => {});
+
       // After-hours gets a different SMS than business hours
       if (isAfterHours()) {
         handleAfterHoursCapture({ name, phone, type: "callback" }).catch(() => {});

@@ -433,6 +433,15 @@ export const bookingRouter = router({
                 });
               });
 
+            // Fire NOUR OS bridge event for booking completion
+            import("../nour-os-bridge").then(({ onBookingCompleted }) =>
+              onBookingCompleted({
+                id: booking.id,
+                name: booking.name,
+                service: booking.service,
+              })
+            ).catch(() => {});
+
             // Auto-create invoice from completed booking
             autoCreateInvoiceFromBooking(d, booking).catch(err => {
               console.error(`[Invoice] Error auto-creating for booking #${booking.id}:`, err);
