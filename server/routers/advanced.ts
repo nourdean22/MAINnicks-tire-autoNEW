@@ -221,17 +221,15 @@ export const invoicesRouter = router({
 
       const invNum = input.invoiceNumber || `INV-${invoiceId}`;
 
-      // Dispatch invoice event to NOUR OS (non-blocking)
-      import("../nour-os-bridge").then(({ onInvoiceCreated }) =>
-        onInvoiceCreated({
+      // Unified event bus (→ NOUR OS + ShopDriver + Telegram + learning)
+      import("../services/eventBus").then(({ emit }) =>
+        emit.invoiceCreated({
           invoiceNumber: invNum,
           customerName: input.customerName,
           totalAmount: input.totalAmount,
           source: input.source,
         })
-      ).catch(err => {
-        console.error("[NourOS] Invoice event dispatch failed:", err);
-      });
+      ).catch(() => {});
 
       // Push to Auto Labor Guide (tries API first, falls back to Telegram)
       if (input.source !== "shopdriver") {

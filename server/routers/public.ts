@@ -109,9 +109,9 @@ export const laborEstimateRouter = router({
               grandTotalHigh: estimate.grandTotalHigh,
             });
 
-            // 3. Fire NOUR OS event
-            const { onLeadCaptured } = await import("../nour-os-bridge");
-            onLeadCaptured({
+            // 3. Unified event bus
+            const { emit } = await import("../services/eventBus");
+            emit.leadCaptured({
               id: 0,
               name: input.customerName || "Online Estimate",
               phone: input.customerPhone || "",

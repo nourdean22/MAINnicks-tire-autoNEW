@@ -332,16 +332,14 @@ async function processCampaignSends(campaignId: number, batchSize: number = 50):
 
   // Dispatch campaign result to NOUR OS (non-blocking)
   const [campaign] = await d.select().from(smsCampaigns).where(eq(smsCampaigns.id, campaignId));
-  import("../nour-os-bridge").then(({ onCampaignResult }) =>
-    onCampaignResult({
+  import("../services/eventBus").then(({ dispatch }) =>
+    dispatch("campaign_sent", {
       campaignId,
       sent: totalSent,
       failed: totalFailed,
       campaignType: campaign?.template || "unknown",
     })
-  ).catch(err => {
-    console.error("[NourOS] Campaign result event dispatch failed:", err);
-  });
+  ).catch(() => {});
 
   console.log(`[Campaigns] Campaign ${campaignId} completed: ${totalSent} sent, ${totalFailed} failed`);
 }

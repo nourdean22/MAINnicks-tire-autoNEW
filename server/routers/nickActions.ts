@@ -1851,13 +1851,11 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
         link: input.link,
       });
 
-      // Log to NOUR OS bridge
-      import("../nour-os-bridge").then(({ dispatchEvent }) =>
-        dispatchEvent("nickstire:campaign-result", {
-          campaignType: "social-post",
-          platforms: input.platforms.join(","),
-          sent: result.results.filter(r => r.success).length,
-          failed: result.results.filter(r => !r.success).length,
+      // Unified event bus
+      import("../services/eventBus").then(({ emit }) =>
+        emit.socialPosted({
+          platforms: input.platforms,
+          success: result.results.every(r => r.success),
         })
       ).catch(() => {});
 

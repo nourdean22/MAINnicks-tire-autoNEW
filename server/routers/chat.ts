@@ -86,14 +86,13 @@ async function createChatLead(
 
   // Dispatch to NOUR OS event bus (non-blocking)
   if (leadId) {
-    import("../nour-os-bridge").then(({ onLeadCaptured }) =>
-      onLeadCaptured({
+    import("../services/eventBus").then(({ emit }) =>
+      emit.leadCaptured({
         id: leadId,
         name,
         phone,
         source: "chat",
         urgencyScore: scoring.score,
-        interest: scoring.recommendedService,
       })
     ).catch(() => {});
   }

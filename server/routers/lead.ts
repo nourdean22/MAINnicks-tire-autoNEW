@@ -96,18 +96,15 @@ export const leadRouter = router({
 
       // Dispatch to NOUR OS event bus (non-blocking)
       if (leadId) {
-        import("../nour-os-bridge").then(({ onLeadCaptured }) =>
-          onLeadCaptured({
+        import("../services/eventBus").then(({ emit }) =>
+          emit.leadCaptured({
             id: leadId,
             name,
             phone,
             source: input.source,
             urgencyScore: scoring.score,
-            interest: scoring.recommendedService,
           })
-        ).catch(err => {
-          console.error("[NourOS] Lead event dispatch failed:", err);
-        });
+        ).catch(() => {});
       }
 
       withRetry(
