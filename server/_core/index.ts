@@ -208,6 +208,12 @@ async function startServer() {
     serverLog.info("Tiered scheduler started");
   }).catch(err => console.error("[Scheduler] Failed to start:", err));
 
+  // ─── Real-time SSE for admin dashboards ─────────────────
+  import("../services/realtimePush").then(({ sseHandler }) => {
+    app.get("/api/admin/events", sseHandler);
+    serverLog.info("SSE endpoint registered: /api/admin/events");
+  }).catch(() => {});
+
   // ─── Cron Status (admin) ──────────────────────────────
   app.get("/api/admin/cron-status", (req, res) => {
     const auth = req.headers.authorization;

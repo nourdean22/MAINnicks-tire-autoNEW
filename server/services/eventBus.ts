@@ -145,6 +145,18 @@ async function ensureInitialized(): Promise<void> {
 
   // 4. Nick AI Learning (extracts patterns from every event)
   registerDestination({
+    name: "realtime-push",
+    enabled: true,
+    handles: "all",
+    softFail: true,
+    handler: async (event) => {
+      const { pushToAdminDashboards } = await import("./realtimePush");
+      pushToAdminDashboards({ type: event.type, data: { ...event.data, timestamp: event.timestamp } });
+    },
+  });
+
+  // 5. Nick AI Learning
+  registerDestination({
     name: "nick-learning",
     enabled: true,
     handles: "all",
