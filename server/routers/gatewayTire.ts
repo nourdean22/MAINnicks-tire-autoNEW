@@ -45,8 +45,9 @@ async function autoCreateInvoiceFromTireOrder(d: any, orderId: number): Promise<
   const installHours = 0.7;
   const laborCost = Math.round(installHours * laborRate * 100); // cents
   const partsCost = order.totalAmount; // tire cost is the "parts" cost
+  // Ohio sales tax: parts/materials only, NOT labor
   const taxRate = 0.08;
-  const taxAmount = Math.round((laborCost + partsCost) * taxRate);
+  const taxAmount = Math.round(partsCost * taxRate);
   const totalAmount = laborCost + partsCost + taxAmount;
 
   await createInvoice({
@@ -673,8 +674,9 @@ export const gatewayTireRouter = router({
         const installHours = 0.7; // Mount + balance from Auto Labor Guide
         const laborCostCents = Math.round(installHours * laborRate * 100);
         const partsCostCents = totalAmount; // tires are "parts"
+        // Ohio sales tax: parts/materials only, NOT labor
         const taxRate = 0.08;
-        const taxAmountCents = Math.round((laborCostCents + partsCostCents) * taxRate);
+        const taxAmountCents = Math.round(partsCostCents * taxRate);
         const grandTotalCents = laborCostCents + partsCostCents + taxAmountCents;
 
         await createInvoice({
