@@ -1857,6 +1857,70 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
     return getMetaSocialStatus();
   }),
 
+  /** Get real-time shop pulse */
+  shopPulse: adminProcedure.query(async () => {
+    const { getShopPulse } = await import("../services/nickIntelligence");
+    return getShopPulse();
+  }),
+
+  /** Get ShopDriver sync status */
+  shopDriverStatus: adminProcedure.query(async () => {
+    const { getSyncStatus } = await import("../services/shopDriverSync");
+    return getSyncStatus();
+  }),
+
+  /** Get tiered scheduler status */
+  schedulerStatus: adminProcedure.query(async () => {
+    const { getTierStatuses } = await import("../cron/scheduler");
+    return getTierStatuses();
+  }),
+
+  /** Trigger prerender (admin only) */
+  triggerPrerender: adminProcedure.mutation(async () => {
+    // Can't run Puppeteer on Railway — return instructions
+    return {
+      success: true,
+      message: "Run locally: node scripts/prerender.mjs --port 3000 (against live site)",
+      note: "Prerender generates static HTML for SEO bots. Run after every major content change.",
+    };
+  }),
+
+  /** Run database migrations (admin only) */
+  runMigrations: adminProcedure.mutation(async () => {
+    try {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (!d) return { success: false, error: "DB not available" };
+
+      // Run the safe CREATE TABLE IF NOT EXISTS migrations
+      const migrations = [
+        `CREATE TABLE IF NOT EXISTS chat_analytics (id int AUTO_INCREMENT PRIMARY KEY, sessionId int, hourOfDay int NOT NULL, dayOfWeek int NOT NULL, month int NOT NULL, messageCount int NOT NULL DEFAULT 0, converted int NOT NULL DEFAULT 0, leadScore int, duration int, createdAt timestamp NOT NULL DEFAULT (now()))`,
+        `CREATE TABLE IF NOT EXISTS review_pipeline (id int AUTO_INCREMENT PRIMARY KEY, authorName varchar(255) NOT NULL, rating int NOT NULL, reviewText text, reviewTime int, relativeTime varchar(100), sentiment varchar(20), topicsJson text, keywordsJson text, urgency varchar(20), suggestedResponse text, status varchar(20) DEFAULT 'pending', createdAt timestamp NOT NULL DEFAULT (now()))`,
+        `CREATE TABLE IF NOT EXISTS search_performance (id int AUTO_INCREMENT PRIMARY KEY, query varchar(500) NOT NULL, page varchar(500), clicks int DEFAULT 0, impressions int DEFAULT 0, ctr int DEFAULT 0, position int DEFAULT 0, date date, createdAt timestamp NOT NULL DEFAULT (now()))`,
+        `CREATE TABLE IF NOT EXISTS pipeline_runs (id int AUTO_INCREMENT PRIMARY KEY, pipelineName varchar(100) NOT NULL, status varchar(20) NOT NULL, startedAt timestamp NOT NULL DEFAULT (now()), completedAt timestamp, durationMs int, resultJson text, error text)`,
+        `CREATE TABLE IF NOT EXISTS daily_execution (id INT AUTO_INCREMENT PRIMARY KEY, date DATE NOT NULL, mission TEXT, notes TEXT, status ENUM('on_track','drifting','off_track') NOT NULL DEFAULT 'on_track', created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY idx_daily_date (date))`,
+        `CREATE TABLE IF NOT EXISTS daily_habits (id INT AUTO_INCREMENT PRIMARY KEY, date DATE NOT NULL, habit_key VARCHAR(50) NOT NULL, completed TINYINT(1) NOT NULL DEFAULT 0, completed_at TIMESTAMP NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY idx_habit_date_key (date, habit_key))`,
+        `CREATE TABLE IF NOT EXISTS conversation_memory (id INT AUTO_INCREMENT PRIMARY KEY, visitorKey VARCHAR(255) NOT NULL, category VARCHAR(50) NOT NULL, content TEXT NOT NULL, sessionId INT NULL, confidence FLOAT NOT NULL DEFAULT 0.8, reinforcements INT NOT NULL DEFAULT 1, lastAccessed TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+      ];
+
+      let applied = 0;
+      let skipped = 0;
+      for (const sql of migrations) {
+        try {
+          await d.execute(sql as any);
+          applied++;
+        } catch (err: any) {
+          if (err?.message?.includes("already exists")) { skipped++; }
+          else { skipped++; }
+        }
+      }
+
+      return { success: true, applied, skipped, total: migrations.length };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }),
+
   /** Store a memory for Nick AI */
   remember: adminProcedure
     .input(z.object({

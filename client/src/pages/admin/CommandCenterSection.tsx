@@ -115,6 +115,9 @@ export default function CommandCenterSection() {
   const { data: bridgeEvents } = trpc.nourOsBridge.recentEvents.useQuery({ limit: 10 }, { refetchInterval: 30_000 });
   const { data: pipelineDash } = trpc.pipelines.dashboard.useQuery(undefined, { refetchInterval: 120_000 });
 
+  // ─── SHOP PULSE (real-time awareness) ─────────────────
+  const { data: shopPulse } = trpc.nickActions.shopPulse.useQuery(undefined, { refetchInterval: 30_000 });
+
   const toggleHabit = trpc.controlCenter.toggleHabit.useMutation({
     onSuccess: () => refetchBrief(),
   });
@@ -740,20 +743,65 @@ export default function CommandCenterSection() {
         )}
       </Card>
 
-      {/* ─── LIVE BUSINESS PULSE ─── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: "LEADS TODAY", value: overview?.todayStats.leadsToday ?? 0, color: "text-blue-400", bg: "from-blue-500/10" },
-          { label: "BOOKINGS TODAY", value: overview?.todayStats.bookingsToday ?? 0, color: "text-emerald-400", bg: "from-emerald-500/10" },
-          { label: "CALLBACKS", value: overview?.todayStats.callbacksPending ?? 0, color: "text-orange-400", bg: "from-orange-500/10" },
-          { label: "QUOTES PENDING", value: overview?.todayStats.quotesToday ?? 0, color: "text-purple-400", bg: "from-purple-500/10" },
-        ].map(({ label, value, color, bg }) => (
-          <div key={label} className={`bg-gradient-to-br ${bg} to-transparent border border-border/30 rounded-lg p-4`}>
-            <div className={`text-3xl font-bold tracking-tight ${color}`}>{value}</div>
-            <div className="text-[10px] font-semibold tracking-[0.15em] text-muted-foreground mt-1">{label}</div>
+      {/* ─── SHOP PULSE (real-time) ─── */}
+      {shopPulse && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <div className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-wider ${
+              shopPulse.shopStatus === "busy" ? "bg-emerald-500/15 text-emerald-400" :
+              shopPulse.shopStatus === "steady" ? "bg-blue-500/15 text-blue-400" :
+              shopPulse.shopStatus === "slow" ? "bg-amber-500/15 text-amber-400" :
+              "bg-foreground/5 text-muted-foreground"
+            }`}>{shopPulse.shopStatus.toUpperCase()}</div>
+            <span className="text-xs text-muted-foreground">{shopPulse.shopInsight}</span>
           </div>
-        ))}
-      </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { label: "JOBS CLOSED", value: shopPulse.today.jobsClosed, color: "text-emerald-400", bg: "from-emerald-500/10" },
+              { label: "WALKED", value: shopPulse.today.customersWalked, color: "text-red-400", bg: "from-red-500/10" },
+              { label: "REVENUE", value: `$${shopPulse.today.revenue.toLocaleString()}`, color: "text-primary", bg: "from-primary/10" },
+              { label: "AVG TICKET", value: `$${shopPulse.today.avgTicket}`, color: "text-blue-400", bg: "from-blue-500/10" },
+            ].map(({ label, value, color, bg }) => (
+              <div key={label} className={`bg-gradient-to-br ${bg} to-transparent border border-border/30 rounded-lg p-4`}>
+                <div className={`text-3xl font-bold tracking-tight ${color}`}>{value}</div>
+                <div className="text-[10px] font-semibold tracking-[0.15em] text-muted-foreground mt-1">{label}</div>
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
+            {[
+              { label: "DROP-OFFS", value: shopPulse.today.dropOffs },
+              { label: "PENDING $", value: shopPulse.today.pendingPayments },
+              { label: "CALLBACKS", value: shopPulse.today.callbacksWaiting },
+              { label: "WEEK JOBS", value: shopPulse.thisWeek.jobsClosed },
+              { label: "WEEK REV", value: `$${Math.round(shopPulse.thisWeek.revenue).toLocaleString()}` },
+              { label: "WALK RATE", value: `${shopPulse.thisWeek.walkRate}%` },
+            ].map(({ label, value }) => (
+              <div key={label} className="px-3 py-2 bg-background/50 rounded text-center">
+                <div className="text-sm font-bold text-foreground">{value}</div>
+                <div className="text-[8px] tracking-wider text-muted-foreground">{label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── LIVE BUSINESS PULSE (fallback if no shop pulse) ─── */}
+      {!shopPulse && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { label: "LEADS TODAY", value: overview?.todayStats.leadsToday ?? 0, color: "text-blue-400", bg: "from-blue-500/10" },
+            { label: "BOOKINGS TODAY", value: overview?.todayStats.bookingsToday ?? 0, color: "text-emerald-400", bg: "from-emerald-500/10" },
+            { label: "CALLBACKS", value: overview?.todayStats.callbacksPending ?? 0, color: "text-orange-400", bg: "from-orange-500/10" },
+            { label: "QUOTES PENDING", value: overview?.todayStats.quotesToday ?? 0, color: "text-purple-400", bg: "from-purple-500/10" },
+          ].map(({ label, value, color, bg }) => (
+            <div key={label} className={`bg-gradient-to-br ${bg} to-transparent border border-border/30 rounded-lg p-4`}>
+              <div className={`text-3xl font-bold tracking-tight ${color}`}>{value}</div>
+              <div className="text-[10px] font-semibold tracking-[0.15em] text-muted-foreground mt-1">{label}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ─── FINANCIAL KPIs ─── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
