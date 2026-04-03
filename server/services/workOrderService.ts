@@ -284,7 +284,7 @@ async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus)
       const { db, workOrders, customers } = await getDbAndSchema();
       const [wo] = await db.select().from(workOrders).where(eq(workOrders.id, workOrderId)).limit(1);
       if (wo?.customerId) {
-        const [cust] = await db.select().from(customers).where(eq(customers.id, parseInt(wo.customerId))).limit(1);
+        const [cust] = await db.select().from(customers).where(eq(customers.id, parseInt(wo.customerId, 10))).limit(1);
         if (cust?.phone) {
           const { sendSms } = await import("../sms");
           const name = cust.firstName || "there";
@@ -303,7 +303,7 @@ async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus)
       const { db, workOrders, customers } = await getDbAndSchema();
       const [wo] = await db.select().from(workOrders).where(eq(workOrders.id, workOrderId)).limit(1);
       if (wo?.customerId) {
-        const [cust] = await db.select().from(customers).where(eq(customers.id, parseInt(wo.customerId))).limit(1);
+        const [cust] = await db.select().from(customers).where(eq(customers.id, parseInt(wo.customerId, 10))).limit(1);
         if (cust?.phone) {
           const { createReviewRequest } = await import("../db");
           const scheduledAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours later
