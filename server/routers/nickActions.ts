@@ -1905,17 +1905,25 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
 
       let applied = 0;
       let skipped = 0;
-      for (const sql of migrations) {
+      const errors: string[] = [];
+      for (const rawSql of migrations) {
         try {
-          await d.execute(sql as any);
+          // Use drizzle's sql template to wrap the raw string
+          const { sql: sqlTag } = await import("drizzle-orm");
+          await d.execute(sqlTag.raw(rawSql));
           applied++;
         } catch (err: any) {
-          if (err?.message?.includes("already exists")) { skipped++; }
-          else { skipped++; }
+          const msg = err?.message || String(err);
+          if (msg.includes("already exists") || msg.includes("Duplicate")) {
+            skipped++;
+          } else {
+            skipped++;
+            errors.push(`${rawSql.slice(0, 50)}... → ${msg.slice(0, 100)}`);
+          }
         }
       }
 
-      return { success: true, applied, skipped, total: migrations.length };
+      return { success: true, applied, skipped, total: migrations.length, errors: errors.length > 0 ? errors : undefined };
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
