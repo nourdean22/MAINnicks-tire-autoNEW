@@ -1664,6 +1664,14 @@ REVIEWS: ${monthReviews[0]?.count ?? 0} requests sent this month
 SOURCES: Auto Labor Guide (ShopDriver Elite), Gateway for invoices`;
 
           // Add intelligence data (conversion pipeline + revenue projections)
+          // Inject Nick's learned memories
+          try {
+            const { getMemoryContext } = await import("../services/nickMemory");
+            const memContext = await getMemoryContext();
+            if (memContext) bizContext += memContext;
+          } catch {}
+
+          // Inject intelligence data
           try {
             const { analyzeConversionPipeline, projectRevenue, generateProactiveAlerts } = await import("../services/nickIntelligence");
             const [pipeline, revenue, alerts] = await Promise.all([
@@ -1729,14 +1737,35 @@ STRATEGIC:
 - Growth planning: what to invest in next, what to cut
 - Life design: help Nour build systems for health, wealth, relationships
 
+═══ THINKING MODEL ═══
+Before EVERY response, run this internal process:
+1. UNDERSTAND — What is Nour actually asking? What's the real need behind the words?
+2. CONTEXT — What do I know from memory, live data, and patterns that's relevant?
+3. ANALYZE — What are the options? What are the trade-offs? What's the second-order effect?
+4. DECIDE — What's the highest-leverage move? What would a world-class operator recommend?
+5. VERIFY — Are my facts correct? Am I referencing real data or guessing? Self-check.
+6. DELIVER — Lead with the answer. Be specific. Make it actionable.
+
 ═══ PERSONALITY ═══
 - You are direct. Zero fluff. Lead with signal.
 - You challenge weak thinking. If Nour's logic is sloppy, say so.
 - You anticipate beyond the request. Surface hidden risks and smarter paths.
 - Every answer produces: what to do now, what to do next, what to avoid.
-- You remember patterns and get smarter over time.
+- You remember patterns and get smarter over time. You HAVE persistent memory — use it.
 - You think in systems, not events. Build recurring advantages.
+- You connect dots across data sources — if revenue is down AND leads are up, that's a conversion problem.
+- You proactively volunteer information Nour didn't ask for but needs to know.
+- When you spot something urgent in the data, lead with it before answering the question.
 - Truth > comfort. Execution > discussion. Leverage > effort.
+
+═══ INTELLIGENCE LEVEL ═══
+You are not a chatbot. You are an elite strategic operator. Think like:
+- A CFO when discussing money (margins, unit economics, ROI)
+- A COO when discussing operations (throughput, bottlenecks, utilization)
+- A CMO when discussing marketing (conversion, positioning, customer psychology)
+- A therapist when discussing personal growth (accountability, patterns, blind spots)
+- A data scientist when discussing patterns (correlations, anomalies, projections)
+Never give surface-level answers. Always go one level deeper than expected.
 
 ═══ RULES ═══
 1. Reference real numbers from LIVE BUSINESS STATE.
@@ -1763,6 +1792,11 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
       }
 
       log.info(`Operator command: "${input.command.slice(0, 80)}..." → ${reply.length} chars`);
+
+      // Auto-learn from this interaction (async, don't block)
+      import("../services/nickMemory").then(({ learnFromInteraction }) =>
+        learnFromInteraction(input.command, reply)
+      ).catch(() => {});
 
       return {
         reply,
@@ -1806,6 +1840,30 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
     const { getMetaSocialStatus } = await import("../services/metaSocial");
     return getMetaSocialStatus();
   }),
+
+  /** Store a memory for Nick AI */
+  remember: adminProcedure
+    .input(z.object({
+      type: z.enum(["insight", "lesson", "preference", "pattern", "customer"]),
+      content: z.string().min(3).max(500),
+      source: z.string().max(100).default("manual"),
+    }))
+    .mutation(async ({ input }) => {
+      const { remember } = await import("../services/nickMemory");
+      await remember(input);
+      return { success: true };
+    }),
+
+  /** Recall Nick AI's memories */
+  memories: adminProcedure
+    .input(z.object({
+      type: z.enum(["insight", "lesson", "preference", "pattern", "customer"]).optional(),
+      limit: z.number().max(50).default(20),
+    }).optional())
+    .query(async ({ input }) => {
+      const { recall } = await import("../services/nickMemory");
+      return recall({ type: input?.type, limit: input?.limit });
+    }),
 
   /** Send media (photo/video/document) to owner via Telegram */
   sendMedia: adminProcedure
