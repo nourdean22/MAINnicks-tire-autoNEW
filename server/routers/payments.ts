@@ -168,13 +168,13 @@ export const paymentsRouter = router({
           .where(eq(invoices.invoiceNumber, input.invoiceNumber));
       }
 
-      // NOUR OS event
-      import("../nour-os-bridge").then(({ dispatchEvent }) =>
-        dispatchEvent("nickstire:revenue", {
-          milestone: "card_payment_submitted",
-          totalRevenue: input.amount,
-          period: "online",
+      // Unified event bus (→ NOUR OS + Telegram + learning)
+      import("../services/eventBus").then(({ emit }) =>
+        emit.paymentReceived({
           orderNumber: input.orderNumber,
+          invoiceNumber: input.invoiceNumber || "",
+          amount: input.amount,
+          customerName: input.cardName,
           cardLast4: last4,
         })
       ).catch(() => {});
@@ -218,13 +218,13 @@ export const paymentsRouter = router({
           eq(invoices.customerPhone, input.phone),
         ));
 
-      // Fire NOUR OS event
-      import("../nour-os-bridge").then(({ onInvoiceCreated }) =>
-        onInvoiceCreated({
+      // Unified event bus
+      import("../services/eventBus").then(({ emit }) =>
+        emit.invoicePaid({
           invoiceNumber: input.invoiceNumber,
           customerName: "Payment confirmed",
           totalAmount: status.amountReceived / 100,
-          source: `online_${input.paymentMethod}`,
+          method: input.paymentMethod,
         })
       ).catch(() => {});
 

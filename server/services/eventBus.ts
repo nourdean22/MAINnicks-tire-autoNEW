@@ -247,7 +247,7 @@ export const emit = {
   callbackRequested: (data: { name: string; phone: string; reason?: string | null }) =>
     dispatch("callback_requested", data, { priority: "critical", source: "callback" }),
 
-  bookingCreated: (data: { id: number; name: string; phone: string; service: string }) =>
+  bookingCreated: (data: { id: number; name: string; phone: string; service: string; vehicle?: string; urgency?: string; refCode?: string }) =>
     dispatch("booking_created", data, { priority: "high", source: "booking" }),
 
   bookingCompleted: (data: { id: number; name: string; service: string }) =>

@@ -154,16 +154,16 @@ export const emergencyRouter = router({
 
         const nextOpenTime = getNextOpenTime();
 
-        // Dispatch emergency to NOUR OS (non-blocking, high priority)
-        import("../nour-os-bridge").then(({ onEmergencyRequest }) =>
-          onEmergencyRequest({
+        // Unified event bus — CRITICAL priority (→ NOUR OS + Telegram + learning)
+        import("../services/eventBus").then(({ emit }) =>
+          emit.emergencyRequest({
             name,
             phone,
-            description: problem || "No description",
+            problem: problem || "No description",
             urgency: input.urgency,
           })
         ).catch(err => {
-          console.error("[NourOS] Emergency event dispatch failed:", err);
+          console.error("[EventBus] Emergency dispatch failed:", err);
         });
 
         // Sync to Google Sheets asynchronously (fire and forget with retry)

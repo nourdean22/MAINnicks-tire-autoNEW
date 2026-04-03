@@ -230,14 +230,14 @@ export const bookingRouter = router({
         }
       }
 
-      // Dispatch to NOUR OS event bus (non-blocking)
-      import("../nour-os-bridge").then(({ onBookingCreated }) =>
-        onBookingCreated({
+      // Unified event bus (→ NOUR OS + ShopDriver + Telegram + learning)
+      import("../services/eventBus").then(({ emit }) =>
+        emit.bookingCreated({
           id: result.id,
           name,
           phone,
           service,
-          vehicle: vehicleStr,
+          vehicle: vehicleStr || undefined,
           urgency: input.urgency,
           refCode,
         })
@@ -433,9 +433,9 @@ export const bookingRouter = router({
                 });
               });
 
-            // Fire NOUR OS bridge event for booking completion
-            import("../nour-os-bridge").then(({ onBookingCompleted }) =>
-              onBookingCompleted({
+            // Unified event bus (→ NOUR OS + learning)
+            import("../services/eventBus").then(({ emit }) =>
+              emit.bookingCompleted({
                 id: booking.id,
                 name: booking.name,
                 service: booking.service,
