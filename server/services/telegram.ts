@@ -205,6 +205,111 @@ export async function sendTelegram(text: string): Promise<boolean> {
   return sendRaw(text);
 }
 
+/**
+ * Send a photo via Telegram (URL or file_id).
+ */
+export async function sendTelegramPhoto(photoUrl: string, caption?: string): Promise<boolean> {
+  if (!isConfigured()) return false;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        photo: photoUrl,
+        caption: caption?.slice(0, 1024) || undefined,
+        parse_mode: "HTML",
+      }),
+    });
+    if (!res.ok) {
+      log.error("Telegram photo send failed:", { status: res.status });
+      return false;
+    }
+    stats.sent++;
+    return true;
+  } catch (err) {
+    log.error("Telegram photo error:", { error: err instanceof Error ? err.message : String(err) });
+    return false;
+  }
+}
+
+/**
+ * Send a video via Telegram (URL or file_id).
+ */
+export async function sendTelegramVideo(videoUrl: string, caption?: string): Promise<boolean> {
+  if (!isConfigured()) return false;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendVideo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        video: videoUrl,
+        caption: caption?.slice(0, 1024) || undefined,
+        parse_mode: "HTML",
+      }),
+    });
+    if (!res.ok) {
+      log.error("Telegram video send failed:", { status: res.status });
+      return false;
+    }
+    stats.sent++;
+    return true;
+  } catch (err) {
+    log.error("Telegram video error:", { error: err instanceof Error ? err.message : String(err) });
+    return false;
+  }
+}
+
+/**
+ * Send a document/file via Telegram.
+ */
+export async function sendTelegramDocument(docUrl: string, caption?: string): Promise<boolean> {
+  if (!isConfigured()) return false;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        document: docUrl,
+        caption: caption?.slice(0, 1024) || undefined,
+        parse_mode: "HTML",
+      }),
+    });
+    if (!res.ok) return false;
+    stats.sent++;
+    return true;
+  } catch { return false; }
+}
+
+/**
+ * Send a group of photos (album) via Telegram.
+ */
+export async function sendTelegramMediaGroup(
+  media: Array<{ type: "photo" | "video"; url: string; caption?: string }>
+): Promise<boolean> {
+  if (!isConfigured() || media.length === 0) return false;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMediaGroup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: CHAT_ID,
+        media: media.map((m, i) => ({
+          type: m.type,
+          media: m.url,
+          caption: i === 0 ? m.caption?.slice(0, 1024) : undefined,
+          parse_mode: i === 0 ? "HTML" : undefined,
+        })),
+      }),
+    });
+    if (!res.ok) return false;
+    stats.sent++;
+    return true;
+  } catch { return false; }
+}
+
 // ─── Batch Flush (runs every 5 minutes) ─────────────
 
 const BATCH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes

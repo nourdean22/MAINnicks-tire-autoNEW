@@ -1748,6 +1748,7 @@ STRATEGIC:
 7. For decisions: weigh trade-offs, recommend with conviction, log reasoning.
 8. For personal growth: be the accountability partner. No coddling.
 9. Format with clear headers. Keep it punchy but complete.
+10. SELF-CHECK before responding: verify all facts (phone, hours, address, rating). If you generate content (posts, emails, replies), double-check tone matches brand voice. If you cite a number, make sure it came from the live data above — don't guess.
 ${bizContext}
 ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(([k, v]) => `${k}: ${v}`).join("\n") : ""}`,
           },
@@ -1805,4 +1806,92 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
     const { getMetaSocialStatus } = await import("../services/metaSocial");
     return getMetaSocialStatus();
   }),
+
+  /** Send media (photo/video/document) to owner via Telegram */
+  sendMedia: adminProcedure
+    .input(z.object({
+      type: z.enum(["photo", "video", "document", "album"]),
+      url: z.string().url().optional(),
+      urls: z.array(z.string().url()).optional(),
+      caption: z.string().max(1024).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { sendTelegramPhoto, sendTelegramVideo, sendTelegramDocument, sendTelegramMediaGroup } =
+        await import("../services/telegram");
+
+      if (input.type === "photo" && input.url) {
+        const ok = await sendTelegramPhoto(input.url, input.caption);
+        return { success: ok };
+      }
+      if (input.type === "video" && input.url) {
+        const ok = await sendTelegramVideo(input.url, input.caption);
+        return { success: ok };
+      }
+      if (input.type === "document" && input.url) {
+        const ok = await sendTelegramDocument(input.url, input.caption);
+        return { success: ok };
+      }
+      if (input.type === "album" && input.urls?.length) {
+        const ok = await sendTelegramMediaGroup(
+          input.urls.map((u, i) => ({ type: "photo" as const, url: u, caption: i === 0 ? input.caption : undefined }))
+        );
+        return { success: ok };
+      }
+      return { success: false, error: "Invalid media type or missing URL" };
+    }),
+
+  /** Nick AI self-review: validate generated content before sending */
+  reviewContent: adminProcedure
+    .input(z.object({
+      content: z.string().min(1).max(5000),
+      contentType: z.enum(["social_post", "email", "estimate", "reply", "brief", "general"]),
+      context: z.string().max(1000).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import("../_core/llm");
+      const response = await invokeLLM({
+        messages: [
+          {
+            role: "system",
+            content: `You are Nick AI's quality control layer for Nick's Tire & Auto (Cleveland, OH).
+
+REVIEW this ${input.contentType} for:
+1. ACCURACY — Are facts, prices, hours, phone numbers correct?
+   - Phone: (216) 862-0005
+   - Address: 17625 Euclid Ave, Cleveland, OH 44112
+   - Hours: Mon-Sat 8AM-6PM, Sun 9AM-4PM
+   - Rating: 4.9 stars, 1685+ reviews
+   - Walk-ins welcome, first come first serve, drop-offs encouraged
+2. TONE — Does it match the brand? Direct, honest, no-nonsense, Cleveland proud, not corporate.
+3. ERRORS — Grammar, spelling, broken formatting, missing info.
+4. EFFECTIVENESS — Will this achieve its goal? Would a real customer respond?
+5. RISKS — Anything that could look bad, offend, or create liability?
+
+Respond with JSON:
+{
+  "approved": true/false,
+  "score": 1-10,
+  "issues": ["issue 1", "issue 2"],
+  "suggestions": ["fix 1", "fix 2"],
+  "correctedContent": "improved version if score < 8, otherwise null"
+}`,
+          },
+          {
+            role: "user",
+            content: `Review this ${input.contentType}:\n\n${input.content}${input.context ? `\n\nContext: ${input.context}` : ""}`,
+          },
+        ],
+        maxTokens: 800,
+      });
+
+      const raw = response.choices?.[0]?.message?.content;
+      if (raw && typeof raw === "string") {
+        try {
+          return JSON.parse(raw);
+        } catch {
+          return { approved: true, score: 7, issues: [], suggestions: [], correctedContent: null };
+        }
+      }
+      return { approved: true, score: 7, issues: [], suggestions: [], correctedContent: null };
+    }),
 });
