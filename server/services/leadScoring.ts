@@ -48,7 +48,7 @@ export function scoreLead(data: LeadData): { score: number; priority: "low" | "m
   if (data.vehicleInfo) {
     const yearMatch = data.vehicleInfo.match(/20[12]\d/);
     if (yearMatch) {
-      const age = new Date().getFullYear() - parseInt(yearMatch[0]);
+      const age = new Date().getFullYear() - parseInt(yearMatch[0], 10);
       if (age <= 3) { score += 10; factors.push("newer-vehicle"); }
       else if (age <= 7) { score += 5; factors.push("mid-age-vehicle"); }
     }

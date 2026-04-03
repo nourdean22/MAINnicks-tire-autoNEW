@@ -29,8 +29,8 @@ function etHourToUtcHour(date: Date, etHour: number): number {
   // Find the ET offset (4 or 5 hours) for the given date using Intl
   const utcParts = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", hour: "numeric", hour12: false }).formatToParts(date);
   const etParts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }).formatToParts(date);
-  const utcH = parseInt(utcParts.find(p => p.type === "hour")?.value || "0");
-  const etH = parseInt(etParts.find(p => p.type === "hour")?.value || "0");
+  const utcH = parseInt(utcParts.find(p => p.type === "hour")?.value || "0", 10);
+  const etH = parseInt(etParts.find(p => p.type === "hour")?.value || "0", 10);
   let offset = utcH - etH;
   if (offset < 0) offset += 24;
   return etHour + offset;

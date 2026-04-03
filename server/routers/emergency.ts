@@ -29,11 +29,11 @@ function getNextOpenTime(): string {
   });
   const easterParts = formatter.formatToParts(now);
   const easterDate = new Date(
-    parseInt(easterParts.find(p => p.type === "year")?.value || "2026"),
-    parseInt(easterParts.find(p => p.type === "month")?.value || "1") - 1,
-    parseInt(easterParts.find(p => p.type === "day")?.value || "1"),
-    parseInt(easterParts.find(p => p.type === "hour")?.value || "0"),
-    parseInt(easterParts.find(p => p.type === "minute")?.value || "0"),
+    parseInt(easterParts.find(p => p.type === "year")?.value || "2026", 10),
+    parseInt(easterParts.find(p => p.type === "month")?.value || "1", 10) - 1,
+    parseInt(easterParts.find(p => p.type === "day")?.value || "1", 10),
+    parseInt(easterParts.find(p => p.type === "hour")?.value || "0", 10),
+    parseInt(easterParts.find(p => p.type === "minute")?.value || "0", 10),
     0
   );
 

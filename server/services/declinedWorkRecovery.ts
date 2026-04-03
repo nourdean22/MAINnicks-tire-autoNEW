@@ -80,7 +80,7 @@ export async function getDeclinedWorkLedger(limit = 50): Promise<DeclinedWorkEnt
     let customerName = "";
     let phone = "";
     try {
-      const custId = parseInt(wo.customerId);
+      const custId = parseInt(wo.customerId, 10);
       if (!isNaN(custId)) {
         const [cust] = await db.select().from(customers).where(eq(customers.id, custId));
         if (cust) {

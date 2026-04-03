@@ -926,12 +926,9 @@ export const gatewayTireRouter = router({
 
       await d.update(tireOrders).set(updates).where(eq(tireOrders.id, input.id));
 
-      // Auto-create invoice when tire order is marked as installed
-      if (input.status === "installed") {
-        autoCreateInvoiceFromTireOrder(d, input.id).catch((err: any) =>
-          console.error(`[Invoice] Error auto-creating for tire order #${input.id}:`, err)
-        );
-      }
+      // NOTE: Invoice is already created at order placement time (in placeOrder mutation).
+      // Do NOT auto-create another invoice here — that would be a double invoice.
+      // The "installed" status just means the work is done, not that we need a new invoice.
 
       return { success: true };
     }),

@@ -54,9 +54,9 @@ function getTemporalContext(now: Date): string {
   });
   const parts = etFormatter.formatToParts(now);
   const weekday = parts.find(p => p.type === "weekday")?.value as DayOfWeek;
-  const hour = parseInt(parts.find(p => p.type === "hour")?.value || "12");
+  const hour = parseInt(parts.find(p => p.type === "hour")?.value || "12", 10);
   const dayPeriod = parts.find(p => p.type === "dayPeriod")?.value || "AM";
-  const month = parseInt(parts.find(p => p.type === "month")?.value || "1");
+  const month = parseInt(parts.find(p => p.type === "month")?.value || "1", 10);
   // Convert 12h to 24h for logic
   const isPM = dayPeriod.toUpperCase() === "PM";
   const h24 = isPM ? (hour === 12 ? 12 : hour + 12) : (hour === 12 ? 0 : hour);

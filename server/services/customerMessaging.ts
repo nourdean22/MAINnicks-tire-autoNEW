@@ -83,7 +83,7 @@ export async function generateStatusMessage(params: {
   let customerName = "there";
   let customerPhone = "";
   try {
-    const custId = parseInt(wo.customerId);
+    const custId = parseInt(wo.customerId, 10);
     if (!isNaN(custId)) {
       const [cust] = await db.select().from(customers).where(eq(customers.id, custId));
       if (cust) {
@@ -157,7 +157,7 @@ export async function getTrackingInfo(orderNumber: string, phone: string) {
 
   // Verify phone matches customer
   try {
-    const custId = parseInt(wo.customerId);
+    const custId = parseInt(wo.customerId, 10);
     if (!isNaN(custId)) {
       const [cust] = await db.select().from(customers).where(eq(customers.id, custId));
       if (!cust) return null;
