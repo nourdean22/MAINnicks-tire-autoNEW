@@ -1,33 +1,32 @@
 {
-  "name": "Nick's Control Center",
-  "short_name": "Control",
-  "description": "Nick's Tire & Auto — Control Center",
-  "start_url": "/cc",
+  "name": "Nick's Tire & Auto",
+  "short_name": "Nick's Tire",
+  "description": "Cleveland's #1 tire shop & auto repair. 4.9 stars, 1685+ reviews. Order tires, get estimates, track orders.",
+  "start_url": "/",
+  "id": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#0A0A0A",
   "theme_color": "#FDB913",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en-US",
+  "categories": ["auto", "shopping", "business"],
   "icons": [
-    {
-      "src": "/favicon-32x32.png",
-      "sizes": "32x32",
-      "type": "image/png"
-    },
-    {
-      "src": "/apple-touch-icon.png",
-      "sizes": "180x180",
-      "type": "image/png"
-    },
-    {
-      "src": "/icon-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ]
+    { "src": "/favicon-32x32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Order Tires", "short_name": "Tires", "url": "/tires", "description": "Browse and order tires online" },
+    { "name": "Get Estimate", "short_name": "Estimate", "url": "/estimate", "description": "AI-powered repair estimate" },
+    { "name": "Pay Invoice", "short_name": "Pay", "url": "/pay", "description": "Pay your invoice online" },
+    { "name": "Call Nick's", "short_name": "Call", "url": "tel:2168620005", "description": "Call (216) 862-0005" }
+  ],
+  "screenshots": [],
+  "related_applications": [],
+  "prefer_related_applications": false
 }

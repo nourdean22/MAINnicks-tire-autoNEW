@@ -1671,6 +1671,14 @@ SOURCES: Auto Labor Guide (ShopDriver Elite), Gateway for invoices`;
             if (memContext) bizContext += memContext;
           } catch {}
 
+          // Inject customer intelligence
+          let customerBrief = "";
+          try {
+            const { getCustomerBrief } = await import("../services/customerIntelligence");
+            customerBrief = await getCustomerBrief();
+          } catch {}
+
+
           // Inject intelligence data
           try {
             const { analyzeConversionPipeline, projectRevenue, generateProactiveAlerts, getShopPulse } = await import("../services/nickIntelligence");
@@ -1701,6 +1709,11 @@ SHOP PULSE (right now):
 BUSINESS MODEL:
 - Invoice = closed job = money in. This is the WIN metric.
 - Estimate without invoice = customer got free inspection and WALKED. This is LOST revenue.
+- Walk rate = estimates / (estimates + invoices). Track this obsessively.
+- Auto Labor Guide (ShopDriver) is the shop CRM — all estimates and invoices live there.
+
+CUSTOMER INTELLIGENCE:
+${customerBrief}
 - Walk rate = estimates / (estimates + invoices). Track this obsessively.
 - Auto Labor Guide (ShopDriver) is the shop CRM — all estimates and invoices live there.
 - The website pushes everything to Auto Labor Guide via Telegram for manual entry.
@@ -1858,6 +1871,87 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
   }),
 
   /** Get real-time shop pulse */
+  /** Customer intelligence KPIs */
+  customerIntelligence: adminProcedure.query(async () => {
+    const { analyzeCustomers } = await import("../services/customerIntelligence");
+    return analyzeCustomers();
+  }),
+
+  /** Camera feed proxy — streams RTSP/HTTP camera feeds */
+  cameraFeed: adminProcedure
+    .input(z.object({
+      cameraId: z.string().min(1).max(50),
+    }))
+    .query(async ({ input }) => {
+      // Camera feeds are configured via shop settings
+      const d = await db();
+      if (!d) return { error: "DB unavailable", feeds: [] };
+
+      const { shopSettings } = await import("../../drizzle/schema");
+      const result = await d.select().from(shopSettings)
+        .where(sql`${shopSettings.key} LIKE 'camera_%'`);
+
+      const cameras = result.map(r => {
+        try {
+          const data = JSON.parse(r.value);
+          return { id: r.key.replace("camera_", ""), name: data.name, url: data.url, type: data.type || "http" };
+        } catch { return null; }
+      }).filter(Boolean);
+
+      const target = cameras.find((c: any) => c.id === input.cameraId);
+      if (!target) return { error: "Camera not found", feeds: cameras };
+
+      return {
+        camera: target,
+        feeds: cameras,
+        streamUrl: (target as any).url,
+        note: "For RTSP cameras, use the stream URL in a video player. For HTTP cameras, embed as img src.",
+      };
+    }),
+
+  /** List all configured cameras */
+  cameras: adminProcedure.query(async () => {
+    const d = await db();
+    if (!d) return [];
+
+    const { shopSettings } = await import("../../drizzle/schema");
+    const result = await d.select().from(shopSettings)
+      .where(sql`${shopSettings.key} LIKE 'camera_%'`);
+
+    return result.map(r => {
+      try {
+        const data = JSON.parse(r.value);
+        return { id: r.key.replace("camera_", ""), ...data };
+      } catch { return null; }
+    }).filter(Boolean);
+  }),
+
+  /** Add/update a camera */
+  setCamera: adminProcedure
+    .input(z.object({
+      id: z.string().min(1).max(50),
+      name: z.string().min(1).max(100),
+      url: z.string().url(),
+      type: z.enum(["rtsp", "http", "mjpeg", "hls"]).default("http"),
+      location: z.string().max(100).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) return { success: false };
+
+      const { shopSettings } = await import("../../drizzle/schema");
+      const key = `camera_${input.id}`;
+      const value = JSON.stringify({ name: input.name, url: input.url, type: input.type, location: input.location || "" });
+
+      const existing = await d.select().from(shopSettings).where(eq(shopSettings.key, key)).limit(1);
+      if (existing.length > 0) {
+        await d.update(shopSettings).set({ value }).where(eq(shopSettings.key, key));
+      } else {
+        await d.insert(shopSettings).values({ key, value });
+      }
+      return { success: true };
+    }),
+
   shopPulse: adminProcedure.query(async () => {
     const { getShopPulse } = await import("../services/nickIntelligence");
     return getShopPulse();
