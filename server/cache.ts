@@ -93,9 +93,12 @@ class ServerCache {
 export const serverCache = new ServerCache();
 
 // Auto-prune expired entries every 5 minutes
-setInterval(() => {
+const cacheCleanupHandle = setInterval(() => {
   serverCache.stats(); // stats() already prunes expired entries
 }, 5 * 60 * 1000);
+
+/** Shutdown cache cleanup interval for graceful exit */
+export function shutdownServerCache() { clearInterval(cacheCleanupHandle); }
 
 // ─── Common TTL constants ─────────────────────────────
 export const CACHE_TTL = {
