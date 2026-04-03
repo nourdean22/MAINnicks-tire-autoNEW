@@ -96,20 +96,18 @@ export const laborEstimateRouter = router({
               });
             }
 
-            // 2. Notify shop to create estimate in Auto Labor Guide
-            const { sendTelegram } = await import("../services/telegram");
-            await sendTelegram(
-              `📋 NEW ESTIMATE REQUEST — Create in Auto Labor Guide\n\n` +
-              `Customer: ${input.customerName || "N/A"}\n` +
-              `Phone: ${input.customerPhone || "N/A"}\n` +
-              `Email: ${input.customerEmail || "N/A"}\n` +
-              `Vehicle: ${input.year} ${input.make} ${input.model}${input.mileage ? ` (${input.mileage} mi)` : ""}\n` +
-              `Repair: ${estimate.repairTitle}\n` +
-              `Range: $${estimate.grandTotalLow}–$${estimate.grandTotalHigh}\n` +
-              `Labor: ${estimate.totalLaborHours}h @ $${Math.round(estimate.totalLaborCost / Math.max(estimate.totalLaborHours, 0.1))}/hr\n\n` +
-              `Line items:\n${estimate.lineItems.map(li => `• ${li.description}: ${li.laborHours}h + $${li.partsLow}-$${li.partsHigh} parts`).join("\n")}\n\n` +
-              `⚡ Create this estimate in ShopDriver and email to customer`
-            );
+            // 2. Push estimate to Auto Labor Guide (API first, Telegram fallback)
+            const { pushEstimate } = await import("../services/shopDriverSync");
+            await pushEstimate({
+              customerName: input.customerName || "N/A",
+              customerPhone: input.customerPhone || "N/A",
+              customerEmail: input.customerEmail,
+              vehicle: `${input.year} ${input.make} ${input.model}`,
+              repairTitle: estimate.repairTitle,
+              lineItems: estimate.lineItems,
+              grandTotalLow: estimate.grandTotalLow,
+              grandTotalHigh: estimate.grandTotalHigh,
+            });
 
             // 3. Fire NOUR OS event
             const { onLeadCaptured } = await import("../nour-os-bridge");

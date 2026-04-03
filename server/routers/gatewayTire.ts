@@ -763,6 +763,22 @@ export const gatewayTireRouter = router({
         notes: input.customerNotes || undefined,
       }).catch(err => console.error("[TireOrder] Notification error:", err));
 
+      // Push to Auto Labor Guide (ShopDriver) — async, don't block
+      import("../services/shopDriverSync").then(({ pushTireOrder }) =>
+        pushTireOrder({
+          orderNumber,
+          customerName: input.customerName,
+          customerPhone: input.customerPhone,
+          vehicleInfo: input.vehicleInfo || null,
+          tireBrand: input.tireBrand,
+          tireModel: input.tireModel,
+          tireSize: input.tireSize,
+          quantity: input.quantity,
+          totalAmount: totalDollars,
+          installPreference: input.installPreference,
+        })
+      ).catch(() => {});
+
       // Dispatch to NOUR OS bridge (async, don't block)
       import("../nour-os-bridge").then(({ onTireOrderPlaced }) =>
         onTireOrderPlaced({

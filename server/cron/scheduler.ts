@@ -191,6 +191,14 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "nick-auto-actions",
+        businessHoursOnly: true,
+        handler: async () => {
+          const { runAutoActions } = await import("../services/nickIntelligence");
+          return runAutoActions();
+        },
+      },
+      {
         name: "statenour-sync",
         handler: async () => {
           const { syncToStatenour } = await import("./jobs/statenourSync");

@@ -248,6 +248,86 @@ export async function runProactiveCheck(): Promise<{ recordsProcessed?: number; 
   return { recordsProcessed: allAlerts.length, details: `${allAlerts.length} alerts, pipeline: ${pipeline.estimateToInvoice}% est→job` };
 }
 
+// ─── AUTO-ACTIONS (Nick AI acts without being asked) ──
+
+export async function runAutoActions(): Promise<{ recordsProcessed?: number; details?: string }> {
+  const d = await db();
+  if (!d) return { details: "DB unavailable" };
+
+  const pulse = await getShopPulse();
+  const pipeline = await analyzeConversionPipeline();
+  const { sendTelegram } = await import("./telegram");
+  let actions = 0;
+
+  // AUTO-ACTION 1: High walk rate alert + suggestion
+  if (pulse.thisWeek.walkRate > 40 && pulse.thisWeek.jobsClosed > 5) {
+    await sendTelegram(
+      `⚠️ NICK AI AUTO-ACTION: Walk Rate ${pulse.thisWeek.walkRate}%\n\n` +
+      `${Math.round(pulse.thisWeek.walkRate)}% of customers this week got estimates but didn't convert.\n\n` +
+      `Suggestions:\n` +
+      `• Follow up on recent estimates — call them back\n` +
+      `• Consider running a "come back" promo ($25 off with estimate)\n` +
+      `• Review pricing vs competitors\n` +
+      `• Are techs explaining value clearly during inspections?`
+    );
+    actions++;
+  }
+
+  // AUTO-ACTION 2: Great day celebration
+  const revenue = await projectRevenue();
+  if (pulse.today.revenue > revenue.avgDailyRevenue * 1.5 && pulse.today.revenue > 500) {
+    await sendTelegram(
+      `🎉 GREAT DAY! Revenue $${pulse.today.revenue.toLocaleString()} — ` +
+      `${Math.round((pulse.today.revenue / Math.max(revenue.avgDailyRevenue, 1)) * 100)}% of daily average!\n\n` +
+      `${pulse.today.jobsClosed} jobs closed. Avg ticket: $${pulse.today.avgTicket}. Keep it going!`
+    );
+    actions++;
+  }
+
+  // AUTO-ACTION 3: Slow day by noon — push marketing
+  const hour = new Date().getHours();
+  if (hour >= 12 && hour <= 14 && pulse.today.jobsClosed < 2 && pulse.shopStatus === "slow") {
+    await sendTelegram(
+      `📉 NICK AI: Slow day alert — only ${pulse.today.jobsClosed} jobs by noon.\n\n` +
+      `Suggestions:\n` +
+      `• Post a same-day special on Instagram/Facebook\n` +
+      `• Text recent estimate customers: "Still need that repair? Come in today"\n` +
+      `• Check if there are pending callbacks to return`
+    );
+    actions++;
+  }
+
+  // AUTO-ACTION 4: Learn day-of-week patterns
+  try {
+    const { remember } = await import("./nickMemory");
+    const { invoices } = await import("../../drizzle/schema");
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const dayRevenue = await d.execute(
+      sql`SELECT DAYOFWEEK(invoiceDate) as dow, COUNT(*) as cnt, SUM(totalAmount) as rev
+          FROM invoices WHERE invoiceDate >= ${thirtyDaysAgo} AND paymentStatus = 'paid'
+          GROUP BY dow ORDER BY rev DESC`
+    );
+
+    if (Array.isArray(dayRevenue) && dayRevenue.length > 0) {
+      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const best = dayRevenue[0] as any;
+      const worst = dayRevenue[dayRevenue.length - 1] as any;
+      const bestDay = days[Number(best.dow) - 1] || "?";
+      const worstDay = days[Number(worst.dow) - 1] || "?";
+
+      await remember({
+        type: "pattern",
+        content: `Busiest day: ${bestDay} ($${Math.round(Number(best.rev) / 100 / 4)}/avg). Slowest: ${worstDay} ($${Math.round(Number(worst.rev) / 100 / 4)}/avg).`,
+        source: "auto_analysis",
+        confidence: 0.85,
+      });
+    }
+  } catch {}
+
+  return { recordsProcessed: actions, details: `${actions} auto-actions taken` };
+}
+
 // ─── SHOP PULSE (real-time business awareness) ────────
 
 export async function getShopPulse(): Promise<{
