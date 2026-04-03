@@ -121,7 +121,7 @@ function isDuplicate(type: NourOsEventType, data: Record<string, unknown>): bool
   const now = Date.now();
 
   // Clean old entries
-  if (recentEventHashes.size > 500) {
+  if (recentEventHashes.size > 100) {
     for (const [key, ts] of recentEventHashes) {
       if (now - ts > DEDUP_WINDOW_MS) recentEventHashes.delete(key);
     }
@@ -172,7 +172,7 @@ const analytics: EventAnalytics = {
 function recordCloudLatency(ms: number): void {
   analytics.cloudLatencySamples.push(ms);
   // Keep last 100 samples
-  if (analytics.cloudLatencySamples.length > 100) {
+  if (analytics.cloudLatencySamples.length > 20) {
     analytics.cloudLatencySamples.shift();
   }
   analytics.avgCloudLatencyMs = Math.round(
@@ -249,7 +249,7 @@ async function checkCloudHealth(): Promise<boolean> {
 
 // ─── In-memory event log (last 200 events for admin dashboard) ────
 const EVENT_LOG: NourOsEvent[] = [];
-const MAX_EVENT_LOG = 200;
+const MAX_EVENT_LOG = 50; // Reduced from 200 to save memory
 
 // ─── Sync stats (legacy compat) ─────────────────────
 let totalEventsSent = 0;
