@@ -191,6 +191,19 @@ export const emergencyRouter = router({
           });
         });
 
+        // IMMEDIATE Telegram alert (backup for SMS)
+        import("../services/telegram").then(({ sendTelegram }) =>
+          sendTelegram(
+            `🚨 EMERGENCY REQUEST\n\n` +
+            `Customer: ${name}\n` +
+            `Phone: ${phone}\n` +
+            `Vehicle: ${vehicle || "N/A"}\n` +
+            `Problem: ${problem || "N/A"}\n` +
+            `Urgency: ${input.urgency}\n\n` +
+            `⚡ CALL THEM BACK ASAP`
+          )
+        ).catch(() => {});
+
         // IMMEDIATE SMS to owner about the emergency request
         withRetry(
           () =>
