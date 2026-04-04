@@ -173,6 +173,19 @@ export async function generateProactiveAlerts(): Promise<string[]> {
     alerts.push(`⚠️ Zero drop-offs today and it's ${now.getHours() > 12 ? "afternoon" : "mid-morning"} — slow day or tracking issue?`);
   }
 
+  // At-risk high-value customers — more important than stale leads
+  try {
+    const { analyzeCustomers } = await import("./customerIntelligence");
+    const ci = await analyzeCustomers();
+    if (ci.atRiskCustomers.length > 0) {
+      const topRisk = ci.atRiskCustomers[0];
+      alerts.push(`💸 AT-RISK CUSTOMER: ${topRisk.name} (${topRisk.daysSince}d since last visit) — call ${topRisk.phone} before they go elsewhere`);
+    }
+    if (ci.lapsedCustomers > ci.activeCustomers && ci.totalCustomers > 20) {
+      alerts.push(`📉 More lapsed (${ci.lapsedCustomers}) than active (${ci.activeCustomers}) customers — retention needs attention`);
+    }
+  } catch {}
+
   return alerts;
 }
 
@@ -239,6 +252,17 @@ export async function runProactiveCheck(): Promise<{ recordsProcessed?: number; 
         `Command Center: https://nickstire.org/admin`
       );
 
+      // Track alert outcomes — schedule a check to see if action was taken
+      try {
+        const { trackAlertOutcome } = await import("./feedbackLoop");
+        // Record each alert type for outcome tracking
+        for (const alert of allAlerts) {
+          const alertType = alert.includes("STALE") ? "stale_leads" : alert.includes("LOST") ? "lost_revenue" : "proactive";
+          // For now mark as unknown — a follow-up check in the feedback cycle will verify
+          await trackAlertOutcome(alertType, "unknown");
+        }
+      } catch {}
+
       log.info(`Proactive check: ${allAlerts.length} alerts sent`);
     } catch (err) {
       log.error("Proactive alert failed:", { error: err instanceof Error ? err.message : String(err) });
@@ -292,9 +316,10 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
     actions++;
   }
 
-  // AUTO-ACTION 3: Slow day by noon — push marketing
+  // AUTO-ACTION 3: Slow day by noon — push marketing + measure revenue impact
   const hour = new Date().getHours();
   if (hour >= 12 && hour <= 14 && pulse.today.jobsClosed < 2 && pulse.shopStatus === "slow") {
+    const beforeRevenue = pulse.today.revenue;
     await sendTelegram(
       `📉 NICK AI: Slow day alert — only ${pulse.today.jobsClosed} jobs by noon.\n\n` +
       `Suggestions:\n` +
@@ -302,6 +327,15 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
       `• Text recent estimate customers: "Still need that repair? Come in today"\n` +
       `• Check if there are pending callbacks to return`
     );
+
+    // Measure if this alert drove action — check revenue later
+    try {
+      const { measureRevenueImpact, trackAlertOutcome } = await import("./feedbackLoop");
+      // Schedule revenue comparison (will run on next feedback cycle)
+      measureRevenueImpact("slow_day_push", beforeRevenue).catch(() => {});
+      await trackAlertOutcome("slow_day_push", "unknown");
+    } catch {}
+
     actions++;
   }
 

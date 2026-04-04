@@ -150,6 +150,33 @@ export const callbackRouter = router({
       notes: z.string().max(5000).optional(),
     }))
     .mutation(async ({ input }) => {
-      return updateCallbackStatus(input.id, input.status, input.notes);
+      const result = await updateCallbackStatus(input.id, input.status, input.notes);
+
+      // Callback status = conversion signal
+      import("../services/eventBus").then(({ dispatch }) =>
+        dispatch("stage_changed", {
+          callbackId: input.id,
+          newStatus: input.status,
+          notes: input.notes,
+        }, { priority: input.status === "completed" ? "high" : "normal", source: "callback" })
+      ).catch(() => {});
+
+      // Completed callback = conversion success, track for feedback
+      if (input.status === "completed") {
+        import("../services/feedbackLoop").then(({ trackAlertOutcome }) =>
+          trackAlertOutcome("callback_followup", "acted")
+        ).catch(() => {});
+      } else if (input.status === "no-answer") {
+        import("../services/nickMemory").then(({ remember }) =>
+          remember({
+            type: "lesson",
+            content: `Callback #${input.id} resulted in no-answer. Consider different timing or channel.`,
+            source: "callback_feedback",
+            confidence: 0.6,
+          })
+        ).catch(() => {});
+      }
+
+      return result;
     }),
 });

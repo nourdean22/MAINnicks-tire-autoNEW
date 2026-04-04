@@ -68,15 +68,15 @@ export async function processReviewMonitor(): Promise<{ recordsProcessed: number
 
       newCount++;
 
-      // Dispatch to NOUR OS (non-blocking)
-      import("../../nour-os-bridge").then(({ onReviewDetected }) =>
-        onReviewDetected({
+      // Dispatch through event bus (reaches NOUR OS bridge, Telegram, learning, statenour, feedback loop)
+      import("../../services/eventBus").then(({ dispatch }) =>
+        dispatch("review_detected", {
           rating: review.rating || 3,
           reviewText: review.text || "",
           customerName: review.author_name || "Anonymous",
-        })
+        }, { priority: review.rating <= 3 ? "critical" : "normal", source: "review_monitor" })
       ).catch(err => {
-        log.warn("Review event dispatch to NOUR OS failed", { error: err instanceof Error ? err.message : String(err) });
+        log.warn("Review event dispatch failed", { error: err instanceof Error ? err.message : String(err) });
       });
 
       if (review.rating <= 3) {

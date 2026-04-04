@@ -219,6 +219,20 @@ async function startServer() {
     serverLog.info("Tiered scheduler started");
   }).catch(err => console.error("[Scheduler] Failed to start:", err));
 
+  // Explicitly start background timers (removed auto-start from module imports)
+  import("../sms").then(({ startDelayedQueueProcessor }) => {
+    startDelayedQueueProcessor();
+    serverLog.info("SMS delayed queue processor started");
+  }).catch(() => {});
+  import("../services/telegram").then(({ startBatchTimer }) => {
+    startBatchTimer();
+    serverLog.info("Telegram batch timer started");
+  }).catch(() => {});
+  import("../nour-os-bridge").then(({ startRetryProcessor }) => {
+    startRetryProcessor();
+    serverLog.info("NOUR OS bridge retry processor started");
+  }).catch(() => {});
+
   // ─── Real-time SSE for admin dashboards ─────────────────
   import("../services/realtimePush").then(({ sseHandler }) => {
     app.get("/api/admin/events", sseHandler);
@@ -412,7 +426,9 @@ Sitemap: ${SITE_URL}/sitemap-locations.xml
     try {
       const { Body, From } = req.body;
       const reply = await handleIncomingSMS(From, Body);
-      res.type("text/xml").send(`<Response><Message>${reply}</Message></Response>`);
+      // XML-escape the reply to prevent malformed Twilio responses
+      const safeReply = reply.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      res.type("text/xml").send(`<Response><Message>${safeReply}</Message></Response>`);
     } catch (err) {
       console.error("[SMS Webhook] Error:", err);
       res.type("text/xml").send("<Response></Response>");
@@ -568,7 +584,16 @@ process.on("SIGTERM", () => {
   shuttingDown = true;
   serverLog.info("SIGTERM received — starting graceful shutdown");
 
-  // Give in-flight requests 10s to finish, then force exit
+  // 1. Stop accepting new connections
+  server.close(() => serverLog.info("HTTP server closed"));
+
+  // 2. Stop all timers (cron, SMS queue, Telegram batch, NOUR OS retry)
+  try { require("../cron/scheduler").stopTieredScheduler(); } catch {}
+  try { require("../sms").stopDelayedQueueProcessor(); } catch {}
+  try { require("../services/telegram").stopBatchTimer?.(); } catch {}
+  try { require("../nour-os-bridge").stopRetryProcessor?.(); } catch {}
+
+  // 3. Give in-flight requests 10s to finish, then force exit
   setTimeout(() => {
     serverLog.warn("Graceful shutdown timeout — forcing exit");
     process.exit(1);

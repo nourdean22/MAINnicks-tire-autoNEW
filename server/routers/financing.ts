@@ -52,6 +52,17 @@ export const financingRouter = router({
         synced ? "(synced to sheets)" : "(sheets sync failed)"
       );
 
+      // Financing application = high-intent lead signal — notify the whole system
+      import("../services/eventBus").then(({ emit }) =>
+        emit.leadCaptured({
+          id: 0,
+          name: safeName || "Financing Applicant",
+          phone: safePhone || "",
+          source: `financing_${input.provider}`,
+          urgencyScore: 8, // High intent — they're applying for money
+        })
+      ).catch(() => {});
+
       return {
         success: true,
         provider: providerInfo.name,

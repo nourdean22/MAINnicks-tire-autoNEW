@@ -52,15 +52,21 @@ export function pushToAdminDashboards(event: {
  * Mount at: app.get("/api/admin/events", sseHandler)
  */
 export function sseHandler(req: any, res: any): void {
-  // Verify admin auth
+  // Verify admin auth — always require valid credentials
   const auth = req.headers.authorization;
   const expected = process.env.ADMIN_API_KEY;
-  if (expected && auth !== `Bearer ${expected}`) {
-    // Allow cookie-based auth (admin session)
-    if (!req.cookies?.admin_token) {
-      res.status(401).json({ error: "Unauthorized" });
-      return;
-    }
+  const hasValidBearer = expected && auth === `Bearer ${expected}`;
+  const hasValidCookie = req.cookies?.admin_token && req.cookies.admin_token.length > 10;
+
+  if (!hasValidBearer && !hasValidCookie) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  // Cap max connections
+  if (clients.size >= 50) {
+    res.status(503).json({ error: "Too many SSE connections" });
+    return;
   }
 
   res.writeHead(200, {

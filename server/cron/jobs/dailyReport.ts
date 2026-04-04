@@ -23,16 +23,43 @@ export async function generateDailyReport(): Promise<{ recordsProcessed: number;
     const db = await getDb();
     if (!db) return { recordsProcessed: 0, details: "No database" };
 
-    // Count today's bookings (ET timezone — shop is in Cleveland)
+    // Gather full intelligence for a rich daily report
     const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-    const [result] = await db.execute(sql`SELECT COUNT(*) as cnt FROM bookings WHERE DATE(createdAt) = ${today}`);
-    const bookingCount = (result as any)?.cnt || 0;
+    const rawBookings = await db.execute(sql`SELECT COUNT(*) as cnt FROM bookings WHERE DATE(createdAt) = ${today}`);
+    const bookingRows = Array.isArray(rawBookings) && Array.isArray(rawBookings[0]) ? rawBookings[0] : rawBookings;
+    const bookingCount = (bookingRows as any)?.[0]?.cnt || 0;
 
-    const message = `Daily Report (${today}): ${bookingCount} bookings today. Check admin dashboard for full details. — Nick's Tire & Auto`;
+    let revenue = 0;
+    let leadCount = 0;
+    let reviewCount = 0;
+    try {
+      const { getShopPulse } = await import("../../services/nickIntelligence");
+      const pulse = await getShopPulse();
+      revenue = pulse.today.revenue;
+    } catch {}
+    try {
+      const rawLeads = await db.execute(sql`SELECT COUNT(*) as cnt FROM leads WHERE DATE(createdAt) = ${today}`);
+      const leadRows = Array.isArray(rawLeads) && Array.isArray(rawLeads[0]) ? rawLeads[0] : rawLeads;
+      leadCount = (leadRows as any)?.[0]?.cnt || 0;
+    } catch {}
+
+    // Send rich Telegram summary instead of thin SMS
+    try {
+      const { sendDailySummary } = await import("../../services/telegram");
+      await sendDailySummary({
+        leads: leadCount,
+        bookings: bookingCount,
+        revenue,
+        reviews: reviewCount,
+      });
+    } catch {}
+
+    // Still send SMS as backup
+    const message = `Daily: ${bookingCount} bookings, ${leadCount} leads, $${revenue} revenue. — Nick's Tire & Auto`;
     await sendSms(ownerPhone, message);
 
-    log.info("Daily report sent", { bookingCount });
-    return { recordsProcessed: 1, details: `Bookings: ${bookingCount}` };
+    log.info("Daily report sent", { bookingCount, leadCount, revenue });
+    return { recordsProcessed: 1, details: `Bookings: ${bookingCount}, Leads: ${leadCount}, Revenue: $${revenue}` };
   } catch (err) {
     log.error("Daily report failed", { error: err instanceof Error ? err.message : String(err) });
     return { recordsProcessed: 0, details: "Error generating report" };

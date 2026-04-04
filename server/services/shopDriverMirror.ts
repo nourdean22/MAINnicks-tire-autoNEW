@@ -44,6 +44,7 @@ async function getSession(): Promise<string | null> {
       },
       body: JSON.stringify({ username, password }),
       redirect: "manual",
+      signal: AbortSignal.timeout(10000),
     });
 
     const cookies = res.headers.getSetCookie?.() || [];
@@ -68,6 +69,7 @@ async function getSession(): Promise<string | null> {
       },
       body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
       redirect: "manual",
+      signal: AbortSignal.timeout(10000),
     });
 
     const cookies = res.headers.getSetCookie?.() || [];
@@ -136,6 +138,7 @@ async function fetchCustomers(cookie: string): Promise<RawCustomer[]> {
     try {
       const res = await fetch(`${SHOPDRIVER_BASE}${endpoint}`, {
         headers: HEADERS(cookie),
+        signal: AbortSignal.timeout(15000),
       });
 
       if (!res.ok) continue;
@@ -189,6 +192,7 @@ async function fetchInvoices(cookie: string): Promise<RawInvoice[]> {
     try {
       const res = await fetch(`${SHOPDRIVER_BASE}${endpoint}`, {
         headers: HEADERS(cookie),
+        signal: AbortSignal.timeout(15000),
       });
 
       if (!res.ok) continue;
@@ -569,6 +573,21 @@ export async function runFullMirror(): Promise<{
   ].join(" | ");
 
   log.info(`Mirror complete: ${details}`);
+
+  // Teach Nick AI about new invoices from the physical shop
+  if (invResult.created > 0) {
+    try {
+      const { remember } = await import("./nickMemory");
+      await remember({
+        type: "insight",
+        content: `ShopDriver mirror imported ${invResult.created} new invoices and ${custResult.created} new customers. ` +
+          `Total fetched: ${rawInvoices.length} invoices, ${rawCustomers.length} customers. ` +
+          `This reflects physical shop activity not captured by online bookings.`,
+        source: "shopdriver_mirror",
+        confidence: 0.9,
+      });
+    } catch {}
+  }
 
   return { recordsProcessed: total, details };
 }

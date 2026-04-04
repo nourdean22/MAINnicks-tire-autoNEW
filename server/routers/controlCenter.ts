@@ -298,7 +298,7 @@ export const controlCenterRouter = router({
           })
           .from(leads)
           .where(sql`${leads.status} IN ('new', 'contacted')`)
-          .orderBy(sql`FIELD(${leads.status}, 'new', 'contacted')`, leads.createdAt)
+          .orderBy(sql`CASE ${leads.status} WHEN 'new' THEN 0 WHEN 'contacted' THEN 1 ELSE 2 END`, leads.createdAt)
           .limit(5),
       ]);
 

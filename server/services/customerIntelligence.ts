@@ -105,6 +105,46 @@ export async function analyzeCustomers(): Promise<CustomerInsight> {
     const totalWithInvoices = spenderMap.size;
     const retentionRate = totalWithInvoices > 0 ? Math.round((repeatCustomers / totalWithInvoices) * 100) : 0;
 
+    // At-risk customers: lapsed segment with highest spend (these are the ones worth saving)
+    let atRiskCustomers: Array<{ name: string; phone: string; lastVisit: string; daysSince: number }> = [];
+    try {
+      const lapsedRows = await d.select({
+        firstName: customers.firstName,
+        lastName: customers.lastName,
+        phone: customers.phone,
+        lastVisit: customers.lastVisitDate,
+      }).from(customers)
+        .where(eq(customers.segment, "lapsed"))
+        .orderBy(desc(customers.lastVisitDate))
+        .limit(10);
+
+      atRiskCustomers = lapsedRows
+        .filter(r => r.lastVisit)
+        .map(r => ({
+          name: `${r.firstName} ${r.lastName || ""}`.trim(),
+          phone: r.phone || "",
+          lastVisit: r.lastVisit ? new Date(r.lastVisit).toISOString().split("T")[0] : "unknown",
+          daysSince: r.lastVisit ? Math.round((now.getTime() - new Date(r.lastVisit).getTime()) / (24 * 60 * 60 * 1000)) : 999,
+        }));
+    } catch {}
+
+    // Day-of-week booking patterns (Mon=0...Sun=6)
+    const dayOfWeekPattern = [0,0,0,0,0,0,0];
+    const peakHoursArr = new Array(24).fill(0);
+    try {
+      const allBookings = await d.select({ createdAt: bookings.createdAt }).from(bookings)
+        .where(gte(bookings.createdAt, ninetyDaysAgo));
+
+      for (const b of allBookings) {
+        if (b.createdAt) {
+          const dt = new Date(b.createdAt);
+          const dow = dt.getDay(); // 0=Sun
+          dayOfWeekPattern[dow]++;
+          peakHoursArr[dt.getHours()]++;
+        }
+      }
+    } catch {}
+
     return {
       totalCustomers: totalCust,
       activeCustomers: active[0]?.count ?? 0,
@@ -113,10 +153,10 @@ export async function analyzeCustomers(): Promise<CustomerInsight> {
       newThisMonth: newMonth[0]?.count ?? 0,
       avgLifetimeValue: avgLTV,
       topSpenders,
-      atRiskCustomers: [], // TODO: pull from lapsed segment with last visit date
+      atRiskCustomers,
       servicePatterns,
-      dayOfWeekPattern: [0,0,0,0,0,0,0], // filled by booking analysis
-      peakHours: new Array(24).fill(0),
+      dayOfWeekPattern,
+      peakHours: peakHoursArr,
       retentionRate,
       avgTicket,
       avgVisitsPerCustomer: avgVisits,
@@ -132,11 +172,19 @@ export async function analyzeCustomers(): Promise<CustomerInsight> {
  */
 export async function getCustomerBrief(): Promise<string> {
   const data = await analyzeCustomers();
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const busiestDay = data.dayOfWeekPattern.indexOf(Math.max(...data.dayOfWeekPattern));
+  const nonZeroDays = data.dayOfWeekPattern.filter(n => n > 0);
+  const slowestDay = nonZeroDays.length > 0 ? data.dayOfWeekPattern.indexOf(Math.min(...nonZeroDays)) : -1;
+  const peakHour = data.peakHours.indexOf(Math.max(...data.peakHours));
+
   return `CUSTOMER INTELLIGENCE:
 - Total: ${data.totalCustomers} | Active (90d): ${data.activeCustomers} | Lapsed: ${data.lapsedCustomers} | Lost: ${data.lostCustomers}
 - New this month: ${data.newThisMonth}
 - Avg lifetime value: $${data.avgLifetimeValue} | Avg ticket: $${data.avgTicket} | Avg visits: ${data.avgVisitsPerCustomer}
 - Retention rate: ${data.retentionRate}% (customers who came back)
 - Top services: ${data.servicePatterns.slice(0, 5).map(s => `${s.service} (${s.count}x, $${s.revenue})`).join(", ")}
-- Top spenders: ${data.topSpenders.slice(0, 3).map(s => `${s.name} ($${s.total}, ${s.visits} visits)`).join(", ")}`;
+- Top spenders: ${data.topSpenders.slice(0, 3).map(s => `${s.name} ($${s.total}, ${s.visits} visits)`).join(", ")}
+- At-risk customers: ${data.atRiskCustomers.length > 0 ? data.atRiskCustomers.slice(0, 5).map(c => `${c.name} (${c.daysSince}d ago, ${c.phone})`).join(", ") : "None detected"}
+- Busiest day: ${days[busiestDay] || "N/A"} | Slowest: ${days[slowestDay] || "N/A"} | Peak hour: ${peakHour}:00`;
 }

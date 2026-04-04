@@ -1863,6 +1863,11 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
         learnFromInteraction(input.command, reply)
       ).catch(() => {});
 
+      // Track brief engagement — if Nour is talking to Nick, he read the brief
+      import("../services/feedbackLoop").then(({ recordBriefResponse }) =>
+        recordBriefResponse()
+      ).catch(() => {});
+
       return {
         reply,
         timestamp: new Date().toISOString(),
@@ -2313,13 +2318,24 @@ Respond with JSON:
       });
 
       const raw = response.choices?.[0]?.message?.content;
+      let result = { approved: false, score: 0, issues: ["Failed to parse review"], suggestions: [] as string[], correctedContent: null as string | null };
       if (raw && typeof raw === "string") {
         try {
-          return JSON.parse(raw);
+          // Strip markdown fences if LLM wraps JSON in ```json blocks
+          const cleaned = raw.replace(/```json\s*\n?/g, "").replace(/```\s*$/g, "").trim();
+          result = JSON.parse(cleaned);
         } catch {
-          return { approved: true, score: 7, issues: [], suggestions: [], correctedContent: null };
+          // Fail safe — don't auto-approve unparseable content
+          result = { approved: false, score: 0, issues: ["AI review response was not valid JSON"], suggestions: ["Re-run review"], correctedContent: null };
         }
       }
-      return { approved: true, score: 7, issues: [], suggestions: [], correctedContent: null };
+
+      // Feed review results back into Nick AI memory
+      try {
+        const { recordReviewResult } = await import("../services/feedbackLoop");
+        await recordReviewResult(input.contentType, result.score, result.issues);
+      } catch {}
+
+      return result;
     }),
 });

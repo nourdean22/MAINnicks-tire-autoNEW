@@ -430,8 +430,8 @@ export function stopRetryProcessor(): void {
   }
 }
 
-// Auto-start the retry processor
-startRetryProcessor();
+// NOTE: startRetryProcessor() is called from server startup in _core/index.ts
+// Do NOT auto-start here — it causes side effects during imports and tests
 
 // ─── Convenience Dispatchers ─────────────────────────
 

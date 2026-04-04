@@ -58,6 +58,19 @@ export async function runSelfHealingChecks(): Promise<{
   if (issues.length > 0) {
     log.warn("Self-healing issues detected", { count: issues.length, issues });
 
+    // Teach Nick AI about system health patterns
+    try {
+      const { remember } = await import("./nickMemory");
+      for (const issue of issues) {
+        await remember({
+          type: "pattern",
+          content: `System health: ${issue}. Detected at ${new Date().toISOString().split("T")[0]}.`,
+          source: "self_healing",
+          confidence: 0.85,
+        });
+      }
+    } catch {}
+
     const critical = issues.filter(
       (i) => i.includes("DATABASE") || i.includes("MEMORY HIGH")
     );

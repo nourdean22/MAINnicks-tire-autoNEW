@@ -63,6 +63,16 @@ export const dispatchRouter = router({
     .mutation(async ({ input }) => {
       const { techComplete } = await import("../services/dispatch");
       await techComplete({ ...input, changedBy: "admin" });
+
+      // Tech finished work — dispatch completion event + learn
+      import("../services/eventBus").then(({ dispatch }) =>
+        dispatch("booking_completed", {
+          id: input.workOrderId,
+          name: "tech",
+          service: input.techNotes || "Tech work completed",
+        }, { priority: "normal", source: "dispatch" })
+      ).catch(() => {});
+
       return { success: true };
     }),
 
@@ -142,6 +152,26 @@ export const dispatchRouter = router({
     .mutation(async ({ input }) => {
       const { failQc } = await import("../services/qcService");
       await failQc(input);
+
+      // QC failure = quality issue — alert + learn
+      import("../services/telegram").then(({ sendTelegram }) =>
+        sendTelegram(
+          `⚠️ QC FAILED — Checklist #${input.checklistId}\n` +
+          `Reasons: ${input.failureReasons.join(", ")}\n` +
+          `Action: ${input.correctiveActions}\n` +
+          `Reviewed by: ${input.reviewedBy}`
+        )
+      ).catch(() => {});
+
+      import("../services/nickMemory").then(({ remember }) =>
+        remember({
+          type: "lesson",
+          content: `QC failure: ${input.failureReasons.join(", ")}. Corrective: ${input.correctiveActions}. Learning: watch for this pattern.`,
+          source: "qc_feedback",
+          confidence: 0.9,
+        })
+      ).catch(() => {});
+
       return { success: true };
     }),
 
@@ -178,6 +208,29 @@ export const dispatchRouter = router({
     .mutation(async ({ input }) => {
       const { recordComeback } = await import("../services/qcService");
       const id = await recordComeback(input);
+
+      // Comebacks = critical quality learning event
+      import("../services/nickMemory").then(({ remember }) =>
+        remember({
+          type: "lesson",
+          content: `COMEBACK: ${input.serviceType || "service"} on WO#${input.originalWorkOrderId}. ` +
+            `${input.daysSinceOriginal}d later. Cause: ${input.rootCause || "unknown"}. ` +
+            `Severity: ${input.severity || "unknown"}. Tech ID: ${input.originalTechId || "N/A"}. ` +
+            `Learning: monitor this service type for repeat issues.`,
+          source: "comeback_feedback",
+          confidence: 0.95,
+        })
+      ).catch(() => {});
+
+      import("../services/telegram").then(({ sendTelegram }) =>
+        sendTelegram(
+          `🔄 COMEBACK RECORDED\n` +
+          `Service: ${input.serviceType || "N/A"}\n` +
+          `Root cause: ${input.rootCause || "Unknown"}\n` +
+          `Days since: ${input.daysSinceOriginal}`
+        )
+      ).catch(() => {});
+
       return { id };
     }),
 

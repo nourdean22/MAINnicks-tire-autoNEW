@@ -269,10 +269,14 @@ Be direct and helpful. No hype. No jargon.`,
 
     // Cache the result
     aiSearchCache.set(cacheKey, { result, timestamp: Date.now() });
-    // Evict old entries to prevent memory leak
-    if (aiSearchCache.size > 100) {
-      const oldest = Array.from(aiSearchCache.entries()).sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
-      if (oldest) aiSearchCache.delete(oldest[0]);
+    // Evict expired + cap to prevent unbounded growth
+    if (aiSearchCache.size > 50) {
+      const now = Date.now();
+      for (const [key, val] of aiSearchCache) {
+        if (now - val.timestamp > AI_CACHE_TTL) aiSearchCache.delete(key);
+      }
+      // Hard cap after cleanup
+      if (aiSearchCache.size > 200) aiSearchCache.clear();
     }
 
     return result;
