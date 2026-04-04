@@ -1640,7 +1640,8 @@ Return JSON:
             d.select({ count: sql<number>`count(*)` }).from(leads).where(gte(leads.createdAt, weekAgo)),
           ]);
 
-          const monthRevenue = monthInvoicesPaid.reduce((s, inv) => s + inv.totalAmount, 0);
+          const monthRevenueCents = monthInvoicesPaid.reduce((s, inv) => s + inv.totalAmount, 0);
+          const monthRevenue = Math.round(monthRevenueCents / 100);
           const avgTicket = monthInvoicesPaid.length > 0 ? Math.round(monthRevenue / monthInvoicesPaid.length) : 0;
 
           bizContext = `\nLIVE BUSINESS STATE (Nick's Tire & Auto):

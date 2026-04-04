@@ -64,7 +64,7 @@ export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; d
       d.select({ count: sql<number>`count(*)` }).from(bookings).where(gte(bookings.createdAt, monthAgo)),
     ]);
 
-    const monthRevenue = monthPaidInvoices.reduce((s, inv) => s + inv.totalAmount, 0);
+    const monthRevenue = Math.round(monthPaidInvoices.reduce((s, inv) => s + inv.totalAmount, 0) / 100);
     const avgTicket = monthPaidInvoices.length > 0 ? Math.round(monthRevenue / monthPaidInvoices.length) : 0;
     const jobsWon = monthPaidInvoices.length;
     const conversionRate = (monthBookingsTotal[0]?.count ?? 0) > 0
