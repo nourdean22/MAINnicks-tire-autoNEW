@@ -49,23 +49,23 @@ function SeasonalNavbar({ season }: { season: string }) {
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-background/90 backdrop-blur-md shadow-lg" : "bg-transparent"}`} aria-label="Seasonal page navigation">
       <div className="container flex items-center justify-between h-16 lg:h-20">
-        <Link href="/" className="flex items-center gap-3">
+        <Link href="/" className="flex items-center gap-3 stagger-in">
           <div className="w-10 h-10 bg-primary flex items-center justify-center rounded-sm">
             <span className="font-semibold font-bold text-primary-foreground text-lg">N</span>
           </div>
           <div className="flex flex-col">
             <span className="font-semibold font-bold text-primary text-lg leading-tight tracking-wide">NICK'S TIRE & AUTO</span>
-            <span className="text-muted-foreground text-xs tracking-wide flex items-center gap-1">
+            <span className="text-muted-foreground text-xs tracking-wide flex items-center gap-1 stagger-in">
               <SeasonIcon className="w-3 h-3" /> {season} Car Care
             </span>
           </div>
         </Link>
 
-        <div className="hidden lg:flex items-center gap-6">
+        <div className="hidden lg:flex items-center gap-6 stagger-in">
           <a href="#checklist" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Checklist</a>
           <a href="#problems" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Common Problems</a>
           <a href="#booking" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Book Now</a>
-          <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-navbar-desktop')} className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+          <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-navbar-desktop')} className="flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
             <Phone className="w-4 h-4" />
             {BUSINESS.phone.display}
           </a>
@@ -78,15 +78,15 @@ function SeasonalNavbar({ season }: { season: string }) {
 
       {mobileOpen && (
         <div className="lg:hidden bg-background/98 backdrop-blur-md border-t border-primary/20">
-          <div className="container py-6 flex flex-col gap-4">
-            <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 font-semibold text-lg tracking-wide text-foreground/60 hover:text-nick-blue-light transition-colors py-2">
+          <div className="container py-6 flex flex-col gap-4 stagger-in">
+            <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 stagger-in font-semibold text-lg tracking-wide text-foreground/60 hover:text-nick-blue-light transition-colors py-2">
               <ArrowLeft className="w-5 h-5" />
               Back to Home
             </Link>
             <a href="#checklist" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Checklist</a>
             <a href="#problems" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Common Problems</a>
             <a href="#booking" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Book Now</a>
-            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-navbar-mobile')} className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wide mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-navbar-mobile')} className="flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wide mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
               <Phone className="w-4 h-4" />
               {BUSINESS.phone.display}
             </a>
@@ -112,7 +112,7 @@ export default function SeasonalPage() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <h1 className="font-semibold font-bold text-4xl text-foreground mb-4">PAGE NOT FOUND</h1>
-          <Link href="/" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide">
+          <Link href="/" className="inline-flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide">
             <ArrowLeft className="w-4 h-4" />
             BACK TO HOME
           </Link>
@@ -149,7 +149,7 @@ export default function SeasonalPage() {
             </FadeIn>
 
             <FadeIn delay={0.1}>
-              <div className="flex items-center gap-2 mt-4 mb-4">
+              <div className="flex items-center gap-2 stagger-in mt-4 mb-4">
                 <SeasonIcon className="w-5 h-5 text-primary" />
                 <span className="font-mono text-primary text-sm tracking-wide">SEASONAL SERVICE</span>
               </div>
@@ -165,12 +165,12 @@ export default function SeasonalPage() {
             </FadeIn>
 
             <FadeIn delay={0.3}>
-              <div className="mt-8 flex flex-col sm:flex-row gap-4">
-                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-hero-cta')} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+              <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-hero-cta')} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
                   <Phone className="w-5 h-5" />
                   SCHEDULE {page.season.toUpperCase()} SERVICE
                 </a>
-                <a href="#checklist" className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors">
+                <a href="#checklist" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-foreground/30 text-foreground px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors">
                   VIEW CHECKLIST
                   <ChevronRight className="w-5 h-5" />
                 </a>
@@ -200,11 +200,11 @@ export default function SeasonalPage() {
               </h2>
             </FadeIn>
 
-            <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6 stagger-in">
               {page.checklist.map((item, i) => (
                 <FadeIn key={i} delay={i * 0.06}>
                   <div className="bg-card/30 border border-border/50 rounded-lg p-6 h-full">
-                    <div className="flex items-start gap-3 mb-3">
+                    <div className="flex items-start gap-3 stagger-in mb-3">
                       <CheckCircle className="w-5 h-5 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase">{item.title}</h3>
                     </div>
@@ -226,12 +226,12 @@ export default function SeasonalPage() {
               </h2>
             </FadeIn>
 
-            <div className="mt-10 flex flex-col gap-8">
+            <div className="mt-10 flex flex-col gap-8 stagger-in">
               {page.commonProblems.map((cp, i) => (
                 <FadeIn key={i} delay={i * 0.08}>
                   <div className="bg-card/30 border border-border/50 rounded-lg overflow-hidden">
                     <div className="p-6 lg:p-8">
-                      <div className="flex items-start gap-3 mb-4">
+                      <div className="flex items-start gap-3 stagger-in mb-4">
                         <AlertTriangle className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
                         <h3 className="font-semibold font-bold text-xl text-foreground tracking-wider">{cp.problem}</h3>
                       </div>
@@ -241,7 +241,7 @@ export default function SeasonalPage() {
                           <p className="text-foreground/70 leading-relaxed mt-1">{cp.explanation}</p>
                         </div>
                         <div>
-                          <span className="font-semibold text-xs tracking-wide text-nick-blue-light flex items-center gap-1">
+                          <span className="font-semibold text-xs tracking-wide text-nick-blue-light flex items-center gap-1 stagger-in">
                             <Wrench className="w-3 h-3" /> HOW WE FIX IT
                           </span>
                           <p className="text-foreground/70 leading-relaxed mt-1">{cp.solution}</p>
@@ -273,7 +273,7 @@ export default function SeasonalPage() {
               {page.season === "Winter" ? (
                 <>
                   <FadeIn delay={0.05}>
-                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                    <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Check Your Battery Before the First Freeze</h3>
@@ -282,7 +282,7 @@ export default function SeasonalPage() {
                     </div>
                   </FadeIn>
                   <FadeIn delay={0.1}>
-                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                    <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Switch to Winter Tires or Check Your Tread</h3>
@@ -291,7 +291,7 @@ export default function SeasonalPage() {
                     </div>
                   </FadeIn>
                   <FadeIn delay={0.15}>
-                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                    <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Flush Your Coolant — Antifreeze Degrades</h3>
@@ -300,7 +300,7 @@ export default function SeasonalPage() {
                     </div>
                   </FadeIn>
                   <FadeIn delay={0.2}>
-                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                    <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Inspect Your Brakes Before Ice Season</h3>
@@ -309,7 +309,7 @@ export default function SeasonalPage() {
                     </div>
                   </FadeIn>
                   <FadeIn delay={0.25}>
-                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                    <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Top Off Washer Fluid & Check Wipers</h3>
@@ -321,7 +321,7 @@ export default function SeasonalPage() {
               ) : (
                 <>
                   <FadeIn delay={0.05}>
-                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                    <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Get Your AC Checked Before the Heat Hits</h3>
@@ -330,7 +330,7 @@ export default function SeasonalPage() {
                     </div>
                   </FadeIn>
                   <FadeIn delay={0.1}>
-                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                    <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Check Tire Pressure as Temperatures Rise</h3>
@@ -339,7 +339,7 @@ export default function SeasonalPage() {
                     </div>
                   </FadeIn>
                   <FadeIn delay={0.15}>
-                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                    <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Inspect Your Cooling System</h3>
@@ -348,7 +348,7 @@ export default function SeasonalPage() {
                     </div>
                   </FadeIn>
                   <FadeIn delay={0.2}>
-                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                    <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Replace Worn Wiper Blades from Winter</h3>
@@ -357,7 +357,7 @@ export default function SeasonalPage() {
                     </div>
                   </FadeIn>
                   <FadeIn delay={0.25}>
-                    <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-6">
+                    <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Get an Oil Change If You're Overdue</h3>
@@ -400,9 +400,9 @@ export default function SeasonalPage() {
         <section className="py-12 lg:py-16 bg-[oklch(0.065_0.004_260)] border-t border-border/50">
           <div className="container">
             <h3 className="font-semibold font-bold text-lg text-foreground/60 tracking-[-0.01em] mb-6">MORE SEASONAL GUIDES</h3>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-3 stagger-in">
               {SEASONAL_PAGES.filter(s => s.slug !== page.slug).map((s) => (
-                <Link key={s.slug} href={`/${s.slug}`} className="px-4 py-2 bg-card/50 border border-border/50 rounded-md text-sm text-foreground/70 hover:text-primary hover:border-primary/30 transition-colors flex items-center gap-2">
+                <Link key={s.slug} href={`/${s.slug}`} className="px-4 py-2 bg-card/50 border border-border/50 rounded-md text-sm text-foreground/70 hover:text-primary hover:border-primary/30 transition-colors flex items-center gap-2 stagger-in">
                   {s.season === "Winter" ? <Snowflake className="w-3 h-3" /> : <Sun className="w-3 h-3" />}
                   {s.season} Car Care
                 </Link>
@@ -419,12 +419,12 @@ export default function SeasonalPage() {
       
 
       {/* Mobile Sticky CTA */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/90 backdrop-blur-md border-t border-primary/30 p-3 flex gap-2">
-        <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-mobile-sticky')} className="flex items-center justify-center gap-2 bg-primary text-primary-foreground flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+      <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/90 backdrop-blur-md border-t border-primary/30 p-3 flex gap-2 stagger-in">
+        <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-mobile-sticky')} className="flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label="Call Nick's Tire and Auto at 216-862-0005">
           <Phone className="w-4 h-4" />
           CALL NOW
         </a>
-        <a href="#booking" className="flex items-center justify-center gap-2 border-2 border-nick-blue text-nick-blue-light flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label="Book an appointment online">
+        <a href="#booking" className="flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue text-nick-blue-light flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label="Book an appointment online">
           BOOK ONLINE
         </a>
       </div>

@@ -280,14 +280,14 @@ export default function FAQ() {
         {/* Category Filter */}
         <section className="py-8 bg-[oklch(0.055_0.004_260)] border-b border-border/50">
           <div className="container">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 stagger-in">
               {CATEGORIES.map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setActiveCategory(cat)}
                   className={`px-4 py-2 rounded-full font-semibold text-xs tracking-wide transition-colors ${
                     activeCategory === cat
-                      ? "bg-primary text-primary-foreground"
+                      ? "bg-primary text-primary-foreground btn-premium"
                       : "bg-card/50 text-foreground/60 hover:text-primary border border-border/50"
                   }`}
                 >
@@ -301,7 +301,7 @@ export default function FAQ() {
         {/* FAQ List */}
         <section className="py-12 lg:py-20 bg-[oklch(0.065_0.004_260)]">
           <div className="container max-w-3xl">
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 stagger-in">
               {filtered.map((item, i) => (
                 <FAQAccordion key={item.question} item={item} index={i} />
               ))}
@@ -316,12 +316,12 @@ export default function FAQ() {
                 <p className="text-foreground/60 mb-6">
                   Our team is happy to help. Give us a call or stop by the shop.
                 </p>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('faq-cta')} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+                <div className="flex flex-col sm:flex-row gap-4 stagger-in justify-center">
+                  <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('faq-cta')} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
                     <Phone className="w-4 h-4" />
                     CALL {BUSINESS.phone.display}
                   </a>
-                  <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
+                  <Link href="/contact" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
                     VISIT CONTACT PAGE
                   </Link>
                 </div>

@@ -85,7 +85,7 @@ export default function IntersectionPage() {
         <div className="text-center">
           <h1 className="font-semibold font-bold text-4xl text-foreground mb-4">PAGE NOT FOUND</h1>
           <p className="text-foreground/60 mb-8">This intersection page does not exist.</p>
-          <Link href="/" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide">
+          <Link href="/" className="inline-flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide">
             <ArrowLeft className="w-4 h-4" />
             BACK TO HOME
           </Link>
@@ -127,19 +127,19 @@ export default function IntersectionPage() {
           </FadeIn>
 
           <FadeIn delay={0.15}>
-            <div className="mt-6 flex flex-wrap gap-4 text-sm text-foreground/60">
-              <div className="flex items-center gap-2">
+            <div className="mt-6 flex flex-wrap gap-4 stagger-in text-sm text-foreground/60">
+              <div className="flex items-center gap-2 stagger-in">
                 <Clock className="w-4 h-4 text-nick-blue-light" />
                 <span className="font-mono">{intersection.driveMinutes} min drive to shop</span>
               </div>
               {intersection.neighborhood && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 stagger-in">
                   <MapPin className="w-4 h-4 text-primary" />
                   <span className="font-mono">{intersection.neighborhood}, OH {intersection.zip}</span>
                 </div>
               )}
               {intersection.landmark && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 stagger-in">
                   <Landmark className="w-4 h-4 text-nick-blue-light" />
                   <span className="font-mono">{intersection.landmark}</span>
                 </div>
@@ -148,11 +148,11 @@ export default function IntersectionPage() {
           </FadeIn>
 
           <FadeIn delay={0.2}>
-            <div className="mt-8 flex flex-col sm:flex-row gap-4">
+            <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in">
               <a
                 href={BUSINESS.phone.href}
                 onClick={() => trackPhoneClick("intersection-hero-cta")}
-                className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
+                className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
                 aria-label="Call Nick's Tire and Auto"
               >
                 <Phone className="w-5 h-5" />
@@ -162,7 +162,7 @@ export default function IntersectionPage() {
                 href={directionsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors"
+                className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors"
               >
                 <Navigation className="w-5 h-5" />
                 GET DIRECTIONS
@@ -191,7 +191,7 @@ export default function IntersectionPage() {
 
             <FadeIn delay={0.1}>
               <div className="mt-8 bg-card/50 border border-border/50 rounded-lg p-6">
-                <div className="flex items-center gap-3 mb-4">
+                <div className="flex items-center gap-3 stagger-in mb-4">
                   <MapPin className="w-5 h-5 text-primary" />
                   <span className="font-semibold font-bold text-foreground">OUR SHOP</span>
                 </div>
@@ -201,7 +201,7 @@ export default function IntersectionPage() {
                   href={directionsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 mt-4 text-sm text-nick-blue-light hover:text-primary transition-colors font-semibold"
+                  className="inline-flex items-center gap-2 stagger-in mt-4 text-sm text-nick-blue-light hover:text-primary transition-colors font-semibold"
                 >
                   <Navigation className="w-4 h-4" />
                   Open in Google Maps ({intersection.driveMinutes} min from {intersection.name})
@@ -224,7 +224,7 @@ export default function IntersectionPage() {
               Nick's Tire & Auto is a {BUSINESS.reviews.rating}-star shop with {BUSINESS.reviews.countDisplay} Google reviews — and there's a reason {intersection.neighborhood || "Cleveland"} drivers keep coming back. We're located at {BUSINESS.address.full}, just {intersection.driveMinutes} minutes from {intersection.name}.
             </p>
           </FadeIn>
-          <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4 stagger-in">
             <FadeIn delay={0.05}>
               <div className="bg-card/30 border border-border/50 rounded-lg p-5">
                 <h3 className="font-semibold font-bold text-foreground text-sm mb-2">WALK-INS WELCOME</h3>
@@ -264,7 +264,7 @@ export default function IntersectionPage() {
           </FadeIn>
 
           <FadeIn delay={0.1}>
-            <div className="mt-10 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="mt-10 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 stagger-in">
               {topServices.map((s) => (
                 <Link
                   key={s.slug}
@@ -280,7 +280,7 @@ export default function IntersectionPage() {
           </FadeIn>
 
           <FadeIn delay={0.2}>
-            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 stagger-in">
               {moreServices.map((s) => (
                 <Link
                   key={s.slug}
@@ -303,7 +303,7 @@ export default function IntersectionPage() {
             </div>
           </FadeIn>
 
-          <div className="mt-8 flex flex-wrap justify-center gap-4 text-sm text-foreground/50">
+          <div className="mt-8 flex flex-wrap justify-center gap-4 stagger-in text-sm text-foreground/50">
             <Link href="/financing" className="text-emerald-400 hover:underline">Financing from $10 down</Link>
             <span className="text-foreground/20">|</span>
             <Link href="/booking" className="hover:text-primary transition-colors">Book online</Link>
@@ -343,7 +343,7 @@ export default function IntersectionPage() {
               <h3 className="font-semibold font-bold text-lg text-foreground/60 tracking-[-0.01em] mb-6">
                 NEARBY IN {(intersection.neighborhood || "CLEVELAND").toUpperCase()}
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 stagger-in">
                 {related.map((r) => (
                   <Link
                     key={r.slug}

@@ -124,7 +124,7 @@ export default function CarCareGuidePage() {
             <Breadcrumbs items={[{ label: "Car Care Guide" }]} />
       <LocalBusinessSchema includeHowTo />
             <FadeIn>
-              <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center gap-3 stagger-in mb-4">
                 <BookOpen className="w-6 h-6 text-primary" />
                 <span className="font-mono text-nick-blue-light text-sm tracking-wide">Maintenance Education</span>
               </div>
@@ -153,14 +153,14 @@ export default function CarCareGuidePage() {
             </FadeIn>
 
             {/* Season Tabs */}
-            <div className="mt-8 flex flex-wrap gap-2">
+            <div className="mt-8 flex flex-wrap gap-2 stagger-in">
               {SEASONAL_GUIDES.map((guide, i) => (
                 <button
                   key={guide.season}
                   onClick={() => setActiveSeason(i)}
-                  className={`flex items-center gap-2 px-5 py-2.5 font-semibold font-bold text-sm tracking-wide transition-colors ${
+                  className={`flex items-center gap-2 stagger-in px-5 py-2.5 font-semibold font-bold text-sm tracking-wide transition-colors ${
                     activeSeason === i
-                      ? "bg-primary text-primary-foreground"
+                      ? "bg-primary text-primary-foreground btn-premium"
                       : "border border-primary/20 text-foreground/60 hover:border-primary/50"
                   }`}
                 >
@@ -174,7 +174,7 @@ export default function CarCareGuidePage() {
             <div className="mt-8">
               <FadeIn key={activeSeason}>
                 <div className="border border-primary/20 bg-background/50 p-6 lg:p-10">
-                  <div className="flex items-center gap-4 mb-6">
+                  <div className="flex items-center gap-4 stagger-in mb-6">
                     <div className={`w-14 h-14 ${SEASONAL_GUIDES[activeSeason].bgColor} flex items-center justify-center rounded-md ${SEASONAL_GUIDES[activeSeason].color}`}>
                       {SEASONAL_GUIDES[activeSeason].icon}
                     </div>
@@ -186,7 +186,7 @@ export default function CarCareGuidePage() {
 
                   <div className="space-y-6">
                     {SEASONAL_GUIDES[activeSeason].tips.map((tip, i) => (
-                      <div key={i} className="flex gap-4">
+                      <div key={i} className="flex gap-4 stagger-in">
                         <div className="w-8 h-8 bg-primary/10 flex items-center justify-center rounded shrink-0 mt-1">
                           <CheckCircle className="w-4 h-4 text-primary" />
                         </div>
@@ -202,7 +202,7 @@ export default function CarCareGuidePage() {
                     <a
                       href={BUSINESS.phone.href}
                       onClick={() => trackPhoneClick("car_care_guide_seasonal")}
-                      className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
+                      className="inline-flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-6 py-3 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
                     >
                       <Phone className="w-4 h-4" />
                       SCHEDULE {SEASONAL_GUIDES[activeSeason].season.toUpperCase()} SERVICE
@@ -226,11 +226,11 @@ export default function CarCareGuidePage() {
               </p>
             </FadeIn>
 
-            <div className="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 stagger-in">
               {MILEAGE_MILESTONES.map((item, i) => (
                 <FadeIn key={item.service} delay={i * 0.05}>
                   <div className="border border-primary/15 bg-background/30 p-6 h-full">
-                    <div className="flex items-center gap-3 mb-3">
+                    <div className="flex items-center gap-3 stagger-in mb-3">
                       <div className="text-nick-blue-light">{item.icon}</div>
                       <span className="font-mono text-primary text-sm tracking-wider">{item.miles} MI</span>
                     </div>
@@ -258,7 +258,7 @@ export default function CarCareGuidePage() {
             <div className="mt-10 space-y-4">
               {WARNING_SIGNS.map((item, i) => (
                 <FadeIn key={item.sign} delay={i * 0.05}>
-                  <div className="border border-primary/15 bg-background/50 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <div className="border border-primary/15 bg-background/50 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 stagger-in">
                     <div className="w-10 h-10 bg-primary/10 flex items-center justify-center rounded-md shrink-0">
                       <AlertTriangle className="w-5 h-5 text-primary" />
                     </div>
@@ -266,7 +266,7 @@ export default function CarCareGuidePage() {
                       <h3 className="font-semibold font-bold text-foreground text-base tracking-wide">{item.sign}</h3>
                       <p className="text-foreground/60 text-sm mt-1 leading-relaxed">{item.action}</p>
                     </div>
-                    <Link href={item.link} className="shrink-0 inline-flex items-center gap-1 text-primary text-sm font-semibold font-bold tracking-wide hover:text-primary transition-colors">
+                    <Link href={item.link} className="shrink-0 inline-flex items-center gap-1 stagger-in text-primary text-sm font-semibold font-bold tracking-wide hover:text-primary transition-colors">
                       LEARN MORE
                       <ChevronRight className="w-4 h-4" />
                     </Link>
@@ -287,18 +287,18 @@ export default function CarCareGuidePage() {
               <p className="mt-4 text-foreground/70 text-lg max-w-xl mx-auto">
                 Our technicians are here to help. Call us, book online, or use our free diagnostic tool.
               </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+              <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in justify-center">
                 <a
                   href={BUSINESS.phone.href}
                   onClick={() => trackPhoneClick("car_care_guide_cta")}
-                  className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
+                  className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
                 >
                   <Phone className="w-5 h-5" />
                   CALL NOW
                 </a>
                 <Link
                   href="/diagnose"
-                  className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors"
+                  className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors"
                 >
                   DIAGNOSE MY CAR
                   <ChevronRight className="w-5 h-5" />

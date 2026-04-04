@@ -87,7 +87,7 @@ function ROICalculator() {
         className="w-full max-w-[200px] bg-background/60 border border-[#2A2A2A] rounded-md text-foreground px-4 py-3 text-lg focus:border-primary focus:ring-1 focus:ring-primary/30 focus:outline-none"
       />
 
-      <div className="mt-6 flex items-end gap-2">
+      <div className="mt-6 flex items-end gap-2 stagger-in">
         <span className="font-heading text-4xl lg:text-5xl font-bold text-primary">
           ${annualSavings.toLocaleString()}
         </span>
@@ -162,17 +162,17 @@ export default function Fleet() {
             <p className="mt-5 text-foreground/70 text-lg max-w-2xl mx-auto">
               Priority service, volume pricing, and dedicated account management for fleets of every size. Keep your vehicles on the road and your costs predictable.
             </p>
-            <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in justify-center">
               <a
                 href="#fleet-form"
-                className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
+                className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
               >
                 REQUEST FLEET ACCOUNT
                 <ChevronRight className="w-4 h-4" />
               </a>
               <a
                 href={BUSINESS.phone.href}
-                className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 rounded-md font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors"
+                className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-foreground/30 text-foreground px-8 py-4 rounded-md font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors"
               >
                 <Phone className="w-4 h-4" />
                 CALL {BUSINESS.phone.display}
@@ -190,7 +190,7 @@ export default function Fleet() {
               Why Cleveland Businesses Choose Us
             </h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 stagger-in">
             {BENEFITS.map((b) => (
               <div
                 key={b.title}
@@ -212,7 +212,7 @@ export default function Fleet() {
       {/* ── FLEET PRICING + ROI CALCULATOR ──────────────── */}
       <section className="bg-[#0A0A0A] py-16 lg:py-20">
         <div className="container max-w-5xl">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 stagger-in items-start">
             {/* Pricing info */}
             <div>
               <h2 className="font-heading font-bold text-3xl lg:text-4xl text-white uppercase tracking-tight mb-4">
@@ -228,7 +228,7 @@ export default function Fleet() {
                   "No diagnostic fees for fleet vehicles",
                   "Free loaner coordination for extended repairs",
                 ].map((item) => (
-                  <li key={item} className="flex items-start gap-3">
+                  <li key={item} className="flex items-start gap-3 stagger-in">
                     <CheckCircle className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                     <span className="text-foreground/70 text-sm">{item}</span>
                   </li>
@@ -251,11 +251,11 @@ export default function Fleet() {
             </h2>
             <p className="text-foreground/60 mt-3">From compact sedans to box trucks — we handle it all.</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 stagger-in">
             {VEHICLE_TYPES.map((v) => (
               <div
                 key={v.label}
-                className="flex items-center gap-3 bg-[#141414] border border-[#2A2A2A] rounded-lg px-4 py-3.5"
+                className="flex items-center gap-3 stagger-in bg-[#141414] border border-[#2A2A2A] rounded-lg px-4 py-3.5"
               >
                 <div className="text-primary shrink-0">{v.icon}</div>
                 <span className="text-sm text-foreground/80">{v.label}</span>
@@ -298,7 +298,7 @@ export default function Fleet() {
               className="bg-[#141414] border border-[#2A2A2A] rounded-2xl p-6 lg:p-8 space-y-5"
             >
               {/* Name + Company */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 stagger-in">
                 <div>
                   <label className="text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">
                     Name *
@@ -326,7 +326,7 @@ export default function Fleet() {
               </div>
 
               {/* Phone + Email */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 stagger-in">
                 <div>
                   <label className="text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">
                     Phone *
@@ -385,7 +385,7 @@ export default function Fleet() {
               <button
                 type="submit"
                 disabled={submitLead.isPending}
-                className="w-full bg-primary text-primary-foreground py-4 rounded-md font-bold text-sm tracking-wide hover:opacity-90 transition-colors disabled:opacity-50"
+                className="w-full bg-primary text-primary-foreground btn-premium py-4 rounded-md font-bold text-sm tracking-wide hover:opacity-90 transition-colors disabled:opacity-50"
               >
                 {submitLead.isPending ? "SUBMITTING..." : "SUBMIT FLEET REQUEST"}
               </button>

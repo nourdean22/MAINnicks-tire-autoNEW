@@ -1988,6 +1988,70 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
     };
   }),
 
+  /** Import customers from ShopDriver CSV export */
+  importCustomerCSV: adminProcedure.mutation(async () => {
+    try {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (!d) return { success: false, error: "DB unavailable" };
+
+      const fs = await import("fs");
+      const path = await import("path");
+      const csvPath = path.resolve(import.meta.dirname, "..", "data", "shopdriver-customers.csv");
+
+      if (!fs.existsSync(csvPath)) {
+        // Try alternate paths
+        const alt = path.resolve(import.meta.dirname, "../..", "data", "shopdriver-customers.csv");
+        if (!fs.existsSync(alt)) return { success: false, error: "CSV not found at " + csvPath };
+      }
+
+      const raw = fs.readFileSync(fs.existsSync(csvPath) ? csvPath : path.resolve(import.meta.dirname, "../..", "data", "shopdriver-customers.csv"), "utf-8");
+      const lines = raw.split("\n").filter(l => l.trim());
+      const header = lines[0];
+      const rows = lines.slice(1);
+
+      const { customers } = await import("../../drizzle/schema");
+      let imported = 0;
+      let skipped = 0;
+
+      for (const row of rows) {
+        // Parse CSV (handle quoted fields)
+        const fields = row.match(/(".*?"|[^,]*),?/g)?.map(f => f.replace(/^"|"$/g, "").replace(/,$/, "").trim()) || [];
+        const [firstName, lastName, companyName, workPhone, homePhone, mobilePhone, email, address1, address2, city, state, postalCode] = fields;
+
+        const phone = (mobilePhone || homePhone || workPhone || "").replace(/\D/g, "");
+        if (!phone || phone.length < 7) { skipped++; continue; }
+        if (!firstName && !lastName) { skipped++; continue; }
+
+        // Check if exists
+        const existing = await d.select({ id: customers.id }).from(customers)
+          .where(sql`REPLACE(REPLACE(REPLACE(${customers.phone}, '-', ''), '(', ''), ')', '') LIKE ${'%' + phone.slice(-10)}`)
+          .limit(1);
+
+        if (existing.length > 0) { skipped++; continue; }
+
+        try {
+          await d.insert(customers).values({
+            firstName: firstName || "",
+            lastName: lastName || "",
+            phone,
+            email: email || null,
+            address: address1 || null,
+            city: city || null,
+            state: state || null,
+            zip: postalCode || null,
+            segment: "unknown",
+          });
+          imported++;
+        } catch { skipped++; }
+      }
+
+      return { success: true, imported, skipped, total: rows.length };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }),
+
   /** Run database migrations (admin only) */
   runMigrations: adminProcedure.mutation(async () => {
     try {

@@ -64,14 +64,14 @@ export default function AreasServed() {
       {/* ─── CITY PAGES ─── */}
       <section className="bg-[#0D0D0D] py-16 border-t border-border/20">
         <div className="container">
-          <div className="flex items-center gap-3 mb-8">
+          <div className="flex items-center gap-3 stagger-in mb-8">
             <MapPin className="w-5 h-5 text-[#FDB913]" />
             <h2 className="text-xl font-bold text-white">Cities We Serve</h2>
             <span className="text-xs text-foreground/40 bg-foreground/5 px-2 py-0.5 rounded">
               {CITIES.length} cities
             </span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 stagger-in">
             {CITIES.map((city) => (
               <Link
                 key={city.slug}
@@ -96,7 +96,7 @@ export default function AreasServed() {
       {/* ─── NEIGHBORHOOD PAGES ─── */}
       <section className="bg-[#0A0A0A] py-16 border-t border-border/20">
         <div className="container">
-          <div className="flex items-center gap-3 mb-8">
+          <div className="flex items-center gap-3 stagger-in mb-8">
             <Navigation className="w-5 h-5 text-[#FDB913]" />
             <h2 className="text-xl font-bold text-white">Neighborhoods & Nearby Areas</h2>
             <span className="text-xs text-foreground/40 bg-foreground/5 px-2 py-0.5 rounded">
@@ -110,12 +110,12 @@ export default function AreasServed() {
               <h3 className="text-sm font-semibold text-foreground/50 uppercase tracking-wider mb-4">
                 Neighborhoods
               </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 stagger-in">
                 {areaNeighborhoods.map((n) => (
                   <Link
                     key={n.slug}
                     href={`/${n.slug}`}
-                    className="group flex items-center gap-2 p-2.5 border border-border/10 hover:border-[#FDB913]/30 transition-colors"
+                    className="group flex items-center gap-2 stagger-in p-2.5 border border-border/10 hover:border-[#FDB913]/30 transition-colors"
                   >
                     <span className="text-xs text-foreground/60 group-hover:text-[#FDB913] transition-colors truncate">
                       {n.name}
@@ -132,12 +132,12 @@ export default function AreasServed() {
               <h3 className="text-sm font-semibold text-foreground/50 uppercase tracking-wider mb-4">
                 Near Landmarks
               </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 stagger-in">
                 {landmarkNeighborhoods.map((n) => (
                   <Link
                     key={n.slug}
                     href={`/${n.slug}`}
-                    className="group flex items-center gap-2 p-2.5 border border-border/10 hover:border-[#FDB913]/30 transition-colors"
+                    className="group flex items-center gap-2 stagger-in p-2.5 border border-border/10 hover:border-[#FDB913]/30 transition-colors"
                   >
                     <span className="text-xs text-foreground/60 group-hover:text-[#FDB913] transition-colors truncate">
                       {n.name}
@@ -154,12 +154,12 @@ export default function AreasServed() {
               <h3 className="text-sm font-semibold text-foreground/50 uppercase tracking-wider mb-4">
                 Major Streets & Corridors
               </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 stagger-in">
                 {streetNeighborhoods.map((n) => (
                   <Link
                     key={n.slug}
                     href={`/${n.slug}`}
-                    className="group flex items-center gap-2 p-2.5 border border-border/10 hover:border-[#FDB913]/30 transition-colors"
+                    className="group flex items-center gap-2 stagger-in p-2.5 border border-border/10 hover:border-[#FDB913]/30 transition-colors"
                   >
                     <span className="text-xs text-foreground/60 group-hover:text-[#FDB913] transition-colors truncate">
                       {n.name}
@@ -175,7 +175,7 @@ export default function AreasServed() {
       {/* ─── INTERSECTION PAGES ─── */}
       <section className="bg-[#0D0D0D] py-16 border-t border-border/20">
         <div className="container">
-          <div className="flex items-center gap-3 mb-8">
+          <div className="flex items-center gap-3 stagger-in mb-8">
             <MapPin className="w-5 h-5 text-[#FDB913]" />
             <h2 className="text-xl font-bold text-white">Intersections & Local Areas</h2>
             <span className="text-xs text-foreground/40 bg-foreground/5 px-2 py-0.5 rounded">
@@ -189,12 +189,12 @@ export default function AreasServed() {
                 <h3 className="text-sm font-semibold text-[#FDB913]/70 uppercase tracking-wider mb-3">
                   {area}
                 </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 stagger-in">
                   {intersectionsByArea[area].map((intersection) => (
                     <Link
                       key={intersection.slug}
                       href={`/near/${intersection.slug}`}
-                      className="group flex items-center gap-2 p-2.5 border border-border/10 hover:border-[#FDB913]/30 transition-colors"
+                      className="group flex items-center gap-2 stagger-in p-2.5 border border-border/10 hover:border-[#FDB913]/30 transition-colors"
                     >
                       <span className="text-xs text-foreground/60 group-hover:text-[#FDB913] transition-colors truncate">
                         {intersection.name}
@@ -218,7 +218,7 @@ export default function AreasServed() {
             Nick's Tire & Auto welcomes drivers from all over Northeast Ohio. Walk-ins are welcome
             7 days a week, or book an appointment online.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4 stagger-in justify-center">
             <Link
               href="/booking"
               className="inline-flex items-center justify-center px-6 py-3 bg-[#FDB913] text-black font-semibold text-sm hover:bg-[#FDB913]/90 transition-colors"

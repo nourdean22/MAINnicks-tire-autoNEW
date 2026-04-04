@@ -218,7 +218,7 @@ function PositionCard({ pos }: { pos: Position }) {
     <div className="rounded-2xl border border-border/25 bg-[oklch(0.07_0.004_260)] overflow-hidden">
       {/* Header */}
       <div className="px-6 pt-6 pb-4 border-b border-border/20">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3 stagger-in">
           <div>
             <h3 className="font-heading text-2xl font-extrabold uppercase text-foreground tracking-wide">
               {pos.title}
@@ -241,7 +241,7 @@ function PositionCard({ pos }: { pos: Position }) {
           </p>
           <ul className="space-y-2">
             {pos.responsibilities.map((r) => (
-              <li key={r} className="flex items-start gap-2 text-sm text-foreground/75">
+              <li key={r} className="flex items-start gap-2 stagger-in text-sm text-foreground/75">
                 <CheckCircle2 className="w-3.5 h-3.5 text-primary/60 shrink-0 mt-0.5" />
                 {r}
               </li>
@@ -256,7 +256,7 @@ function PositionCard({ pos }: { pos: Position }) {
           </p>
           <ul className="space-y-2">
             {pos.requirements.map((r) => (
-              <li key={r} className="flex items-start gap-2 text-sm text-foreground/75">
+              <li key={r} className="flex items-start gap-2 stagger-in text-sm text-foreground/75">
                 <span className="mt-2 w-1 h-1 rounded-full bg-foreground/40 shrink-0" />
                 {r}
               </li>
@@ -272,7 +272,7 @@ function PositionCard({ pos }: { pos: Position }) {
             </p>
             <ul className="space-y-2">
               {pos.nice.map((n) => (
-                <li key={n} className="flex items-start gap-2 text-sm text-foreground/50">
+                <li key={n} className="flex items-start gap-2 stagger-in text-sm text-foreground/50">
                   <span className="mt-2 w-1 h-1 rounded-full bg-foreground/25 shrink-0" />
                   {n}
                 </li>
@@ -286,7 +286,7 @@ function PositionCard({ pos }: { pos: Position }) {
       <div className="px-6 pb-6">
         <a
           href={`mailto:jobs@nickstire.org?subject=Application: ${pos.title}`}
-          className="flex items-center justify-center gap-2 w-full bg-primary text-primary-foreground py-3 rounded-xl font-semibold text-sm tracking-wide hover:opacity-90 transition-opacity"
+          className="flex items-center justify-center gap-2 stagger-in w-full bg-primary text-primary-foreground btn-premium py-3 rounded-xl font-semibold text-sm tracking-wide hover:opacity-90 transition-opacity"
         >
           Apply for {pos.title}
           <ArrowRight className="w-4 h-4" />
@@ -323,17 +323,17 @@ export default function Careers() {
               We're Cleveland's most-reviewed auto repair shop for a reason. We hire people who care
               about doing the job right. If that's you, we want to talk.
             </p>
-            <div className="mt-8 flex flex-wrap gap-4">
+            <div className="mt-8 flex flex-wrap gap-4 stagger-in">
               <a
                 href="#positions"
-                className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-xl font-semibold text-sm tracking-wide hover:opacity-90 transition-opacity"
+                className="inline-flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-6 py-3 rounded-xl font-semibold text-sm tracking-wide hover:opacity-90 transition-opacity"
               >
                 See Open Positions
                 <ArrowRight className="w-4 h-4" />
               </a>
               <a
                 href={BUSINESS.phone.href}
-                className="inline-flex items-center gap-2 border border-border/40 text-foreground/80 px-6 py-3 rounded-xl font-semibold text-sm tracking-wide hover:border-primary/40 transition-colors"
+                className="inline-flex items-center gap-2 stagger-in border border-border/40 text-foreground/80 px-6 py-3 rounded-xl font-semibold text-sm tracking-wide hover:border-primary/40 transition-colors"
               >
                 <Phone className="w-4 h-4" />
                 Call to Inquire
@@ -361,13 +361,13 @@ export default function Careers() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 stagger-in">
             {WHY_WORK.map((item) => {
               const Icon = item.icon;
               return (
                 <div
                   key={item.heading}
-                  className="flex items-start gap-4 rounded-xl border border-border/25 bg-[oklch(0.07_0.004_260)] p-5"
+                  className="flex items-start gap-4 stagger-in rounded-xl border border-border/25 bg-[oklch(0.07_0.004_260)] p-5"
                 >
                   <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                     <Icon className="w-4 h-4 text-primary" />
@@ -398,7 +398,7 @@ export default function Careers() {
             </p>
             <ul className="space-y-3">
               {CHARACTER_TRAITS.map((trait) => (
-                <li key={trait} className="flex items-start gap-3 text-sm text-foreground/80">
+                <li key={trait} className="flex items-start gap-3 stagger-in text-sm text-foreground/80">
                   <CheckCircle2 className="w-4 h-4 text-nick-yellow shrink-0 mt-0.5" />
                   {trait}
                 </li>
@@ -420,7 +420,7 @@ export default function Careers() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 stagger-in">
             {POSITIONS.map((pos) => (
               <PositionCard key={pos.schemaId} pos={pos} />
             ))}
@@ -442,7 +442,7 @@ export default function Careers() {
             </p>
 
             <div className="space-y-4">
-              <div className="flex items-start gap-4 rounded-xl border border-border/25 bg-[oklch(0.07_0.004_260)] p-5">
+              <div className="flex items-start gap-4 stagger-in rounded-xl border border-border/25 bg-[oklch(0.07_0.004_260)] p-5">
                 <Mail className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold text-foreground/90">Email us directly</p>
@@ -458,7 +458,7 @@ export default function Careers() {
                 </div>
               </div>
 
-              <div className="flex items-start gap-4 rounded-xl border border-border/25 bg-[oklch(0.07_0.004_260)] p-5">
+              <div className="flex items-start gap-4 stagger-in rounded-xl border border-border/25 bg-[oklch(0.07_0.004_260)] p-5">
                 <Phone className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold text-foreground/90">Call or stop in</p>
@@ -474,7 +474,7 @@ export default function Careers() {
                 </div>
               </div>
 
-              <div className="flex items-start gap-4 rounded-xl border border-border/25 bg-[oklch(0.07_0.004_260)] p-5">
+              <div className="flex items-start gap-4 stagger-in rounded-xl border border-border/25 bg-[oklch(0.07_0.004_260)] p-5">
                 <Wrench className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold text-foreground/90">Come in person</p>
