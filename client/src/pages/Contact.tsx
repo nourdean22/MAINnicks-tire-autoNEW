@@ -131,7 +131,7 @@ export default function Contact() {
                   </div>
 
                   {/* Phone */}
-                  <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6">
+                  <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 surface-raised-card">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-10 h-10 bg-primary/10 flex items-center justify-center rounded-md">
                         <Phone className="w-5 h-5 text-primary" />
@@ -145,7 +145,7 @@ export default function Contact() {
                   </div>
 
                   {/* Address */}
-                  <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6">
+                  <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 surface-raised-card">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-10 h-10 bg-nick-blue/10 flex items-center justify-center rounded-md">
                         <MapPin className="w-5 h-5 text-nick-blue-light" />
@@ -166,7 +166,7 @@ export default function Contact() {
                   </div>
 
                   {/* Hours */}
-                  <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6">
+                  <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 surface-raised-card">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-10 h-10 bg-primary/10 flex items-center justify-center rounded-md">
                         <Clock className="w-5 h-5 text-primary" />

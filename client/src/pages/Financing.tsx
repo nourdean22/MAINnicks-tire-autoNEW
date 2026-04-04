@@ -259,11 +259,11 @@ export default function Financing() {
             </div>
           </FadeIn>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 stagger-in">
             {PROVIDERS.map((provider, i) => (
               <FadeIn key={provider.id} delay={i * 0.1}>
                 <div
-                  className={`bg-[#1A1A1A] border rounded-2xl p-6 lg:p-8 flex flex-col h-full transition-colors ${
+                  className={`bg-[#1A1A1A] border rounded-2xl p-6 lg:p-8 flex flex-col h-full transition-colors card-gold-hover ${
                     provider.primary
                       ? "border-[#FDB913] shadow-[0_0_20px_rgba(253,185,19,0.08)]"
                       : "border-[#2A2A2A] hover:border-white/20"
@@ -302,7 +302,7 @@ export default function Financing() {
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => handleApplyClick(provider.id)}
-                    className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-black px-5 py-3 rounded-lg font-bold text-sm tracking-wide hover:bg-[#FDB913]/90 transition-colors"
+                    className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-black px-5 py-3 rounded-lg font-bold text-sm tracking-wide hover:bg-[#FDB913]/90 transition-colors btn-premium"
                   >
                     APPLY NOW
                     <ArrowRight className="w-4 h-4" />
