@@ -228,6 +228,14 @@ export function startTieredScheduler(): void {
           return syncToStatenour();
         },
       },
+      {
+        name: "memory-sync-to-statenour",
+        handler: async () => {
+          const { syncMemoriesToStatenour } = await import("../services/nickMemory");
+          const count = await syncMemoriesToStatenour();
+          return { recordsProcessed: count, details: `${count} memories synced to statenour` };
+        },
+      },
     ],
     running: false,
     lastRun: null,

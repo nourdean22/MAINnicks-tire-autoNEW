@@ -1667,8 +1667,8 @@ SOURCES: Auto Labor Guide (ShopDriver Elite), Gateway for invoices`;
           // Add intelligence data (conversion pipeline + revenue projections)
           // Inject Nick's learned memories
           try {
-            const { getMemoryContext } = await import("../services/nickMemory");
-            const memContext = await getMemoryContext();
+            const { getMemoryContext, getWarmupContext } = await import("../services/nickMemory");
+            const memContext = await getWarmupContext() || await getMemoryContext();
             if (memContext) bizContext += memContext;
           } catch {}
 

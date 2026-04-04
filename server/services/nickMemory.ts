@@ -205,6 +205,119 @@ If nothing to learn, return { "shouldLearn": false, "memories": [] }`,
   } catch {}
 }
 
+/**
+ * Learn from business events (called by event bus on every high-value event)
+ */
+export async function learnFromEvent(eventType: string, data: Record<string, any>): Promise<void> {
+  const now = new Date();
+  const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][now.getDay()];
+  const hour = now.getHours();
+  const period = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+
+  try {
+    switch (eventType) {
+      case "invoice_created":
+      case "invoice_paid": {
+        const amount = data.totalAmount || 0;
+        await remember({
+          type: "pattern",
+          content: `Invoice $${amount} on ${day} ${period}. Customer: ${data.customerName || "unknown"}`,
+          source: "event_bus",
+          confidence: 0.8,
+        });
+        break;
+      }
+      case "lead_captured": {
+        await remember({
+          type: "pattern",
+          content: `New lead from ${data.source || "website"} on ${day} ${period}. Urgency: ${data.urgencyScore || "?"}`,
+          source: "event_bus",
+          confidence: 0.6,
+        });
+        break;
+      }
+      case "booking_created": {
+        await remember({
+          type: "customer",
+          content: `${data.name || "Customer"} booked ${data.service || "service"} on ${day} ${period}`,
+          source: "event_bus",
+          confidence: 0.7,
+        });
+        break;
+      }
+      case "tire_order_placed": {
+        await remember({
+          type: "pattern",
+          content: `Tire order: ${data.quantity || "?"}x ${data.tireBrand || ""} ${data.tireModel || ""}. Customer: ${data.customerName || "unknown"}`,
+          source: "event_bus",
+          confidence: 0.8,
+        });
+        break;
+      }
+      case "payment_received": {
+        await remember({
+          type: "insight",
+          content: `Payment $${data.amount || 0} received ${period} on ${day}. Card ending ${data.cardLast4 || "????"}`,
+          source: "event_bus",
+          confidence: 0.9,
+        });
+        break;
+      }
+    }
+  } catch {}
+}
+
+/**
+ * Push memories to statenour-os so both systems share the same learned knowledge
+ */
+export async function syncMemoriesToStatenour(): Promise<number> {
+  const memories = await recall({ limit: 30 });
+  if (memories.length === 0) return 0;
+
+  const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
+  const syncKey = process.env.STATENOUR_SYNC_KEY || "";
+  if (!syncKey) return 0;
+
+  try {
+    await fetch(`${statenourUrl}/api/sync/nour-os`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-sync-key": syncKey },
+      body: JSON.stringify({
+        module: "insights",
+        data: {
+          insightType: "nick_memories",
+          title: `Nick AI has ${memories.length} learned memories`,
+          detail: memories.slice(0, 10).map(m => `[${m.type}] ${m.content}`).join("\n"),
+          metadata: { memoryCount: memories.length, topTypes: Object.entries(
+            memories.reduce((acc, m) => { acc[m.type] = (acc[m.type] || 0) + 1; return acc; }, {} as Record<string, number>)
+          )},
+        },
+      }),
+      signal: AbortSignal.timeout(5000),
+    });
+    return memories.length;
+  } catch { return 0; }
+}
+
+/**
+ * Warm-up: load critical memories into a compact string for fast context injection
+ */
+export async function getWarmupContext(): Promise<string> {
+  const memories = await recall({ limit: 15 });
+  if (memories.length === 0) return "";
+
+  // Sort by confidence × uses (most reliable first)
+  memories.sort((a, b) => (b.confidence * b.uses) - (a.confidence * a.uses));
+
+  // Group by type and format compactly
+  const lines: string[] = [];
+  for (const m of memories.slice(0, 10)) {
+    lines.push(`[${m.type}|${Math.round(m.confidence * 100)}%|${m.uses}x] ${m.content}`);
+  }
+
+  return lines.length > 0 ? `\n\nNICK'S LEARNED KNOWLEDGE (${memories.length} memories):\n${lines.join("\n")}` : "";
+}
+
 function simpleHash(str: string): string {
   let hash = 0;
   const normalized = str.toLowerCase().trim().replace(/\s+/g, " ");
