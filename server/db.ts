@@ -156,6 +156,7 @@ export async function getActiveCoupons() {
     .where(and(
       eq(coupons.isActive, 1),
       lte(coupons.startsAt, now),
+      sql`(${coupons.expiresAt} IS NULL OR ${coupons.expiresAt} >= ${now})`,
     ))
     .orderBy(desc(coupons.isFeatured), desc(coupons.createdAt));
 }

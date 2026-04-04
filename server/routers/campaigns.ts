@@ -294,9 +294,9 @@ async function processCampaignSends(campaignId: number, batchSize: number = 50):
           }).where(eq(smsCampaignSends.id, send.id));
 
           // Update campaign sent count
-          await d.execute(
-            sql`UPDATE ${smsCampaigns} SET ${smsCampaigns.sentCount} = ${smsCampaigns.sentCount} + 1 WHERE ${eq(smsCampaigns.id, campaignId)}`
-          );
+          await d.update(smsCampaigns)
+            .set({ sentCount: sql`${smsCampaigns.sentCount} + 1` })
+            .where(eq(smsCampaigns.id, campaignId));
           totalSent++;
         } else {
           await d.update(smsCampaignSends).set({
@@ -305,9 +305,9 @@ async function processCampaignSends(campaignId: number, batchSize: number = 50):
           }).where(eq(smsCampaignSends.id, send.id));
 
           // Update campaign failed count
-          await d.execute(
-            sql`UPDATE ${smsCampaigns} SET ${smsCampaigns.failedCount} = ${smsCampaigns.failedCount} + 1 WHERE ${eq(smsCampaigns.id, campaignId)}`
-          );
+          await d.update(smsCampaigns)
+            .set({ failedCount: sql`${smsCampaigns.failedCount} + 1` })
+            .where(eq(smsCampaigns.id, campaignId));
           totalFailed++;
         }
       } catch (err) {

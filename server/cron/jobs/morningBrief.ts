@@ -55,7 +55,7 @@ export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; d
       d.select().from(invoices).where(and(gte(invoices.invoiceDate, monthAgo), eq(invoices.paymentStatus, "paid"))),
       d.select({ count: sql<number>`count(*)` }).from(customers),
       d.select({ count: sql<number>`count(*)` }).from(customers).where(gte(customers.createdAt, monthAgo)),
-      d.select({ count: sql<number>`count(*)` }).from(workOrders).where(sql`${workOrders.status} != 'completed' AND ${workOrders.status} != 'cancelled'`),
+      d.select({ count: sql<number>`count(*)` }).from(workOrders).where(sql`${workOrders.status} NOT IN ('closed', 'invoiced', 'picked_up', 'cancelled')`),
       d.select({ count: sql<number>`count(*)` }).from(chatSessions)
         .where(and(gte(chatSessions.createdAt, yesterdayStart), sql`${chatSessions.createdAt} < ${todayStart}`)),
       d.select({ count: sql<number>`count(*)` }).from(leads)
