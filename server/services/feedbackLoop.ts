@@ -138,11 +138,11 @@ export function getBriefEngagement(): { sent: string | null; responded: string |
  * Called after alerts to measure if they drove results.
  */
 // Store pending impact measurements — checked in the feedback cycle
-const pendingImpacts: Array<{ action: string; beforeRevenue: number; timestamp: number }> = [];
+const pendingImpacts: Array<{ action: string; beforeRevenue: number; timestamp: number; date: string }> = [];
 
 export async function measureRevenueImpact(actionName: string, beforeRevenue: number): Promise<void> {
-  // Store for later — the feedback cycle will check after enough time has passed
-  pendingImpacts.push({ action: actionName, beforeRevenue, timestamp: Date.now() });
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  pendingImpacts.push({ action: actionName, beforeRevenue, timestamp: Date.now(), date: today });
   // Cap to prevent unbounded growth
   if (pendingImpacts.length > 20) pendingImpacts.splice(0, pendingImpacts.length - 20);
 }
@@ -154,8 +154,12 @@ export async function checkPendingImpacts(): Promise<number> {
   const twoHoursMs = 2 * 60 * 60 * 1000;
   let checked = 0;
 
-  // Only check impacts that are at least 2 hours old
-  const ready = pendingImpacts.filter(p => now - p.timestamp > twoHoursMs);
+  // Only check impacts that are at least 2 hours old AND same day (cross-day comparison is invalid)
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const ready = pendingImpacts.filter(p => now - p.timestamp > twoHoursMs && p.date === today);
+  // Discard stale cross-day entries
+  const stale = pendingImpacts.filter(p => p.date !== today && now - p.timestamp > twoHoursMs);
+  for (const s of stale) { const idx = pendingImpacts.indexOf(s); if (idx !== -1) pendingImpacts.splice(idx, 1); }
   if (ready.length === 0) return 0;
 
   try {
@@ -256,7 +260,10 @@ export async function runFeedbackCycle(): Promise<{ recordsProcessed?: number; d
   try {
     const { getShopPulse, projectRevenue } = await import("./nickIntelligence");
     const [pulse, revenue] = await Promise.all([getShopPulse(), projectRevenue()]);
-    const expectedByNow = revenue.avgDailyRevenue * (parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10) / 10);
+    const currentHour = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+    const hoursOpen = Math.max(1, currentHour - 7); // Shop opens at 7am
+    const totalBusinessHours = 14; // 7am-9pm = 14 hours
+    const expectedByNow = revenue.avgDailyRevenue * (hoursOpen / totalBusinessHours);
     const pacing = pulse.today.revenue / Math.max(expectedByNow, 1);
 
     if (pacing < 0.5 && pulse.today.revenue > 0 && expectedByNow > 100) {

@@ -36,11 +36,13 @@ export async function runSelfHealingChecks(): Promise<{
       issues.push(
         `CRON STALE: ${job.name} hasn't run in ${Math.round(staleness / 60000)}min (expected every ${job.intervalMin}min)`
       );
-      // AUTO-FIX: Mark job as not running so it gets picked up next tick
-      if ((job as any).running) {
-        (job as any).running = false;
-        actions.push(`AUTO-FIX: Reset ${job.name} running flag — will run on next tick`);
-      }
+      // AUTO-FIX: Reset the stuck job's running flag on the ORIGINAL object
+      try {
+        const { resetJobRunningFlag } = await import("../cron/index");
+        if (resetJobRunningFlag(job.name)) {
+          actions.push(`AUTO-FIX: Reset ${job.name} running flag — will run on next tick`);
+        }
+      } catch {}
     }
   }
 
@@ -62,10 +64,9 @@ export async function runSelfHealingChecks(): Promise<{
         // AUTO-FIX: Reset the cached connection on 2+ consecutive failures
         if (failureHistory["db"] >= 2) {
           try {
-            // Force reconnection by nullifying the cached instance
-            const dbModule = await import("../db");
-            (dbModule as any)._db = null;
-            actions.push("AUTO-FIX: Reset DB connection pool — will reconnect on next query");
+            const { resetDbConnection } = await import("../db");
+            resetDbConnection();
+            actions.push("AUTO-FIX: Reset DB connection — will reconnect on next query");
           } catch {}
         }
       }

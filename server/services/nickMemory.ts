@@ -64,6 +64,20 @@ export async function remember(params: {
       await d.update(shopSettings).set({ value: JSON.stringify(data) }).where(eq(shopSettings.key, key));
       log.info(`Memory reinforced: ${params.type} — ${params.content.slice(0, 50)}...`);
     } else {
+      // Cap total memories at 500 — prune lowest confidence if at limit
+      const [countResult] = await d.select({ count: sql<number>`count(*)` }).from(shopSettings)
+        .where(sql`${shopSettings.key} LIKE 'nick_memory_%'`);
+      if ((countResult?.count ?? 0) >= 500) {
+        // Delete the lowest-confidence memory to make room
+        const lowest = await d.select().from(shopSettings)
+          .where(sql`${shopSettings.key} LIKE 'nick_memory_%'`)
+          .orderBy(sql`JSON_EXTRACT(value, '$.confidence') ASC`)
+          .limit(1);
+        if (lowest.length > 0) {
+          await d.delete(shopSettings).where(sql`${shopSettings.id} = ${lowest[0].id}`);
+        }
+      }
+
       // New memory
       await d.insert(shopSettings).values({
         key,
@@ -472,12 +486,18 @@ export async function decayMemories(): Promise<number> {
         const lastUsed = new Date(data.lastReinforced || data.createdAt).getTime();
         const age = now - lastUsed;
 
-        // Decay confidence by 5% for every 30 days of inactivity
+        // Idempotent decay: compute target confidence from ORIGINAL, not current
+        // This prevents re-applying decay every 2h cycle
+        const originalConfidence = data.originalConfidence || data.confidence;
+        if (!data.originalConfidence) data.originalConfidence = data.confidence; // Store original on first decay
         if (age > thirtyDaysMs && data.confidence > 0.3) {
           const decayFactor = Math.floor(age / thirtyDaysMs) * 0.05;
-          data.confidence = Math.max(0.1, data.confidence - decayFactor);
-          await d.update(shopSettings).set({ value: JSON.stringify(data) }).where(sql`${shopSettings.id} = ${row.id}`);
-          decayed++;
+          const targetConfidence = Math.max(0.1, originalConfidence - decayFactor);
+          if (data.confidence !== targetConfidence) {
+            data.confidence = targetConfidence;
+            await d.update(shopSettings).set({ value: JSON.stringify(data) }).where(sql`${shopSettings.id} = ${row.id}`);
+            decayed++;
+          }
         }
 
         // Prune dead memories (confidence < 0.15 and unused for 90d)
@@ -565,10 +585,7 @@ export async function getProactiveMemoryAlerts(): Promise<string[]> {
 }
 
 function simpleHash(str: string): string {
-  let hash = 0;
+  const { createHash } = require("crypto");
   const normalized = str.toLowerCase().trim().replace(/\s+/g, " ");
-  for (let i = 0; i < normalized.length; i++) {
-    hash = ((hash << 5) - hash + normalized.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash).toString(36);
+  return createHash("md5").update(normalized).digest("hex").slice(0, 12);
 }

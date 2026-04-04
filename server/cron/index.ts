@@ -139,6 +139,16 @@ export function getJobStatuses(): Array<{ name: string; enabled: boolean; interv
   }));
 }
 
+/** Reset the running flag for a stuck job — used by self-healing */
+export function resetJobRunningFlag(jobName: string): boolean {
+  const job = registeredJobs.get(jobName);
+  if (job && job.running) {
+    job.running = false;
+    return true;
+  }
+  return false;
+}
+
 /** Run a single job by name (used by Railway cron worker HTTP trigger) */
 export async function runJobByName(jobName: string): Promise<{ status: string; recordsProcessed?: number; details?: string }> {
   registerAllJobs();
