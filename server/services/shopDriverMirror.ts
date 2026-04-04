@@ -306,32 +306,55 @@ function parseCustomerHtml(html: string): RawCustomer[] {
 
 function parseInvoiceHtml(html: string): RawInvoice[] {
   const invoices: RawInvoice[] = [];
-  const rowRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-  const cellRe = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-  let rowMatch: RegExpExecArray | null;
 
-  while ((rowMatch = rowRe.exec(html)) !== null) {
-    const cells: string[] = [];
-    let cellMatch: RegExpExecArray | null;
-    const rowHtml = rowMatch[1];
-    while ((cellMatch = cellRe.exec(rowHtml)) !== null) {
-      cells.push(stripHtml(cellMatch[1]).trim());
-    }
+  // ShopDriver /recent page uses nested <table> blocks per ticket.
+  // Each block contains: customer name, vehicle, "Invoice# XXXX" or "Estimate# XXXX",
+  // date (MM/DD/YYYY), phone, and "Total: $XXX.XX"
+  // Split by table blocks and extract from each
+  const blocks = html.split(/<table/gi).slice(1); // skip first (header)
 
-    // Need at least: invoice#, customer, amount
-    if (cells.length >= 3) {
-      const amount = parseDollarsToCents(cells[2]) || parseDollarsToCents(cells[cells.length - 1]);
-      if (amount > 0) {
-        invoices.push({
-          invoiceNumber: cells[0],
-          customerName: cells[1],
-          customerPhone: cells.find(c => /\d{3}.*\d{4}/.test(c)) || "",
-          totalAmount: amount,
-          date: cells.find(c => /\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(c)) || new Date().toISOString(),
-          service: cells.length > 3 ? cells[3] : "",
-          vehicleInfo: cells.length > 4 ? cells[4] : undefined,
-        });
-      }
+  for (const block of blocks) {
+    const text = stripHtml(block);
+
+    // Extract invoice/estimate number
+    const invoiceMatch = text.match(/Invoice#\s*(\d+)/i);
+    const estimateMatch = text.match(/Estimate#\s*(\d+)/i);
+    if (!invoiceMatch && !estimateMatch) continue;
+
+    const ticketNum = invoiceMatch ? invoiceMatch[1] : (estimateMatch?.[1] || "");
+    const ticketType = invoiceMatch ? "Invoice" : "Estimate";
+
+    // Extract customer name (LASTNAME, FIRSTNAME pattern)
+    const nameMatch = text.match(/([A-Z][A-Za-z'\-]+,\s*[A-Z][A-Za-z'\-\s]+)/);
+    const customerName = nameMatch ? nameMatch[1].trim() : "";
+
+    // Extract date
+    const dateMatch = text.match(/(\d{2}\/\d{2}\/\d{4})/);
+    const date = dateMatch ? dateMatch[1] : "";
+
+    // Extract total amount
+    const amountMatch = text.match(/Total:\s*\$([0-9,]+\.\d{2})/i) || text.match(/\$([0-9,]+\.\d{2})/);
+    const amount = amountMatch ? parseDollarsToCents(amountMatch[1]) : 0;
+
+    // Extract vehicle
+    const vehicleMatch = text.match(/\d{4}\s+[A-Z][A-Za-z\s\*\-]+/);
+    const vehicle = vehicleMatch ? vehicleMatch[0].trim() : "";
+
+    // Extract phone
+    const phoneMatch = text.match(/\((\d{3})\)\s*(\d{3})-(\d{4})/);
+    const phone = phoneMatch ? `${phoneMatch[1]}${phoneMatch[2]}${phoneMatch[3]}` : "";
+
+    if (customerName || ticketNum) {
+      invoices.push({
+        invoiceNumber: `${ticketType}# ${ticketNum}`,
+        customerName,
+        customerPhone: phone,
+        totalAmount: amount,
+        date,
+        service: `${ticketType} - ${vehicle}`,
+        vehicleInfo: vehicle || undefined,
+        paymentStatus: ticketType === "Invoice" ? "paid" : "pending",
+      });
     }
   }
 
