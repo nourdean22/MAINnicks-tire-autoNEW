@@ -148,7 +148,6 @@ export async function getMemoryContext(): Promise<string> {
  * Auto-learn from operator command interactions
  */
 export async function learnFromInteraction(command: string, response: string): Promise<void> {
-  // Only learn from substantial interactions
   if (command.length < 10 || response.length < 50) return;
 
   const { invokeLLM } = await import("../_core/llm");
@@ -158,32 +157,47 @@ export async function learnFromInteraction(command: string, response: string): P
       messages: [
         {
           role: "system",
-          content: `You extract learnable insights from operator interactions at Nick's Tire & Auto.
+          content: `You are Nick AI's learning engine for Nick's Tire & Auto (Cleveland, OH).
 
-Given a command and response, identify if there's anything worth remembering for future interactions.
+ANALYZE this operator interaction and extract DETAILED, ACTIONABLE memories.
 
-Rules:
-- Only extract genuinely useful insights (not obvious things)
-- Focus on preferences, patterns, decisions, and lessons
-- Skip if there's nothing meaningful to learn
-- Be specific — "Nour prefers X over Y" not "Nour has preferences"
+MEMORY TYPES:
+- preference: How Nour likes things done. WHY matters. Include the reasoning.
+  Example: "Nour wants estimates sent via Auto Labor Guide, not email. Reason: ALG is the CRM, keeps everything in one place."
+- insight: Business observation with EVIDENCE and IMPLICATION.
+  Example: "Walk-in customers on Saturdays tend to need tire services (3 of last 5 Saturday walk-ins were tire-related). Implication: stock popular tire sizes for weekend."
+- lesson: Something that worked or failed, with CAUSE and EFFECT.
+  Example: "Following up on estimates within 2 hours converts 3x better than next-day follow-up. Cause: customer is still in decision mode."
+- pattern: Recurring behavior with FREQUENCY and CONTEXT.
+  Example: "Nour checks revenue every morning before 8am. Pattern: daily, first thing. Use this to time the morning brief."
+- customer: Customer-specific intelligence with HISTORY.
+  Example: "JELKS, TINA is a repeat customer (2 visits). Vehicles: 2004 Mercury Mountaineer, 2013 VW Jetta. High-value: $300 total."
+- decision: A decision Nour made with REASONING and ALTERNATIVES considered.
+  Example: "Decided to use Snap Finance over Synchrony. Reason: faster approval, no credit check, virtual CC flow works with our system."
+
+RULES:
+- Be SPECIFIC — include names, numbers, dates, amounts
+- Include the WHY / REASONING behind every memory
+- Include CONTEXT — when, where, what triggered this
+- Cross-reference related memories if applicable
+- Skip if nothing meaningful to learn
+- Max 3 memories per interaction, quality over quantity
 
 Respond with JSON:
 {
   "shouldLearn": true/false,
+  "reasoning": "why these memories matter for future decisions",
   "memories": [
-    { "type": "preference|insight|lesson|pattern|customer", "content": "the insight" }
+    { "type": "preference|insight|lesson|pattern|customer|decision", "content": "detailed memory with reasoning" }
   ]
-}
-
-If nothing to learn, return { "shouldLearn": false, "memories": [] }`,
+}`,
         },
         {
           role: "user",
-          content: `Command: ${command.slice(0, 500)}\n\nResponse: ${response.slice(0, 1000)}`,
+          content: `Command: ${command.slice(0, 800)}\n\nResponse: ${response.slice(0, 1500)}`,
         },
       ],
-      maxTokens: 300,
+      maxTokens: 500,
     });
 
     const raw = result.choices?.[0]?.message?.content;
@@ -196,7 +210,7 @@ If nothing to learn, return { "shouldLearn": false, "memories": [] }`,
               type: mem.type || "insight",
               content: mem.content,
               source: "operator_interaction",
-              confidence: 0.7,
+              confidence: 0.75,
             });
           }
         }
@@ -213,53 +227,81 @@ export async function learnFromEvent(eventType: string, data: Record<string, any
   const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][now.getDay()];
   const hour = now.getHours();
   const period = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+  const dateStr = now.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
 
   try {
     switch (eventType) {
-      case "invoice_created":
+      case "invoice_created": {
+        const amount = Math.round((data.totalAmount || 0) / 100);
+        await remember({
+          type: "pattern",
+          content: `INVOICE: $${amount} on ${day} ${dateStr} at ${hour}:00 (${period}). Customer: ${data.customerName || "unknown"}. Vehicle: ${data.vehicleInfo || "N/A"}. Service: ${data.serviceDescription?.slice(0, 80) || "N/A"}. Source: ${data.source || "manual"}. Context: This tells us what services are being done, when, and for how much.`,
+          source: "event_bus",
+          confidence: 0.85,
+        });
+        break;
+      }
       case "invoice_paid": {
         const amount = data.totalAmount || 0;
         await remember({
-          type: "pattern",
-          content: `Invoice $${amount} on ${day} ${period}. Customer: ${data.customerName || "unknown"}`,
+          type: "insight",
+          content: `PAYMENT: $${amount} collected on ${day} ${dateStr} ${period}. Customer: ${data.customerName || "unknown"}. Method: ${data.method || "card"}. Reasoning: Payment timing tells us when customers prefer to pay and which payment methods they use. ${day} ${period} payments should inform staffing decisions.`,
           source: "event_bus",
-          confidence: 0.8,
+          confidence: 0.9,
         });
         break;
       }
       case "lead_captured": {
         await remember({
           type: "pattern",
-          content: `New lead from ${data.source || "website"} on ${day} ${period}. Urgency: ${data.urgencyScore || "?"}`,
+          content: `LEAD: New lead from "${data.source || "website"}" on ${day} ${dateStr} ${period}. Urgency: ${data.urgencyScore || "?"}/5. Name: ${data.name || "unknown"}. Phone: ${data.phone || "N/A"}. Context: Lead source and timing patterns help optimize marketing spend. High-urgency leads (4-5) need immediate callback. Track which sources produce the most conversions.`,
           source: "event_bus",
-          confidence: 0.6,
+          confidence: 0.7,
         });
         break;
       }
       case "booking_created": {
         await remember({
           type: "customer",
-          content: `${data.name || "Customer"} booked ${data.service || "service"} on ${day} ${period}`,
+          content: `DROP-OFF: ${data.name || "Customer"} dropped off for "${data.service || "service"}" on ${day} ${dateStr} ${period}. Vehicle: ${data.vehicle || "N/A"}. Install preference: ${data.installPreference || "walk-in"}. Context: Drop-off timing helps predict bay utilization. ${period} drop-offs on ${day}s should inform scheduling. Track which services are most popular per day.`,
           source: "event_bus",
-          confidence: 0.7,
+          confidence: 0.75,
+        });
+        break;
+      }
+      case "booking_completed": {
+        await remember({
+          type: "lesson",
+          content: `JOB COMPLETED: ${data.name || "Customer"}'s ${data.service || "repair"} finished on ${day} ${dateStr}. Reasoning: Completed jobs = revenue won. Track completion rate (jobs started vs finished same day). Fast turnaround = happy customers = more referrals.`,
+          source: "event_bus",
+          confidence: 0.8,
         });
         break;
       }
       case "tire_order_placed": {
         await remember({
           type: "pattern",
-          content: `Tire order: ${data.quantity || "?"}x ${data.tireBrand || ""} ${data.tireModel || ""}. Customer: ${data.customerName || "unknown"}`,
+          content: `TIRE ORDER: ${data.quantity || "?"}x ${data.tireBrand || ""} ${data.tireModel || ""} (${data.tireSize || ""}). Customer: ${data.customerName || "unknown"}. Total: $${data.totalAmount || 0}. Ordered ${day} ${dateStr} ${period}. Context: Track which tire brands/sizes sell most. Popular sizes should be stocked. ${data.tireBrand || "Brand"} demand informs inventory decisions.`,
           source: "event_bus",
-          confidence: 0.8,
+          confidence: 0.85,
         });
         break;
       }
       case "payment_received": {
         await remember({
           type: "insight",
-          content: `Payment $${data.amount || 0} received ${period} on ${day}. Card ending ${data.cardLast4 || "????"}`,
+          content: `CC PAYMENT: $${data.amount || 0} from ${data.customerName || "customer"} on ${day} ${dateStr} ${period}. Card: ****${data.cardLast4 || "????"}. Order: ${data.orderNumber || "N/A"}. Invoice: ${data.invoiceNumber || "N/A"}. Reasoning: Online CC payments before in-person visit indicate trust in the system. Track online vs in-person payment ratio to measure digital adoption.`,
           source: "event_bus",
           confidence: 0.9,
+        });
+        break;
+      }
+      case "estimate_generated": {
+        await remember({
+          type: "pattern",
+          content: `ESTIMATE: ${data.repairTitle || "Repair"} for ${data.vehicle || "vehicle"}. Range: $${data.grandTotalLow || 0}-$${data.grandTotalHigh || 0}. Customer: ${data.customerName || "walk-in"}. Generated ${day} ${dateStr} ${period}. Context: Estimates that don't convert to invoices = lost revenue. Track estimate→invoice conversion by service type. High-value estimates need priority follow-up within 2 hours.`,
+          source: "event_bus",
+          confidence: 0.7,
         });
         break;
       }
