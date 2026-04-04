@@ -74,9 +74,12 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
+let _httpServer: ReturnType<typeof createServer> | null = null;
+
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  _httpServer = server;
   // Trust proxy — required for rate limiting behind reverse proxy
   app.set("trust proxy", 1);
   // Compression — gzip/deflate all responses (fixes Ahrefs "Not compressed" for all pages)
@@ -585,7 +588,7 @@ process.on("SIGTERM", () => {
   serverLog.info("SIGTERM received — starting graceful shutdown");
 
   // 1. Stop accepting new connections
-  server.close(() => serverLog.info("HTTP server closed"));
+  _httpServer?.close(() => serverLog.info("HTTP server closed"));
 
   // 2. Stop all timers (cron, SMS queue, Telegram batch, NOUR OS retry)
   try { require("../cron/scheduler").stopTieredScheduler(); } catch {}
