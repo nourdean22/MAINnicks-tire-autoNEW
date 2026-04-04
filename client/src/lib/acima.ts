@@ -29,7 +29,7 @@ export const ACIMA_FULL_DISCLAIMER =
  * Every external Acima link should use this to ensure consistent attribution.
  */
 export function buildAcimaUrl(source: string): string {
-  return `https://acima.us/l6b5576yyT?utm_source=nickstire&utm_medium=website&utm_campaign=acima_leasetoown&utm_content=${source}`;
+  return `https://www.acima.com/apply?utm_source=nickstire&utm_medium=website&utm_campaign=acima_leasetoown&utm_content=${source}`;
 }
 
 /**
