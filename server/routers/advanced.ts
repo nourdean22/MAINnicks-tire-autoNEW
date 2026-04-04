@@ -226,7 +226,7 @@ export const invoicesRouter = router({
         emit.invoiceCreated({
           invoiceNumber: invNum,
           customerName: input.customerName,
-          totalAmount: input.totalAmount,
+          totalAmount: (input.totalAmount || 0) / 100,
           source: input.source,
         })
       ).catch(() => {});
@@ -240,10 +240,10 @@ export const invoicesRouter = router({
             customerPhone: input.customerPhone || "",
             vehicleInfo: input.vehicleInfo || null,
             serviceDescription: input.serviceDescription || null,
-            laborCost: input.laborCost,
-            partsCost: input.partsCost,
-            taxAmount: input.taxAmount,
-            totalAmount: input.totalAmount,
+            laborCost: (input.laborCost || 0) / 100,
+            partsCost: (input.partsCost || 0) / 100,
+            taxAmount: (input.taxAmount || 0) / 100,
+            totalAmount: (input.totalAmount || 0) / 100,
             paymentStatus: input.paymentStatus,
             paymentMethod: input.paymentMethod,
           })
