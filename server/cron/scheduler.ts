@@ -351,13 +351,18 @@ export function startTieredScheduler(): void {
     lastRun: null,
   });
 
-  // Start all tiers
+  // Start all tiers (staggered to avoid memory spike on boot)
   for (const tier of tiers) {
-    // Run immediately (staggered to avoid startup stampede)
-    const stagger = tiers.indexOf(tier) * 10_000; // 10s between tiers
-    setTimeout(() => {
-      runTier(tier).catch(err => log.error(`Tier ${tier.name} startup failed:`, { error: err instanceof Error ? err.message : String(err) }));
-    }, stagger);
+    const idx = tiers.indexOf(tier);
+    // Only run heartbeat + pulse on startup. Daily/briefings wait for their interval.
+    const runOnStartup = idx <= 1; // heartbeat + pulse only
+    const stagger = idx * 30_000; // 30s between tiers (was 10s)
+
+    if (runOnStartup) {
+      setTimeout(() => {
+        runTier(tier).catch(err => log.error(`Tier ${tier.name} startup failed:`, { error: err instanceof Error ? err.message : String(err) }));
+      }, stagger);
+    }
 
     // Schedule recurring
     tier.handle = setInterval(() => {
