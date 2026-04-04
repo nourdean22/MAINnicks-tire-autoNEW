@@ -247,11 +247,19 @@ async function findReturningCustomer(d: any, messages: Array<{ role: string; con
     .orderBy(desc(leads.createdAt))
     .limit(5);
 
-  // Check past work orders
-  const pastOrders = await d.select().from(workOrders)
-    .where(eq(workOrders.customerId, phone))
-    .orderBy(desc(workOrders.createdAt))
-    .limit(10);
+  // Check past work orders (customerId is a UUID, not a phone — look up customer first)
+  let pastOrders: any[] = [];
+  try {
+    const phoneNorm = phone.slice(-10);
+    const [cust] = await d.select({ id: customers.id }).from(customers)
+      .where(like(customers.phone, `%${phoneNorm}%`)).limit(1);
+    if (cust) {
+      pastOrders = await d.select().from(workOrders)
+        .where(eq(workOrders.customerId, String(cust.id)))
+        .orderBy(desc(workOrders.createdAt))
+        .limit(10);
+    }
+  } catch {}
 
   // Check past bookings
   const pastBookings = await d.select().from(bookings)

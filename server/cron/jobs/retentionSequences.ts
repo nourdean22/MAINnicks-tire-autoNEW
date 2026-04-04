@@ -45,9 +45,9 @@ async function sendRetentionSms(
   return processed;
 }
 
-export async function processRetention90Day(): Promise<{ recordsProcessed: number }> {
+export async function processRetention90Day(): Promise<{ recordsProcessed: number; details?: string }> {
   const { isEnabled } = await import("../../services/featureFlags");
-  if (!(await isEnabled("sms_retention_sequences"))) return { recordsProcessed: 0 };
+  if (!(await isEnabled("sms_retention_sequences"))) return { recordsProcessed: 0, details: "Feature disabled" };
 
   const processed = await sendRetentionSms(
     90,
@@ -56,12 +56,12 @@ export async function processRetention90Day(): Promise<{ recordsProcessed: numbe
   );
 
   if (processed > 0) log.info(`Retention 90-day: contacted ${processed} customers`);
-  return { recordsProcessed: processed };
+  return { recordsProcessed: processed, details: `${processed} customers contacted (90d)` };
 }
 
-export async function processRetention180Day(): Promise<{ recordsProcessed: number }> {
+export async function processRetention180Day(): Promise<{ recordsProcessed: number; details?: string }> {
   const { isEnabled } = await import("../../services/featureFlags");
-  if (!(await isEnabled("sms_retention_sequences"))) return { recordsProcessed: 0 };
+  if (!(await isEnabled("sms_retention_sequences"))) return { recordsProcessed: 0, details: "Feature disabled" };
 
   const processed = await sendRetentionSms(
     180,
@@ -70,12 +70,12 @@ export async function processRetention180Day(): Promise<{ recordsProcessed: numb
   );
 
   if (processed > 0) log.info(`Retention 180-day: contacted ${processed} customers`);
-  return { recordsProcessed: processed };
+  return { recordsProcessed: processed, details: `${processed} customers contacted (180d)` };
 }
 
-export async function processRetention365Day(): Promise<{ recordsProcessed: number }> {
+export async function processRetention365Day(): Promise<{ recordsProcessed: number; details?: string }> {
   const { isEnabled } = await import("../../services/featureFlags");
-  if (!(await isEnabled("sms_retention_sequences"))) return { recordsProcessed: 0 };
+  if (!(await isEnabled("sms_retention_sequences"))) return { recordsProcessed: 0, details: "Feature disabled" };
 
   const processed = await sendRetentionSms(
     365,
@@ -84,5 +84,5 @@ export async function processRetention365Day(): Promise<{ recordsProcessed: numb
   );
 
   if (processed > 0) log.info(`Retention 365-day: contacted ${processed} customers`);
-  return { recordsProcessed: processed };
+  return { recordsProcessed: processed, details: `${processed} customers contacted (365d)` };
 }

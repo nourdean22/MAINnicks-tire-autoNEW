@@ -127,6 +127,16 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
     { maxRetries: 3, baseDelayMs: 1000, label: "notifyInvoiceCreated" }
   ).catch(() => {});
 
+  // Dispatch to event bus — makes auto-invoices visible to NOUR OS, Nick AI, ShopDriver, Statenour
+  import("../services/eventBus").then(({ emit }) =>
+    emit.invoiceCreated({
+      invoiceNumber,
+      customerName: booking.name,
+      totalAmount: totalAmount / 100,
+      source: "booking",
+    })
+  ).catch(() => {});
+
   console.log(`[Invoice] Auto-created ${invoiceNumber} for booking #${booking.id} — $${(totalAmount / 100).toFixed(2)}`);
 }
 

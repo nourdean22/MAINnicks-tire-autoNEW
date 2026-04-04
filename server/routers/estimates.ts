@@ -14,7 +14,19 @@ export const estimatesRouter = router({
       symptomDescription: z.string().min(3).max(1000),
       mileage: z.number().optional(),
     }))
-    .mutation(({ input }) => {
-      return generateEstimate(input);
+    .mutation(async ({ input }) => {
+      const result = await generateEstimate(input);
+
+      // Dispatch estimate event — every estimate is a potential customer signal
+      import("../services/eventBus").then(({ emit }) =>
+        emit.estimateGenerated({
+          vehicle: `${input.vehicleYear} ${input.vehicleMake} ${input.vehicleModel}`,
+          symptom: input.symptomDescription,
+          issueCount: result.possibleIssues?.length || 0,
+          source: "ai_estimate",
+        })
+      ).catch(() => {});
+
+      return result;
     }),
 });

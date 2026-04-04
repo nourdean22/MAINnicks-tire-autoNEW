@@ -5,7 +5,7 @@
  */
 import { publicProcedure, router } from "../_core/trpc";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { emergencyRequests } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone, sanitizeName } from "../sanitize";
 import { sendSms } from "../sms";
@@ -147,7 +147,7 @@ export const emergencyRouter = router({
         const created = await d
           .select()
           .from(emergencyRequests)
-          .orderBy((t) => t.id)
+          .orderBy(desc(emergencyRequests.id))
           .where(eq(emergencyRequests.phone, phone))
           .limit(1);
         const emergencyId = created[0]?.id || null;
