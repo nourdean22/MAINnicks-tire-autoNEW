@@ -27,10 +27,24 @@ export const workOrdersRouter = router({
     }))
     .mutation(async ({ input }) => {
       const { createWorkOrder } = await import("../services/workOrderService");
-      return createWorkOrder({
+      const result = await createWorkOrder({
         ...input,
         promisedAt: input.promisedAt ? new Date(input.promisedAt) : undefined,
       });
+
+      // Work order = revenue commitment — make it visible to the whole system
+      import("../services/eventBus").then(({ dispatch }) =>
+        dispatch("booking_created", {
+          id: result.id,
+          name: input.customerId,
+          phone: "",
+          service: input.serviceDescription || "Work Order",
+          vehicle: [input.vehicleMake, input.vehicleModel].filter(Boolean).join(" "),
+          source: input.source,
+        }, { priority: "high", source: "work_order" })
+      ).catch(() => {});
+
+      return result;
     }),
 
   /** List work orders with optional filters */
@@ -91,6 +105,28 @@ export const workOrdersRouter = router({
         blockerType: input.blockerType as any,
         blockerNote: input.blockerNote,
       });
+
+      // Status changes = shop floor progress — dispatch to event bus
+      import("../services/eventBus").then(({ dispatch }) =>
+        dispatch("stage_changed", {
+          workOrderId: input.id,
+          newStatus: input.status,
+          changedBy: input.changedBy,
+          note: input.note,
+        }, { priority: "normal", source: "work_order" })
+      ).catch(() => {});
+
+      // Completed work orders = revenue realized
+      if (["completed", "invoiced", "picked_up"].includes(input.status)) {
+        import("../services/eventBus").then(({ dispatch }) =>
+          dispatch("booking_completed", {
+            id: input.id,
+            name: input.changedBy,
+            service: input.note || "Work Order Completed",
+          }, { priority: "high", source: "work_order" })
+        ).catch(() => {});
+      }
+
       return { success: true };
     }),
 

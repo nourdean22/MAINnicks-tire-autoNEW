@@ -80,9 +80,10 @@ async function runJob(job: CronJob): Promise<void> {
   const startedAt = new Date();
 
   // Timeout race — prevent hung handlers from blocking forever
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error(`Job timed out after ${MAX_JOB_DURATION_MS / 1000}s`)), MAX_JOB_DURATION_MS)
-  );
+  let jobTimeout: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    jobTimeout = setTimeout(() => reject(new Error(`Job timed out after ${MAX_JOB_DURATION_MS / 1000}s`)), MAX_JOB_DURATION_MS);
+  });
 
   try {
     const result = await Promise.race([job.handler(), timeoutPromise]);
@@ -100,6 +101,7 @@ async function runJob(job: CronJob): Promise<void> {
     logCronRun(job.name, "failed", durationMs, 0, error).catch(() => {});
     log.error(`Cron failed: ${job.name}`, { duration: durationMs, error });
   } finally {
+    if (jobTimeout) clearTimeout(jobTimeout);
     job.running = false;
   }
 }

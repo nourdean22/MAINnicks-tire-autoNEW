@@ -88,10 +88,14 @@ async function ensureInitialized(): Promise<void> {
         booking_completed: bridge.onBookingCompleted,
         tire_order_placed: bridge.onTireOrderPlaced,
         invoice_created: bridge.onInvoiceCreated,
+        invoice_paid: bridge.onRevenueMilestone,
+        payment_received: bridge.onRevenueMilestone,
+        estimate_generated: (data: any) => bridge.onInvoiceCreated({ ...data, type: "estimate" }),
         emergency_request: bridge.onEmergencyRequest,
         review_detected: bridge.onReviewDetected,
         campaign_sent: bridge.onCampaignResult,
         stage_changed: bridge.onStageChanged,
+        social_posted: bridge.onCampaignResult,
       };
       const fn = typeMap[event.type];
       if (fn) fn(event.data);
@@ -170,11 +174,25 @@ async function ensureInitialized(): Promise<void> {
     },
   });
 
-  // 6. Statenour real-time sync (push high-value events immediately)
+  // 6. Feedback Loop (track every event for anomaly detection + pattern learning)
+  registerDestination({
+    name: "feedback-loop",
+    enabled: true,
+    handles: "all",
+    softFail: true,
+    handler: async (event) => {
+      try {
+        const { recordEventOccurrence } = await import("./feedbackLoop");
+        recordEventOccurrence(event.type);
+      } catch {}
+    },
+  });
+
+  // 7. Statenour real-time sync (push high-value events immediately)
   registerDestination({
     name: "statenour-sync",
     enabled: true,
-    handles: ["invoice_created", "invoice_paid", "lead_captured", "booking_created", "tire_order_placed", "payment_received"],
+    handles: ["invoice_created", "invoice_paid", "lead_captured", "booking_created", "tire_order_placed", "payment_received", "estimate_generated"],
     softFail: true,
     handler: async (event) => {
       const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
@@ -228,12 +246,13 @@ export async function dispatch(
   const promises = destinations
     .filter(d => d.enabled && (d.handles === "all" || d.handles.includes(type)))
     .map(async (dest) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
       try {
         await Promise.race([
           dest.handler(event),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("timeout")), 10_000)
-          ),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error("timeout")), 10_000);
+          }),
         ]);
         dispatched++;
         dispatchedTo.push(dest.name);
@@ -242,6 +261,8 @@ export async function dispatch(
         if (!dest.softFail) {
           log.error(`Event bus hard failure: ${dest.name}`, { type, error: err instanceof Error ? err.message : String(err) });
         }
+      } finally {
+        if (timer) clearTimeout(timer);
       }
     });
 

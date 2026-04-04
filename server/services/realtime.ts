@@ -21,8 +21,24 @@ const orderClients = new Map<string, Set<Response>>();
  * Register SSE routes on an Express router
  */
 export function registerSSERoutes(router: Router): void {
-  // Admin real-time feed
+  // Admin real-time feed (auth required)
   router.get("/api/v1/sse/admin-feed", (req: Request, res: Response) => {
+    // Verify admin auth — require API key or valid session cookie
+    const auth = req.headers.authorization;
+    const expected = process.env.ADMIN_API_KEY;
+    if (expected && auth !== `Bearer ${expected}`) {
+      if (!req.cookies?.admin_token) {
+        res.status(401).json({ error: "Unauthorized" });
+        return;
+      }
+    }
+
+    // Cap max SSE connections to prevent resource exhaustion
+    if (adminClients.size >= 50) {
+      res.status(503).json({ error: "Too many connections" });
+      return;
+    }
+
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
@@ -45,6 +61,12 @@ export function registerSSERoutes(router: Router): void {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
+
+    // Cap order tracking connections
+    if (orderClients.size >= 500) {
+      res.status(503).json({ error: "Too many tracking connections" });
+      return;
+    }
 
     res.write(`event: connected\ndata: ${JSON.stringify({ orderId, timestamp: Date.now() })}\n\n`);
 

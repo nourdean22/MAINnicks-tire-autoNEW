@@ -7,7 +7,7 @@ import { notifyNewLead } from "../email-notify";
 import { scoreLead } from "../gemini";
 import { syncLeadToSheet, getSpreadsheetUrl, isSheetConfigured } from "../sheets-sync";
 import { z } from "zod";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, gte } from "drizzle-orm";
 import { leads } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { sendLeadEvent } from "../meta-capi";
@@ -71,6 +71,15 @@ export const leadRouter = router({
         scoring.score = 5;
         scoring.reason = "Fleet/commercial account inquiry";
         scoring.recommendedService = "Fleet Services";
+      }
+
+      // Dedup check — prevent double-submit from same phone within 5 minutes
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const [recentDupe] = await d.select({ id: leads.id }).from(leads)
+        .where(and(eq(leads.phone, phone), gte(leads.createdAt, fiveMinAgo)))
+        .limit(1);
+      if (recentDupe) {
+        return { success: true, leadId: recentDupe.id, message: "Recent lead exists" };
       }
 
       const insertedRows = await d.insert(leads).values({

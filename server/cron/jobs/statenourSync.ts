@@ -138,6 +138,7 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
         ...(syncKey ? { "Authorization": `Bearer ${syncKey}` } : {}),
       },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!res.ok) {
@@ -150,6 +151,30 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
       bookings: payload.bookings.total,
       leads: payload.leads.total,
     });
+
+    // Process response from statenour — it may contain insights or directives
+    if (result?.insights || result?.directives || result?.driftAlerts) {
+      try {
+        const { remember } = await import("../../services/nickMemory");
+        for (const insight of (result.insights || []).slice(0, 3)) {
+          await remember({
+            type: "insight",
+            content: `[statenour-response] ${typeof insight === "string" ? insight : insight.title || JSON.stringify(insight)}`.slice(0, 500),
+            source: "statenour_response",
+            confidence: 0.8,
+          });
+        }
+        // Urgent drift alerts → immediate Telegram notification
+        const urgentAlerts = (result.driftAlerts || []).filter((a: any) => a.severity === "critical" || a.urgent);
+        if (urgentAlerts.length > 0) {
+          const { sendUrgentBrief } = await import("./morningBrief");
+          await sendUrgentBrief(
+            "Statenour Drift Alert",
+            urgentAlerts.map((a: any) => a.message || a.title || String(a)).join("\n")
+          );
+        }
+      } catch {}
+    }
 
     return {
       recordsProcessed: 1,

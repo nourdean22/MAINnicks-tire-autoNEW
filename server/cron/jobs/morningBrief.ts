@@ -192,6 +192,12 @@ Systems over motivation. Let's go.`;
     await sendTelegram(briefText);
     log.info("Morning brief sent via Telegram");
 
+    // Track brief delivery for feedback loop
+    try {
+      const { recordBriefSent } = await import("../../services/feedbackLoop");
+      recordBriefSent();
+    } catch {}
+
     return { recordsProcessed: 1, details: `Full brief sent. ${pendingCount} pending. $${monthRevenue.toLocaleString()} 30d rev.` };
   } catch (err) {
     log.error("Morning brief failed:", { error: err instanceof Error ? err.message : String(err) });

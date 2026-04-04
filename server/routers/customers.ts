@@ -252,7 +252,7 @@ export const customersRouter = router({
       const untexted = await d.select()
         .from(customers)
         .where(sql`${customers.smsCampaignSent} = 0 AND ${customers.smsOptOut} = 0 AND ${customers.phone} IS NOT NULL AND LENGTH(${customers.phone}) >= 10 AND ${customers.phone} LIKE '+1%'`)
-        .orderBy(sql`FIELD(${customers.segment}, 'recent', 'lapsed', 'unknown'), ${customers.lastVisitDate} DESC`)
+        .orderBy(sql`CASE ${customers.segment} WHEN 'recent' THEN 0 WHEN 'lapsed' THEN 1 ELSE 2 END, ${customers.lastVisitDate} DESC`)
         .limit(batchSize);
 
       let sent = 0;

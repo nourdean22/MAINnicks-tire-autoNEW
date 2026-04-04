@@ -411,8 +411,8 @@ export function stopBatchTimer(): void {
   }
 }
 
-// Auto-start batch timer on module load
-startBatchTimer();
+// NOTE: startBatchTimer() is called from server startup in _core/index.ts
+// Do NOT auto-start here — it causes side effects during imports and tests
 
 // ─── Formatted Alert Helpers (UPGRADED with channels + rich formatting) ──
 

@@ -100,12 +100,20 @@ async function processDelayedQueue(): Promise<void> {
   if (!isWithinSendingHours()) return;
 
   const now = Date.now();
-  const ready = delayedQueue.filter((m) => now >= m.scheduledFor.getTime());
+  // Drain ready messages atomically to prevent race with concurrent queueForLater
+  const stillPending: DelayedMessage[] = [];
+  const ready: DelayedMessage[] = [];
+  for (const msg of delayedQueue) {
+    if (now >= msg.scheduledFor.getTime()) {
+      ready.push(msg);
+    } else {
+      stillPending.push(msg);
+    }
+  }
+  delayedQueue.length = 0;
+  delayedQueue.push(...stillPending);
 
   for (const msg of ready) {
-    const idx = delayedQueue.indexOf(msg);
-    if (idx !== -1) delayedQueue.splice(idx, 1);
-
     // Send with force flag to skip timing check
     await sendSms(msg.to, msg.body, { ...msg.opts, _forceImmediate: true });
   }
@@ -130,8 +138,8 @@ export function stopDelayedQueueProcessor(): void {
   }
 }
 
-// Auto-start
-startDelayedQueueProcessor();
+// NOTE: startDelayedQueueProcessor() is called from server startup in _core/index.ts
+// Do NOT auto-start here — it causes side effects during imports and tests
 
 // ─── Conversation Threading ─────────────────────────
 interface ConversationThread {
@@ -149,10 +157,21 @@ interface ConversationThread {
 
 const conversationThreads = new Map<string, ConversationThread>();
 const MAX_THREAD_MESSAGES = 50;
+const MAX_CONVERSATION_THREADS = 500;
 
 function getOrCreateThread(phone: string): ConversationThread {
   let thread = conversationThreads.get(phone);
   if (!thread) {
+    // Evict oldest thread if at capacity
+    if (conversationThreads.size >= MAX_CONVERSATION_THREADS) {
+      let oldestKey = "";
+      let oldestTime = Infinity;
+      for (const [key, t] of conversationThreads) {
+        const time = new Date(t.lastActivity).getTime();
+        if (time < oldestTime) { oldestTime = time; oldestKey = key; }
+      }
+      if (oldestKey) conversationThreads.delete(oldestKey);
+    }
     thread = {
       phone,
       messages: [],
@@ -347,13 +366,29 @@ interface SendSmsOptions {
   transactional?: boolean;
 }
 
-// Per-phone daily rate limit
+// Per-phone daily rate limit (capped at 2000 entries, cleaned hourly)
 const smsCountMap = new Map<string, { count: number; resetAt: number }>();
 const MAX_SMS_PER_PHONE_PER_DAY = 8;
 
-// Per-phone short-term cooldown (5 min between messages)
+// Per-phone short-term cooldown (5 min between messages, capped)
 const smsLastSentMap = new Map<string, number>();
 const SMS_COOLDOWN_MS = 5 * 60 * 1000;
+
+// Periodic cleanup to prevent unbounded growth
+setInterval(() => {
+  const now = Date.now();
+  // Clean expired rate limits
+  for (const [phone, data] of smsCountMap) {
+    if (now > data.resetAt) smsCountMap.delete(phone);
+  }
+  // Clean stale cooldowns (older than 1 hour)
+  for (const [phone, ts] of smsLastSentMap) {
+    if (now - ts > 3600_000) smsLastSentMap.delete(phone);
+  }
+  // Hard cap — if still too big, clear oldest
+  if (smsCountMap.size > 2000) smsCountMap.clear();
+  if (smsLastSentMap.size > 2000) smsLastSentMap.clear();
+}, 60 * 60 * 1000); // Every hour
 
 function checkDailyLimit(phone: string): boolean {
   const now = Date.now();

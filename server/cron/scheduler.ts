@@ -72,13 +72,14 @@ async function runTier(tier: Tier): Promise<void> {
     // Skip jobs that need a missing env var
     if (job.requiresEnv && !process.env[job.requiresEnv]) { skipped++; continue; }
 
+    let jobTimer: ReturnType<typeof setTimeout> | undefined;
     try {
       const jobStart = Date.now();
       await Promise.race([
         job.handler(),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("timeout")), 4 * 60 * 1000)
-        ),
+        new Promise<never>((_, reject) => {
+          jobTimer = setTimeout(() => reject(new Error("timeout")), 4 * 60 * 1000);
+        }),
       ]);
       completed++;
       const dur = Date.now() - jobStart;
@@ -87,6 +88,8 @@ async function runTier(tier: Tier): Promise<void> {
       }
     } catch (err) {
       log.error(`[${tier.name}] ${job.name} failed:`, { error: err instanceof Error ? err.message : String(err) });
+    } finally {
+      if (jobTimer) clearTimeout(jobTimer);
     }
   }
 
@@ -237,6 +240,13 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "feedback-cycle",
+        handler: async () => {
+          const { runFeedbackCycle } = await import("../services/feedbackLoop");
+          return runFeedbackCycle();
+        },
+      },
+      {
         name: "pull-from-statenour-brain",
         handler: async () => {
           // Pull insights from statenour brain into nickstire Nick memory
@@ -259,7 +269,20 @@ export function startTieredScheduler(): void {
               await remember({ type: "insight", content: `[statenour] ${insight.title || ""}`.slice(0, 500), source: "statenour_pull", confidence: 0.8 });
               imported++;
             }
-            return { recordsProcessed: imported, details: `${imported} insights pulled from statenour brain` };
+
+            // Check for urgent drift alerts — trigger immediate notification
+            const driftAlerts = (brain.driftAlerts || brain.alerts || []).filter((a: any) => a.severity === "critical" || a.urgent);
+            if (driftAlerts.length > 0) {
+              try {
+                const { sendUrgentBrief } = await import("./jobs/morningBrief");
+                await sendUrgentBrief(
+                  "NOUR OS Drift Alert",
+                  driftAlerts.map((a: any) => a.message || a.title || String(a)).join("\n")
+                );
+              } catch {}
+            }
+
+            return { recordsProcessed: imported, details: `${imported} insights pulled, ${driftAlerts.length} drift alerts` };
           } catch { return { details: "Pull failed" }; }
         },
       },
@@ -343,7 +366,44 @@ export function startTieredScheduler(): void {
         handler: async () => {
           const { getDeclinedWorkLedger } = await import("../services/declinedWorkRecovery");
           const ledger = await getDeclinedWorkLedger(20);
-          return { recordsProcessed: ledger.length, details: `${ledger.length} declined items` };
+
+          // Actually ACT on declined work — alert on recoverable revenue
+          const unrecovered = ledger.filter(e => e.declinedItems.some(i => !i.recovered));
+          const totalRecoverableValue = unrecovered.reduce((sum, e) => sum + e.totalDeclinedValue, 0);
+          const safetyItems = unrecovered.filter(e => e.hasSafetyItems);
+
+          if (unrecovered.length > 0) {
+            try {
+              const { sendTelegram } = await import("../services/telegram");
+              const { remember } = await import("../services/nickMemory");
+
+              // Alert on safety-related declined work (highest priority)
+              if (safetyItems.length > 0) {
+                const topSafety = safetyItems.slice(0, 3);
+                await sendTelegram(
+                  `⚠️ DECLINED SAFETY WORK — ${safetyItems.length} customers\n\n` +
+                  topSafety.map(e =>
+                    `${e.customerName || "Customer"} (${e.phone || "no phone"}) — $${e.totalDeclinedValue} — ${e.vehicle}`
+                  ).join("\n") +
+                  `\n\nTotal recoverable: $${totalRecoverableValue}. Call them back.`
+                );
+              } else if (totalRecoverableValue > 500) {
+                await sendTelegram(
+                  `💰 DECLINED WORK: $${totalRecoverableValue} recoverable from ${unrecovered.length} customers.\n` +
+                  `Top: ${unrecovered.slice(0, 2).map(e => `${e.customerName || "?"} ($${e.totalDeclinedValue})`).join(", ")}`
+                );
+              }
+
+              await remember({
+                type: "insight",
+                content: `Declined work recovery: ${unrecovered.length} customers with $${totalRecoverableValue} recoverable. ${safetyItems.length} safety items.`,
+                source: "declined_recovery",
+                confidence: 0.85,
+              });
+            } catch {}
+          }
+
+          return { recordsProcessed: ledger.length, details: `${unrecovered.length} unrecovered ($${totalRecoverableValue}), ${safetyItems.length} safety` };
         },
       },
       {

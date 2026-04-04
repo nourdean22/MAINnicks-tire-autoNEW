@@ -276,7 +276,30 @@ export const invoicesRouter = router({
         Object.entries(updates).filter(([_, v]) => v !== undefined)
       );
       if (Object.keys(cleanUpdates).length === 0) return { success: true };
+
+      // Check current status BEFORE update to detect actual transition to "paid"
+      let wasPaid = true;
+      if (input.paymentStatus === "paid") {
+        try {
+          const [current] = await d.select({ ps: invoices.paymentStatus }).from(invoices).where(eq(invoices.id, id)).limit(1);
+          wasPaid = current?.ps === "paid";
+        } catch {}
+      }
+
       await d.update(invoices).set(cleanUpdates).where(eq(invoices.id, id));
+
+      // Fire invoice_paid only on actual transition (not if already paid)
+      if (input.paymentStatus === "paid" && !wasPaid) {
+        import("../services/eventBus").then(({ emit }) =>
+          emit.invoicePaid({
+            invoiceNumber: String(input.id),
+            customerName: input.customerName || "Unknown",
+            totalAmount: (input.totalAmount || 0) / 100,
+            method: input.paymentMethod || "unknown",
+          })
+        ).catch(() => {});
+      }
+
       return { success: true };
     }),
 
