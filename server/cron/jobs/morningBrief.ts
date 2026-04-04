@@ -111,6 +111,25 @@ MARKETING:
 WALK RATE: ${jobsWon > 0 ? Math.round((1 - jobsWon / Math.max(jobsWon + (staleCount || 0), 1)) * 100) : 0}% of estimates walked without converting.
 KEY: Invoice = job WON. Estimate without invoice = customer WALKED.`;
 
+    // ─── Inject memory + personal context + customer intel ────
+    let memoryBlock = "";
+    try {
+      const { getWarmupContext } = await import("../../services/nickMemory");
+      memoryBlock = await getWarmupContext();
+    } catch {}
+
+    let personalBlock = "";
+    try {
+      const { getNourPersonalContext } = await import("../../services/nourContext");
+      personalBlock = getNourPersonalContext();
+    } catch {}
+
+    let customerBlock = "";
+    try {
+      const { getCustomerBrief } = await import("../../services/customerIntelligence");
+      customerBlock = await getCustomerBrief();
+    } catch {}
+
     // ─── Use Nick AI to write the brief ────────────────
     let briefText: string;
     try {
@@ -120,20 +139,24 @@ KEY: Invoice = job WON. Estimate without invoice = customer WALKED.`;
             role: "system",
             content: `You are Nick AI writing Nour's morning brief for Telegram. Nour is the CEO of Nick's Tire & Auto (Cleveland).
 
+YOU KNOW NOUR DEEPLY:
+${personalBlock ? personalBlock.slice(0, 600) : "Nour is the CEO/owner-operator. He has ADHD, runs on systems over motivation, and his core pattern is Build-Drift-Reset. Catch him early when drifting."}
+
 FORMAT RULES:
 - Use Telegram-friendly formatting (no markdown, use emoji sparingly)
-- Keep it under 1500 characters total
-- Structure: Greeting → Headline number → Yesterday recap → Pipeline status → Money snapshot → ONE insight/pattern → Top 3 priorities for today → Motivational closer
+- Keep it under 2000 characters total
+- Structure: Greeting → Headline number → Yesterday recap → Pipeline status → Money snapshot → Customer insight → Pattern from memory → Top 3 priorities → Personal check-in → Motivational closer
 - Be direct. No fluff. Like a chief of staff briefing the CEO.
 - If stale leads > 3, call it out as lost money.
 - If revenue is strong, acknowledge it. If weak, flag it.
-- The insight should be something non-obvious: a trend, a pattern, a risk, or an opportunity.
-- Priorities should be specific and actionable.
-- End with energy. Nour runs on systems over motivation.`,
+- Reference a SPECIFIC customer by name if there's a follow-up opportunity.
+- If you have memories from past patterns, USE them: "Last week X happened, this week watch for Y."
+- Include ONE personal check-in: "How's the workout going?" or "Did you hit your score yesterday?"
+- End with energy. Nour runs on systems over motivation. Reference his $10K/month goal.`,
           },
           {
             role: "user",
-            content: `Write today's morning brief based on this data:\n\n${dataBlock}`,
+            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
           },
         ],
         maxTokens: 800,

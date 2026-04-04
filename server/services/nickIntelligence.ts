@@ -259,6 +259,14 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
   const { sendTelegram } = await import("./telegram");
   let actions = 0;
 
+  // Load memories for smarter decisions
+  let memoryInsights: string[] = [];
+  try {
+    const { recall } = await import("./nickMemory");
+    const memories = await recall({ type: "pattern", limit: 5 });
+    memoryInsights = memories.map(m => m.content);
+  } catch {}
+
   // AUTO-ACTION 1: High walk rate alert + suggestion
   if (pulse.thisWeek.walkRate > 40 && pulse.thisWeek.jobsClosed > 5) {
     await sendTelegram(
