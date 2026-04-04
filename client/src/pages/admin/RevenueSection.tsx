@@ -23,6 +23,10 @@ function formatCents(cents: number): string {
   return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
+function formatDollars(dollars: number): string {
+  return "$" + dollars.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
 export default function RevenueSection() {
   const [period, setPeriod] = useState(30);
   const [tab, setTab] = useState<"dashboard" | "invoices" | "create">("dashboard");
@@ -83,8 +87,8 @@ function DashboardView({ stats, topCustomers, kpi, period, setPeriod }: any) {
 
       {/* KPI Cards Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard label="Total Revenue" value={formatCents(stats?.totalRevenue ?? 0)} icon={<DollarSign className="w-5 h-5" />} trend={revenueChange} trendLabel={`${revenueChange >= 0 ? "+" : ""}${revenueChange}% vs prev period`} color="text-primary" />
-        <KPICard label="Avg Ticket" value={formatCents(stats?.avgTicket ?? 0)} icon={<Target className="w-5 h-5" />} color="text-blue-400" />
+        <KPICard label="Total Revenue" value={formatDollars(stats?.totalRevenue ?? 0)} icon={<DollarSign className="w-5 h-5" />} trend={revenueChange} trendLabel={`${revenueChange >= 0 ? "+" : ""}${revenueChange}% vs prev period`} color="text-primary" />
+        <KPICard label="Avg Ticket" value={formatDollars(stats?.avgTicket ?? 0)} icon={<Target className="w-5 h-5" />} color="text-blue-400" />
         <KPICard label="Invoices" value={stats?.invoiceCount ?? 0} icon={<BarChart3 className="w-5 h-5" />} color="text-emerald-400" />
         <KPICard label="Conversion Rate" value={`${kpi?.conversionRate ?? 0}%`} icon={<Zap className="w-5 h-5" />} trendLabel="Leads → Bookings" color="text-purple-400" />
       </div>
@@ -106,7 +110,7 @@ function DashboardView({ stats, topCustomers, kpi, period, setPeriod }: any) {
           <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">REVENUE TREND</h3>
           <div style={{ height: 280 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={stats.revenueByDay.map((d: any) => ({ ...d, amount: d.amount / 100 }))}>
+              <AreaChart data={stats.revenueByDay}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#666" }} tickFormatter={(v: string) => v.slice(5)} />
                 <YAxis tick={{ fontSize: 10, fill: "#666" }} tickFormatter={(v: number) => `$${v.toLocaleString()}`} />
@@ -126,7 +130,7 @@ function DashboardView({ stats, topCustomers, kpi, period, setPeriod }: any) {
             <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <RPieChart>
-                  <Pie data={stats.revenueByPayment.map((d: any) => ({ ...d, amount: d.amount / 100, name: d.method.toUpperCase() }))} dataKey="amount" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                  <Pie data={stats.revenueByPayment.map((d: any) => ({ ...d, name: d.method.toUpperCase() }))} dataKey="amount" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}>
                     {stats.revenueByPayment.map((_: any, i: number) => (<Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />))}
                   </Pie>
                   <RechartsTooltip contentStyle={{ background: "#1a1a1a", border: "1px solid #333", fontSize: 12 }} formatter={(value: number) => [`$${value.toLocaleString()}`, "Revenue"]} />

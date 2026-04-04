@@ -163,8 +163,7 @@ async function ensureInitialized(): Promise<void> {
   registerDestination({
     name: "nick-learning",
     enabled: true,
-    handles: ["invoice_created", "invoice_paid", "lead_captured", "booking_created",
-              "booking_completed", "tire_order_placed", "payment_received", "estimate_generated"],
+    handles: "all", // Nick AI learns from EVERY event — no blind spots
     softFail: true,
     handler: async (event) => {
       try {

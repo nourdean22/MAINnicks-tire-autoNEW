@@ -3,7 +3,7 @@
  * Customer enters invoice # + phone → sees invoice → enters CC → pays.
  * Works with direct CC and Snap Finance virtual cards.
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead } from "@/components/SEO";
 import { trpc } from "@/lib/trpc";
@@ -27,12 +27,14 @@ export default function PayInvoice() {
   const [ccZip, setCcZip] = useState("");
   const [paid, setPaid] = useState(false);
 
-  // Get invoice # from URL if provided
-  const params = new URLSearchParams(window.location.search);
-  const urlInvoice = params.get("invoice") || "";
-  if (urlInvoice && !invoiceNum && !looked) {
-    setInvoiceNum(urlInvoice);
-  }
+  // Get invoice # from URL if provided (via useEffect to avoid setting state during render)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlInvoice = params.get("invoice") || "";
+    if (urlInvoice && !invoiceNum && !looked) {
+      setInvoiceNum(urlInvoice);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const invoiceQuery = trpc.payments.lookupInvoice.useQuery(
     { invoiceNumber: invoiceNum, phone },

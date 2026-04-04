@@ -43,8 +43,11 @@ interface Tier {
 const tiers: Tier[] = [];
 
 function isBusinessHours(): boolean {
-  const hour = new Date().getHours();
-  return hour >= 7 && hour <= 21;
+  const etHour = parseInt(
+    new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }),
+    10,
+  );
+  return etHour >= 7 && etHour <= 21;
 }
 
 /**
