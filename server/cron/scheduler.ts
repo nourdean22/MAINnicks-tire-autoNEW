@@ -157,6 +157,21 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "shopdriver-mirror",
+        businessHoursOnly: true,
+        handler: async () => {
+          const { runFullMirror } = await import("../services/shopDriverMirror");
+          return runFullMirror();
+        },
+      },
+      {
+        name: "statenour-fast-sync",
+        handler: async () => {
+          const { syncToStatenour } = await import("./jobs/statenourSync");
+          return syncToStatenour();
+        },
+      },
+      {
         name: "cloud-camera-snapshots",
         handler: async () => {
           const { pullCloudCameraSnapshots } = await import("../services/cameraProxy");
@@ -197,14 +212,7 @@ export function startTieredScheduler(): void {
           return runProactiveCheck();
         },
       },
-      {
-        name: "shopdriver-sync-hourly",
-        businessHoursOnly: true,
-        handler: async () => {
-          const { runFullMirror } = await import("../services/shopDriverMirror");
-          return runFullMirror();
-        },
-      },
+      // ShopDriver mirror moved to pulse tier for faster sync
       {
         name: "nick-auto-actions",
         businessHoursOnly: true,
