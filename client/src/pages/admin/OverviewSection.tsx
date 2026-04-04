@@ -90,6 +90,8 @@ export default function OverviewSection() {
   const { data: allBookings } = trpc.booking.list.useQuery(undefined, { refetchInterval: 60000 });
   const { data: allLeads } = trpc.lead.list.useQuery(undefined, { refetchInterval: 60000 });
   const { data: callbacks } = trpc.callback.list.useQuery(undefined, { refetchInterval: 60000 });
+  // Nick AI intelligence — shop pulse for real-time awareness
+  const { data: shopPulse } = trpc.nickActions.shopPulse.useQuery(undefined, { refetchInterval: 30000 });
 
   const [actionFilter, setActionFilter] = useState<"all" | "booking" | "lead" | "callback">("all");
 
@@ -254,6 +256,49 @@ export default function OverviewSection() {
           trendLabel={`${stats.callbacks?.total ?? 0} total`}
         />
       </div>
+
+      {/* ─── NICK AI LIVE PULSE ─── */}
+      {shopPulse && (
+        <div className="bg-card border border-border/30 rounded-lg p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <Sparkles className="w-4 h-4 text-primary" />
+            <span className="text-[10px] font-bold tracking-wider text-muted-foreground">NICK AI LIVE PULSE</span>
+            <div className={`ml-auto px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider ${
+              shopPulse.shopStatus === "busy" ? "bg-emerald-500/15 text-emerald-400" :
+              shopPulse.shopStatus === "steady" ? "bg-blue-500/15 text-blue-400" :
+              shopPulse.shopStatus === "slow" ? "bg-amber-500/15 text-amber-400" :
+              "bg-foreground/5 text-muted-foreground"
+            }`}>{shopPulse.shopStatus.toUpperCase()}</div>
+          </div>
+          <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="text-center">
+              <div className="text-lg font-bold text-primary">${shopPulse.today.revenue.toLocaleString()}</div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">TODAY REV</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-emerald-400">{shopPulse.today.jobsClosed}</div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">JOBS</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-red-400">{shopPulse.today.customersWalked}</div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">WALKED</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-blue-400">${shopPulse.today.avgTicket}</div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">AVG TICKET</div>
+            </div>
+            <div className="text-center">
+              <div className={`text-lg font-bold ${shopPulse.thisWeek.walkRate > 40 ? "text-red-400" : shopPulse.thisWeek.walkRate > 25 ? "text-amber-400" : "text-emerald-400"}`}>{shopPulse.thisWeek.walkRate}%</div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">WALK RATE</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-purple-400">${Math.round(shopPulse.thisWeek.revenue).toLocaleString()}</div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">WEEK REV</div>
+            </div>
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-2">{shopPulse.shopInsight}</div>
+        </div>
+      )}
 
       {/* ─── SECONDARY METRICS ─── */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
