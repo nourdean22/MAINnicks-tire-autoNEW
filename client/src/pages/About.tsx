@@ -68,21 +68,21 @@ export default function About() {
           </FadeIn>
           <FadeIn delay={0.15}>
             <div className="bg-white/5 rounded-2xl p-8 border border-white/10">
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-2 gap-6 stagger-in">
                 <div className="text-center">
-                  <div className="text-4xl font-black text-primary mb-1">2018</div>
+                  <div className="text-4xl font-black text-primary mb-1 text-gradient-yellow">2018</div>
                   <div className="text-foreground/60 text-sm">Year Founded</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-4xl font-black text-primary mb-1">{totalReviews.toLocaleString()}+</div>
+                  <div className="text-4xl font-black text-primary mb-1 text-gradient-yellow">{totalReviews.toLocaleString()}+</div>
                   <div className="text-foreground/60 text-sm">5-Star Reviews</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-4xl font-black text-primary mb-1">{rating.toFixed(1)}</div>
+                  <div className="text-4xl font-black text-primary mb-1 text-gradient-yellow">{rating.toFixed(1)}</div>
                   <div className="text-foreground/60 text-sm">Google Rating</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-4xl font-black text-primary mb-1">7+</div>
+                  <div className="text-4xl font-black text-primary mb-1 text-gradient-yellow">7+</div>
                   <div className="text-foreground/60 text-sm">Years Serving Cleveland</div>
                 </div>
               </div>

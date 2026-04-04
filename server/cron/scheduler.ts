@@ -239,6 +239,13 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "shopdriver-full-mirror",
+        handler: async () => {
+          const { runFullMirror } = await import("../services/shopDriverMirror");
+          return runFullMirror();
+        },
+      },
+      {
         name: "cleanup",
         handler: async () => {
           const { cleanupOldData } = await import("./jobs/cleanup");
