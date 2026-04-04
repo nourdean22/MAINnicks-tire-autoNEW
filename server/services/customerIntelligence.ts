@@ -12,7 +12,7 @@
  */
 
 import { createLogger } from "../lib/logger";
-import { sql, eq, desc, gte } from "drizzle-orm";
+import { sql, eq, desc, gte, asc } from "drizzle-orm";
 
 const log = createLogger("customer-intelligence");
 
@@ -115,7 +115,7 @@ export async function analyzeCustomers(): Promise<CustomerInsight> {
         lastVisit: customers.lastVisitDate,
       }).from(customers)
         .where(eq(customers.segment, "lapsed"))
-        .orderBy(desc(customers.lastVisitDate))
+        .orderBy(asc(customers.lastVisitDate)) // Oldest visit first = most at-risk
         .limit(10);
 
       atRiskCustomers = lapsedRows

@@ -14,6 +14,11 @@ import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
+/** Reset the cached DB connection — used by self-healing to force reconnection */
+export function resetDbConnection(): void {
+  _db = null;
+}
+
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
