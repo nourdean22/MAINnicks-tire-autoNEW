@@ -311,20 +311,20 @@ export const invoicesRouter = router({
       const prevInvoices = await d.select().from(invoices)
         .where(and(gte(invoices.invoiceDate, prevCutoff), lte(invoices.invoiceDate, cutoff), eq(invoices.paymentStatus, "paid")));
 
-      const totalRevenue = currentInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
-      const prevRevenue = prevInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+      const totalRevenue = Math.round(currentInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0) / 100);
+      const prevRevenue = Math.round(prevInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0) / 100);
 
       // Revenue by day
       const byDay: Record<string, number> = {};
       currentInvoices.forEach(inv => {
         const day = new Date(inv.invoiceDate).toISOString().split("T")[0];
-        byDay[day] = (byDay[day] || 0) + inv.totalAmount;
+        byDay[day] = (byDay[day] || 0) + Math.round(inv.totalAmount / 100);
       });
 
       // Revenue by payment method
       const byPayment: Record<string, number> = {};
       currentInvoices.forEach(inv => {
-        byPayment[inv.paymentMethod] = (byPayment[inv.paymentMethod] || 0) + inv.totalAmount;
+        byPayment[inv.paymentMethod] = (byPayment[inv.paymentMethod] || 0) + Math.round(inv.totalAmount / 100);
       });
 
       return {
@@ -387,7 +387,7 @@ export const kpiRouter = router({
     // Revenue this month
     const monthInvoices = await d.select().from(invoices)
       .where(and(gte(invoices.invoiceDate, monthAgo), eq(invoices.paymentStatus, "paid")));
-    const monthRevenue = monthInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+    const monthRevenue = Math.round(monthInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0) / 100);
 
     // Review stats
     const monthReviews = await d.select().from(reviewRequests).where(gte(reviewRequests.createdAt, monthAgo));
