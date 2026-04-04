@@ -808,6 +808,72 @@ export default function CommandCenterSection() {
         </div>
       )}
 
+      {/* ─── REVENUE PACING + INTELLIGENCE ─── */}
+      {shopPulse && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {/* Revenue Pacing Bar */}
+          <div className="bg-card border border-border/30 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-bold tracking-wider text-muted-foreground">REVENUE PACING</span>
+              <span className="text-xs text-muted-foreground">
+                {(() => {
+                  const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+                  const dayProgress = Math.min(100, Math.round((Math.max(etHour - 7, 0) / 11) * 100)); // 7am-6pm = 11hr window
+                  return `${dayProgress}% of business day`;
+                })()}
+              </span>
+            </div>
+            <div className="h-3 bg-background/50 rounded-full overflow-hidden">
+              {(() => {
+                const avgDaily = shopPulse.thisWeek.revenue / Math.max(shopPulse.thisWeek.jobsClosed > 0 ? 5 : 1, 1);
+                const pacing = avgDaily > 0 ? Math.min(200, Math.round((shopPulse.today.revenue / avgDaily) * 100)) : 0;
+                return (
+                  <div
+                    className={`h-full rounded-full transition-all duration-1000 ${
+                      pacing >= 100 ? "bg-emerald-500" : pacing >= 60 ? "bg-amber-500" : "bg-red-500"
+                    }`}
+                    style={{ width: `${Math.min(pacing, 100)}%` }}
+                  />
+                );
+              })()}
+            </div>
+            <div className="flex justify-between mt-1">
+              <span className="text-xs font-bold text-foreground">${shopPulse.today.revenue.toLocaleString()}</span>
+              <span className="text-xs text-muted-foreground">avg ~${Math.round(shopPulse.thisWeek.revenue / 5).toLocaleString()}/day</span>
+            </div>
+          </div>
+
+          {/* Walk Rate Gauge */}
+          <div className="bg-card border border-border/30 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-bold tracking-wider text-muted-foreground">WALK RATE</span>
+              <span className={`text-xs font-bold ${
+                shopPulse.thisWeek.walkRate > 40 ? "text-red-400" :
+                shopPulse.thisWeek.walkRate > 25 ? "text-amber-400" : "text-emerald-400"
+              }`}>
+                {shopPulse.thisWeek.walkRate}% this week
+              </span>
+            </div>
+            <div className="h-3 bg-background/50 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-1000 ${
+                  shopPulse.thisWeek.walkRate > 40 ? "bg-red-500" :
+                  shopPulse.thisWeek.walkRate > 25 ? "bg-amber-500" : "bg-emerald-500"
+                }`}
+                style={{ width: `${Math.min(shopPulse.thisWeek.walkRate, 100)}%` }}
+              />
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-1">
+              {shopPulse.thisWeek.walkRate > 40
+                ? "⚠ High walk rate — follow up on estimates"
+                : shopPulse.thisWeek.walkRate > 25
+                ? "Moderate — room for improvement"
+                : "✓ Strong conversion — keep it up"}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── LIVE BUSINESS PULSE (fallback if no shop pulse) ─── */}
       {!shopPulse && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
