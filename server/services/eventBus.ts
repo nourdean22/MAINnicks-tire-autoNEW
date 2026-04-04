@@ -187,11 +187,11 @@ async function ensureInitialized(): Promise<void> {
     },
   });
 
-  // 7. Statenour real-time sync (push high-value events immediately)
+  // 7. Statenour real-time sync (push ALL events immediately — full circle)
   registerDestination({
     name: "statenour-sync",
     enabled: true,
-    handles: ["invoice_created", "invoice_paid", "lead_captured", "booking_created", "tire_order_placed", "payment_received", "estimate_generated"],
+    handles: "all", // Every event reaches statenour brain for processing
     softFail: true,
     handler: async (event) => {
       const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
@@ -199,6 +199,17 @@ async function ensureInitialized(): Promise<void> {
       if (!syncKey) return;
 
       try {
+        // Map event types to statenour brain categories for richer processing
+        const categoryMap: Record<string, string> = {
+          lead_captured: "lead", callback_requested: "lead",
+          booking_created: "booking", booking_completed: "booking",
+          tire_order_placed: "invoice", invoice_created: "invoice", invoice_paid: "invoice",
+          payment_received: "invoice", estimate_generated: "invoice",
+          emergency_request: "emergency", review_detected: "review",
+          campaign_sent: "campaign", social_posted: "campaign",
+          stage_changed: "stage-change",
+        };
+
         await fetch(`${statenourUrl}/api/sync/events`, {
           method: "POST",
           headers: {
@@ -207,8 +218,10 @@ async function ensureInitialized(): Promise<void> {
           },
           body: JSON.stringify({
             type: `nickstire:${event.type}`,
+            category: categoryMap[event.type] || "other",
             timestamp: event.timestamp,
-            source: "nickstire",
+            source: event.source || "nickstire",
+            priority: event.priority,
             data: event.data,
           }),
           signal: AbortSignal.timeout(5000),

@@ -119,15 +119,89 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
       },
       bridge: bridgeAnalytics,
       // ═══ Customer Intelligence ═══
-      customerIntelligence: (() => {
+      // ═══ Full Customer Intelligence ═══
+      customerIntelligence: await (async () => {
         try {
-          const ci = intelligence.pulse ? {
-            totalCustomers: stats.bookings?.total || 0,
-            walkRate: intelligence.pulse?.thisWeek?.walkRate || 0,
-            avgTicket: intelligence.pulse?.thisWeek?.avgTicket || 0,
-          } : null;
-          return ci;
+          const { analyzeCustomers, getCustomerActionPlan } = await import("../../services/customerIntelligence");
+          const ci = await analyzeCustomers();
+          const plan = await getCustomerActionPlan();
+          return {
+            totalCustomers: ci.totalCustomers,
+            activeCustomers: ci.activeCustomers,
+            lapsedCustomers: ci.lapsedCustomers,
+            lostCustomers: ci.lostCustomers,
+            newThisMonth: ci.newThisMonth,
+            retentionRate: ci.retentionRate,
+            avgLifetimeValue: ci.avgLifetimeValue,
+            avgTicket: ci.avgTicket,
+            topSpenders: ci.topSpenders.slice(0, 5),
+            atRiskCustomers: ci.atRiskCustomers.slice(0, 5),
+            servicePatterns: ci.servicePatterns.slice(0, 5),
+            dayOfWeekPattern: ci.dayOfWeekPattern,
+            peakHours: ci.peakHours,
+            actionPlan: plan,
+          };
         } catch { return null; }
+      })(),
+      // ═══ Feedback Loop Data ═══
+      feedbackLoop: await (async () => {
+        try {
+          const { detectAnomalies, getBriefEngagement } = await import("../../services/feedbackLoop");
+          const anomalies = detectAnomalies();
+          const engagement = getBriefEngagement();
+          return {
+            anomalies: anomalies.map(a => ({ type: a.type, current: a.current, average: a.average, deviation: a.deviation })),
+            briefEngagement: engagement,
+          };
+        } catch { return null; }
+      })(),
+      // ═══ Event Lifecycle Journeys ═══
+      customerJourneys: (() => {
+        try {
+          const { getActiveJourneys } = require("../../services/eventBus");
+          return getActiveJourneys();
+        } catch { return []; }
+      })(),
+      // ═══ Declined Work (revenue on the table) ═══
+      declinedWork: await (async () => {
+        try {
+          const { getDeclinedWorkLedger } = await import("../../services/declinedWorkRecovery");
+          const ledger = await getDeclinedWorkLedger(10);
+          const unrecovered = ledger.filter(e => e.declinedItems.some(i => !i.recovered));
+          return {
+            totalRecoverable: unrecovered.reduce((s, e) => s + e.totalDeclinedValue, 0),
+            customerCount: unrecovered.length,
+            safetyItemCount: unrecovered.filter(e => e.hasSafetyItems).length,
+            topItems: unrecovered.slice(0, 3).map(e => ({
+              customer: e.customerName,
+              phone: e.phone,
+              value: e.totalDeclinedValue,
+              hasSafety: e.hasSafetyItems,
+            })),
+          };
+        } catch { return null; }
+      })(),
+      // ═══ Work Order Status ═══
+      workOrders: await (async () => {
+        try {
+          const { getDb } = await import("../../db");
+          const { workOrders: woTable } = await import("../../../drizzle/schema");
+          const { sql } = await import("drizzle-orm");
+          const d = await getDb();
+          if (!d) return null;
+          const [open, blocked] = await Promise.all([
+            d.select({ count: sql<number>`count(*)` }).from(woTable).where(sql`${woTable.status} NOT IN ('closed','invoiced','picked_up','cancelled')`),
+            d.select({ count: sql<number>`count(*)` }).from(woTable).where(sql`${woTable.status} = 'blocked'`),
+          ]);
+          return { open: open[0]?.count ?? 0, blocked: blocked[0]?.count ?? 0 };
+        } catch { return null; }
+      })(),
+      // ═══ Question Patterns (what Nour asks about) ═══
+      operatorPatterns: (() => {
+        try {
+          const { getTopQuestions } = require("../../services/nickMemory");
+          return getTopQuestions(5);
+        } catch { return []; }
       })(),
     };
 

@@ -214,10 +214,44 @@ export function startTieredScheduler(): void {
             const brain = data?.data || data;
             const { remember } = await import("../services/nickMemory");
             let imported = 0;
-            for (const insight of (brain.recentInsights || []).slice(0, 3)) {
-              await remember({ type: "insight", content: `[statenour] ${insight.title || ""}`.slice(0, 500), source: "statenour_pull", confidence: 0.8 });
+
+            // Pull insights (brain analysis, reflections, predictions)
+            for (const insight of (brain.recentInsights || []).slice(0, 5)) {
+              await remember({ type: "insight", content: `[statenour] ${insight.title || insight.content || ""}`.slice(0, 500), source: "statenour_pull", confidence: 0.8 });
               imported++;
             }
+
+            // Pull patterns (behavioral, business, personal)
+            for (const pattern of (brain.patterns || []).slice(0, 3)) {
+              await remember({ type: "pattern", content: `[statenour-pattern] ${pattern.name || ""}: ${pattern.description || ""}`.slice(0, 500), source: "statenour_patterns", confidence: 0.75 });
+              imported++;
+            }
+
+            // Pull predictions (what statenour brain thinks will happen)
+            for (const pred of (brain.predictions || []).slice(0, 2)) {
+              await remember({ type: "insight", content: `[statenour-prediction] ${pred.title || pred.prediction || ""} — confidence: ${pred.confidence || "?"}`.slice(0, 500), source: "statenour_predictions", confidence: 0.7 });
+              imported++;
+            }
+
+            // Pull contradictions (things the brain flagged as inconsistent)
+            for (const contra of (brain.contradictions || []).slice(0, 2)) {
+              await remember({ type: "lesson", content: `[statenour-contradiction] ${contra.description || contra.message || ""}`.slice(0, 500), source: "statenour_contradictions", confidence: 0.85 });
+              imported++;
+            }
+
+            // Pull open loops (unresolved items Nour should address)
+            for (const loop of (brain.openLoops || []).slice(0, 3)) {
+              await remember({ type: "insight", content: `[statenour-open-loop] ${loop.title || loop.text || ""} — status: ${loop.status || "open"}`.slice(0, 500), source: "statenour_loops", confidence: 0.6 });
+              imported++;
+            }
+
+            // Pull commitments (things Nour committed to)
+            for (const commit of (brain.commitments || []).slice(0, 2)) {
+              await remember({ type: "preference", content: `[statenour-commitment] ${commit.text || commit.title || ""} — deadline: ${commit.deadline || "none"}, status: ${commit.status || "active"}`.slice(0, 500), source: "statenour_commitments", confidence: 0.9 });
+              imported++;
+            }
+
+            // Handle drift alerts — urgent ones trigger immediate Telegram
             const driftAlerts = (brain.driftAlerts || brain.alerts || []).filter((a: any) => a.severity === "critical" || a.urgent);
             if (driftAlerts.length > 0) {
               try {
@@ -225,7 +259,14 @@ export function startTieredScheduler(): void {
                 await sendUrgentBrief("NOUR OS Drift Alert", driftAlerts.map((a: any) => a.message || a.title || String(a)).join("\n"));
               } catch {}
             }
-            return { recordsProcessed: imported, details: `${imported} insights pulled, ${driftAlerts.length} drift alerts` };
+
+            // Non-urgent alerts still stored as memories
+            for (const alert of (brain.driftAlerts || []).filter((a: any) => !a.urgent).slice(0, 3)) {
+              await remember({ type: "lesson", content: `[statenour-alert] ${alert.message || alert.ruleName || ""}`.slice(0, 500), source: "statenour_alerts", confidence: 0.7 });
+              imported++;
+            }
+
+            return { recordsProcessed: imported, details: `${imported} items pulled (insights+patterns+predictions+loops+alerts), ${driftAlerts.length} urgent` };
           } catch { return { details: "Pull failed" }; }
         },
       },
