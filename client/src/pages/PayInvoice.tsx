@@ -249,7 +249,7 @@ export default function PayInvoice() {
                   <div className="mt-4 pt-3 border-t border-border/20 text-center">
                     <p className="text-[11px] text-muted-foreground mb-2">Need financing?</p>
                     <a
-                      href="https://getsnap.snapfinance.com/lease/en-US/consumer/apply/landing"
+                      href="https://getsnap.snapfinance.com/lease/en-US/consumer/apply?ep=store-locator&merchantId=490295617&externalMerchantId=77661"
                       target="_blank" rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 stagger-in.5 bg-[#FF6B00] text-white px-4 py-2 rounded-lg text-xs font-medium hover:bg-[#FF6B00]/90 transition-colors"
                     >
