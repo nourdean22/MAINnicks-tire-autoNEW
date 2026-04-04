@@ -155,31 +155,18 @@ async function ensureInitialized(): Promise<void> {
     },
   });
 
-  // 5. Nick AI Learning
+  // 5. Nick AI Learning (learns from EVERY high-value event)
   registerDestination({
     name: "nick-learning",
     enabled: true,
-    handles: "all",
+    handles: ["invoice_created", "invoice_paid", "lead_captured", "booking_created",
+              "booking_completed", "tire_order_placed", "payment_received", "estimate_generated"],
     softFail: true,
     handler: async (event) => {
-      // Only learn from high-value events
-      if (["invoice_created", "invoice_paid", "booking_completed", "estimate_generated"].includes(event.type)) {
-        try {
-          const { remember } = await import("./nickMemory");
-          const now = new Date();
-          const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][now.getDay()];
-          const hour = now.getHours();
-
-          if (event.type === "invoice_paid") {
-            await remember({
-              type: "pattern",
-              content: `Payment received at ${hour}:00 on ${day} — $${event.data.totalAmount || 0}`,
-              source: "event_bus",
-              confidence: 0.6,
-            });
-          }
-        } catch {}
-      }
+      try {
+        const { learnFromEvent } = await import("./nickMemory");
+        await learnFromEvent(event.type, event.data);
+      } catch {}
     },
   });
 
