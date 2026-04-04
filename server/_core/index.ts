@@ -30,6 +30,7 @@ import { createServer } from "http";
 import crypto from "crypto";
 import net from "net";
 import path from "path";
+import fs from "fs";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import rateLimit from "express-rate-limit";
 import { registerOAuthRoutes } from "./oauth";
@@ -508,9 +509,14 @@ Sitemap: ${SITE_URL}/sitemap-locations.xml
   // In production, prerendered files live in dist/prerendered/
   // In development, they may exist in dist/prerendered/ from a prior build
   {
-    const prerenderedDir = process.env.NODE_ENV === "production"
-      ? path.resolve(import.meta.dirname, "prerendered")
-      : path.resolve(import.meta.dirname, "../..", "dist", "prerendered");
+    // Check multiple prerender locations (dist/prerendered, or project root /prerendered)
+    const candidates = [
+      path.resolve(import.meta.dirname, "prerendered"), // dist/prerendered (production build)
+      path.resolve(import.meta.dirname, "..", "prerendered"), // project root /prerendered (git-tracked)
+      path.resolve(import.meta.dirname, "../..", "prerendered"), // project root from nested dist
+      path.resolve(import.meta.dirname, "../..", "dist", "prerendered"), // dev: dist/prerendered
+    ];
+    const prerenderedDir = candidates.find(d => fs.existsSync(d)) || candidates[0];
     app.use(createPrerenderMiddleware(prerenderedDir));
   }
 
