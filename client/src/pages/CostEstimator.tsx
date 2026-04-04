@@ -224,7 +224,7 @@ export default function CostEstimator() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="bg-white/5 border border-white/10 rounded-2xl p-6 lg:p-8 space-y-8 backdrop-blur-sm"
+            className="bg-white/5 border border-white/10 rounded-2xl p-6 lg:p-8 space-y-8 backdrop-blur-sm surface-raised-card"
           >
             {!showResult ? (
               <>
@@ -529,7 +529,7 @@ export default function CostEstimator() {
       {/* Trust Section */}
       <section className="bg-[#0A0A0A] py-16 lg:py-20 border-t border-white/10">
         <div className="container max-w-3xl">
-          <div className="grid md:grid-cols-3 gap-8 text-center">
+          <div className="grid md:grid-cols-3 gap-8 text-center stagger-in">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}

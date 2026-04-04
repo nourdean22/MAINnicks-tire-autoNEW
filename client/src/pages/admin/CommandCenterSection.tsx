@@ -784,7 +784,7 @@ export default function CommandCenterSection() {
               { label: "REVENUE", value: `$${shopPulse.today.revenue.toLocaleString()}`, color: "text-primary", bg: "from-primary/10" },
               { label: "AVG TICKET", value: `$${shopPulse.today.avgTicket}`, color: "text-blue-400", bg: "from-blue-500/10" },
             ].map(({ label, value, color, bg }) => (
-              <div key={label} className={`bg-gradient-to-br ${bg} to-transparent border border-border/30 rounded-lg p-4`}>
+              <div key={label} className={`glow-on-hover bg-gradient-to-br ${bg} to-transparent border border-border/30 rounded-lg p-4`}>
                 <div className={`text-3xl font-bold tracking-tight ${color}`}>{value}</div>
                 <div className="text-[10px] font-semibold tracking-[0.15em] text-muted-foreground mt-1">{label}</div>
               </div>
@@ -1209,8 +1209,8 @@ export default function CommandCenterSection() {
                   {pipelineDash.overallHealth.toUpperCase()} · {pipelineDash.totalRunsToday} runs today
                 </span>
               </div>
-              {pipelineDash.pipelines.map((p: any) => (
-                <div key={p.name} className="flex items-center gap-3 px-3 py-2 bg-background/50 rounded">
+              {pipelineDash.pipelines.map((p: any, _pIdx: number) => (
+                <div key={p.name} className="stagger-in flex items-center gap-3 px-3 py-2 bg-background/50 rounded" style={{ animationDelay: `${_pIdx * 60}ms` }}>
                   <div className={`w-2 h-2 rounded-full shrink-0 ${
                     p.health === "healthy" ? "bg-emerald-400" :
                     p.health === "degraded" ? "bg-amber-400" :
@@ -1237,7 +1237,7 @@ export default function CommandCenterSection() {
           {bridgeEvents && bridgeEvents.length > 0 ? (
             <div className="space-y-1 max-h-[160px] overflow-y-auto">
               {bridgeEvents.slice(0, 8).map((evt: any, i: number) => (
-                <div key={evt.eventId || i} className="flex items-center gap-2 px-2.5 py-1.5 bg-background/30 rounded text-[11px]">
+                <div key={evt.eventId || i} className="stagger-in flex items-center gap-2 px-2.5 py-1.5 bg-background/30 rounded text-[11px]" style={{ animationDelay: `${i * 60}ms` }}>
                   <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                     evt.type.includes("booking") ? "bg-blue-400" :
                     evt.type.includes("lead") ? "bg-amber-400" :

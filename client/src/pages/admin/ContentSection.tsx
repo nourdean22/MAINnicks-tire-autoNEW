@@ -70,8 +70,8 @@ export default function ContentSection() {
         </h3>
         {articles && articles.length > 0 ? (
           <div className="space-y-3">
-            {articles.map(article => (
-              <div key={article.id} className="bg-card border border-border/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {articles.map((article, _aIdx) => (
+              <div key={article.id} className="stagger-in bg-card border border-border/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3" style={{ animationDelay: `${_aIdx * 50}ms` }}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <StatusDot status={article.status} />

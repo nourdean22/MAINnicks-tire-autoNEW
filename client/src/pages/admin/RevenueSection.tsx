@@ -274,8 +274,8 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
             <div className="col-span-1">Date</div>
             <div className="col-span-1"></div>
           </div>
-          {data?.items?.map((inv: any) => (
-            <div key={inv.id} className="grid grid-cols-12 gap-2 items-center px-4 py-3 bg-card border border-border/20 hover:border-border/40 transition-colors">
+          {data?.items?.map((inv: any, _iIdx: number) => (
+            <div key={inv.id} className="stagger-in grid grid-cols-12 gap-2 items-center px-4 py-3 bg-card border border-border/20 hover:border-border/40 transition-colors" style={{ animationDelay: `${_iIdx * 40}ms` }}>
               <div className="col-span-1 text-[10px] text-foreground/30">{inv.invoiceNumber || inv.id}</div>
               <div className="col-span-3">
                 <span className="font-bold text-xs text-foreground block truncate">{inv.customerName}</span>
@@ -459,7 +459,7 @@ function KPICard({ label, value, icon, trend, trendLabel, color = "text-foregrou
   label: string; value: string | number; icon: React.ReactNode; trend?: number; trendLabel?: string; color?: string;
 }) {
   return (
-    <div className="bg-card border border-border/30 p-5">
+    <div className="glow-on-hover bg-card border border-border/30 p-5">
       <div className="flex items-start justify-between mb-3">
         <span className="font-mono text-[10px] text-foreground/50 tracking-wide">{label}</span>
         <div className="text-foreground/30">{icon}</div>

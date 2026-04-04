@@ -314,10 +314,10 @@ export default function LeadsSection() {
             </div>
           ) : (
             <div className="space-y-4">
-              {filteredLeads.map(lead => (
+              {filteredLeads.map((lead, _lIdx) => (
                 <div
                   key={lead.id}
-                  className={`bg-card border p-6 transition-colors ${
+                  className={`stagger-in bg-card border p-6 transition-colors ${
                     (lead.urgencyScore ?? 0) >= 4 ? "border-red-500/30 hover:border-red-500/50" : "border-border/30 hover:border-border/50"
                   }`}
                 >

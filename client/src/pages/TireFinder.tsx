@@ -602,7 +602,7 @@ function TireCard({ tire, quantity, onSelect }: TireCardProps) {
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="group bg-card border border-border/30 rounded-lg p-5 hover:border-primary/30 transition-all duration-200"
+      className="group bg-card border border-border/30 rounded-lg p-5 hover:border-primary/30 transition-all duration-200 card-gold-hover"
     >
       {/* Header with brand logo */}
       <div className="flex items-start justify-between mb-3">
@@ -682,7 +682,7 @@ function TireCard({ tire, quantity, onSelect }: TireCardProps) {
         </div>
         <button
           onClick={onSelect}
-          className="flex items-center gap-1.5 bg-primary text-primary-foreground px-5 py-2.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+          className="flex items-center gap-1.5 bg-primary text-primary-foreground px-5 py-2.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors btn-premium"
         >
           Order
           <ChevronRight className="w-3.5 h-3.5" />
@@ -1027,7 +1027,7 @@ export default function TireFinder() {
                   </div>
 
                   {/* Tire grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 stagger-in">
                     {data.tires.map((tire: any) => (
                       <TireCard
                         key={tire.id}

@@ -88,12 +88,12 @@ export default function TireOrdersSection() {
             <p className="text-xs mt-1">Orders placed through the online tire shop will appear here.</p>
           </div>
         ) : (
-          ordersData.orders.map((order) => {
+          ordersData.orders.map((order, _oIdx) => {
             const config = STATUS_CONFIG[order.status] || STATUS_CONFIG.received;
             const isSelected = selectedOrderId === order.id;
 
             return (
-              <div key={order.id} className="bg-card border border-border/30 rounded-md overflow-hidden">
+              <div key={order.id} className="stagger-in bg-card border border-border/30 rounded-md overflow-hidden" style={{ animationDelay: `${_oIdx * 50}ms` }}>
                 {/* Order row */}
                 <button
                   onClick={() => setSelectedOrderId(isSelected ? null : order.id)}

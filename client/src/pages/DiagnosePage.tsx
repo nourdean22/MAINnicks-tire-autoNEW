@@ -148,7 +148,7 @@ function CarSilhouette({
 
       {/* Zone 1: Front (engine) */}
       <g
-        className="cursor-pointer"
+        className="cursor-pointer glow-on-hover"
         onClick={() => onZoneClick("front")}
         onMouseEnter={() => onZoneHover("front")}
         onMouseLeave={onZoneLeave}
@@ -168,7 +168,7 @@ function CarSilhouette({
 
       {/* Zone 2: Front wheels (brakes/tires) */}
       <g
-        className="cursor-pointer"
+        className="cursor-pointer glow-on-hover"
         onClick={() => onZoneClick("front-wheels")}
         onMouseEnter={() => onZoneHover("front-wheels")}
         onMouseLeave={onZoneLeave}
@@ -188,7 +188,7 @@ function CarSilhouette({
 
       {/* Zone 3: Cabin (AC/heating/electrical) */}
       <g
-        className="cursor-pointer"
+        className="cursor-pointer glow-on-hover"
         onClick={() => onZoneClick("cabin")}
         onMouseEnter={() => onZoneHover("cabin")}
         onMouseLeave={onZoneLeave}
@@ -208,7 +208,7 @@ function CarSilhouette({
 
       {/* Zone 4: Rear (exhaust) */}
       <g
-        className="cursor-pointer"
+        className="cursor-pointer glow-on-hover"
         onClick={() => onZoneClick("rear")}
         onMouseEnter={() => onZoneHover("rear")}
         onMouseLeave={onZoneLeave}
@@ -228,7 +228,7 @@ function CarSilhouette({
 
       {/* Zone 5: Underneath (suspension) */}
       <g
-        className="cursor-pointer"
+        className="cursor-pointer glow-on-hover"
         onClick={() => onZoneClick("underneath")}
         onMouseEnter={() => onZoneHover("underneath")}
         onMouseLeave={onZoneLeave}
@@ -709,7 +709,7 @@ export default function DiagnosePage() {
                 </div>
 
                 {/* Likely Causes as severity-coded cards */}
-                <div className="space-y-3">
+                <div className="space-y-3 stagger-in">
                   <h3 className="font-heading text-sm text-[#FDB913] tracking-wider">POSSIBLE CAUSES</h3>
                   {result.likelyCauses.map((cause, i) => {
                     // Assign severity color per cause based on likelihood
