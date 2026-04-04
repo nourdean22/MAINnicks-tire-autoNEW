@@ -118,6 +118,17 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
         memoryCount: memories.length,
       },
       bridge: bridgeAnalytics,
+      // ═══ Customer Intelligence ═══
+      customerIntelligence: (() => {
+        try {
+          const ci = intelligence.pulse ? {
+            totalCustomers: stats.bookings?.total || 0,
+            walkRate: intelligence.pulse?.thisWeek?.walkRate || 0,
+            avgTicket: intelligence.pulse?.thisWeek?.avgTicket || 0,
+          } : null;
+          return ci;
+        } catch { return null; }
+      })(),
     };
 
     const res = await fetch(`${statenourUrl}/api/sync/business`, {
