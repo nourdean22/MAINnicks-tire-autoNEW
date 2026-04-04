@@ -869,7 +869,7 @@ export default function CommandCenterSection() {
                     )}
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="text-sm font-bold text-foreground">${inv.totalAmount?.toLocaleString()}</div>
+                    <div className="text-sm font-bold text-foreground">${((inv.totalAmount ?? 0) / 100).toLocaleString()}</div>
                     <div className="text-[10px] text-muted-foreground">
                       {inv.invoiceDate ? new Date(inv.invoiceDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
                     </div>

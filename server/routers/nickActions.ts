@@ -1727,6 +1727,37 @@ ${customerBrief}
 ${pipeline.insights.length > 0 ? "⚠ " + pipeline.insights.join(" | ") : ""}
 ${alerts.length > 0 ? "🔴 " + alerts.join(" | ") : ""}`;
           } catch {}
+
+          // Inject declined work — money on the table
+          try {
+            const { getDeclinedWorkLedger } = await import("../services/declinedWorkRecovery");
+            const declined = await getDeclinedWorkLedger(10);
+            const unrecovered = declined.filter(e => e.declinedItems.some(i => !i.recovered));
+            const totalRecoverable = unrecovered.reduce((s, e) => s + e.totalDeclinedValue, 0);
+            const safetyCount = unrecovered.filter(e => e.hasSafetyItems).length;
+            if (unrecovered.length > 0) {
+              bizContext += `\nDECLINED WORK: $${totalRecoverable} recoverable from ${unrecovered.length} customers. ${safetyCount} have SAFETY items. Top: ${unrecovered.slice(0, 3).map(e => `${e.customerName || "?"} ($${e.totalDeclinedValue})`).join(", ")}`;
+            }
+          } catch {}
+
+          // Inject staff performance
+          try {
+            const { getTeamPerformance } = await import("../services/staffPerformance");
+            const team = await getTeamPerformance();
+            if (team.techs && team.techs.length > 0) {
+              bizContext += `\nTEAM: ${team.techs.length} techs. Today: ${team.summary?.jobsToday ?? 0} jobs. QC pass rate: ${team.summary?.qcPassRate ?? "N/A"}%. Comeback rate: ${team.summary?.comebackRate ?? "N/A"}%.`;
+            }
+          } catch {}
+
+          // Inject feedback loop anomalies
+          try {
+            const { detectAnomalies } = await import("../services/feedbackLoop");
+            const anomalies = detectAnomalies();
+            if (anomalies.length > 0) {
+              bizContext += `\nANOMALIES: ${anomalies.join(" | ")}`;
+            }
+          } catch {}
+
         } catch (err) {
           log.warn("Failed to gather biz context for operator command", { error: err instanceof Error ? err.message : String(err) });
         }

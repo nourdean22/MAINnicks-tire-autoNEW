@@ -111,6 +111,36 @@ MARKETING:
 WALK RATE: ${jobsWon > 0 ? Math.round((1 - jobsWon / Math.max(jobsWon + (staleCount || 0), 1)) * 100) : 0}% of estimates walked without converting.
 KEY: Invoice = job WON. Estimate without invoice = customer WALKED.`;
 
+    // ─── Add yesterday's revenue, today's bookings, declined work ────
+    let enrichmentBlock = "";
+    try {
+      // Yesterday's revenue
+      const yesterdayPaid = await d.select().from(invoices)
+        .where(and(gte(invoices.invoiceDate, yesterdayStart), sql`${invoices.invoiceDate} < ${todayStart}`, eq(invoices.paymentStatus, "paid")));
+      const yesterdayRevenue = Math.round(yesterdayPaid.reduce((s, inv) => s + inv.totalAmount, 0) / 100);
+      enrichmentBlock += `\nYESTERDAY'S REVENUE: $${yesterdayRevenue.toLocaleString()} from ${yesterdayPaid.length} paid invoices.`;
+
+      // Today's scheduled bookings
+      const todayBookings = await d.select({ count: sql<number>`count(*)` }).from(bookings)
+        .where(gte(bookings.createdAt, todayStart));
+      enrichmentBlock += `\nTODAY'S BOOKINGS SO FAR: ${todayBookings[0]?.count ?? 0}`;
+
+      // Declined work recoverable
+      const { getDeclinedWorkLedger } = await import("../../services/declinedWorkRecovery");
+      const declined = await getDeclinedWorkLedger(10);
+      const unrecovered = declined.filter(e => e.declinedItems.some(i => !i.recovered));
+      const totalRecoverable = unrecovered.reduce((s, e) => s + e.totalDeclinedValue, 0);
+      if (totalRecoverable > 0) {
+        enrichmentBlock += `\nDECLINED WORK: $${totalRecoverable} recoverable from ${unrecovered.length} customers. ${unrecovered.filter(e => e.hasSafetyItems).length} have SAFETY items that need follow-up calls.`;
+      }
+
+      // Intelligence data
+      const { analyzeConversionPipeline, projectRevenue } = await import("../../services/nickIntelligence");
+      const [pipeline, revenue] = await Promise.all([analyzeConversionPipeline(), projectRevenue()]);
+      enrichmentBlock += `\nPROJECTIONS: This week $${revenue.thisWeekProjection}, this month $${revenue.thisMonthProjection}. WoW: ${revenue.weekOverWeek > 0 ? "+" : ""}${revenue.weekOverWeek}% (${revenue.trend}).`;
+      enrichmentBlock += `\nPIPELINE: Est→Job ${pipeline.estimateToInvoice}%, Lead→Booking ${pipeline.leadToBooking}%. ${pipeline.staleEstimates} stale estimates.`;
+    } catch {}
+
     // ─── Inject memory + personal context + customer intel ────
     let memoryBlock = "";
     try {
@@ -156,7 +186,7 @@ FORMAT RULES:
           },
           {
             role: "user",
-            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
+            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n\n${enrichmentBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
           },
         ],
         maxTokens: 800,

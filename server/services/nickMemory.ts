@@ -306,6 +306,61 @@ export async function learnFromEvent(eventType: string, data: Record<string, any
         });
         break;
       }
+      case "callback_requested": {
+        await remember({
+          type: "pattern",
+          content: `CALLBACK: ${data.name || "Customer"} requested callback on ${day} ${dateStr} ${period}. Phone: ${data.phone || "N/A"}. Reason: ${data.reason || "general inquiry"}. Context: Callback timing reveals when customers need us most. ${period} callbacks on ${day}s inform staffing. Fast callback response = higher conversion. Track time-to-callback.`,
+          source: "event_bus",
+          confidence: 0.8,
+        });
+        break;
+      }
+      case "emergency_request": {
+        await remember({
+          type: "lesson",
+          content: `EMERGENCY: ${data.name || "Customer"} called after-hours on ${day} ${dateStr} ${period}. Problem: ${data.problem || "not specified"}. Urgency: ${data.urgency || "high"}. Context: Emergencies reveal service gaps. Track what problems come in after hours — these are the services customers can't wait for. Consider extending hours if a pattern emerges.`,
+          source: "event_bus",
+          confidence: 0.95,
+        });
+        break;
+      }
+      case "review_detected": {
+        const rating = data.rating || 3;
+        await remember({
+          type: rating >= 4 ? "insight" : "lesson",
+          content: `REVIEW: ${rating}★ from ${data.customerName || "customer"} on ${day} ${dateStr}. Text: "${(data.reviewText || "").slice(0, 120)}". Context: ${rating >= 4 ? "Positive reviews reveal what we do well — double down." : "Low reviews reveal pain points — fix immediately."} Track rating trends weekly. Respond within 24h.`,
+          source: "event_bus",
+          confidence: 0.85,
+        });
+        break;
+      }
+      case "campaign_sent": {
+        await remember({
+          type: "insight",
+          content: `CAMPAIGN: SMS campaign sent on ${day} ${dateStr}. Platforms: ${Array.isArray(data.platforms) ? data.platforms.join(", ") : "sms"}. Success: ${data.success ? "yes" : "no"}. Context: Track which campaigns drive leads within 48h. A/B test message timing and content. ${day} ${period} sends — compare response rates by day.`,
+          source: "event_bus",
+          confidence: 0.7,
+        });
+        break;
+      }
+      case "stage_changed": {
+        await remember({
+          type: "pattern",
+          content: `STAGE CHANGE: ${data.workOrderId ? "WO#" + data.workOrderId : data.callbackId ? "Callback#" + data.callbackId : "Item"} moved to "${data.newStatus || "unknown"}" on ${day} ${dateStr} ${period}. Changed by: ${data.changedBy || "system"}. Context: Stage transitions reveal workflow speed. Track time between stages to find bottlenecks. Blocked items need escalation.`,
+          source: "event_bus",
+          confidence: 0.65,
+        });
+        break;
+      }
+      case "social_posted": {
+        await remember({
+          type: "insight",
+          content: `SOCIAL POST: Published to ${Array.isArray(data.platforms) ? data.platforms.join(", ") : "social"} on ${day} ${dateStr} ${period}. Context: Track which post types and times drive the most engagement and leads.`,
+          source: "event_bus",
+          confidence: 0.5,
+        });
+        break;
+      }
     }
   } catch {}
 }
