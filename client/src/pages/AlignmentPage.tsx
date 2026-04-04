@@ -53,10 +53,10 @@ function AlignmentHero() {
         </FadeIn>
 
         <FadeIn delay={0.3}>
-          <div className="mt-8 flex flex-col sm:flex-row gap-4">
+          <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in">
             <a
               href={BUSINESS.phone.href}
-              className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
+              className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
               aria-label={`Call Nick's Tire and Auto at ${BUSINESS.phone.display}`}
             >
               <Phone className="w-5 h-5" />
@@ -64,7 +64,7 @@ function AlignmentHero() {
             </a>
             <a
               href="#booking"
-              className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors"
+              className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors"
             >
               BOOK ONLINE
             </a>
@@ -72,17 +72,17 @@ function AlignmentHero() {
         </FadeIn>
 
         <FadeIn delay={0.4}>
-          <div className="mt-8 flex flex-wrap gap-4 text-sm">
-            <div className="flex items-center gap-2 bg-nick-blue/10 border border-nick-blue/20 rounded-md px-4 py-2">
+          <div className="mt-8 flex flex-wrap gap-4 stagger-in text-sm">
+            <div className="flex items-center gap-2 stagger-in bg-nick-blue/10 border border-nick-blue/20 rounded-md px-4 py-2">
               <Clock className="w-4 h-4 text-nick-blue-light shrink-0" />
               <span className="text-foreground/80 text-[12px]">Most alignments completed same day</span>
             </div>
-            <div className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-md px-4 py-2">
+            <div className="flex items-center gap-2 stagger-in bg-primary/10 border border-primary/20 rounded-md px-4 py-2">
               <CheckCircle className="w-4 h-4 text-primary shrink-0" />
               <span className="text-foreground/80 text-[12px]">Alignment typically $80–$120 per vehicle</span>
             </div>
           </div>
-          <div className="flex items-center gap-2 bg-emerald-500/5 border border-emerald-500/20 rounded-md px-4 py-2">
+          <div className="flex items-center gap-2 stagger-in bg-emerald-500/5 border border-emerald-500/20 rounded-md px-4 py-2">
             <CreditCard className="w-4 h-4 text-emerald-400 shrink-0" />
             <span className="text-foreground/80 text-[12px]">
               Payment options available — <Link href="/financing?utm_source=alignment" className="text-emerald-400 hover:text-emerald-300">lease-to-own from $10 down</Link>
@@ -110,7 +110,7 @@ function SignsSection() {
           </p>
         </FadeIn>
 
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6 stagger-in">
           {[
             {
               title: "Car Pulling to One Side",
@@ -131,7 +131,7 @@ function SignsSection() {
           ].map((sign, i) => (
             <FadeIn key={i} delay={i * 0.08}>
               <div className="bg-card/60 border border-nick-blue/10 rounded-lg p-6 lg:p-8">
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-4 stagger-in">
                   <AlertTriangle className="w-6 h-6 text-primary shrink-0 mt-1" />
                   <div>
                     <h3 className="font-semibold font-bold text-lg text-foreground tracking-wide mb-2">
@@ -164,7 +164,7 @@ function BenefitsSection() {
           </p>
         </FadeIn>
 
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8 stagger-in">
           {[
             {
               title: "Extends Tire Life",
@@ -279,7 +279,7 @@ function BookingSection() {
   return (
     <section id="booking" className="bg-[oklch(0.065_0.004_260)] py-20 lg:py-28">
       <div className="container">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 stagger-in lg:gap-20">
           <FadeIn>
             <div>
               <span className="font-mono text-primary text-sm tracking-wide">Get Started</span>
@@ -293,7 +293,7 @@ function BookingSection() {
               </p>
 
               <div className="mt-8 space-y-6">
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3 stagger-in">
                   <MapPin className="w-5 h-5 text-nick-blue-light mt-1 shrink-0" />
                   <div>
                     <p className="font-mono text-foreground/80">{BUSINESS.address.street}</p>

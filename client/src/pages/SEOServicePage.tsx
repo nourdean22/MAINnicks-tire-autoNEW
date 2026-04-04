@@ -69,11 +69,11 @@ export default function SEOServicePage() {
               </p>
             </FadeIn>
             <FadeIn delay={0.2}>
-              <div className="mt-8 flex flex-col sm:flex-row gap-4">
-                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`seo-${page.slug}-hero`)} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-primary/90 transition-colors">
+              <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`seo-${page.slug}-hero`)} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-primary/90 transition-colors">
                   <Phone className="w-5 h-5" />CALL FOR A FREE QUOTE
                 </a>
-                <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors">
+                <Link href="/contact" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors">
                   SCHEDULE ONLINE <ChevronRight className="w-5 h-5" />
                 </Link>
               </div>
@@ -90,10 +90,10 @@ export default function SEOServicePage() {
                 COMMON SYMPTOMS
               </h2>
             </FadeIn>
-            <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 stagger-in">
               {page.symptoms.map((symptom, i) => (
                 <FadeIn key={i} delay={i * 0.05}>
-                  <div className="flex items-start gap-3 p-4 border border-border/40 bg-card/30 hover:bg-card/50 transition-colors">
+                  <div className="flex items-start gap-3 stagger-in p-4 border border-border/40 bg-card/30 hover:bg-card/50 transition-colors">
                     <AlertTriangle className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                     <span className="text-foreground/80 text-sm leading-relaxed">{symptom}</span>
                   </div>
@@ -131,7 +131,7 @@ export default function SEOServicePage() {
             </FadeIn>
             <div className="space-y-4">
               <FadeIn delay={0.05}>
-                <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-5">
+                <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-5">
                   <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="font-semibold font-bold text-primary text-xs">1</span>
                   </div>
@@ -142,7 +142,7 @@ export default function SEOServicePage() {
                 </div>
               </FadeIn>
               <FadeIn delay={0.1}>
-                <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-5">
+                <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-5">
                   <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="font-semibold font-bold text-primary text-xs">2</span>
                   </div>
@@ -153,7 +153,7 @@ export default function SEOServicePage() {
                 </div>
               </FadeIn>
               <FadeIn delay={0.15}>
-                <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-5">
+                <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-5">
                   <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="font-semibold font-bold text-primary text-xs">3</span>
                   </div>
@@ -164,7 +164,7 @@ export default function SEOServicePage() {
                 </div>
               </FadeIn>
               <FadeIn delay={0.2}>
-                <div className="flex items-start gap-4 bg-card/30 border border-border/50 rounded-lg p-5">
+                <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-5">
                   <div className="w-8 h-8 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="font-semibold font-bold text-primary text-xs">4</span>
                   </div>
@@ -186,7 +186,7 @@ export default function SEOServicePage() {
                 WHY CLEVELAND DRIVERS CHOOSE NICK'S
               </h2>
             </FadeIn>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 stagger-in">
               <FadeIn delay={0.05}>
                 <div className="bg-card/30 border border-border/50 rounded-lg p-6">
                   <div className="text-3xl font-bold text-primary mb-2">{BUSINESS.reviews.rating} Stars</div>
@@ -239,7 +239,7 @@ export default function SEOServicePage() {
                 RELATED SERVICES
               </h2>
             </FadeIn>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 stagger-in">
               {page.relatedPages.map((relSlug, i) => (
                 <FadeIn key={relSlug} delay={i * 0.05}>
                   <Link href={`/${relSlug}`} className="block p-5 border border-border/40 bg-card/30 hover:bg-card/50 hover:border-primary/50 transition-colors group">
@@ -264,11 +264,11 @@ export default function SEOServicePage() {
               <p className="mt-4 text-primary-foreground/80 text-lg max-w-xl mx-auto">
                 Call us or schedule online. We will diagnose the problem, explain your options, and give you an honest quote.
               </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`seo-${page.slug}-bottom-cta`)} className="inline-flex items-center justify-center gap-2 bg-background text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-background/90 transition-colors">
+              <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in justify-center">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`seo-${page.slug}-bottom-cta`)} className="inline-flex items-center justify-center gap-2 stagger-in bg-background text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-background/90 transition-colors">
                   <Phone className="w-5 h-5" />{BUSINESS.phone.display}
                 </a>
-                <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-primary-foreground text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-primary-foreground/10 transition-colors">
+                <Link href="/contact" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-primary-foreground text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-primary-foreground/10 transition-colors">
                   SCHEDULE ONLINE
                 </Link>
               </div>
@@ -281,11 +281,11 @@ export default function SEOServicePage() {
 
         {/* Sticky Mobile CTA */}
         <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/95 backdrop-blur-md border-t border-border p-3">
-          <div className="flex gap-2">
-            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`seo-${page.slug}-sticky`)} aria-label="Call Nick's Tire and Auto" className="flex-1 flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3 font-semibold font-bold text-sm tracking-wide">
+          <div className="flex gap-2 stagger-in">
+            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`seo-${page.slug}-sticky`)} aria-label="Call Nick's Tire and Auto" className="flex-1 flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium py-3 font-semibold font-bold text-sm tracking-wide">
               <Phone className="w-4 h-4" />CALL NOW
             </a>
-            <Link href="/contact" className="flex-1 flex items-center justify-center gap-2 border border-primary text-primary py-3 font-semibold font-bold text-sm tracking-wide">
+            <Link href="/contact" className="flex-1 flex items-center justify-center gap-2 stagger-in border border-primary text-primary py-3 font-semibold font-bold text-sm tracking-wide">
               BOOK ONLINE
             </Link>
           </div>

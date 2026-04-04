@@ -55,7 +55,7 @@ function NeighborhoodNavbar({ neighborhood }: { neighborhood: Neighborhood }) {
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-background/90 backdrop-blur-md shadow-lg" : "bg-transparent"}`} aria-label="Neighborhood page navigation">
       <div className="container flex items-center justify-between h-16 lg:h-20">
-        <Link href="/" className="flex items-center gap-3">
+        <Link href="/" className="flex items-center gap-3 stagger-in">
           <div className="w-10 h-10 bg-primary flex items-center justify-center rounded-sm">
             <span className="font-semibold font-bold text-primary-foreground text-lg">N</span>
           </div>
@@ -65,11 +65,11 @@ function NeighborhoodNavbar({ neighborhood }: { neighborhood: Neighborhood }) {
           </div>
         </Link>
 
-        <div className="hidden lg:flex items-center gap-6">
+        <div className="hidden lg:flex items-center gap-6 stagger-in">
           <a href="#services" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Services</a>
           <a href="#reviews" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Reviews</a>
           <a href="#booking" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Book Now</a>
-          <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('neighborhood-navbar-desktop')} className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label={`Call ${BUSINESS.name} at ${BUSINESS.phone.display}`}>
+          <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('neighborhood-navbar-desktop')} className="flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label={`Call ${BUSINESS.name} at ${BUSINESS.phone.display}`}>
             <Phone className="w-4 h-4" />
             {BUSINESS.phone.display}
           </a>
@@ -82,15 +82,15 @@ function NeighborhoodNavbar({ neighborhood }: { neighborhood: Neighborhood }) {
 
       {mobileOpen && (
         <div className="lg:hidden bg-background/98 backdrop-blur-md border-t border-primary/20">
-          <div className="container py-6 flex flex-col gap-4">
-            <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 font-semibold text-lg tracking-wide text-foreground/60 hover:text-nick-blue-light transition-colors py-2">
+          <div className="container py-6 flex flex-col gap-4 stagger-in">
+            <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 stagger-in font-semibold text-lg tracking-wide text-foreground/60 hover:text-nick-blue-light transition-colors py-2">
               <ArrowLeft className="w-5 h-5" />
               Back to Home
             </Link>
             <a href="#services" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Services</a>
             <a href="#reviews" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Reviews</a>
             <a href="#booking" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Book Now</a>
-            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('neighborhood-navbar-mobile')} className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wide mt-2" aria-label={`Call ${BUSINESS.name} at ${BUSINESS.phone.display}`}>
+            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('neighborhood-navbar-mobile')} className="flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wide mt-2" aria-label={`Call ${BUSINESS.name} at ${BUSINESS.phone.display}`}>
               <Phone className="w-4 h-4" />
               {BUSINESS.phone.display}
             </a>
@@ -186,7 +186,7 @@ export default function NeighborhoodPage() {
           <div className="text-center">
             <h1 className="font-semibold font-bold text-4xl text-foreground mb-4">PAGE NOT FOUND</h1>
             <p className="text-foreground/60 mb-8">This neighborhood page does not exist.</p>
-            <Link href="/" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide">
+            <Link href="/" className="inline-flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide">
               <ArrowLeft className="w-4 h-4" />
               BACK TO HOME
             </Link>
@@ -220,8 +220,8 @@ export default function NeighborhoodPage() {
           </FadeIn>
 
           <FadeIn delay={0.1}>
-            <div className="flex items-center gap-3 mb-4 mt-4">
-              <div className="flex gap-0.5">
+            <div className="flex items-center gap-3 stagger-in mb-4 mt-4">
+              <div className="flex gap-0 stagger-in.5">
                 {[...Array(5)].map((_, i) => (
                   <Star key={i} className="w-4 h-4 fill-nick-yellow text-primary" />
                 ))}
@@ -240,12 +240,12 @@ export default function NeighborhoodPage() {
           </FadeIn>
 
           <FadeIn delay={0.3}>
-            <div className="mt-8 flex flex-col sm:flex-row gap-4">
-              <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('neighborhood-hero-cta')} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors" aria-label={`Call ${BUSINESS.name} at ${BUSINESS.phone.display}`}>
+            <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in">
+              <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('neighborhood-hero-cta')} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors" aria-label={`Call ${BUSINESS.name} at ${BUSINESS.phone.display}`}>
                 <Phone className="w-5 h-5" />
                 CALL FOR A FREE QUOTE
               </a>
-              <a href="#booking" className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
+              <a href="#booking" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
                 BOOK ONLINE
                 <ChevronRight className="w-5 h-5" />
               </a>
@@ -253,12 +253,12 @@ export default function NeighborhoodPage() {
           </FadeIn>
 
           <FadeIn delay={0.4}>
-            <div className="mt-8 flex flex-wrap gap-6 text-sm text-foreground/60">
-              <div className="flex items-center gap-2">
+            <div className="mt-8 flex flex-wrap gap-6 stagger-in text-sm text-foreground/60">
+              <div className="flex items-center gap-2 stagger-in">
                 <Navigation className="w-4 h-4 text-nick-blue-light" />
                 <span className="font-mono">Only {neighborhood.driveTime} away!</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 stagger-in">
                 <MapPin className="w-4 h-4 text-primary" />
                 <span className="font-mono">{BUSINESS.address.full}</span>
               </div>
@@ -270,7 +270,7 @@ export default function NeighborhoodPage() {
       {/* Directions */}
       <section className="py-16 lg:py-24 bg-[oklch(0.065_0.004_260)]">
         <div className="container">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 stagger-in lg:gap-20 items-center">
             <FadeIn>
               <div>
                 <span className="font-mono text-nick-blue-light text-sm tracking-wide">Getting Here</span>
@@ -282,11 +282,11 @@ export default function NeighborhoodPage() {
                   {neighborhood.directionsFrom}
                 </p>
                 <div className="mt-6 space-y-3">
-                  <div className="flex items-center gap-3 text-foreground/80">
+                  <div className="flex items-center gap-3 stagger-in text-foreground/80">
                     <Navigation className="w-5 h-5 text-primary flex-shrink-0" />
                     <span className="text-sm">Drive time: {neighborhood.driveTime}</span>
                   </div>
-                  <div className="flex items-center gap-3 text-foreground/80">
+                  <div className="flex items-center gap-3 stagger-in text-foreground/80">
                     <MapPin className="w-5 h-5 text-primary flex-shrink-0" />
                     <span className="text-sm">Distance: {neighborhood.driveMiles}</span>
                   </div>
@@ -332,10 +332,10 @@ export default function NeighborhoodPage() {
             </h2>
           </FadeIn>
 
-          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger-in">
             {SERVICES.map((service, i) => (
               <FadeIn key={service.id} delay={i * 0.05}>
-                <a href={`/contact?service=${service.name.toLowerCase().replace(/\s+/g, '-')}`} className="flex items-center gap-3 bg-card/50 border border-border/50 rounded-lg p-5 hover:border-primary/30 hover:bg-card transition-colors group">
+                <a href={`/contact?service=${service.name.toLowerCase().replace(/\s+/g, '-')}`} className="flex items-center gap-3 stagger-in bg-card/50 border border-border/50 rounded-lg p-5 hover:border-primary/30 hover:bg-card transition-colors group">
                   <span className="text-2xl">{service.icon}</span>
                   <span className="text-foreground/80 text-sm font-semibold group-hover:text-primary transition-colors">{service.name}</span>
                   <ChevronRight className="w-4 h-4 text-foreground/30 group-hover:text-primary ml-auto transition-colors" />
@@ -356,11 +356,11 @@ export default function NeighborhoodPage() {
             </h2>
           </FadeIn>
 
-          <div className="mt-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="mt-10 grid grid-cols-1 lg:grid-cols-3 gap-6 stagger-in">
             {STATIC_REVIEWS.map((review, i) => (
               <FadeIn key={i} delay={i * 0.05}>
                 <div className="bg-card/50 border border-border/50 rounded-lg p-6">
-                  <div className="flex gap-0.5 mb-4">
+                  <div className="flex gap-0 stagger-in.5 mb-4">
                     {[...Array(5)].map((_, j) => (
                       <Star key={j} className="w-4 h-4 fill-nick-yellow text-primary" />
                     ))}
@@ -390,12 +390,12 @@ export default function NeighborhoodPage() {
               </p>
             </div>
 
-            <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('neighborhood-cta-call')} className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors" aria-label={`Call ${BUSINESS.name} at ${BUSINESS.phone.display}`}>
+            <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-6 stagger-in">
+              <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('neighborhood-cta-call')} className="flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors" aria-label={`Call ${BUSINESS.name} at ${BUSINESS.phone.display}`}>
                 <Phone className="w-5 h-5" />
                 {BUSINESS.phone.display}
               </a>
-              <a href="https://nickstire.org/book" className="flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
+              <a href="https://nickstire.org/book" className="flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
                 BOOK ONLINE
                 <ChevronRight className="w-5 h-5" />
               </a>
@@ -409,7 +409,7 @@ export default function NeighborhoodPage() {
         <div className="container">
           <FadeIn>
             <h3 className="font-semibold font-bold text-lg text-foreground/60 tracking-[-0.01em] mb-6">NEARBY NEIGHBORHOODS</h3>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-3 stagger-in">
               {neighborhood.nearbyLandmarks
                 .slice(0, 4)
                 .map((landmark, i) => {
@@ -429,12 +429,12 @@ export default function NeighborhoodPage() {
       </section>
 
       {/* Mobile Sticky CTA */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/90 backdrop-blur-md border-t border-primary/30 p-3 flex gap-2">
-        <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('neighborhood-mobile-sticky')} className="flex items-center justify-center gap-2 bg-primary text-primary-foreground flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label={`Call ${BUSINESS.name} at ${BUSINESS.phone.display}`}>
+      <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/90 backdrop-blur-md border-t border-primary/30 p-3 flex gap-2 stagger-in">
+        <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('neighborhood-mobile-sticky')} className="flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label={`Call ${BUSINESS.name} at ${BUSINESS.phone.display}`}>
           <Phone className="w-4 h-4" />
           CALL NOW
         </a>
-        <a href="#booking" className="flex items-center justify-center gap-2 border-2 border-nick-blue text-nick-blue-light flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label="Book an appointment online">
+        <a href="#booking" className="flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue text-nick-blue-light flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label="Book an appointment online">
           BOOK ONLINE
         </a>
       </div>

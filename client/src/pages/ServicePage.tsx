@@ -79,7 +79,7 @@ function ServiceNavbar({ service }: { service: ServiceData }) {
   return (
     <nav className={`fixed ${scrolled ? "top-0" : "top-[40px]"} left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-background/95 backdrop-blur-md shadow-lg shadow-nick-yellow/5" : "bg-transparent"}`}>
       <div className="container flex items-center justify-between h-16 lg:h-20">
-        <Link href="/" className="flex items-center gap-3">
+        <Link href="/" className="flex items-center gap-3 stagger-in">
           <div className="w-10 h-10 bg-primary flex items-center justify-center rounded-md">
             <span className="font-semibold font-bold text-primary-foreground text-lg">N</span>
           </div>
@@ -89,9 +89,9 @@ function ServiceNavbar({ service }: { service: ServiceData }) {
           </div>
         </Link>
 
-        <div className="hidden lg:flex items-center gap-6">
+        <div className="hidden lg:flex items-center gap-6 stagger-in">
           
-          <Link href="/" className="flex items-center gap-1 font-semibold text-sm tracking-wide text-foreground/60 hover:text-nick-blue-light transition-colors">
+          <Link href="/" className="flex items-center gap-1 stagger-in font-semibold text-sm tracking-wide text-foreground/60 hover:text-nick-blue-light transition-colors">
             <ArrowLeft className="w-4 h-4" />
             Home
           </Link>
@@ -114,13 +114,13 @@ function ServiceNavbar({ service }: { service: ServiceData }) {
           <a href="#booking" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">
             Book Now
           </a>
-          <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('service-navbar-desktop')} className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+          <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('service-navbar-desktop')} className="flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
             <Phone className="w-4 h-4" />
             {BUSINESS.phone.display}
           </a>
         </div>
 
-        <div className="lg:hidden flex items-center gap-1">
+        <div className="lg:hidden flex items-center gap-1 stagger-in">
           
           <button onClick={() => setMobileOpen(!mobileOpen)} className="text-foreground p-2">
             {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -130,8 +130,8 @@ function ServiceNavbar({ service }: { service: ServiceData }) {
 
       {mobileOpen && (
         <div className="lg:hidden bg-background/98 backdrop-blur-md border-t border-primary/20">
-          <div className="container py-6 flex flex-col gap-4">
-            <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 font-semibold text-lg tracking-wide text-foreground/60 hover:text-nick-blue-light transition-colors py-2">
+          <div className="container py-6 flex flex-col gap-4 stagger-in">
+            <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 stagger-in font-semibold text-lg tracking-wide text-foreground/60 hover:text-nick-blue-light transition-colors py-2">
               <ArrowLeft className="w-5 h-5" />
               Back to Home
             </Link>
@@ -154,7 +154,7 @@ function ServiceNavbar({ service }: { service: ServiceData }) {
             <a href="#booking" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">
               Book Now
             </a>
-            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('service-navbar-mobile')} className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wide mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('service-navbar-mobile')} className="flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wide mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
               <Phone className="w-4 h-4" />
               {BUSINESS.phone.display}
             </a>
@@ -183,7 +183,7 @@ function ServiceHero({ service }: { service: ServiceData }) {
         </FadeIn>
 
         <FadeIn delay={0.1}>
-          <div className="flex items-center gap-4 mb-4">
+          <div className="flex items-center gap-4 stagger-in mb-4">
             <div className="text-nick-blue-light">{icon}</div>
             <span className="text-[13px] text-nick-blue-light tracking-wide">Service {service.num}</span>
           </div>
@@ -199,12 +199,12 @@ function ServiceHero({ service }: { service: ServiceData }) {
         </FadeIn>
 
         <FadeIn delay={0.3}>
-          <div className="mt-8 flex flex-col sm:flex-row gap-4">
-            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('service-hero-cta')} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+          <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in">
+            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('service-hero-cta')} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
               <Phone className="w-5 h-5" />
               {service.heroCTA || "CALL NOW"}
             </a>
-            <a href="#booking" className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
+            <a href="#booking" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
               BOOK ONLINE
               <ChevronRight className="w-5 h-5" />
             </a>
@@ -213,15 +213,15 @@ function ServiceHero({ service }: { service: ServiceData }) {
 
         {/* Turnaround + Pricing badges */}
         <FadeIn delay={0.4}>
-          <div className="mt-8 flex flex-wrap gap-4 text-sm">
+          <div className="mt-8 flex flex-wrap gap-4 stagger-in text-sm">
             {service.turnaround && (
-              <div className="flex items-center gap-2 bg-nick-blue/10 border border-nick-blue/20 rounded-md px-4 py-2">
+              <div className="flex items-center gap-2 stagger-in bg-nick-blue/10 border border-nick-blue/20 rounded-md px-4 py-2">
                 <Clock className="w-4 h-4 text-nick-blue-light shrink-0" />
                 <span className="text-foreground/80 text-[12px]">{service.turnaround}</span>
               </div>
             )}
             {service.pricingNote && (
-              <div className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-md px-4 py-2">
+              <div className="flex items-center gap-2 stagger-in bg-primary/10 border border-primary/20 rounded-md px-4 py-2">
                 <Star className="w-4 h-4 text-primary shrink-0" />
                 <span className="text-foreground/80 text-[12px]">{service.pricingNote}</span>
               </div>
@@ -232,7 +232,7 @@ function ServiceHero({ service }: { service: ServiceData }) {
         {/* Urgency alert — only shown for safety-critical services */}
         {service.urgencyNote && (
           <FadeIn delay={0.5}>
-            <div className="mt-6 flex items-start gap-3 bg-red-950/40 border border-red-800/40 rounded-md px-5 py-4 max-w-2xl">
+            <div className="mt-6 flex items-start gap-3 stagger-in bg-red-950/40 border border-red-800/40 rounded-md px-5 py-4 max-w-2xl">
               <span className="text-red-400 text-lg shrink-0 mt-0.5">⚠</span>
               <p className="text-red-300/90 text-sm leading-relaxed">{service.urgencyNote}</p>
             </div>
@@ -251,7 +251,7 @@ function Problems({ service }: { service: ServiceData }) {
     <section id="problems" className="bg-[oklch(0.055_0.004_260)] py-20 lg:py-28">
       
       <div className="container pt-16">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 stagger-in lg:gap-20">
           <FadeIn>
             <div>
               <span className="font-mono text-nick-blue-light text-sm tracking-wide">Common Problems</span>
@@ -276,8 +276,8 @@ function Problems({ service }: { service: ServiceData }) {
                 {service.slug === "belts-hoses" && "Worn belts and cracked hoses cause breakdowns without warning. These are the questions Cleveland drivers ask about preventive replacement."}
                 {service.slug === "starter-alternator" && "If your car won't start or the battery keeps dying, the starter or alternator may be the cause. Here is what Cleveland drivers ask us most."}
               </p>
-              <div className="mt-8 flex items-center gap-3 text-foreground/50">
-                <div className="flex gap-0.5">
+              <div className="mt-8 flex items-center gap-3 stagger-in text-foreground/50">
+                <div className="flex gap-0 stagger-in.5">
                   {[...Array(5)].map((_, i) => (
                     <Star key={i} className="w-4 h-4 fill-nick-yellow text-primary" />
                   ))}
@@ -287,7 +287,7 @@ function Problems({ service }: { service: ServiceData }) {
             </div>
           </FadeIn>
 
-          <div className="flex flex-col gap-0">
+          <div className="flex flex-col gap-0 stagger-in">
             {service.problems.map((p, i) => (
               <FadeIn key={i} delay={i * 0.06}>
                 <button
@@ -339,10 +339,10 @@ function WarningSigns({ service }: { service: ServiceData }) {
               If you notice any of these, do not wait. Bring your vehicle in for an inspection.
             </p>
 
-            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 stagger-in">
               {service.signs.map((sign, i) => (
                 <FadeIn key={i} delay={i * 0.05}>
-                  <div className="flex items-start gap-3 bg-card/60 border border-nick-blue/10 rounded-md p-4">
+                  <div className="flex items-start gap-3 stagger-in bg-card/60 border border-nick-blue/10 rounded-md p-4">
                     <div className="w-6 h-6 bg-primary/15 flex items-center justify-center rounded-full shrink-0 mt-0.5">
                       <span className="text-primary text-xs font-bold">{i + 1}</span>
                     </div>
@@ -363,12 +363,12 @@ function WarningSigns({ service }: { service: ServiceData }) {
             )}
 
             <FadeIn delay={0.35}>
-              <div className="mt-8 flex flex-col sm:flex-row gap-4">
-                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('service-signs-cta')} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+              <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('service-signs-cta')} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
                   <Phone className="w-4 h-4" />
                   CALL {BUSINESS.phone.display}
                 </a>
-                <a href="#booking" className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/40 text-nick-blue-light px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:bg-nick-blue/10 transition-colors">
+                <a href="#booking" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/40 text-nick-blue-light px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:bg-nick-blue/10 transition-colors">
                   SCHEDULE INSPECTION
                   <ChevronRight className="w-4 h-4" />
                 </a>
@@ -396,11 +396,11 @@ function Process({ service }: { service: ServiceData }) {
           </p>
         </FadeIn>
 
-        <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 stagger-in">
           {service.process.map((step, i) => (
             <FadeIn key={i} delay={i * 0.08}>
               <div className="relative bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 lg:p-8 h-full">
-                <div className="flex items-center gap-3 mb-4">
+                <div className="flex items-center gap-3 stagger-in mb-4">
                   <span className="font-semibold font-bold text-4xl text-primary/30">{String(i + 1).padStart(2, "0")}</span>
                 </div>
                 <h3 className="font-semibold font-bold text-lg text-nick-blue-light tracking-[-0.01em] mb-3">{step.step}</h3>
@@ -420,7 +420,7 @@ function WhyUs({ service }: { service: ServiceData }) {
     <section className="bg-[oklch(0.055_0.004_260)] py-20 lg:py-28">
       <div className="h-1.5 w-full bg-gradient-to-r from-nick-teal via-nick-yellow to-nick-yellow" />
       <div className="container pt-16">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 stagger-in lg:gap-20 items-center">
           <FadeIn>
             <div>
               <span className="font-mono text-nick-blue-light text-sm tracking-wide">Why Nick's</span>
@@ -454,7 +454,7 @@ function WhyUs({ service }: { service: ServiceData }) {
           <FadeIn delay={0.15}>
             <div className="space-y-4">
               {service.whyUs.map((item, i) => (
-                <div key={i} className="flex items-start gap-4 p-4 bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl">
+                <div key={i} className="flex items-start gap-4 stagger-in p-4 bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl">
                   <div className="w-8 h-8 bg-primary/10 flex items-center justify-center rounded-md shrink-0 mt-0.5">
                     <span className="font-semibold font-bold text-primary text-sm">{String(i + 1).padStart(2, "0")}</span>
                   </div>
@@ -502,7 +502,7 @@ function QuickAnswers({ service }: { service: ServiceData }) {
           </p>
         </FadeIn>
 
-        <div className="mt-12 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="mt-12 grid grid-cols-1 lg:grid-cols-2 gap-6 stagger-in">
           {service.quickAnswers.map((qa, i) => (
             <FadeIn key={i} delay={i * 0.08}>
               <div className="bg-card/60 border border-nick-blue/10 rounded-lg p-6 lg:p-8 h-full">
@@ -542,7 +542,7 @@ function PillarIntro({ service }: { service: ServiceData }) {
           {service.seasonalCTA && (
             <FadeIn delay={0.15}>
               <div className="mt-10 bg-primary/10 border-l-4 border-primary rounded-r-lg p-6 lg:p-8">
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-4 stagger-in">
                   <ThermometerSun className="w-6 h-6 text-primary shrink-0 mt-1" />
                   <div>
                     <h3 className="font-semibold font-bold text-lg text-primary tracking-wide mb-2">
@@ -551,7 +551,7 @@ function PillarIntro({ service }: { service: ServiceData }) {
                     <p className="text-foreground/80 leading-relaxed">
                       {service.seasonalCTA}
                     </p>
-                    <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('pillar-seasonal-cta')} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors mt-4" aria-label="Call Nick's Tire and Auto">
+                    <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('pillar-seasonal-cta')} className="inline-flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors mt-4" aria-label="Call Nick's Tire and Auto">
                       <Phone className="w-4 h-4" />
                       SCHEDULE SPRING AC CHECK
                     </a>
@@ -587,7 +587,7 @@ function CostBreakdown({ service }: { service: ServiceData }) {
           {service.costBreakdown.map((item, i) => (
             <FadeIn key={i} delay={i * 0.08}>
               <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 lg:p-8">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 stagger-in mb-3">
                   <h3 className="font-semibold font-bold text-lg lg:text-xl text-foreground tracking-wide">
                     {item.service}
                   </h3>
@@ -716,14 +716,14 @@ function RelatedLinks({ service }: { service: ServiceData }) {
           </h2>
         </FadeIn>
 
-        <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6 stagger-in">
           {service.relatedLinks.map((link, i) => (
             <FadeIn key={i} delay={i * 0.1}>
               <Link
                 href={link.href}
                 className="block bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 lg:p-8 group hover:border-primary/40 transition-colors"
               >
-                <h3 className="font-semibold font-bold text-lg text-foreground tracking-wide group-hover:text-primary transition-colors flex items-center gap-2">
+                <h3 className="font-semibold font-bold text-lg text-foreground tracking-wide group-hover:text-primary transition-colors flex items-center gap-2 stagger-in">
                   {link.label}
                   <ChevronRight className="w-5 h-5 text-nick-blue-light group-hover:text-primary transition-colors" />
                 </h3>
@@ -744,7 +744,7 @@ function BookingSection({ service }: { service: ServiceData }) {
   return (
     <section id="booking" className="bg-[oklch(0.065_0.004_260)] py-20 lg:py-28">
       <div className="container">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 stagger-in lg:gap-20">
           <FadeIn>
             <div>
               <span className="font-mono text-primary text-sm tracking-wide">Get Started</span>
@@ -757,21 +757,21 @@ function BookingSection({ service }: { service: ServiceData }) {
               </p>
 
               <div className="mt-8 space-y-6">
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3 stagger-in">
                   <MapPin className="w-5 h-5 text-nick-blue-light mt-1 shrink-0" />
                   <div>
                     <p className="font-mono text-foreground/80">{BUSINESS.address.street}</p>
                     <p className="font-mono text-foreground/80">Cleveland, OH 44112</p>
                   </div>
                 </div>
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3 stagger-in">
                   <Clock className="w-5 h-5 text-nick-blue-light mt-1 shrink-0" />
                   <div className="font-mono text-foreground/80 space-y-1">
                     <p>Monday – Saturday: 8:00 AM – 6:00 PM</p>
                     <p>Sunday: 9:00 AM – 4:00 PM</p>
                   </div>
                 </div>
-                <a href={BUSINESS.phone.href} className="flex items-center gap-3 group">
+                <a href={BUSINESS.phone.href} className="flex items-center gap-3 stagger-in group">
                   <Phone className="w-5 h-5 text-primary shrink-0" />
                   <span className="font-mono text-2xl text-foreground group-hover:text-primary transition-colors">{BUSINESS.phone.display}</span>
                 </a>
@@ -810,7 +810,7 @@ function OtherServices({ currentSlug }: { currentSlug: string }) {
           </h2>
         </FadeIn>
 
-        <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 stagger-in">
           {others.map((s, i) => (
             <FadeIn key={s.slug} delay={i * 0.06}>
               <Link
@@ -1026,7 +1026,7 @@ export default function ServicePage() {
         <div className="text-center">
           <h1 className="font-semibold font-bold text-4xl text-foreground mb-4">SERVICE NOT FOUND</h1>
           <p className="text-foreground/60 mb-8">The service page you are looking for does not exist.</p>
-          <Link href="/" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide">
+          <Link href="/" className="inline-flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide">
             <ArrowLeft className="w-4 h-4" />
             BACK TO HOME
           </Link>

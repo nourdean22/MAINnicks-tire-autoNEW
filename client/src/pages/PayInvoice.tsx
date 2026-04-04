@@ -118,7 +118,7 @@ export default function PayInvoice() {
                 <button
                   onClick={() => setLooked(true)}
                   disabled={!invoiceNum.trim() || phone.length < 7 || invoiceQuery.isFetching}
-                  className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                  className="w-full bg-primary text-primary-foreground btn-premium py-3 rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2 stagger-in"
                 >
                   {invoiceQuery.isFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
                   Look Up Invoice
@@ -171,7 +171,7 @@ export default function PayInvoice() {
               {/* CC Form */}
               {invoice.canPay && (
                 <div className="bg-card border border-border/50 rounded-xl p-5">
-                  <div className="flex items-center gap-2 mb-4">
+                  <div className="flex items-center gap-2 stagger-in mb-4">
                     <Lock className="w-4 h-4 text-primary/60" />
                     <span className="text-sm font-semibold text-foreground">Pay with Credit or Debit Card</span>
                   </div>
@@ -182,7 +182,7 @@ export default function PayInvoice() {
                         placeholder="1234 5678 9012 3456" maxLength={19}
                         className="w-full bg-background border border-border/50 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50" />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-3 stagger-in">
                       <div>
                         <label className="block text-[11px] text-muted-foreground mb-1">Exp Date</label>
                         <input type="text" value={ccExp} onChange={(e) => setCcExp(e.target.value)}
@@ -226,7 +226,7 @@ export default function PayInvoice() {
                         });
                       }}
                       disabled={submitPayment.isPending}
-                      className="w-full bg-primary text-primary-foreground py-3.5 rounded-lg font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                      className="w-full bg-primary text-primary-foreground btn-premium py-3.5 rounded-lg font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 stagger-in"
                     >
                       {submitPayment.isPending ? (
                         <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</>
@@ -236,11 +236,11 @@ export default function PayInvoice() {
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-4 mt-4 pt-3 border-t border-border/20">
-                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <div className="flex items-center gap-4 stagger-in mt-4 pt-3 border-t border-border/20">
+                    <div className="flex items-center gap-1 stagger-in.5 text-[10px] text-muted-foreground">
                       <Shield className="w-3 h-3" /> Secure payment
                     </div>
-                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-1 stagger-in.5 text-[10px] text-muted-foreground">
                       <Lock className="w-3 h-3" /> Encrypted
                     </div>
                   </div>
@@ -251,7 +251,7 @@ export default function PayInvoice() {
                     <a
                       href="https://getsnap.snapfinance.com/lease/en-US/consumer/apply/landing"
                       target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 bg-[#FF6B00] text-white px-4 py-2 rounded-lg text-xs font-medium hover:bg-[#FF6B00]/90 transition-colors"
+                      className="inline-flex items-center gap-1 stagger-in.5 bg-[#FF6B00] text-white px-4 py-2 rounded-lg text-xs font-medium hover:bg-[#FF6B00]/90 transition-colors"
                     >
                       <Zap className="w-3 h-3" /> Apply with Snap Finance
                     </a>

@@ -91,11 +91,11 @@ export default function ProblemPage() {
               </p>
             </FadeIn>
             <FadeIn delay={0.2}>
-              <div className="mt-8 flex flex-col sm:flex-row gap-4">
-                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`problem-${page.slug}-hero`)} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-primary/90 transition-colors">
+              <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`problem-${page.slug}-hero`)} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-primary/90 transition-colors">
                   <Phone className="w-5 h-5" />CALL FOR DIAGNOSIS
                 </a>
-                <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors">
+                <Link href="/contact" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors">
                   SCHEDULE ONLINE <ChevronRight className="w-5 h-5" />
                 </Link>
               </div>
@@ -120,7 +120,7 @@ export default function ProblemPage() {
         <section className="py-12 lg:py-16 bg-red-500/10 border-y border-red-500/20">
           <div className="container max-w-4xl">
             <FadeIn>
-              <div className="flex items-start gap-4">
+              <div className="flex items-start gap-4 stagger-in">
                 <AlertOctagon className="w-8 h-8 text-red-400 shrink-0 mt-1" />
                 <div>
                   <h2 className="font-semibold font-bold text-xl lg:text-2xl text-red-400 tracking-tight mb-3">
@@ -146,12 +146,12 @@ export default function ProblemPage() {
               {page.possibleCauses.map((cause, i) => (
                 <FadeIn key={i} delay={i * 0.08}>
                   <div className="border border-border/40 p-6 bg-card/30">
-                    <div className="flex items-start justify-between mb-3 flex-wrap gap-2">
+                    <div className="flex items-start justify-between mb-3 flex-wrap gap-2 stagger-in">
                       <h3 className="font-semibold font-bold text-lg text-foreground">{cause.cause}</h3>
                       <LikelihoodBadge likelihood={cause.likelihood} />
                     </div>
                     <p className="text-foreground/70 leading-relaxed mb-3">{cause.explanation}</p>
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-2 stagger-in text-sm">
                       <span className="font-mono text-foreground/40">Typical cost:</span>
                       <span className="font-mono text-primary">{cause.typicalCost}</span>
                     </div>
@@ -190,7 +190,7 @@ export default function ProblemPage() {
 
             <div className="space-y-6">
               <FadeIn delay={0.05}>
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-4 stagger-in">
                   <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="font-semibold font-bold text-primary text-sm">1</span>
                   </div>
@@ -201,7 +201,7 @@ export default function ProblemPage() {
                 </div>
               </FadeIn>
               <FadeIn delay={0.1}>
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-4 stagger-in">
                   <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="font-semibold font-bold text-primary text-sm">2</span>
                   </div>
@@ -212,7 +212,7 @@ export default function ProblemPage() {
                 </div>
               </FadeIn>
               <FadeIn delay={0.15}>
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-4 stagger-in">
                   <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="font-semibold font-bold text-primary text-sm">3</span>
                   </div>
@@ -223,7 +223,7 @@ export default function ProblemPage() {
                 </div>
               </FadeIn>
               <FadeIn delay={0.2}>
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-4 stagger-in">
                   <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="font-semibold font-bold text-primary text-sm">4</span>
                   </div>
@@ -238,7 +238,7 @@ export default function ProblemPage() {
             <FadeIn delay={0.25}>
               <div className="mt-10 bg-card/50 border border-border/50 rounded-lg p-6">
                 <h3 className="font-semibold font-bold text-foreground text-lg mb-3">Estimated Turnaround Times</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 stagger-in text-sm">
                   <div className="flex justify-between text-foreground/70">
                     <span>Diagnostic inspection</span>
                     <span className="font-mono text-primary">30–60 min</span>
@@ -270,7 +270,7 @@ export default function ProblemPage() {
                 TRUSTED BY CLEVELAND DRIVERS
               </h2>
             </FadeIn>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 stagger-in">
               <FadeIn delay={0.05}>
                 <div className="text-center p-6">
                   <div className="text-4xl font-bold text-primary mb-2">{BUSINESS.reviews.rating}</div>
@@ -338,7 +338,7 @@ export default function ProblemPage() {
                 RELATED SERVICES
               </h2>
             </FadeIn>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 stagger-in">
               {page.relatedPages.map((relSlug, i) => (
                 <FadeIn key={relSlug} delay={i * 0.05}>
                   <Link href={`/${relSlug}`} className="block p-5 border border-border/40 bg-card/30 hover:bg-card/50 hover:border-primary/50 transition-colors group">
@@ -363,11 +363,11 @@ export default function ProblemPage() {
               <p className="mt-4 text-primary-foreground/80 text-lg max-w-xl mx-auto">
                 We will find the exact cause, explain your options, and give you an honest quote. No guesswork. No unnecessary repairs.
               </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`problem-${page.slug}-bottom-cta`)} className="inline-flex items-center justify-center gap-2 bg-background text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-background/90 transition-colors">
+              <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in justify-center">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`problem-${page.slug}-bottom-cta`)} className="inline-flex items-center justify-center gap-2 stagger-in bg-background text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-background/90 transition-colors">
                   <Phone className="w-5 h-5" />{BUSINESS.phone.display}
                 </a>
-                <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-primary-foreground text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-primary-foreground/10 transition-colors">
+                <Link href="/contact" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-primary-foreground text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-primary-foreground/10 transition-colors">
                   SCHEDULE ONLINE
                 </Link>
               </div>
@@ -380,11 +380,11 @@ export default function ProblemPage() {
 
         {/* Sticky Mobile CTA */}
         <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/95 backdrop-blur-md border-t border-border p-3">
-          <div className="flex gap-2">
-            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`problem-${page.slug}-sticky`)} aria-label="Call Nick's Tire and Auto" className="flex-1 flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3 font-semibold font-bold text-sm tracking-wide">
+          <div className="flex gap-2 stagger-in">
+            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`problem-${page.slug}-sticky`)} aria-label="Call Nick's Tire and Auto" className="flex-1 flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium py-3 font-semibold font-bold text-sm tracking-wide">
               <Phone className="w-4 h-4" />CALL NOW
             </a>
-            <Link href="/contact" className="flex-1 flex items-center justify-center gap-2 border border-primary text-primary py-3 font-semibold font-bold text-sm tracking-wide">
+            <Link href="/contact" className="flex-1 flex items-center justify-center gap-2 stagger-in border border-primary text-primary py-3 font-semibold font-bold text-sm tracking-wide">
               BOOK ONLINE
             </Link>
           </div>
