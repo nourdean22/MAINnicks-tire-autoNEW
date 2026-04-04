@@ -276,12 +276,12 @@ export default function BookingsSection() {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredBookings.map(booking => {
+          {filteredBookings.map((booking, _bIdx) => {
             const priorityLevel = booking.priority || 0;
             const borderColor = priorityLevel >= 2 ? "border-red-500/30" : priorityLevel >= 1 ? "border-amber-500/30" : "border-border/30";
 
             return (
-              <div key={booking.id} className={`bg-card border ${borderColor} p-6 hover:border-border/50 transition-colors`}>
+              <div key={booking.id} className={`stagger-in bg-card border ${borderColor} p-6 hover:border-border/50 transition-colors`} style={{ animationDelay: `${_bIdx * 50}ms` }}>
                 <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                   <div className="flex-1 space-y-3">
                     {/* Header: Name + Status + Priority */}

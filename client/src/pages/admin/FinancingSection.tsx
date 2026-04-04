@@ -115,8 +115,8 @@ function OpportunityTracker() {
 
   return (
     <div className="space-y-2">
-      {opportunities.slice(0, 15).map((opp) => (
-        <div key={`${opp.type}-${opp.id}`} className="stat-card !p-4 hover:!border-primary/30 transition-all">
+      {opportunities.slice(0, 15).map((opp, _oppIdx) => (
+        <div key={`${opp.type}-${opp.id}`} className="stagger-in stat-card !p-4 hover:!border-primary/30 transition-all" style={{ animationDelay: `${_oppIdx * 50}ms` }}>
           <div className="flex items-start gap-3">
             <div className={`shrink-0 mt-0.5 w-8 h-8 flex items-center justify-center rounded ${
               opp.urgency === "high" ? "bg-amber-500/10" : "bg-primary/10"

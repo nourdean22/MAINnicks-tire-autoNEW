@@ -108,7 +108,7 @@ function WOCard({ wo, onClick }: { wo: any; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="w-full text-left bg-card border border-border/40 rounded-lg p-3 hover:border-primary/30 hover:bg-card/80 transition-all group"
+      className="stagger-in w-full text-left bg-card border border-border/40 rounded-lg p-3 hover:border-primary/30 hover:bg-card/80 transition-all group"
     >
       {/* Header: order number + priority */}
       <div className="flex items-center justify-between mb-1.5">
