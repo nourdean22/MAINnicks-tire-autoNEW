@@ -1997,53 +1997,62 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
 
       const fs = await import("fs");
       const path = await import("path");
-      const csvPath = path.resolve(import.meta.dirname, "..", "data", "shopdriver-customers.csv");
+      const candidates = [
+        path.resolve(import.meta.dirname, "..", "data", "shopdriver-customers.csv"),
+        path.resolve(import.meta.dirname, "../..", "data", "shopdriver-customers.csv"),
+      ];
+      const csvPath = candidates.find(p => fs.existsSync(p));
+      if (!csvPath) return { success: false, error: "CSV not found" };
 
-      if (!fs.existsSync(csvPath)) {
-        // Try alternate paths
-        const alt = path.resolve(import.meta.dirname, "../..", "data", "shopdriver-customers.csv");
-        if (!fs.existsSync(alt)) return { success: false, error: "CSV not found at " + csvPath };
-      }
-
-      const raw = fs.readFileSync(fs.existsSync(csvPath) ? csvPath : path.resolve(import.meta.dirname, "../..", "data", "shopdriver-customers.csv"), "utf-8");
+      const raw = fs.readFileSync(csvPath, "utf-8");
       const lines = raw.split("\n").filter(l => l.trim());
-      const header = lines[0];
-      const rows = lines.slice(1);
+      const rows = lines.slice(1); // skip header
 
       const { customers } = await import("../../drizzle/schema");
-      let imported = 0;
-      let skipped = 0;
 
+      // Get all existing phones in one query (fast dedup)
+      const allExisting = await d.select({ phone: customers.phone }).from(customers);
+      const existingPhones = new Set(allExisting.map(c => c.phone.replace(/\D/g, "").slice(-10)));
+
+      // Parse all rows into batch
+      const toInsert: Array<{
+        firstName: string; lastName: string; phone: string;
+        email: string | null; address: string | null;
+        city: string | null; state: string | null; zip: string | null;
+        segment: "unknown";
+      }> = [];
+
+      let skipped = 0;
       for (const row of rows) {
-        // Parse CSV (handle quoted fields)
         const fields = row.match(/(".*?"|[^,]*),?/g)?.map(f => f.replace(/^"|"$/g, "").replace(/,$/, "").trim()) || [];
-        const [firstName, lastName, companyName, workPhone, homePhone, mobilePhone, email, address1, address2, city, state, postalCode] = fields;
+        const [firstName, lastName, , workPhone, homePhone, mobilePhone, email, address1, , city, state, postalCode] = fields;
 
         const phone = (mobilePhone || homePhone || workPhone || "").replace(/\D/g, "");
-        if (!phone || phone.length < 7) { skipped++; continue; }
-        if (!firstName && !lastName) { skipped++; continue; }
+        if (!phone || phone.length < 7 || (!firstName && !lastName)) { skipped++; continue; }
+        if (existingPhones.has(phone.slice(-10))) { skipped++; continue; }
 
-        // Check if exists
-        const existing = await d.select({ id: customers.id }).from(customers)
-          .where(sql`REPLACE(REPLACE(REPLACE(${customers.phone}, '-', ''), '(', ''), ')', '') LIKE ${'%' + phone.slice(-10)}`)
-          .limit(1);
+        existingPhones.add(phone.slice(-10)); // prevent dupes within CSV
+        toInsert.push({
+          firstName: firstName || "", lastName: lastName || "", phone,
+          email: email || null, address: address1 || null,
+          city: city || null, state: state || null, zip: postalCode || null,
+          segment: "unknown",
+        });
+      }
 
-        if (existing.length > 0) { skipped++; continue; }
-
+      // Batch insert in chunks of 50
+      let imported = 0;
+      for (let i = 0; i < toInsert.length; i += 50) {
+        const batch = toInsert.slice(i, i + 50);
         try {
-          await d.insert(customers).values({
-            firstName: firstName || "",
-            lastName: lastName || "",
-            phone,
-            email: email || null,
-            address: address1 || null,
-            city: city || null,
-            state: state || null,
-            zip: postalCode || null,
-            segment: "unknown",
-          });
-          imported++;
-        } catch { skipped++; }
+          await d.insert(customers).values(batch);
+          imported += batch.length;
+        } catch {
+          // If batch fails, try one by one
+          for (const c of batch) {
+            try { await d.insert(customers).values(c); imported++; } catch { skipped++; }
+          }
+        }
       }
 
       return { success: true, imported, skipped, total: rows.length };

@@ -18,6 +18,9 @@
 import { createLogger } from "../lib/logger";
 import { eq, sql } from "drizzle-orm";
 
+const STATENOUR_URL = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
+const SYNC_KEY = process.env.STATENOUR_SYNC_KEY || "";
+
 const log = createLogger("camera-proxy");
 
 async function db() {
@@ -153,4 +156,73 @@ export function getViewableUrl(camera: CameraConfig): {
   }
 
   return { embedUrl: null, fallbackUrl: null, viewMethod: "link", note: "Unknown camera type" };
+}
+
+/**
+ * Pull Ring/Eufy device snapshots from statenour-os and update camera configs.
+ * Runs periodically to keep snapshot URLs fresh.
+ */
+export async function pullCloudCameraSnapshots(): Promise<{ recordsProcessed?: number; details?: string }> {
+  try {
+    // Fetch devices from statenour-os
+    const res = await fetch(`${STATENOUR_URL}/api/sync/nour-os`, {
+      headers: { "x-sync-key": SYNC_KEY },
+    });
+    if (!res.ok) return { details: "Failed to fetch from statenour" };
+
+    const data = await res.json();
+
+    // Also try the devices endpoint
+    let devices: any[] = [];
+    try {
+      const devRes = await fetch(`${STATENOUR_URL}/api/devices`, {
+        headers: { "x-sync-key": SYNC_KEY },
+      });
+      if (devRes.ok) {
+        const devData = await devRes.json();
+        devices = Array.isArray(devData) ? devData : (devData.devices || []);
+      }
+    } catch {}
+
+    const d = await db();
+    if (!d || devices.length === 0) return { details: `Fetched ${devices.length} devices, no updates` };
+
+    const { shopSettings } = await import("../../drizzle/schema");
+    let updated = 0;
+
+    // Find Ring and Eufy cameras in the device list
+    for (const device of devices) {
+      const platform = (device.platform || device.type || "").toLowerCase();
+      const isCamera = (device.deviceType || device.category || "").toLowerCase().includes("camera") ||
+                       (device.name || "").toLowerCase().includes("cam") ||
+                       (device.name || "").toLowerCase().includes("doorbell");
+
+      if (!isCamera) continue;
+
+      const id = `cloud-${platform}-${(device.name || "unknown").toLowerCase().replace(/\s+/g, "-")}`;
+      const key = `camera_${id}`;
+
+      const camData = {
+        name: device.name || `${platform} Camera`,
+        url: device.snapshotUrl || device.thumbnailUrl || "",
+        type: platform.includes("ring") ? "ring" : platform.includes("eufy") ? "eufy" : "http",
+        location: device.location || "",
+        snapshotUrl: device.snapshotUrl || device.thumbnailUrl || device.lastSnapshot || "",
+        ringDeviceId: platform === "ring" ? String(device.deviceId || device.id || "") : undefined,
+        eufySerial: platform === "eufy" ? String(device.serialNumber || device.id || "") : undefined,
+      };
+
+      const existing = await d.select().from(shopSettings).where(eq(shopSettings.key, key)).limit(1);
+      if (existing.length > 0) {
+        await d.update(shopSettings).set({ value: JSON.stringify(camData) }).where(eq(shopSettings.key, key));
+      } else {
+        await d.insert(shopSettings).values({ key, value: JSON.stringify(camData) });
+      }
+      updated++;
+    }
+
+    return { recordsProcessed: updated, details: `${updated} cloud cameras updated from ${devices.length} devices` };
+  } catch (err) {
+    return { details: `Error: ${err instanceof Error ? err.message : String(err)}` };
+  }
 }
