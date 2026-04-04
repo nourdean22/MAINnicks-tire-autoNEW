@@ -80,7 +80,7 @@ export const FINANCING_PROVIDERS: FinancingProvider[] = [
       "Fast approval decision",
       "Easy online account management",
     ],
-    applyUrl: "https://getsnap.snapfinance.com/lease/en-US/consumer/apply/landing",
+    applyUrl: "https://getsnap.snapfinance.com/lease/en-US/consumer/apply?ep=store-locator&merchantId=490295617&externalMerchantId=77661",
     merchantPortalUrl: "https://merchant.snapfinance.com/",
     customerPortalUrl: "https://my.snapfinance.com/",
     description: "Snap Finance makes it easy to get the auto repairs you need with no traditional credit check. Apply in seconds and enjoy flexible payment options.",
