@@ -111,6 +111,16 @@ async function startServer() {
     next();
   });
 
+  // Performance: Cache-Control for static-ish API responses
+  app.use((req, res, next) => {
+    if (req.path === "/api/health" || req.path === "/api/ping") {
+      res.setHeader("Cache-Control", "public, max-age=5"); // 5s cache
+    } else if (req.path.startsWith("/api/trpc/") && req.method === "GET") {
+      res.setHeader("Cache-Control", "private, max-age=10"); // 10s for tRPC queries
+    }
+    next();
+  });
+
   // Security headers — hardened per OWASP recommendations
   app.use((_req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");

@@ -106,7 +106,10 @@ CUSTOMERS:
 - New this month: ${newCustomersMonth[0]?.count ?? 0}
 
 MARKETING:
-- Review requests sent (30d): ${monthReviews[0]?.count ?? 0}`;
+- Review requests sent (30d): ${monthReviews[0]?.count ?? 0}
+
+WALK RATE: ${jobsWon > 0 ? Math.round((1 - jobsWon / Math.max(jobsWon + (staleCount || 0), 1)) * 100) : 0}% of estimates walked without converting.
+KEY: Invoice = job WON. Estimate without invoice = customer WALKED.`;
 
     // ─── Use Nick AI to write the brief ────────────────
     let briefText: string;

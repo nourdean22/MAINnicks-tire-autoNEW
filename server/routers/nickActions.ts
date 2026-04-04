@@ -1706,19 +1706,10 @@ SHOP PULSE (right now):
 - This week: ${shopPulse.thisWeek.jobsClosed} jobs, $${shopPulse.thisWeek.revenue.toLocaleString()}, walk rate: ${shopPulse.thisWeek.walkRate}%
 - ${shopPulse.shopInsight}
 
-BUSINESS MODEL:
-- Invoice = closed job = money in. This is the WIN metric.
-- Estimate without invoice = customer got free inspection and WALKED. This is LOST revenue.
-- Walk rate = estimates / (estimates + invoices). Track this obsessively.
-- Auto Labor Guide (ShopDriver) is the shop CRM — all estimates and invoices live there.
-
-CUSTOMER INTELLIGENCE:
+BUSINESS: Invoice=WIN, Estimate without invoice=WALKED. Walk rate=${shopPulse.thisWeek.walkRate}%. CRM=Auto Labor Guide.
 ${customerBrief}
-- Walk rate = estimates / (estimates + invoices). Track this obsessively.
-- Auto Labor Guide (ShopDriver) is the shop CRM — all estimates and invoices live there.
-- The website pushes everything to Auto Labor Guide via Telegram for manual entry.
-${pipeline.insights.length > 0 ? "WARNINGS: " + pipeline.insights.join(" | ") : ""}
-${alerts.length > 0 ? "ALERTS: " + alerts.join(" | ") : ""}`;
+${pipeline.insights.length > 0 ? "⚠ " + pipeline.insights.join(" | ") : ""}
+${alerts.length > 0 ? "🔴 " + alerts.join(" | ") : ""}`;
           } catch {}
         } catch (err) {
           log.warn("Failed to gather biz context for operator command", { error: err instanceof Error ? err.message : String(err) });
