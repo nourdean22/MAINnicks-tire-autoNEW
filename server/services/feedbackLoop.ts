@@ -137,24 +137,48 @@ export function getBriefEngagement(): { sent: string | null; responded: string |
  * Compare revenue before and after an action was taken.
  * Called after alerts to measure if they drove results.
  */
-export async function measureRevenueImpact(actionName: string, beforeRevenue: number): Promise<void> {
-  // Wait and check revenue 4 hours later (via cron)
-  try {
-    const { remember } = await import("./nickMemory");
-    const { getShopPulse } = await import("./nickIntelligence");
-    const pulse = await getShopPulse();
-    const afterRevenue = pulse.today.revenue;
-    const impact = afterRevenue - beforeRevenue;
+// Store pending impact measurements — checked in the feedback cycle
+const pendingImpacts: Array<{ action: string; beforeRevenue: number; timestamp: number }> = [];
 
-    if (impact > 0) {
+export async function measureRevenueImpact(actionName: string, beforeRevenue: number): Promise<void> {
+  // Store for later — the feedback cycle will check after enough time has passed
+  pendingImpacts.push({ action: actionName, beforeRevenue, timestamp: Date.now() });
+  // Cap to prevent unbounded growth
+  if (pendingImpacts.length > 20) pendingImpacts.splice(0, pendingImpacts.length - 20);
+}
+
+/** Check stored impact measurements — called from feedback cycle */
+export async function checkPendingImpacts(): Promise<number> {
+  if (pendingImpacts.length === 0) return 0;
+  const now = Date.now();
+  const twoHoursMs = 2 * 60 * 60 * 1000;
+  let checked = 0;
+
+  // Only check impacts that are at least 2 hours old
+  const ready = pendingImpacts.filter(p => now - p.timestamp > twoHoursMs);
+  if (ready.length === 0) return 0;
+
+  try {
+    const { getShopPulse } = await import("./nickIntelligence");
+    const { remember } = await import("./nickMemory");
+    const pulse = await getShopPulse();
+    const currentRevenue = pulse.today.revenue;
+
+    for (const impact of ready) {
+      const delta = currentRevenue - impact.beforeRevenue;
+      const idx = pendingImpacts.indexOf(impact);
+      if (idx !== -1) pendingImpacts.splice(idx, 1);
+
       await remember({
         type: "lesson",
-        content: `After "${actionName}" action, revenue increased by $${impact} within hours. This type of intervention appears effective.`,
+        content: `After "${impact.action}" action, revenue ${delta > 0 ? "increased" : "changed"} by $${delta} over ${Math.round((now - impact.timestamp) / 3600000)}h. ${delta > 100 ? "This intervention type appears effective." : delta > 0 ? "Modest impact." : "No measurable revenue impact."}`,
         source: "feedback_loop",
-        confidence: 0.7,
+        confidence: delta > 100 ? 0.8 : 0.5,
       });
+      checked++;
     }
   } catch {}
+  return checked;
 }
 
 // ─── FULL FEEDBACK CYCLE ─────────────────────────────
@@ -195,9 +219,60 @@ export async function runFeedbackCycle(): Promise<{ recordsProcessed?: number; d
   // 2. Check brief engagement
   const brief = getBriefEngagement();
   if (brief.sent && !brief.responded) {
-    // Brief sent but no response — track pattern
     processed++;
   }
+
+  // 3. Check pending revenue impact measurements
+  try {
+    const impactChecked = await checkPendingImpacts();
+    processed += impactChecked;
+  } catch {}
+
+  // 4. Memory decay — reduce stale memories, prune dead ones
+  try {
+    const { decayMemories } = await import("./nickMemory");
+    const decayed = await decayMemories();
+    if (decayed > 0) {
+      log.info(`Memory decay: ${decayed} memories aged or pruned`);
+      processed += decayed;
+    }
+  } catch {}
+
+  // 4. Proactive memory alerts — fire Telegram for memory-driven insights
+  try {
+    const { getProactiveMemoryAlerts } = await import("./nickMemory");
+    const memAlerts = await getProactiveMemoryAlerts();
+    if (memAlerts.length > 0) {
+      const { sendTelegram } = await import("./telegram");
+      await sendTelegram(
+        `🧠 NICK AI — Proactive (from memory)\n\n` +
+        memAlerts.join("\n\n")
+      );
+      processed += memAlerts.length;
+    }
+  } catch {}
+
+  // 5. Revenue pacing — check if today is tracking ahead or behind
+  try {
+    const { getShopPulse, projectRevenue } = await import("./nickIntelligence");
+    const [pulse, revenue] = await Promise.all([getShopPulse(), projectRevenue()]);
+    const expectedByNow = revenue.avgDailyRevenue * (parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10) / 10);
+    const pacing = pulse.today.revenue / Math.max(expectedByNow, 1);
+
+    if (pacing < 0.5 && pulse.today.revenue > 0 && expectedByNow > 100) {
+      const { sendTelegram } = await import("./telegram");
+      await sendTelegram(
+        `📉 Revenue pacing: $${pulse.today.revenue} today vs $${Math.round(expectedByNow)} expected by now (${Math.round(pacing * 100)}% of pace). Avg daily: $${revenue.avgDailyRevenue}.`
+      );
+      processed++;
+    } else if (pacing > 1.5 && pulse.today.revenue > 200) {
+      const { sendTelegram } = await import("./telegram");
+      await sendTelegram(
+        `🔥 Revenue pacing: $${pulse.today.revenue} today — ${Math.round(pacing * 100)}% of expected! Ahead of daily average ($${revenue.avgDailyRevenue}).`
+      );
+      processed++;
+    }
+  } catch {}
 
   return { recordsProcessed: processed, details: `${anomalies.length} anomalies, brief: ${brief.engagementRate}` };
 }
