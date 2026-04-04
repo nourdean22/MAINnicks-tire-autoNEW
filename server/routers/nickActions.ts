@@ -1989,6 +1989,12 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
   }),
 
   /** Import customers from ShopDriver CSV export */
+  /** Manually trigger ShopDriver mirror (import invoices + customers from Auto Labor Guide) */
+  syncShopDriver: adminProcedure.mutation(async () => {
+    const { runFullMirror } = await import("../services/shopDriverMirror");
+    return runFullMirror();
+  }),
+
   importCustomerCSV: adminProcedure.mutation(async () => {
     try {
       const { getDb } = await import("../db");
