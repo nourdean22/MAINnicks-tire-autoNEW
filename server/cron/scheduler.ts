@@ -157,6 +157,13 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "cloud-camera-snapshots",
+        handler: async () => {
+          const { pullCloudCameraSnapshots } = await import("../services/cameraProxy");
+          return pullCloudCameraSnapshots();
+        },
+      },
+      {
         name: "abandoned-forms",
         handler: async () => {
           const { processAbandonedForms } = await import("../services/abandonedForms");
