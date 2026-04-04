@@ -32,12 +32,12 @@ export default function TireOrdersSection() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
 
-  const { data: stats } = trpc.gatewayTire.orderStats.useQuery();
+  const { data: stats } = trpc.gatewayTire.orderStats.useQuery(undefined, { refetchInterval: 30000 });
   const { data: ordersData, refetch } = trpc.gatewayTire.listOrders.useQuery({
     status: statusFilter !== "all" ? statusFilter : undefined,
     search: searchTerm || undefined,
     limit: 50,
-  });
+  }, { refetchInterval: 30000 });
 
   return (
     <div className="space-y-6">

@@ -446,7 +446,7 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
 
 // ─── Stats Bar ──────────────────────────────────────────
 function StatsBar() {
-  const { data: stats } = trpc.workOrders.stats.useQuery();
+  const { data: stats } = trpc.workOrders.stats.useQuery(undefined, { refetchInterval: 15000 });
   if (!stats) return null;
 
   return (
@@ -474,7 +474,7 @@ function StatPill({ label, value, color, alert }: { label: string; value: number
 
 // ─── Pending Parts View ─────────────────────────────────
 function PendingPartsView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
-  const { data: parts, isLoading } = trpc.workOrders.pendingParts.useQuery();
+  const { data: parts, isLoading } = trpc.workOrders.pendingParts.useQuery(undefined, { refetchInterval: 15000 });
   const utils = trpc.useUtils();
   const updatePart = trpc.workOrders.updatePartStatus.useMutation({
     onSuccess: () => { utils.workOrders.pendingParts.invalidate(); utils.workOrders.list.invalidate(); },
@@ -543,8 +543,8 @@ function PendingPartsView({ onSelectWO }: { onSelectWO: (id: string) => void }) 
 
 // ─── Blockers & Overdue View ────────────────────────────
 function BlockersView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
-  const { data: blocked } = trpc.workOrders.blocked.useQuery();
-  const { data: overdue } = trpc.workOrders.overdue.useQuery();
+  const { data: blocked } = trpc.workOrders.blocked.useQuery(undefined, { refetchInterval: 15000 });
+  const { data: overdue } = trpc.workOrders.overdue.useQuery(undefined, { refetchInterval: 15000 });
 
   return (
     <div className="space-y-6">
@@ -611,7 +611,7 @@ function BlockersView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
 
 // ─── Pickup Queue View ──────────────────────────────────
 function PickupQueueView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
-  const { data: queue, isLoading } = trpc.workOrders.pickupQueue.useQuery();
+  const { data: queue, isLoading } = trpc.workOrders.pickupQueue.useQuery(undefined, { refetchInterval: 15000 });
   const utils = trpc.useUtils();
   const advance = trpc.workOrders.advanceStatus.useMutation({
     onSuccess: () => { utils.workOrders.pickupQueue.invalidate(); utils.workOrders.list.invalidate(); utils.workOrders.stats.invalidate(); },
@@ -663,7 +663,7 @@ export default function WorkOrdersSection() {
   const { data: workOrders, isLoading } = trpc.workOrders.list.useQuery({
     includeTerminal: showTerminal,
     limit: 200,
-  });
+  }, { refetchInterval: 15000 });
   const utils = trpc.useUtils();
 
   // Group work orders by kanban column

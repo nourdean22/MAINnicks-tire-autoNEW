@@ -49,9 +49,9 @@ export default function DispatchSection() {
 
 // ─── Metrics Strip ──────────────────────────────────
 function MetricsStrip() {
-  const { data: load } = trpc.dispatch.load.useQuery();
-  const { data: stats } = trpc.workOrders.stats.useQuery();
-  const { data: qcStats } = trpc.dispatch.qcStats.useQuery();
+  const { data: load } = trpc.dispatch.load.useQuery(undefined, { refetchInterval: 10000 });
+  const { data: stats } = trpc.workOrders.stats.useQuery(undefined, { refetchInterval: 10000 });
+  const { data: qcStats } = trpc.dispatch.qcStats.useQuery(undefined, { refetchInterval: 10000 });
 
   const clockedIn = load?.techs.filter(t => t.clockedIn).length || 0;
   const freeBays = load?.bays.filter(b => !b.occupied).length || 0;
@@ -136,8 +136,8 @@ function BayCard({ bay, techs }: { bay: any; techs: any[] }) {
 
 // ─── Ready Queue ────────────────────────────────────
 function ReadyQueue() {
-  const { data: workOrders, isLoading } = trpc.workOrders.list.useQuery({ status: "ready_for_bay" });
-  const { data: load } = trpc.dispatch.load.useQuery();
+  const { data: workOrders, isLoading } = trpc.workOrders.list.useQuery({ status: "ready_for_bay" }, { refetchInterval: 10000 });
+  const { data: load } = trpc.dispatch.load.useQuery(undefined, { refetchInterval: 10000 });
   const [selectedWo, setSelectedWo] = useState<string | null>(null);
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;
@@ -280,7 +280,7 @@ function AssignmentPanel({ workOrderId, bays }: { workOrderId: string; bays: any
 
 // ─── QC Review ──────────────────────────────────────
 function QcReview() {
-  const { data: workOrders, isLoading } = trpc.workOrders.list.useQuery({ status: "qc_review" });
+  const { data: workOrders, isLoading } = trpc.workOrders.list.useQuery({ status: "qc_review" }, { refetchInterval: 10000 });
   const [selectedWo, setSelectedWo] = useState<string | null>(null);
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;
