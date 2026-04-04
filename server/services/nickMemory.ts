@@ -232,7 +232,8 @@ export async function learnFromEvent(eventType: string, data: Record<string, any
   try {
     switch (eventType) {
       case "invoice_created": {
-        const amount = Math.round((data.totalAmount || 0) / 100);
+        // totalAmount arrives in DOLLARS from event bus callers (they already convert cents→dollars)
+        const amount = Math.round(data.totalAmount || 0);
         await remember({
           type: "pattern",
           content: `INVOICE: $${amount} on ${day} ${dateStr} at ${hour}:00 (${period}). Customer: ${data.customerName || "unknown"}. Vehicle: ${data.vehicleInfo || "N/A"}. Service: ${data.serviceDescription?.slice(0, 80) || "N/A"}. Source: ${data.source || "manual"}. Context: This tells us what services are being done, when, and for how much.`,

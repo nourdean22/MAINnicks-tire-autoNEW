@@ -192,7 +192,9 @@ function getDefaultEstimate(serviceType: string): {
     "Battery Replacement": { laborHoursLow: 0.3, laborHoursHigh: 0.5, partsLow: 100, partsHigh: 300 },
   };
 
-  return defaults[serviceType] || {
+  const match = defaults[serviceType];
+  if (match) return { ...match, confidence: "low" as const };
+  return {
     laborHoursLow: 1.0,
     laborHoursHigh: 2.0,
     partsLow: 50,

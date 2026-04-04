@@ -186,6 +186,17 @@ async function saveBooking(phone: string, conv: ConversationState) {
       stage: "received",
     });
 
+    // Dispatch to event bus — make SMS bookings visible to entire system
+    import("../services/eventBus").then(({ emit }) =>
+      emit.bookingCreated({
+        id: 0,
+        name: conv.customerName || "SMS Bot Customer",
+        phone: e164Phone,
+        service: conv.problemDescription?.split(" ")[0] || "general-repair",
+        vehicle: conv.vehicleInfo || "",
+      })
+    ).catch(() => {});
+
     // Sync to sheets (async, fire-and-forget)
     try {
       const { syncLeadToSheet } = await import("../sheets-sync");
