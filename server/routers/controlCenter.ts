@@ -398,7 +398,7 @@ export const controlCenterRouter = router({
         execution.nonNegotiables = NON_NEGOTIABLES.map((h) => ({
           key: h.key,
           label: h.label,
-          completed: habitMap.get(h.key) === true,
+          completed: !!habitMap.get(h.key),
         }));
 
         const completedCount = execution.nonNegotiables.filter((h) => h.completed).length;

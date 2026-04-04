@@ -29,6 +29,7 @@ async function getSession(): Promise<string | null> {
       headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
       body: JSON.stringify({ username, password }),
       redirect: "manual",
+      signal: AbortSignal.timeout(10000),
     });
     const cookies = res.headers.getSetCookie?.() || [];
     const cookie = cookies.map(c => c.split(";")[0]).join("; ");
@@ -64,6 +65,7 @@ export async function pushTireOrder(order: {
           "Cookie": session,
           "User-Agent": "Mozilla/5.0",
         },
+        signal: AbortSignal.timeout(10000),
         body: JSON.stringify({
           customerName: order.customerName,
           customerPhone: order.customerPhone,
@@ -130,6 +132,7 @@ export async function pushInvoice(invoice: {
           "Cookie": session,
           "User-Agent": "Mozilla/5.0",
         },
+        signal: AbortSignal.timeout(10000),
         body: JSON.stringify({
           invoiceNumber: invoice.invoiceNumber,
           customerName: invoice.customerName,
@@ -148,7 +151,9 @@ export async function pushInvoice(invoice: {
         log.info(`Pushed invoice ${invoice.invoiceNumber} to ShopDriver via API`);
         return { success: true, method: "api" };
       }
-    } catch {}
+    } catch (err) {
+      log.warn("ShopDriver API invoice push failed, falling back to Telegram", { error: err instanceof Error ? err.message : String(err) });
+    }
   }
 
   // Fallback: Telegram
@@ -222,6 +227,7 @@ export async function pullRecentTickets(): Promise<Array<{
   try {
     const res = await fetch(`${SHOPDRIVER_BASE}/api/tickets?limit=20&sort=date_desc`, {
       headers: { "Cookie": session, "User-Agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) return [];
     const data = await res.json();

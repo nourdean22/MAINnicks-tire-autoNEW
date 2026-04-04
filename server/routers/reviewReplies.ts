@@ -5,7 +5,7 @@
  */
 import { z } from "zod";
 import { router, adminProcedure } from "../_core/trpc";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 import { sanitizeText } from "../sanitize";
 import { TRPCError } from "@trpc/server";
@@ -212,32 +212,24 @@ export const reviewRepliesRouter = router({
     const database = await db();
     if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
-    const drafts = await database
-      .select()
-      .from(reviewReplies)
-      .where(eq(reviewReplies.status, "draft"));
+    const [drafts, approved, skipped, posted] = await Promise.all([
+      database.select({ count: sql<number>`count(*)` }).from(reviewReplies).where(eq(reviewReplies.status, "draft")),
+      database.select({ count: sql<number>`count(*)` }).from(reviewReplies).where(eq(reviewReplies.status, "approved")),
+      database.select({ count: sql<number>`count(*)` }).from(reviewReplies).where(eq(reviewReplies.status, "skipped")),
+      database.select({ count: sql<number>`count(*)` }).from(reviewReplies).where(eq(reviewReplies.status, "posted")),
+    ]);
 
-    const approved = await database
-      .select()
-      .from(reviewReplies)
-      .where(eq(reviewReplies.status, "approved"));
-
-    const skipped = await database
-      .select()
-      .from(reviewReplies)
-      .where(eq(reviewReplies.status, "skipped"));
-
-    const posted = await database
-      .select()
-      .from(reviewReplies)
-      .where(eq(reviewReplies.status, "posted"));
+    const d = drafts[0]?.count ?? 0;
+    const a = approved[0]?.count ?? 0;
+    const s = skipped[0]?.count ?? 0;
+    const p = posted[0]?.count ?? 0;
 
     return {
-      draft: drafts.length,
-      approved: approved.length,
-      skipped: skipped.length,
-      posted: posted.length,
-      total: drafts.length + approved.length + skipped.length + posted.length,
+      draft: d,
+      approved: a,
+      skipped: s,
+      posted: p,
+      total: d + a + s + p,
     };
   }),
 });

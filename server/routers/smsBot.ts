@@ -48,6 +48,13 @@ function cleanupExpiredConversations() {
       conversationMap.delete(phone);
     }
   }
+  // Also clean expired rate limit entries
+  for (const [phone, data] of rateLimitMap) {
+    if (now > data.resetAt) rateLimitMap.delete(phone);
+  }
+  // Hard caps
+  if (conversationMap.size > 1000) conversationMap.clear();
+  if (rateLimitMap.size > 2000) rateLimitMap.clear();
 }
 
 function checkRateLimit(phone: string): boolean {

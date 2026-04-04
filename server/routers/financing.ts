@@ -59,7 +59,7 @@ export const financingRouter = router({
           name: safeName || "Financing Applicant",
           phone: safePhone || "",
           source: `financing_${input.provider}`,
-          urgencyScore: 8, // High intent — they're applying for money
+          urgencyScore: 5, // Max score — high intent, they're applying for money
         })
       ).catch(() => {});
 

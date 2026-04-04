@@ -46,14 +46,15 @@ export async function analyzeConversionPipeline(): Promise<{
     totalBookings, completedBookings,
     staleNewLeads, staleEstimateLeads,
   ] = await Promise.all([
-    d.select({ count: sql<number>`count(*)` }).from(leads).where(and(sql`${leads.source} = 'estimate'`, sql`${leads.createdAt} >= ${monthAgo}`)),
-    d.select({ count: sql<number>`count(*)` }).from(leads).where(and(sql`${leads.source} = 'estimate'`, eq(leads.status, "booked"), sql`${leads.createdAt} >= ${monthAgo}`)),
+    // Estimate leads = leads with a recommendedService (from AI scoring), since 'estimate' is not a valid source enum value
+    d.select({ count: sql<number>`count(*)` }).from(leads).where(and(sql`${leads.recommendedService} IS NOT NULL`, sql`${leads.createdAt} >= ${monthAgo}`)),
+    d.select({ count: sql<number>`count(*)` }).from(leads).where(and(sql`${leads.recommendedService} IS NOT NULL`, eq(leads.status, "booked"), sql`${leads.createdAt} >= ${monthAgo}`)),
     d.select({ count: sql<number>`count(*)` }).from(leads).where(sql`${leads.createdAt} >= ${monthAgo}`),
     d.select({ count: sql<number>`count(*)` }).from(leads).where(and(eq(leads.status, "booked"), sql`${leads.createdAt} >= ${monthAgo}`)),
     d.select({ count: sql<number>`count(*)` }).from(bookings).where(sql`${bookings.createdAt} >= ${monthAgo}`),
     d.select({ count: sql<number>`count(*)` }).from(bookings).where(and(eq(bookings.status, "completed"), sql`${bookings.createdAt} >= ${monthAgo}`)),
     d.select({ count: sql<number>`count(*)` }).from(leads).where(and(eq(leads.status, "new"), sql`${leads.createdAt} <= ${weekAgo}`)),
-    d.select({ count: sql<number>`count(*)` }).from(leads).where(and(sql`${leads.source} = 'estimate'`, eq(leads.status, "new"), sql`${leads.createdAt} <= ${weekAgo}`)),
+    d.select({ count: sql<number>`count(*)` }).from(leads).where(and(sql`${leads.recommendedService} IS NOT NULL`, eq(leads.status, "new"), sql`${leads.createdAt} <= ${weekAgo}`)),
   ]);
 
   const estTotal = totalEstimateLeads[0]?.count ?? 0;
@@ -293,27 +294,31 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
 
   // AUTO-ACTION 1: High walk rate alert + suggestion
   if (pulse.thisWeek.walkRate > 40 && pulse.thisWeek.jobsClosed > 5) {
-    await sendTelegram(
-      `⚠️ NICK AI AUTO-ACTION: Walk Rate ${pulse.thisWeek.walkRate}%\n\n` +
-      `${Math.round(pulse.thisWeek.walkRate)}% of customers this week got estimates but didn't convert.\n\n` +
-      `Suggestions:\n` +
-      `• Follow up on recent estimates — call them back\n` +
-      `• Consider running a "come back" promo ($25 off with estimate)\n` +
-      `• Review pricing vs competitors\n` +
-      `• Are techs explaining value clearly during inspections?`
-    );
-    actions++;
+    try {
+      await sendTelegram(
+        `⚠️ NICK AI AUTO-ACTION: Walk Rate ${pulse.thisWeek.walkRate}%\n\n` +
+        `${Math.round(pulse.thisWeek.walkRate)}% of customers this week got estimates but didn't convert.\n\n` +
+        `Suggestions:\n` +
+        `• Follow up on recent estimates — call them back\n` +
+        `• Consider running a "come back" promo ($25 off with estimate)\n` +
+        `• Review pricing vs competitors\n` +
+        `• Are techs explaining value clearly during inspections?`
+      );
+      actions++;
+    } catch {}
   }
 
   // AUTO-ACTION 2: Great day celebration
   const revenue = await projectRevenue();
   if (pulse.today.revenue > revenue.avgDailyRevenue * 1.5 && pulse.today.revenue > 500) {
-    await sendTelegram(
-      `🎉 GREAT DAY! Revenue $${pulse.today.revenue.toLocaleString()} — ` +
-      `${Math.round((pulse.today.revenue / Math.max(revenue.avgDailyRevenue, 1)) * 100)}% of daily average!\n\n` +
-      `${pulse.today.jobsClosed} jobs closed. Avg ticket: $${pulse.today.avgTicket}. Keep it going!`
-    );
-    actions++;
+    try {
+      await sendTelegram(
+        `🎉 GREAT DAY! Revenue $${pulse.today.revenue.toLocaleString()} — ` +
+        `${Math.round((pulse.today.revenue / Math.max(revenue.avgDailyRevenue, 1)) * 100)}% of daily average!\n\n` +
+        `${pulse.today.jobsClosed} jobs closed. Avg ticket: $${pulse.today.avgTicket}. Keep it going!`
+      );
+      actions++;
+    } catch {}
   }
 
   // AUTO-ACTION 3: Slow day by noon — push marketing + measure revenue impact
@@ -421,9 +426,9 @@ export async function getShopPulse(): Promise<{
       sql`${invoices.invoiceDate} >= ${todayStart}`,
       eq(invoices.paymentStatus, "pending")
     )),
-    // Today's estimates (potential walks)
+    // Today's estimates (potential walks) — use recommendedService IS NOT NULL as estimate indicator
     d.select({ count: sql<number>`count(*)` }).from(leads).where(and(
-      sql`${leads.source} = 'estimate'`,
+      sql`${leads.recommendedService} IS NOT NULL`,
       sql`${leads.createdAt} >= ${todayStart}`
     )),
     // Today's drop-offs
@@ -441,7 +446,7 @@ export async function getShopPulse(): Promise<{
     )),
     // This week's estimates
     d.select({ count: sql<number>`count(*)` }).from(leads).where(and(
-      sql`${leads.source} = 'estimate'`,
+      sql`${leads.recommendedService} IS NOT NULL`,
       sql`${leads.createdAt} >= ${weekAgo}`
     )),
   ]);

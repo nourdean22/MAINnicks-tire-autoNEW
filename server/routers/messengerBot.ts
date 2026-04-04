@@ -24,9 +24,20 @@ interface ConversationState {
 
 const conversationMap = new Map<string, ConversationState>();
 const CONVERSATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const MAX_CONVERSATIONS = 500;
 
 function getConversation(senderId: string): ConversationState {
   const existing = conversationMap.get(senderId);
+
+  // Periodic cleanup: evict expired conversations + enforce cap
+  if (conversationMap.size > MAX_CONVERSATIONS / 2) {
+    const now = Date.now();
+    for (const [key, conv] of conversationMap) {
+      if (now - conv.timestamp > CONVERSATION_TTL_MS) conversationMap.delete(key);
+    }
+    // Hard cap
+    if (conversationMap.size > MAX_CONVERSATIONS) conversationMap.clear();
+  }
 
   // Check TTL
   if (existing && Date.now() - existing.timestamp > CONVERSATION_TTL_MS) {
@@ -92,7 +103,7 @@ async function saveLeadToDb(
     const d = await getDb();
     if (!d) return null;
 
-    await d.insert(leads).values({
+    const result = await d.insert(leads).values({
       name,
       phone,
       vehicle: vehicle || null,
@@ -101,16 +112,24 @@ async function saveLeadToDb(
       urgencyScore: 3,
       urgencyReason: "Facebook Messenger inquiry",
       status: "new",
-    });
+    }).$returningId();
 
-    // Get the inserted lead ID
-    const inserted = await d
-      .select()
-      .from(leads)
-      .where(eq(leads.phone, phone))
-      .limit(1);
+    const leadId = result[0]?.id ?? null;
 
-    return inserted[0]?.id || null;
+    // Dispatch to event bus — make Messenger leads visible to entire system
+    if (leadId) {
+      import("../services/eventBus").then(({ emit }) =>
+        emit.leadCaptured({
+          id: leadId,
+          name,
+          phone,
+          source: "chat",
+          urgencyScore: 3,
+        })
+      ).catch(() => {});
+    }
+
+    return leadId;
   } catch (err) {
     console.error("[MessengerBot] Lead save failed:", err);
     return null;
