@@ -198,6 +198,14 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "shopdriver-sync-hourly",
+        businessHoursOnly: true,
+        handler: async () => {
+          const { runFullMirror } = await import("../services/shopDriverMirror");
+          return runFullMirror();
+        },
+      },
+      {
         name: "nick-auto-actions",
         businessHoursOnly: true,
         handler: async () => {
@@ -252,6 +260,7 @@ export function startTieredScheduler(): void {
           return runFullMirror();
         },
       },
+      // NOTE: Also runs in hourly tier for more frequent updates
       {
         name: "cleanup",
         handler: async () => {
