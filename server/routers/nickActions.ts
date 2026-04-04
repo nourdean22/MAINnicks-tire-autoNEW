@@ -1929,9 +1929,14 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
     .input(z.object({
       id: z.string().min(1).max(50),
       name: z.string().min(1).max(100),
-      url: z.string().url(),
-      type: z.enum(["rtsp", "http", "mjpeg", "hls"]).default("http"),
+      url: z.string().min(1),
+      type: z.enum(["rtsp", "http", "mjpeg", "hls", "v380-cloud", "ring", "eufy"]).default("http"),
       location: z.string().max(100).optional(),
+      v380DeviceId: z.string().max(50).optional(),
+      ringDeviceId: z.string().max(50).optional(),
+      eufySerial: z.string().max(50).optional(),
+      tunnelUrl: z.string().optional(),
+      snapshotUrl: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       const d = await db();
@@ -1939,7 +1944,13 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
 
       const { shopSettings } = await import("../../drizzle/schema");
       const key = `camera_${input.id}`;
-      const value = JSON.stringify({ name: input.name, url: input.url, type: input.type, location: input.location || "" });
+      const value = JSON.stringify({
+        name: input.name, url: input.url, type: input.type,
+        location: input.location || "",
+        v380DeviceId: input.v380DeviceId, ringDeviceId: input.ringDeviceId,
+        eufySerial: input.eufySerial, tunnelUrl: input.tunnelUrl,
+        snapshotUrl: input.snapshotUrl,
+      });
 
       const existing = await d.select().from(shopSettings).where(eq(shopSettings.key, key)).limit(1);
       if (existing.length > 0) {
