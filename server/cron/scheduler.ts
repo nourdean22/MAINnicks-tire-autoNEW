@@ -236,6 +236,33 @@ export function startTieredScheduler(): void {
           return { recordsProcessed: count, details: `${count} memories synced to statenour` };
         },
       },
+      {
+        name: "pull-from-statenour-brain",
+        handler: async () => {
+          // Pull insights from statenour brain into nickstire Nick memory
+          const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
+          const syncKey = process.env.STATENOUR_SYNC_KEY || "";
+          if (!syncKey) return { details: "No sync key" };
+
+          try {
+            const res = await fetch(`${statenourUrl}/api/sync/nour-os`, {
+              headers: { "x-sync-key": syncKey },
+              signal: AbortSignal.timeout(10000),
+            });
+            if (!res.ok) return { details: `HTTP ${res.status}` };
+            const data = await res.json();
+            const brain = data?.data || data;
+            const { remember } = await import("../services/nickMemory");
+            let imported = 0;
+
+            for (const insight of (brain.recentInsights || []).slice(0, 3)) {
+              await remember({ type: "insight", content: `[statenour] ${insight.title || ""}`.slice(0, 500), source: "statenour_pull", confidence: 0.8 });
+              imported++;
+            }
+            return { recordsProcessed: imported, details: `${imported} insights pulled from statenour brain` };
+          } catch { return { details: "Pull failed" }; }
+        },
+      },
     ],
     running: false,
     lastRun: null,

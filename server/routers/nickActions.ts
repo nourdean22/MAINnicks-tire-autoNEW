@@ -1669,6 +1669,13 @@ SOURCES: Auto Labor Guide (ShopDriver Elite), Gateway for invoices`;
           try {
             const { getMemoryContext, getWarmupContext } = await import("../services/nickMemory");
             const memContext = await getWarmupContext() || await getMemoryContext();
+
+            // Inject Nour's deep personal context (from 463 analyzed conversations)
+            try {
+              const { getNourPersonalContext } = await import("../services/nourContext");
+              const personalContext = getNourPersonalContext();
+              if (personalContext) bizContext += personalContext;
+            } catch {}
             if (memContext) bizContext += memContext;
           } catch {}
 
@@ -2019,6 +2026,70 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
 
   /** Import customers from ShopDriver CSV export */
   /** Manually trigger ShopDriver mirror (import invoices + customers from Auto Labor Guide) */
+  /** Pull insights from statenour brain → inject into nickstire Nick AI */
+  pullFromStatenour: adminProcedure.mutation(async () => {
+    const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
+    const syncKey = process.env.STATENOUR_SYNC_KEY || "";
+    if (!syncKey) return { success: false, error: "No sync key" };
+
+    try {
+      const res = await fetch(`${statenourUrl}/api/sync/nour-os`, {
+        headers: { "x-sync-key": syncKey },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
+
+      const data = await res.json();
+      const brain = data?.data || data;
+      const { remember } = await import("../services/nickMemory");
+
+      let imported = 0;
+
+      // Import recent insights from statenour brain
+      if (brain.recentInsights?.length) {
+        for (const insight of brain.recentInsights.slice(0, 5)) {
+          await remember({
+            type: "insight",
+            content: `[From statenour brain] ${insight.title || insight.detail || ""}`.slice(0, 500),
+            source: "statenour_pull",
+            confidence: 0.8,
+          });
+          imported++;
+        }
+      }
+
+      // Import recent patterns
+      if (brain.recentPatterns?.length) {
+        for (const pattern of brain.recentPatterns.slice(0, 3)) {
+          await remember({
+            type: "pattern",
+            content: `[From statenour brain] ${pattern.patternName}: ${pattern.evidence || ""}`.slice(0, 500),
+            source: "statenour_pull",
+            confidence: 0.7,
+          });
+          imported++;
+        }
+      }
+
+      // Import drift alerts as lessons
+      if (brain.driftAlerts?.length) {
+        for (const alert of brain.driftAlerts.slice(0, 3)) {
+          await remember({
+            type: "lesson",
+            content: `[Drift alert] ${alert.ruleName}: ${alert.message}`.slice(0, 500),
+            source: "statenour_pull",
+            confidence: 0.9,
+          });
+          imported++;
+        }
+      }
+
+      return { success: true, imported, source: "statenour-brain" };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }),
+
   syncShopDriver: adminProcedure.mutation(async () => {
     const { runFullMirror } = await import("../services/shopDriverMirror");
     return runFullMirror();
