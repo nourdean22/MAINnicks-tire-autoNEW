@@ -3,7 +3,7 @@
  * Combines: Execution, Drift, Strategy, Tasks, Decisions, Commitments, Loops.
  * Single tab. No fluff.
  */
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -117,6 +117,28 @@ export default function CommandCenterSection() {
 
   // ─── SHOP PULSE (real-time awareness) ─────────────────
   const { data: shopPulse } = trpc.nickActions.shopPulse.useQuery(undefined, { refetchInterval: 30_000 });
+
+  // ─── REAL-TIME SSE (instant updates) ──────────────────
+  useEffect(() => {
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource("/api/admin/events");
+      es.onmessage = () => {
+        // Any event = refetch shop pulse + brief
+        refetchBrief();
+      };
+      es.addEventListener("lead_captured", () => { refetchBrief(); toast.info("New lead captured"); });
+      es.addEventListener("tire_order_placed", () => { refetchBrief(); toast.info("New tire order"); });
+      es.addEventListener("payment_received", () => { refetchBrief(); toast.success("Payment received"); });
+      es.addEventListener("invoice_created", () => { refetchBrief(); });
+      es.addEventListener("emergency_request", () => { refetchBrief(); toast.error("Emergency request!"); });
+      es.onerror = () => { /* reconnect handled by EventSource */ };
+    } catch {}
+    return () => { es?.close(); };
+  }, [refetchBrief]);
+
+  // ─── CAMERAS ──────────────────────────────────────────
+  const { data: cameras } = trpc.nickActions.cameras.useQuery(undefined, { refetchInterval: 300_000 });
 
   const toggleHabit = trpc.controlCenter.toggleHabit.useMutation({
     onSuccess: () => refetchBrief(),
@@ -1077,6 +1099,42 @@ export default function CommandCenterSection() {
           </div>
         </div>
       </Card>
+
+      {/* ─── CAMERAS ─── */}
+      {cameras && cameras.length > 0 && (
+        <Card>
+          <SectionLabel icon={Radio} label="Shop Cameras" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {cameras.map((cam: any) => (
+              <div key={cam.id} className="bg-background/50 rounded-lg overflow-hidden border border-border/30">
+                <div className="aspect-video bg-black/50 flex items-center justify-center relative">
+                  {cam.type === "mjpeg" || cam.type === "http" ? (
+                    <img
+                      src={cam.url}
+                      alt={cam.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
+                  ) : (
+                    <div className="text-muted-foreground text-xs text-center p-4">
+                      <p className="font-medium">{cam.type.toUpperCase()} Stream</p>
+                      <p className="mt-1 text-[10px]">Open in VLC: {cam.url}</p>
+                    </div>
+                  )}
+                  <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 bg-black/70 rounded text-[9px] text-white/80">
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                    LIVE
+                  </div>
+                </div>
+                <div className="px-3 py-2">
+                  <div className="text-xs font-medium">{cam.name}</div>
+                  {cam.location && <div className="text-[10px] text-muted-foreground">{cam.location}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* ─── SYSTEM & BRIDGE STATUS ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
