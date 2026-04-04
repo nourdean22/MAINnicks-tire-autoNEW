@@ -183,6 +183,36 @@ async function ensureInitialized(): Promise<void> {
     },
   });
 
+  // 6. Statenour real-time sync (push high-value events immediately)
+  registerDestination({
+    name: "statenour-sync",
+    enabled: true,
+    handles: ["invoice_created", "invoice_paid", "lead_captured", "booking_created", "tire_order_placed", "payment_received"],
+    softFail: true,
+    handler: async (event) => {
+      const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
+      const syncKey = process.env.STATENOUR_SYNC_KEY || "";
+      if (!syncKey) return;
+
+      try {
+        await fetch(`${statenourUrl}/api/sync/events`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-sync-key": syncKey,
+          },
+          body: JSON.stringify({
+            type: `nickstire:${event.type}`,
+            timestamp: event.timestamp,
+            source: "nickstire",
+            data: event.data,
+          }),
+          signal: AbortSignal.timeout(5000),
+        });
+      } catch {}
+    },
+  });
+
   log.info(`Event bus initialized: ${destinations.length} destinations`);
 }
 
