@@ -98,7 +98,16 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
         bookingsBySource: stats.sourceAttribution.bookingsBySource.slice(0, 5),
         leadsBySource: stats.sourceAttribution.leadsBySource.slice(0, 5),
       },
-      // ═══ NEW: Intelligence layer data ═══
+      // ═══ Revenue (what command deck reads) ═══
+      revenue: {
+        todayEstimate: intelligence.pulse?.today?.revenue ?? 0,
+        weekRevenue: intelligence.pulse?.thisWeek?.revenue ?? 0,
+        monthRevenue: intelligence.revenue?.thisMonthProjection ?? 0,
+        avgTicket: intelligence.pulse?.today?.avgTicket ?? 0,
+        jobsToday: intelligence.pulse?.today?.jobsClosed ?? 0,
+        walkRate: intelligence.pulse?.thisWeek?.walkRate ?? 0,
+      },
+      // ═══ Intelligence layer data ═══
       intelligence: {
         conversionPipeline: intelligence.pipeline || null,
         revenueProjection: intelligence.revenue || null,
