@@ -146,7 +146,10 @@ export const chatSessions = mysqlTable("chat_sessions", {
   converted: int("converted").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  idx_chat_lead: index("idx_chat_lead").on(table.leadId),
+  idx_chat_created: index("idx_chat_created").on(table.createdAt),
+}));
 
 export type ChatSession = typeof chatSessions.$inferSelect;
 export type InsertChatSession = typeof chatSessions.$inferInsert;
@@ -734,7 +737,10 @@ export const smsMessages = mysqlTable("sms_messages", {
   /** Delivery status */
   status: mysqlEnum("status", ["queued", "sent", "delivered", "failed", "received"]).default("queued").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  idx_sms_msg_conv: index("idx_sms_msg_conv").on(table.conversationId),
+  idx_sms_msg_created: index("idx_sms_msg_created").on(table.createdAt),
+}));
 
 export type SmsMessage = typeof smsMessages.$inferSelect;
 export type InsertSmsMessage = typeof smsMessages.$inferInsert;
@@ -1223,7 +1229,10 @@ export const callEvents = mysqlTable("call_events", {
   /** User agent for device tracking */
   userAgent: varchar("userAgent", { length: 500 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  idx_call_created: index("idx_call_created").on(table.createdAt),
+  idx_call_source: index("idx_call_source").on(table.sourcePage),
+}));
 
 export type CallEvent = typeof callEvents.$inferSelect;
 export type InsertCallEvent = typeof callEvents.$inferInsert;
@@ -1323,7 +1332,10 @@ export const smsCampaignSends = mysqlTable("sms_campaign_sends", {
   /** When SMS was actually sent */
   sentAt: timestamp("sentAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  idx_campaign_send_cid: index("idx_campaign_send_cid").on(table.campaignId),
+  idx_campaign_send_status: index("idx_campaign_send_status").on(table.status),
+}));
 
 export type SmsCampaignSend = typeof smsCampaignSends.$inferSelect;
 export type InsertSmsCampaignSend = typeof smsCampaignSends.$inferInsert;
