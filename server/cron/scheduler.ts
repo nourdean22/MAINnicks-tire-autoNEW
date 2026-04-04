@@ -276,15 +276,15 @@ export function startTieredScheduler(): void {
           try {
             const { getPromiseRiskSummary } = await import("../services/promiseRisk");
             const risk = await getPromiseRiskSummary();
-            const atRisk = risk.atRisk || [];
-            if (atRisk.length > 0) {
+            const atRiskJobs = (risk.jobs || []).filter((r: any) => r.risk === "at_risk" || r.risk === "likely_late" || r.risk === "overdue");
+            if (atRiskJobs.length > 0) {
               const { sendTelegram } = await import("../services/telegram");
               await sendTelegram(
-                `⏰ PROMISE RISK: ${atRisk.length} work orders at risk of missing promised time!\n\n` +
-                atRisk.slice(0, 3).map((r: any) => `WO#${r.orderNumber || r.id}: ${r.customerName || "?"} — promised ${r.promisedAt || "?"}`).join("\n")
+                `⏰ PROMISE RISK: ${atRiskJobs.length} work orders at risk!\n\n` +
+                atRiskJobs.slice(0, 3).map((r: any) => `WO#${r.orderNumber || r.id}: ${r.customerName || "?"} — ${r.risk}`).join("\n")
               );
             }
-            return { recordsProcessed: atRisk.length, details: `${atRisk.length} at-risk WOs` };
+            return { recordsProcessed: atRiskJobs.length, details: `${atRiskJobs.length} at-risk WOs` };
           } catch { return { details: "Promise risk check skipped" }; }
         },
       },
@@ -509,11 +509,11 @@ export function startTieredScheduler(): void {
             const { remember } = await import("../services/nickMemory");
             await remember({
               type: "insight",
-              content: `Daily revenue truth: $${truth.totalRevenue || 0}. Invoices: ${truth.invoiceCount || 0}. Avg ticket: $${truth.avgTicket || 0}. This is the end-of-day verified number.`,
+              content: `Daily revenue truth: $${truth.totalRevenue || 0}. Jobs: ${truth.completedJobs || 0}. Avg ticket: $${truth.avgTicket || 0}. This is the end-of-day verified number.`,
               source: "revenue_reconciliation",
               confidence: 0.95,
             });
-            return { recordsProcessed: 1, details: `Revenue: $${truth.totalRevenue || 0}, ${truth.invoiceCount || 0} invoices` };
+            return { recordsProcessed: 1, details: `Revenue: $${truth.totalRevenue || 0}, ${truth.completedJobs || 0} jobs` };
           } catch { return { details: "Revenue reconciliation failed" }; }
         },
       },

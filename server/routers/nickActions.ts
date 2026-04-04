@@ -1746,7 +1746,7 @@ ${alerts.length > 0 ? "🔴 " + alerts.join(" | ") : ""}`;
             const { getTeamPerformance } = await import("../services/staffPerformance");
             const team = await getTeamPerformance();
             if (team.techs && team.techs.length > 0) {
-              bizContext += `\nTEAM: ${team.techs.length} techs. Today: ${team.summary?.jobsToday ?? 0} jobs. QC pass rate: ${team.summary?.qcPassRate ?? "N/A"}%. Comeback rate: ${team.summary?.comebackRate ?? "N/A"}%.`;
+              bizContext += `\nTEAM: ${team.techs.length} techs. Jobs: ${team.teamTotals?.totalJobs ?? 0}. QC pass rate: ${team.teamTotals?.avgQcPassRate ?? "N/A"}%. Comeback rate: ${team.teamTotals?.avgComebackRate ?? "N/A"}%.`;
             }
           } catch {}
 
@@ -1939,7 +1939,9 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
             ],
             maxTokens: 10,
           });
-          const score = parseInt(critique.choices?.[0]?.message?.content?.match(/\d+/)?.[0] || "0", 10);
+          const rawContent = critique.choices?.[0]?.message?.content;
+          const contentStr = typeof rawContent === "string" ? rawContent : "";
+          const score = parseInt(contentStr.match(/\d+/)?.[0] || "0", 10);
           if (score > 0 && score <= 10) {
             const { remember: mem } = await import("../services/nickMemory");
             if (score <= 5) {

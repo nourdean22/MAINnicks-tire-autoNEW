@@ -37,7 +37,7 @@ export async function runSelfHealingChecks(): Promise<{
         `CRON STALE: ${job.name} hasn't run in ${Math.round(staleness / 60000)}min (expected every ${job.intervalMin}min)`
       );
       // AUTO-FIX: Mark job as not running so it gets picked up next tick
-      if (job.running) {
+      if ((job as any).running) {
         (job as any).running = false;
         actions.push(`AUTO-FIX: Reset ${job.name} running flag — will run on next tick`);
       }
