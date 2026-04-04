@@ -224,7 +224,7 @@ export default function LandingPage() {
         <div className="container flex items-center justify-between h-16">
           <div className="font-bold text-lg">Nick's Tire & Auto</div>
           <a
-            href={`tel:${BUSINESS.phone.href}`}
+            href={BUSINESS.phone.href}
             className="flex items-center gap-2 text-yellow-400 font-semibold hover:text-yellow-300 transition-colors"
           >
             <Phone className="w-4 h-4" />
@@ -271,7 +271,7 @@ export default function LandingPage() {
       <section className="bg-white/5 border-y border-white/10 py-4 sticky top-16 z-30">
         <div className="container flex gap-3 flex-col sm:flex-row">
           <a
-            href={`tel:${BUSINESS.phone.href}`}
+            href={BUSINESS.phone.href}
             className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
           >
             <Phone className="w-5 h-5" />
@@ -480,7 +480,7 @@ export default function LandingPage() {
           <h2 className="text-3xl font-bold text-white">Ready to Get Fixed?</h2>
           <div className="space-y-3">
             <a
-              href={`tel:${BUSINESS.phone.href}`}
+              href={BUSINESS.phone.href}
               className="block bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-lg transition-colors"
             >
               Call Now: {BUSINESS.phone.display}

@@ -322,7 +322,7 @@ export default function SharePage() {
                 Visit Nick's Tire & Auto
               </a>
               <a
-                href={`tel:${BUSINESS.phone.href}`}
+                href={BUSINESS.phone.href}
                 className="block w-full border-2 border-yellow-400 text-yellow-400 font-bold py-3 rounded-lg transition-colors text-center hover:bg-yellow-400/10"
               >
                 Call {BUSINESS.phone.display}

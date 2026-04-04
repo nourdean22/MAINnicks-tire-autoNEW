@@ -219,7 +219,7 @@ export default function PriceEstimator() {
                   {/* CTA */}
                   <div className="flex flex-col sm:flex-row gap-4 justify-center">
                     <a
-                      href="/book"
+                      href="/booking"
                       className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
                     >
                       BOOK THIS SERVICE
