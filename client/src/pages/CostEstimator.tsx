@@ -193,7 +193,7 @@ export default function CostEstimator() {
           <motion.span
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="font-mono text-yellow-400 text-sm tracking-wide"
+            className="font-mono text-primary text-sm tracking-wide"
           >
             TRANSPARENT PRICING
           </motion.span>
@@ -203,7 +203,7 @@ export default function CostEstimator() {
             transition={{ delay: 0.1 }}
             className="font-bold text-4xl lg:text-5xl text-white mt-3 tracking-tight"
           >
-            How Much Will My <span className="text-yellow-400">Repair Cost?</span>
+            How Much Will My <span className="text-primary">Repair Cost?</span>
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 20 }}
@@ -230,10 +230,10 @@ export default function CostEstimator() {
               <>
                 {/* Vehicle Selection */}
                 <div>
-                  <label className="text-xs text-yellow-400/80 tracking-wide block mb-3 font-semibold">
+                  <label className="text-xs text-primary/80 tracking-wide block mb-3 font-semibold">
                     STEP 1: YOUR VEHICLE
                   </label>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {/* Year */}
                     <div className="relative">
                       <select
@@ -283,7 +283,7 @@ export default function CostEstimator() {
                   </div>
 
                   {vehicleComplete && (
-                    <div className="mt-3 flex items-center gap-2 text-yellow-400/80 text-sm">
+                    <div className="mt-3 flex items-center gap-2 text-primary/80 text-sm">
                       <CheckCircle2 className="w-4 h-4" />
                       <span>{vehicleLabel}</span>
                     </div>
@@ -292,7 +292,7 @@ export default function CostEstimator() {
 
                 {/* Service Selection */}
                 <div>
-                  <label className="text-xs text-yellow-400/80 tracking-wide block mb-3 font-semibold">
+                  <label className="text-xs text-primary/80 tracking-wide block mb-3 font-semibold">
                     STEP 2: WHAT SERVICE?
                   </label>
 
@@ -324,7 +324,7 @@ export default function CostEstimator() {
                                 onClick={() => setServiceId(service.id)}
                                 className={`px-4 py-3 rounded-lg border-2 text-left text-sm font-medium transition-all ${
                                   serviceId === service.id
-                                    ? "bg-yellow-400/20 border-yellow-400 text-yellow-400"
+                                    ? "bg-primary/20 border-primary text-primary"
                                     : "bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-white/20"
                                 }`}
                               >
@@ -338,7 +338,7 @@ export default function CostEstimator() {
                   </div>
 
                   {selectedService && (
-                    <div className="mt-3 flex items-center gap-2 text-yellow-400/80 text-sm">
+                    <div className="mt-3 flex items-center gap-2 text-primary/80 text-sm">
                       <CheckCircle2 className="w-4 h-4" />
                       <span>{selectedService.name}</span>
                     </div>
@@ -349,7 +349,7 @@ export default function CostEstimator() {
                 <button
                   onClick={handleEstimate}
                   disabled={!ready || estimate.isPending}
-                  className="w-full py-4 rounded-lg bg-yellow-400 text-black font-bold text-lg hover:bg-yellow-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full py-4 rounded-lg bg-primary text-black font-bold text-lg hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {estimate.isPending ? (
                     <>
@@ -372,7 +372,7 @@ export default function CostEstimator() {
                     <p className="text-white/70 text-sm mb-2">
                       Estimated total for {vehicleLabel}
                     </p>
-                    <p className="text-5xl lg:text-6xl font-bold text-yellow-400">
+                    <p className="text-5xl lg:text-6xl font-bold text-primary">
                       ${estimate.data.totalLow} – ${estimate.data.totalHigh}
                     </p>
                   </div>
@@ -406,7 +406,7 @@ export default function CostEstimator() {
 
                     <div className="border-t border-white/10 pt-3 mt-3 flex justify-between items-center">
                       <span className="font-semibold text-white">Total:</span>
-                      <span className="text-yellow-400 font-bold text-lg">
+                      <span className="text-primary font-bold text-lg">
                         ${estimate.data.totalLow} – ${estimate.data.totalHigh}
                       </span>
                     </div>
@@ -421,7 +421,7 @@ export default function CostEstimator() {
                       </div>
                     )}
                     {estimate.data.confidence === "medium" && (
-                      <div className="flex items-center gap-2 text-yellow-400">
+                      <div className="flex items-center gap-2 text-primary">
                         <AlertCircle className="w-5 h-5" />
                         <span className="text-sm font-medium">Medium Confidence</span>
                       </div>
@@ -452,14 +452,14 @@ export default function CostEstimator() {
 
                   {/* CTAs */}
                   <div className="space-y-3 pt-4">
-                    <Link href="/book">
-                      <button className="w-full py-4 rounded-lg bg-yellow-400 text-black font-bold hover:bg-yellow-300 transition-all">
+                    <Link href="/booking">
+                      <button className="w-full py-4 rounded-lg bg-primary text-black font-bold hover:bg-primary/90 transition-all">
                         Lock In This Price — Book Now
                       </button>
                     </Link>
 
-                    <a href={`tel:${BUSINESS.phone.href}`}>
-                      <button className="w-full py-3 rounded-lg border-2 border-yellow-400 text-yellow-400 font-semibold hover:bg-yellow-400/10 transition-all flex items-center justify-center gap-2">
+                    <a href={BUSINESS.phone.href}>
+                      <button className="w-full py-3 rounded-lg border-2 border-primary text-primary font-semibold hover:bg-primary/10 transition-all flex items-center justify-center gap-2">
                         <Phone className="w-4 h-4" />
                         Call for Exact Quote: {BUSINESS.phone.display}
                       </button>
@@ -515,7 +515,7 @@ export default function CostEstimator() {
                   <span className="text-white font-semibold text-left">
                     {item.question}
                   </span>
-                  <ChevronDown className="w-5 h-5 text-yellow-400 group-open:rotate-180 transition-transform" />
+                  <ChevronDown className="w-5 h-5 text-primary group-open:rotate-180 transition-transform" />
                 </summary>
                 <div className="px-5 lg:px-6 pb-5 lg:pb-6 text-white/70 border-t border-white/10">
                   {item.answer}
@@ -536,7 +536,7 @@ export default function CostEstimator() {
               viewport={{ once: true }}
               className="space-y-2"
             >
-              <div className="text-3xl font-bold text-yellow-400">
+              <div className="text-3xl font-bold text-primary">
                 {BUSINESS.reviews.countDisplay}
               </div>
               <p className="text-white/70">Google Reviews</p>
@@ -550,7 +550,7 @@ export default function CostEstimator() {
               transition={{ delay: 0.1 }}
               className="space-y-2"
             >
-              <Wrench className="w-10 h-10 mx-auto text-yellow-400" />
+              <Wrench className="w-10 h-10 mx-auto text-primary" />
               <p className="text-white font-semibold">No Surprise Fees</p>
               <p className="text-white/70">What we quote is what you pay</p>
             </motion.div>
@@ -562,7 +562,7 @@ export default function CostEstimator() {
               transition={{ delay: 0.2 }}
               className="space-y-2"
             >
-              <Clock className="w-10 h-10 mx-auto text-yellow-400" />
+              <Clock className="w-10 h-10 mx-auto text-primary" />
               <p className="text-white font-semibold">Same-Day Service</p>
               <p className="text-white/70">Most repairs completed today</p>
             </motion.div>

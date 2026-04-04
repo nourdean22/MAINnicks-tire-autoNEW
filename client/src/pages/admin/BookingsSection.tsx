@@ -252,7 +252,7 @@ export default function BookingsSection() {
 
       {/* Quick Actions */}
       <div className="flex items-center gap-2 flex-wrap">
-        <Link href="/book" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-[11px] tracking-wide hover:bg-primary/90 transition-colors">
+        <Link href="/booking" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-[11px] tracking-wide hover:bg-primary/90 transition-colors">
           <CalendarClock className="w-3 h-3" /> New Booking
         </Link>
         <a href={`tel:${BUSINESS.phone}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border/30 text-foreground/60 text-[11px] tracking-wide hover:text-foreground hover:border-primary/30 transition-colors">
