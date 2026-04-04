@@ -121,33 +121,19 @@ export function startTieredScheduler(): void {
           return runSelfHealingChecks();
         },
       },
-      {
-        name: "sms-scheduler",
-        handler: async () => {
-          const { processAppointmentReminders24h } = await import("./jobs/appointmentReminders");
-          return processAppointmentReminders24h();
-        },
-      },
     ],
     running: false,
     lastRun: null,
   });
 
   // ═══ TIER 2: PULSE (every 15 min) ═══
-  // Dashboard sync, vendor monitoring, form recovery
+  // Optimized order: health first → data refresh → customer-facing actions last
   tiers.push({
     name: "pulse",
     intervalMs: 15 * 60 * 1000,
     jobs: [
       {
-        name: "dashboard-sync",
-        handler: async () => {
-          const { processDashboardSync } = await import("./jobs/dashboardSync");
-          return processDashboardSync();
-        },
-      },
-      {
-        name: "vendor-health",
+        name: "vendor-health", // First: know if systems are up before syncing
         handler: async () => {
           const { getVendorHealthReport } = await import("../services/vendorHealth");
           const report = await getVendorHealthReport();
@@ -156,10 +142,17 @@ export function startTieredScheduler(): void {
         },
       },
       {
-        name: "review-requests",
+        name: "dashboard-sync",
         handler: async () => {
-          const { processReviewRequests } = await import("./jobs/reviewRequests");
-          return processReviewRequests();
+          const { processDashboardSync } = await import("./jobs/dashboardSync");
+          return processDashboardSync();
+        },
+      },
+      {
+        name: "cloud-camera-snapshots",
+        handler: async () => {
+          const { pullCloudCameraSnapshots } = await import("../services/cameraProxy");
+          return pullCloudCameraSnapshots();
         },
       },
       {
@@ -170,19 +163,20 @@ export function startTieredScheduler(): void {
           return runFullMirror();
         },
       },
-      // statenour-sync removed from pulse tier — runs in hourly tier to avoid duplicate API calls
-      {
-        name: "cloud-camera-snapshots",
-        handler: async () => {
-          const { pullCloudCameraSnapshots } = await import("../services/cameraProxy");
-          return pullCloudCameraSnapshots();
-        },
-      },
       {
         name: "abandoned-forms",
+        businessHoursOnly: true, // No customer outreach at 3am
         handler: async () => {
           const { processAbandonedForms } = await import("../services/abandonedForms");
           return processAbandonedForms();
+        },
+      },
+      {
+        name: "sms-scheduler", // Moved from heartbeat (5min was overkill)
+        businessHoursOnly: true,
+        handler: async () => {
+          const { processAppointmentReminders24h } = await import("./jobs/appointmentReminders");
+          return processAppointmentReminders24h();
         },
       },
     ],
@@ -195,62 +189,21 @@ export function startTieredScheduler(): void {
   tiers.push({
     name: "hourly",
     intervalMs: 2 * 60 * 60 * 1000,
+    // Optimized order: data quality → brain sync → intelligence → actions → outreach
     jobs: [
       {
-        name: "stale-lead-followup",
-        businessHoursOnly: true,
-        handler: async () => {
-          const { processStaleLeadFollowUp } = await import("./jobs/staleLeadFollowup");
-          return processStaleLeadFollowUp();
-        },
-      },
-      {
-        name: "nick-intelligence",
-        businessHoursOnly: true,
-        handler: async () => {
-          const { runProactiveCheck } = await import("../services/nickIntelligence");
-          return runProactiveCheck();
-        },
-      },
-      // ShopDriver mirror moved to pulse tier for faster sync
-      {
-        name: "nick-auto-actions",
-        businessHoursOnly: true,
-        handler: async () => {
-          const { runAutoActions } = await import("../services/nickIntelligence");
-          return runAutoActions();
-        },
-      },
-      {
-        name: "statenour-sync",
-        handler: async () => {
-          const { syncToStatenour } = await import("./jobs/statenourSync");
-          return syncToStatenour();
-        },
-      },
-      {
-        name: "memory-sync-to-statenour",
-        handler: async () => {
-          const { syncMemoriesToStatenour } = await import("../services/nickMemory");
-          const count = await syncMemoriesToStatenour();
-          return { recordsProcessed: count, details: `${count} memories synced to statenour` };
-        },
-      },
-      {
-        name: "feedback-cycle",
+        name: "feedback-cycle", // FIRST: decay memories, check anomalies, pacing — feeds into intelligence quality
         handler: async () => {
           const { runFeedbackCycle } = await import("../services/feedbackLoop");
           return runFeedbackCycle();
         },
       },
       {
-        name: "pull-from-statenour-brain",
+        name: "pull-from-statenour-brain", // SECOND: get fresh brain data before intelligence runs
         handler: async () => {
-          // Pull insights from statenour brain into nickstire Nick memory
           const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
           const syncKey = process.env.STATENOUR_SYNC_KEY || "";
           if (!syncKey) return { details: "No sync key" };
-
           try {
             const res = await fetch(`${statenourUrl}/api/sync/nour-os`, {
               headers: { "x-sync-key": syncKey },
@@ -261,26 +214,85 @@ export function startTieredScheduler(): void {
             const brain = data?.data || data;
             const { remember } = await import("../services/nickMemory");
             let imported = 0;
-
             for (const insight of (brain.recentInsights || []).slice(0, 3)) {
               await remember({ type: "insight", content: `[statenour] ${insight.title || ""}`.slice(0, 500), source: "statenour_pull", confidence: 0.8 });
               imported++;
             }
-
-            // Check for urgent drift alerts — trigger immediate notification
             const driftAlerts = (brain.driftAlerts || brain.alerts || []).filter((a: any) => a.severity === "critical" || a.urgent);
             if (driftAlerts.length > 0) {
               try {
                 const { sendUrgentBrief } = await import("./jobs/morningBrief");
-                await sendUrgentBrief(
-                  "NOUR OS Drift Alert",
-                  driftAlerts.map((a: any) => a.message || a.title || String(a)).join("\n")
-                );
+                await sendUrgentBrief("NOUR OS Drift Alert", driftAlerts.map((a: any) => a.message || a.title || String(a)).join("\n"));
               } catch {}
             }
-
             return { recordsProcessed: imported, details: `${imported} insights pulled, ${driftAlerts.length} drift alerts` };
           } catch { return { details: "Pull failed" }; }
+        },
+      },
+      {
+        name: "memory-sync-to-statenour", // THIRD: push our memories out
+        handler: async () => {
+          const { syncMemoriesToStatenour } = await import("../services/nickMemory");
+          const count = await syncMemoriesToStatenour();
+          return { recordsProcessed: count, details: `${count} memories synced to statenour` };
+        },
+      },
+      {
+        name: "nick-intelligence", // FOURTH: analyze with fresh data
+        businessHoursOnly: true,
+        handler: async () => {
+          const { runProactiveCheck } = await import("../services/nickIntelligence");
+          return runProactiveCheck();
+        },
+      },
+      {
+        name: "nick-auto-actions", // FIFTH: act on intelligence
+        businessHoursOnly: true,
+        handler: async () => {
+          const { runAutoActions } = await import("../services/nickIntelligence");
+          return runAutoActions();
+        },
+      },
+      {
+        name: "stale-lead-followup", // SIXTH: outreach after intelligence is fresh
+        businessHoursOnly: true,
+        handler: async () => {
+          const { processStaleLeadFollowUp } = await import("./jobs/staleLeadFollowup");
+          return processStaleLeadFollowUp();
+        },
+      },
+      {
+        name: "review-requests", // Moved from pulse (15min was too aggressive)
+        businessHoursOnly: true,
+        handler: async () => {
+          const { processReviewRequests } = await import("./jobs/reviewRequests");
+          return processReviewRequests();
+        },
+      },
+      {
+        name: "promise-risk-check", // NEW: detect work orders about to miss promised time
+        businessHoursOnly: true,
+        handler: async () => {
+          try {
+            const { getPromiseRiskSummary } = await import("../services/promiseRisk");
+            const risk = await getPromiseRiskSummary();
+            const atRisk = risk.atRisk || [];
+            if (atRisk.length > 0) {
+              const { sendTelegram } = await import("../services/telegram");
+              await sendTelegram(
+                `⏰ PROMISE RISK: ${atRisk.length} work orders at risk of missing promised time!\n\n` +
+                atRisk.slice(0, 3).map((r: any) => `WO#${r.orderNumber || r.id}: ${r.customerName || "?"} — promised ${r.promisedAt || "?"}`).join("\n")
+              );
+            }
+            return { recordsProcessed: atRisk.length, details: `${atRisk.length} at-risk WOs` };
+          } catch { return { details: "Promise risk check skipped" }; }
+        },
+      },
+      {
+        name: "statenour-sync", // LAST: push everything out after all processing
+        handler: async () => {
+          const { syncToStatenour } = await import("./jobs/statenourSync");
+          return syncToStatenour();
         },
       },
     ],
@@ -434,6 +446,75 @@ export function startTieredScheduler(): void {
           const { fetchCompetitorSnapshot } = await import("../services/competitorMonitor");
           const data = await fetchCompetitorSnapshot();
           return { recordsProcessed: data.length, details: `${data.length} competitors` };
+        },
+      },
+      // ─── NEW DAILY JOBS ────────────────────────────────
+      {
+        name: "churn-detection", // Detect at-risk customers and alert
+        handler: async () => {
+          try {
+            const { analyzeCustomers, getCustomerActionPlan } = await import("../services/customerIntelligence");
+            const data = await analyzeCustomers();
+            const plan = await getCustomerActionPlan();
+            if (data.atRiskCustomers.length > 0) {
+              const { sendTelegram } = await import("../services/telegram");
+              await sendTelegram(
+                `📉 DAILY CHURN CHECK\n\n` +
+                `At-risk: ${data.atRiskCustomers.length} customers\n` +
+                `Lapsed: ${data.lapsedCustomers} | Lost: ${data.lostCustomers}\n` +
+                `Retention: ${data.retentionRate}%\n` +
+                (plan ? `\n${plan.slice(0, 500)}` : "")
+              );
+            }
+            return { recordsProcessed: data.atRiskCustomers.length, details: `${data.atRiskCustomers.length} at-risk, ${data.retentionRate}% retention` };
+          } catch { return { details: "Churn detection failed" }; }
+        },
+      },
+      {
+        name: "qc-comeback-detection", // Detect repeat visits = possible failed repair
+        handler: async () => {
+          try {
+            const { getDb } = await import("../db");
+            const d = await getDb();
+            if (!d) return { details: "No DB" };
+            const { workOrders } = await import("../../drizzle/schema");
+            const { sql: sqlFn } = await import("drizzle-orm");
+            const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+            // Find work orders created in last 7 days where customer had a completed WO in prior 30 days
+            const recentWOs = await d.select().from(workOrders)
+              .where(sqlFn`${workOrders.createdAt} >= ${weekAgo}`)
+              .limit(50);
+            let comebacks = 0;
+            for (const wo of recentWOs) {
+              if (!wo.customerId) continue;
+              const prior = await d.select().from(workOrders)
+                .where(sqlFn`${workOrders.customerId} = ${wo.customerId} AND ${workOrders.id} != ${wo.id} AND ${workOrders.status} IN ('closed','invoiced','picked_up') AND ${workOrders.createdAt} >= ${new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)}`)
+                .limit(1);
+              if (prior.length > 0) comebacks++;
+            }
+            if (comebacks > 0) {
+              const { remember } = await import("../services/nickMemory");
+              await remember({ type: "lesson", content: `QC comeback check: ${comebacks} potential comebacks this week (customers who returned within 30d of a completed job). Review quality.`, source: "qc_detection", confidence: 0.8 });
+            }
+            return { recordsProcessed: comebacks, details: `${comebacks} potential comebacks detected` };
+          } catch { return { details: "QC comeback detection failed" }; }
+        },
+      },
+      {
+        name: "revenue-reconciliation", // End-of-day revenue truth
+        handler: async () => {
+          try {
+            const { getDailyRevenueTruth } = await import("../services/invoiceReconciliation");
+            const truth = await getDailyRevenueTruth();
+            const { remember } = await import("../services/nickMemory");
+            await remember({
+              type: "insight",
+              content: `Daily revenue truth: $${truth.totalRevenue || 0}. Invoices: ${truth.invoiceCount || 0}. Avg ticket: $${truth.avgTicket || 0}. This is the end-of-day verified number.`,
+              source: "revenue_reconciliation",
+              confidence: 0.95,
+            });
+            return { recordsProcessed: 1, details: `Revenue: $${truth.totalRevenue || 0}, ${truth.invoiceCount || 0} invoices` };
+          } catch { return { details: "Revenue reconciliation failed" }; }
         },
       },
     ],
