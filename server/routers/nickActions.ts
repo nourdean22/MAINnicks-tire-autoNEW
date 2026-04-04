@@ -1902,6 +1902,14 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
         learnFromInteraction(input.command, reply)
       ).catch(() => {});
 
+      // Track what Nour asks about — predict needs before he asks
+      import("../services/nickMemory").then(({ trackQuestion }) => {
+        // Extract topic from command (first 3 meaningful words)
+        const words = input.command.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3);
+        const topic = words.slice(0, 3).join(" ");
+        if (topic) trackQuestion(topic);
+      }).catch(() => {});
+
       // Track brief engagement — if Nour is talking to Nick, he read the brief
       import("../services/feedbackLoop").then(({ recordBriefResponse }) =>
         recordBriefResponse()

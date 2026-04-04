@@ -170,13 +170,7 @@ export function startTieredScheduler(): void {
           return runFullMirror();
         },
       },
-      {
-        name: "statenour-fast-sync",
-        handler: async () => {
-          const { syncToStatenour } = await import("./jobs/statenourSync");
-          return syncToStatenour();
-        },
-      },
+      // statenour-sync removed from pulse tier — runs in hourly tier to avoid duplicate API calls
       {
         name: "cloud-camera-snapshots",
         handler: async () => {

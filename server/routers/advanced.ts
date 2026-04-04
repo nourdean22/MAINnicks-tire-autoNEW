@@ -545,6 +545,13 @@ export const portalRouter = router({
       const normalized = input.phone.replace(/\D/g, "").slice(-10);
       const now = new Date();
 
+      // Brute force protection — block after 5 failed attempts (1 hour cooldown)
+      const { checkBruteForce, recordFailedAttempt, clearAttempts } = await import("../middleware/bruteForce");
+      const bruteCheck = checkBruteForce(normalized);
+      if (!bruteCheck.allowed) {
+        throw new Error(`Too many attempts. Try again in ${Math.ceil((bruteCheck.retryAfter || 3600) / 60)} minutes.`);
+      }
+
       // Clean up expired sessions (older than 24 hours)
       const cleanupCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
       await d.delete(portalSessions).where(lte(portalSessions.createdAt, cleanupCutoff));
@@ -559,7 +566,13 @@ export const portalRouter = router({
         .orderBy(desc(portalSessions.createdAt))
         .limit(1);
 
-      if (!session) throw new Error("Invalid or expired code");
+      if (!session) {
+        recordFailedAttempt(normalized);
+        throw new Error("Invalid or expired code");
+      }
+
+      // Valid code — clear brute force counter
+      clearAttempts(normalized);
 
       // Generate session token
       const { randomInt } = await import("crypto");

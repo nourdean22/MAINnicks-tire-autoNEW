@@ -416,6 +416,154 @@ export async function getWarmupContext(): Promise<string> {
   return lines.length > 0 ? `\n\nNICK'S LEARNED KNOWLEDGE (${memories.length} memories):\n${lines.join("\n")}` : "";
 }
 
+// ─── MEMORY INTELLIGENCE ─────────────────────────────
+
+// Track what Nour asks about — predict needs before he asks
+const questionPatterns: Record<string, number[]> = {};
+
+export function trackQuestion(topic: string): void {
+  const key = topic.toLowerCase().slice(0, 50);
+  if (!questionPatterns[key]) questionPatterns[key] = [];
+  questionPatterns[key].push(Date.now());
+  if (questionPatterns[key].length > 50) questionPatterns[key] = questionPatterns[key].slice(-50);
+  // Cap keys
+  if (Object.keys(questionPatterns).length > 100) {
+    const sorted = Object.entries(questionPatterns).sort((a, b) => b[1].length - a[1].length);
+    const keep = new Set(sorted.slice(0, 50).map(([k]) => k));
+    for (const k of Object.keys(questionPatterns)) {
+      if (!keep.has(k)) delete questionPatterns[k];
+    }
+  }
+}
+
+/** Get topics Nour asks about most — these should be surfaced proactively */
+export function getTopQuestions(limit = 5): Array<{ topic: string; count: number; lastAsked: string }> {
+  return Object.entries(questionPatterns)
+    .map(([topic, timestamps]) => ({
+      topic,
+      count: timestamps.length,
+      lastAsked: new Date(Math.max(...timestamps)).toISOString(),
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+}
+
+/**
+ * Memory decay — reduce confidence of old, unused memories.
+ * Called from the feedback cycle. Prevents stale knowledge from dominating.
+ */
+export async function decayMemories(): Promise<number> {
+  const d = await db();
+  if (!d) return 0;
+  const { shopSettings } = await import("../../drizzle/schema");
+
+  try {
+    const rows = await d.select().from(shopSettings)
+      .where(sql`${shopSettings.key} LIKE 'nick_memory_%'`)
+      .limit(200);
+
+    let decayed = 0;
+    const now = Date.now();
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+
+    for (const row of rows) {
+      try {
+        const data = JSON.parse(row.value);
+        const lastUsed = new Date(data.lastReinforced || data.createdAt).getTime();
+        const age = now - lastUsed;
+
+        // Decay confidence by 5% for every 30 days of inactivity
+        if (age > thirtyDaysMs && data.confidence > 0.3) {
+          const decayFactor = Math.floor(age / thirtyDaysMs) * 0.05;
+          data.confidence = Math.max(0.1, data.confidence - decayFactor);
+          await d.update(shopSettings).set({ value: JSON.stringify(data) }).where(sql`${shopSettings.id} = ${row.id}`);
+          decayed++;
+        }
+
+        // Prune dead memories (confidence < 0.15 and unused for 90d)
+        if (data.confidence < 0.15 && age > thirtyDaysMs * 3) {
+          await d.delete(shopSettings).where(sql`${shopSettings.id} = ${row.id}`);
+          decayed++;
+        }
+      } catch {}
+    }
+    return decayed;
+  } catch { return 0; }
+}
+
+/**
+ * Detect contradictions — find memories that conflict with new data.
+ * Returns memories that may need updating.
+ */
+export async function findContradictions(newContent: string): Promise<NickMemory[]> {
+  const memories = await recall({ limit: 30 });
+  if (memories.length === 0) return [];
+
+  // Simple keyword overlap + contradiction signals
+  const newWords = new Set(newContent.toLowerCase().split(/\s+/).filter(w => w.length > 4));
+  const contradictions: NickMemory[] = [];
+
+  for (const m of memories) {
+    const memWords = new Set(m.content.toLowerCase().split(/\s+/).filter(w => w.length > 4));
+    const overlap = [...newWords].filter(w => memWords.has(w)).length;
+
+    // High overlap but different conclusion = potential contradiction
+    if (overlap >= 3 && m.confidence < 0.8) {
+      contradictions.push(m);
+    }
+  }
+
+  return contradictions.slice(0, 3);
+}
+
+/**
+ * Proactive memory triggers — check if any memory-based alert should fire.
+ * Called from the feedback cycle. Returns alerts that Nick should send.
+ */
+export async function getProactiveMemoryAlerts(): Promise<string[]> {
+  const alerts: string[] = [];
+  const memories = await recall({ limit: 30 });
+
+  const now = new Date();
+  const dayName = now.toLocaleDateString("en-US", { weekday: "long", timeZone: "America/New_York" });
+  const hour = parseInt(now.toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+
+  for (const m of memories) {
+    // Pattern memories that match current day/time
+    if (m.type === "pattern" && m.confidence > 0.7) {
+      const content = m.content.toLowerCase();
+      const dayLower = dayName.toLowerCase();
+
+      // "Tuesdays are slow" → alert on Tuesday morning
+      if (content.includes(dayLower) && content.includes("slow") && hour >= 8 && hour <= 10) {
+        alerts.push(`Memory alert: "${m.content.slice(0, 100)}..." — heads up, this matches today.`);
+      }
+
+      // "Brake jobs spike after first freeze" → seasonal pattern
+      if (content.includes("spike") || content.includes("surge")) {
+        alerts.push(`Pattern reminder: ${m.content.slice(0, 120)}`);
+      }
+    }
+
+    // Lessons about follow-up timing
+    if (m.type === "lesson" && m.confidence > 0.8 && m.content.toLowerCase().includes("follow-up")) {
+      if (hour >= 9 && hour <= 11) {
+        alerts.push(`Lesson reminder: ${m.content.slice(0, 120)}`);
+      }
+    }
+  }
+
+  // Question pattern alerts — surface what Nour usually asks about at this time
+  const topQs = getTopQuestions(3);
+  for (const q of topQs) {
+    if (q.count >= 3) {
+      alerts.push(`You often ask about "${q.topic}" (${q.count}x) — here's a proactive check.`);
+    }
+  }
+
+  return alerts.slice(0, 5); // Max 5 proactive alerts
+}
+
 function simpleHash(str: string): string {
   let hash = 0;
   const normalized = str.toLowerCase().trim().replace(/\s+/g, " ");
