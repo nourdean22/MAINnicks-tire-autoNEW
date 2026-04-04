@@ -141,6 +141,16 @@ KEY: Invoice = job WON. Estimate without invoice = customer WALKED.`;
       enrichmentBlock += `\nPIPELINE: Est→Job ${pipeline.estimateToInvoice}%, Lead→Booking ${pipeline.leadToBooking}%. ${pipeline.staleEstimates} stale estimates.`;
     } catch {}
 
+    // ─── Brief self-review: did yesterday's brief drive action? ────
+    let briefReviewBlock = "";
+    try {
+      const { getBriefEngagement } = await import("../../services/feedbackLoop");
+      const engagement = getBriefEngagement();
+      if (engagement.sent) {
+        briefReviewBlock = `\nYESTERDAY'S BRIEF: ${engagement.engagementRate === "engaged" ? "Nour read it and engaged ✓" : "Sent but no response — maybe adjust timing or content."}`;
+      }
+    } catch {}
+
     // ─── Inject memory + personal context + customer intel ────
     let memoryBlock = "";
     try {
@@ -186,7 +196,7 @@ FORMAT RULES:
           },
           {
             role: "user",
-            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n\n${enrichmentBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
+            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n\n${enrichmentBlock}\n\n${briefReviewBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
           },
         ],
         maxTokens: 800,

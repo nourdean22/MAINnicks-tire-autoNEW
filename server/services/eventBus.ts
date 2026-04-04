@@ -237,6 +237,9 @@ export async function dispatch(
     timestamp: new Date().toISOString(),
   };
 
+  // Track customer lifecycle correlation
+  trackLifecycle(type, data);
+
   let dispatched = 0;
   let failed = 0;
   const dispatchedTo: string[] = [];
@@ -316,4 +319,69 @@ export const emit = {
 
 export function getEventBusStatus(): { destinations: number; initialized: boolean } {
   return { destinations: destinations.length, initialized: _initialized };
+}
+
+// ─── EVENT LIFECYCLE CORRELATION ─────────────────────
+// Track customer journeys: lead → booking → invoice → payment
+
+const lifecycleTracker = new Map<string, { events: string[]; firstSeen: number; lastSeen: number }>();
+const MAX_LIFECYCLES = 200;
+
+/** Called internally on every dispatch to build customer journeys */
+function trackLifecycle(type: BusinessEvent, data: Record<string, any>): void {
+  // Use phone or customer name as the correlation key
+  const phone = (data.phone || data.customerPhone || "").replace(/\D/g, "").slice(-10);
+  const name = data.name || data.customerName || "";
+  const key = phone || name;
+  if (!key || key.length < 3) return;
+
+  const now = Date.now();
+  const existing = lifecycleTracker.get(key);
+
+  if (existing) {
+    if (!existing.events.includes(type)) {
+      existing.events.push(type);
+    }
+    existing.lastSeen = now;
+  } else {
+    // Evict oldest if at cap
+    if (lifecycleTracker.size >= MAX_LIFECYCLES) {
+      let oldestKey = "";
+      let oldestTime = Infinity;
+      for (const [k, v] of lifecycleTracker) {
+        if (v.lastSeen < oldestTime) { oldestTime = v.lastSeen; oldestKey = k; }
+      }
+      if (oldestKey) lifecycleTracker.delete(oldestKey);
+    }
+    lifecycleTracker.set(key, { events: [type], firstSeen: now, lastSeen: now });
+  }
+
+  // Detect complete lifecycle: lead → booking → invoice → payment
+  const journey = lifecycleTracker.get(key);
+  if (journey && journey.events.includes("lead_captured") && journey.events.includes("invoice_paid")) {
+    // Full conversion! Learn from it.
+    import("./nickMemory").then(({ remember }) =>
+      remember({
+        type: "pattern",
+        content: `FULL CONVERSION: Customer "${name || phone}" completed full journey: ${journey.events.join(" → ")}. Duration: ${Math.round((journey.lastSeen - journey.firstSeen) / 3600000)}h. This is what success looks like — study this path.`,
+        source: "lifecycle_tracker",
+        confidence: 0.95,
+      })
+    ).catch(() => {});
+    lifecycleTracker.delete(key);
+  }
+}
+
+/** Get active customer journeys for dashboard display */
+export function getActiveJourneys(): Array<{ customer: string; events: string[]; hoursActive: number }> {
+  const now = Date.now();
+  return Array.from(lifecycleTracker.entries())
+    .filter(([_, v]) => now - v.lastSeen < 24 * 60 * 60 * 1000) // Last 24h
+    .map(([key, v]) => ({
+      customer: key,
+      events: v.events,
+      hoursActive: Math.round((v.lastSeen - v.firstSeen) / 3600000),
+    }))
+    .sort((a, b) => b.events.length - a.events.length)
+    .slice(0, 10);
 }

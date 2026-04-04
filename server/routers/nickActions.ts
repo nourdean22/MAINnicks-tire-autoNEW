@@ -1755,7 +1755,20 @@ ${alerts.length > 0 ? "🔴 " + alerts.join(" | ") : ""}`;
             const { detectAnomalies } = await import("../services/feedbackLoop");
             const anomalies = detectAnomalies();
             if (anomalies.length > 0) {
-              bizContext += `\nANOMALIES: ${anomalies.join(" | ")}`;
+              bizContext += `\nANOMALIES: ${anomalies.map(a => `${a.type}: ${a.current} (avg ${a.average}/hr) ${a.deviation}`).join(" | ")}`;
+            }
+          } catch {}
+
+          // Inject what Nour asks about most — predict before he asks
+          try {
+            const { getTopQuestions, getProactiveMemoryAlerts } = await import("../services/nickMemory");
+            const topQs = getTopQuestions(3);
+            if (topQs.length > 0) {
+              bizContext += `\nNOUR FREQUENTLY ASKS ABOUT: ${topQs.map(q => `"${q.topic}" (${q.count}x)`).join(", ")}. Proactively include this info in responses.`;
+            }
+            const memAlerts = await getProactiveMemoryAlerts();
+            if (memAlerts.length > 0) {
+              bizContext += `\nPROACTIVE MEMORY ALERTS: ${memAlerts.slice(0, 3).join(" | ")}`;
             }
           } catch {}
 
