@@ -1687,11 +1687,12 @@ SOURCES: Auto Labor Guide (ShopDriver Elite), Gateway for invoices`;
             if (memContext) bizContext += memContext;
           } catch {}
 
-          // Inject customer intelligence
+          // Inject customer intelligence + action plan
           let customerBrief = "";
           try {
-            const { getCustomerBrief } = await import("../services/customerIntelligence");
-            customerBrief = await getCustomerBrief();
+            const { getCustomerBrief, getCustomerActionPlan } = await import("../services/customerIntelligence");
+            const [brief, plan] = await Promise.all([getCustomerBrief(), getCustomerActionPlan()]);
+            customerBrief = brief + plan;
           } catch {}
 
 
@@ -1914,6 +1915,26 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
       import("../services/feedbackLoop").then(({ recordBriefResponse }) =>
         recordBriefResponse()
       ).catch(() => {});
+
+      // Self-critique — did this response actually help? Score it.
+      import("../_core/llm").then(async ({ invokeLLM: llm }) => {
+        try {
+          const critique = await llm({
+            messages: [
+              { role: "system", content: `Rate this Nick AI response 1-10. Was it: specific (used real data)? actionable (clear next step)? connected (to revenue/customers/goals)? Respond with just a number.` },
+              { role: "user", content: `Q: ${input.command.slice(0, 200)}\nA: ${reply.slice(0, 500)}` },
+            ],
+            maxTokens: 10,
+          });
+          const score = parseInt(critique.choices?.[0]?.message?.content?.match(/\d+/)?.[0] || "0", 10);
+          if (score > 0 && score <= 10) {
+            const { remember: mem } = await import("../services/nickMemory");
+            if (score <= 5) {
+              await mem({ type: "lesson", content: `Self-critique: scored ${score}/10 on "${input.command.slice(0, 60)}". Need to be more specific/actionable.`, source: "self_critique", confidence: 0.6 });
+            }
+          }
+        } catch {}
+      }).catch(() => {});
 
       return {
         reply,

@@ -186,5 +186,45 @@ export async function getCustomerBrief(): Promise<string> {
 - Top services: ${data.servicePatterns.slice(0, 5).map(s => `${s.service} (${s.count}x, $${s.revenue})`).join(", ")}
 - Top spenders: ${data.topSpenders.slice(0, 3).map(s => `${s.name} ($${s.total}, ${s.visits} visits)`).join(", ")}
 - At-risk customers: ${data.atRiskCustomers.length > 0 ? data.atRiskCustomers.slice(0, 5).map(c => `${c.name} (${c.daysSince}d ago, ${c.phone})`).join(", ") : "None detected"}
-- Busiest day: ${days[busiestDay] || "N/A"} | Slowest: ${days[slowestDay] || "N/A"} | Peak hour: ${peakHour}:00`;
+- Busiest day: ${days[busiestDay] || "N/A"} | Slowest: ${days[slowestDay] || "N/A"} | Peak hour: ${peakHour}:00
+- Churn risk: ${data.lapsedCustomers > data.activeCustomers ? "HIGH — more lapsed than active" : data.lapsedCustomers > data.activeCustomers * 0.5 ? "MODERATE — lapsed approaching active count" : "LOW"}`;
+}
+
+/**
+ * Get actionable customer lifecycle insights for Nick AI.
+ * Goes beyond raw stats — tells Nick what to DO about each segment.
+ */
+export async function getCustomerActionPlan(): Promise<string> {
+  const data = await analyzeCustomers();
+  const actions: string[] = [];
+
+  // At-risk customers — specific call-to-action
+  if (data.atRiskCustomers.length > 0) {
+    const topRisk = data.atRiskCustomers[0];
+    actions.push(`CALL NOW: ${topRisk.name} (${topRisk.phone}) — ${topRisk.daysSince}d since last visit. They're about to become a lost customer.`);
+  }
+
+  // Churn prediction
+  const churnRate = data.totalCustomers > 0 ? Math.round((data.lostCustomers / data.totalCustomers) * 100) : 0;
+  if (churnRate > 30) {
+    actions.push(`CHURN ALERT: ${churnRate}% of customers are lost (365+ days). Run a win-back campaign targeting recent churns (90-180d) — they're the easiest to recover.`);
+  }
+
+  // High-value customer protection
+  if (data.topSpenders.length > 0) {
+    const topCustomer = data.topSpenders[0];
+    actions.push(`PROTECT: ${topCustomer.name} is your #1 spender ($${topCustomer.total}, ${topCustomer.visits} visits). Make sure they're getting VIP treatment.`);
+  }
+
+  // Retention opportunity
+  if (data.retentionRate < 40) {
+    actions.push(`RETENTION: Only ${data.retentionRate}% of customers come back. Consider a post-service follow-up SMS 30 days after visit.`);
+  }
+
+  // New customer momentum
+  if (data.newThisMonth > 0) {
+    actions.push(`MOMENTUM: ${data.newThisMonth} new customers this month. First impressions matter — ensure fast turnaround and follow-up review request.`);
+  }
+
+  return actions.length > 0 ? `\nCUSTOMER ACTION PLAN:\n${actions.map(a => `• ${a}`).join("\n")}` : "";
 }
