@@ -84,7 +84,7 @@ function Hero() {
           >
             Cleveland&rsquo;s #1 Rated
             <br />
-            <span className="text-[#FDB913]">Tire & Auto Repair</span>
+            <span className="text-[#FDB913] text-gradient-yellow">Tire & Auto Repair</span>
           </motion.h1>
 
           {/* Subheadline */}
@@ -107,7 +107,7 @@ function Hero() {
             <a
               href={BUSINESS.phone.href}
               onClick={() => trackPhoneClick("hero")}
-              className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-[#0A0A0A] px-8 py-3.5 rounded-lg font-semibold text-lg hover:bg-[#FDB913]/90 transition-colors"
+              className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-[#0A0A0A] px-8 py-3.5 rounded-lg font-semibold text-lg hover:bg-[#FDB913]/90 transition-colors btn-premium"
               aria-label="Call for service"
             >
               <Phone className="w-5 h-5" />
@@ -115,7 +115,7 @@ function Hero() {
             </a>
             <a
               href="#booking"
-              className="inline-flex items-center justify-center gap-2 border-2 border-[#FDB913] text-[#FDB913] px-8 py-3.5 rounded-lg font-semibold text-lg hover:bg-[#FDB913]/10 transition-colors"
+              className="inline-flex items-center justify-center gap-2 border-2 border-[#FDB913] text-[#FDB913] px-8 py-3.5 rounded-lg font-semibold text-lg hover:bg-[#FDB913]/10 transition-colors btn-premium"
             >
               Book Appointment
             </a>
@@ -178,7 +178,7 @@ function TrustNumbers() {
           {stats.map((s, i) => (
             <FadeIn key={s.label} delay={i * 0.1}>
               <div className={`text-center ${i > 0 ? "lg:border-l lg:border-border" : ""}`}>
-                <div className="text-3xl lg:text-4xl font-bold text-[#FDB913] tracking-tight font-mono">{s.value}</div>
+                <div className="text-3xl lg:text-4xl font-bold text-[#FDB913] tracking-tight font-mono text-gradient-yellow">{s.value}</div>
                 <div className="mt-1 text-sm text-foreground/40 font-medium">{s.label}</div>
               </div>
             </FadeIn>
@@ -254,10 +254,10 @@ function Services() {
           <FadeIn>
             <h2 className="font-heading text-3xl lg:text-4xl font-bold text-foreground tracking-tight text-center mb-12 uppercase">More Services</h2>
           </FadeIn>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 stagger-in">
             {moreServices.map((s, i) => (
               <FadeIn key={s.slug} delay={i * 0.1}>
-                <Link href={s.slug} className="group block p-8 border border-border rounded-2xl hover:border-foreground/20 transition-all">
+                <Link href={s.slug} className="group block p-8 border border-border rounded-2xl hover:border-foreground/20 transition-all card-gold-hover">
                   <h3 className="font-heading text-xl font-semibold text-foreground tracking-tight group-hover:text-primary transition-colors uppercase">{s.title}</h3>
                   <p className="mt-1 text-[#FDB913] font-semibold text-sm">{s.price}</p>
                   <p className="mt-3 text-foreground/50 text-sm leading-relaxed">{s.desc}</p>
@@ -360,10 +360,10 @@ function Reviews() {
           </div>
         </FadeIn>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 stagger-in">
           {displayReviews.map((r, i) => (
             <FadeIn key={r.name + i} delay={i * 0.1}>
-              <div className="p-8 border border-border rounded-2xl h-full flex flex-col">
+              <div className="p-8 border border-border rounded-2xl h-full flex flex-col glow-on-hover">
                 <div className="flex gap-0.5 mb-5">
                   {[...Array(r.stars)].map((_, j) => (
                     <Star key={j} className="w-4 h-4 fill-nick-yellow text-primary" />

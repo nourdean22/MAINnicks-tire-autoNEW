@@ -134,7 +134,7 @@ export default function LaborEstimator() {
         <div className="container max-w-3xl">
           {!result ? (
             <FadeIn>
-              <div className="bg-card/80 border border-border/30 rounded-lg p-6 lg:p-8 space-y-8">
+              <div className="bg-card/80 border border-border/30 rounded-lg p-6 lg:p-8 space-y-8 surface-raised-card">
                 {/* Step 1: Vehicle Info */}
                 <div>
                   <label className="text-[12px] text-nick-teal/80 tracking-wide block mb-4">
@@ -321,7 +321,7 @@ export default function LaborEstimator() {
             <div className="space-y-6">
               <FadeIn>
                 {/* Header */}
-                <div className="bg-card/80 border border-border/30 rounded-lg p-6 lg:p-8">
+                <div className="bg-card/80 border border-border/30 rounded-lg p-6 lg:p-8 surface-raised-card">
                   <div className="text-center mb-6">
                     <span className="font-mono text-nick-teal text-xs tracking-wide">Repair Estimate</span>
                     <h2 className="font-bold text-3xl lg:text-4xl text-foreground mt-2">
@@ -366,7 +366,7 @@ export default function LaborEstimator() {
               {/* Line Items Breakdown */}
               {result.lineItems.length > 0 && (
                 <FadeIn delay={0.1}>
-                  <div className="bg-card/80 border border-border/30 rounded-lg p-6 lg:p-8">
+                  <div className="bg-card/80 border border-border/30 rounded-lg p-6 lg:p-8 surface-raised-card">
                     <h3 className="font-bold text-xl text-foreground tracking-[-0.01em] mb-6 flex items-center gap-2">
                       <FileText className="w-5 h-5 text-nick-teal" />
                       DETAILED BREAKDOWN
@@ -520,7 +520,7 @@ export default function LaborEstimator() {
       <section className="bg-[oklch(0.065_0.004_260)] py-12 lg:py-16">
         <div className="container max-w-3xl">
           <FadeIn>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center stagger-in">
               <div>
                 <DollarSign className="w-8 h-8 text-primary mx-auto mb-3" />
                 <h4 className="font-bold text-foreground text-sm tracking-wide">No Hidden Fees</h4>
