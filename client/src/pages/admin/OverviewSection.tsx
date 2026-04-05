@@ -330,14 +330,56 @@ export default function OverviewSection() {
         </div>
       )}
 
-      {/* ─── SECONDARY METRICS ─── */}
+      {/* ─── ALG SHOP FLOOR DATA — The Real Numbers ─── */}
+      {(stats as any).shopFloor && (
+        <div className="bg-card border border-emerald-500/20 rounded-lg p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+            <span className="text-[10px] font-bold tracking-wider text-muted-foreground">AUTO LABOR GUIDE — SHOP FLOOR</span>
+            <span className="ml-auto text-[9px] font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400">
+              {(stats as any).shopFloor.totalCustomers} CUSTOMERS · {(stats as any).shopFloor.vipCustomers} VIP
+            </span>
+          </div>
+          <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="text-center">
+              <div className="text-lg font-bold text-primary">${Math.round((stats as any).shopFloor.revenueToday).toLocaleString()}</div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">TODAY REV</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-emerald-400">{(stats as any).shopFloor.invoicesToday}</div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">INVOICES</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-amber-400">{(stats as any).shopFloor.estimatesToday}</div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">WALK-INS</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-blue-400">${(stats as any).shopFloor.avgTicket}</div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">AVG TICKET</div>
+            </div>
+            <div className="text-center">
+              <div className={`text-lg font-bold ${(stats as any).shopFloor.conversionRate >= 50 ? "text-emerald-400" : (stats as any).shopFloor.conversionRate >= 30 ? "text-amber-400" : "text-red-400"}`}>{(stats as any).shopFloor.conversionRate}%</div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">CONVERSION</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-purple-400">${Math.round((stats as any).shopFloor.revenueThisMonth).toLocaleString()}</div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">MONTH REV</div>
+            </div>
+          </div>
+          <div className="mt-2 text-[10px] text-muted-foreground">
+            Week: {(stats as any).shopFloor.invoicesThisWeek} invoices · ${Math.round((stats as any).shopFloor.revenueThisWeek).toLocaleString()} revenue · {(stats as any).shopFloor.estimatesThisWeek} walk-in estimates
+          </div>
+        </div>
+      )}
+
+      {/* ─── PIPELINE: Website vs Walk-In Split ─── */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-        <StatCard label="New Bookings" value={stats.bookings.new} icon={<Hash className="w-3.5 h-3.5" />} color="text-blue-400" />
+        <StatCard label="Online Bookings" value={stats.bookings.new} icon={<Hash className="w-3.5 h-3.5" />} color="text-blue-400" />
         <StatCard label="Confirmed" value={stats.bookings.confirmed} icon={<CheckCircle2 className="w-3.5 h-3.5" />} color="text-primary" />
-        <StatCard label="Completed" value={stats.bookings.completed} icon={<CheckCircle2 className="w-3.5 h-3.5" />} color="text-emerald-400" />
+        <StatCard label="Website Leads" value={stats.leads.new + stats.leads.contacted} icon={<Users className="w-3.5 h-3.5" />} color="text-cyan-400" />
         <StatCard label="Urgent Leads" value={stats.leads.urgent} icon={<AlertTriangle className="w-3.5 h-3.5" />} color={stats.leads.urgent > 0 ? "text-red-400" : "text-muted-foreground"} />
         <StatCard label="Chat Sessions" value={stats.chat.totalSessions} icon={<MessageSquare className="w-3.5 h-3.5" />} color="text-purple-400" />
-        <StatCard label="Calls Tracked" value={stats.callTracking?.totalCalls ?? 0} icon={<Phone className="w-3.5 h-3.5" />} color="text-cyan-400" />
+        <StatCard label="Calls from Site" value={stats.callTracking?.totalCalls ?? 0} icon={<Phone className="w-3.5 h-3.5" />} color="text-cyan-400" />
       </div>
 
       {/* ─── PRIORITY ACTION QUEUE ─── */}
