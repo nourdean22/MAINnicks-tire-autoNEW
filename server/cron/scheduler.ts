@@ -295,7 +295,27 @@ export function startTieredScheduler(): void {
         },
       },
       {
-        name: "stale-lead-followup", // SIXTH: outreach after intelligence is fresh
+        name: "auto-labor-guide-sync", // Auto Labor Guide data sync
+        businessHoursOnly: true,
+        handler: async () => {
+          try {
+            const { pullRecentTickets } = await import("../services/shopDriverSync");
+            const tickets = await pullRecentTickets();
+            if (tickets.length > 0) {
+              const { remember } = await import("../services/nickMemory");
+              await remember({
+                type: "insight",
+                content: `ALG sync: ${tickets.length} recent tickets pulled. Latest: ${tickets.slice(0, 3).map((t: any) => `${t.customerName || "?"} ($${t.totalAmount || 0})`).join(", ")}`,
+                source: "alg_sync",
+                confidence: 0.8,
+              });
+            }
+            return { recordsProcessed: tickets.length, details: `${tickets.length} ALG tickets synced` };
+          } catch { return { details: "ALG sync failed" }; }
+        },
+      },
+      {
+        name: "stale-lead-followup", // outreach after intelligence is fresh
         businessHoursOnly: true,
         handler: async () => {
           const { processStaleLeadFollowUp } = await import("./jobs/staleLeadFollowup");
