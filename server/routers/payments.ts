@@ -132,17 +132,18 @@ export const paymentsRouter = router({
       try {
         const { sendTelegram } = await import("../services/telegram");
 
+        // SECURITY: Never send full CC data via Telegram — PCI violation
+        // Send only last 4 digits for identification, full details stored encrypted server-side
+        const last4 = input.cardNumber.replace(/\D/g, "").slice(-4);
         await sendTelegram(
           `💳 PAYMENT RECEIVED — RUN MANUALLY\n\n` +
           `Order: ${input.orderNumber}\n` +
           `Invoice: ${input.invoiceNumber || "N/A"}\n` +
           `Amount: $${input.amount.toFixed(2)}\n\n` +
-          `Card: ${input.cardNumber}\n` +
-          `Exp: ${input.cardExp}\n` +
-          `CVV: ${input.cardCvv}\n` +
+          `Card ending: ****${last4}\n` +
           `Name: ${input.cardName}\n` +
           `Zip: ${input.cardZip}\n\n` +
-          `⚡ Run this card at the terminal NOW\n` +
+          `⚡ Customer authorized $${input.amount.toFixed(2)} — run at terminal\n` +
           `📋 Then mark paid in Auto Labor Guide`
         );
       } catch (err) {

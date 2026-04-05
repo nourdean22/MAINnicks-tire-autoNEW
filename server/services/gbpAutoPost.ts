@@ -23,7 +23,8 @@ export interface GBPPost {
 
 /** Create a GBP post draft from a special/promotion */
 export function createSpecialPost(special: { title: string; description: string; expiresAt?: Date }): GBPPost {
-  const text = `${special.title}\n\n${special.description}\n\n📍 Nick's Tire & Auto — 17625 Euclid Ave, Euclid\n📞 (216) 862-0005\n⭐ 4.9 stars, 1,700+ reviews`;
+  const { BUSINESS } = require("@shared/business");
+  const text = `${special.title}\n\n${special.description}\n\n📍 ${BUSINESS.name} — ${BUSINESS.address.street}, ${BUSINESS.address.city}\n📞 ${BUSINESS.phone.display}\n⭐ ${BUSINESS.reviews.rating} stars, ${BUSINESS.reviews.countDisplay} reviews`;
   return {
     id: randomUUID(),
     type: "offer",

@@ -168,7 +168,7 @@ function JobPostingSchemas() {
       name: BUSINESS.name,
       value: pos.schemaId,
     },
-    datePosted: "2025-01-01",
+    datePosted: new Date().toISOString().split("T")[0],
     employmentType: "FULL_TIME",
     hiringOrganization: {
       "@type": "Organization",
