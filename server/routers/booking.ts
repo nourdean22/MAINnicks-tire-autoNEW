@@ -23,6 +23,7 @@ import { bookings } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { logIntegrationFailure } from "../integration-failures";
 import { withRetry } from "../retry";
+import { logAdminAction } from "../services/auditTrail";
 
 // ─── LABOR GUIDE REFERENCE (for auto-invoice labor estimation) ───
 const SERVICE_LABOR_MAP: Record<string, { hours: number; description: string }> = {
@@ -400,6 +401,15 @@ export const bookingRouter = router({
     .mutation(async ({ input }) => {
       const result = await updateBookingStatus(input.id, input.status);
 
+      // Audit trail — log booking status changes for Nick AI learning
+      logAdminAction({
+        action: "booking.status_changed",
+        entityType: "booking",
+        entityId: input.id,
+        details: `Booking status changed to ${input.status}`,
+        newValue: input.status,
+      }).catch(() => {});
+
       // Auto-schedule Google review request when booking is completed
       if (input.status === "completed") {
         const d = await db();
@@ -473,7 +483,18 @@ export const bookingRouter = router({
   updateNotes: adminProcedure
     .input(z.object({ id: z.number(), notes: z.string().max(10000) }))
     .mutation(async ({ input }) => {
-      return updateBookingNotes(input.id, input.notes);
+      const result = await updateBookingNotes(input.id, input.notes);
+
+      // Audit trail — log notes updates for Nick AI learning
+      logAdminAction({
+        action: "booking.notes_updated",
+        entityType: "booking",
+        entityId: input.id,
+        details: "Booking notes updated",
+        newValue: input.notes,
+      }).catch(() => {});
+
+      return result;
     }),
 
   updatePriority: adminProcedure
@@ -489,6 +510,16 @@ export const bookingRouter = router({
     }))
     .mutation(async ({ input }) => {
       const result = await updateBookingStage(input.id, input.stage);
+
+      // Audit trail — log stage changes for Nick AI learning
+      logAdminAction({
+        action: "booking.stage_changed",
+        entityType: "booking",
+        entityId: input.id,
+        details: `Booking stage changed to ${input.stage}`,
+        newValue: input.stage,
+      }).catch(() => {});
+
       const d = await db();
       if (d) {
         const [booking] = await d.select().from(bookings).where(eq(bookings.id, input.id)).limit(1);

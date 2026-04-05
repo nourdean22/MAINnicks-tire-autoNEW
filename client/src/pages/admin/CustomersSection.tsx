@@ -79,6 +79,60 @@ function daysSinceStr(days: number | null | undefined): string {
   return `${Math.floor(days / 365)}yr ago`;
 }
 
+const JOURNEY_ICONS: Record<string, { icon: string; color: string }> = {
+  lead: { icon: "📥", color: "border-blue-500/50" },
+  booking: { icon: "📅", color: "border-emerald-500/50" },
+  callback: { icon: "📞", color: "border-amber-500/50" },
+  call: { icon: "☎️", color: "border-purple-500/50" },
+  workorder: { icon: "🔧", color: "border-cyan-500/50" },
+  invoice: { icon: "💰", color: "border-green-500/50" },
+  review: { icon: "⭐", color: "border-yellow-500/50" },
+};
+
+function CustomerJourney({ phone }: { phone: string }) {
+  const { data: timeline, isLoading } = trpc.customers.timeline.useQuery(
+    { phone },
+    { enabled: !!phone }
+  );
+
+  if (isLoading) return <div className="py-3 text-center"><div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" /></div>;
+  if (!timeline || timeline.length === 0) return <p className="text-xs text-foreground/30 italic py-2">No journey data yet</p>;
+
+  return (
+    <div className="space-y-0">
+      {(timeline as any[]).slice(0, 15).map((event: any, i: number) => {
+        const cfg = JOURNEY_ICONS[event.type] || { icon: "📌", color: "border-foreground/20" };
+        const date = new Date(event.date);
+        const isFirst = i === 0;
+        return (
+          <div key={i} className="flex gap-3 relative">
+            {/* Timeline line */}
+            <div className="flex flex-col items-center w-6 shrink-0">
+              <span className="text-sm">{cfg.icon}</span>
+              {i < (timeline as any[]).length - 1 && (
+                <div className="w-px flex-1 bg-foreground/10 my-1" />
+              )}
+            </div>
+            {/* Content */}
+            <div className={`flex-1 pb-3 ${isFirst ? "" : ""}`}>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-foreground">{event.title}</span>
+                <span className={`text-[9px] px-1.5 py-0.5 tracking-wider font-bold ${
+                  event.status === "completed" || event.status === "confirmed" ? "text-emerald-400 bg-emerald-500/10" :
+                  event.status === "lost" || event.status === "cancelled" ? "text-red-400 bg-red-500/10" :
+                  "text-foreground/40 bg-foreground/5"
+                }`}>{event.status.toUpperCase()}</span>
+              </div>
+              {event.detail && <p className="text-[10px] text-foreground/50 mt-0.5">{event.detail}</p>}
+              <p className="text-[9px] text-foreground/30 mt-0.5">{date.toLocaleDateString()} · {date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: () => void }) {
   const utils = trpc.useUtils();
   const { data: customer, isLoading } = trpc.customers.getById.useQuery({ id: customerId });
@@ -264,6 +318,14 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
             ) : (
               <p className="text-xs text-foreground/30 italic">No notes yet</p>
             )}
+          </div>
+
+          {/* Customer Journey Timeline */}
+          <div className="pt-2 border-t border-border/20">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-mono text-[10px] text-foreground/40 tracking-wide">CUSTOMER JOURNEY</span>
+            </div>
+            <CustomerJourney phone={customer.phone} />
           </div>
 
           {/* Quick SMS */}

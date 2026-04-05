@@ -17,6 +17,7 @@ import { sendSms, leadConfirmationSms } from "../sms";
 import { SITE_URL } from "@shared/business";
 import { handleAfterHoursCapture, isAfterHours } from "../services/afterHours";
 import { alertNewLead } from "../services/telegram";
+import { logAdminAction } from "../services/auditTrail";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -267,6 +268,28 @@ export const leadRouter = router({
         setObj.contactNotes = `[LOST: ${lostReason}]${prev ? " | " + prev : ""}`;
       }
       await d.update(leads).set(setObj).where(eq(leads.id, id));
+
+      // Audit trail — log status changes and notes updates for Nick AI learning
+      if (updates.status !== undefined) {
+        logAdminAction({
+          action: "lead.status_changed",
+          entityType: "lead",
+          entityId: id,
+          details: `Status changed to ${updates.status}`,
+          newValue: updates.status,
+          metadata: lostReason ? { lostReason } : undefined,
+        }).catch(() => {});
+      }
+      if (updates.contactNotes !== undefined) {
+        logAdminAction({
+          action: "lead.notes_updated",
+          entityType: "lead",
+          entityId: id,
+          details: "Contact notes updated",
+          newValue: updates.contactNotes,
+        }).catch(() => {});
+      }
+
       return { success: true };
     }),
 

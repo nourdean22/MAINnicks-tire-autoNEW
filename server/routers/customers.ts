@@ -5,6 +5,7 @@ import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq, like, or, sql, desc, asc } from "drizzle-orm";
 import { customers, customerMetrics, bookings, leads, callbackRequests, callEvents } from "../../drizzle/schema";
+import { logAdminAction } from "../services/auditTrail";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -258,6 +259,19 @@ export const customersRouter = router({
 
       const { sendSms } = await import("../sms");
       const result = await sendSms(customer.phone, input.message);
+
+      // Audit trail — log SMS sends for Nick AI learning
+      if (result.success) {
+        logAdminAction({
+          action: "customer.sms_sent",
+          entityType: "customer",
+          entityId: input.customerId,
+          details: `SMS sent to ${customer.firstName || ""} ${customer.lastName || ""}`.trim(),
+          newValue: input.message,
+          metadata: { phone: customer.phone },
+        }).catch(() => {});
+      }
+
       return result;
     }),
 
@@ -271,6 +285,16 @@ export const customersRouter = router({
       const d = await db();
       if (!d) return { success: false };
       await d.update(customers).set({ notes: input.notes }).where(eq(customers.id, input.id));
+
+      // Audit trail — log notes updates for Nick AI learning
+      logAdminAction({
+        action: "customer.notes_updated",
+        entityType: "customer",
+        entityId: input.id,
+        details: "Customer notes updated",
+        newValue: input.notes,
+      }).catch(() => {});
+
       return { success: true };
     }),
 
