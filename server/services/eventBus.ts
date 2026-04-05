@@ -124,13 +124,12 @@ async function ensureInitialized(): Promise<void> {
   registerDestination({
     name: "telegram",
     enabled: true,
-    handles: ["emergency_request", "payment_received", "tire_order_placed"],
+    handles: ["emergency_request", "payment_received", "tire_order_placed", "lead_captured", "callback_requested", "booking_completed", "invoice_paid"],
     softFail: true,
     handler: async (event) => {
-      // Only send Telegram for events not already handled by ShopDriver sync
-      // (ShopDriver sync already sends Telegram as fallback)
+      const { sendTelegram } = await import("./telegram");
+
       if (event.type === "emergency_request") {
-        const { sendTelegram } = await import("./telegram");
         await sendTelegram(
           `🚨 EMERGENCY: ${event.data.name} (${event.data.phone})\n` +
           `Problem: ${event.data.problem || "N/A"}\n` +
@@ -138,10 +137,40 @@ async function ensureInitialized(): Promise<void> {
         );
       }
       if (event.type === "payment_received") {
-        const { sendTelegram } = await import("./telegram");
         await sendTelegram(
           `💳 PAYMENT: $${event.data.amount} from ${event.data.customerName}\n` +
           `Invoice: ${event.data.invoiceNumber || "N/A"}`
+        );
+      }
+      // High-urgency lead = immediate alert
+      if (event.type === "lead_captured" && (event.data.urgencyScore >= 4 || event.data.source === "emergency")) {
+        await sendTelegram(
+          `🔴 HIGH-URGENCY LEAD: ${event.data.name} (${event.data.phone})\n` +
+          `Source: ${event.data.source} | Urgency: ${event.data.urgencyScore}/5\n` +
+          `⚡ Call within 5 minutes for best conversion`
+        );
+      }
+      // Callback = someone is waiting
+      if (event.type === "callback_requested") {
+        await sendTelegram(
+          `📞 CALLBACK REQUEST: ${event.data.name} (${event.data.phone})\n` +
+          `Reason: ${event.data.reason || "General inquiry"}\n` +
+          `⏰ Call back ASAP — they're waiting`
+        );
+      }
+      // Job completed = celebrate + prompt review request
+      if (event.type === "booking_completed") {
+        await sendTelegram(
+          `✅ JOB COMPLETED: ${event.data.name}\n` +
+          `Service: ${event.data.service}\n` +
+          `💡 Send review request before they leave`
+        );
+      }
+      // Invoice paid = money in
+      if (event.type === "invoice_paid") {
+        await sendTelegram(
+          `💰 INVOICE PAID: $${event.data.totalAmount} from ${event.data.customerName}\n` +
+          `Method: ${event.data.method || "card"}`
         );
       }
     },
