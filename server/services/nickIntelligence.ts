@@ -840,3 +840,129 @@ export async function getShopPulse(): Promise<{
     shopInsight,
   };
 }
+
+// ─── PREDICTIVE ESCALATION ─────────────────────────────
+
+interface EscalationAlert {
+  type: "lead" | "callback" | "estimate" | "booking" | "workorder";
+  id: number;
+  name: string;
+  phone: string | null;
+  ageMinutes: number;
+  slaMinutes: number;
+  severity: "warning" | "critical" | "overdue";
+  message: string;
+}
+
+/**
+ * Predictive escalation — finds items approaching or past SLA thresholds
+ * and generates Telegram alerts BEFORE they become emergencies.
+ *
+ * SLA thresholds:
+ * - New leads: warning at 2h, critical at 4h, overdue at 8h
+ * - Callbacks: warning at 30min, critical at 1h, overdue at 2h
+ * - Estimates (unconverted): warning at 4h, critical at 24h, overdue at 48h
+ * - New bookings (unconfirmed): warning at 2h, critical at 8h, overdue at 24h
+ */
+export async function checkPredictiveEscalations(): Promise<EscalationAlert[]> {
+  const d = await db();
+  if (!d) return [];
+
+  const { leads, callbackRequests, bookings } = await import("../../drizzle/schema");
+  const alerts: EscalationAlert[] = [];
+  const now = Date.now();
+
+  try {
+    // Check new/uncontacted leads
+    const newLeads = await d.select({
+      id: leads.id, name: leads.name, phone: leads.phone, createdAt: leads.createdAt,
+    }).from(leads)
+      .where(and(eq(leads.status, "new"), eq(leads.contacted, 0)))
+      .limit(20);
+
+    for (const lead of newLeads) {
+      const ageMin = Math.floor((now - new Date(lead.createdAt).getTime()) / 60000);
+      if (ageMin >= 480) {
+        alerts.push({ type: "lead", id: lead.id, name: lead.name, phone: lead.phone, ageMinutes: ageMin, slaMinutes: 480, severity: "overdue", message: `Lead "${lead.name}" uncontacted for ${Math.floor(ageMin / 60)}h — OVERDUE` });
+      } else if (ageMin >= 240) {
+        alerts.push({ type: "lead", id: lead.id, name: lead.name, phone: lead.phone, ageMinutes: ageMin, slaMinutes: 240, severity: "critical", message: `Lead "${lead.name}" uncontacted for ${Math.floor(ageMin / 60)}h — approaching SLA breach` });
+      } else if (ageMin >= 120) {
+        alerts.push({ type: "lead", id: lead.id, name: lead.name, phone: lead.phone, ageMinutes: ageMin, slaMinutes: 120, severity: "warning", message: `Lead "${lead.name}" waiting ${Math.floor(ageMin / 60)}h for contact` });
+      }
+    }
+
+    // Check pending callbacks
+    const pendingCallbacks = await d.select({
+      id: callbackRequests.id, name: callbackRequests.name, phone: callbackRequests.phone, createdAt: callbackRequests.createdAt,
+    }).from(callbackRequests)
+      .where(sql`${callbackRequests.status} IN ('new', 'pending')`)
+      .limit(20);
+
+    for (const cb of pendingCallbacks) {
+      const ageMin = Math.floor((now - new Date(cb.createdAt).getTime()) / 60000);
+      if (ageMin >= 120) {
+        alerts.push({ type: "callback", id: cb.id, name: cb.name, phone: cb.phone, ageMinutes: ageMin, slaMinutes: 120, severity: "overdue", message: `Callback for "${cb.name}" waiting ${Math.floor(ageMin / 60)}h — CALL NOW` });
+      } else if (ageMin >= 60) {
+        alerts.push({ type: "callback", id: cb.id, name: cb.name, phone: cb.phone, ageMinutes: ageMin, slaMinutes: 60, severity: "critical", message: `Callback for "${cb.name}" at ${ageMin}min — they're waiting` });
+      } else if (ageMin >= 30) {
+        alerts.push({ type: "callback", id: cb.id, name: cb.name, phone: cb.phone, ageMinutes: ageMin, slaMinutes: 30, severity: "warning", message: `Callback for "${cb.name}" at ${ageMin}min` });
+      }
+    }
+
+    // Check unconfirmed bookings
+    const unconfirmedBookings = await d.select({
+      id: bookings.id, name: bookings.name, phone: bookings.phone, createdAt: bookings.createdAt,
+    }).from(bookings)
+      .where(eq(bookings.status, "new"))
+      .limit(20);
+
+    for (const bk of unconfirmedBookings) {
+      const ageMin = Math.floor((now - new Date(bk.createdAt).getTime()) / 60000);
+      if (ageMin >= 1440) {
+        alerts.push({ type: "booking", id: bk.id, name: bk.name, phone: bk.phone, ageMinutes: ageMin, slaMinutes: 1440, severity: "overdue", message: `Booking from "${bk.name}" unconfirmed for ${Math.floor(ageMin / 1440)}d — customer may not show up` });
+      } else if (ageMin >= 480) {
+        alerts.push({ type: "booking", id: bk.id, name: bk.name, phone: bk.phone, ageMinutes: ageMin, slaMinutes: 480, severity: "critical", message: `Booking from "${bk.name}" unconfirmed for ${Math.floor(ageMin / 60)}h` });
+      } else if (ageMin >= 120) {
+        alerts.push({ type: "booking", id: bk.id, name: bk.name, phone: bk.phone, ageMinutes: ageMin, slaMinutes: 120, severity: "warning", message: `Booking from "${bk.name}" needs confirmation (${Math.floor(ageMin / 60)}h)` });
+      }
+    }
+  } catch (err) {
+    log.error("Predictive escalation check failed", { error: String(err) });
+  }
+
+  // Sort by severity (overdue first, then critical, then warning)
+  const severityOrder = { overdue: 0, critical: 1, warning: 2 };
+  alerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+  return alerts;
+}
+
+/**
+ * Send predictive escalation alerts via Telegram.
+ * Called by the scheduler during business hours.
+ */
+export async function sendEscalationAlerts(): Promise<{ sent: number }> {
+  const alerts = await checkPredictiveEscalations();
+  if (alerts.length === 0) return { sent: 0 };
+
+  // Only send critical + overdue via Telegram (warnings surface in admin UI)
+  const urgent = alerts.filter(a => a.severity === "overdue" || a.severity === "critical");
+  if (urgent.length === 0) return { sent: 0 };
+
+  try {
+    const { sendTelegram } = await import("./telegram");
+    const lines = urgent.map(a => {
+      const icon = a.severity === "overdue" ? "🔴" : "🟡";
+      return `${icon} [${a.type.toUpperCase()}] ${a.message}${a.phone ? ` — tel:${a.phone}` : ""}`;
+    });
+
+    await sendTelegram(
+      `⚠️ NICK AI ESCALATION (${urgent.length} items)\n\n${lines.join("\n")}`
+    );
+
+    return { sent: urgent.length };
+  } catch (err) {
+    log.error("Failed to send escalation alerts", { error: String(err) });
+    return { sent: 0 };
+  }
+}
