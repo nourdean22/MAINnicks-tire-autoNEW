@@ -315,6 +315,7 @@ async function sendGmailMCP(
 
       const { data, error } = await resend.emails.send({
         from: fromEmail,
+        replyTo: process.env.SHOP_EMAIL || "Moeseuclid@gmail.com",
         to,
         cc: cc && cc.length > 0 ? cc : undefined,
         subject,
