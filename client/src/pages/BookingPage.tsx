@@ -1,6 +1,5 @@
 import BookingWizard from "@/components/BookingWizard";
-import SiteNavbar from "@/components/SiteNavbar";
-import SiteFooter from "@/components/SiteFooter";
+import PageLayout from "@/components/PageLayout";
 import { SEOHead } from "@/components/SEO";
 import InternalLinks from "@/components/InternalLinks";
 import { BUSINESS } from "@shared/business";
@@ -8,13 +7,12 @@ import { Link } from "wouter";
 
 export default function BookingPage() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <PageLayout activeHref="/booking">
       <SEOHead
         title="Book Auto Repair Appointment | Nick's Tire & Auto Cleveland"
         description="Schedule your auto repair or tire service online at Nick's Tire & Auto in Cleveland. Walk-ins welcome 7 days a week. Same-day service available. Call (216) 862-0005."
         canonicalPath="/booking"
       />
-      <SiteNavbar />
       <main className="max-w-3xl mx-auto px-4 py-12 sm:py-16">
         <div className="text-center mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
@@ -37,7 +35,6 @@ export default function BookingPage() {
         </div>
       </main>
       <InternalLinks title="Explore Our Services" maxLinks={6} />
-      <SiteFooter />
-    </div>
+    </PageLayout>
   );
 }
