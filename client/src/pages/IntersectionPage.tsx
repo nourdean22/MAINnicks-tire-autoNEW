@@ -246,7 +246,7 @@ export default function IntersectionPage() {
             <FadeIn delay={0.2}>
               <div className="bg-card/30 border border-border/50 rounded-lg p-5">
                 <h3 className="font-semibold font-bold text-foreground text-sm mb-2">FULL-SERVICE SHOP</h3>
-                <p className="text-foreground/60 text-sm leading-relaxed">From <Link href="/tires" className="text-nick-blue-light hover:underline">tires</Link> and <Link href="/brakes" className="text-nick-blue-light hover:underline">brakes</Link> to <Link href="/check-engine-light-cleveland" className="text-nick-blue-light hover:underline">check engine lights</Link> and <Link href="/emissions-testing" className="text-nick-blue-light hover:underline">emissions testing</Link>, we handle it all under one roof. Most repairs are completed same-day.</p>
+                <p className="text-foreground/60 text-sm leading-relaxed">From <Link href="/tires" className="text-nick-blue-light hover:underline">tires</Link> and <Link href="/brakes" className="text-nick-blue-light hover:underline">brakes</Link> to <Link href="/check-engine-light-cleveland" className="text-nick-blue-light hover:underline">check engine lights</Link> and <Link href="/emissions" className="text-nick-blue-light hover:underline">emissions testing</Link>, we handle it all under one roof. Most repairs are completed same-day.</p>
               </div>
             </FadeIn>
           </div>

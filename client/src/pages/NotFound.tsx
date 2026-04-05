@@ -45,7 +45,7 @@ export default function NotFound() {
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <Link
-                href="/services"
+                href="/diagnose"
                 className="inline-flex items-center justify-center gap-2 border-2 border-[#FDB913] text-[#FDB913] px-8 py-4 rounded-lg font-bold text-sm tracking-wide hover:bg-[#FDB913]/10 transition-colors"
               >
                 <Wrench className="w-4 h-4" />

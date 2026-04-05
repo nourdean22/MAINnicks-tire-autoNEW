@@ -202,9 +202,9 @@ export default function LandingPage() {
         landingPage: pathname,
       });
 
-      // Show success state and redirect after delay
+      // Show success state and redirect to booking after delay
       setTimeout(() => {
-        window.location.href = "/thank-you?source=landing";
+        window.location.href = "/booking?submitted=true";
       }, 1000);
     } catch (e) {
       console.error("Lead submission failed:", e);
