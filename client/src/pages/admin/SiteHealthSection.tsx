@@ -98,11 +98,11 @@ export default function SiteHealthSection() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="p-4 border border-emerald-500/30 bg-emerald-500/5 text-center">
-                <p className="font-bold text-3xl text-emerald-400">{health.indexedPages ?? 57}</p>
+                <p className="font-bold text-3xl text-emerald-400">{health.indexedPages ?? "—"}</p>
                 <p className="text-[11px] text-foreground/50 mt-1">Indexed</p>
               </div>
               <div className="p-4 border border-amber-500/30 bg-amber-500/5 text-center">
-                <p className="font-bold text-3xl text-amber-400">{health.notIndexedPages ?? 11}</p>
+                <p className="font-bold text-3xl text-amber-400">{health.notIndexedPages ?? "—"}</p>
                 <p className="text-[11px] text-foreground/50 mt-1">Not Indexed</p>
               </div>
             </div>
@@ -110,16 +110,16 @@ export default function SiteHealthSection() {
               <p className="text-[11px] text-foreground/40 tracking-wide">NOT INDEXED REASONS</p>
               <div className="flex items-center justify-between p-2.5 border border-border/20">
                 <span className="text-[12px] text-foreground/60">Crawled — currently not indexed</span>
-                <span className="text-[13px] font-semibold text-amber-400">{health.crawledNotIndexed ?? 6}</span>
+                <span className="text-[13px] font-semibold text-amber-400">{health.crawledNotIndexed ?? "—"}</span>
               </div>
               <div className="flex items-center justify-between p-2.5 border border-border/20">
                 <span className="text-[12px] text-foreground/60">Discovered — currently not indexed</span>
-                <span className="text-[13px] font-semibold text-amber-400">{health.discoveredNotIndexed ?? 5}</span>
+                <span className="text-[13px] font-semibold text-amber-400">{health.discoveredNotIndexed ?? "—"}</span>
               </div>
             </div>
             <div className="flex items-center justify-between p-2.5 border border-border/20">
               <span className="text-[12px] text-foreground/60">Validation Status</span>
-              <span className="text-[12px] text-emerald-400">Started (Mar 18, 2026)</span>
+              <span className="text-[12px] text-emerald-400">{health.validationStatus ?? "Check GSC"}</span>
             </div>
             <a href="https://search.google.com/search-console/index?resource_id=https%3A%2F%2Fnickstire.org%2F" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 text-primary hover:text-primary/80 text-[12px] p-2 border border-primary/20 hover:border-primary/40 transition-colors">
               View Full Report in GSC <ExternalLink className="w-3 h-3" />

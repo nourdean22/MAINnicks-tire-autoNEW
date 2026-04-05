@@ -38,9 +38,9 @@ function getPriorityColor(urgency: string, stage: string): string {
 }
 
 export default function JobBoardSection() {
-  const { data: bookingsData, isLoading } = trpc.booking.list.useQuery();
-  const { data: workload } = trpc.jobAssignments.workload.useQuery();
-  const { data: techList } = trpc.technicians.list.useQuery();
+  const { data: bookingsData, isLoading } = trpc.booking.list.useQuery(undefined, { refetchInterval: 15000 });
+  const { data: workload } = trpc.jobAssignments.workload.useQuery(undefined, { refetchInterval: 15000 });
+  const { data: techList } = trpc.technicians.list.useQuery(undefined, { refetchInterval: 15000 });
   const utils = trpc.useUtils();
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
   const [assigningBookingId, setAssigningBookingId] = useState<number | null>(null);

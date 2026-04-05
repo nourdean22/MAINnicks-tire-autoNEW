@@ -46,7 +46,16 @@ export default function LoyaltyAdminSection() {
           <input placeholder="Customer Phone" value={phone} onChange={e => setPhone(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
           <input placeholder="Points" type="number" value={points} onChange={e => setPoints(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
           <input placeholder="Description" value={desc} onChange={e => setDesc(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
-          <button onClick={() => awardPoints.mutate({ userId: 0, points: parseInt(points) || 0, description: desc || "Manual award" })} disabled={awardPoints.isPending || !phone || !points} className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs tracking-wide disabled:opacity-50">
+          <button onClick={async () => {
+            // Look up customer by phone to get real userId
+            try {
+              const normalized = phone.replace(/\D/g, "").slice(-10);
+              const customers = await utils.customers.list.fetch();
+              const match = (customers as any[])?.find((c: any) => c.phone?.replace(/\D/g, "").includes(normalized));
+              if (!match) { toast.error("Customer not found for this phone number"); return; }
+              awardPoints.mutate({ userId: match.id, points: parseInt(points) || 0, description: desc || "Manual award" });
+            } catch { toast.error("Failed to look up customer"); }
+          }} disabled={awardPoints.isPending || !phone || !points} className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs tracking-wide disabled:opacity-50">
             {awardPoints.isPending ? "AWARDING..." : "AWARD"}
           </button>
         </div>

@@ -39,7 +39,7 @@ function getSlaClass(dateStr: string | Date): string {
 }
 
 export default function EstimatesSection() {
-  const { data: leads, isLoading } = trpc.lead.list.useQuery();
+  const { data: leads, isLoading } = trpc.lead.list.useQuery(undefined, { refetchInterval: 30000 });
   const utils = trpc.useUtils();
   const updateLead = trpc.lead.update.useMutation({
     onSuccess: () => {
