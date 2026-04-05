@@ -9,8 +9,8 @@
  * Shop Email (Moeseuclid@gmail.com) — day-to-day operations, shop staff access
  * CEO Email (Nourdean22@gmail.com) — strategic, financial, high-value alerts
  *
- * Uses Gmail MCP via the sandbox CLI for sending.
- * Falls back to notifyOwner() push notifications as backup.
+ * Uses Resend API for transactional email delivery.
+ * Falls back to Telegram notifications as backup.
  *
  * Gmail Labels (on CEO inbox — Nourdean22@gmail.com):
  *   Label_2 = Nicks Tire Auto/Callbacks
@@ -22,12 +22,8 @@
 
 import { ENV } from "./_core/env";
 import { notifyOwner } from "./_core/notification";
-import { exec } from "child_process";
-import { promisify } from "util";
 import { createLogger } from "./lib/logger";
 import { getOrCreateBreaker } from "./lib/circuit-breaker";
-
-const execAsync = promisify(exec);
 const log = createLogger("email-notify");
 
 // ─── Circuit Breaker ────────────────────────────────
@@ -297,44 +293,39 @@ export function newsletterTemplate(details: {
   };
 }
 
-// ─── Email Sender via Gmail MCP (with circuit breaker) ──
+// ─── Email Sender via Resend API (with circuit breaker) ──
 async function sendGmailMCP(
   to: string[],
   subject: string,
   content: string,
   cc?: string[]
 ): Promise<{ sent: boolean; messageIds?: string[] }> {
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) {
+    log.warn("RESEND_API_KEY not set — email skipped, falling back to Telegram");
+    return { sent: false };
+  }
+
   try {
     const result = await emailCB.call(async () => {
-      const message: Record<string, unknown> = {
-        subject,
+      const { Resend } = await import("resend");
+      const resend = new Resend(resendKey);
+
+      const fromEmail = process.env.RESEND_FROM_EMAIL || "Nick's Tire & Auto <noreply@nickstire.org>";
+
+      const { data, error } = await resend.emails.send({
+        from: fromEmail,
         to,
-        content,
-      };
-      if (cc && cc.length > 0) {
-        message.cc = cc;
+        cc: cc && cc.length > 0 ? cc : undefined,
+        subject,
+        html: content,
+      });
+
+      if (error) {
+        throw new Error(`Resend error: ${error.message}`);
       }
 
-      const input = JSON.stringify({ messages: [message] });
-      // Escape single quotes in the JSON for shell
-      const escapedInput = input.replace(/'/g, "'\\''");
-
-      const { stdout } = await execAsync(
-        `manus-mcp-cli tool call gmail_send_messages --server gmail --input '${escapedInput}'`,
-        { timeout: 30000 }
-      );
-
-      // Try to extract message IDs from the result
-      const messageIds: string[] = [];
-      const idMatch = stdout.match(/message[_ ]?id["\s:]+([a-zA-Z0-9]+)/gi);
-      if (idMatch) {
-        for (const m of idMatch) {
-          const id = m.replace(/.*[:\s"]+/, "").trim();
-          if (id) messageIds.push(id);
-        }
-      }
-
-      return { sent: true, messageIds };
+      return { sent: true, messageIds: data?.id ? [data.id] : [] };
     });
 
     sendStats.totalSent++;
