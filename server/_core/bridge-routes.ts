@@ -131,6 +131,32 @@ export function registerBridgeRoutes(app: Express): void {
         console.error("[Bridge] Promise risk failed:", err instanceof Error ? err.message : err);
       }
 
+      // Live revenue + bookings + leads + callbacks
+      let revenue: Record<string, unknown> = {};
+      let bookings: Record<string, unknown> = {};
+      let leads: Record<string, unknown> = {};
+      let callbacks: Record<string, unknown> = {};
+      try {
+        const { getShopPulse } = await import("../services/nickIntelligence");
+        const pulse = await getShopPulse();
+        revenue = {
+          todayRevenue: pulse.today.revenue,
+          weekRevenue: pulse.thisWeek.revenue,
+          avgTicket: pulse.today.avgTicket,
+          jobsToday: pulse.today.jobsClosed,
+          walkRate: pulse.thisWeek.walkRate,
+          shopStatus: pulse.shopStatus,
+          shopInsight: pulse.shopInsight,
+        };
+      } catch {}
+      try {
+        const { getDashboardStats } = await import("../admin-stats");
+        const stats = await getDashboardStats();
+        bookings = { total: stats.bookings.total, thisWeek: stats.bookings.thisWeek, new: stats.bookings.new };
+        leads = { total: stats.leads.total, thisWeek: stats.leads.thisWeek, new: stats.leads.new, urgent: stats.leads.urgent };
+        callbacks = { total: stats.callbacks.total, new: stats.callbacks.new };
+      } catch {}
+
       res.json({
         shop: "nickstire",
         timestamp: new Date().toISOString(),
@@ -145,6 +171,10 @@ export function registerBridgeRoutes(app: Express): void {
         dispatch,
         qc,
         promiseRisk: risk,
+        revenue,
+        bookings,
+        leads,
+        callbacks,
       });
     } catch (err: any) {
       res.status(500).json({
