@@ -137,7 +137,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
           acc[svc] = (acc[svc] || 0) + 1;
           return acc;
         }, {} as Record<string, number>)
-      ).map(([service, count]) => ({ service, count })).sort((a, b) => b.count - a.count),
+      ).map(([service, count]) => ({ service, count: count as number })).sort((a, b) => b.count - a.count),
     };
 
     // ─── LEADS ────────────────────────────────────────
@@ -157,7 +157,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
           acc[src] = (acc[src] || 0) + 1;
           return acc;
         }, {} as Record<string, number>)
-      ).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count),
+      ).map(([source, count]) => ({ source, count: count as number })).sort((a, b) => b.count - a.count),
       avgUrgency: allLeads.length > 0
         ? Math.round((allLeads.reduce((sum, l) => sum + (l.urgencyScore ?? 3), 0) / allLeads.length) * 10) / 10
         : 0,
@@ -352,9 +352,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       users: userStats,
       recentActivity: recentActivity.slice(0, 15),
       sourceAttribution: {
-        bookingsBySource: Object.entries(bookingsBySource).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count),
-        leadsBySource: Object.entries(leadsByUtmSource).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count),
-        callsBySource: Object.entries(callsBySource).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count),
+        bookingsBySource: Object.entries(bookingsBySource).map(([source, count]) => ({ source, count: count as number })).sort((a, b) => b.count - a.count),
+        leadsBySource: Object.entries(leadsByUtmSource).map(([source, count]) => ({ source, count: count as number })).sort((a, b) => b.count - a.count),
+        callsBySource: Object.entries(callsBySource).map(([source, count]) => ({ source, count: count as number })).sort((a, b) => b.count - a.count),
       },
       callTracking: callTrackingStats,
       callbacks: callbackStats,
