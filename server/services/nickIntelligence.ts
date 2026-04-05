@@ -740,7 +740,7 @@ export async function getShopPulse(): Promise<{
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const hour = now.getHours();
+  const hour = parseInt(now.toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
 
   const [
     todayInvoicesPaid, todayInvoicesPending, todayEstimateLeads,
