@@ -378,6 +378,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
 
   // AUTO-ACTION 3: Slow day by noon — push marketing + measure revenue impact
   const hour = new Date().getHours();
+  const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
   if (hour >= 12 && hour <= 14 && pulse.today.jobsClosed < 2 && pulse.shopStatus === "slow") {
     const beforeRevenue = pulse.today.revenue;
     await sendTelegram(
