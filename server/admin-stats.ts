@@ -4,8 +4,8 @@
  */
 
 import { getDb } from "./db";
-import { bookings, leads, chatSessions, dynamicArticles, notificationMessages, contentGenerationLog, users, callbackRequests, callEvents } from "../drizzle/schema";
-import { eq, desc, gte, sql } from "drizzle-orm";
+import { bookings, leads, chatSessions, dynamicArticles, notificationMessages, contentGenerationLog, users, callbackRequests, callEvents, invoices, customers } from "../drizzle/schema";
+import { eq, desc, gte, sql, and } from "drizzle-orm";
 
 export interface DashboardStats {
   bookings: {
@@ -65,6 +65,30 @@ export interface DashboardStats {
     completed: number;
     thisWeek: number;
   };
+  /** ALG invoice data — the real source of truth for completed sales */
+  shopFloor: {
+    /** Completed sales (paid invoices) */
+    invoicesToday: number;
+    invoicesThisWeek: number;
+    invoicesThisMonth: number;
+    /** Revenue from invoices (in dollars) */
+    revenueToday: number;
+    revenueThisWeek: number;
+    revenueThisMonth: number;
+    /** Average ticket from invoices */
+    avgTicket: number;
+    /** Walk-in estimates (from ALG — customers who got quotes) */
+    estimatesToday: number;
+    estimatesThisWeek: number;
+    /** Conversion: estimates that became invoices */
+    conversionRate: number;
+    /** Payment method breakdown */
+    paymentMethods: { method: string; count: number; total: number }[];
+    /** Total customers in DB */
+    totalCustomers: number;
+    /** VIP customers (3+ visits) */
+    vipCustomers: number;
+  };
 }
 
 export interface ActivityItem {
@@ -89,6 +113,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     sourceAttribution: { bookingsBySource: [], leadsBySource: [], callsBySource: [] },
     callTracking: { totalCalls: 0, thisWeek: 0, byPage: [] },
     callbacks: { total: 0, new: 0, completed: 0, thisWeek: 0 },
+    shopFloor: { invoicesToday: 0, invoicesThisWeek: 0, invoicesThisMonth: 0, revenueToday: 0, revenueThisWeek: 0, revenueThisMonth: 0, avgTicket: 0, estimatesToday: 0, estimatesThisWeek: 0, conversionRate: 0, paymentMethods: [], totalCustomers: 0, vipCustomers: 0 },
   };
 
   if (!d) return defaultStats;
@@ -266,6 +291,59 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     // Sort by timestamp descending
     recentActivity.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
+    // ─── SHOP FLOOR (ALG Invoice/Estimate Data) ──────────
+    let shopFloorStats = defaultStats.shopFloor;
+    try {
+      const todayStart = new Date(new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
+      const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
+
+      const [
+        invoicesTodayRes, invoicesWeekRes, invoicesMonthRes,
+        revTodayRes, revWeekRes, revMonthRes,
+        estimatesTodayRes, estimatesWeekRes,
+        totalEstimatesMonth, totalInvoicesMonth,
+        paymentMethodsRes,
+        totalCustRes, vipCustRes,
+      ] = await Promise.all([
+        d.select({ count: sql<number>`count(*)` }).from(invoices).where(gte(invoices.invoiceDate, todayStart)),
+        d.select({ count: sql<number>`count(*)` }).from(invoices).where(gte(invoices.invoiceDate, weekAgo)),
+        d.select({ count: sql<number>`count(*)` }).from(invoices).where(gte(invoices.invoiceDate, monthStart)),
+        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(gte(invoices.invoiceDate, todayStart)),
+        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(gte(invoices.invoiceDate, weekAgo)),
+        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(gte(invoices.invoiceDate, monthStart)),
+        // Estimates = leads from ALG (source != 'popup' and != 'chat' and != 'booking')
+        d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, todayStart), sql`${leads.source} NOT IN ('popup', 'chat', 'booking')`)),
+        d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, weekAgo), sql`${leads.source} NOT IN ('popup', 'chat', 'booking')`)),
+        d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, monthStart), sql`${leads.source} NOT IN ('popup', 'chat', 'booking')`)),
+        d.select({ count: sql<number>`count(*)` }).from(invoices).where(gte(invoices.invoiceDate, monthStart)),
+        d.select().from(sql`(SELECT paymentMethod, COUNT(*) as cnt, SUM(totalAmount) as total FROM invoices WHERE invoiceDate >= ${monthStart} GROUP BY paymentMethod ORDER BY cnt DESC) sub`),
+        d.select({ count: sql<number>`count(*)` }).from(customers),
+        d.select({ count: sql<number>`count(*)` }).from(customers).where(gte(customers.totalVisits, 3)),
+      ]);
+
+      const invoiceCountMonth = invoicesMonthRes[0]?.count ?? 0;
+      const revenueMonth = (revMonthRes[0]?.total ?? 0) / 100; // cents to dollars
+      const estCountMonth = (totalEstimatesMonth as any)[0]?.count ?? 0;
+
+      shopFloorStats = {
+        invoicesToday: invoicesTodayRes[0]?.count ?? 0,
+        invoicesThisWeek: invoicesWeekRes[0]?.count ?? 0,
+        invoicesThisMonth: invoiceCountMonth,
+        revenueToday: (revTodayRes[0]?.total ?? 0) / 100,
+        revenueThisWeek: (revWeekRes[0]?.total ?? 0) / 100,
+        revenueThisMonth: revenueMonth,
+        avgTicket: invoiceCountMonth > 0 ? Math.round(revenueMonth / invoiceCountMonth) : 0,
+        estimatesToday: estimatesTodayRes[0]?.count ?? 0,
+        estimatesThisWeek: estimatesWeekRes[0]?.count ?? 0,
+        conversionRate: estCountMonth > 0 ? Math.round((invoiceCountMonth / (invoiceCountMonth + estCountMonth)) * 100) : 0,
+        paymentMethods: (paymentMethodsRes as any[]).map((r: any) => ({ method: r.paymentMethod || "unknown", count: r.cnt ?? 0, total: (r.total ?? 0) / 100 })),
+        totalCustomers: totalCustRes[0]?.count ?? 0,
+        vipCustomers: vipCustRes[0]?.count ?? 0,
+      };
+    } catch (err) {
+      console.error("[AdminStats] Shop floor stats error:", err instanceof Error ? err.message : err);
+    }
+
     return {
       bookings: bookingStats,
       leads: leadStats,
@@ -280,6 +358,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       },
       callTracking: callTrackingStats,
       callbacks: callbackStats,
+      shopFloor: shopFloorStats,
     };
   } catch (error) {
     console.error("[AdminStats] Error fetching stats:", error);
