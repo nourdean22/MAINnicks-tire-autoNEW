@@ -304,17 +304,19 @@
     background: #1A1A1A;
   }
 
-  /* ─── STAT CARD ─── */
+  /* ─── STAT CARD (Neural Glassmorphism) ─── */
   .stat-card {
-    background: oklch(0.115 0.005 260);
-    border: 1px solid oklch(0.17 0.004 260);
+    background: linear-gradient(135deg, rgba(17, 17, 17, 0.8), rgba(10, 10, 10, 0.6)) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border: 1px solid rgba(245, 166, 35, 0.08) !important;
     border-radius: var(--radius);
     padding: 1.25rem 1.5rem;
-    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+    transition: border-color 0.3s, box-shadow 0.3s !important;
   }
   .stat-card:hover {
-    border-color: oklch(0.24 0.008 260);
-    box-shadow: 0 4px 20px oklch(0 0 0 / 0.25);
+    border-color: rgba(245, 166, 35, 0.15) !important;
+    box-shadow: 0 0 20px rgba(245, 166, 35, 0.05), 0 4px 16px rgba(0, 0, 0, 0.3) !important;
   }
 
   /* ─── DIVIDERS ─── */
@@ -754,4 +756,42 @@ input:focus, textarea:focus, select:focus {
 [data-tooltip]:hover::after {
   opacity: 1;
   transform: translateX(-50%) translateY(-8px);
+}
+
+/* ═══════════════════════════════════════════════════════
+   NEURAL GLASSMORPHISM — God-Mode Admin UI
+   ═══════════════════════════════════════════════════════ */
+
+/* Neon glow text */
+.neon-gold { color: #F5A623; text-shadow: 0 0 8px rgba(245, 166, 35, 0.4); }
+.neon-green { color: #10B981; text-shadow: 0 0 8px rgba(16, 185, 129, 0.4); }
+.neon-red { color: #EF4444; text-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
+
+/* Processing bar */
+@keyframes processing-sweep {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.processing-bar {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #F5A623, transparent);
+  background-size: 200% 100%;
+  animation: processing-sweep 1.5s ease-in-out infinite;
+}
+
+/* Neural pulse for live indicators */
+@keyframes neural-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(245, 166, 35, 0.1); }
+  50% { box-shadow: 0 0 20px rgba(245, 166, 35, 0.2); }
+}
+.neural-pulse { animation: neural-pulse 3s ease-in-out infinite; }
+
+/* Scan-line overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background: repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.012) 1px, rgba(0,0,0,0.012) 2px);
 }
