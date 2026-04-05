@@ -10,7 +10,7 @@ import { BUSINESS } from "@shared/business";
 const SIGNALS = [
   {
     icon: Star,
-    value: "4.9 Stars",
+    value: `${BUSINESS.reviews.rating} Stars`,
     sub: `${BUSINESS.reviews.countDisplay}+ Google Reviews`,
     iconClass: "text-nick-yellow",
   },

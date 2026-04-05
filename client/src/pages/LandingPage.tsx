@@ -248,7 +248,7 @@ export default function LandingPage() {
             <div className="flex items-center justify-center gap-3 text-sm">
               <span className="flex items-center gap-1">
                 <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                4.9★
+                {BUSINESS.reviews.rating}★
               </span>
               <span className="text-white/60">
                 ({BUSINESS.reviews.countDisplay} Google Reviews)
@@ -311,7 +311,7 @@ export default function LandingPage() {
           <div className="text-center mb-10">
             <h2 className="text-2xl font-bold text-white mb-2">What Customers Say</h2>
             <p className="text-white/60">
-              4.9★ from {BUSINESS.reviews.countDisplay} Google Reviews
+              {BUSINESS.reviews.rating}★ from {BUSINESS.reviews.countDisplay} Google Reviews
             </p>
           </div>
 
@@ -454,7 +454,7 @@ export default function LandingPage() {
           <div className="flex flex-wrap items-center justify-center gap-6 text-center">
             <div>
               <p className="font-bold text-yellow-400 text-xl">
-                4.9★
+                {BUSINESS.reviews.rating}★
               </p>
               <p className="text-xs text-white/60">Google Rated</p>
             </div>
