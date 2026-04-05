@@ -239,7 +239,7 @@ Respond with JSON:
 export async function learnFromEvent(eventType: string, data: Record<string, any>): Promise<void> {
   const now = new Date();
   const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][now.getDay()];
-  const hour = now.getHours();
+  const hour = parseInt(now.toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
   const period = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
   const dateStr = now.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
 
