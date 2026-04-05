@@ -6,7 +6,8 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { getLoginUrl } from "@/const";
-import { useState, lazy, Suspense } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
+import { toast } from "sonner";
 import { Link } from "wouter";
 import {
   Loader2, Shield, XCircle, ArrowLeft, Menu, X, Sparkles, ChevronRight,
@@ -109,15 +110,49 @@ export default function Admin() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [drawerCustomerId, setDrawerCustomerId] = useState<number | null>(null);
 
+  const utils = trpc.useUtils();
+
   const { data: stats } = trpc.adminDashboard.stats.useQuery(undefined, {
     enabled: !!user && user.role === "admin",
-    refetchInterval: 60000,
+    refetchInterval: 30000,
   });
 
   const { data: callbacks } = trpc.callback.list.useQuery(undefined, {
     enabled: !!user && user.role === "admin",
-    refetchInterval: 60000,
+    refetchInterval: 30000,
   });
+
+  // ─── GLOBAL SSE: instant updates across ALL admin tabs ──────
+  useEffect(() => {
+    if (!user || user.role !== "admin") return;
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource("/api/admin/events");
+
+      // On ANY event, invalidate all queries so every tab refreshes instantly
+      const invalidateAll = () => {
+        utils.adminDashboard.stats.invalidate();
+        utils.callback.list.invalidate();
+        utils.booking.list.invalidate();
+        utils.lead.list.invalidate();
+        utils.nickActions.shopPulse.invalidate();
+        utils.customers.campaignStats.invalidate();
+      };
+
+      es.onmessage = invalidateAll;
+      es.addEventListener("lead_captured", () => { invalidateAll(); toast.info("New lead captured"); });
+      es.addEventListener("booking_created", () => { invalidateAll(); toast.info("New booking"); });
+      es.addEventListener("tire_order_placed", () => { invalidateAll(); toast.info("Tire order placed"); });
+      es.addEventListener("invoice_created", () => { invalidateAll(); toast.info("Invoice created"); });
+      es.addEventListener("invoice_paid", () => { invalidateAll(); toast.success("Payment received"); });
+      es.addEventListener("payment_received", () => { invalidateAll(); toast.success("Payment received"); });
+      es.addEventListener("emergency_request", () => { invalidateAll(); toast.error("EMERGENCY request!"); });
+      es.addEventListener("callback_requested", () => { invalidateAll(); toast.info("Callback requested"); });
+      es.addEventListener("review_detected", () => { invalidateAll(); toast.info("New review detected"); });
+      es.onerror = () => { /* EventSource auto-reconnects */ };
+    } catch {}
+    return () => { es?.close(); };
+  }, [user, utils]);
 
   // Pending callback count for badge
   const pendingCallbacks = (callbacks as any[] | undefined)?.filter(

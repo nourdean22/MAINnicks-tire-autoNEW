@@ -121,6 +121,43 @@ export function startTieredScheduler(): void {
           return runSelfHealingChecks();
         },
       },
+      {
+        name: "data-accuracy-check",
+        handler: async () => {
+          // Verify data consistency every 5 minutes
+          const issues: string[] = [];
+          try {
+            const { getDb } = await import("../db");
+            const { sql } = await import("drizzle-orm");
+            const d = await getDb();
+            if (!d) return { details: "No DB" };
+
+            // Check for orphaned invoices (no matching customer phone)
+            const [orphanedInvoices] = await d.execute(sql`SELECT COUNT(*) as cnt FROM invoices WHERE customerPhone IS NULL OR customerPhone = ''`);
+            const orphanCount = (orphanedInvoices as any)?.[0]?.cnt || (orphanedInvoices as any)?.cnt || 0;
+            if (Number(orphanCount) > 0) issues.push(`${orphanCount} invoices missing customer phone`);
+
+            // Check for stale leads (new status > 7 days old)
+            const [staleLeads] = await d.execute(sql`SELECT COUNT(*) as cnt FROM leads WHERE status = 'new' AND createdAt < DATE_SUB(NOW(), INTERVAL 7 DAY)`);
+            const staleCount = (staleLeads as any)?.[0]?.cnt || (staleLeads as any)?.cnt || 0;
+            if (Number(staleCount) > 3) issues.push(`${staleCount} stale leads (>7d untouched)`);
+
+            // Check for callbacks stuck in "new" > 24h
+            const [staleCallbacks] = await d.execute(sql`SELECT COUNT(*) as cnt FROM callback_requests WHERE status = 'new' AND createdAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)`);
+            const cbCount = (staleCallbacks as any)?.[0]?.cnt || (staleCallbacks as any)?.cnt || 0;
+            if (Number(cbCount) > 0) issues.push(`${cbCount} callbacks unanswered >24h`);
+
+            if (issues.length > 0) {
+              const { sendTelegram } = await import("../services/telegram");
+              await sendTelegram(`⚠️ DATA ACCURACY CHECK\n\n${issues.join("\n")}\n\nAction needed in admin dashboard.`);
+              const { remember } = await import("../services/nickMemory");
+              await remember({ type: "lesson", content: `Data accuracy: ${issues.join(". ")}`, source: "accuracy_check", confidence: 0.8 });
+            }
+
+            return { recordsProcessed: issues.length, details: issues.length === 0 ? "All data clean" : issues.join("; ") };
+          } catch { return { details: "Accuracy check failed" }; }
+        },
+      },
     ],
     running: false,
     lastRun: null,
