@@ -455,21 +455,46 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
     } catch {}
   }
 
-  // AUTO-ACTION 7: End-of-day summary (auto-generated at 5pm)
+  // AUTO-ACTION 7: Evening debrief (auto-generated at 5-6pm with AI analysis)
   try {
     const etHour2 = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
     if (etHour2 >= 17 && etHour2 <= 18) {
-      const { analyzeCustomers } = await import("./customerIntelligence");
+      const { analyzeCustomers, getCustomerActionPlan } = await import("./customerIntelligence");
       const ci = await analyzeCustomers();
+      const plan = await getCustomerActionPlan();
+      const rev = await projectRevenue();
+
+      // Calculate today's score (0-100)
+      const revenueScore = Math.min(100, Math.round((pulse.today.revenue / Math.max(rev.avgDailyRevenue, 1)) * 100));
+      const walkScore = Math.max(0, 100 - pulse.thisWeek.walkRate * 2);
+      const callbackScore = pulse.today.callbacksWaiting === 0 ? 100 : Math.max(0, 100 - pulse.today.callbacksWaiting * 20);
+      const dayScore = Math.round((revenueScore + walkScore + callbackScore) / 3);
+
+      const grade = dayScore >= 90 ? "A+" : dayScore >= 80 ? "A" : dayScore >= 70 ? "B" : dayScore >= 60 ? "C" : dayScore >= 50 ? "D" : "F";
+
       await sendTelegram(
-        `📊 NICK END-OF-DAY AUTO-SUMMARY\n\n` +
-        `Revenue: $${pulse.today.revenue} | Jobs: ${pulse.today.jobsClosed} | Walked: ${pulse.today.customersWalked}\n` +
-        `Walk rate: ${pulse.thisWeek.walkRate}% | Avg ticket: $${pulse.today.avgTicket}\n` +
-        `Week total: $${Math.round(pulse.thisWeek.revenue)} | ${pulse.thisWeek.jobsClosed} jobs\n` +
-        `Callbacks pending: ${pulse.today.callbacksWaiting}\n` +
-        `At-risk customers: ${ci.atRiskCustomers.length}\n\n` +
-        `${pulse.shopInsight}`
+        `📊 NICK EVENING DEBRIEF — ${grade} DAY (${dayScore}/100)\n\n` +
+        `💰 Revenue: $${pulse.today.revenue} (${revenueScore}% of target)\n` +
+        `🔧 Jobs: ${pulse.today.jobsClosed} completed | ${pulse.today.customersWalked} walked\n` +
+        `📊 Walk rate: ${pulse.thisWeek.walkRate}% | Avg ticket: $${pulse.today.avgTicket}\n` +
+        `📞 Callbacks: ${pulse.today.callbacksWaiting} still pending\n` +
+        `📈 Week: $${Math.round(pulse.thisWeek.revenue)} / $${rev.thisWeekProjection} projected\n` +
+        `📅 Month: $${rev.thisMonthProjection} projected (${rev.trend})\n\n` +
+        `SCORING: Revenue ${revenueScore}/100 | Walk ${walkScore}/100 | Callbacks ${callbackScore}/100\n\n` +
+        (ci.atRiskCustomers.length > 0 ? `⚠️ ${ci.atRiskCustomers.length} at-risk customers need calls tomorrow\n` : "") +
+        (plan ? `\n${plan.slice(0, 300)}` : "") +
+        `\n\n${pulse.shopInsight}`
       );
+
+      // Store daily score in memory
+      const { remember: remScore } = await import("./nickMemory");
+      await remScore({
+        type: "pattern",
+        content: `Day score: ${grade} (${dayScore}/100). Revenue $${pulse.today.revenue}, ${pulse.today.jobsClosed} jobs, ${pulse.today.customersWalked} walked, ${pulse.today.callbacksWaiting} callbacks pending. Walk rate ${pulse.thisWeek.walkRate}%.`,
+        source: "daily_score",
+        confidence: 0.95,
+      });
+
       actions++;
     }
   } catch {}
@@ -499,6 +524,167 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
         source: "auto_analysis",
         confidence: 0.85,
       });
+    }
+  } catch {}
+
+  // ═══ VERSION 2.1 AUTO-ACTIONS ═══
+
+  // AUTO-ACTION 9: Invoice aging escalation (unpaid >7d, >14d, >30d)
+  try {
+    const { invoices: invTable } = await import("../../drizzle/schema");
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
+    const agingInvoices = await d.select().from(invTable)
+      .where(and(eq(invTable.paymentStatus, "pending"), sql`${invTable.invoiceDate} <= ${sevenDaysAgo}`))
+      .orderBy(sql`${invTable.invoiceDate} ASC`)
+      .limit(10);
+
+    if (agingInvoices.length > 0) {
+      const critical = agingInvoices.filter((inv: any) => new Date(inv.invoiceDate) < fourteenDaysAgo);
+      const totalOwed = Math.round(agingInvoices.reduce((s: number, inv: any) => s + inv.totalAmount, 0) / 100);
+
+      await sendTelegram(
+        `💰 INVOICE AGING ALERT\n\n` +
+        `${agingInvoices.length} unpaid invoices >7 days ($${totalOwed} total)\n` +
+        (critical.length > 0 ? `🔴 ${critical.length} are >14 days old — ESCALATE\n\n` : "\n") +
+        agingInvoices.slice(0, 5).map((inv: any) => {
+          const days = Math.round((Date.now() - new Date(inv.invoiceDate).getTime()) / (24 * 60 * 60 * 1000));
+          return `${inv.customerName || "?"}: $${Math.round(inv.totalAmount / 100)} — ${days}d overdue`;
+        }).join("\n") +
+        `\n\n⚡ Call these customers today for payment`
+      );
+      actions++;
+    }
+  } catch {}
+
+  // AUTO-ACTION 10: Cross-sell intelligence (service pattern → recommendation)
+  try {
+    const { remember } = await import("./nickMemory");
+    const { invoices: invTable2 } = await import("../../drizzle/schema");
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+    // Find customers who got brakes but not tires (or vice versa)
+    const recentInvoices = await d.select().from(invTable2)
+      .where(and(gte(invTable2.invoiceDate, ninetyDaysAgo), eq(invTable2.paymentStatus, "paid")))
+      .limit(100);
+
+    const customerServices: Record<string, Set<string>> = {};
+    for (const inv of recentInvoices) {
+      const name = (inv as any).customerName || "unknown";
+      if (!customerServices[name]) customerServices[name] = new Set();
+      const desc = ((inv as any).serviceDescription || "").toLowerCase();
+      if (desc.includes("brake")) customerServices[name].add("brakes");
+      if (desc.includes("tire")) customerServices[name].add("tires");
+      if (desc.includes("oil")) customerServices[name].add("oil");
+      if (desc.includes("diag") || desc.includes("check engine")) customerServices[name].add("diagnostics");
+    }
+
+    const crossSellOpps: string[] = [];
+    for (const [name, services] of Object.entries(customerServices)) {
+      if (services.has("brakes") && !services.has("tires")) crossSellOpps.push(`${name}: did brakes → check tires`);
+      if (services.has("oil") && services.size === 1) crossSellOpps.push(`${name}: oil only → upsell inspection`);
+    }
+
+    if (crossSellOpps.length > 3) {
+      await remember({
+        type: "insight",
+        content: `Cross-sell opportunities: ${crossSellOpps.slice(0, 5).join("; ")}. ${crossSellOpps.length} total customers could benefit from additional services.`,
+        source: "cross_sell_analysis",
+        confidence: 0.75,
+      });
+      actions++;
+    }
+  } catch {}
+
+  // AUTO-ACTION 11: Capacity utilization check
+  try {
+    const { getDispatchLoad } = await import("./dispatch");
+    const load = await getDispatchLoad();
+    const clockedIn = (load.techs as any[]).filter((t: any) => t.clockedIn).length;
+    const freeBays = (load.bays as any[]).filter((b: any) => !b.occupied).length;
+    const totalBays = (load.bays as any[]).length;
+    const utilizationPct = totalBays > 0 ? Math.round(((totalBays - freeBays) / totalBays) * 100) : 0;
+
+    if (clockedIn > 0 && freeBays === totalBays && etHour >= 10 && etHour <= 15) {
+      await sendTelegram(
+        `🔧 CAPACITY ALERT: ${totalBays} bays ALL EMPTY with ${clockedIn} techs clocked in\n\n` +
+        `Utilization: ${utilizationPct}%\n` +
+        `⚡ Push walk-in traffic or follow up on pending estimates`
+      );
+      actions++;
+    }
+
+    // Learn utilization patterns
+    const { remember: rem } = await import("./nickMemory");
+    await rem({
+      type: "pattern",
+      content: `Bay utilization at ${etHour}:00: ${utilizationPct}% (${totalBays - freeBays}/${totalBays} bays, ${clockedIn} techs). ${freeBays === 0 ? "FULL — consider expanding hours." : freeBays === totalBays ? "EMPTY — need more traffic." : "Normal utilization."}`,
+      source: "capacity_analysis",
+      confidence: 0.7,
+    });
+  } catch {}
+
+  // AUTO-ACTION 12: Repeat customer detection + VIP treatment
+  try {
+    const { invoices: invTable3 } = await import("../../drizzle/schema");
+    const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+
+    const recentPaid = await d.select().from(invTable3)
+      .where(and(gte(invTable3.invoiceDate, sixtyDaysAgo), eq(invTable3.paymentStatus, "paid")))
+      .limit(200);
+
+    const visitCounts: Record<string, { count: number; total: number; phone: string }> = {};
+    for (const inv of recentPaid) {
+      const name = (inv as any).customerName || "unknown";
+      if (!visitCounts[name]) visitCounts[name] = { count: 0, total: 0, phone: (inv as any).customerPhone || "" };
+      visitCounts[name].count++;
+      visitCounts[name].total += (inv as any).totalAmount;
+    }
+
+    const vips = Object.entries(visitCounts)
+      .filter(([_, v]) => v.count >= 3)
+      .sort((a, b) => b[1].total - a[1].total);
+
+    if (vips.length > 0) {
+      const { remember: remVip } = await import("./nickMemory");
+      await remVip({
+        type: "customer",
+        content: `VIP customers (3+ visits in 60d): ${vips.slice(0, 5).map(([name, v]) => `${name} (${v.count} visits, $${Math.round(v.total / 100)})`).join(", ")}. These customers deserve priority treatment and proactive outreach.`,
+        source: "vip_detection",
+        confidence: 0.9,
+      });
+      actions++;
+    }
+  } catch {}
+
+  // AUTO-ACTION 13: Service mix analysis (what's selling, what's not)
+  try {
+    const { remember: remMix } = await import("./nickMemory");
+    const { invoices: invTable4 } = await import("../../drizzle/schema");
+    const thirtyDaysBack = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const monthInvoices = await d.select().from(invTable4)
+      .where(and(gte(invTable4.invoiceDate, thirtyDaysBack), eq(invTable4.paymentStatus, "paid")))
+      .limit(200);
+
+    const serviceMix: Record<string, { count: number; revenue: number }> = {};
+    for (const inv of monthInvoices) {
+      const desc = ((inv as any).serviceDescription || "General").split("\n")[0].slice(0, 40);
+      if (!serviceMix[desc]) serviceMix[desc] = { count: 0, revenue: 0 };
+      serviceMix[desc].count++;
+      serviceMix[desc].revenue += (inv as any).totalAmount;
+    }
+
+    const sorted = Object.entries(serviceMix).sort((a, b) => b[1].revenue - a[1].revenue);
+    if (sorted.length > 2) {
+      await remMix({
+        type: "pattern",
+        content: `Service mix (30d): Top sellers: ${sorted.slice(0, 3).map(([svc, d]) => `${svc} (${d.count}x, $${Math.round(d.revenue / 100)})`).join(", ")}. Low performers: ${sorted.slice(-2).map(([svc, d]) => `${svc} (${d.count}x)`).join(", ")}. Consider promoting low performers or dropping them.`,
+        source: "service_mix_analysis",
+        confidence: 0.8,
+      });
+      actions++;
     }
   } catch {}
 
