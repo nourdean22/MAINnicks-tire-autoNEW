@@ -170,6 +170,7 @@ export async function sendCAPIEvent(options: SendEventOptions): Promise<{
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data: [event] }),
+      signal: AbortSignal.timeout(10000),
     });
 
     const result = await response.json();

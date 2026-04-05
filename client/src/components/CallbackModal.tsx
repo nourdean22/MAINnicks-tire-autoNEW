@@ -4,6 +4,7 @@
  * Submits to leads table with source "callback" and triggers owner notification.
  */
 import { useState } from "react";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { PhoneCall, X, Check, Loader2 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
@@ -24,11 +25,17 @@ export default function CallbackModal() {
         setPhone("");
       }, 3000);
     },
+    onError: () => toast.error("Something went wrong. Please try again."),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !phone.trim()) return;
+    const phoneDigits = phone.replace(/\D/g, "");
+    if (phoneDigits.length < 10) {
+      toast.error("Please enter a valid 10-digit phone number.");
+      return;
+    }
     mutation.mutate({
       name: name.trim(),
       phone: phone.trim(),
@@ -87,6 +94,7 @@ export default function CallbackModal() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
+                    aria-label="Name"
                     className="w-full bg-background border border-border rounded-md px-4 py-3 text-sm text-foreground placeholder:text-foreground/30 focus:outline-none focus:ring-1 focus:ring-nick-yellow"
                   />
                   <input
@@ -95,6 +103,7 @@ export default function CallbackModal() {
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     required
+                    aria-label="Phone"
                     className="w-full bg-background border border-border rounded-md px-4 py-3 text-sm text-foreground placeholder:text-foreground/30 focus:outline-none focus:ring-1 focus:ring-nick-yellow"
                   />
                   <button

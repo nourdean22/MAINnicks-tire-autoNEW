@@ -5,6 +5,7 @@
 
 import PageLayout from "@/components/PageLayout";
 import { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { Link } from "wouter";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -40,6 +41,7 @@ function AddVehicleForm({ onClose }: { onClose: () => void }) {
       utils.garage.vehicles.invalidate();
       onClose();
     },
+    onError: () => toast.error("Something went wrong. Please try again."),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -105,6 +107,7 @@ function VehicleCard({ vehicle }: { vehicle: any }) {
   const utils = trpc.useUtils();
   const deleteVehicle = trpc.garage.deleteVehicle.useMutation({
     onSuccess: () => utils.garage.vehicles.invalidate(),
+    onError: () => toast.error("Something went wrong. Please try again."),
   });
 
   return (

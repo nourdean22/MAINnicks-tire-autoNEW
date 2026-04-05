@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from "react";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { trackBookingSubmission, getUserDataForCAPI } from "@/lib/metaPixel";
 import { getUtmData } from "@/lib/utm";
@@ -106,6 +107,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
 
   const mutation = trpc.booking.create.useMutation({
     onSuccess: () => setSubmitted(true),
+    onError: () => toast.error("Something went wrong. Please try again."),
   });
 
   const update = (field: string, value: string | boolean) =>
@@ -127,6 +129,11 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.phone || !formData.service) return;
+    const phoneDigits = formData.phone.replace(/\D/g, "");
+    if (phoneDigits.length < 10) {
+      toast.error("Please enter a valid 10-digit phone number.");
+      return;
+    }
 
     const { leadEventId, scheduleEventId } = trackBookingSubmission({
       service: formData.service,

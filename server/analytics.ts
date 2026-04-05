@@ -77,6 +77,7 @@ export async function logAnalyticsEvent(event: AnalyticsEvent) {
         method: 'POST',
         body: JSON.stringify(payload),
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(10000),
       }
     );
 
