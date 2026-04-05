@@ -50,8 +50,9 @@ export default function LoyaltyAdminSection() {
             // Look up customer by phone to get real userId
             try {
               const normalized = phone.replace(/\D/g, "").slice(-10);
-              const customers = await utils.customers.list.fetch();
-              const match = (customers as any[])?.find((c: any) => c.phone?.replace(/\D/g, "").includes(normalized));
+              const customersRaw = await utils.customers.list.fetch() as unknown;
+              const customerList = Array.isArray(customersRaw) ? customersRaw : (customersRaw as any)?.customers ?? [];
+              const match = customerList.find((c: any) => c.phone?.replace(/\D/g, "").includes(normalized));
               if (!match) { toast.error("Customer not found for this phone number"); return; }
               awardPoints.mutate({ userId: match.id, points: parseInt(points) || 0, description: desc || "Manual award" });
             } catch { toast.error("Failed to look up customer"); }
