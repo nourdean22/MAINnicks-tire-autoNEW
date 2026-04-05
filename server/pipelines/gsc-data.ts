@@ -389,7 +389,7 @@ Aim for 4-8 clusters. Don't create clusters with only 1 query unless it's truly 
     if (!Array.isArray(parsed.clusters)) return [];
 
     // Enrich clusters with aggregated metrics
-    const queryMetrics = new Map(rows.map(r => [r.query, r]));
+    const queryMetrics = new Map(rows.map(r => [r.query, r as { query: string; clicks: number; impressions: number; avgPosition: number }]));
 
     return parsed.clusters.map((cluster: { theme: string; queries: string[] }) => {
       let totalClicks = 0;
@@ -692,7 +692,7 @@ export async function detectSeasonalPatterns(opts?: {
       .groupBy(searchPerformance.query),
   ]);
 
-  const prevMap = new Map(previousData.map(r => [r.query, Number(r.clicks)]));
+  const prevMap = new Map<string, number>(previousData.map(r => [r.query, Number(r.clicks)]));
 
   let totalCurrentClicks = 0;
   let totalPreviousClicks = 0;
