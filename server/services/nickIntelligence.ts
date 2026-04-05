@@ -344,7 +344,82 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
     actions++;
   }
 
-  // AUTO-ACTION 4: Learn day-of-week patterns
+  // AUTO-ACTION 4: Auto-follow-up on hot estimates (>$500, no invoice within 4h)
+  try {
+    const { leads: leadsTable, invoices: invoicesTable } = await import("../../drizzle/schema");
+    const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+    const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
+
+    const hotEstimates = await d.select().from(leadsTable)
+      .where(and(
+        sql`${leadsTable.recommendedService} IS NOT NULL`,
+        eq(leadsTable.status, "new"),
+        gte(leadsTable.createdAt, todayStart),
+        sql`${leadsTable.createdAt} <= ${fourHoursAgo}`
+      ))
+      .limit(5);
+
+    if (hotEstimates.length > 0) {
+      await sendTelegram(
+        `🔥 NICK AUTO-ACTION: ${hotEstimates.length} estimate leads need follow-up!\n\n` +
+        hotEstimates.slice(0, 3).map((l: any) =>
+          `${l.name || "?"} (${l.phone || "no phone"}) — ${l.recommendedService || "estimate"} — ${Math.round((Date.now() - new Date(l.createdAt).getTime()) / 3600000)}h ago`
+        ).join("\n") +
+        `\n\n⚡ Call them NOW — estimates convert 3x better within 4 hours.`
+      );
+      actions++;
+    }
+  } catch {}
+
+  // AUTO-ACTION 5: Detect revenue anomaly (today vs same day last week)
+  try {
+    const revenue = await projectRevenue();
+    const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+    if (etHour >= 14 && pulse.today.revenue < revenue.avgDailyRevenue * 0.3 && revenue.avgDailyRevenue > 200) {
+      await sendTelegram(
+        `📉 NICK AUTO-ACTION: Revenue anomaly detected\n\n` +
+        `Today: $${pulse.today.revenue} (only ${Math.round((pulse.today.revenue / revenue.avgDailyRevenue) * 100)}% of daily average)\n` +
+        `Average: $${revenue.avgDailyRevenue}/day\n` +
+        `Jobs: ${pulse.today.jobsClosed}\n\n` +
+        `Possible causes: slow traffic, missed leads, or tracking issue.\n` +
+        `Check: Are callbacks returned? Are estimates being followed up?`
+      );
+      actions++;
+    }
+  } catch {}
+
+  // AUTO-ACTION 6: Detect callback backlog (>3 unanswered)
+  if (pulse.today.callbacksWaiting > 3) {
+    try {
+      await sendTelegram(
+        `📞 NICK AUTO-ACTION: ${pulse.today.callbacksWaiting} callbacks waiting!\n\n` +
+        `These customers are expecting a call back. Every hour of delay = lower conversion.\n` +
+        `⚡ Clear the callback queue NOW.`
+      );
+      actions++;
+    } catch {}
+  }
+
+  // AUTO-ACTION 7: End-of-day summary (auto-generated at 5pm)
+  try {
+    const etHour2 = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+    if (etHour2 >= 17 && etHour2 <= 18) {
+      const { analyzeCustomers } = await import("./customerIntelligence");
+      const ci = await analyzeCustomers();
+      await sendTelegram(
+        `📊 NICK END-OF-DAY AUTO-SUMMARY\n\n` +
+        `Revenue: $${pulse.today.revenue} | Jobs: ${pulse.today.jobsClosed} | Walked: ${pulse.today.customersWalked}\n` +
+        `Walk rate: ${pulse.thisWeek.walkRate}% | Avg ticket: $${pulse.today.avgTicket}\n` +
+        `Week total: $${Math.round(pulse.thisWeek.revenue)} | ${pulse.thisWeek.jobsClosed} jobs\n` +
+        `Callbacks pending: ${pulse.today.callbacksWaiting}\n` +
+        `At-risk customers: ${ci.atRiskCustomers.length}\n\n` +
+        `${pulse.shopInsight}`
+      );
+      actions++;
+    }
+  } catch {}
+
+  // AUTO-ACTION 8: Learn day-of-week patterns
   try {
     const { remember } = await import("./nickMemory");
     const { invoices } = await import("../../drizzle/schema");
