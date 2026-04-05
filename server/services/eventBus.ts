@@ -142,12 +142,26 @@ async function ensureInitialized(): Promise<void> {
           `Invoice: ${event.data.invoiceNumber || "N/A"}`
         );
       }
-      // High-urgency lead = immediate alert
+      // High-urgency lead = immediate alert with context
       if (event.type === "lead_captured" && (event.data.urgencyScore >= 4 || event.data.source === "emergency")) {
+        // Check if this is a returning customer
+        let returnNote = "";
+        try {
+          const { getDb } = await import("../db");
+          const { leads: leadsTable } = await import("../../drizzle/schema");
+          const { like } = await import("drizzle-orm");
+          const db = await getDb();
+          if (db && event.data.phone) {
+            const phone10 = String(event.data.phone).replace(/\D/g, "").slice(-10);
+            const prior = await db.select({ id: leadsTable.id }).from(leadsTable)
+              .where(like(leadsTable.phone, `%${phone10}%`)).limit(2);
+            if (prior.length > 1) returnNote = "\n🔄 RETURNING CUSTOMER — they've contacted before";
+          }
+        } catch {}
         await sendTelegram(
           `🔴 HIGH-URGENCY LEAD: ${event.data.name} (${event.data.phone})\n` +
-          `Source: ${event.data.source} | Urgency: ${event.data.urgencyScore}/5\n` +
-          `⚡ Call within 5 minutes for best conversion`
+          `Source: ${event.data.source} | Urgency: ${event.data.urgencyScore}/5${returnNote}\n` +
+          `⚡ Call within 5 minutes — conversion drops 50% after 30 min`
         );
       }
       // Callback = someone is waiting

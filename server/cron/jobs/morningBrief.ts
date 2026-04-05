@@ -109,7 +109,14 @@ MARKETING:
 - Review requests sent (30d): ${monthReviews[0]?.count ?? 0}
 
 WALK RATE: ${jobsWon > 0 ? Math.round((1 - jobsWon / Math.max(jobsWon + (staleCount || 0), 1)) * 100) : 0}% of estimates walked without converting.
-KEY: Invoice = job WON. Estimate without invoice = customer WALKED.`;
+KEY: Invoice = job WON. Estimate without invoice = customer WALKED.
+
+PRIORITIES FOR TODAY:
+${staleCount > 3 ? `- ⚠️ ${staleCount} STALE LEADS >7 days — call them before they go to a competitor` : "- ✅ Lead queue is clean"}
+${(pendingCallbacks[0]?.count ?? 0) > 0 ? `- 📞 ${pendingCallbacks[0]?.count} CALLBACKS WAITING — clear these first thing` : "- ✅ No pending callbacks"}
+${conversionRate < 40 ? `- 📉 Conversion rate ${conversionRate}% is below 40% — review estimate follow-up process` : `- ✅ Conversion rate ${conversionRate}% is healthy`}
+- 💰 Revenue target: $${Math.round((10000 / 26) * 1)} today ($10K/month pace = ~$385/day)`;
+
 
     // ─── Add yesterday's revenue, today's bookings, declined work ────
     let enrichmentBlock = "";
