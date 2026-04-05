@@ -309,7 +309,7 @@ export default function CustomersSection() {
 
   const [exporting, setExporting] = useState(false);
 
-  const { data: stats } = trpc.customers.stats.useQuery();
+  const { data: stats } = trpc.customers.stats.useQuery(undefined, { refetchInterval: 30000 });
   const { data: campaignStats } = trpc.customers.campaignStats.useQuery(undefined, { refetchInterval: 30000 });
   const { data: listData, isLoading } = trpc.customers.list.useQuery({
     page,
@@ -318,7 +318,7 @@ export default function CustomersSection() {
     segment,
     sortBy,
     sortDir,
-  });
+  }, { refetchInterval: 30000 });
 
   const retryCampaign = trpc.customers.retryCampaign.useMutation({
     onSuccess: (result) => {

@@ -352,6 +352,16 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "customer-segment-refresh",
+        businessHoursOnly: true,
+        handler: async () => {
+          try {
+            const { processCustomerSegmentation } = await import("./jobs/customerSegmentation");
+            return processCustomerSegmentation();
+          } catch { return { details: "Segmentation skipped" }; }
+        },
+      },
+      {
         name: "stale-lead-followup", // outreach after intelligence is fresh
         businessHoursOnly: true,
         handler: async () => {
