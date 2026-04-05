@@ -18,12 +18,12 @@ import FadeIn from "@/components/FadeIn";
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
 const SERVICES = [
-  { id: 1, name: "Brakes", icon: "🛑" },
-  { id: 2, name: "Tires", icon: "🛞" },
-  { id: 3, name: "Oil Change", icon: "🛢️" },
-  { id: 4, name: "Diagnostics", icon: "🔧" },
-  { id: 5, name: "Alignment", icon: "⚖️" },
-  { id: 6, name: "General Repair", icon: "🔩" },
+  { id: 1, name: "Brakes", icon: "🛑", href: "/brakes" },
+  { id: 2, name: "Tires", icon: "🛞", href: "/tires" },
+  { id: 3, name: "Oil Change", icon: "🛢️", href: "/oil-change-cleveland" },
+  { id: 4, name: "Diagnostics", icon: "🔧", href: "/diagnostics" },
+  { id: 5, name: "Alignment", icon: "⚖️", href: "/contact?service=alignment" },
+  { id: 6, name: "General Repair", icon: "🔩", href: "/contact?service=general-repair" },
 ];
 
 const STATIC_REVIEWS = [
@@ -335,7 +335,7 @@ export default function NeighborhoodPage() {
           <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger-in">
             {SERVICES.map((service, i) => (
               <FadeIn key={service.id} delay={i * 0.05}>
-                <a href={`/contact?service=${service.name.toLowerCase().replace(/\s+/g, '-')}`} className="flex items-center gap-3 stagger-in bg-card/50 border border-border/50 rounded-lg p-5 hover:border-primary/30 hover:bg-card transition-colors group">
+                <a href={service.href} className="flex items-center gap-3 stagger-in bg-card/50 border border-border/50 rounded-lg p-5 hover:border-primary/30 hover:bg-card transition-colors group">
                   <span className="text-2xl">{service.icon}</span>
                   <span className="text-foreground/80 text-sm font-semibold group-hover:text-primary transition-colors">{service.name}</span>
                   <ChevronRight className="w-4 h-4 text-foreground/30 group-hover:text-primary ml-auto transition-colors" />

@@ -17,7 +17,8 @@ export async function processReviewMonitor(): Promise<{ recordsProcessed: number
 
   try {
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${PLACE_ID}&key=${apiKey}&fields=reviews,rating,user_ratings_total`
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${PLACE_ID}&key=${apiKey}&fields=reviews,rating,user_ratings_total`,
+      { signal: AbortSignal.timeout(10000) }
     );
 
     if (!response.ok) {

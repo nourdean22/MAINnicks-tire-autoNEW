@@ -5,6 +5,7 @@
 
 import PageLayout from "@/components/PageLayout";
 import { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { Link } from "wouter";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { Users, Gift, CheckCircle, Heart } from "lucide-react";
@@ -32,6 +33,7 @@ export default function ReferralPage() {
 
   const submitReferral = trpc.referrals.submit.useMutation({
     onSuccess: () => setSubmitted(true),
+    onError: () => toast.error("Something went wrong. Please try again."),
   });
 
   useEffect(() => { window.scrollTo(0, 0); }, []);

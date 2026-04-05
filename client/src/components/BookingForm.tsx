@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from "react";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { trackBookingSubmission, getUserDataForCAPI } from "@/lib/metaPixel";
 import { getUtmData } from "@/lib/utm";
@@ -73,6 +74,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
 
   const mutation = trpc.booking.create.useMutation({
     onSuccess: () => setSubmitted(true),
+    onError: () => toast.error("Something went wrong. Please try again."),
   });
 
   const uploadPhoto = trpc.booking.uploadPhoto.useMutation();

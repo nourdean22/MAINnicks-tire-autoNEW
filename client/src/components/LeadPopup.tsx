@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { toast } from "sonner";
 import { X, Phone, AlertTriangle, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
@@ -39,6 +40,7 @@ export default function LeadPopup() {
 
   const submitLead = trpc.lead.submit.useMutation({
     onSuccess: () => setSubmitted(true),
+    onError: () => toast.error("Something went wrong. Please try again."),
   });
 
   const dismiss = useCallback(() => {
@@ -120,6 +122,11 @@ export default function LeadPopup() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.phone.trim()) return;
+    const phoneDigits = form.phone.replace(/\D/g, "");
+    if (phoneDigits.length < 10) {
+      toast.error("Please enter a valid 10-digit phone number.");
+      return;
+    }
     // Meta Pixel + CAPI: Track lead popup submission
     const eventId = trackLeadSubmission({ source: "popup", problem: form.problem.trim() });
     const userData = getUserDataForCAPI();
@@ -192,6 +199,7 @@ export default function LeadPopup() {
                       value={form.name}
                       onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                       required
+                      aria-label="Name"
                       className={inputCls}
                     />
                     <input
@@ -200,6 +208,7 @@ export default function LeadPopup() {
                       value={form.phone}
                       onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                       required
+                      aria-label="Phone"
                       className={inputCls}
                     />
                     <input
@@ -207,6 +216,7 @@ export default function LeadPopup() {
                       placeholder="Vehicle (year, make, model)"
                       value={form.vehicle}
                       onChange={e => setForm(f => ({ ...f, vehicle: e.target.value }))}
+                      aria-label="Vehicle"
                       className={inputCls}
                     />
                     <textarea
@@ -214,6 +224,7 @@ export default function LeadPopup() {
                       value={form.problem}
                       onChange={e => setForm(f => ({ ...f, problem: e.target.value }))}
                       rows={3}
+                      aria-label="Problem"
                       className={`${inputCls} resize-none`}
                     />
                     <button

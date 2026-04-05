@@ -5,6 +5,7 @@
 
 import PageLayout from "@/components/PageLayout";
 import { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { MessageCircle, ChevronRight, CheckCircle, HelpCircle, Search } from "lucide-react";
 import { motion, useInView } from "framer-motion";
@@ -36,6 +37,7 @@ export default function AskMechanicPage() {
 
   const submitQuestion = trpc.qa.ask.useMutation({
     onSuccess: () => setSubmitted(true),
+    onError: () => toast.error("Something went wrong. Please try again."),
   });
 
   useEffect(() => { window.scrollTo(0, 0); }, []);
