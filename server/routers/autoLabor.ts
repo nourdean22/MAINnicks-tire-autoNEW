@@ -47,6 +47,7 @@ async function getShopDriverSession(): Promise<string | null> {
       },
       body: JSON.stringify({ username, password }),
       redirect: "manual",
+      signal: AbortSignal.timeout(10000),
     });
 
     const setCookies = res.headers.getSetCookie?.() || [];
@@ -71,6 +72,7 @@ async function getShopDriverSession(): Promise<string | null> {
       },
       body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
       redirect: "manual",
+      signal: AbortSignal.timeout(10000),
     });
 
     const altCookies = altRes.headers.getSetCookie?.() || [];

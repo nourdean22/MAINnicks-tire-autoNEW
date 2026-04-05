@@ -165,7 +165,7 @@ function TrustNumbers() {
   const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
 
   const stats = [
-    { value: "4.9", label: "Google Rating" },
+    { value: String(rating), label: "Google Rating" },
     { value: `${totalReviews.toLocaleString()}+`, label: "Reviews" },
     { value: "7", label: "Days a Week" },
     { value: "Same Day", label: "Most Repairs" },
