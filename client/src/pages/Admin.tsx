@@ -47,7 +47,7 @@ const TireOrdersSection = lazy(() => import("./admin/TireOrdersSection"));
 const AnalyticsSection = lazy(() => import("./admin/AnalyticsSection"));
 const CallTrackingSection = lazy(() => import("./admin/CallTrackingSection"));
 const ExportSection = lazy(() => import("./admin/ExportSection"));
-const CampaignsSection = lazy(() => import("./admin/CampaignsSection"));
+const CampaignsSection = lazy(() => import("./admin/OutreachHubSection"));
 const FinancingSection = lazy(() => import("./admin/FinancingSection"));
 const WorkOrdersSection = lazy(() => import("./admin/WorkOrdersSection"));
 const DispatchSection = lazy(() => import("./admin/DispatchSection"));

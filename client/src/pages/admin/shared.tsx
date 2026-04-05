@@ -43,6 +43,19 @@ export const CHART_COLORS = ["#F5A623", "#3B82F6", "#10B981", "#EF4444", "#8B5CF
 
 export type NavGroup = { label: string; items: { id: AdminSection; label: string; icon: React.ReactNode; badge?: string }[] };
 
+/**
+ * NAV STRUCTURE — Tesla-style: simple surface, powerful underneath.
+ *
+ * Auto Labor Guide (ALG) is the master. Invoices = completed sales.
+ * Estimates = walk-in quotes. Bookings = online appointments.
+ *
+ * Removed: Bay Dispatch (useless), Inspections (useless), separate Financing,
+ * separate Estimates page, all "More" tab clutter.
+ *
+ * Outreach consolidated: SMS + Follow-Ups + Campaigns + Reviews + Win-Back = ONE page.
+ * "More" items distributed: Analytics → Dashboard, Chat → Dashboard, Content → Settings,
+ * ShopDriver → Settings, everything else auto-syncs via brain.
+ */
 export const NAV_GROUPS: NavGroup[] = [
   {
     label: "NOUR OS",
@@ -51,60 +64,41 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: "Today",
+    label: "Shop",
     items: [
       { id: "overview", label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
-      { id: "bookings", label: "Bookings", icon: <CalendarClock className="w-4 h-4" />, badge: "bookings" },
-      { id: "leads", label: "Leads", icon: <Users className="w-4 h-4" />, badge: "leads" },
-      { id: "estimates", label: "Estimates", icon: <DollarSign className="w-4 h-4" /> },
       { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
+      { id: "workOrders", label: "Work Orders", icon: <Wrench className="w-4 h-4" /> },
+      { id: "tireOrders", label: "Tire Orders", icon: <ShoppingCart className="w-4 h-4" /> },
     ],
   },
   {
-    label: "Money",
+    label: "Pipeline",
+    items: [
+      { id: "leads", label: "Website Leads", icon: <Users className="w-4 h-4" />, badge: "leads" },
+      { id: "bookings", label: "Online Bookings", icon: <CalendarClock className="w-4 h-4" />, badge: "bookings" },
+      { id: "estimates", label: "Walk-In Estimates", icon: <DollarSign className="w-4 h-4" /> },
+    ],
+  },
+  {
+    label: "Revenue",
     items: [
       { id: "revenue", label: "Revenue", icon: <TrendingUp className="w-4 h-4" /> },
-      { id: "tireOrders", label: "Tire Orders", icon: <ShoppingCart className="w-4 h-4" /> },
-      { id: "financing", label: "Financing", icon: <CreditCard className="w-4 h-4" /> },
       { id: "callTrackingView", label: "Calls", icon: <PhoneCall className="w-4 h-4" /> },
     ],
   },
   {
     label: "Outreach",
     items: [
-      { id: "sms", label: "SMS", icon: <Phone className="w-4 h-4" /> },
-      { id: "followups", label: "Follow-Ups", icon: <Send className="w-4 h-4" /> },
-      { id: "campaigns", label: "Campaigns", icon: <MessageSquare className="w-4 h-4" /> },
-      { id: "reviewRequests", label: "Reviews", icon: <Star className="w-4 h-4" /> },
-      { id: "winback", label: "Win-Back", icon: <RotateCcw className="w-4 h-4" /> },
+      { id: "campaigns", label: "Outreach Hub", icon: <Send className="w-4 h-4" /> },
     ],
   },
   {
-    label: "Shop Floor",
+    label: "System",
     items: [
-      { id: "workOrders", label: "Work Orders", icon: <Wrench className="w-4 h-4" /> },
-      { id: "dispatch", label: "Bay Dispatch", icon: <Gauge className="w-4 h-4" /> },
-      { id: "inspections", label: "Inspections", icon: <ClipboardList className="w-4 h-4" /> },
-    ],
-  },
-  {
-    label: "More",
-    items: [
-      { id: "analyticsView", label: "Analytics", icon: <BarChart3 className="w-4 h-4" /> },
-      { id: "chats", label: "Chat Sessions", icon: <MessageSquare className="w-4 h-4" /> },
-      { id: "content", label: "Content", icon: <FileText className="w-4 h-4" /> },
-      { id: "autoFollowUp", label: "Auto Follow-Up", icon: <Timer className="w-4 h-4" /> },
-      { id: "coupons", label: "Coupons", icon: <Star className="w-4 h-4" /> },
-      { id: "referrals", label: "Referrals", icon: <Gift className="w-4 h-4" /> },
-      { id: "loyalty", label: "Loyalty", icon: <Trophy className="w-4 h-4" /> },
-      { id: "qa", label: "Q&A", icon: <MessageSquare className="w-4 h-4" /> },
-      { id: "jobs", label: "Job Board", icon: <Wrench className="w-4 h-4" /> },
+      { id: "settings", label: "Settings & Sync", icon: <Settings className="w-4 h-4" /> },
       { id: "health", label: "Site Health", icon: <Globe className="w-4 h-4" /> },
-      { id: "exportView", label: "Export Data", icon: <Download className="w-4 h-4" /> },
-      { id: "shopdriver", label: "ShopDriver Sync", icon: <Upload className="w-4 h-4" /> },
-      { id: "integrations", label: "Integrations", icon: <Plug className="w-4 h-4" /> },
-      { id: "activity", label: "Activity Feed", icon: <Activity className="w-4 h-4" /> },
-      { id: "settings", label: "Shop Settings", icon: <Settings className="w-4 h-4" /> },
+      { id: "activity", label: "Activity", icon: <Activity className="w-4 h-4" /> },
     ],
   },
 ];
@@ -114,38 +108,38 @@ export const NAV_ITEMS = NAV_GROUPS.flatMap(g => g.items);
 
 export const SECTION_TITLES: Record<AdminSection, string> = {
   commandCenter: "Command Center",
-  overview: "Dashboard Overview",
-  bookings: "Booking Management",
-  leads: "Lead Management",
-  content: "Content Management",
+  overview: "Shop Dashboard",
+  bookings: "Online Bookings",
+  leads: "Website Leads",
+  content: "Content",
   chats: "Chat Sessions",
-  health: "Site Health & SEO",
-  coupons: "Coupon Management",
-  qa: "Q&A Management",
-  referrals: "Referral Tracking",
+  health: "Site Health",
+  coupons: "Coupons",
+  qa: "Q&A",
+  referrals: "Referrals",
   jobs: "Job Board",
-  inspections: "Vehicle Inspections",
-  loyalty: "Loyalty Program",
-  followups: "Follow-Up Manager",
-  sms: "SMS Messaging",
-  reviewRequests: "Review Requests",
-  customers: "Customer Database",
-  winback: "Win-Back Campaigns",
-  campaigns: "SMS Campaigns",
-  autoFollowUp: "Automated Follow-Ups",
-  settings: "Shop Settings",
+  inspections: "Inspections",
+  loyalty: "Loyalty",
+  followups: "Follow-Ups",
+  sms: "SMS",
+  reviewRequests: "Reviews",
+  customers: "Customers",
+  winback: "Win-Back",
+  campaigns: "Outreach Hub",
+  autoFollowUp: "Auto Follow-Up",
+  settings: "Settings & Sync",
   shopdriver: "ShopDriver Sync",
-  estimates: "Estimate Pipeline",
-  activity: "Activity Feed",
-  revenue: "Revenue Command Center",
-  integrations: "Integrations Hub",
+  estimates: "Walk-In Estimates",
+  activity: "Activity",
+  revenue: "Revenue",
+  integrations: "Integrations",
   tireOrders: "Tire Orders",
-  analyticsView: "Analytics & Attribution",
+  analyticsView: "Analytics",
   callTrackingView: "Call Tracking",
-  exportView: "Export Data",
-  financing: "Financing Command",
-  workOrders: "Work Order Board",
-  dispatch: "Bay Dispatch",
+  exportView: "Export",
+  financing: "Financing",
+  workOrders: "Work Orders",
+  dispatch: "Dispatch",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────
