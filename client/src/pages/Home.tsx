@@ -15,6 +15,7 @@ import { SEOHead, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { trpc } from "@/lib/trpc";
+import React from "react";
 import { BUSINESS } from "@shared/business";
 import { GBP_REVIEW_URL } from "@shared/const";
 import TrustStrip from "@/components/TrustStrip";

@@ -24,6 +24,9 @@ import { ENV } from "./_core/env";
 import { notifyOwner } from "./_core/notification";
 import { createLogger } from "./lib/logger";
 import { getOrCreateBreaker } from "./lib/circuit-breaker";
+import { exec } from "child_process";
+import { promisify } from "util";
+const execAsync = promisify(exec);
 const log = createLogger("email-notify");
 
 // ─── Circuit Breaker ────────────────────────────────
