@@ -216,7 +216,7 @@ export default function Admin() {
   const newLeads = stats?.leads.new ?? 0;
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="admin-shell min-h-screen bg-background flex">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div

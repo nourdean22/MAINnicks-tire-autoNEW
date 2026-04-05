@@ -786,8 +786,8 @@ input:focus, textarea:focus, select:focus {
 }
 .neural-pulse { animation: neural-pulse 3s ease-in-out infinite; }
 
-/* Scan-line overlay */
-body::after {
+/* Scan-line overlay — admin only, not customer-facing pages */
+.admin-shell::after {
   content: '';
   position: fixed;
   inset: 0;
