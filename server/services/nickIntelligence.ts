@@ -472,6 +472,15 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
 
       const grade = dayScore >= 90 ? "A+" : dayScore >= 80 ? "A" : dayScore >= 70 ? "B" : dayScore >= 60 ? "C" : dayScore >= 50 ? "D" : "F";
 
+      // Calculate remaining days + daily target for $10K/month
+      const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+      const dayOfMonth = new Date().getDate();
+      const remainingDays = Math.max(1, daysInMonth - dayOfMonth);
+      const monthTarget = 10000;
+      const earnedSoFar = rev.thisMonthProjection ? Math.round(rev.thisMonthProjection * (dayOfMonth / daysInMonth)) : pulse.thisWeek.revenue;
+      const remainingToTarget = Math.max(0, monthTarget - earnedSoFar);
+      const dailyTargetRemaining = Math.round(remainingToTarget / remainingDays);
+
       await sendTelegram(
         `📊 NICK EVENING DEBRIEF — ${grade} DAY (${dayScore}/100)\n\n` +
         `💰 Revenue: $${pulse.today.revenue} (${revenueScore}% of target)\n` +
@@ -481,7 +490,12 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
         `📈 Week: $${Math.round(pulse.thisWeek.revenue)} / $${rev.thisWeekProjection} projected\n` +
         `📅 Month: $${rev.thisMonthProjection} projected (${rev.trend})\n\n` +
         `SCORING: Revenue ${revenueScore}/100 | Walk ${walkScore}/100 | Callbacks ${callbackScore}/100\n\n` +
-        (ci.atRiskCustomers.length > 0 ? `⚠️ ${ci.atRiskCustomers.length} at-risk customers need calls tomorrow\n` : "") +
+        `🎯 $10K TARGET: $${remainingToTarget} left → need $${dailyTargetRemaining}/day for ${remainingDays} remaining days\n\n` +
+        `PERSONAL CHECK:\n` +
+        `- Did you work out today? Body affects business.\n` +
+        `- Did you follow up on yesterday's priorities?\n` +
+        `- Are you building or drifting? Boring repetition > intensity spikes.\n\n` +
+        (ci.atRiskCustomers.length > 0 ? `⚠️ ${ci.atRiskCustomers.length} at-risk customers — call them FIRST tomorrow\n` : "") +
         (plan ? `\n${plan.slice(0, 300)}` : "") +
         `\n\n${pulse.shopInsight}`
       );
