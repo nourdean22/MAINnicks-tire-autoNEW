@@ -273,15 +273,25 @@ export async function dispatch(
         dispatchedTo.push(dest.name);
       } catch (err) {
         failed++;
+        const errMsg = err instanceof Error ? err.message : String(err);
         if (!dest.softFail) {
-          log.error(`Event bus hard failure: ${dest.name}`, { type, error: err instanceof Error ? err.message : String(err) });
+          log.error(`Event bus hard failure: ${dest.name}`, { type, error: errMsg });
         }
+        // Dead letter queue — store failed events for analysis
+        deadLetterQueue.push({ event, destination: dest.name, error: errMsg, timestamp: Date.now() });
+        if (deadLetterQueue.length > MAX_DLQ) deadLetterQueue.shift();
       } finally {
         if (timer) clearTimeout(timer);
       }
     });
 
   await Promise.allSettled(promises);
+
+  // Track event statistics
+  if (!eventStats[type]) eventStats[type] = { dispatched: 0, failed: 0, lastSeen: 0 };
+  eventStats[type].dispatched += dispatched;
+  eventStats[type].failed += failed;
+  eventStats[type].lastSeen = Date.now();
 
   if (dispatched > 0) {
     log.info(`Event dispatched: ${type} → ${dispatchedTo.join(", ")} (${dispatched}/${dispatched + failed})`);
@@ -330,8 +340,32 @@ export const emit = {
 
 // ─── STATUS ───────────────────────────────────────────
 
-export function getEventBusStatus(): { destinations: number; initialized: boolean } {
-  return { destinations: destinations.length, initialized: _initialized };
+// ─── DEAD LETTER QUEUE ───────────────────────────────
+// Failed events stored for retry/analysis
+const deadLetterQueue: Array<{ event: EventPayload; destination: string; error: string; timestamp: number }> = [];
+const MAX_DLQ = 50;
+
+// ─── EVENT STATISTICS ────────────────────────────────
+const eventStats: Record<string, { dispatched: number; failed: number; lastSeen: number }> = {};
+
+export function getEventBusStatus(): {
+  destinations: number;
+  initialized: boolean;
+  stats: Record<string, { dispatched: number; failed: number; lastSeen: string }>;
+  deadLetterCount: number;
+  recentDeadLetters: Array<{ type: string; destination: string; error: string }>;
+} {
+  const stats: Record<string, { dispatched: number; failed: number; lastSeen: string }> = {};
+  for (const [type, s] of Object.entries(eventStats)) {
+    stats[type] = { dispatched: s.dispatched, failed: s.failed, lastSeen: new Date(s.lastSeen).toISOString() };
+  }
+  return {
+    destinations: destinations.length,
+    initialized: _initialized,
+    stats,
+    deadLetterCount: deadLetterQueue.length,
+    recentDeadLetters: deadLetterQueue.slice(-5).map(d => ({ type: d.event.type, destination: d.destination, error: d.error })),
+  };
 }
 
 // ─── EVENT LIFECYCLE CORRELATION ─────────────────────

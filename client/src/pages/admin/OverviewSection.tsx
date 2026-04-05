@@ -78,20 +78,20 @@ interface ActionItem {
 
 export default function OverviewSection() {
   const { data: stats, isLoading } = trpc.adminDashboard.stats.useQuery(undefined, {
-    refetchInterval: 60000,
+    refetchInterval: 30000,
   });
   const { data: health } = trpc.adminDashboard.siteHealth.useQuery(undefined, {
-    refetchInterval: 300000,
+    refetchInterval: 120000,
   });
   const { data: sheetInfo } = trpc.lead.sheetUrl.useQuery();
-  const { data: bridgeStatus } = trpc.nourOsBridge.status.useQuery(undefined, { refetchInterval: 60000 });
-  const { data: customerStats } = trpc.customers.stats.useQuery();
-  const { data: campaignStats } = trpc.customers.campaignStats.useQuery(undefined, { refetchInterval: 30000 });
-  const { data: allBookings } = trpc.booking.list.useQuery(undefined, { refetchInterval: 60000 });
-  const { data: allLeads } = trpc.lead.list.useQuery(undefined, { refetchInterval: 60000 });
-  const { data: callbacks } = trpc.callback.list.useQuery(undefined, { refetchInterval: 60000 });
+  const { data: bridgeStatus } = trpc.nourOsBridge.status.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: customerStats } = trpc.customers.stats.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: campaignStats } = trpc.customers.campaignStats.useQuery(undefined, { refetchInterval: 15000 });
+  const { data: allBookings } = trpc.booking.list.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: allLeads } = trpc.lead.list.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: callbacks } = trpc.callback.list.useQuery(undefined, { refetchInterval: 30000 });
   // Nick AI intelligence — shop pulse for real-time awareness
-  const { data: shopPulse } = trpc.nickActions.shopPulse.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: shopPulse } = trpc.nickActions.shopPulse.useQuery(undefined, { refetchInterval: 15000 });
 
   const [actionFilter, setActionFilter] = useState<"all" | "booking" | "lead" | "callback">("all");
 

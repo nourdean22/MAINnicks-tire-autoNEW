@@ -1673,10 +1673,23 @@ REVIEWS: ${monthReviews[0]?.count ?? 0} requests sent this month
 SOURCES: Auto Labor Guide (ShopDriver Elite), Gateway for invoices`;
 
           // Add intelligence data (conversion pipeline + revenue projections)
-          // Inject Nick's learned memories
+          // Inject Nick's learned memories — SMART: find memories relevant to this specific command
           try {
-            const { getMemoryContext, getWarmupContext } = await import("../services/nickMemory");
-            const memContext = await getWarmupContext() || await getMemoryContext();
+            const { getMemoryContext, getWarmupContext, smartRecall, getMemoryHealth } = await import("../services/nickMemory");
+            // Smart recall: find memories relevant to what Nour is asking about
+            const relevantMemories = await smartRecall(input.command, 5);
+            const relevantBlock = relevantMemories.length > 0
+              ? `\nRELEVANT MEMORIES (matched to your question):\n${relevantMemories.map(m => `- [${m.type}|${Math.round(m.confidence * 100)}%] ${m.content}`).join("\n")}`
+              : "";
+            // Also get general warmup context
+            const memContext = (await getWarmupContext() || await getMemoryContext()) + relevantBlock;
+            // Memory health for self-awareness
+            try {
+              const health = await getMemoryHealth();
+              if (health.total > 0) {
+                bizContext += `\nMEMORY HEALTH: ${health.total} total memories, avg confidence ${health.avgConfidence}, top topics: ${health.topTopics.join(", ")}`;
+              }
+            } catch {}
 
             // Inject Nour's deep personal context (from 463 analyzed conversations)
             try {

@@ -412,6 +412,92 @@ export async function syncMemoriesToStatenour(): Promise<number> {
 }
 
 /**
+ * Smart recall — find memories relevant to a specific query/context.
+ * Uses keyword matching + recency + confidence weighting.
+ */
+export async function smartRecall(query: string, limit = 5): Promise<NickMemory[]> {
+  const all = await recall({ limit: 50 });
+  if (all.length === 0) return [];
+
+  const queryWords = new Set(query.toLowerCase().split(/\s+/).filter(w => w.length > 3));
+  const now = Date.now();
+
+  const scored = all.map(m => {
+    const contentWords = m.content.toLowerCase().split(/\s+/);
+    const keywordOverlap = contentWords.filter(w => queryWords.has(w)).length;
+    const recencyDays = (now - new Date(m.createdAt).getTime()) / (24 * 60 * 60 * 1000);
+    const recencyScore = Math.max(0, 1 - recencyDays / 90); // 0-1, newer = higher
+    const relevance = (keywordOverlap * 3) + (m.confidence * 2) + (m.uses * 0.5) + (recencyScore * 2);
+    return { memory: m, relevance };
+  });
+
+  return scored
+    .sort((a, b) => b.relevance - a.relevance)
+    .slice(0, limit)
+    .map(s => s.memory);
+}
+
+/**
+ * Get memory clusters — group memories by topic for pattern detection.
+ */
+export async function getMemoryClusters(): Promise<Record<string, NickMemory[]>> {
+  const all = await recall({ limit: 50 });
+  const clusters: Record<string, NickMemory[]> = {};
+
+  for (const m of all) {
+    // Extract key topic from content (first capitalized phrase or labeled prefix)
+    const topicMatch = m.content.match(/^([A-Z][A-Z\s]+):|^(\w+):/);
+    const topic = topicMatch ? (topicMatch[1] || topicMatch[2]).trim() : m.type;
+    if (!clusters[topic]) clusters[topic] = [];
+    clusters[topic].push(m);
+  }
+
+  return clusters;
+}
+
+/**
+ * Get memory health — stats about the memory system.
+ */
+export async function getMemoryHealth(): Promise<{
+  total: number;
+  byType: Record<string, number>;
+  avgConfidence: number;
+  oldestDays: number;
+  newestDays: number;
+  topTopics: string[];
+}> {
+  const all = await recall({ limit: 200 });
+  const now = Date.now();
+  const byType: Record<string, number> = {};
+  let totalConfidence = 0;
+  let oldest = now;
+  let newest = 0;
+
+  for (const m of all) {
+    byType[m.type] = (byType[m.type] || 0) + 1;
+    totalConfidence += m.confidence;
+    const created = new Date(m.createdAt).getTime();
+    if (created < oldest) oldest = created;
+    if (created > newest) newest = created;
+  }
+
+  const clusters = await getMemoryClusters();
+  const topTopics = Object.entries(clusters)
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, 5)
+    .map(([topic]) => topic);
+
+  return {
+    total: all.length,
+    byType,
+    avgConfidence: all.length > 0 ? Math.round((totalConfidence / all.length) * 100) / 100 : 0,
+    oldestDays: Math.round((now - oldest) / (24 * 60 * 60 * 1000)),
+    newestDays: Math.round((now - newest) / (24 * 60 * 60 * 1000)),
+    topTopics,
+  };
+}
+
+/**
  * Warm-up: load critical memories into a compact string for fast context injection
  */
 export async function getWarmupContext(): Promise<string> {
