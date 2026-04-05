@@ -412,13 +412,13 @@ export default function CityPage() {
                 </Link>
               </FadeIn>
               <FadeIn delay={0.25}>
-                <Link href="/emissions-testing" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
+                <Link href="/emissions" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
                   <h3 className="font-semibold font-bold text-foreground mb-2">E-Check & Emissions Testing</h3>
                   <p className="text-foreground/60 text-sm leading-relaxed">Need to pass Ohio E-Check for your registration renewal? We handle emissions testing and can fix whatever's causing a failure so you pass the first time.</p>
                 </Link>
               </FadeIn>
               <FadeIn delay={0.3}>
-                <Link href="/suspension" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
+                <Link href="/suspension-repair-cleveland" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
                   <h3 className="font-semibold font-bold text-foreground mb-2">Suspension & Steering</h3>
                   <p className="text-foreground/60 text-sm leading-relaxed">Hitting Cleveland potholes takes a toll on struts, shocks, tie rods, and ball joints. If your car pulls, bounces, or the steering feels loose, bring it in before it gets worse.</p>
                 </Link>

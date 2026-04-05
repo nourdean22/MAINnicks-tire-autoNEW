@@ -170,7 +170,7 @@ export default function GuidePage() {
                     <Phone className="w-4 h-4" />
                     CALL {BUSINESS.phone.display}
                   </a>
-                  <Link href="/#contact" className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
+                  <Link href="/booking" className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
                     BOOK ONLINE
                   </Link>
                 </div>

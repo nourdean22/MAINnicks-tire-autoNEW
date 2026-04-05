@@ -124,8 +124,8 @@ function NeighborhoodSchema({ neighborhood }: { neighborhood: Neighborhood }) {
     },
     aggregateRating: {
       "@type": "AggregateRating",
-      ratingValue: "4.9",
-      reviewCount: "180+",
+      ratingValue: String(BUSINESS.reviews.rating),
+      reviewCount: String(BUSINESS.reviews.count),
     },
   };
 
@@ -226,7 +226,7 @@ export default function NeighborhoodPage() {
                   <Star key={i} className="w-4 h-4 fill-nick-yellow text-primary" />
                 ))}
               </div>
-              <span className="text-[13px] text-primary tracking-wider">4.9 STARS — 180+ REVIEWS</span>
+              <span className="text-[13px] text-primary tracking-wider">{BUSINESS.reviews.rating} STARS — {BUSINESS.reviews.countDisplay} REVIEWS</span>
             </div>
             <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.9] tracking-tight max-w-3xl whitespace-pre-line">
               {neighborhood.headline}
@@ -395,7 +395,7 @@ export default function NeighborhoodPage() {
                 <Phone className="w-5 h-5" />
                 {BUSINESS.phone.display}
               </a>
-              <a href="https://nickstire.org/book" className="flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
+              <a href="/booking" className="flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
                 BOOK ONLINE
                 <ChevronRight className="w-5 h-5" />
               </a>
