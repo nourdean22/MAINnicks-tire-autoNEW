@@ -74,6 +74,9 @@ interface ActionItem {
   urgency: number; // 1-5
   createdAt: string | Date;
   status: string;
+  isVip?: boolean;
+  totalVisits?: number;
+  totalRevenue?: number;
 }
 
 export default function OverviewSection() {
@@ -94,6 +97,21 @@ export default function OverviewSection() {
   const { data: shopPulse } = trpc.nickActions.shopPulse.useQuery(undefined, { refetchInterval: 15000 });
 
   const [actionFilter, setActionFilter] = useState<"all" | "booking" | "lead" | "callback">("all");
+
+  // Collect phones from queue items for VIP lookup
+  const queuePhones = useMemo(() => {
+    const phones: string[] = [];
+    if (allBookings) allBookings.filter((b: any) => b.status === "new" && b.phone).forEach((b: any) => phones.push(b.phone));
+    if (allLeads) allLeads.filter((l: any) => (l.status === "new" || (l.urgencyScore && l.urgencyScore >= 4)) && l.phone).forEach((l: any) => phones.push(l.phone));
+    if (callbacks) (callbacks as any[]).filter((c: any) => (c.status === "new" || c.status === "pending") && c.phone).forEach((c: any) => phones.push(c.phone));
+    return [...new Set(phones)].slice(0, 50);
+  }, [allBookings, allLeads, callbacks]);
+
+  const { data: vipData } = trpc.customers.vipLookup.useQuery(
+    { phones: queuePhones },
+    { enabled: queuePhones.length > 0, refetchInterval: 60000 }
+  );
+  const vipLookup = vipData?.lookup ?? {};
 
   // Priority action queue — merges unactioned bookings + urgent leads + pending callbacks
   const priorityQueue = useMemo((): ActionItem[] => {
@@ -153,6 +171,18 @@ export default function OverviewSection() {
         });
     }
 
+    // Enrich with VIP data from customer lookup
+    for (const item of items) {
+      if (item.phone && vipLookup[item.phone]) {
+        const info = vipLookup[item.phone];
+        item.isVip = info.isVip;
+        item.totalVisits = info.totalVisits;
+        item.totalRevenue = info.totalRevenue;
+        // VIP customers get urgency boost
+        if (info.isVip && item.urgency < 5) item.urgency = Math.min(5, item.urgency + 1);
+      }
+    }
+
     // Sort: highest urgency first, then oldest first (longest SLA)
     items.sort((a, b) => {
       if (b.urgency !== a.urgency) return b.urgency - a.urgency;
@@ -160,7 +190,7 @@ export default function OverviewSection() {
     });
 
     return items;
-  }, [allBookings, allLeads, callbacks]);
+  }, [allBookings, allLeads, callbacks, vipLookup]);
 
   const filteredQueue = actionFilter === "all" ? priorityQueue : priorityQueue.filter(i => i.type === actionFilter);
 
@@ -364,6 +394,16 @@ export default function OverviewSection() {
                     {item.urgency >= 4 && (
                       <span className="text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded text-red-400 bg-red-500/10 animate-pulse">
                         URGENT
+                      </span>
+                    )}
+                    {item.isVip && (
+                      <span className="text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded text-amber-400 bg-amber-500/10">
+                        VIP
+                      </span>
+                    )}
+                    {item.totalRevenue && item.totalRevenue > 500 && (
+                      <span className="text-[9px] font-mono text-emerald-400/60">
+                        ${item.totalRevenue.toLocaleString()}
                       </span>
                     )}
                   </div>

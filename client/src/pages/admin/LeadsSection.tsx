@@ -16,6 +16,32 @@ import {
   AlertTriangle, Car, CheckCircle2, ChevronRight, ExternalLink, FileSpreadsheet, Filter, Hash, Loader2, Mail, MessageSquare, Phone, PhoneCall, RefreshCw, Search, UserCheck, Users, Wrench, XCircle, Zap, LayoutGrid, List
 } from "lucide-react";
 
+// ── SLA Timer for leads ──
+function LeadAge({ dateStr }: { dateStr: string | Date }) {
+  const created = new Date(dateStr);
+  const diffMs = Date.now() - created.getTime();
+  const hours = Math.floor(diffMs / 3600000);
+  const days = Math.floor(hours / 24);
+
+  let label: string;
+  if (hours < 1) label = `${Math.floor(diffMs / 60000)}m`;
+  else if (hours < 24) label = `${hours}h`;
+  else label = `${days}d`;
+
+  // SLA: green <4h, yellow 4-24h, red >24h
+  const color = hours < 4
+    ? "text-emerald-400 bg-emerald-500/10"
+    : hours < 24
+    ? "text-amber-400 bg-amber-500/10"
+    : "text-red-400 bg-red-500/10 animate-pulse";
+
+  return (
+    <span className={`inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-mono font-bold tracking-wide rounded ${color}`}>
+      ⏱ {label}
+    </span>
+  );
+}
+
 const KANBAN_COLUMNS: { status: LeadStatus; label: string; color: string }[] = [
   { status: "new", label: "New", color: "bg-blue-500/10 border-blue-500/30" },
   { status: "contacted", label: "Contacted", color: "bg-amber-500/10 border-amber-500/30" },
@@ -79,9 +105,10 @@ function KanbanLeadCard({ lead, onUpdate }: {
           </div>
         )}
 
-        {/* Timestamp */}
-        <div className="text-foreground/40 text-[11px]">
-          {new Date(lead.createdAt).toLocaleDateString()}
+        {/* Age + SLA Timer */}
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="text-foreground/40">{new Date(lead.createdAt).toLocaleDateString()}</span>
+          <LeadAge dateStr={lead.createdAt} />
         </div>
       </div>
 
@@ -332,6 +359,7 @@ export default function LeadsSection() {
                         <span className="font-mono text-[10px] text-foreground/30 uppercase tracking-wider">
                           via {lead.source}
                         </span>
+                        <LeadAge dateStr={lead.createdAt} />
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

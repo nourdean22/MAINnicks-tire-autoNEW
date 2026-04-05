@@ -4,7 +4,7 @@
 import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq, like, or, sql, desc, asc } from "drizzle-orm";
-import { customers, bookings, leads, callbackRequests, callEvents } from "../../drizzle/schema";
+import { customers, customerMetrics, bookings, leads, callbackRequests, callEvents } from "../../drizzle/schema";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -20,7 +20,7 @@ export const customersRouter = router({
         pageSize: z.number().default(25),
         search: z.string().max(200).optional(),
         segment: z.enum(["all", "recent", "lapsed", "unknown"]).default("all"),
-        sortBy: z.enum(["name", "visits", "lastVisit"]).default("lastVisit"),
+        sortBy: z.enum(["name", "visits", "lastVisit", "totalSpent"]).default("lastVisit"),
         sortDir: z.enum(["asc", "desc"]).default("desc"),
       }).optional()
     )
@@ -51,6 +51,13 @@ export const customersRouter = router({
             like(customers.phone, `%${escaped}%`),
             like(customers.email, `%${escaped}%`),
             like(customers.city, `%${escaped}%`),
+            // Vehicle search: match against booking vehicle fields linked by phone
+            sql`EXISTS (SELECT 1 FROM bookings WHERE bookings.phone = ${customers.phone} AND (
+              bookings.vehicle LIKE ${'%' + escaped + '%'}
+              OR bookings.vehicleMake LIKE ${'%' + escaped + '%'}
+              OR bookings.vehicleModel LIKE ${'%' + escaped + '%'}
+              OR bookings.service LIKE ${'%' + escaped + '%'}
+            ))`,
           )
         );
       }
@@ -64,14 +71,50 @@ export const customersRouter = router({
       if (whereClause) countQuery.where(whereClause);
       const [countResult] = await countQuery;
 
-      // Get page of results
-      const sortColumn = sortBy === "name" ? customers.firstName
-        : sortBy === "visits" ? customers.totalVisits
-        : customers.lastVisitDate;
+      // Get page of results with metrics join
       const sortFn = sortDir === "asc" ? asc : desc;
 
-      const dataQuery = d.select().from(customers);
+      const dataQuery = d
+        .select({
+          id: customers.id,
+          firstName: customers.firstName,
+          lastName: customers.lastName,
+          phone: customers.phone,
+          phone2: customers.phone2,
+          email: customers.email,
+          address: customers.address,
+          city: customers.city,
+          state: customers.state,
+          zip: customers.zip,
+          customerType: customers.customerType,
+          totalVisits: customers.totalVisits,
+          lastVisitDate: customers.lastVisitDate,
+          balanceDue: customers.balanceDue,
+          alsCustomerId: customers.alsCustomerId,
+          segment: customers.segment,
+          smsCampaignSent: customers.smsCampaignSent,
+          smsCampaignDate: customers.smsCampaignDate,
+          notes: customers.notes,
+          smsOptOut: customers.smsOptOut,
+          createdAt: customers.createdAt,
+          updatedAt: customers.updatedAt,
+          // Metrics fields
+          totalRevenue: customerMetrics.totalRevenue,
+          avgSpendPerVisit: customerMetrics.avgSpendPerVisit,
+          daysSinceLastVisit: customerMetrics.daysSinceLastVisit,
+          churnRisk: customerMetrics.churnRisk,
+          isVip: customerMetrics.isVip,
+        })
+        .from(customers)
+        .leftJoin(customerMetrics, eq(customers.id, customerMetrics.customerId));
+
       if (whereClause) dataQuery.where(whereClause);
+
+      const sortColumn = sortBy === "name" ? customers.firstName
+        : sortBy === "visits" ? customers.totalVisits
+        : sortBy === "totalSpent" ? customerMetrics.totalRevenue
+        : customers.lastVisitDate;
+
       const results = await dataQuery
         .orderBy(sortFn(sortColumn))
         .limit(pageSize)
@@ -364,5 +407,36 @@ export const customersRouter = router({
       // Sort chronologically, newest first
       events.sort((a, b) => b.date.getTime() - a.date.getTime());
       return events;
+    }),
+
+  /** Lightweight VIP lookup by phone numbers — returns VIP/revenue info for priority queue */
+  vipLookup: adminProcedure
+    .input(z.object({ phones: z.array(z.string()).max(50) }))
+    .query(async ({ input }) => {
+      const d = await db();
+      if (!d || input.phones.length === 0) return { lookup: {} };
+
+      const results = await d
+        .select({
+          phone: customers.phone,
+          totalVisits: customers.totalVisits,
+          totalRevenue: customerMetrics.totalRevenue,
+          isVip: customerMetrics.isVip,
+          churnRisk: customerMetrics.churnRisk,
+        })
+        .from(customers)
+        .leftJoin(customerMetrics, eq(customers.id, customerMetrics.customerId))
+        .where(sql`${customers.phone} IN (${sql.join(input.phones.map(p => sql`${p}`), sql`, `)})`);
+
+      const lookup: Record<string, { totalVisits: number; totalRevenue: number; isVip: boolean; churnRisk: string }> = {};
+      for (const r of results) {
+        lookup[r.phone] = {
+          totalVisits: r.totalVisits,
+          totalRevenue: r.totalRevenue ?? 0,
+          isVip: !!(r.isVip || r.totalVisits >= 3),
+          churnRisk: r.churnRisk ?? "low",
+        };
+      }
+      return { lookup };
     }),
 });
