@@ -164,14 +164,69 @@ export async function generateProactiveAlerts(): Promise<string[]> {
       .where(gte(bookings.createdAt, new Date(now.getFullYear(), now.getMonth(), now.getDate()))),
   ]);
 
-  if ((urgentLeads[0]?.count ?? 0) > 0) {
-    alerts.push(`🔴 ${urgentLeads[0]?.count} URGENT leads need immediate attention`);
+  const urgentLeadCount = urgentLeads[0]?.count ?? 0;
+  const callbackCount = urgentCallbacks[0]?.count ?? 0;
+  const bookingCount = todayBookings[0]?.count ?? 0;
+  const etHour = parseInt(now.toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+  const dayOfWeek = now.getDay(); // 0=Sun
+
+  if (urgentLeadCount > 0) {
+    alerts.push(`🔴 ${urgentLeadCount} URGENT lead${urgentLeadCount > 1 ? "s" : ""} — these are high-intent, call within 5 minutes`);
   }
-  if ((urgentCallbacks[0]?.count ?? 0) > 2) {
-    alerts.push(`📞 ${urgentCallbacks[0]?.count} callbacks waiting — customers expecting a call back`);
+  if (callbackCount > 0) {
+    alerts.push(`📞 ${callbackCount} callback${callbackCount > 1 ? "s" : ""} waiting — every hour of delay = lower conversion rate`);
   }
-  if ((todayBookings[0]?.count ?? 0) === 0 && now.getHours() >= 10 && now.getDay() >= 1 && now.getDay() <= 6) {
-    alerts.push(`⚠️ Zero drop-offs today and it's ${now.getHours() > 12 ? "afternoon" : "mid-morning"} — slow day or tracking issue?`);
+  if (bookingCount === 0 && etHour >= 10 && dayOfWeek >= 1 && dayOfWeek <= 6) {
+    alerts.push(`⚠️ Zero drop-offs today by ${etHour > 12 ? etHour - 12 + "pm" : etHour + "am"} — check if tracking is working or push marketing`);
+  }
+
+  // Check for estimates aging without follow-up
+  try {
+    const twoHoursAgoDate = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+    const [agingEstimates] = await d.select({ count: sql<number>`count(*)` }).from(leads)
+      .where(and(
+        sql`${leads.recommendedService} IS NOT NULL`,
+        eq(leads.status, "new"),
+        sql`${leads.createdAt} <= ${twoHoursAgoDate}`,
+        gte(leads.createdAt, new Date(now.getFullYear(), now.getMonth(), now.getDate()))
+      ));
+    const agingCount = agingEstimates?.count ?? 0;
+    if (agingCount > 0) {
+      alerts.push(`💸 ${agingCount} estimate${agingCount > 1 ? "s" : ""} aging without follow-up — conversion drops 50% after 2 hours`);
+    }
+  } catch {}
+
+  // Check pending payments (invoices sent but not paid)
+  try {
+    const { invoices } = await import("../../drizzle/schema");
+    const [pendingPayments] = await d.select({ count: sql<number>`count(*)`, total: sql<number>`SUM(totalAmount)` }).from(invoices)
+      .where(eq(invoices.paymentStatus, "pending"));
+    const pendingCount = pendingPayments?.count ?? 0;
+    const pendingTotal = Math.round((pendingPayments?.total ?? 0) / 100);
+    if (pendingCount > 3 && pendingTotal > 500) {
+      alerts.push(`💳 $${pendingTotal} in ${pendingCount} unpaid invoices — follow up on outstanding payments`);
+    }
+  } catch {}
+
+  // Check if review requests are being sent
+  try {
+    const { reviewRequests } = await import("../../drizzle/schema");
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const [recentReviews] = await d.select({ count: sql<number>`count(*)` }).from(reviewRequests)
+      .where(gte(reviewRequests.createdAt, weekAgo));
+    if ((recentReviews?.count ?? 0) === 0 && dayOfWeek >= 1 && dayOfWeek <= 5) {
+      alerts.push(`⭐ Zero review requests sent this week — reviews are the #1 growth lever, send 3-5 today`);
+    }
+  } catch {}
+
+  // Monday morning special: weekly planning prompt
+  if (dayOfWeek === 1 && etHour >= 8 && etHour <= 10) {
+    alerts.push(`📋 MONDAY: Set this week's revenue target and top 3 priorities. Last week walk rate: ${(await getShopPulse().catch(() => ({ thisWeek: { walkRate: 0 } }))).thisWeek.walkRate}%`);
+  }
+
+  // Friday afternoon: week wrap-up prompt
+  if (dayOfWeek === 5 && etHour >= 15 && etHour <= 17) {
+    alerts.push(`📊 FRIDAY: Review this week's numbers, declined work recovery, and schedule next week's follow-ups`);
   }
 
   // At-risk high-value customers — more important than stale leads
