@@ -244,12 +244,13 @@ export const leadRouter = router({
         contacted: z.number().min(0).max(1).optional(),
         contactedBy: z.string().max(200).optional(),
         contactNotes: z.string().max(5000).optional(),
+        lostReason: z.string().max(500).optional(),
       })
     )
     .mutation(async ({ input }) => {
       const d = await db();
       if (!d) throw new Error("Database not available");
-      const { id, ...updates } = input;
+      const { id, lostReason, ...updates } = input;
       const setObj: Record<string, unknown> = {};
       if (updates.status !== undefined) setObj.status = updates.status;
       if (updates.contacted !== undefined) {
@@ -258,6 +259,13 @@ export const leadRouter = router({
       }
       if (updates.contactedBy !== undefined) setObj.contactedBy = updates.contactedBy;
       if (updates.contactNotes !== undefined) setObj.contactNotes = updates.contactNotes;
+      // Store lost reason: prepend to contact notes so it's visible + searchable
+      if (lostReason && updates.status === "lost") {
+        const existing = updates.contactNotes || "";
+        const current = await d.select({ contactNotes: leads.contactNotes }).from(leads).where(eq(leads.id, id));
+        const prev = current[0]?.contactNotes || existing;
+        setObj.contactNotes = `[LOST: ${lostReason}]${prev ? " | " + prev : ""}`;
+      }
       await d.update(leads).set(setObj).where(eq(leads.id, id));
       return { success: true };
     }),

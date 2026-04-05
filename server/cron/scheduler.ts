@@ -397,6 +397,17 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "predictive-escalation",
+        businessHoursOnly: true,
+        handler: async () => {
+          try {
+            const { sendEscalationAlerts } = await import("../services/nickIntelligence");
+            const result = await sendEscalationAlerts();
+            return { recordsProcessed: result.sent, details: `${result.sent} escalation alerts sent` };
+          } catch { return { details: "Escalation check skipped" }; }
+        },
+      },
+      {
         name: "statenour-sync", // LAST: push everything out after all processing
         handler: async () => {
           const { syncToStatenour } = await import("./jobs/statenourSync");

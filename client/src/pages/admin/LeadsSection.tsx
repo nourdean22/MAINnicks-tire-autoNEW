@@ -226,7 +226,18 @@ export default function LeadsSection() {
   });
 
   const handleStatusChange = (id: number, status: LeadStatus) => {
-    updateLead.mutate({ id, status });
+    if (status === "lost") {
+      // Prompt for lost reason — this data feeds Nick AI for pattern detection
+      const REASONS = ["Price too high", "Went to competitor", "No response", "Changed mind", "Already fixed elsewhere", "Other"];
+      const reason = prompt(
+        `Why was this lead lost?\n\n${REASONS.map((r, i) => `${i + 1}. ${r}`).join("\n")}\n\nEnter number or type reason:`
+      );
+      if (!reason) return; // Cancelled
+      const lostReason = REASONS[parseInt(reason) - 1] || reason;
+      updateLead.mutate({ id, status, lostReason });
+    } else {
+      updateLead.mutate({ id, status });
+    }
   };
 
   const filteredLeads = useMemo(() => {
