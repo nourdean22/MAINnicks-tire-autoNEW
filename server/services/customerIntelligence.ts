@@ -126,7 +126,9 @@ export async function analyzeCustomers(): Promise<CustomerInsight> {
           lastVisit: r.lastVisit ? new Date(r.lastVisit).toISOString().split("T")[0] : "unknown",
           daysSince: r.lastVisit ? Math.round((now.getTime() - new Date(r.lastVisit).getTime()) / (24 * 60 * 60 * 1000)) : 999,
         }));
-    } catch {}
+    } catch (err) {
+      log.warn("Failed to query at-risk customers", { error: String(err) });
+    }
 
     // Day-of-week booking patterns (Mon=0...Sun=6)
     const dayOfWeekPattern = [0,0,0,0,0,0,0];
@@ -143,7 +145,9 @@ export async function analyzeCustomers(): Promise<CustomerInsight> {
           peakHoursArr[dt.getHours()]++;
         }
       }
-    } catch {}
+    } catch (err) {
+      log.warn("Failed to query booking patterns", { error: String(err) });
+    }
 
     return {
       totalCustomers: totalCust,

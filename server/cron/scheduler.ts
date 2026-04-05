@@ -429,7 +429,7 @@ export function startTieredScheduler(): void {
         },
       },
       {
-        name: "shopdriver-mirror",
+        name: "shopdriver-daily-ticket-pull",
         handler: async () => {
           const { pullRecentTickets } = await import("../services/shopDriverSync");
           const tickets = await pullRecentTickets();

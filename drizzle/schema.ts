@@ -292,7 +292,9 @@ export const customerVehicles = mysqlTable("customer_vehicles", {
   lastServiceMileage: int("lastServiceMileage"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  index("idx_vehicle_user").on(table.userId),
+]);
 
 export type CustomerVehicle = typeof customerVehicles.$inferSelect;
 export type InsertCustomerVehicle = typeof customerVehicles.$inferInsert;
@@ -316,7 +318,12 @@ export const serviceHistory = mysqlTable("service_history", {
   nextServiceDue: timestamp("nextServiceDue"),
   nextServiceMileage: int("nextServiceMileage"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => [
+  index("idx_service_user").on(table.userId),
+  index("idx_service_vehicle").on(table.vehicleId),
+  index("idx_service_booking").on(table.bookingId),
+  index("idx_service_completed").on(table.completedAt),
+]);
 
 export type ServiceHistoryRecord = typeof serviceHistory.$inferSelect;
 export type InsertServiceHistory = typeof serviceHistory.$inferInsert;
@@ -482,7 +489,9 @@ export const inspectionItems = mysqlTable("inspection_items", {
   /** Sort order within inspection */
   sortOrder: int("sortOrder").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => [
+  index("idx_inspection_item_inspection").on(table.inspectionId),
+]);
 
 export type InspectionItem = typeof inspectionItems.$inferSelect;
 export type InsertInspectionItem = typeof inspectionItems.$inferInsert;
@@ -525,7 +534,10 @@ export const loyaltyTransactions = mysqlTable("loyalty_transactions", {
   /** Link to reward if redeemed */
   rewardId: int("rewardId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => [
+  index("idx_loyalty_tx_user").on(table.userId),
+  index("idx_loyalty_tx_type").on(table.type),
+]);
 
 export type LoyaltyTransaction = typeof loyaltyTransactions.$inferSelect;
 export type InsertLoyaltyTransaction = typeof loyaltyTransactions.$inferInsert;
