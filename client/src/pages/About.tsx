@@ -82,7 +82,7 @@ export default function About() {
                   <div className="text-foreground/60 text-sm">Google Rating</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-4xl font-black text-primary mb-1 text-gradient-yellow">7+</div>
+                  <div className="text-4xl font-black text-primary mb-1 text-gradient-yellow">{new Date().getFullYear() - 2018}+</div>
                   <div className="text-foreground/60 text-sm">Years Serving Cleveland</div>
                 </div>
               </div>
@@ -142,7 +142,7 @@ export default function About() {
               { title: "Honest Diagnostics", text: "We use advanced OBD-II scanners and live data analysis. We test before we replace, so you never pay for parts you don't need." },
               { title: "Fair Pricing", text: "No hidden fees. No surprise charges. The price we quote is the price you pay, and we explain every line item." },
               { title: "Full-Service Shop", text: "Tires, brakes, diagnostics, emissions, oil changes, suspension, steering, exhaust — one shop for everything." },
-              { title: "Since 2018", text: "7 years of serving East Cleveland with zero corporate pressure. We answer to our customers, not shareholders." },
+              { title: "Since 2018", text: `${new Date().getFullYear() - 2018} years of serving East Cleveland with zero corporate pressure. We answer to our customers, not shareholders.` },
             ].map((item, i) => (
               <FadeIn key={item.title} delay={i * 0.1}>
                 <div className="p-8 border border-border rounded-2xl h-full">

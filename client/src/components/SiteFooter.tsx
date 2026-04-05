@@ -146,7 +146,7 @@ export default function SiteFooter() {
                     cities: [
                       { href: "/willoughby-auto-repair", label: "Willoughby" },
                       { href: "/mentor-auto-repair", label: "Mentor" },
-                      { href: "/wickliffe-auto-repair", label: "Wickliffe" },
+                      { href: "/wickliffe", label: "Wickliffe" },
                     ],
                   },
                   {
@@ -165,7 +165,7 @@ export default function SiteFooter() {
                     cities: [
                       { href: "/cleveland-auto-repair", label: "Cleveland" },
                       { href: "/warrensville-heights-auto-repair", label: "Warrensville Hts" },
-                      { href: "/collinwood-auto-repair", label: "Collinwood" },
+                      { href: "/collinwood", label: "Collinwood" },
                     ],
                   },
                 ].map((group) => (
