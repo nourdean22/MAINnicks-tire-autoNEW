@@ -202,7 +202,7 @@ export async function getTrackingInfo(orderNumber: string, phone: string) {
     statusKey: wo.status,
     vehicle: [wo.vehicleYear, wo.vehicleMake, wo.vehicleModel].filter(Boolean).join(" "),
     serviceDescription: wo.serviceDescription,
-    services: items.map(i => i.description),
+    services: items.map((i: any) => i.description),
     promisedAt: wo.promisedAt?.toISOString() || null,
     estimatedCompletion: wo.estimatedCompletion?.toISOString() || null,
     createdAt: wo.createdAt.toISOString(),

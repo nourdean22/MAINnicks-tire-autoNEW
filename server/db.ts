@@ -955,7 +955,7 @@ export async function getCompletedBookingsWithoutReview(lookbackDays = 365) {
   // Get all phones that already have a non-failed review request
   const existingPhones = await db.select({ phone: reviewRequests.phone }).from(reviewRequests)
     .where(ne(reviewRequests.status, "failed"));
-  const phoneSet = new Set(existingPhones.map(r => r.phone));
+  const phoneSet = new Set(existingPhones.map((r: any) => r.phone));
 
   // Filter out bookings whose phone already has a review request
   // Also deduplicate by phone (only keep most recent booking per phone)
@@ -1073,10 +1073,10 @@ export async function getReminderStats() {
   const now = new Date();
   return {
     total: all.length,
-    scheduled: all.filter(r => r.status === "scheduled").length,
-    sent: all.filter(r => r.status === "sent").length,
-    snoozed: all.filter(r => r.status === "snoozed").length,
-    dueNow: all.filter(r => r.status === "scheduled" && r.nextDueDate <= now).length,
+    scheduled: all.filter((r: any) => r.status === "scheduled").length,
+    sent: all.filter((r: any) => r.status === "sent").length,
+    snoozed: all.filter((r: any) => r.status === "snoozed").length,
+    dueNow: all.filter((r: any) => r.status === "scheduled" && r.nextDueDate <= now).length,
   };
 }
 
@@ -1094,7 +1094,7 @@ export async function scheduleRemindersForBooking(booking: {
   const db = await getDb();
   if (!db) return [];
   const settings = await getReminderSettings();
-  const enabledSettings = settings.filter(s => s.enabled === 1);
+  const enabledSettings = settings.filter((s: any) => s.enabled === 1);
   const serviceLower = booking.service.toLowerCase();
   const created: number[] = [];
 

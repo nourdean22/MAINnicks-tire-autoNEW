@@ -259,11 +259,11 @@ export default function LeadsSection() {
   const leadStats = useMemo(() => {
     if (!leadsData) return { new: 0, contacted: 0, urgent: 0, total: 0, booked: 0 };
     return {
-      new: leadsData.filter(l => l.status === "new").length,
-      contacted: leadsData.filter(l => l.status === "contacted").length,
-      urgent: leadsData.filter(l => (l.urgencyScore ?? 0) >= 4).length,
+      new: leadsData.filter((l: any) => l.status === "new").length,
+      contacted: leadsData.filter((l: any) => l.status === "contacted").length,
+      urgent: leadsData.filter((l: any) => (l.urgencyScore ?? 0) >= 4).length,
       total: leadsData.length,
-      booked: leadsData.filter(l => l.status === "booked").length,
+      booked: leadsData.filter((l: any) => l.status === "booked").length,
     };
   }, [leadsData]);
 

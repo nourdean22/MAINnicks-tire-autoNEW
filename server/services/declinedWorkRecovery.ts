@@ -92,7 +92,7 @@ export async function getDeclinedWorkLedger(limit = 50): Promise<DeclinedWorkEnt
       console.error("[DeclinedWork] Customer lookup for recovery failed:", err instanceof Error ? err.message : err);
     }
 
-    const declinedItems: DeclinedItem[] = items.map(item => ({
+    const declinedItems: DeclinedItem[] = items.map((item: any) => ({
       id: item.id,
       description: item.description,
       type: item.type,

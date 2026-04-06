@@ -32,7 +32,7 @@ export async function getAvailableTechs() {
 
   // Count active jobs per tech
   const activeStatuses = ["assigned", "in_progress"];
-  const techIds = techs.map(t => t.id);
+  const techIds = techs.map((t: any) => t.id);
 
   let loadMap: Record<number, number> = {};
   if (techIds.length > 0) {
@@ -51,7 +51,7 @@ export async function getAvailableTechs() {
     }
   }
 
-  return techs.map(t => ({
+  return techs.map((t: any) => ({
     ...t,
     currentLoad: loadMap[t.id] || 0,
     skills: (t.skills as string[] | null) || [],
@@ -91,7 +91,7 @@ export async function recommendTech(workOrderId: string): Promise<Array<{
   const techs = await getAvailableTechs();
   if (techs.length === 0) return [];
 
-  return techs.map(tech => {
+  return techs.map((tech: any) => {
     let score = 50; // base score
     const reasons: string[] = [];
 
@@ -128,7 +128,7 @@ export async function recommendTech(workOrderId: string): Promise<Array<{
       score: Math.round(score),
       reasons,
     };
-  }).sort((a, b) => b.score - a.score);
+  }).sort((a: any, b: any) => b.score - a.score);
 }
 
 function extractServiceKeywords(desc: string, items: any[]): string[] {
@@ -337,7 +337,7 @@ export async function getDispatchLoad() {
   const allBays = await db.select().from(bays).where(eq(bays.active, true));
 
   return {
-    techs: techs.map(t => ({
+    techs: techs.map((t: any) => ({
       id: t.id,
       name: t.name,
       role: t.role,
@@ -345,7 +345,7 @@ export async function getDispatchLoad() {
       currentLoad: techLoadMap[t.id] || 0,
       skills: (t.skills as string[] | null) || [],
     })),
-    bays: allBays.map(b => ({
+    bays: allBays.map((b: any) => ({
       id: b.id,
       name: b.name,
       type: b.type,

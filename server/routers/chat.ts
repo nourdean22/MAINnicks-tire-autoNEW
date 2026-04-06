@@ -200,19 +200,19 @@ async function lookupMemories(
   }
 
   // Filter out dead memories from the working set
-  const liveMemories = memories.filter(m => !memoriesToDelete.includes(m.id));
+  const liveMemories = memories.filter((m: any) => !memoriesToDelete.includes(m.id));
   if (liveMemories.length === 0) return { formatted: undefined, memoryIds: [] };
 
   // Score and sort by composite memoryScore
   const scored = liveMemories
-    .map(m => ({ ...m, memoryScore: computeMemoryScore(m) }))
-    .sort((a, b) => b.memoryScore - a.memoryScore)
+    .map((m: any) => ({ ...m, memoryScore: computeMemoryScore(m) }))
+    .sort((a: any, b: any) => b.memoryScore - a.memoryScore)
     .slice(0, 10); // Top 10 most relevant
 
   // Update lastAccessed for retrieved memories (fire-and-forget)
-  const activeIds = scored.map(m => m.id);
+  const activeIds = scored.map((m: any) => m.id);
   Promise.all(
-    activeIds.map(id =>
+    activeIds.map((id: any) =>
       d.update(conversationMemory)
         .set({ lastAccessed: new Date() })
         .where(eq(conversationMemory.id, id))
@@ -220,7 +220,7 @@ async function lookupMemories(
   ).catch(() => {});
 
   const formatted = scored
-    .map(m => `- [${m.category}] ${m.content}`)
+    .map((m: any) => `- [${m.category}] ${m.content}`)
     .join("\n");
 
   return { formatted, memoryIds: activeIds };
@@ -250,7 +250,7 @@ async function saveMemories(
       .limit(20);
 
     // Simple dedup: if content is substantially similar, reinforce instead of inserting
-    const duplicate = existing.find(e =>
+    const duplicate = existing.find((e: any) =>
       e.content.toLowerCase().includes(mem.content.toLowerCase().slice(0, 30)) ||
       mem.content.toLowerCase().includes(e.content.toLowerCase().slice(0, 30))
     );

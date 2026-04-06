@@ -66,8 +66,8 @@ export async function reconcileWorkOrder(workOrderId: string): Promise<WorkOrder
   }
 
   const lineItems: LineItemMargin[] = items
-    .filter(i => !i.declined)
-    .map(item => {
+    .filter((i: any) => !i.declined)
+    .map((item: any) => {
       const cost = Number(item.unitCost) * Number(item.quantity || 1);
       const price = Number(item.unitPrice) * Number(item.quantity || 1);
       const margin = price - cost;

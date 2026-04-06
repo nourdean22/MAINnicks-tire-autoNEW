@@ -266,7 +266,7 @@ export async function getTopQueries(opts?: {
     .orderBy(sql`SUM(${searchPerformance.clicks}) DESC`)
     .limit(limit);
 
-  return rows.map(r => ({
+  return rows.map((r: any) => ({
     query: r.query,
     clicks: Number(r.clicks),
     impressions: Number(r.impressions),
@@ -300,7 +300,7 @@ export async function getPagePerformance(opts?: {
     .orderBy(sql`SUM(${searchPerformance.clicks}) DESC`)
     .limit(limit);
 
-  return rows.map(r => ({
+  return rows.map((r: any) => ({
     page: r.page || "",
     clicks: Number(r.clicks),
     impressions: Number(r.impressions),
@@ -336,7 +336,7 @@ export async function clusterQueries(opts?: { startDate?: string }): Promise<Que
 
   if (rows.length === 0) return [];
 
-  const queryList = rows.map(r => `"${r.query}" (${r.clicks} clicks, ${r.impressions} imp, pos ${r.avgPosition})`).join("\n");
+  const queryList = rows.map((r: any) => `"${r.query}" (${r.clicks} clicks, ${r.impressions} imp, pos ${r.avgPosition})`).join("\n");
 
   try {
     const response = await invokeLLM({
@@ -389,7 +389,7 @@ Aim for 4-8 clusters. Don't create clusters with only 1 query unless it's truly 
     if (!Array.isArray(parsed.clusters)) return [];
 
     // Enrich clusters with aggregated metrics
-    const queryMetrics = new Map(rows.map(r => [r.query, r as { query: string; clicks: number; impressions: number; avgPosition: number }]));
+    const queryMetrics = new Map(rows.map((r: any) => [r.query, r as any]));
 
     return parsed.clusters.map((cluster: { theme: string; queries: string[] }) => {
       let totalClicks = 0;
@@ -398,7 +398,7 @@ Aim for 4-8 clusters. Don't create clusters with only 1 query unless it's truly 
       let posCount = 0;
 
       for (const q of cluster.queries) {
-        const m = queryMetrics.get(q);
+        const m: any = queryMetrics.get(q);
         if (m) {
           totalClicks += Number(m.clicks);
           totalImpressions += Number(m.impressions);
@@ -692,7 +692,7 @@ export async function detectSeasonalPatterns(opts?: {
       .groupBy(searchPerformance.query),
   ]);
 
-  const prevMap = new Map<string, number>(previousData.map(r => [r.query, Number(r.clicks)]));
+  const prevMap = new Map<string, number>(previousData.map((r: any) => [r.query, Number(r.clicks)]));
 
   let totalCurrentClicks = 0;
   let totalPreviousClicks = 0;
@@ -724,7 +724,7 @@ export async function detectSeasonalPatterns(opts?: {
 
   // Add queries that existed before but disappeared
   for (const [query, clicks] of prevMap) {
-    if (!currentData.find(r => r.query === query)) {
+    if (!currentData.find((r: any) => r.query === query)) {
       totalPreviousClicks += clicks;
       comparisons.push({
         query,

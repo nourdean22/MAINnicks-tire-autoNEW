@@ -896,7 +896,7 @@ export const gatewayTireRouter = router({
       ]);
 
       return {
-        orders: orders.map(o => ({
+        orders: orders.map((o: any) => ({
           ...o,
           pricePerTire: o.pricePerTire / 100,
           serviceFeePerTire: o.serviceFeePerTire / 100,

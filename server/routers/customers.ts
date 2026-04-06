@@ -227,7 +227,7 @@ export const customersRouter = router({
 
       // Build CSV
       const headers = ["First Name", "Last Name", "Phone", "Email", "City", "State", "Segment", "Total Visits", "Last Visit", "Customer Type"];
-      const rows = results.map(c => [
+      const rows = results.map((c: any) => [
         csvSafe(c.firstName || ""),
         csvSafe(c.lastName || ""),
         csvSafe(c.phone || ""),
@@ -240,7 +240,7 @@ export const customersRouter = router({
         c.customerType || "",
       ]);
 
-      const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${v.replace(/"/g, '""')}"`).join(","))].join("\n");
+      const csv = [headers.join(","), ...rows.map((r: any) => r.map((v: any) => `"${v.replace(/"/g, '""')}"`).join(","))].join("\n");
       return { csv, count: results.length };
     }),
 
@@ -387,7 +387,7 @@ export const customersRouter = router({
       try {
         // Bookings
         const bks = await d.select().from(bookings).where(eq(bookings.phone, phone)).orderBy(desc(bookings.createdAt));
-        bks.forEach(b => events.push({
+        bks.forEach((b: any) => events.push({
           type: "booking",
           title: `Booking: ${b.service || "General"}`,
           detail: b.vehicle || "",
@@ -397,7 +397,7 @@ export const customersRouter = router({
 
         // Leads
         const lds = await d.select().from(leads).where(eq(leads.phone, phone)).orderBy(desc(leads.createdAt));
-        lds.forEach(l => events.push({
+        lds.forEach((l: any) => events.push({
           type: "lead",
           title: `Lead: ${l.source || "Direct"}`,
           detail: l.problem || l.vehicle || "",
@@ -407,7 +407,7 @@ export const customersRouter = router({
 
         // Callbacks
         const cbs = await d.select().from(callbackRequests).where(eq(callbackRequests.phone, phone)).orderBy(desc(callbackRequests.createdAt));
-        cbs.forEach(c => events.push({
+        cbs.forEach((c: any) => events.push({
           type: "callback",
           title: "Callback Request",
           detail: (c as any).context || (c as any).reason || "",
@@ -417,7 +417,7 @@ export const customersRouter = router({
 
         // Call events
         const cls = await d.select().from(callEvents).where(eq(callEvents.phoneNumber, phone)).orderBy(desc(callEvents.createdAt));
-        cls.forEach(c => events.push({
+        cls.forEach((c: any) => events.push({
           type: "call",
           title: "Phone Call",
           detail: c.sourcePage || "",
@@ -427,7 +427,7 @@ export const customersRouter = router({
 
         // Invoices by phone
         const invs = await d.select().from(invoices).where(eq(invoices.customerPhone, phone)).orderBy(desc(invoices.invoiceDate));
-        invs.forEach(inv => events.push({
+        invs.forEach((inv: any) => events.push({
           type: "invoice",
           title: `Invoice ${inv.invoiceNumber || `#${inv.id}`}`,
           detail: `${inv.serviceDescription || "Service"} · ${inv.vehicleInfo || ""}`.trim(),
@@ -446,7 +446,7 @@ export const customersRouter = router({
           )`)
           .orderBy(desc(workOrders.createdAt))
           .limit(20);
-        woResults.forEach(wo => events.push({
+        woResults.forEach((wo: any) => events.push({
           type: "workOrder",
           title: `WO ${wo.orderNumber}`,
           detail: `${wo.serviceDescription || wo.status?.replace(/_/g, " ") || "Service"}${wo.vehicleMake ? ` · ${wo.vehicleMake} ${wo.vehicleModel || ""}` : ""}`.trim(),

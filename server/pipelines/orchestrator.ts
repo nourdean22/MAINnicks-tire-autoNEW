@@ -273,8 +273,8 @@ export async function getPipelineStatuses(): Promise<PipelineStatus[]> {
     // Determine health based on recent runs
     let health: "healthy" | "degraded" | "failing" | "never-run" = "never-run";
     if (lastRuns.length > 0) {
-      const recentSuccesses = lastRuns.filter(r => r.status === "success").length;
-      const recentErrors = lastRuns.filter(r => r.status === "error").length;
+      const recentSuccesses = lastRuns.filter((r: any) => r.status === "success").length;
+      const recentErrors = lastRuns.filter((r: any) => r.status === "error").length;
 
       if (recentErrors === 0) health = "healthy";
       else if (recentSuccesses > recentErrors) health = "degraded";

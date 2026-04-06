@@ -57,7 +57,7 @@ export async function getAllCameras(): Promise<CameraConfig[]> {
   const rows = await d.select().from(shopSettings)
     .where(sql`${shopSettings.key} LIKE 'camera_%'`);
 
-  return rows.map(r => {
+  return rows.map((r: any) => {
     try {
       const data = JSON.parse(r.value);
       return {

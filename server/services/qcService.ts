@@ -78,7 +78,7 @@ export async function createQcChecklist(workOrderId: string): Promise<number> {
   if (!wo) throw new Error("Work order not found");
 
   const items = await db.select().from(workOrderItems).where(eq(workOrderItems.workOrderId, workOrderId));
-  const text = (wo.serviceDescription || "") + " " + items.map(i => i.description).join(" ");
+  const text = (wo.serviceDescription || "") + " " + items.map((i: any) => i.description).join(" ");
 
   // Build checklist from matching templates
   const checkItems: QcCheckItem[] = [...COMMON_ITEMS];
@@ -257,7 +257,7 @@ export async function checkForComeback(params: {
     .orderBy(desc(workOrders.completedAt))
     .limit(5);
 
-  return recent.map(wo => ({
+  return recent.map((wo: any) => ({
     originalWorkOrderId: wo.id,
     orderNumber: wo.orderNumber,
     completedAt: wo.completedAt?.toISOString() || null,
