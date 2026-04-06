@@ -16,9 +16,22 @@ const log = createLogger("shopdriver-mirror");
 
 const SHOPDRIVER_BASE = "https://secure.autolaborexperts.com";
 
+// ─── FAILURE TRACKING ──────────────────────────────────
+// Track consecutive failures so we can escalate alerts
+let consecutiveFailures = 0;
+let lastSuccessfulSync: Date | null = null;
+let lastAlertSent: Date | null = null;
+const ALERT_COOLDOWN_MS = 2 * 60 * 60 * 1000; // Don't spam — max 1 alert every 2 hours
+
 // ─── SESSION AUTH (mirrors autoLabor.ts pattern) ────────
 
 let mirrorSession: { cookie: string; expiresAt: number } | null = null;
+
+/** Force-clear the cached session (used when fetches return 0 data) */
+function invalidateSession() {
+  mirrorSession = null;
+  log.warn("Session invalidated — will re-authenticate on next attempt");
+}
 
 async function getSession(): Promise<string | null> {
   if (mirrorSession && Date.now() < mirrorSession.expiresAt) {
@@ -549,15 +562,58 @@ export async function runFullMirror(): Promise<{
 
   const cookie = await getSession();
   if (!cookie) {
-    log.error("Could not authenticate with ShopDriver — mirror aborted");
+    consecutiveFailures++;
+    const msg = `🚨 ALG MIRROR DOWN: Auth failed (attempt #${consecutiveFailures}). No credentials or login rejected. Dashboard data is STALE.`;
+    log.error(msg);
+    await sendMirrorAlert(msg);
     return { recordsProcessed: 0, details: "Auth failed — no credentials or login rejected" };
   }
 
   // Fetch in parallel
-  const [rawCustomers, rawInvoices] = await Promise.all([
+  let [rawCustomers, rawInvoices] = await Promise.all([
     fetchCustomers(cookie),
     fetchInvoices(cookie),
   ]);
+
+  // If we got 0 invoices but had a cached session, force re-auth and retry once
+  if (rawInvoices.length === 0 && cookie) {
+    log.warn("0 invoices with cached session — forcing re-auth and retrying");
+    invalidateSession();
+    const freshCookie = await getSession();
+    if (freshCookie && freshCookie !== cookie) {
+      const [retryCust, retryInv] = await Promise.all([
+        rawCustomers.length === 0 ? fetchCustomers(freshCookie) : Promise.resolve(rawCustomers),
+        fetchInvoices(freshCookie),
+      ]);
+      rawCustomers = retryCust;
+      rawInvoices = retryInv;
+      if (rawInvoices.length > 0) {
+        log.info(`Re-auth worked! Got ${rawInvoices.length} invoices on retry`);
+      }
+    }
+  }
+
+  // If we STILL got 0 invoices after retry, alert
+  if (rawInvoices.length === 0) {
+    consecutiveFailures++;
+    invalidateSession(); // Force re-auth next time — session may be dead
+
+    // Check how stale our data actually is
+    const staleDays = await getDataStaleDays();
+    const msg = `⚠️ ALG MIRROR: 0 invoices fetched (attempt #${consecutiveFailures}). ` +
+      `Session invalidated for retry. ` +
+      `${rawCustomers.length > 0 ? `Got ${rawCustomers.length} customers though.` : "0 customers too — auth may be broken."} ` +
+      `Last invoice in DB: ${staleDays !== null ? `${staleDays} days ago` : "unknown"}.`;
+    log.warn(msg);
+    await sendMirrorAlert(msg);
+
+    // Still upsert customers if we got any
+    if (rawCustomers.length > 0) {
+      await upsertCustomers(rawCustomers);
+    }
+
+    return { recordsProcessed: 0, details: `0 invoices fetched — session invalidated (fail #${consecutiveFailures})` };
+  }
 
   // Store customers first (so invoice linking works)
   const custResult = await upsertCustomers(rawCustomers);
@@ -566,6 +622,11 @@ export async function runFullMirror(): Promise<{
   const duration = Date.now() - start;
   const total = custResult.created + custResult.updated + invResult.created;
 
+  // SUCCESS — reset failure tracking
+  const wasDown = consecutiveFailures > 0;
+  consecutiveFailures = 0;
+  lastSuccessfulSync = new Date();
+
   const details = [
     `Customers: ${custResult.created} new, ${custResult.updated} updated (${rawCustomers.length} fetched)`,
     `Invoices: ${invResult.created} new, ${invResult.skipped} skipped (${rawInvoices.length} fetched)`,
@@ -573,6 +634,14 @@ export async function runFullMirror(): Promise<{
   ].join(" | ");
 
   log.info(`Mirror complete: ${details}`);
+
+  // Alert recovery if it was previously down
+  if (wasDown) {
+    try {
+      const { sendTelegram } = await import("./telegram");
+      await sendTelegram(`✅ ALG MIRROR RECOVERED: ${invResult.created} new invoices, ${custResult.created} new customers imported.`);
+    } catch {}
+  }
 
   // Teach Nick AI about new invoices from the physical shop
   if (invResult.created > 0) {
@@ -590,4 +659,70 @@ export async function runFullMirror(): Promise<{
   }
 
   return { recordsProcessed: total, details };
+}
+
+// ─── ALERT HELPER ──────────────────────────────────────
+// Rate-limited Telegram alerts for mirror failures
+async function sendMirrorAlert(msg: string): Promise<void> {
+  // Don't spam — cooldown between alerts
+  if (lastAlertSent && Date.now() - lastAlertSent.getTime() < ALERT_COOLDOWN_MS) {
+    // But escalate if it's been failing a LOT (>6 consecutive = 1.5 hours of failure)
+    if (consecutiveFailures < 6) return;
+  }
+
+  try {
+    const { sendTelegram } = await import("./telegram");
+    await sendTelegram(msg);
+    lastAlertSent = new Date();
+  } catch (err) {
+    log.error("Failed to send mirror alert to Telegram", { error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+// ─── DATA STALENESS CHECK ──────────────────────────────
+// Check how many days since the most recent invoice in our DB
+async function getDataStaleDays(): Promise<number | null> {
+  try {
+    const d = await getDb();
+    if (!d) return null;
+    const { sql } = await import("drizzle-orm");
+    const [rows] = await d.execute(sql`SELECT MAX(invoiceDate) as latest FROM invoices WHERE source = 'shopdriver'`);
+    const latest = (rows as any[])?.[0]?.latest;
+    if (!latest) return null;
+    return Math.round((Date.now() - new Date(latest).getTime()) / (1000 * 60 * 60 * 24));
+  } catch {
+    return null;
+  }
+}
+
+// ─── HEALTH CHECK (called by scheduler) ────────────────
+// Returns health status for the ALG mirror — used by heartbeat tier
+export async function checkMirrorHealth(): Promise<{
+  recordsProcessed: number;
+  details: string;
+}> {
+  const staleDays = await getDataStaleDays();
+  const status = {
+    consecutiveFailures,
+    lastSuccessfulSync: lastSuccessfulSync?.toISOString() || "never this session",
+    staleDays,
+    sessionActive: mirrorSession !== null && Date.now() < (mirrorSession?.expiresAt || 0),
+  };
+
+  // CRITICAL: Invoice data is more than 1 day stale
+  if (staleDays !== null && staleDays > 1) {
+    const msg = `🚨 ALG DATA STALE: Last invoice is ${staleDays} days old! ` +
+      `Consecutive sync failures: ${consecutiveFailures}. ` +
+      `Dashboard stats, revenue, and NOUR OS are all showing outdated data. ` +
+      `Check AUTO_LABOR_USERNAME/PASSWORD env vars and ShopDriver endpoint availability.`;
+    await sendMirrorAlert(msg);
+    return { recordsProcessed: 0, details: `STALE: ${staleDays}d old | fails: ${consecutiveFailures}` };
+  }
+
+  // WARNING: Some failures but data not yet stale
+  if (consecutiveFailures > 2) {
+    return { recordsProcessed: 0, details: `WARNING: ${consecutiveFailures} consecutive failures | data: ${staleDays ?? "?"}d old` };
+  }
+
+  return { recordsProcessed: 1, details: `OK | data: ${staleDays ?? 0}d old | session: ${status.sessionActive ? "active" : "expired"}` };
 }

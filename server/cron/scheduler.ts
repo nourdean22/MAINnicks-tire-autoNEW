@@ -122,6 +122,14 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "alg-mirror-health", // CRITICAL: detect stale ALG data fast
+        businessHoursOnly: true,
+        handler: async () => {
+          const { checkMirrorHealth } = await import("../services/shopDriverMirror");
+          return checkMirrorHealth();
+        },
+      },
+      {
         name: "data-accuracy-check",
         handler: async () => {
           // Verify data consistency every 5 minutes
