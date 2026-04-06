@@ -224,6 +224,14 @@ export function startTieredScheduler(): void {
           return detectOverdueWorkOrders();
         },
       },
+      {
+        name: "gateway-order-status-poll", // Detect stale/stuck tire orders
+        businessHoursOnly: true,
+        handler: async () => {
+          const { pollGatewayOrderStatuses } = await import("../services/dataPipelines");
+          return pollGatewayOrderStatuses();
+        },
+      },
     ],
     running: false,
     lastRun: null,
@@ -413,6 +421,20 @@ export function startTieredScheduler(): void {
             const result = await sendEscalationAlerts();
             return { recordsProcessed: result.sent, details: `${result.sent} escalation alerts sent` };
           } catch { return { details: "Escalation check skipped" }; }
+        },
+      },
+      {
+        name: "sync-visit-dates", // Update customer lastVisitDate from invoices + WOs
+        handler: async () => {
+          const { syncVisitDatesFromInvoices } = await import("../services/dataPipelines");
+          return syncVisitDatesFromInvoices();
+        },
+      },
+      {
+        name: "enrich-customer-data", // Merge totalSpent, visitCount, vehicle from all sources
+        handler: async () => {
+          const { enrichCustomerData } = await import("../services/dataPipelines");
+          return enrichCustomerData();
         },
       },
       {
@@ -647,6 +669,35 @@ export function startTieredScheduler(): void {
         handler: async () => {
           const { processEstimateFollowUp } = await import("../services/workOrderAutomation");
           return processEstimateFollowUp();
+        },
+      },
+      {
+        name: "gateway-price-refresh", // Auto-fetch wholesale tire prices from Gateway B2B
+        requiresEnv: "GATEWAY_TIRE_USERNAME",
+        handler: async () => {
+          const { refreshGatewayPrices } = await import("../services/dataPipelines");
+          return refreshGatewayPrices();
+        },
+      },
+      {
+        name: "invoice-cross-reconciliation", // Match invoices, flag anomalies, daily totals
+        handler: async () => {
+          const { crossReconcileInvoices } = await import("../services/dataPipelines");
+          return crossReconcileInvoices();
+        },
+      },
+      {
+        name: "tire-inventory-intelligence", // Track popular sizes, low-stock alerts
+        handler: async () => {
+          const { analyzeTireInventory } = await import("../services/dataPipelines");
+          return analyzeTireInventory();
+        },
+      },
+      {
+        name: "revenue-analytics-pipeline", // Week-over-week, monthly metrics, top services
+        handler: async () => {
+          const { processRevenueAnalytics } = await import("../services/dataPipelines");
+          return processRevenueAnalytics();
         },
       },
       {
