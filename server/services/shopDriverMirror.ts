@@ -14,7 +14,10 @@ import { eq } from "drizzle-orm";
 
 const log = createLogger("shopdriver-mirror");
 
+// Frontend SPA shell (for reference only)
 const SHOPDRIVER_BASE = "https://secure.autolaborexperts.com";
+// Actual API backend — GUID subdomain discovered from SPA network calls
+const SHOPDRIVER_API = "https://8DD0FCE9-80F9-4A9E-B0C3-CF76825AD9B7.autolaborexperts.com";
 
 // ─── FAILURE TRACKING ──────────────────────────────────
 // Track consecutive failures so we can escalate alerts
@@ -24,12 +27,12 @@ let lastAlertSent: Date | null = null;
 const ALERT_COOLDOWN_MS = 2 * 60 * 60 * 1000; // Don't spam — max 1 alert every 2 hours
 
 // ─── SESSION AUTH ──────────────────────────────────────
-// IMPORTANT: ShopDriver uses single-session auth.
-// When someone logs in at the shop computer, it kills our session.
-// So we NEVER cache sessions between sync runs — always re-auth fresh.
-// Within a single sync run we reuse the cookie (customers + invoices).
+// ShopDriver uses JWT token auth via a GUID-subdomain API.
+// The SPA at secure.autolaborexperts.com calls the GUID API for all data.
+// When someone logs in at the shop computer, it MAY invalidate our token.
+// We keep tokens for 3 min (one sync run), then re-auth fresh.
 
-let mirrorSession: { cookie: string; expiresAt: number } | null = null;
+let mirrorSession: { token: string; expiresAt: number } | null = null;
 
 /** Force-clear the cached session */
 function invalidateSession() {
@@ -37,16 +40,16 @@ function invalidateSession() {
 }
 
 /**
- * Detect if an HTTP response is actually a login-page redirect
- * (ShopDriver kills our session when shop staff log in)
+ * Detect if an API response means our token is dead.
+ * ShopDriver API returns 401/403 for expired tokens.
  */
 function isSessionKicked(res: Response, body?: string): boolean {
-  // Redirect to login page
+  // 401/403 = token expired or invalidated
+  if (res.status === 401 || res.status === 403) return true;
+  // Redirect to login page (shouldn't happen with API calls but check anyway)
   const location = res.headers.get("location") || "";
   if (location.includes("/login") || location.includes("/signin")) return true;
-  // 401/403 = session dead
-  if (res.status === 401 || res.status === 403) return true;
-  // HTML body contains login form = we got redirected to login
+  // HTML body contains login form = we got the SPA shell instead of data
   if (body && (
     body.includes('name="password"') ||
     body.includes('id="login-form"') ||
@@ -57,10 +60,9 @@ function isSessionKicked(res: Response, body?: string): boolean {
 }
 
 async function getSession(): Promise<string | null> {
-  // Only reuse within a 3-minute window (covers one sync run)
-  // This prevents holding a dead cookie between 15-min sync cycles
+  // Reuse token within a 3-minute window (covers one sync run)
   if (mirrorSession && Date.now() < mirrorSession.expiresAt) {
-    return mirrorSession.cookie;
+    return mirrorSession.token;
   }
 
   const username = process.env.AUTO_LABOR_USERNAME;
@@ -70,9 +72,10 @@ async function getSession(): Promise<string | null> {
     return null;
   }
 
-  // Try JSON login first
+  // ShopDriver API uses /api/account/login with {login, password} fields
+  // Returns a JWT token in the response body (not cookies)
   try {
-    const res = await fetch(`${SHOPDRIVER_BASE}/api/auth/login`, {
+    const res = await fetch(`${SHOPDRIVER_API}/api/account/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -80,60 +83,77 @@ async function getSession(): Promise<string | null> {
         "Origin": SHOPDRIVER_BASE,
         "Referer": `${SHOPDRIVER_BASE}/`,
       },
-      body: JSON.stringify({ username, password }),
-      redirect: "manual",
-      signal: AbortSignal.timeout(10000),
+      body: JSON.stringify({
+        login: username,     // Field is "login" not "username"
+        password,
+        ipAddress: "",
+        location: "",
+      }),
+      signal: AbortSignal.timeout(15000),
     });
 
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      log.error(`Login failed: HTTP ${res.status}`, { body: errBody.substring(0, 300) });
+      return null;
+    }
+
+    const data = await res.json();
+    log.info("Login response keys", { keys: Object.keys(data), hasToken: !!data.token, hasJwt: !!data.jwt, hasAccessToken: !!data.accessToken, hasData: !!data.data });
+
+    // Extract JWT — try common response shapes
+    const token = data.token || data.jwt || data.accessToken || data.access_token ||
+      data.data?.token || data.data?.jwt || data.data?.accessToken ||
+      data.result?.token || data.result?.jwt;
+
+    if (token && typeof token === "string") {
+      mirrorSession = { token, expiresAt: Date.now() + 3 * 60 * 1000 };
+      log.info("Authenticated via JWT token");
+      return token;
+    }
+
+    // If no obvious token field, check if the response IS the token (raw string)
+    if (typeof data === "string" && data.length > 20) {
+      mirrorSession = { token: data, expiresAt: Date.now() + 3 * 60 * 1000 };
+      log.info("Authenticated — raw token response");
+      return data;
+    }
+
+    // Also check for cookies as fallback (some APIs set both)
     const cookies = res.headers.getSetCookie?.() || [];
     const cookie = cookies.map(c => c.split(";")[0]).join("; ");
     if (cookie) {
-      // 3-minute cache — just enough for one sync run, not long enough to go stale
-      mirrorSession = { cookie, expiresAt: Date.now() + 3 * 60 * 1000 };
-      log.info("Authenticated via JSON login");
-      return cookie;
+      mirrorSession = { token: `cookie:${cookie}`, expiresAt: Date.now() + 3 * 60 * 1000 };
+      log.info("Authenticated via cookie fallback");
+      return `cookie:${cookie}`;
     }
+
+    // Log full response for debugging if we can't find the token
+    log.error("Login succeeded but couldn't extract token", { response: JSON.stringify(data).substring(0, 500) });
+    return null;
   } catch (err) {
-    log.warn("JSON login failed, trying form login", { error: err instanceof Error ? err.message : String(err) });
+    log.error("API login failed", { error: err instanceof Error ? err.message : String(err) });
+    return null;
   }
-
-  // Try form-based login
-  try {
-    const res = await fetch(`${SHOPDRIVER_BASE}/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Origin": SHOPDRIVER_BASE,
-        "Referer": `${SHOPDRIVER_BASE}/`,
-      },
-      body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
-      redirect: "manual",
-      signal: AbortSignal.timeout(10000),
-    });
-
-    const cookies = res.headers.getSetCookie?.() || [];
-    const cookie = cookies.map(c => c.split(";")[0]).join("; ");
-    if (cookie) {
-      mirrorSession = { cookie, expiresAt: Date.now() + 3 * 60 * 1000 };
-      log.info("Authenticated via form login");
-      return cookie;
-    }
-  } catch (err) {
-    log.error("Form login also failed", { error: err instanceof Error ? err.message : String(err) });
-  }
-
-  return null;
 }
 
 // ─── FETCH HELPERS ──────────────────────────────────────
 
-const HEADERS = (cookie: string) => ({
-  "Cookie": cookie,
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-  "Accept": "application/json, text/html, */*",
-  "Referer": `${SHOPDRIVER_BASE}/`,
-});
+/** Build headers for authenticated API requests. Handles both JWT and cookie auth. */
+const HEADERS = (token: string): Record<string, string> => {
+  const base: Record<string, string> = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Accept": "application/json, text/html, */*",
+    "Referer": `${SHOPDRIVER_BASE}/`,
+  };
+  // If token starts with "cookie:" it's a cookie fallback
+  if (token.startsWith("cookie:")) {
+    base["Cookie"] = token.slice(7);
+  } else {
+    base["Authorization"] = `Bearer ${token}`;
+  }
+  return base;
+};
 
 interface RawCustomer {
   name: string;
@@ -164,53 +184,60 @@ interface RawInvoice {
 
 /**
  * Try multiple endpoint patterns to fetch customer data.
- * ShopDriver may expose JSON API or server-rendered HTML.
- * Detects kicked sessions (shop login killed our cookie).
+ * ShopDriver API uses ASP.NET-style /api/{Controller}/{Action} routes
+ * on the GUID subdomain. Detects expired tokens.
  */
-async function fetchCustomers(cookie: string): Promise<RawCustomer[]> {
+async function fetchCustomers(token: string): Promise<RawCustomer[]> {
+  // ASP.NET Controller/Action patterns for customers
   const endpoints = [
+    "/api/customer/getAll",
+    "/api/customer/list",
+    "/api/customer/search",
+    "/api/customer/get",
+    "/api/customers/getAll",
     "/api/customers",
-    "/api/customers?limit=500",
-    "/customers",
-    "/customer-list",
-    "/api/v1/customers",
   ];
 
   for (const endpoint of endpoints) {
     try {
-      const res = await fetch(`${SHOPDRIVER_BASE}${endpoint}`, {
-        headers: HEADERS(cookie),
-        redirect: "manual", // Don't follow redirects — detect login redirects
+      const res = await fetch(`${SHOPDRIVER_API}${endpoint}`, {
+        headers: HEADERS(token),
         signal: AbortSignal.timeout(15000),
       });
 
-      // Detect session killed by shop login
+      // Log every attempt for endpoint discovery
+      log.info(`Customer endpoint probe: ${endpoint} → ${res.status} ${res.headers.get("content-type") || "no-type"}`);
+
+      // Detect expired token
       if (isSessionKicked(res)) {
-        log.warn(`Session kicked detected on ${endpoint} — shop login likely killed our session`);
+        log.warn(`Token expired on ${endpoint}`);
         invalidateSession();
-        return []; // Caller will retry with fresh auth
+        return [];
       }
 
       if (!res.ok) continue;
 
       const contentType = res.headers.get("content-type") || "";
 
-      // JSON response
       if (contentType.includes("application/json")) {
         const data = await res.json();
-        const items = Array.isArray(data) ? data : (data.customers || data.data || data.items || []);
-        if (items.length > 0) {
-          log.info(`Fetched ${items.length} customers from ${endpoint} (JSON)`);
-          return items.map(normalizeCustomerJson);
+        // Handle various response shapes
+        const items = Array.isArray(data) ? data
+          : (data.customers || data.data || data.items || data.result || data.results || []);
+        const list = Array.isArray(items) ? items : [];
+        if (list.length > 0) {
+          log.info(`Fetched ${list.length} customers from ${endpoint} (JSON)`);
+          return list.map(normalizeCustomerJson);
         }
+        // Log empty but valid responses for debugging
+        log.info(`${endpoint} returned JSON but 0 items`, { keys: Object.keys(data), type: typeof data });
       }
 
-      // HTML response — parse table rows
+      // HTML fallback — parse table rows
       if (contentType.includes("text/html")) {
         const html = await res.text();
-        // Check if we got a login page instead of data
         if (isSessionKicked(res, html)) {
-          log.warn(`Login page returned on ${endpoint} — session was killed`);
+          log.warn(`Login page returned on ${endpoint} — token was invalid`);
           invalidateSession();
           return [];
         }
@@ -231,33 +258,41 @@ async function fetchCustomers(cookie: string): Promise<RawCustomer[]> {
 
 /**
  * Try multiple endpoint patterns to fetch invoice/ticket data.
- * Detects kicked sessions (shop login killed our cookie).
+ * ShopDriver API uses ASP.NET-style /api/{Controller}/{Action} routes.
+ * The SPA shows "Recent Tickets" after login, so tickets are the primary entity.
  */
-async function fetchInvoices(cookie: string): Promise<RawInvoice[]> {
+async function fetchInvoices(token: string): Promise<RawInvoice[]> {
+  // ASP.NET Controller/Action patterns for tickets/invoices
+  // Bundle analysis showed: settings/ticket, reports/totalSales, etc.
   const endpoints = [
+    "/api/ticket/getRecent",
+    "/api/ticket/getAll",
+    "/api/ticket/list",
+    "/api/ticket/search",
+    "/api/ticket/get",
+    "/api/invoice/getAll",
+    "/api/invoice/list",
+    "/api/invoice/getRecent",
     "/api/invoices",
-    "/api/invoices?limit=500",
     "/api/tickets",
-    "/api/tickets?limit=500&sort=date_desc",
-    "/invoices",
-    "/tickets",
-    "/recent",
-    "/api/v1/invoices",
+    "/api/reports/totalSales",
   ];
 
   for (const endpoint of endpoints) {
     try {
-      const res = await fetch(`${SHOPDRIVER_BASE}${endpoint}`, {
-        headers: HEADERS(cookie),
-        redirect: "manual", // Don't follow redirects — detect login redirects
+      const res = await fetch(`${SHOPDRIVER_API}${endpoint}`, {
+        headers: HEADERS(token),
         signal: AbortSignal.timeout(15000),
       });
 
-      // Detect session killed by shop login
+      // Log every attempt for endpoint discovery
+      log.info(`Invoice endpoint probe: ${endpoint} → ${res.status} ${res.headers.get("content-type") || "no-type"}`);
+
+      // Detect expired token
       if (isSessionKicked(res)) {
-        log.warn(`Session kicked detected on ${endpoint} — shop login likely killed our session`);
+        log.warn(`Token expired on ${endpoint}`);
         invalidateSession();
-        return []; // Caller will retry with fresh auth
+        return [];
       }
 
       if (!res.ok) continue;
@@ -266,18 +301,25 @@ async function fetchInvoices(cookie: string): Promise<RawInvoice[]> {
 
       if (contentType.includes("application/json")) {
         const data = await res.json();
-        const items = Array.isArray(data) ? data : (data.invoices || data.tickets || data.data || data.items || []);
-        if (items.length > 0) {
-          log.info(`Fetched ${items.length} invoices from ${endpoint} (JSON)`);
-          return items.map(normalizeInvoiceJson);
+        // Handle various response shapes
+        const items = Array.isArray(data) ? data
+          : (data.invoices || data.tickets || data.data || data.items || data.result || data.results || []);
+        const list = Array.isArray(items) ? items : [];
+        if (list.length > 0) {
+          log.info(`Fetched ${list.length} invoices from ${endpoint} (JSON)`, {
+            sampleKeys: list[0] ? Object.keys(list[0]).slice(0, 15) : [],
+          });
+          return list.map(normalizeInvoiceJson);
         }
+        // Log empty but valid responses for debugging
+        log.info(`${endpoint} returned JSON but 0 items`, { keys: Object.keys(data), type: typeof data });
       }
 
+      // HTML fallback — parse table rows (for /recent page on SPA base)
       if (contentType.includes("text/html")) {
         const html = await res.text();
-        // Check if we got a login page instead of data
         if (isSessionKicked(res, html)) {
-          log.warn(`Login page returned on ${endpoint} — session was killed`);
+          log.warn(`Login page returned on ${endpoint} — token was invalid`);
           invalidateSession();
           return [];
         }
@@ -291,6 +333,25 @@ async function fetchInvoices(cookie: string): Promise<RawInvoice[]> {
       log.warn(`Endpoint ${endpoint} failed`, { error: err instanceof Error ? err.message : String(err) });
     }
   }
+
+  // Last resort: try scraping the SPA /recent page (it renders tickets client-side)
+  // This won't work with token auth but try with cookie fallback
+  try {
+    const res = await fetch(`${SHOPDRIVER_BASE}/recent`, {
+      headers: HEADERS(token),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (res.ok) {
+      const html = await res.text();
+      if (!isSessionKicked(res, html)) {
+        const invoices = parseInvoiceHtml(html);
+        if (invoices.length > 0) {
+          log.info(`Scraped ${invoices.length} invoices from SPA /recent (HTML)`);
+          return invoices;
+        }
+      }
+    }
+  } catch {}
 
   log.warn("No invoice data found from any endpoint");
   return [];
@@ -618,8 +679,8 @@ export async function runFullMirror(): Promise<{
   const start = Date.now();
   log.info("Starting full ShopDriver mirror sync");
 
-  const cookie = await getSession();
-  if (!cookie) {
+  const token = await getSession();
+  if (!token) {
     consecutiveFailures++;
     const msg = `🚨 ALG MIRROR DOWN: Auth failed (attempt #${consecutiveFailures}). No credentials or login rejected. Dashboard data is STALE.`;
     log.error(msg);
@@ -629,20 +690,20 @@ export async function runFullMirror(): Promise<{
 
   // Fetch in parallel
   let [rawCustomers, rawInvoices] = await Promise.all([
-    fetchCustomers(cookie),
-    fetchInvoices(cookie),
+    fetchCustomers(token),
+    fetchInvoices(token),
   ]);
 
-  // If we got 0 invoices, the session was likely killed by a shop login.
+  // If we got 0 invoices, the token may have been invalidated by a shop login.
   // Force fresh re-auth and retry — this is the most common failure mode.
   if (rawInvoices.length === 0) {
-    log.warn("0 invoices — likely session kicked by shop login. Re-authenticating...");
+    log.warn("0 invoices — possible token invalidation. Re-authenticating...");
     invalidateSession();
-    const freshCookie = await getSession();
-    if (freshCookie) {
+    const freshToken = await getSession();
+    if (freshToken) {
       const [retryCust, retryInv] = await Promise.all([
-        rawCustomers.length === 0 ? fetchCustomers(freshCookie) : Promise.resolve(rawCustomers),
-        fetchInvoices(freshCookie),
+        rawCustomers.length === 0 ? fetchCustomers(freshToken) : Promise.resolve(rawCustomers),
+        fetchInvoices(freshToken),
       ]);
       rawCustomers = retryCust;
       rawInvoices = retryInv;

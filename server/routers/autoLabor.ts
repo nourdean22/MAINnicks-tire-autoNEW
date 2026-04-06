@@ -17,14 +17,15 @@ async function db() {
 }
 
 const SHOPDRIVER_BASE = "https://secure.autolaborexperts.com";
+const SHOPDRIVER_API = "https://8DD0FCE9-80F9-4A9E-B0C3-CF76825AD9B7.autolaborexperts.com";
 
-// Session management for ShopDriver
-let shopDriverSession: { cookie: string; expiresAt: number } | null = null;
+// Session management for ShopDriver — JWT token auth
+let shopDriverSession: { token: string; expiresAt: number } | null = null;
 
-/** Authenticate with ShopDriver Elite */
+/** Authenticate with ShopDriver Elite via GUID API endpoint */
 async function getShopDriverSession(): Promise<string | null> {
   if (shopDriverSession && Date.now() < shopDriverSession.expiresAt) {
-    return shopDriverSession.cookie;
+    return shopDriverSession.token;
   }
 
   const username = process.env.AUTO_LABOR_USERNAME;
@@ -36,8 +37,7 @@ async function getShopDriverSession(): Promise<string | null> {
   }
 
   try {
-    // Try form-based login
-    const res = await fetch(`${SHOPDRIVER_BASE}/api/auth/login`, {
+    const res = await fetch(`${SHOPDRIVER_API}/api/account/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -45,47 +45,47 @@ async function getShopDriverSession(): Promise<string | null> {
         "Origin": SHOPDRIVER_BASE,
         "Referer": `${SHOPDRIVER_BASE}/`,
       },
-      body: JSON.stringify({ username, password }),
-      redirect: "manual",
-      signal: AbortSignal.timeout(10000),
+      body: JSON.stringify({
+        login: username,
+        password,
+        ipAddress: "",
+        location: "",
+      }),
+      signal: AbortSignal.timeout(15000),
     });
 
-    const setCookies = res.headers.getSetCookie?.() || [];
-    const cookieStr = setCookies.map(c => c.split(";")[0]).join("; ");
+    if (!res.ok) {
+      console.error(`[ShopDriver] Login failed: HTTP ${res.status}`);
+      return null;
+    }
 
+    const data = await res.json();
+
+    // Extract JWT token — try common shapes
+    const token = data.token || data.jwt || data.accessToken || data.access_token ||
+      data.data?.token || data.data?.jwt || data.data?.accessToken ||
+      data.result?.token || data.result?.jwt;
+
+    if (token && typeof token === "string") {
+      shopDriverSession = {
+        token,
+        expiresAt: Date.now() + 3 * 60 * 1000,
+      };
+      return token;
+    }
+
+    // Check for cookies as fallback
+    const cookies = res.headers.getSetCookie?.() || [];
+    const cookieStr = cookies.map(c => c.split(";")[0]).join("; ");
     if (cookieStr) {
       shopDriverSession = {
-        cookie: cookieStr,
-        expiresAt: Date.now() + 3 * 60 * 1000, // Short cache — shop logins kill our session
+        token: `cookie:${cookieStr}`,
+        expiresAt: Date.now() + 3 * 60 * 1000,
       };
-      return cookieStr;
+      return `cookie:${cookieStr}`;
     }
 
-    // Try alternate login endpoint
-    const altRes = await fetch(`${SHOPDRIVER_BASE}/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Origin": SHOPDRIVER_BASE,
-        "Referer": `${SHOPDRIVER_BASE}/`,
-      },
-      body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
-      redirect: "manual",
-      signal: AbortSignal.timeout(10000),
-    });
-
-    const altCookies = altRes.headers.getSetCookie?.() || [];
-    const altCookieStr = altCookies.map(c => c.split(";")[0]).join("; ");
-
-    if (altCookieStr) {
-      shopDriverSession = {
-        cookie: altCookieStr,
-        expiresAt: Date.now() + 3 * 60 * 1000, // Short cache — shop logins kill our session
-      };
-      return altCookieStr;
-    }
-
+    console.error("[ShopDriver] Login OK but no token found", Object.keys(data));
     return null;
   } catch (err) {
     console.error("[ShopDriver] Auth error:", err);
