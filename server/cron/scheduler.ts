@@ -156,8 +156,10 @@ export function startTieredScheduler(): void {
             if (Number(cbCount) > 0) issues.push(`${cbCount} callbacks unanswered >24h`);
 
             if (issues.length > 0) {
-              const { sendTelegram } = await import("../services/telegram");
-              await sendTelegram(`⚠️ DATA ACCURACY CHECK\n\n${issues.join("\n")}\n\nAction needed in admin dashboard.`);
+              // Log internally only — no external notifications
+              const { createLogger } = await import("../lib/logger");
+              const accuracyLog = createLogger("cron:data-accuracy");
+              accuracyLog.warn("Data accuracy issues found", { issues });
               const { remember } = await import("../services/nickMemory");
               await remember({ type: "lesson", content: `Data accuracy: ${issues.join(". ")}`, source: "accuracy_check", confidence: 0.8 });
             }
