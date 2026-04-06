@@ -221,9 +221,9 @@ export function registerBridgeRoutes(app: Express): void {
   // Force ShopDriver/ALG mirror sync (instead of waiting for 15-min pulse)
   app.post("/api/bridge/trigger-mirror", bridgeAuth, async (_req, res) => {
     try {
-      const { runFullMirror } = await import("../services/shopDriverMirror");
+      const { runFullMirror, debugLastFetch } = await import("../services/shopDriverMirror");
       const result = await runFullMirror();
-      res.json({ success: true, ...result, timestamp: new Date().toISOString() });
+      res.json({ success: true, ...result, debug: debugLastFetch(), timestamp: new Date().toISOString() });
     } catch (err: any) {
       console.error("[Bridge] Mirror trigger error:", err);
       res.status(500).json({ error: err.message || "Mirror sync failed" });
