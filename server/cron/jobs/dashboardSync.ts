@@ -39,12 +39,30 @@ export async function processDashboardSync(): Promise<{ recordsProcessed: number
       .from(callbackRequests)
       .where(gte(callbackRequests.createdAt, sql`${todayStr}`));
 
+    // ALG invoice data — the real shop floor numbers
+    let invoiceCount = 0;
+    let todayRevenue = 0;
+    try {
+      const { invoices } = await import("../../../drizzle/schema");
+      const [invMetrics] = await db.execute(sql`
+        SELECT COUNT(*) as cnt, COALESCE(SUM(totalAmount), 0) as rev
+        FROM invoices WHERE DATE(invoiceDate) = ${todayStr}
+      `);
+      const inv = (invMetrics as any[])?.[0];
+      if (inv) {
+        invoiceCount = Number(inv.cnt) || 0;
+        todayRevenue = Math.round((Number(inv.rev) || 0) / 100); // cents → dollars
+      }
+    } catch {}
+
     const metrics = {
       date: new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" }),
       time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" }),
       bookings: todayBookings?.count || 0,
       leads: todayLeads?.count || 0,
       callbacks: todayCallbacks?.count || 0,
+      invoices: invoiceCount,
+      revenue: todayRevenue,
     };
 
     // Write to Google Sheets Dashboard tab

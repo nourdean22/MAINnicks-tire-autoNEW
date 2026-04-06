@@ -36,7 +36,9 @@ export type BusinessEvent =
   | "review_detected"
   | "campaign_sent"
   | "stage_changed"
-  | "social_posted";
+  | "social_posted"
+  | "mirror_synced"
+  | "data_refreshed";
 
 export interface EventPayload {
   type: BusinessEvent;
@@ -284,6 +286,7 @@ async function ensureInitialized(): Promise<void> {
           emergency_request: "emergency", review_detected: "review",
           campaign_sent: "campaign", social_posted: "campaign",
           stage_changed: "stage-change",
+          mirror_synced: "sync", data_refreshed: "sync",
         };
 
         await fetch(`${statenourUrl}/api/sync/events`, {
