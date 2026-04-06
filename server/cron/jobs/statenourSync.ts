@@ -203,6 +203,19 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
           return getTopQuestions(5);
         } catch { return []; }
       })(),
+      // ═══ ALG Source-of-Truth Health ═══
+      algHealth: await (async () => {
+        try {
+          const { checkMirrorHealth } = await import("../../services/shopDriverMirror");
+          const health = await checkMirrorHealth();
+          return {
+            status: health.recordsProcessed > 0 ? "ok" : "degraded",
+            details: health.details,
+          };
+        } catch { return { status: "unknown", details: "health check failed" }; }
+      })(),
+      // ═══ Shop Floor (ALG-sourced) ═══
+      shopFloor: stats.shopFloor || null,
     };
 
     const res = await fetch(`${statenourUrl}/api/sync/business`, {
