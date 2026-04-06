@@ -303,6 +303,24 @@ export function registerBridgeRoutes(app: Express): void {
     }
   });
 
+  // Ad-hoc diagnostic query (read-only)
+  app.post("/api/bridge/diag", bridgeAuth, async (req, res) => {
+    try {
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
+      const query = req.body.query;
+      if (!query || typeof query !== "string") { res.status(400).json({ error: "query required" }); return; }
+      // Only allow SELECT for safety
+      if (!query.trim().toUpperCase().startsWith("SELECT")) { res.status(400).json({ error: "SELECT only" }); return; }
+      const [rows] = await db.execute(sql.raw(query));
+      res.json({ rows, timestamp: new Date().toISOString() });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Get cron status (read-only action)
   app.get("/api/bridge/cron-status", bridgeAuth, async (_req, res) => {
     try {
