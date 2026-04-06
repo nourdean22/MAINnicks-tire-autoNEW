@@ -188,14 +188,11 @@ interface RawInvoice {
  * on the GUID subdomain. Detects expired tokens.
  */
 async function fetchCustomers(token: string): Promise<RawCustomer[]> {
-  // ASP.NET Controller/Action patterns for customers
+  // Real endpoints discovered from SPA bundle (axios baseURL = /api)
   const endpoints = [
-    "/api/customer/getAll",
-    "/api/customer/list",
-    "/api/customer/search",
-    "/api/customer/get",
-    "/api/customers/getAll",
-    "/api/customers",
+    "/api/Customer/listCustomers",
+    "/api/Search/getCustomerSearch",
+    "/api/Customer/potentialMatches",
   ];
 
   for (const endpoint of endpoints) {
@@ -262,20 +259,13 @@ async function fetchCustomers(token: string): Promise<RawCustomer[]> {
  * The SPA shows "Recent Tickets" after login, so tickets are the primary entity.
  */
 async function fetchInvoices(token: string): Promise<RawInvoice[]> {
-  // ASP.NET Controller/Action patterns for tickets/invoices
-  // Bundle analysis showed: settings/ticket, reports/totalSales, etc.
+  // Real endpoints discovered from SPA bundle (axios baseURL = /api)
   const endpoints = [
-    "/api/ticket/getRecent",
-    "/api/ticket/getAll",
-    "/api/ticket/list",
-    "/api/ticket/search",
-    "/api/ticket/get",
-    "/api/invoice/getAll",
-    "/api/invoice/list",
-    "/api/invoice/getRecent",
-    "/api/invoices",
-    "/api/tickets",
-    "/api/reports/totalSales",
+    "/api/ticket/listRecentTickets",
+    "/api/ticket/listTicketSessions",
+    "/api/ticket/listCustomerTickets",
+    "/api/Report/listTotalSales",
+    "/api/Search/getTicketSearch",
   ];
 
   for (const endpoint of endpoints) {
