@@ -289,8 +289,13 @@ export function registerBridgeRoutes(app: Express): void {
     try {
       const { jobName } = req.body;
       if (!jobName) { res.status(400).json({ error: "jobName required" }); return; }
+      // Try legacy registry first, then tiered scheduler
       const { runJobByName } = await import("../cron/index");
-      const result = await runJobByName(jobName);
+      let result = await runJobByName(jobName);
+      if (result.status === "not_found") {
+        const { runTierJobByName } = await import("../cron/scheduler");
+        result = await runTierJobByName(jobName);
+      }
       res.json({ ...result, timestamp: new Date().toISOString() });
     } catch (err: any) {
       console.error("[Bridge] Run job error:", err);

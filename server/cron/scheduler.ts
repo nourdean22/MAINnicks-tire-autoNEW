@@ -874,3 +874,22 @@ export function getTierStatuses(): Array<{ name: string; intervalMin: number; jo
     lastRun: t.lastRun?.toISOString() || null,
   }));
 }
+
+/**
+ * Run a single tier job by name. Searches all tiers.
+ */
+export async function runTierJobByName(jobName: string): Promise<{ status: string; recordsProcessed?: number; details?: string }> {
+  for (const tier of tiers) {
+    const job = tier.jobs.find(j => j.name === jobName);
+    if (job) {
+      try {
+        const result = await job.handler();
+        return { status: "completed", recordsProcessed: result.recordsProcessed, details: result.details };
+      } catch (err) {
+        return { status: "failed", details: err instanceof Error ? err.message : String(err) };
+      }
+    }
+  }
+  const allNames = tiers.flatMap(t => t.jobs.map(j => j.name));
+  return { status: "not_found", details: `Job "${jobName}" not found. Available: ${allNames.join(", ")}` };
+}
