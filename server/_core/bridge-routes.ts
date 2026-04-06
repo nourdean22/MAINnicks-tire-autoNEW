@@ -326,6 +326,56 @@ export function registerBridgeRoutes(app: Express): void {
     res.json(diag);
   });
 
+  // Full data cascade: mirror → sheets → statenour → brain (run all syncs)
+  app.post("/api/bridge/full-sync", bridgeAuth, async (_req, res) => {
+    const results: Record<string, any> = { timestamp: new Date().toISOString() };
+    const start = Date.now();
+
+    // 1. Mirror sync (ALG → DB)
+    try {
+      const { runFullMirror } = await import("../services/shopDriverMirror");
+      results.mirror = await runFullMirror();
+    } catch (e: any) {
+      results.mirror = { error: e.message };
+    }
+
+    // 2. Dashboard Sheets sync (DB → Google Sheets)
+    try {
+      const { processDashboardSync } = await import("../cron/jobs/dashboardSync");
+      results.sheets = await processDashboardSync();
+    } catch (e: any) {
+      results.sheets = { error: e.message };
+    }
+
+    // 3. Statenour sync (DB → NOUR OS brain)
+    try {
+      const { syncToStatenour } = await import("../cron/jobs/statenourSync");
+      results.statenour = await syncToStatenour();
+    } catch (e: any) {
+      results.statenour = { error: e.message };
+    }
+
+    // 4. Nick AI memory — learn from backlog
+    try {
+      const { remember } = await import("../services/nickMemory");
+      const mirrorDetails = results.mirror?.details || "";
+      if (mirrorDetails.includes("updated") || mirrorDetails.includes("new")) {
+        await remember({
+          type: "pattern",
+          content: `ALG MIRROR RECOVERY: Data backlog resolved. ${mirrorDetails}. All invoice data refreshed across DB, Sheets, and NOUR OS.`,
+          source: "mirror_recovery",
+          confidence: 0.9,
+        });
+      }
+      results.brain = { learned: true };
+    } catch (e: any) {
+      results.brain = { error: e.message };
+    }
+
+    results.totalDuration = `${Date.now() - start}ms`;
+    res.json(results);
+  });
+
   // Get cron status (read-only action)
   app.get("/api/bridge/cron-status", bridgeAuth, async (_req, res) => {
     try {
