@@ -412,7 +412,10 @@ function recordMetricSample(): void {
   const mem = process.memoryUsage();
   const heapUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
   const heapTotalMB = Math.round(mem.heapTotal / 1024 / 1024);
-  const heapPercent = heapTotalMB > 0 ? (heapUsedMB / heapTotalMB) * 100 : 0;
+  // Use ceiling from --max-old-space-size for accurate trending
+  const maxMatch = (process.env.NODE_OPTIONS || "").match(/--max-old-space-size=(\d+)/);
+  const ceilingMB = maxMatch ? parseInt(maxMatch[1], 10) : 512;
+  const heapPercent = ceilingMB > 0 ? (heapUsedMB / ceilingMB) * 100 : 0;
 
   // Calculate current requests per minute from recent timestamps
   const now = Date.now();
@@ -1074,7 +1077,7 @@ export function getSystemHealth() {
       heapUsedMB,
       heapTotalMB,
       rssMB: Math.round(mem.rss / 1024 / 1024),
-      heapPercent: heapTotalMB > 0 ? Math.round((heapUsedMB / heapTotalMB) * 100) : 0,
+      heapPercent: (() => { const m = (process.env.NODE_OPTIONS || "").match(/--max-old-space-size=(\d+)/); const c = m ? parseInt(m[1], 10) : 512; return c > 0 ? Math.round((heapUsedMB / c) * 100) : 0; })(),
     },
     eventLoopLagMs: Math.round(eventLoopLagMs),
     trends: analyzeTrends(),
@@ -1149,7 +1152,7 @@ export function generateDiagnosticReport(): DiagnosticReport {
       heapUsedMB,
       heapTotalMB,
       rssMB: Math.round(mem.rss / 1024 / 1024),
-      heapPercent: heapTotalMB > 0 ? Math.round((heapUsedMB / heapTotalMB) * 100) : 0,
+      heapPercent: (() => { const m = (process.env.NODE_OPTIONS || "").match(/--max-old-space-size=(\d+)/); const c = m ? parseInt(m[1], 10) : 512; return c > 0 ? Math.round((heapUsedMB / c) * 100) : 0; })(),
     },
     eventLoopLagMs: Math.round(eventLoopLagMs),
     trends: analyzeTrends(),
