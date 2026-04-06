@@ -71,6 +71,7 @@ import {
   pipelinesRouter,
   nickActionsRouter,
   paymentsRouter,
+  featureFlagsRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -181,6 +182,9 @@ export const appRouter = router({
   // Nick AI Agent Actions (quotes, work orders, follow-ups, competitor intel)
   nickActions: nickActionsRouter,
   payments: paymentsRouter,
+
+  // Feature Flags (admin toggle)
+  featureFlags: featureFlagsRouter,
 });
 
 export type AppRouter = typeof appRouter;

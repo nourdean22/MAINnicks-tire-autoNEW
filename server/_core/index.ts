@@ -220,6 +220,13 @@ async function startServer() {
     serverLog.info("Event bus initialized");
   }).catch(err => console.error("[EventBus] Failed to init:", err));
 
+  // ─── Feature Flag Seeding (idempotent) ─────────────────
+  import("../services/featureFlags").then(({ seedFlags }) => {
+    seedFlags().then(({ seeded, skipped }) => {
+      if (seeded > 0) serverLog.info(`Feature flags seeded: ${seeded} new, ${skipped} existing`);
+    }).catch(err => serverLog.warn("Feature flag seeding failed", { error: err instanceof Error ? err.message : String(err) }));
+  });
+
   // ─── Tiered Cron Scheduler ──────────────────────────────
   // 4 tiers: heartbeat(5m), pulse(15m), hourly(2h), daily(24h)
   // + 2 standalone: morning brief + daily report (12h)
