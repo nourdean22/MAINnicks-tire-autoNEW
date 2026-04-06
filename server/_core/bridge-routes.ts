@@ -290,4 +290,207 @@ export function registerBridgeRoutes(app: Express): void {
       res.json({ jobs: [], error: "Internal error" });
     }
   });
+
+  // ─── BUSINESS INTELLIGENCE — Full analytics + forecasting ────
+  app.get("/api/bridge/intelligence", bridgeAuth, async (_req, res) => {
+    try {
+      const results: Record<string, any> = { timestamp: new Date().toISOString() };
+
+      // 1. Conversion pipeline (estimate→job, lead→booking rates)
+      try {
+        const { analyzeConversionPipeline } = await import("../services/nickIntelligence");
+        results.pipeline = await analyzeConversionPipeline();
+      } catch (e: any) {
+        results.pipeline = { error: e.message };
+      }
+
+      // 2. Revenue projections (weekly, monthly, trends)
+      try {
+        const { projectRevenue } = await import("../services/nickIntelligence");
+        results.revenue = await projectRevenue();
+      } catch (e: any) {
+        results.revenue = { error: e.message };
+      }
+
+      // 3. Customer intelligence (CLV, retention, at-risk, top spenders)
+      try {
+        const { analyzeCustomers } = await import("../services/customerIntelligence");
+        const ci = await analyzeCustomers();
+        results.customers = {
+          total: ci.totalCustomers,
+          active: ci.activeCustomers,
+          lapsed: ci.lapsedCustomers,
+          lost: ci.lostCustomers,
+          newThisMonth: ci.newThisMonth,
+          retentionRate: ci.retentionRate,
+          avgTicket: ci.avgTicket,
+          avgVisitsPerCustomer: ci.avgVisitsPerCustomer,
+          avgLifetimeValue: ci.avgLifetimeValue,
+          topSpenders: ci.topSpenders.slice(0, 5),
+          atRiskCustomers: ci.atRiskCustomers.slice(0, 5),
+          servicePatterns: ci.servicePatterns.slice(0, 10),
+          dayOfWeekPattern: ci.dayOfWeekPattern,
+          peakHours: ci.peakHours,
+        };
+      } catch (e: any) {
+        results.customers = { error: e.message };
+      }
+
+      // 4. Proactive alerts (what needs attention right now)
+      try {
+        const { generateProactiveAlerts } = await import("../services/nickIntelligence");
+        results.alerts = await generateProactiveAlerts();
+      } catch (e: any) {
+        results.alerts = { error: e.message };
+      }
+
+      // 5. AI weekly insight
+      try {
+        const { generateWeeklyInsight } = await import("../services/nickIntelligence");
+        results.aiInsight = await generateWeeklyInsight();
+      } catch (e: any) {
+        results.aiInsight = e.message;
+      }
+
+      // 6. Historical revenue snapshots (last 30 days)
+      try {
+        const { getDb } = await import("../db");
+        const { invoices } = await import("../../drizzle/schema");
+        const { sql, gte, eq } = await import("drizzle-orm");
+        const d = await getDb();
+        if (d) {
+          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+          const dailyRevenue = await d.execute(sql`
+            SELECT DATE(invoiceDate) as day,
+                   COUNT(*) as jobs,
+                   COALESCE(SUM(totalAmount), 0) as revenue
+            FROM invoices
+            WHERE invoiceDate >= ${thirtyDaysAgo}
+              AND paymentStatus = 'paid'
+            GROUP BY DATE(invoiceDate)
+            ORDER BY day DESC
+          `);
+          results.dailyRevenue = (dailyRevenue as any[]).map((r: any) => ({
+            date: r.day,
+            jobs: Number(r.jobs),
+            revenue: Math.round(Number(r.revenue) / 100),
+          }));
+
+          // Monthly totals (last 6 months)
+          const sixMonthsAgo = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
+          const monthlyRevenue = await d.execute(sql`
+            SELECT DATE_FORMAT(invoiceDate, '%Y-%m') as month,
+                   COUNT(*) as jobs,
+                   COALESCE(SUM(totalAmount), 0) as revenue,
+                   ROUND(AVG(totalAmount)) as avgTicket
+            FROM invoices
+            WHERE invoiceDate >= ${sixMonthsAgo}
+              AND paymentStatus = 'paid'
+            GROUP BY DATE_FORMAT(invoiceDate, '%Y-%m')
+            ORDER BY month DESC
+          `);
+          results.monthlyRevenue = (monthlyRevenue as any[]).map((r: any) => ({
+            month: r.month,
+            jobs: Number(r.jobs),
+            revenue: Math.round(Number(r.revenue) / 100),
+            avgTicket: Math.round(Number(r.avgTicket) / 100),
+          }));
+
+          // Total historical stats
+          const [allTimeStats] = await d.execute(sql`
+            SELECT COUNT(*) as totalInvoices,
+                   COALESCE(SUM(totalAmount), 0) as totalRevenue,
+                   ROUND(AVG(totalAmount)) as avgTicket,
+                   MIN(invoiceDate) as firstInvoice,
+                   MAX(invoiceDate) as lastInvoice
+            FROM invoices WHERE paymentStatus = 'paid'
+          `) as any[];
+          results.allTime = {
+            totalInvoices: Number(allTimeStats?.totalInvoices || 0),
+            totalRevenue: Math.round(Number(allTimeStats?.totalRevenue || 0) / 100),
+            avgTicket: Math.round(Number(allTimeStats?.avgTicket || 0) / 100),
+            firstInvoice: allTimeStats?.firstInvoice,
+            lastInvoice: allTimeStats?.lastInvoice,
+          };
+
+          // Service breakdown (top services by revenue)
+          const serviceBreakdown = await d.execute(sql`
+            SELECT serviceDescription,
+                   COUNT(*) as count,
+                   COALESCE(SUM(totalAmount), 0) as revenue
+            FROM invoices
+            WHERE paymentStatus = 'paid'
+              AND serviceDescription IS NOT NULL
+              AND serviceDescription != ''
+            GROUP BY serviceDescription
+            ORDER BY revenue DESC
+            LIMIT 15
+          `);
+          results.topServices = (serviceBreakdown as any[]).map((r: any) => ({
+            service: r.serviceDescription,
+            count: Number(r.count),
+            revenue: Math.round(Number(r.revenue) / 100),
+          }));
+
+          // Payment method breakdown
+          const paymentBreakdown = await d.execute(sql`
+            SELECT paymentMethod,
+                   COUNT(*) as count,
+                   COALESCE(SUM(totalAmount), 0) as revenue
+            FROM invoices WHERE paymentStatus = 'paid'
+            GROUP BY paymentMethod
+            ORDER BY revenue DESC
+          `);
+          results.paymentMethods = (paymentBreakdown as any[]).map((r: any) => ({
+            method: r.paymentMethod,
+            count: Number(r.count),
+            revenue: Math.round(Number(r.revenue) / 100),
+          }));
+
+          // Day of week performance
+          const dayOfWeekPerf = await d.execute(sql`
+            SELECT DAYOFWEEK(invoiceDate) as dow,
+                   COUNT(*) as jobs,
+                   COALESCE(SUM(totalAmount), 0) as revenue
+            FROM invoices
+            WHERE paymentStatus = 'paid'
+              AND invoiceDate >= ${thirtyDaysAgo}
+            GROUP BY DAYOFWEEK(invoiceDate)
+            ORDER BY dow
+          `);
+          const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+          results.dayOfWeekPerformance = (dayOfWeekPerf as any[]).map((r: any) => ({
+            day: dayNames[Number(r.dow) - 1] || "?",
+            jobs: Number(r.jobs),
+            revenue: Math.round(Number(r.revenue) / 100),
+          }));
+        }
+      } catch (e: any) {
+        results.historicalError = e.message;
+      }
+
+      // 7. Revenue anomaly detection
+      try {
+        const { detectRevenueAnomalies } = await import("../services/revenuePrediction");
+        if (results.dailyRevenue?.length >= 14) {
+          results.anomalies = detectRevenueAnomalies(
+            results.dailyRevenue.map((d: any) => ({ date: d.date, amount: d.revenue, orderCount: d.jobs }))
+          );
+        }
+      } catch {}
+
+      // 8. Shop pulse (current state)
+      try {
+        const { getShopPulse } = await import("../services/nickIntelligence");
+        results.shopPulse = await getShopPulse();
+      } catch (e: any) {
+        results.shopPulse = { error: e.message };
+      }
+
+      res.json(results);
+    } catch (err: any) {
+      console.error("[Bridge] Intelligence error:", err);
+      res.status(500).json({ error: "Internal error", timestamp: new Date().toISOString() });
+    }
+  });
 }

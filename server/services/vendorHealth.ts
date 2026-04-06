@@ -203,15 +203,17 @@ async function checkGoogleSheets(): Promise<VendorHealthResult> {
   }
 
   try {
-    // @ts-ignore
-    const { google } = await import("googleapis");
-    const token = process.env.GOOGLE_DRIVE_TOKEN;
-    if (!token) throw new Error("No GOOGLE_DRIVE_TOKEN");
+    const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+    const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+    if (!email || !rawKey) throw new Error("No GOOGLE_SERVICE_ACCOUNT_EMAIL or KEY");
 
-    const auth = new google.auth.OAuth2();
-    auth.setCredentials(JSON.parse(token));
+    const { google } = await import("googleapis");
+    const privateKey = rawKey.replace(/\\n/g, "\n");
+    const auth = new google.auth.JWT(email, undefined, privateKey, [
+      "https://www.googleapis.com/auth/spreadsheets.readonly",
+    ]);
     const sheets = google.sheets({ version: "v4", auth });
-    const spreadsheetId = process.env.GOOGLE_SPREADSHEET_ID;
+    const spreadsheetId = process.env.GOOGLE_SHEETS_CRM_ID;
 
     await withTimeout(
       sheets.spreadsheets.get({ spreadsheetId: spreadsheetId! }),
