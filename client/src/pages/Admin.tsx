@@ -106,7 +106,7 @@ function SectionContent({ section }: { section: AdminSection }) {
 
 export default function Admin() {
   const { user, loading: authLoading } = useAuth();
-  const [section, setSection] = useState<AdminSection>("commandCenter");
+  const [section, setSection] = useState<AdminSection>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [drawerCustomerId, setDrawerCustomerId] = useState<number | null>(null);
 

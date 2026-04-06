@@ -2,7 +2,7 @@
  * OverviewSection — Operator "Today Board" with priority queue, SLA timers,
  * quick actions, and today's timeline. CEO-level polish.
  */
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Link } from "wouter";
@@ -14,7 +14,7 @@ import {
   Activity, AlertTriangle, BarChart3, Bell, CalendarClock, CheckCircle2,
   ChevronRight, Clock, ExternalLink, FileSpreadsheet, FileText, Globe, Hash,
   Loader2, MessageSquare, Newspaper, PieChart, Phone, Send, Sparkles, Star,
-  TrendingUp, Users, XCircle, Zap, Timer, ArrowRight, PhoneCall, RotateCcw,
+  TrendingUp, Users, Wrench, XCircle, Zap, Timer, ArrowRight, PhoneCall, RotateCcw,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
@@ -67,7 +67,7 @@ function SlaTimer({ dateStr }: { dateStr: string | Date }) {
 // ─── PRIORITY ACTION ITEM TYPE ─────────────────────────
 interface ActionItem {
   id: string;
-  type: "booking" | "lead" | "callback";
+  type: "booking" | "lead" | "callback" | "workOrder";
   name: string;
   detail: string;
   phone?: string | null;
@@ -95,8 +95,15 @@ export default function OverviewSection() {
   const { data: callbacks } = trpc.callback.list.useQuery(undefined, { refetchInterval: 30000 });
   // Nick AI intelligence — shop pulse for real-time awareness
   const { data: shopPulse } = trpc.nickActions.shopPulse.useQuery(undefined, { refetchInterval: 15000 });
+  // Work order stats from NOUR OS bridge
+  const { data: workOrderStats } = trpc.nourOsBridge.shopFloor.useQuery(undefined, { refetchInterval: 30000 });
+  // Active work orders for priority queue (blocked, overdue, urgent)
+  const { data: activeWorkOrders } = trpc.workOrders.list.useQuery(
+    { limit: 30 },
+    { refetchInterval: 30000 },
+  );
 
-  const [actionFilter, setActionFilter] = useState<"all" | "booking" | "lead" | "callback">("all");
+  const [actionFilter, setActionFilter] = useState<"all" | "booking" | "lead" | "callback" | "workOrder">("all");
 
   // Collect phones from queue items for VIP lookup
   const queuePhones = useMemo(() => {
@@ -171,13 +178,44 @@ export default function OverviewSection() {
         });
     }
 
+    // Active work orders that need attention (blocked, overdue, or high priority)
+    if (activeWorkOrders) {
+      (activeWorkOrders as any[]).forEach((wo: any) => {
+        const isBlocked = !!wo.blockerType;
+        const isOverdue = wo.promisedAt && new Date(wo.promisedAt) < new Date();
+        const isHighPriority = wo.priority === "urgent" || wo.priority === "high";
+
+        // Only surface work orders that need operator attention
+        if (!isBlocked && !isOverdue && !isHighPriority) return;
+
+        const urgency = isOverdue ? 5 : isBlocked ? 4 : isHighPriority ? 3 : 2;
+        const flags = [
+          isOverdue && "OVERDUE",
+          isBlocked && `Blocked: ${wo.blockerType}`,
+          wo.assignedTech && `Tech: ${wo.assignedTech}`,
+        ].filter(Boolean).join(" · ");
+
+        items.push({
+          id: `wo-${wo.id}`,
+          type: "workOrder",
+          name: wo.customerName || wo.customerId || "Work Order",
+          detail: `${wo.serviceDescription || wo.status?.replace(/_/g, " ") || "Service"}${flags ? ` · ${flags}` : ""}`,
+          phone: wo.customerPhone,
+          urgency,
+          createdAt: wo.createdAt,
+          status: wo.status,
+          totalRevenue: wo.total ? Number(wo.total) : undefined,
+        });
+      });
+    }
+
     // Enrich with VIP data from customer lookup
     for (const item of items) {
       if (item.phone && vipLookup[item.phone]) {
         const info = vipLookup[item.phone];
         item.isVip = info.isVip;
         item.totalVisits = info.totalVisits;
-        item.totalRevenue = info.totalRevenue;
+        item.totalRevenue = item.totalRevenue || info.totalRevenue;
         // VIP customers get urgency boost
         if (info.isVip && item.urgency < 5) item.urgency = Math.min(5, item.urgency + 1);
       }
@@ -190,7 +228,7 @@ export default function OverviewSection() {
     });
 
     return items;
-  }, [allBookings, allLeads, callbacks, vipLookup]);
+  }, [allBookings, allLeads, callbacks, activeWorkOrders, vipLookup]);
 
   const filteredQueue = actionFilter === "all" ? priorityQueue : priorityQueue.filter(i => i.type === actionFilter);
 
@@ -237,34 +275,44 @@ export default function OverviewSection() {
     { name: "Lost", value: stats.leads.lost, fill: "#EF4444" },
   ].filter(d => d.value > 0);
 
-  const typeIcons = {
+  const typeIcons: Record<ActionItem["type"], React.ReactNode> = {
     booking: <CalendarClock className="w-3.5 h-3.5 text-blue-400" />,
     lead: <Users className="w-3.5 h-3.5 text-amber-400" />,
     callback: <PhoneCall className="w-3.5 h-3.5 text-emerald-400" />,
+    workOrder: <Wrench className="w-3.5 h-3.5 text-primary" />,
   };
 
-  const typeLabels = {
+  const typeLabels: Record<ActionItem["type"], string> = {
     booking: "BOOKING",
     lead: "LEAD",
     callback: "CALLBACK",
+    workOrder: "WORK ORDER",
   };
 
-  const typeBadgeColors = {
+  const typeBadgeColors: Record<ActionItem["type"], string> = {
     booking: "text-blue-400 bg-blue-500/10",
     lead: "text-amber-400 bg-amber-500/10",
     callback: "text-emerald-400 bg-emerald-500/10",
+    workOrder: "text-primary bg-primary/10",
   };
 
   return (
     <div className="space-y-6">
       {/* ─── PRIMARY METRICS ─── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           label="Action Queue" value={priorityQueue.length}
           icon={<AlertTriangle className="w-4 h-4" />}
           color={priorityQueue.length > 0 ? "text-red-400" : "text-emerald-400"}
           trend={priorityQueue.length > 0 ? "up" : "neutral"}
           trendLabel={priorityQueue.length > 0 ? "Needs attention" : "All clear"}
+        />
+        <StatCard
+          label="Active Work Orders" value={workOrderStats?.active ?? 0}
+          icon={<Wrench className="w-4 h-4" />}
+          color={(workOrderStats?.active ?? 0) > 0 ? "text-primary" : "text-muted-foreground"}
+          trend={(workOrderStats?.blocked ?? 0) > 0 ? "down" : "neutral"}
+          trendLabel={(workOrderStats?.blocked ?? 0) > 0 ? `${workOrderStats!.blocked} blocked` : `${workOrderStats?.inProgress ?? 0} in progress`}
         />
         <StatCard
           label="Today's Bookings" value={todaysBookings.length}
@@ -372,6 +420,50 @@ export default function OverviewSection() {
         </div>
       )}
 
+      {/* ─── WORK ORDERS — Revenue in Motion ─── */}
+      {workOrderStats && (workOrderStats.active > 0 || workOrderStats.readyForPickup > 0) && (
+        <div className="bg-card border border-primary/20 rounded-lg p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <Wrench className="w-4 h-4 text-primary" />
+            <span className="text-[10px] font-bold tracking-wider text-muted-foreground">WORK ORDERS — REVENUE IN MOTION</span>
+            {workOrderStats.overdue > 0 && (
+              <span className="ml-auto text-[9px] font-bold tracking-wider px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 animate-pulse">
+                {workOrderStats.overdue} OVERDUE
+              </span>
+            )}
+            {workOrderStats.blocked > 0 && (
+              <span className={`${workOrderStats.overdue > 0 ? "" : "ml-auto"} text-[9px] font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400`}>
+                {workOrderStats.blocked} BLOCKED
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="text-center">
+              <div className="text-lg font-bold text-primary">{workOrderStats.active}</div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">ACTIVE</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-blue-400">{workOrderStats.inProgress}</div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">IN PROGRESS</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-amber-400">{workOrderStats.readyForPickup}</div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">READY PICKUP</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-emerald-400">${Math.round(workOrderStats.totalValueInProgress).toLocaleString()}</div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">VALUE IN SHOP</div>
+            </div>
+            <div className="text-center">
+              <div className={`text-lg font-bold ${workOrderStats.overdue > 0 ? "text-red-400" : "text-emerald-400"}`}>
+                {workOrderStats.overdue > 0 ? workOrderStats.overdue : "0"}
+              </div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">OVERDUE</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── PIPELINE: Website vs Walk-In Split ─── */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         <StatCard label="Online Bookings" value={stats.bookings.new} icon={<Hash className="w-3.5 h-3.5" />} color="text-blue-400" />
@@ -395,7 +487,7 @@ export default function OverviewSection() {
             )}
           </h3>
           <div className="flex gap-1">
-            {(["all", "booking", "lead", "callback"] as const).map(f => (
+            {(["all", "booking", "lead", "callback", "workOrder"] as const).map(f => (
               <button
                 key={f}
                 onClick={() => setActionFilter(f)}
@@ -405,7 +497,7 @@ export default function OverviewSection() {
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 }`}
               >
-                {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1) + "s"}
+                {f === "all" ? "All" : f === "workOrder" ? "Work Orders" : f.charAt(0).toUpperCase() + f.slice(1) + "s"}
               </button>
             ))}
           </div>
