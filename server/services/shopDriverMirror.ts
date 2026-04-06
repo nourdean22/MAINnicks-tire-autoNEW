@@ -189,17 +189,18 @@ interface RawInvoice {
  */
 async function fetchCustomers(token: string): Promise<RawCustomer[]> {
   // Real endpoints discovered from SPA bundle (axios baseURL = /api)
+  // API uses pageNumber + pageSize query params for pagination
   const endpoints = [
-    "/api/Customer/listCustomers",
-    "/api/Search/getCustomerSearch",
-    "/api/Customer/potentialMatches",
+    "/api/Customer/listCustomers?pageNumber=1&pageSize=500",
+    "/api/Search/getCustomerSearch?pageNumber=1&pageSize=500",
+    "/api/Customer/potentialMatches?pageNumber=1&pageSize=500",
   ];
 
   for (const endpoint of endpoints) {
     try {
       const res = await fetch(`${SHOPDRIVER_API}${endpoint}`, {
         headers: HEADERS(token),
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(30000),
       });
 
       // Log every attempt for endpoint discovery
@@ -260,19 +261,19 @@ async function fetchCustomers(token: string): Promise<RawCustomer[]> {
  */
 async function fetchInvoices(token: string): Promise<RawInvoice[]> {
   // Real endpoints discovered from SPA bundle (axios baseURL = /api)
+  // API uses pageNumber + pageSize query params for pagination
   const endpoints = [
-    "/api/ticket/listRecentTickets",
-    "/api/ticket/listTicketSessions",
-    "/api/ticket/listCustomerTickets",
-    "/api/Report/listTotalSales",
-    "/api/Search/getTicketSearch",
+    "/api/ticket/listRecentTickets?pageNumber=1&pageSize=500",
+    "/api/ticket/listTicketSessions?pageNumber=1&pageSize=500",
+    "/api/Report/listTotalSales?pageNumber=1&pageSize=500",
+    "/api/Search/getTicketSearch?pageNumber=1&pageSize=500",
   ];
 
   for (const endpoint of endpoints) {
     try {
       const res = await fetch(`${SHOPDRIVER_API}${endpoint}`, {
         headers: HEADERS(token),
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(30000),
       });
 
       // Log every attempt for endpoint discovery
