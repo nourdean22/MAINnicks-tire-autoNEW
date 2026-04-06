@@ -60,7 +60,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "NOUR OS",
     items: [
-      { id: "commandCenter", label: "Command Center", icon: <Zap className="w-4 h-4" /> },
+      { id: "commandCenter", label: "NOUR OS Bridge", icon: <Zap className="w-4 h-4" /> },
     ],
   },
   {
@@ -107,7 +107,7 @@ export const NAV_GROUPS: NavGroup[] = [
 export const NAV_ITEMS = NAV_GROUPS.flatMap(g => g.items);
 
 export const SECTION_TITLES: Record<AdminSection, string> = {
-  commandCenter: "Command Center",
+  commandCenter: "NOUR OS Bridge",
   overview: "Shop Dashboard",
   bookings: "Online Bookings",
   leads: "Website Leads",
