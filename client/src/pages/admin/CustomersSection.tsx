@@ -255,13 +255,35 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
               <span className="font-bold text-2xl text-foreground">{customer.totalVisits}</span>
             </div>
             <div>
+              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Total Spent</span>
+              <span className={`font-bold text-2xl ${customer.totalSpent > 0 ? "text-emerald-400" : "text-foreground/30"}`}>
+                {customer.totalSpent > 0 ? `$${Math.round(customer.totalSpent / 100).toLocaleString()}` : "—"}
+              </span>
+            </div>
+            <div>
               <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Last Visit</span>
               <span className="text-sm text-foreground flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-foreground/30" />
                 {customer.lastVisitDate ? new Date(customer.lastVisitDate).toLocaleDateString() : "Unknown"}
               </span>
             </div>
+            <div>
+              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">First Visit</span>
+              <span className="text-sm text-foreground/60">
+                {customer.firstVisitDate ? new Date(customer.firstVisitDate).toLocaleDateString() : "—"}
+              </span>
+            </div>
           </div>
+
+          {/* Vehicle Info */}
+          {customer.vehicleMake && (
+            <div className="pt-2 border-t border-border/20">
+              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Primary Vehicle</span>
+              <span className="text-sm text-foreground">
+                {[customer.vehicleYear, customer.vehicleMake, customer.vehicleModel].filter(Boolean).join(" ")}
+              </span>
+            </div>
+          )}
 
           {/* SMS Campaign Status */}
           <div className="pt-2 border-t border-border/20">
@@ -367,16 +389,21 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
   );
 }
 
+type SortByExt = "name" | "visits" | "lastVisit" | "totalSpent" | "firstVisit" | "created";
+
 export default function CustomersSection() {
   const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const [segment, setSegment] = useState<Segment>("all");
-  const [sortBy, setSortBy] = useState<SortBy>("totalSpent");
+  const [sortBy, setSortBy] = useState<SortByExt>("totalSpent");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const pageSize = 25;
   const [exporting, setExporting] = useState(false);
+  const [minVisits, setMinVisits] = useState<number | undefined>();
+  const [lastVisitDays, setLastVisitDays] = useState<number | undefined>();
+  const [showFilters, setShowFilters] = useState(false);
 
   const { data: stats } = trpc.customers.stats.useQuery(undefined, { refetchInterval: 30000 });
   const { data: campaignStats } = trpc.customers.campaignStats.useQuery(undefined, { refetchInterval: 30000 });
@@ -385,9 +412,20 @@ export default function CustomersSection() {
     pageSize,
     search: search || undefined,
     segment,
-    sortBy,
+    sortBy: sortBy as SortBy,
     sortDir,
+    minVisits,
+    lastVisitDays,
   }, { refetchInterval: 30000 });
+
+  const enrichMutation = trpc.customers.enrich.useMutation({
+    onSuccess: (result) => {
+      toast.success(`Enriched: ${result.enrichment.details}`);
+      utils.customers.list.invalidate();
+      utils.customers.stats.invalidate();
+    },
+    onError: () => toast.error("Enrichment failed"),
+  });
 
   const retryCampaign = trpc.customers.retryCampaign.useMutation({
     onSuccess: (result) => {
@@ -408,11 +446,13 @@ export default function CustomersSection() {
   return (
     <div className="space-y-6">
       {/* Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <StatCard label="Total Customers" value={stats?.total ?? 0} icon={<Users className="w-4 h-4" />} color="text-foreground" />
+        <StatCard label="With Visits" value={stats?.withVisits ?? 0} icon={<UserCheck className="w-4 h-4" />} color="text-emerald-400" />
+        <StatCard label="VIP (3+)" value={stats?.vipCount ?? 0} icon={<Crown className="w-4 h-4" />} color="text-amber-400" />
+        <StatCard label="Total Revenue" value={`$${Math.round((stats?.totalRevenue ?? 0) / 100).toLocaleString()}`} icon={<span className="text-[14px]">💰</span>} color="text-emerald-400" />
         <StatCard label="Recent" value={stats?.recent ?? 0} icon={<UserCheck className="w-4 h-4" />} color="text-emerald-400" />
         <StatCard label="Lapsed" value={stats?.lapsed ?? 0} icon={<AlertTriangle className="w-4 h-4" />} color="text-amber-400" />
-        <StatCard label="Unknown" value={stats?.unknown ?? 0} icon={<Users className="w-4 h-4" />} color="text-foreground/50" />
         <StatCard label="With Email" value={stats?.withEmail ?? 0} icon={<Mail className="w-4 h-4" />} color="text-blue-400" />
         <StatCard label="Commercial" value={stats?.commercial ?? 0} icon={<Building2 className="w-4 h-4" />} color="text-purple-400" />
       </div>
@@ -482,33 +522,112 @@ export default function CustomersSection() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/30" />
-          <input
-            type="text"
-            placeholder="Search name, phone, email, city..."
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1); }}
-            className="w-full bg-card border border-border/30 pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50"
-          />
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/30" />
+            <input
+              type="text"
+              placeholder="Search name, phone, email, city, vehicle..."
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              className="w-full bg-card border border-border/30 pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-foreground/30" />
+            {(["all", "recent", "lapsed", "new", "unknown"] as Segment[]).map(s => (
+              <button
+                key={s}
+                onClick={() => { setSegment(s); setPage(1); }}
+                className={`px-3 py-1.5 text-xs tracking-wide transition-colors ${
+                  segment === s
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-card border border-border/30 text-foreground/50 hover:text-foreground"
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => setShowFilters(f => !f)}
+            className={`px-3 py-1.5 text-xs tracking-wide transition-colors ${showFilters ? "bg-primary text-primary-foreground" : "bg-card border border-border/30 text-foreground/50 hover:text-foreground"}`}
+          >
+            Advanced
+          </button>
+          <button
+            onClick={() => enrichMutation.mutate()}
+            disabled={enrichMutation.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs tracking-wide bg-card border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50 whitespace-nowrap"
+          >
+            {enrichMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+            Sync Data
+          </button>
         </div>
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-foreground/30" />
-          {(["all", "recent", "lapsed", "unknown"] as Segment[]).map(s => (
-            <button
-              key={s}
-              onClick={() => { setSegment(s); setPage(1); }}
-              className={`px-3 py-1.5 text-xs tracking-wide transition-colors ${
-                segment === s
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-card border border-border/30 text-foreground/50 hover:text-foreground"
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
+
+        {/* Advanced Filters */}
+        {showFilters && (
+          <div className="flex flex-wrap gap-3 bg-card border border-border/30 p-3">
+            <div>
+              <label className="text-[10px] text-foreground/40 tracking-wider block mb-1">LAST VISIT WITHIN</label>
+              <select
+                value={lastVisitDays ?? ""}
+                onChange={e => { setLastVisitDays(e.target.value ? Number(e.target.value) : undefined); setPage(1); }}
+                className="bg-background border border-border/30 px-3 py-1.5 text-xs text-foreground"
+              >
+                <option value="">Any time</option>
+                <option value="7">7 days</option>
+                <option value="30">30 days</option>
+                <option value="60">60 days</option>
+                <option value="90">90 days</option>
+                <option value="180">6 months</option>
+                <option value="365">1 year</option>
+                <option value="730">2 years</option>
+                <option value="1095">3 years</option>
+                <option value="1825">5 years</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-foreground/40 tracking-wider block mb-1">MIN VISITS</label>
+              <select
+                value={minVisits ?? ""}
+                onChange={e => { setMinVisits(e.target.value ? Number(e.target.value) : undefined); setPage(1); }}
+                className="bg-background border border-border/30 px-3 py-1.5 text-xs text-foreground"
+              >
+                <option value="">Any</option>
+                <option value="1">1+</option>
+                <option value="2">2+</option>
+                <option value="3">3+ (VIP)</option>
+                <option value="5">5+</option>
+                <option value="10">10+</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-foreground/40 tracking-wider block mb-1">SORT BY</label>
+              <select
+                value={sortBy}
+                onChange={e => { setSortBy(e.target.value as SortByExt); setPage(1); }}
+                className="bg-background border border-border/30 px-3 py-1.5 text-xs text-foreground"
+              >
+                <option value="totalSpent">Total Spent</option>
+                <option value="visits">Visit Count</option>
+                <option value="lastVisit">Last Visit</option>
+                <option value="firstVisit">First Visit</option>
+                <option value="name">Name</option>
+                <option value="created">Date Added</option>
+              </select>
+            </div>
+            {(minVisits || lastVisitDays) && (
+              <button
+                onClick={() => { setMinVisits(undefined); setLastVisitDays(undefined); setPage(1); }}
+                className="self-end px-3 py-1.5 text-xs text-red-400 hover:text-red-300 tracking-wider"
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -533,6 +652,7 @@ export default function CustomersSection() {
                   Visits <ArrowUpDown className="w-3 h-3" />
                 </button>
               </th>
+              <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide hidden md:table-cell">Vehicle</th>
               <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide hidden sm:table-cell">
                 <button onClick={() => toggleSort("lastVisit")} className="flex items-center gap-1 hover:text-foreground/60">
                   Last Service <ArrowUpDown className="w-3 h-3" />
@@ -597,13 +717,28 @@ export default function CustomersSection() {
 
                     {/* Total Spent */}
                     <td className="p-3">
-                      <span className="font-mono text-foreground/60 text-[12px]">
-                        {c.totalRevenue ? `$${c.totalRevenue.toLocaleString()}` : "—"}
+                      <span className={`font-mono text-[12px] ${c.totalSpent > 0 ? "text-emerald-400" : "text-foreground/30"}`}>
+                        {c.totalSpent > 0 ? `$${Math.round(c.totalSpent / 100).toLocaleString()}` : "—"}
                       </span>
                     </td>
 
                     {/* Visits */}
-                    <td className="p-3 text-foreground/60">{c.totalVisits}</td>
+                    <td className="p-3">
+                      <span className={c.totalVisits > 0 ? "text-foreground" : "text-foreground/30"}>
+                        {c.totalVisits || "—"}
+                      </span>
+                    </td>
+
+                    {/* Vehicle */}
+                    <td className="p-3 hidden md:table-cell">
+                      {c.vehicleMake ? (
+                        <span className="text-[11px] text-foreground/50">
+                          {[c.vehicleYear, c.vehicleMake, c.vehicleModel].filter(Boolean).join(" ")}
+                        </span>
+                      ) : (
+                        <span className="text-foreground/20 text-[11px]">—</span>
+                      )}
+                    </td>
 
                     {/* Last Service */}
                     <td className="p-3 hidden sm:table-cell">

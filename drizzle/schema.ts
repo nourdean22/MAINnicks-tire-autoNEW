@@ -854,8 +854,16 @@ export const customers = mysqlTable("customers", {
   /** Individual or Commercial */
   customerType: mysqlEnum("customerType", ["individual", "commercial"]).default("individual").notNull(),
   totalVisits: int("totalVisits").default(0).notNull(),
+  /** Total spent in cents (enriched from invoices) */
+  totalSpent: int("totalSpent").default(0).notNull(),
   lastVisitDate: timestamp("lastVisitDate"),
+  /** First service date (earliest invoice/WO) */
+  firstVisitDate: timestamp("firstVisitDate"),
   balanceDue: int("balanceDue").default(0).notNull(),
+  /** Primary vehicle info (enriched from work orders) */
+  vehicleYear: varchar("vehicleYear", { length: 10 }),
+  vehicleMake: varchar("vehicleMake", { length: 50 }),
+  vehicleModel: varchar("vehicleModel", { length: 50 }),
   /** External ID from ALS shop management system */
   alsCustomerId: varchar("alsCustomerId", { length: 50 }),
   /** Customer segment for marketing */

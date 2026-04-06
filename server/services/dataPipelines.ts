@@ -356,6 +356,7 @@ export async function crossReconcileInvoices(): Promise<{ recordsProcessed: numb
 
 // ─── 5. CUSTOMER DATA ENRICHMENT ────────────────────────
 // Merge data from all sources: bookings + invoices + work orders + tire orders → customer record
+// Writes to Drizzle schema columns: totalSpent (cents), totalVisits, firstVisitDate, vehicleMake/Model/Year
 export async function enrichCustomerData(): Promise<{ recordsProcessed: number; details: string }> {
   try {
     const { getDb } = await import("../db");
@@ -363,7 +364,7 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
     const db = await getDb();
     if (!db) return { recordsProcessed: 0, details: "No DB" };
 
-    // Update customer totalSpent from invoices
+    // 1. Update totalSpent (cents) from paid invoices matched by phone
     const [spentResult] = await db.execute(sql`
       UPDATE customers c
       INNER JOIN (
@@ -374,12 +375,12 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
         GROUP BY customerPhone
       ) i ON RIGHT(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', ''), 10) =
              RIGHT(REPLACE(REPLACE(REPLACE(i.customerPhone, '-', ''), '(', ''), ')', ''), 10)
-      SET c.totalSpent = CAST(i.total / 100 AS DECIMAL(10,2))
-      WHERE (c.totalSpent IS NULL OR c.totalSpent != CAST(i.total / 100 AS DECIMAL(10,2)))
+      SET c.totalSpent = i.total
+      WHERE c.totalSpent != i.total
         AND LENGTH(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', '')) >= 10
     `);
 
-    // Update customer visitCount from invoices
+    // 2. Update totalVisits from invoice count matched by phone
     const [visitResult] = await db.execute(sql`
       UPDATE customers c
       INNER JOIN (
@@ -390,12 +391,27 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
         GROUP BY customerPhone
       ) i ON RIGHT(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', ''), 10) =
              RIGHT(REPLACE(REPLACE(REPLACE(i.customerPhone, '-', ''), '(', ''), ')', ''), 10)
-      SET c.visitCount = i.visits
-      WHERE (c.visitCount IS NULL OR c.visitCount != i.visits)
+      SET c.totalVisits = i.visits
+      WHERE c.totalVisits != i.visits
         AND LENGTH(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', '')) >= 10
     `);
 
-    // Update customer vehicle info from most recent work order
+    // 3. Update firstVisitDate from earliest invoice
+    const [firstResult] = await db.execute(sql`
+      UPDATE customers c
+      INNER JOIN (
+        SELECT customerPhone, MIN(invoiceDate) as earliest
+        FROM invoices
+        WHERE customerPhone IS NOT NULL AND invoiceDate IS NOT NULL
+          AND LENGTH(REPLACE(REPLACE(REPLACE(customerPhone, '-', ''), '(', ''), ')', '')) >= 10
+        GROUP BY customerPhone
+      ) i ON RIGHT(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', ''), 10) =
+             RIGHT(REPLACE(REPLACE(REPLACE(i.customerPhone, '-', ''), '(', ''), ')', ''), 10)
+      SET c.firstVisitDate = i.earliest
+      WHERE c.firstVisitDate IS NULL OR c.firstVisitDate > i.earliest
+    `);
+
+    // 4. Update customer vehicle info from most recent work order
     const [vehicleResult] = await db.execute(sql`
       UPDATE customers c
       INNER JOIN (
@@ -411,18 +427,56 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
       WHERE (c.vehicleMake IS NULL OR c.vehicleMake = '') AND wo.vehicleMake IS NOT NULL
     `);
 
+    // 5. Also try to match vehicle from invoice vehicleInfo text
+    const [invoiceVehicleResult] = await db.execute(sql`
+      UPDATE customers c
+      INNER JOIN (
+        SELECT customerPhone, vehicleInfo,
+               ROW_NUMBER() OVER (PARTITION BY customerPhone ORDER BY invoiceDate DESC) as rn
+        FROM invoices
+        WHERE customerPhone IS NOT NULL AND vehicleInfo IS NOT NULL AND vehicleInfo != ''
+          AND LENGTH(REPLACE(REPLACE(REPLACE(customerPhone, '-', ''), '(', ''), ')', '')) >= 10
+      ) i ON RIGHT(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', ''), 10) =
+             RIGHT(REPLACE(REPLACE(REPLACE(i.customerPhone, '-', ''), '(', ''), ')', ''), 10)
+             AND i.rn = 1
+      SET c.vehicleMake = COALESCE(c.vehicleMake, SUBSTRING_INDEX(i.vehicleInfo, ' ', 1))
+      WHERE c.vehicleMake IS NULL AND i.vehicleInfo IS NOT NULL
+    `);
+
+    // 6. Update segment based on lastVisitDate
+    const [segResult] = await db.execute(sql`
+      UPDATE customers
+      SET segment = CASE
+        WHEN lastVisitDate >= DATE_SUB(NOW(), INTERVAL 90 DAY) THEN 'recent'
+        WHEN lastVisitDate >= DATE_SUB(NOW(), INTERVAL 365 DAY) THEN 'lapsed'
+        WHEN lastVisitDate IS NOT NULL THEN 'unknown'
+        ELSE segment
+      END
+      WHERE lastVisitDate IS NOT NULL
+        AND segment != CASE
+          WHEN lastVisitDate >= DATE_SUB(NOW(), INTERVAL 90 DAY) THEN 'recent'
+          WHEN lastVisitDate >= DATE_SUB(NOW(), INTERVAL 365 DAY) THEN 'lapsed'
+          ELSE 'unknown'
+        END
+    `);
+
     const total = ((spentResult as any)?.affectedRows || 0) +
                   ((visitResult as any)?.affectedRows || 0) +
-                  ((vehicleResult as any)?.affectedRows || 0);
+                  ((firstResult as any)?.affectedRows || 0) +
+                  ((vehicleResult as any)?.affectedRows || 0) +
+                  ((segResult as any)?.affectedRows || 0);
+
+    if (total > 0) {
+      log.info(`Customer enrichment: spent=${(spentResult as any)?.affectedRows || 0} visits=${(visitResult as any)?.affectedRows || 0} first=${(firstResult as any)?.affectedRows || 0} vehicles=${(vehicleResult as any)?.affectedRows || 0} segments=${(segResult as any)?.affectedRows || 0}`);
+    }
 
     return {
       recordsProcessed: total,
-      details: `Spent: ${(spentResult as any)?.affectedRows || 0}, Visits: ${(visitResult as any)?.affectedRows || 0}, Vehicles: ${(vehicleResult as any)?.affectedRows || 0}`,
+      details: `Spent: ${(spentResult as any)?.affectedRows || 0}, Visits: ${(visitResult as any)?.affectedRows || 0}, First: ${(firstResult as any)?.affectedRows || 0}, Vehicles: ${(vehicleResult as any)?.affectedRows || 0}, Segments: ${(segResult as any)?.affectedRows || 0}`,
     };
   } catch (err: any) {
-    // Graceful fail — some columns might not exist yet
     if (err.message?.includes("Unknown column")) {
-      return { recordsProcessed: 0, details: `Column missing — skipping: ${err.message.split("'")[1] || "unknown"}` };
+      return { recordsProcessed: 0, details: `Column missing — run migration: ${err.message.split("'")[1] || "unknown"}` };
     }
     return { recordsProcessed: 0, details: `Failed: ${err.message}` };
   }

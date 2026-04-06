@@ -13,16 +13,24 @@ async function db() {
 }
 
 export const customersRouter = router({
-  /** List customers with pagination, search, and segment filtering */
+  /** List customers with pagination, search, segment, date range filtering */
   list: adminProcedure
     .input(
       z.object({
         page: z.number().default(1),
         pageSize: z.number().default(25),
         search: z.string().max(200).optional(),
-        segment: z.enum(["all", "recent", "lapsed", "unknown"]).default("all"),
-        sortBy: z.enum(["name", "visits", "lastVisit", "totalSpent"]).default("lastVisit"),
+        segment: z.enum(["all", "recent", "lapsed", "new", "unknown"]).default("all"),
+        sortBy: z.enum(["name", "visits", "lastVisit", "totalSpent", "firstVisit", "created"]).default("lastVisit"),
         sortDir: z.enum(["asc", "desc"]).default("desc"),
+        /** Filter by last visit within N days */
+        lastVisitDays: z.number().optional(),
+        /** Filter by minimum total spent (cents) */
+        minSpent: z.number().optional(),
+        /** Filter by minimum visit count */
+        minVisits: z.number().optional(),
+        /** Filter customers with vehicles */
+        hasVehicle: z.boolean().optional(),
       }).optional()
     )
     .query(async ({ input }) => {
@@ -40,7 +48,19 @@ export const customersRouter = router({
       // Build conditions
       const conditions = [];
       if (segment !== "all") {
-        conditions.push(eq(customers.segment, segment));
+        conditions.push(eq(customers.segment, segment as any));
+      }
+      if (input?.lastVisitDays) {
+        conditions.push(sql`${customers.lastVisitDate} >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(input.lastVisitDays))} DAY)`);
+      }
+      if (input?.minSpent) {
+        conditions.push(sql`${customers.totalSpent} >= ${input.minSpent}`);
+      }
+      if (input?.minVisits) {
+        conditions.push(sql`${customers.totalVisits} >= ${input.minVisits}`);
+      }
+      if (input?.hasVehicle) {
+        conditions.push(sql`${customers.vehicleMake} IS NOT NULL AND ${customers.vehicleMake} != ''`);
       }
       if (search) {
         // Escape LIKE wildcards to prevent pattern injection (% and _ are SQL LIKE wildcards)
@@ -89,8 +109,13 @@ export const customersRouter = router({
           zip: customers.zip,
           customerType: customers.customerType,
           totalVisits: customers.totalVisits,
+          totalSpent: customers.totalSpent,
           lastVisitDate: customers.lastVisitDate,
+          firstVisitDate: customers.firstVisitDate,
           balanceDue: customers.balanceDue,
+          vehicleYear: customers.vehicleYear,
+          vehicleMake: customers.vehicleMake,
+          vehicleModel: customers.vehicleModel,
           alsCustomerId: customers.alsCustomerId,
           segment: customers.segment,
           smsCampaignSent: customers.smsCampaignSent,
@@ -113,7 +138,9 @@ export const customersRouter = router({
 
       const sortColumn = sortBy === "name" ? customers.firstName
         : sortBy === "visits" ? customers.totalVisits
-        : sortBy === "totalSpent" ? customerMetrics.totalRevenue
+        : sortBy === "totalSpent" ? customers.totalSpent
+        : sortBy === "firstVisit" ? customers.firstVisitDate
+        : sortBy === "created" ? customers.createdAt
         : customers.lastVisitDate;
 
       const results = await dataQuery
@@ -129,10 +156,10 @@ export const customersRouter = router({
       };
     }),
 
-  /** Get segment summary stats */
+  /** Get segment summary stats + revenue overview */
   stats: adminProcedure.query(async () => {
     const d = await db();
-    if (!d) return { total: 0, recent: 0, lapsed: 0, unknown: 0, withEmail: 0, commercial: 0 };
+    if (!d) return { total: 0, recent: 0, lapsed: 0, unknown: 0, withEmail: 0, commercial: 0, totalRevenue: 0, avgSpend: 0, withVisits: 0, vipCount: 0 };
 
     const [total] = await d.select({ count: sql<number>`count(*)` }).from(customers);
     const [recent] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(eq(customers.segment, "recent"));
@@ -140,6 +167,12 @@ export const customersRouter = router({
     const [unknown] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(eq(customers.segment, "unknown"));
     const [withEmail] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(sql`${customers.email} IS NOT NULL AND ${customers.email} != ''`);
     const [commercial] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(eq(customers.customerType, "commercial"));
+    const [revenue] = await d.select({
+      totalRevenue: sql<number>`COALESCE(SUM(totalSpent), 0)`,
+      avgSpend: sql<number>`COALESCE(AVG(NULLIF(totalSpent, 0)), 0)`,
+      withVisits: sql<number>`SUM(CASE WHEN totalVisits > 0 THEN 1 ELSE 0 END)`,
+      vipCount: sql<number>`SUM(CASE WHEN totalVisits >= 3 THEN 1 ELSE 0 END)`,
+    }).from(customers);
 
     return {
       total: total?.count ?? 0,
@@ -148,6 +181,120 @@ export const customersRouter = router({
       unknown: unknown?.count ?? 0,
       withEmail: withEmail?.count ?? 0,
       commercial: commercial?.count ?? 0,
+      totalRevenue: revenue?.totalRevenue ?? 0,
+      avgSpend: revenue?.avgSpend ?? 0,
+      withVisits: revenue?.withVisits ?? 0,
+      vipCount: revenue?.vipCount ?? 0,
+    };
+  }),
+
+  /** Advanced stats — revenue by time period, top spenders, service breakdown */
+  advancedStats: adminProcedure
+    .input(z.object({
+      period: z.enum(["7d", "30d", "90d", "6mo", "1yr", "all"]).default("all"),
+    }).optional())
+    .query(async ({ input }) => {
+      const d = await db();
+      if (!d) return null;
+
+      const period = input?.period ?? "all";
+      const dateFilter = period === "all" ? sql`1=1`
+        : period === "7d" ? sql`i.invoiceDate >= DATE_SUB(NOW(), INTERVAL 7 DAY)`
+        : period === "30d" ? sql`i.invoiceDate >= DATE_SUB(NOW(), INTERVAL 30 DAY)`
+        : period === "90d" ? sql`i.invoiceDate >= DATE_SUB(NOW(), INTERVAL 90 DAY)`
+        : period === "6mo" ? sql`i.invoiceDate >= DATE_SUB(NOW(), INTERVAL 6 MONTH)`
+        : sql`i.invoiceDate >= DATE_SUB(NOW(), INTERVAL 1 YEAR)`;
+
+      // Revenue by period
+      const [revenueSummary] = await d.execute(sql`
+        SELECT
+          COUNT(*) as invoiceCount,
+          COALESCE(SUM(i.totalAmount), 0) as totalRevenue,
+          COALESCE(AVG(i.totalAmount), 0) as avgTicket,
+          COALESCE(SUM(i.laborCost), 0) as totalLabor,
+          COALESCE(SUM(i.partsCost), 0) as totalParts,
+          COUNT(DISTINCT i.customerPhone) as uniqueCustomers
+        FROM invoices i
+        WHERE ${dateFilter}
+      `);
+
+      // Top 10 spenders for the period
+      const [topSpenders] = await d.execute(sql`
+        SELECT
+          c.id, c.firstName, c.lastName, c.phone, c.segment,
+          c.totalVisits, c.totalSpent,
+          c.vehicleYear, c.vehicleMake, c.vehicleModel,
+          COUNT(i.id) as periodVisits,
+          COALESCE(SUM(i.totalAmount), 0) as periodSpent
+        FROM customers c
+        INNER JOIN invoices i ON RIGHT(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', ''), 10) =
+          RIGHT(REPLACE(REPLACE(REPLACE(i.customerPhone, '-', ''), '(', ''), ')', ''), 10)
+        WHERE ${dateFilter}
+        GROUP BY c.id
+        ORDER BY periodSpent DESC
+        LIMIT 10
+      `);
+
+      // Monthly revenue trend (last 12 months)
+      const [monthlyTrend] = await d.execute(sql`
+        SELECT
+          DATE_FORMAT(invoiceDate, '%Y-%m') as month,
+          COUNT(*) as invoices,
+          COALESCE(SUM(totalAmount), 0) as revenue,
+          COUNT(DISTINCT customerPhone) as customers
+        FROM invoices
+        WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+        GROUP BY DATE_FORMAT(invoiceDate, '%Y-%m')
+        ORDER BY month ASC
+      `);
+
+      // Service type breakdown
+      const [serviceBreakdown] = await d.execute(sql`
+        SELECT
+          COALESCE(SUBSTRING_INDEX(serviceDescription, ',', 1), 'Unknown') as service,
+          COUNT(*) as count,
+          COALESCE(SUM(totalAmount), 0) as revenue
+        FROM invoices i
+        WHERE ${dateFilter} AND serviceDescription IS NOT NULL AND serviceDescription != ''
+        GROUP BY SUBSTRING_INDEX(serviceDescription, ',', 1)
+        ORDER BY revenue DESC
+        LIMIT 15
+      `);
+
+      // Payment method breakdown
+      const [paymentBreakdown] = await d.execute(sql`
+        SELECT paymentMethod, COUNT(*) as count, COALESCE(SUM(totalAmount), 0) as total
+        FROM invoices i
+        WHERE ${dateFilter}
+        GROUP BY paymentMethod
+        ORDER BY total DESC
+      `);
+
+      const summary = (revenueSummary as any[])?.[0] || {};
+      return {
+        period,
+        invoiceCount: Number(summary.invoiceCount) || 0,
+        totalRevenue: Number(summary.totalRevenue) || 0,
+        avgTicket: Number(summary.avgTicket) || 0,
+        totalLabor: Number(summary.totalLabor) || 0,
+        totalParts: Number(summary.totalParts) || 0,
+        uniqueCustomers: Number(summary.uniqueCustomers) || 0,
+        topSpenders: (topSpenders as any[]) || [],
+        monthlyTrend: (monthlyTrend as any[]) || [],
+        serviceBreakdown: (serviceBreakdown as any[]) || [],
+        paymentBreakdown: (paymentBreakdown as any[]) || [],
+      };
+    }),
+
+  /** Trigger a full customer data enrichment now */
+  enrich: adminProcedure.mutation(async () => {
+    const { enrichCustomerData } = await import("../services/dataPipelines");
+    const { syncVisitDatesFromInvoices } = await import("../services/dataPipelines");
+    const visitResult = await syncVisitDatesFromInvoices();
+    const enrichResult = await enrichCustomerData();
+    return {
+      visits: visitResult,
+      enrichment: enrichResult,
     };
   }),
 
