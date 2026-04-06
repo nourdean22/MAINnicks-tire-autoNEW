@@ -1,131 +1,85 @@
 /**
  * Google Sheets CRM Sync
- * Auto-syncs leads and bookings to a Google Sheet for call tracking.
- * Uses the gws CLI for authentication (server-side only).
+ * Auto-syncs leads, bookings, invoices, callbacks to a Google Sheet.
  *
- * FIX: Writes JSON to temp files and uses `cat` in a bash subshell
- * to avoid all shell escaping issues with spaces and special characters.
+ * Uses googleapis SDK with Google Service Account auth.
+ * This works in ANY environment (Railway, Vercel, local) — no CLI dependency.
+ *
+ * Required env vars:
+ *   GOOGLE_SHEETS_CRM_ID  — Spreadsheet ID from the URL
+ *   GOOGLE_SERVICE_ACCOUNT_EMAIL — Service account email
+ *   GOOGLE_SERVICE_ACCOUNT_KEY   — Private key (PEM format, \n escaped)
+ *
+ * Setup: Share the spreadsheet with the service account email as Editor.
  */
 
-import { exec } from "child_process";
-import { writeFileSync, unlinkSync, readFileSync, existsSync } from "fs";
-import { randomBytes } from "crypto";
+import { createLogger } from "./lib/logger";
+
+const log = createLogger("sheets-sync");
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_CRM_ID || "";
 
-// Token file path — written by the bootstrap script at server start
-const TOKEN_FILE = "/tmp/.gws-auth-token";
+// Lazy-loaded googleapis client (saves ~15MB until first use)
+let _sheets: any = null;
 
-/**
- * Get the auth token for Google Workspace API.
- * The dev server process receives a redacted GOOGLE_WORKSPACE_CLI_TOKEN,
- * so we read the real token from a file that was written at startup
- * from the parent shell environment.
- */
-function getAuthToken(): string {
-  // Try reading from token file first (most reliable)
-  try {
-    if (existsSync(TOKEN_FILE)) {
-      const token = readFileSync(TOKEN_FILE, "utf-8").trim();
-      if (token.length > 20) return token;
-    }
-  } catch (err) {
-    // Token file read is best-effort
-    console.warn("[Sheets] Token file read failed:", err instanceof Error ? err.message : err);
+async function getSheetsClient(): Promise<any> {
+  if (_sheets) return _sheets;
+
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+
+  if (!email || !rawKey) {
+    throw new Error("Missing GOOGLE_SERVICE_ACCOUNT_EMAIL or GOOGLE_SERVICE_ACCOUNT_KEY");
   }
-  // Fallback to env vars
-  const envToken = process.env.GOOGLE_DRIVE_TOKEN || process.env.GOOGLE_WORKSPACE_CLI_TOKEN || "";
-  return envToken.length > 20 ? envToken : "";
-}
 
-// On module load, write the token file if we have a valid token in env
-// This handles the case where the module is loaded from a shell that has the real token
-try {
-  const token = process.env.GOOGLE_DRIVE_TOKEN || process.env.GOOGLE_WORKSPACE_CLI_TOKEN || "";
-  if (token.length > 20) {
-    writeFileSync(TOKEN_FILE, token, { mode: 0o600 });
-  }
-} catch (err) {
-  // Token file write is best-effort
-  console.warn("[Sheets] Token file write failed:", err instanceof Error ? err.message : err);
-}
+  const privateKey = rawKey.replace(/\\n/g, "\n");
 
-/**
- * Run a shell command and return stdout/stderr as a promise.
- */
-function execPromise(cmd: string): Promise<{ stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    const token = getAuthToken();
-    exec(cmd, {
-      timeout: 15000,
-      shell: "/bin/bash",
-      env: { ...process.env, GOOGLE_WORKSPACE_CLI_TOKEN: token },
-    }, (error, stdout, stderr) => {
-      if (error) {
-        reject(Object.assign(error, { stdout, stderr }));
-      } else {
-        resolve({ stdout, stderr });
-      }
-    });
-  });
+  const { google } = await import("googleapis");
+  const auth = new google.auth.JWT(email, undefined, privateKey, [
+    "https://www.googleapis.com/auth/spreadsheets",
+  ]);
+
+  _sheets = google.sheets({ version: "v4", auth });
+  return _sheets;
 }
 
 /**
  * Append a row to a specific sheet in the CRM spreadsheet.
- * Writes JSON payloads to temp files to avoid shell escaping issues.
+ * Retries once on auth failure (token refresh).
  */
-async function appendRow(sheetName: string, values: string[]): Promise<boolean> {
+async function appendRow(sheetName: string, values: string[], retried = false): Promise<boolean> {
   if (!SPREADSHEET_ID) {
-    console.warn("[Sheets] No GOOGLE_SHEETS_CRM_ID configured, skipping sync");
+    log.warn("No GOOGLE_SHEETS_CRM_ID configured, skipping sync");
     return false;
   }
 
-  const id = randomBytes(6).toString("hex");
-  const paramsFile = `/tmp/gws-params-${id}.json`;
-  const bodyFile = `/tmp/gws-body-${id}.json`;
-
   try {
-    // Sanitize values — strip newlines
+    const sheets = await getSheetsClient();
     const sanitizedValues = values.map(v => (v || "").replace(/[\r\n]+/g, " ").trim());
 
-    const paramsObj = {
+    await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
       range: `${sheetName}!A:Z`,
       valueInputOption: "USER_ENTERED",
       insertDataOption: "INSERT_ROWS",
-    };
+      requestBody: {
+        values: [sanitizedValues],
+      },
+    });
 
-    const bodyObj = {
-      values: [sanitizedValues],
-    };
-
-    // Write JSON to temp files — no escaping needed
-    writeFileSync(paramsFile, JSON.stringify(paramsObj));
-    writeFileSync(bodyFile, JSON.stringify(bodyObj));
-
-    // Build command that reads from files using bash cat
-    // The key: we use double quotes around $(cat ...) so bash expands it,
-    // and the JSON content is passed as a single argument to gws
-    const cmd = `gws sheets spreadsheets values append --params "$(cat '${paramsFile}')" --json "$(cat '${bodyFile}')"`;
-
-    const { stdout } = await execPromise(cmd);
-
-    // Check if the response contains an error
-    if (stdout && stdout.includes('"error"')) {
-      console.error("[Sheets] API error:", stdout);
-      return false;
-    }
-
-    // Row appended successfully
     return true;
   } catch (error: any) {
-    console.error("[Sheets] Failed to append row:", error?.message || error);
-    if (error?.stdout) console.error("[Sheets] stdout:", error.stdout);
+    // On first auth error, reset client and retry once
+    if (!retried && (error?.code === 401 || error?.code === 403)) {
+      log.warn("Sheets auth failed, retrying with fresh client");
+      _sheets = null;
+      return appendRow(sheetName, values, true);
+    }
+    log.error(`Failed to append row to ${sheetName}:`, {
+      error: error?.message || String(error),
+      code: error?.code,
+    });
     return false;
-  } finally {
-    // Clean up temp files
-    try { unlinkSync(paramsFile); } catch { /* cleanup best-effort */ }
-    try { unlinkSync(bodyFile); } catch { /* cleanup best-effort */ }
   }
 }
 
@@ -230,7 +184,6 @@ export async function syncCallbackToSheet(callback: {
 
 /**
  * Sync an invoice to the Invoices sheet.
- * Called automatically when bookings are completed or tire orders are installed.
  */
 export async function syncInvoiceToSheet(invoice: {
   invoiceNumber: string;
@@ -273,8 +226,7 @@ export async function syncInvoiceToSheet(invoice: {
 }
 
 /**
- * Sync a financing application click/submission to the Financing sheet.
- * Tracks which provider was selected, from which page, and customer info if available.
+ * Sync a financing application to the Financing sheet.
  */
 export async function syncFinancingToSheet(application: {
   provider: string;
@@ -304,7 +256,6 @@ export async function syncFinancingToSheet(application: {
 
 /**
  * Sync a work order to the WorkOrders sheet.
- * Tracks the full WO lifecycle in the CRM spreadsheet.
  */
 export async function syncWorkOrderToSheet(wo: {
   orderNumber: string;
@@ -334,5 +285,28 @@ export async function syncWorkOrderToSheet(wo: {
     wo.assignedTech || "",
     wo.source || "",
     wo.estimatedTotal ? `$${(wo.estimatedTotal / 100).toFixed(2)}` : "",
+  ]);
+}
+
+/**
+ * Sync dashboard metrics to the Dashboard sheet (called by cron).
+ */
+export async function syncDashboardToSheet(metrics: {
+  date: string;
+  time: string;
+  bookings: number;
+  leads: number;
+  callbacks: number;
+  invoices: number;
+  revenue: number;
+}): Promise<boolean> {
+  return appendRow("Dashboard", [
+    metrics.date,
+    metrics.time,
+    String(metrics.bookings),
+    String(metrics.leads),
+    String(metrics.callbacks),
+    String(metrics.invoices),
+    `$${metrics.revenue}`,
   ]);
 }
