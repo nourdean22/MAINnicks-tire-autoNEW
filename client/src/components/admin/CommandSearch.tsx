@@ -24,6 +24,8 @@ function useDebounce(value: string, delay: number) {
 
 const SECTION_SHORTCUTS: { id: AdminSection; label: string; keywords: string[] }[] = [
   { id: "overview", label: "Dashboard Overview", keywords: ["dashboard", "overview", "home", "today"] },
+  { id: "commandCenter", label: "NOUR OS Bridge", keywords: ["nour", "brain", "bridge", "sync", "system", "health"] },
+  { id: "workOrders", label: "Work Orders", keywords: ["work order", "job", "repair", "service", "bay", "tech"] },
   { id: "bookings", label: "Bookings", keywords: ["booking", "appointment", "schedule"] },
   { id: "leads", label: "Leads / CRM", keywords: ["lead", "crm", "prospect"] },
   { id: "estimates", label: "Estimate Pipeline", keywords: ["estimate", "pipeline", "quote", "approval"] },
@@ -34,9 +36,11 @@ const SECTION_SHORTCUTS: { id: AdminSection; label: string; keywords: string[] }
   { id: "reviewRequests", label: "Review Requests", keywords: ["review", "rating", "star", "proof"] },
   { id: "callTrackingView", label: "Call Tracking", keywords: ["call", "phone", "tracking", "missed"] },
   { id: "analyticsView", label: "Analytics", keywords: ["analytics", "stats", "data"] },
-  { id: "campaigns", label: "Campaigns", keywords: ["campaign", "blast", "bulk"] },
+  { id: "campaigns", label: "Campaigns", keywords: ["campaign", "blast", "bulk", "outreach"] },
   { id: "tireOrders", label: "Tire Orders", keywords: ["tire", "order", "inventory"] },
-  { id: "settings", label: "Settings", keywords: ["setting", "config"] },
+  { id: "health", label: "Site Health", keywords: ["health", "sitemap", "seo", "domain"] },
+  { id: "activity", label: "Activity Log", keywords: ["activity", "log", "history", "audit"] },
+  { id: "settings", label: "Settings", keywords: ["setting", "config", "sync"] },
 ];
 
 export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
