@@ -334,7 +334,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, weekAgo), sql`${leads.source} NOT IN ('popup', 'chat', 'booking')`)),
         d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, monthStart), sql`${leads.source} NOT IN ('popup', 'chat', 'booking')`)),
         d.select({ count: sql<number>`count(*)` }).from(invoices).where(gte(invoices.invoiceDate, monthStart)),
-        d.select().from(sql`(SELECT paymentMethod, COUNT(*) as cnt, SUM(totalAmount) as total FROM invoices WHERE invoiceDate >= ${monthStart} GROUP BY paymentMethod ORDER BY cnt DESC) sub`),
+        d.execute(sql`SELECT paymentMethod, COUNT(*) as cnt, SUM(totalAmount) as total FROM invoices WHERE invoiceDate >= ${monthStart.toISOString().slice(0, 10)} GROUP BY paymentMethod ORDER BY cnt DESC`).then(([rows]: any) => rows),
         d.select({ count: sql<number>`count(*)` }).from(customers),
         d.select({ count: sql<number>`count(*)` }).from(customers).where(gte(customers.totalVisits, 3)),
       ]);
