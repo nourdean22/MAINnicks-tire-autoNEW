@@ -667,6 +667,71 @@ export default function OverviewSection() {
         )}
       </div>
 
+      {/* ─── ACTIVE WORK ORDERS ─── */}
+      {activeWorkOrders && (activeWorkOrders as any[]).length > 0 && (
+        <div className="stat-card !p-5 !border-primary/15">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
+              <Wrench className="w-3.5 h-3.5 text-primary" />
+              Active Work Orders
+            </h3>
+            <span className="text-[10px] text-muted-foreground font-mono">
+              {(activeWorkOrders as any[]).filter((wo: any) => wo.status === "completed" || wo.status === "invoiced").length}/{(activeWorkOrders as any[]).length} done
+            </span>
+          </div>
+          <div className="space-y-1.5 max-h-[350px] overflow-y-auto">
+            {(activeWorkOrders as any[]).slice(0, 12).map((wo: any) => {
+              const isBlocked = !!wo.blockerType;
+              const isOverdue = wo.promisedAt && new Date(wo.promisedAt) < new Date();
+              const isDone = wo.status === "completed" || wo.status === "invoiced" || wo.status === "picked_up";
+              const statusColor = isDone ? "text-emerald-400 bg-emerald-500/10" :
+                isOverdue ? "text-red-400 bg-red-500/10" :
+                isBlocked ? "text-amber-400 bg-amber-500/10" :
+                wo.status === "in_progress" ? "text-blue-400 bg-blue-500/10" :
+                "text-foreground/50 bg-foreground/5";
+
+              return (
+                <div
+                  key={wo.id}
+                  className={`flex items-center gap-3 px-3 py-2.5 border border-border/20 hover:border-primary/30 transition-colors ${
+                    isDone ? "bg-emerald-500/5 opacity-60" : "bg-background/50"
+                  }`}
+                >
+                  <Wrench className={`w-3.5 h-3.5 shrink-0 ${isDone ? "text-emerald-400/50" : isOverdue ? "text-red-400" : "text-primary/60"}`} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-medium truncate ${isDone ? "line-through text-foreground/40" : "text-foreground"}`}>
+                        {wo.customerName || wo.customerId || "Customer"}
+                      </span>
+                      <span className={`text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded ${statusColor}`}>
+                        {wo.status?.replace(/_/g, " ").toUpperCase()}
+                      </span>
+                      {isOverdue && !isDone && (
+                        <span className="text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded text-red-400 bg-red-500/10 animate-pulse">OVERDUE</span>
+                      )}
+                      {isBlocked && !isDone && (
+                        <span className="text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded text-amber-400 bg-amber-500/10">BLOCKED</span>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-foreground/50">
+                      {wo.serviceDescription || "Service"}
+                      {wo.vehicleMake ? ` · ${wo.vehicleMake} ${wo.vehicleModel || ""}` : ""}
+                      {wo.total ? ` · $${Number(wo.total).toLocaleString()}` : ""}
+                    </span>
+                  </div>
+                  {!isDone && wo.createdAt && <SlaTimer dateStr={wo.createdAt} />}
+                  {wo.customerPhone && (
+                    <a href={`tel:${wo.customerPhone}`} className="shrink-0 text-foreground/30 hover:text-primary transition-colors">
+                      <Phone className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ─── SMS CAMPAIGN ROI ─── */}
       {campaignStats && campaignStats.total > 0 && (
         <div className="stat-card !border-primary/15 !p-5">
