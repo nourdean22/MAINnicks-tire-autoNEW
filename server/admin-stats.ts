@@ -4,7 +4,7 @@
  */
 
 import { getDb } from "./db";
-import { bookings, leads, chatSessions, dynamicArticles, notificationMessages, contentGenerationLog, users, callbackRequests, callEvents, invoices, customers } from "../drizzle/schema";
+import { bookings, leads, chatSessions, dynamicArticles, notificationMessages, contentGenerationLog, users, callbackRequests, callEvents, invoices, customers, workOrders } from "../drizzle/schema";
 import { eq, desc, gte, sql, and } from "drizzle-orm";
 
 export interface DashboardStats {
@@ -92,7 +92,7 @@ export interface DashboardStats {
 }
 
 export interface ActivityItem {
-  type: "booking" | "lead" | "article" | "chat";
+  type: "booking" | "lead" | "article" | "chat" | "workOrder";
   title: string;
   subtitle: string;
   timestamp: Date;
@@ -239,6 +239,24 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         timestamp: new Date(c.createdAt),
       });
     });
+
+    // Recent work orders
+    try {
+      const recentWOs = await d.select().from(workOrders).orderBy(desc(workOrders.updatedAt)).limit(5);
+      recentWOs.forEach(wo => {
+        const vehicle = [wo.vehicleYear, wo.vehicleMake, wo.vehicleModel].filter(Boolean).join(" ");
+        const amount = wo.total ? `$${(Number(wo.total)).toLocaleString()}` : "";
+        recentActivity.push({
+          type: "workOrder",
+          title: `WO #${wo.orderNumber} — ${wo.serviceDescription?.substring(0, 50) || "Service"}`,
+          subtitle: [vehicle, wo.status?.replace(/_/g, " "), amount].filter(Boolean).join(" · "),
+          timestamp: new Date(wo.updatedAt),
+          status: wo.status,
+        });
+      });
+    } catch (err) {
+      console.error("[AdminStats] Work order activity failed:", err instanceof Error ? err.message : err);
+    }
 
     // ─── SOURCE ATTRIBUTION ─────────────────────────
     const bookingsBySource: Record<string, number> = {};

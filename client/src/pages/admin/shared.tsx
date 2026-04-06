@@ -188,6 +188,7 @@ export function ActivityIcon({ type }: { type: string }) {
     case "booking": return <CalendarClock className="w-3.5 h-3.5 text-blue-400" />;
     case "lead": return <Users className="w-3.5 h-3.5 text-amber-400" />;
     case "callback": return <Phone className="w-3.5 h-3.5 text-emerald-400" />;
+    case "workOrder": return <Wrench className="w-3.5 h-3.5 text-primary" />;
     default: return <Gauge className="w-3.5 h-3.5 text-foreground/40" />;
   }
 }
@@ -197,6 +198,10 @@ export function StatusDot({ status }: { status?: string }) {
     new: "bg-blue-400", confirmed: "bg-amber-400", completed: "bg-emerald-400",
     cancelled: "bg-red-400", contacted: "bg-amber-400", booked: "bg-emerald-400",
     closed: "bg-foreground/30", lost: "bg-red-400",
+    // Work order statuses
+    draft: "bg-foreground/30", checked_in: "bg-blue-400", in_progress: "bg-primary",
+    waiting_parts: "bg-amber-400", ready_for_pickup: "bg-emerald-400",
+    invoiced: "bg-emerald-400", picked_up: "bg-emerald-400",
   };
   return <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${colors[status || ""] || "bg-foreground/20"}`} />;
 }
