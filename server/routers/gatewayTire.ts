@@ -799,11 +799,46 @@ export const gatewayTireRouter = router({
         })
       ).catch(() => {});
 
+      // ─── Smart uncommon-size detection ────────────────
+      // If the tire size isn't one we commonly stock, flag it for Gateway ordering
+      const normalizedSize = input.tireSize.replace(/[^0-9]/g, "");
+      const isCommonSize = POPULAR_SIZES.includes(normalizedSize);
+      if (!isCommonSize) {
+        import("../services/telegram").then(({ sendTelegram }) =>
+          sendTelegram(
+            `⚠️ UNCOMMON TIRE SIZE — Auto-order from Gateway\n\n` +
+            `Order: ${orderNumber}\n` +
+            `Size: ${input.tireSize} (NOT in common stock)\n` +
+            `Tire: ${input.quantity}x ${input.tireBrand} ${input.tireModel}\n` +
+            `Customer: ${input.customerName} | ${input.customerPhone}\n\n` +
+            `🔧 This size needs to be ordered from Gateway Tire (b2b.dktire.com).\n` +
+            `Log in → search "${input.tireSize}" → place order → update status to "ordered".`
+          )
+        ).catch(() => {});
+
+        // Also email the shop
+        notifyTireOrder({
+          orderNumber,
+          customerName: input.customerName,
+          customerPhone: input.customerPhone,
+          customerEmail: input.customerEmail || undefined,
+          vehicleInfo: input.vehicleInfo || undefined,
+          tireBrand: input.tireBrand,
+          tireModel: input.tireModel,
+          tireSize: input.tireSize,
+          quantity: input.quantity,
+          pricePerTire,
+          totalAmount: totalDollars,
+          notes: `⚠️ UNCOMMON SIZE — ${input.tireSize} is NOT in regular stock. Order from Gateway Tire immediately.`,
+        }).catch(() => {});
+      }
+
       return {
         success: true,
         orderNumber,
         invoiceNumber: invoiceNumber || undefined,
         totalAmount: totalDollars,
+        uncommonSize: !isCommonSize,
       };
     }),
 
@@ -941,6 +976,10 @@ export const gatewayTireRouter = router({
       const d = await db();
       if (!d) return { success: false };
 
+      // Get current order for notifications
+      const [currentOrder] = await d.select().from(tireOrders).where(eq(tireOrders.id, input.id)).limit(1);
+      if (!currentOrder) return { success: false };
+
       const updates: Record<string, any> = {};
       if (input.status) updates.status = input.status;
       if (input.adminNotes !== undefined) updates.adminNotes = input.adminNotes;
@@ -954,7 +993,74 @@ export const gatewayTireRouter = router({
 
       // NOTE: Invoice is already created at order placement time (in placeOrder mutation).
       // Do NOT auto-create another invoice here — that would be a double invoice.
-      // The "installed" status just means the work is done, not that we need a new invoice.
+
+      // ─── Status change notifications ─────────────────
+      if (input.status && input.status !== currentOrder.status) {
+        const orderDesc = `${currentOrder.quantity}x ${currentOrder.tireBrand} ${currentOrder.tireModel} (${currentOrder.tireSize})`;
+
+        // DELIVERED → Email shop + Telegram: tires arrived, ready to schedule
+        if (input.status === "delivered") {
+          notifyTireOrder({
+            orderNumber: currentOrder.orderNumber,
+            customerName: currentOrder.customerName,
+            customerPhone: currentOrder.customerPhone,
+            customerEmail: currentOrder.customerEmail || undefined,
+            vehicleInfo: currentOrder.vehicleInfo || undefined,
+            tireBrand: currentOrder.tireBrand,
+            tireModel: currentOrder.tireModel,
+            tireSize: currentOrder.tireSize,
+            quantity: currentOrder.quantity,
+            pricePerTire: (currentOrder.pricePerTire || 0) / 100,
+            totalAmount: (currentOrder.totalAmount || 0) / 100,
+            notes: `✅ TIRES DELIVERED — Ready for installation. Call customer to schedule.`,
+          }).catch(() => {});
+
+          import("../services/telegram").then(({ sendTelegram }) =>
+            sendTelegram(
+              `📦 TIRES ARRIVED — ${currentOrder.orderNumber}\n\n` +
+              `${orderDesc}\n` +
+              `Customer: ${currentOrder.customerName} | ${currentOrder.customerPhone}\n` +
+              `Vehicle: ${currentOrder.vehicleInfo || "N/A"}\n\n` +
+              `⚡ Call customer to schedule installation NOW`
+            )
+          ).catch(() => {});
+        }
+
+        // IN_TRANSIT → Telegram heads-up
+        if (input.status === "in_transit") {
+          import("../services/telegram").then(({ sendTelegram }) =>
+            sendTelegram(
+              `🚚 TIRES SHIPPING — ${currentOrder.orderNumber}\n` +
+              `${orderDesc}\n` +
+              `Customer: ${currentOrder.customerName}\n` +
+              (input.expectedDelivery ? `ETA: ${input.expectedDelivery}` : "")
+            )
+          ).catch(() => {});
+        }
+
+        // INSTALLED → Telegram confirmation
+        if (input.status === "installed") {
+          import("../services/telegram").then(({ sendTelegram }) =>
+            sendTelegram(
+              `✅ INSTALLED — ${currentOrder.orderNumber}\n` +
+              `${orderDesc}\n` +
+              `Customer: ${currentOrder.customerName} | $${((currentOrder.totalAmount || 0) / 100).toFixed(2)}`
+            )
+          ).catch(() => {});
+        }
+
+        // CANCELLED → Telegram alert
+        if (input.status === "cancelled") {
+          import("../services/telegram").then(({ sendTelegram }) =>
+            sendTelegram(
+              `❌ ORDER CANCELLED — ${currentOrder.orderNumber}\n` +
+              `${orderDesc}\n` +
+              `Customer: ${currentOrder.customerName} | ${currentOrder.customerPhone}\n` +
+              (input.adminNotes ? `Reason: ${input.adminNotes}` : "")
+            )
+          ).catch(() => {});
+        }
+      }
 
       return { success: true };
     }),
