@@ -62,7 +62,7 @@ router.post("/api/v1/webhooks/voice/process", (req: Request, res: Response) => {
 
   // If they pressed 0, transfer
   if (digits === "0") {
-    const ownerPhone = process.env.OWNER_PHONE_NUMBER || "(216) 862-0005";
+    const ownerPhone = process.env.OWNER_PHONE_NUMBER || process.env.ADMIN_PHONE || "(216) 862-0005";
     res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Matthew">Connecting you now. One moment please.</Say>

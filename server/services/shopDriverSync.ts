@@ -19,8 +19,8 @@ const SHOPDRIVER_BASE = "https://secure.autolaborexperts.com";
 
 /** Get authenticated session cookie */
 async function getSession(): Promise<string | null> {
-  const username = process.env.AUTO_LABOR_USERNAME;
-  const password = process.env.AUTO_LABOR_PASSWORD;
+  const username = process.env.AUTO_LABOR_USERNAME || process.env.ALG_USERNAME;
+  const password = process.env.AUTO_LABOR_PASSWORD || process.env.ALG_PASSWORD;
   if (!username || !password) return null;
 
   try {

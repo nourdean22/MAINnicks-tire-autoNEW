@@ -65,10 +65,10 @@ async function getSession(): Promise<string | null> {
     return mirrorSession.token;
   }
 
-  const username = process.env.AUTO_LABOR_USERNAME;
-  const password = process.env.AUTO_LABOR_PASSWORD;
+  const username = process.env.AUTO_LABOR_USERNAME || process.env.ALG_USERNAME;
+  const password = process.env.AUTO_LABOR_PASSWORD || process.env.ALG_PASSWORD;
   if (!username || !password) {
-    log.error("Missing AUTO_LABOR_USERNAME or AUTO_LABOR_PASSWORD");
+    log.error("Missing AUTO_LABOR_USERNAME/PASSWORD or ALG_USERNAME/PASSWORD");
     return null;
   }
 

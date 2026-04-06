@@ -248,8 +248,8 @@ async function startServer() {
     serverLog.info("SSE endpoint registered: /api/admin/events");
   }).catch(() => {});
 
-  // ─── Cron Status (admin) ──────────────────────────────
-  app.get("/api/admin/cron-status", (req, res) => {
+  // ─── Admin API Key middleware (shared by all admin REST endpoints) ───
+  function requireAdminApiKey(req: any, res: any, next: any) {
     const auth = req.headers.authorization;
     const expected = process.env.ADMIN_API_KEY;
     if (!expected || typeof auth !== "string") {
@@ -259,50 +259,28 @@ async function startServer() {
     if (auth.length !== expectedFull.length || !timingSafeEqual(Buffer.from(auth), Buffer.from(expectedFull))) {
       return res.status(401).json({ error: "Unauthorized" });
     }
+    next();
+  }
+
+  // ─── Cron Status (admin) ──────────────────────────────
+  app.get("/api/admin/cron-status", requireAdminApiKey, (req, res) => {
     import("../cron/index").then(({ getJobStatuses }) => {
       res.json({ jobs: getJobStatuses(), timestamp: new Date().toISOString() });
     }).catch(() => res.json({ jobs: [], error: "Failed to load cron status" }));
   });
 
   // ─── Error Telemetry Report (admin) ────────────────
-  app.get("/api/admin/error-report", (req, res) => {
-    const auth = req.headers.authorization;
-    const expected = process.env.ADMIN_API_KEY;
-    if (!expected || typeof auth !== "string") {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-    const expectedFull = `Bearer ${expected}`;
-    if (auth.length !== expectedFull.length || !crypto.timingSafeEqual(Buffer.from(auth), Buffer.from(expectedFull))) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+  app.get("/api/admin/error-report", requireAdminApiKey, (_req, res) => {
     res.json({ ...errorTelemetry.getReport(), timestamp: new Date().toISOString() });
   });
 
   // ─── Circuit Breaker Health (admin) ───────────────
-  app.get("/api/admin/circuit-breakers", (req, res) => {
-    const auth = req.headers.authorization;
-    const expected = process.env.ADMIN_API_KEY;
-    if (!expected || typeof auth !== "string") {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-    const expectedFull = `Bearer ${expected}`;
-    if (auth.length !== expectedFull.length || !crypto.timingSafeEqual(Buffer.from(auth), Buffer.from(expectedFull))) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+  app.get("/api/admin/circuit-breakers", requireAdminApiKey, (_req, res) => {
     res.json({ breakers: getAllBreakerHealth(), timestamp: new Date().toISOString() });
   });
 
   // ─── Circuit Breaker Reset (admin) ────────────────
-  app.post("/api/admin/circuit-breakers/reset", (req, res) => {
-    const auth = req.headers.authorization;
-    const expected = process.env.ADMIN_API_KEY;
-    if (!expected || typeof auth !== "string") {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-    const expectedFull = `Bearer ${expected}`;
-    if (auth.length !== expectedFull.length || !crypto.timingSafeEqual(Buffer.from(auth), Buffer.from(expectedFull))) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+  app.post("/api/admin/circuit-breakers/reset", requireAdminApiKey, (_req, res) => {
     resetAllBreakers();
     res.json({ success: true, breakers: getAllBreakerHealth(), timestamp: new Date().toISOString() });
   });
@@ -427,20 +405,101 @@ Sitemap: ${SITE_URL}/sitemap-locations.xml
   });
 
   // ─── SMS Bot Webhook (Twilio) ───────────────────────────
-  // Receives inbound SMS messages and returns Twilio XML response
+  // Unified inbound SMS handler: runs booking bot + logs communication + parses intent
   // Protected by Twilio signature validation in production
   const { handleIncomingSMS } = await import("../routers/smsBot");
   const { validateTwilioRequest } = await import("../middleware/twilioValidation");
   app.post("/api/sms-webhook", express.urlencoded({ extended: false }), validateTwilioRequest, async (req, res) => {
     try {
       const { Body, From } = req.body;
+      // 1. Run booking bot state machine (returns reply text)
       const reply = await handleIncomingSMS(From, Body);
+
+      // 2. Log communication + parse intent (fire-and-forget)
+      import("../services/smsResponseParser").then(async ({ parseSmsResponse, executeAutoAction }) => {
+        const parsed = parseSmsResponse(Body);
+        // Execute auto-actions for high-confidence intents (confirm, cancel, approve)
+        if (parsed.autoAction && !parsed.requiresHuman) {
+          await executeAutoAction(parsed, From);
+        }
+        // Log to communication table
+        const { getDb } = await import("../db");
+        const { communicationLog } = await import("../../drizzle/schema");
+        const db = await getDb();
+        if (db) {
+          await db.insert(communicationLog).values({
+            customerPhone: From,
+            type: "sms",
+            direction: "inbound",
+            body: (Body || "").slice(0, 5000),
+            metadata: { parsedIntent: parsed.intent, botReply: reply.slice(0, 200) },
+          });
+        }
+      }).catch((err) => console.warn("[SMS] Background processing error:", err instanceof Error ? err.message : err));
+
       // XML-escape the reply to prevent malformed Twilio responses
       const safeReply = reply.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       res.type("text/xml").send(`<Response><Message>${safeReply}</Message></Response>`);
     } catch (err) {
       console.error("[SMS Webhook] Error:", err);
       res.type("text/xml").send("<Response></Response>");
+    }
+  });
+
+  // ─── Voice Webhooks (Twilio) ──────────────────────────
+  // Mount AI voice receptionist endpoints
+  const { twilioWebhookRouter } = await import("../routes/webhooks/twilio");
+  app.use(twilioWebhookRouter);
+
+  // ─── Stripe Webhook ─────────────────────────────────────
+  // Receives payment_intent.succeeded events to confirm invoice payments
+  // even if the client drops before calling confirmPayment
+  app.post("/api/webhooks/stripe", express.raw({ type: "application/json" }), async (req, res) => {
+    const sig = req.headers["stripe-signature"] as string | undefined;
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!webhookSecret) {
+      // Stripe webhooks not configured — skip silently
+      return res.sendStatus(200);
+    }
+
+    try {
+      const { default: Stripe } = await import("stripe");
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+      const event = stripe.webhooks.constructEvent(req.body, sig || "", webhookSecret);
+
+      if (event.type === "payment_intent.succeeded") {
+        const intent = event.data.object as any;
+        const invoiceNumber = intent.metadata?.invoiceNumber;
+        if (invoiceNumber) {
+          const { getDb } = await import("../db");
+          const { invoices } = await import("../../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+          const d = await getDb();
+          if (d) {
+            await d.update(invoices)
+              .set({ paymentStatus: "paid", paymentMethod: "card" })
+              .where(eq(invoices.invoiceNumber, invoiceNumber));
+
+            // Emit event
+            import("../services/eventBus").then(({ emit }) =>
+              emit.invoicePaid({
+                invoiceNumber,
+                customerName: intent.metadata?.customerName || "Online payment",
+                totalAmount: (intent.amount_received || 0) / 100,
+                method: "card",
+              })
+            ).catch(() => {});
+
+            serverLog.info(`[Stripe Webhook] Invoice ${invoiceNumber} marked paid — $${((intent.amount_received || 0) / 100).toFixed(2)}`);
+          }
+        }
+      }
+
+      res.sendStatus(200);
+    } catch (err) {
+      serverLog.error("[Stripe Webhook] Verification failed:", { error: err instanceof Error ? err.message : String(err) });
+      res.status(400).send("Webhook signature verification failed");
     }
   });
 

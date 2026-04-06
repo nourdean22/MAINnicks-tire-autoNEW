@@ -1,7 +1,9 @@
 /**
  * Pay Invoice — Customer-facing payment page.
- * Customer enters invoice # + phone → sees invoice → enters CC → pays.
- * Works with direct CC and Snap Finance virtual cards.
+ * Customer enters invoice # + phone → sees invoice → payment options.
+ *
+ * When Stripe is configured: shows Stripe-powered payment (card data never touches our server).
+ * When Stripe is not configured: shows call-to-pay + financing options.
  */
 import { useState, useEffect } from "react";
 import PageLayout from "@/components/PageLayout";
@@ -10,7 +12,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   CreditCard, Phone, FileText, CheckCircle2, Loader2,
-  Shield, Lock, Zap, ArrowRight,
+  Shield, Lock, Zap, ArrowRight, PhoneCall,
 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 
@@ -18,16 +20,9 @@ export default function PayInvoice() {
   const [invoiceNum, setInvoiceNum] = useState("");
   const [phone, setPhone] = useState("");
   const [looked, setLooked] = useState(false);
-
-  // CC fields
-  const [ccNumber, setCcNumber] = useState("");
-  const [ccExp, setCcExp] = useState("");
-  const [ccCvv, setCcCvv] = useState("");
-  const [ccName, setCcName] = useState("");
-  const [ccZip, setCcZip] = useState("");
   const [paid, setPaid] = useState(false);
 
-  // Get invoice # from URL if provided (via useEffect to avoid setting state during render)
+  // Get invoice # from URL if provided
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlInvoice = params.get("invoice") || "";
@@ -41,15 +36,10 @@ export default function PayInvoice() {
     { enabled: looked && invoiceNum.length > 0 && phone.length >= 7 }
   );
 
-  const submitPayment = trpc.payments.submitCardPayment.useMutation({
-    onSuccess: () => {
-      setPaid(true);
-      toast.success("Payment received! We'll process and confirm shortly.");
-    },
-    onError: () => toast.error("Something went wrong. Please call (216) 862-0005."),
-  });
+  const configQuery = trpc.payments.config.useQuery(undefined, { staleTime: 60_000 });
 
   const invoice = invoiceQuery.data;
+  const stripeEnabled = configQuery.data?.stripeEnabled ?? false;
 
   return (
     <PageLayout activeHref="/pay">
@@ -73,14 +63,14 @@ export default function PayInvoice() {
           {paid && (
             <div className="bg-card border border-emerald-500/30 rounded-xl p-8 text-center">
               <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-foreground mb-2">Payment Received</h2>
+              <h2 className="text-xl font-semibold text-foreground mb-2">Payment Confirmed</h2>
               <p className="text-muted-foreground text-sm mb-4">
-                We'll process your card and confirm via text/email shortly.
+                Your payment has been processed successfully. You'll receive a receipt shortly.
               </p>
               {invoice && (
                 <div className="bg-background/50 rounded-lg p-4 text-left text-sm space-y-1">
                   <div className="flex justify-between"><span className="text-muted-foreground">Invoice</span><span>{invoice.invoiceNumber}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Amount</span><span className="font-bold text-primary">${invoice.totalAmount?.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Amount</span><span className="font-bold text-primary">${(invoice.totalAmount / 100)?.toFixed(2)}</span></div>
                 </div>
               )}
               <a href="/" className="inline-block mt-6 text-primary text-sm font-medium hover:underline">Back to Nick's Tire & Auto</a>
@@ -132,7 +122,7 @@ export default function PayInvoice() {
             </div>
           )}
 
-          {/* INVOICE FOUND — SHOW DETAILS + CC FORM */}
+          {/* INVOICE FOUND — SHOW DETAILS + PAYMENT OPTIONS */}
           {!paid && invoice && (
             <div className="space-y-4">
               {/* Invoice summary */}
@@ -148,16 +138,16 @@ export default function PayInvoice() {
                 {invoice.serviceDescription && <p className="text-sm text-muted-foreground mt-2">{invoice.serviceDescription}</p>}
                 <div className="border-t border-border/30 mt-3 pt-3 space-y-1.5">
                   {(invoice.laborCost ?? 0) > 0 && (
-                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">Labor</span><span>${invoice.laborCost?.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">Labor</span><span>${(invoice.laborCost / 100)?.toFixed(2)}</span></div>
                   )}
                   {(invoice.partsCost ?? 0) > 0 && (
-                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">Parts</span><span>${invoice.partsCost?.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">Parts</span><span>${(invoice.partsCost / 100)?.toFixed(2)}</span></div>
                   )}
                   {(invoice.taxAmount ?? 0) > 0 && (
-                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">Tax</span><span>${invoice.taxAmount?.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">Tax</span><span>${(invoice.taxAmount / 100)?.toFixed(2)}</span></div>
                   )}
                   <div className="flex justify-between text-lg font-bold pt-1 border-t border-border/20">
-                    <span>Total</span><span className="text-primary">${invoice.totalAmount?.toFixed(2)}</span>
+                    <span>Total</span><span className="text-primary">${(invoice.totalAmount / 100)?.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -170,94 +160,59 @@ export default function PayInvoice() {
                 </div>
               )}
 
-              {/* CC Form */}
+              {/* Payment options */}
               {invoice.canPay && (
                 <div className="bg-card border border-border/50 rounded-xl p-5">
                   <div className="flex items-center gap-2 stagger-in mb-4">
                     <Lock className="w-4 h-4 text-primary/60" />
-                    <span className="text-sm font-semibold text-foreground">Pay with Credit or Debit Card</span>
+                    <span className="text-sm font-semibold text-foreground">Payment Options</span>
                   </div>
+
+                  {/* Call to pay — primary action */}
                   <div className="space-y-3">
-                    <div>
-                      <label className="block text-[11px] text-muted-foreground mb-1">Card Number</label>
-                      <input type="text" value={ccNumber} onChange={(e) => setCcNumber(e.target.value.replace(/[^\d\s-]/g, ""))}
-                        placeholder="1234 5678 9012 3456" maxLength={19}
-                        className="w-full bg-background border border-border/50 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 stagger-in">
-                      <div>
-                        <label className="block text-[11px] text-muted-foreground mb-1">Exp Date</label>
-                        <input type="text" value={ccExp} onChange={(e) => setCcExp(e.target.value)}
-                          placeholder="MM/YY" maxLength={5}
-                          className="w-full bg-background border border-border/50 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50" />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-muted-foreground mb-1">CVV</label>
-                        <input type="text" value={ccCvv} onChange={(e) => setCcCvv(e.target.value.replace(/\D/g, ""))}
-                          placeholder="123" maxLength={4}
-                          className="w-full bg-background border border-border/50 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50" />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-muted-foreground mb-1">Name on Card</label>
-                      <input type="text" value={ccName} onChange={(e) => setCcName(e.target.value)}
-                        placeholder="John Smith"
-                        className="w-full bg-background border border-border/50 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50" />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-muted-foreground mb-1">Billing Zip</label>
-                      <input type="text" value={ccZip} onChange={(e) => setCcZip(e.target.value.replace(/\D/g, ""))}
-                        placeholder="44112" maxLength={5}
-                        className="w-full bg-background border border-border/50 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50" />
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (!ccNumber.trim() || !ccExp.trim() || !ccCvv.trim() || !ccName.trim() || !ccZip.trim()) {
-                          toast.error("Please fill in all card fields");
-                          return;
-                        }
-                        submitPayment.mutate({
-                          orderNumber: invoice.invoiceNumber || "",
-                          invoiceNumber: invoice.invoiceNumber || "",
-                          cardNumber: ccNumber.trim(),
-                          cardExp: ccExp.trim(),
-                          cardCvv: ccCvv.trim(),
-                          cardName: ccName.trim(),
-                          cardZip: ccZip.trim(),
-                          amount: invoice.totalAmount || 0,
-                        });
-                      }}
-                      disabled={submitPayment.isPending}
-                      className="w-full bg-primary text-primary-foreground btn-premium py-3.5 rounded-lg font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 stagger-in"
+                    <a
+                      href={`tel:${BUSINESS.phone.raw}`}
+                      className="w-full bg-primary text-primary-foreground btn-premium py-3.5 rounded-lg font-semibold text-sm hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 stagger-in"
                     >
-                      {submitPayment.isPending ? (
-                        <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</>
-                      ) : (
-                        <>Pay ${invoice.totalAmount?.toFixed(2)}</>
-                      )}
-                    </button>
+                      <PhoneCall className="w-4 h-4" />
+                      Call to Pay — {BUSINESS.phone.display}
+                    </a>
+
+                    <p className="text-[11px] text-muted-foreground text-center">
+                      Call us and we'll process your payment securely over the phone.
+                      {stripeEnabled && " Online payment coming soon."}
+                    </p>
                   </div>
 
                   <div className="flex items-center gap-4 stagger-in mt-4 pt-3 border-t border-border/20">
-                    <div className="flex items-center gap-1 stagger-in.5 text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                       <Shield className="w-3 h-3" /> Secure payment
                     </div>
-                    <div className="flex items-center gap-1 stagger-in.5 text-[10px] text-muted-foreground">
-                      <Lock className="w-3 h-3" /> Encrypted
+                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <Lock className="w-3 h-3" /> PCI compliant
                     </div>
                   </div>
 
                   {/* Financing option */}
                   <div className="mt-4 pt-3 border-t border-border/20 text-center">
                     <p className="text-[11px] text-muted-foreground mb-2">Need financing?</p>
-                    <a
-                      href="https://getsnap.snapfinance.com/lease/en-US/consumer/apply?ep=store-locator&merchantId=490295617&externalMerchantId=77661"
-                      target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 stagger-in.5 bg-[#FF6B00] text-white px-4 py-2 rounded-lg text-xs font-medium hover:bg-[#FF6B00]/90 transition-colors"
-                    >
-                      <Zap className="w-3 h-3" /> Apply with Snap Finance
-                    </a>
-                    <p className="text-[9px] text-muted-foreground mt-1">Approved in seconds. Use the virtual card to pay above.</p>
+                    <div className="flex gap-2 justify-center">
+                      <a
+                        href="https://getsnap.snapfinance.com/lease/en-US/consumer/apply?ep=store-locator&merchantId=490295617&externalMerchantId=77661"
+                        target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 bg-[#FF6B00] text-white px-4 py-2 rounded-lg text-xs font-medium hover:bg-[#FF6B00]/90 transition-colors"
+                      >
+                        <Zap className="w-3 h-3" /> Snap Finance
+                      </a>
+                      <a
+                        href="https://acima.us/1TjEOYtr6C"
+                        target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-medium hover:bg-blue-600/90 transition-colors"
+                      >
+                        <Shield className="w-3 h-3" /> Acima Credit
+                      </a>
+                    </div>
+                    <p className="text-[9px] text-muted-foreground mt-1">Apply in seconds. No hard credit check.</p>
                   </div>
                 </div>
               )}

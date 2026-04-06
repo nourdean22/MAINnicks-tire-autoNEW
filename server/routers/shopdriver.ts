@@ -77,8 +77,8 @@ let sdSessionCookie: string | null = null;
 let sdSessionExpiry = 0;
 
 async function sdLogin(): Promise<boolean> {
-  const username = process.env.AUTO_LABOR_USERNAME;
-  const password = process.env.AUTO_LABOR_PASSWORD;
+  const username = process.env.AUTO_LABOR_USERNAME || process.env.ALG_USERNAME;
+  const password = process.env.AUTO_LABOR_PASSWORD || process.env.ALG_PASSWORD;
   if (!username || !password) return false;
 
   try {
@@ -477,7 +477,7 @@ export const shopdriverRouter = router({
     const bookingCount = d ? await d.select({ count: sql<number>`count(*)` }).from(bookings) : [{ count: 0 }];
 
     return {
-      connected: !!process.env.AUTO_LABOR_USERNAME,
+      connected: !!(process.env.AUTO_LABOR_USERNAME || process.env.ALG_USERNAME),
       lastSync: syncHistory.length > 0 ? syncHistory[syncHistory.length - 1] : null,
       recentSyncs: syncHistory.slice(-10).reverse(),
       counts: {
@@ -620,7 +620,7 @@ export const shopdriverRouter = router({
   portalUrl: adminProcedure.query(() => {
     return {
       url: SD_BASE,
-      hasCredentials: !!(process.env.AUTO_LABOR_USERNAME && process.env.AUTO_LABOR_PASSWORD),
+      hasCredentials: !!((process.env.AUTO_LABOR_USERNAME || process.env.ALG_USERNAME) && (process.env.AUTO_LABOR_PASSWORD || process.env.ALG_PASSWORD)),
     };
   }),
 });
