@@ -290,6 +290,16 @@ export async function enrollInDripCampaign(
     const campaign = getCampaignByTrigger(trigger);
     if (!campaign || !campaign.steps[0]) return;
 
+    // Dedup check BEFORE sending — prevents double-SMS on race conditions
+    try {
+      const { checkExistingEnrollment } = await import("./dripProcessor");
+      const alreadyEnrolled = await checkExistingEnrollment(customer.phone, campaign.id);
+      if (alreadyEnrolled) {
+        log.info(`Drip skip: ${customer.name} already enrolled in ${campaign.name}`);
+        return;
+      }
+    } catch {} // If check fails, proceed (first-time enrollment is more likely)
+
     const step = campaign.steps[0];
     if (step.delayDays > 0) return; // Only send immediate steps here, scheduled ones need DB
 
@@ -304,7 +314,7 @@ export async function enrollInDripCampaign(
     await sendSms(customer.phone, msg);
     log.info(`Drip enrolled: ${customer.name} → ${campaign.name} (step 1 sent)`);
 
-    // Persist enrollment for multi-step processing (Gap 2 fix)
+    // Persist enrollment for multi-step processing
     try {
       const { persistDripEnrollment } = await import("./dripProcessor");
       await persistDripEnrollment({
@@ -313,7 +323,9 @@ export async function enrollInDripCampaign(
         customerName: customer.name,
         metadata: { vehicle: customer.vehicle || "", service: customer.service || "" },
       });
-    } catch {}
+    } catch (err: any) {
+      log.warn(`Drip persist failed for ${customer.name}: ${err.message}`);
+    }
   } catch (err: any) {
     log.warn(`Drip enrollment failed: ${err.message}`);
   }
