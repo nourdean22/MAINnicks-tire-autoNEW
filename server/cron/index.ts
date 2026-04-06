@@ -131,6 +131,10 @@ async function logCronRun(jobName: string, status: string, durationMs: number, r
 
 /** Get status of all registered jobs */
 export function getJobStatuses(): Array<{ name: string; enabled: boolean; intervalMin: number; lastRun: string | null }> {
+  // Ensure jobs are registered (tiered scheduler may have started instead of startAllJobs)
+  if (registeredJobs.size === 0) {
+    registerAllJobs();
+  }
   return Array.from(registeredJobs.values()).map(j => ({
     name: j.name,
     enabled: j.enabled,
