@@ -214,6 +214,12 @@ async function startServer() {
   // ─── Self-Healing Monitor ─────────────────────────────
   startSelfHealing();
 
+  // ─── Event Bus (eagerly init so self-healing sees it ready) ──
+  import("../services/eventBus").then(({ initEventBus }) => {
+    initEventBus();
+    serverLog.info("Event bus initialized");
+  }).catch(err => console.error("[EventBus] Failed to init:", err));
+
   // ─── Tiered Cron Scheduler ──────────────────────────────
   // 4 tiers: heartbeat(5m), pulse(15m), hourly(2h), daily(24h)
   // + 2 standalone: morning brief + daily report (12h)

@@ -71,6 +71,11 @@ function registerDestination(dest: Destination): void {
 // Register all 7 destinations on first import
 let _initialized = false;
 
+/** Eagerly initialize the event bus — call from server startup */
+export async function initEventBus(): Promise<void> {
+  return ensureInitialized();
+}
+
 async function ensureInitialized(): Promise<void> {
   if (_initialized) return;
   _initialized = true;
