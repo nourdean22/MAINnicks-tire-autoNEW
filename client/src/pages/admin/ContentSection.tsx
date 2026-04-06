@@ -43,8 +43,8 @@ export default function ContentSection() {
       {/* Content Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total Articles" value={articles?.length ?? 0} icon={<FileText className="w-4 h-4" />} color="text-foreground" />
-        <StatCard label="Published" value={articles?.filter(a => a.status === "published").length ?? 0} icon={<CheckCircle2 className="w-4 h-4" />} color="text-emerald-400" />
-        <StatCard label="Drafts" value={articles?.filter(a => a.status === "draft").length ?? 0} icon={<Newspaper className="w-4 h-4" />} color="text-amber-400" />
+        <StatCard label="Published" value={articles?.filter((a: any) => a.status === "published").length ?? 0} icon={<CheckCircle2 className="w-4 h-4" />} color="text-emerald-400" />
+        <StatCard label="Drafts" value={articles?.filter((a: any) => a.status === "draft").length ?? 0} icon={<Newspaper className="w-4 h-4" />} color="text-amber-400" />
         <StatCard label="AI Generations" value={genLog?.length ?? 0} icon={<Sparkles className="w-4 h-4" />} color="text-purple-400" />
       </div>
 
@@ -70,7 +70,7 @@ export default function ContentSection() {
         </h3>
         {articles && articles.length > 0 ? (
           <div className="space-y-3">
-            {articles.map((article, _aIdx) => (
+            {articles.map((article: any, _aIdx: any) => (
               <div key={article.id} className="stagger-in bg-card border border-border/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3" style={{ animationDelay: `${_aIdx * 50}ms` }}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
@@ -131,7 +131,7 @@ export default function ContentSection() {
         </h3>
         {notifications && notifications.length > 0 ? (
           <div className="space-y-2">
-            {notifications.map(notif => (
+            {notifications.map((notif: any) => (
               <div key={notif.id} className="bg-card border border-border/30 p-3 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${notif.isActive === 1 ? "bg-emerald-400" : "bg-foreground/30"}`} />

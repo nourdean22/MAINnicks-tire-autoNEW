@@ -126,13 +126,13 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     const allBookings = await d.select().from(bookings).orderBy(desc(bookings.createdAt));
     const bookingStats = {
       total: allBookings.length,
-      new: allBookings.filter(b => b.status === "new").length,
-      confirmed: allBookings.filter(b => b.status === "confirmed").length,
-      completed: allBookings.filter(b => b.status === "completed").length,
-      cancelled: allBookings.filter(b => b.status === "cancelled").length,
-      thisWeek: allBookings.filter(b => new Date(b.createdAt) >= weekAgo).length,
+      new: allBookings.filter((b: any) => b.status === "new").length,
+      confirmed: allBookings.filter((b: any) => b.status === "confirmed").length,
+      completed: allBookings.filter((b: any) => b.status === "completed").length,
+      cancelled: allBookings.filter((b: any) => b.status === "cancelled").length,
+      thisWeek: allBookings.filter((b: any) => new Date(b.createdAt) >= weekAgo).length,
       byService: Object.entries(
-        allBookings.reduce((acc, b) => {
+        allBookings.reduce((acc: any, b: any) => {
           const svc = b.service || "Other";
           acc[svc] = (acc[svc] || 0) + 1;
           return acc;
@@ -144,22 +144,22 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     const allLeads = await d.select().from(leads).orderBy(desc(leads.createdAt));
     const leadStats = {
       total: allLeads.length,
-      new: allLeads.filter(l => l.status === "new").length,
-      contacted: allLeads.filter(l => l.status === "contacted").length,
-      booked: allLeads.filter(l => l.status === "booked").length,
-      closed: allLeads.filter(l => l.status === "closed").length,
-      lost: allLeads.filter(l => l.status === "lost").length,
-      urgent: allLeads.filter(l => (l.urgencyScore ?? 0) >= 4).length,
-      thisWeek: allLeads.filter(l => new Date(l.createdAt) >= weekAgo).length,
+      new: allLeads.filter((l: any) => l.status === "new").length,
+      contacted: allLeads.filter((l: any) => l.status === "contacted").length,
+      booked: allLeads.filter((l: any) => l.status === "booked").length,
+      closed: allLeads.filter((l: any) => l.status === "closed").length,
+      lost: allLeads.filter((l: any) => l.status === "lost").length,
+      urgent: allLeads.filter((l: any) => (l.urgencyScore ?? 0) >= 4).length,
+      thisWeek: allLeads.filter((l: any) => new Date(l.createdAt) >= weekAgo).length,
       bySource: Object.entries(
-        allLeads.reduce((acc, l) => {
+        allLeads.reduce((acc: any, l: any) => {
           const src = l.source || "unknown";
           acc[src] = (acc[src] || 0) + 1;
           return acc;
         }, {} as Record<string, number>)
       ).map(([source, count]) => ({ source, count: count as number })).sort((a, b) => b.count - a.count),
       avgUrgency: allLeads.length > 0
-        ? Math.round((allLeads.reduce((sum, l) => sum + (l.urgencyScore ?? 3), 0) / allLeads.length) * 10) / 10
+        ? Math.round((allLeads.reduce((sum: any, l: any) => sum + (l.urgencyScore ?? 3), 0) / allLeads.length) * 10) / 10
         : 0,
     };
 
@@ -169,35 +169,35 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     const allLogs = await d.select().from(contentGenerationLog).orderBy(desc(contentGenerationLog.createdAt));
     const contentStats = {
       totalArticles: allArticles.length,
-      published: allArticles.filter(a => a.status === "published").length,
-      drafts: allArticles.filter(a => a.status === "draft").length,
-      rejected: allArticles.filter(a => a.status === "rejected").length,
+      published: allArticles.filter((a: any) => a.status === "published").length,
+      drafts: allArticles.filter((a: any) => a.status === "draft").length,
+      rejected: allArticles.filter((a: any) => a.status === "rejected").length,
       totalNotifications: allNotifs.length,
-      activeNotifications: allNotifs.filter(n => n.isActive === 1).length,
+      activeNotifications: allNotifs.filter((n: any) => n.isActive === 1).length,
       generationLogs: allLogs.length,
-      recentGenerations: allLogs.filter(l => new Date(l.createdAt) >= weekAgo).length,
+      recentGenerations: allLogs.filter((l: any) => new Date(l.createdAt) >= weekAgo).length,
     };
 
     // ─── CHAT ─────────────────────────────────────────
     const allChats = await d.select().from(chatSessions);
     const chatStats = {
       totalSessions: allChats.length,
-      converted: allChats.filter(c => c.converted === 1).length,
-      thisWeek: allChats.filter(c => new Date(c.createdAt) >= weekAgo).length,
+      converted: allChats.filter((c: any) => c.converted === 1).length,
+      thisWeek: allChats.filter((c: any) => new Date(c.createdAt) >= weekAgo).length,
     };
 
     // ─── USERS ────────────────────────────────────────
     const allUsers = await d.select().from(users);
     const userStats = {
       total: allUsers.length,
-      admins: allUsers.filter(u => u.role === "admin").length,
+      admins: allUsers.filter((u: any) => u.role === "admin").length,
     };
 
     // ─── RECENT ACTIVITY ──────────────────────────────
     const recentActivity: ActivityItem[] = [];
 
     // Recent bookings
-    allBookings.slice(0, 5).forEach(b => {
+    allBookings.slice(0, 5).forEach((b: any) => {
       recentActivity.push({
         type: "booking",
         title: `${b.name} — ${b.service}`,
@@ -208,7 +208,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     });
 
     // Recent leads
-    allLeads.slice(0, 5).forEach(l => {
+    allLeads.slice(0, 5).forEach((l: any) => {
       recentActivity.push({
         type: "lead",
         title: `${l.name} — ${l.recommendedService || "General"}`,
@@ -220,7 +220,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     });
 
     // Recent articles
-    allArticles.slice(0, 3).forEach(a => {
+    allArticles.slice(0, 3).forEach((a: any) => {
       recentActivity.push({
         type: "article",
         title: a.title,
@@ -231,7 +231,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     });
 
     // Recent chats
-    allChats.slice(0, 3).forEach(c => {
+    allChats.slice(0, 3).forEach((c: any) => {
       recentActivity.push({
         type: "chat",
         title: c.vehicleInfo || "Vehicle Diagnosis Chat",
@@ -243,7 +243,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     // Recent work orders
     try {
       const recentWOs = await d.select().from(workOrders).orderBy(desc(workOrders.updatedAt)).limit(5);
-      recentWOs.forEach(wo => {
+      recentWOs.forEach((wo: any) => {
         const vehicle = [wo.vehicleYear, wo.vehicleMake, wo.vehicleModel].filter(Boolean).join(" ");
         const amount = wo.total ? `$${(Number(wo.total)).toLocaleString()}` : "";
         recentActivity.push({
@@ -260,13 +260,13 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
     // ─── SOURCE ATTRIBUTION ─────────────────────────
     const bookingsBySource: Record<string, number> = {};
-    allBookings.forEach(b => {
+    allBookings.forEach((b: any) => {
       const src = b.utmSource || (b.referrer ? "referral" : "direct");
       bookingsBySource[src] = (bookingsBySource[src] || 0) + 1;
     });
 
     const leadsByUtmSource: Record<string, number> = {};
-    allLeads.forEach(l => {
+    allLeads.forEach((l: any) => {
       const src = l.utmSource || (l.referrer ? "referral" : "direct");
       leadsByUtmSource[src] = (leadsByUtmSource[src] || 0) + 1;
     });
@@ -277,7 +277,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     try {
       const allCalls = await d.select().from(callEvents).orderBy(desc(callEvents.createdAt));
       const callsByPage: Record<string, number> = {};
-      allCalls.forEach(c => {
+      allCalls.forEach((c: any) => {
         const page = c.sourcePage || "unknown";
         callsByPage[page] = (callsByPage[page] || 0) + 1;
         const src = c.utmSource || (c.referrer ? "referral" : "direct");
@@ -285,7 +285,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       });
       callTrackingStats = {
         totalCalls: allCalls.length,
-        thisWeek: allCalls.filter(c => new Date(c.createdAt) >= weekAgo).length,
+        thisWeek: allCalls.filter((c: any) => new Date(c.createdAt) >= weekAgo).length,
         byPage: Object.entries(callsByPage).map(([page, count]) => ({ page, count })).sort((a, b) => b.count - a.count),
       };
     } catch (err) {
@@ -298,9 +298,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       const allCallbacks = await d.select().from(callbackRequests).orderBy(desc(callbackRequests.createdAt));
       callbackStats = {
         total: allCallbacks.length,
-        new: allCallbacks.filter(c => c.status === "new").length,
-        completed: allCallbacks.filter(c => c.status === "completed").length,
-        thisWeek: allCallbacks.filter(c => new Date(c.createdAt) >= weekAgo).length,
+        new: allCallbacks.filter((c: any) => c.status === "new").length,
+        completed: allCallbacks.filter((c: any) => c.status === "completed").length,
+        thisWeek: allCallbacks.filter((c: any) => new Date(c.createdAt) >= weekAgo).length,
       };
     } catch (err) {
       console.error("[AdminStats] Callback stats failed:", err instanceof Error ? err.message : err);

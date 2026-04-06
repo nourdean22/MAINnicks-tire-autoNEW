@@ -53,8 +53,8 @@ function MetricsStrip() {
   const { data: stats } = trpc.workOrders.stats.useQuery(undefined, { refetchInterval: 10000 });
   const { data: qcStats } = trpc.dispatch.qcStats.useQuery(undefined, { refetchInterval: 10000 });
 
-  const clockedIn = load?.techs.filter(t => t.clockedIn).length || 0;
-  const freeBays = load?.bays.filter(b => !b.occupied).length || 0;
+  const clockedIn = load?.techs.filter((t: any) => t.clockedIn).length || 0;
+  const freeBays = load?.bays.filter((b: any) => !b.occupied).length || 0;
   const totalBays = load?.bays.length || 0;
 
   const metrics = [
@@ -89,7 +89,7 @@ function BayGrid() {
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-      {bays.map(bay => (
+      {bays.map((bay: any) => (
         <BayCard key={bay.id} bay={bay} techs={load?.techs || []} />
       ))}
     </div>
@@ -456,7 +456,7 @@ function TechManager() {
     <div className="space-y-2">
       <h3 className="text-sm font-medium text-muted-foreground mb-2">Technicians ({techs.length})</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {techs.map(tech => (
+        {techs.map((tech: any) => (
           <div key={tech.id} className="border border-border/40 rounded-lg p-4 bg-card">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">

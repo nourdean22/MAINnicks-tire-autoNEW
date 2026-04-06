@@ -120,12 +120,12 @@ export const jobAssignmentsRouter = router({
         .where(eq(jobAssignments.bookingId, input.bookingId))
         .orderBy(desc(jobAssignments.createdAt));
       // Enrich with technician names
-      const techIds = Array.from(new Set(assignments.map(a => a.technicianId)));
+      const techIds = Array.from(new Set(assignments.map((a: any) => a.technicianId)));
       const techs = techIds.length > 0
         ? await d.select().from(technicians).where(sql`${technicians.id} IN (${sql.join(techIds.map(id => sql`${id}`), sql`, `)})`)
         : [];
-      const techMap = new Map(techs.map(t => [t.id, t]));
-      return assignments.map(a => ({
+      const techMap = new Map(techs.map((t: any) => [t.id, t]));
+      return assignments.map((a: any) => ({
         ...a,
         technician: techMap.get(a.technicianId) || null,
       }));
@@ -148,13 +148,13 @@ export const jobAssignmentsRouter = router({
     const techs = await d.select().from(technicians).where(eq(technicians.isActive, 1));
     const activeJobs = await d.select().from(jobAssignments)
       .where(sql`${jobAssignments.completedAt} IS NULL`);
-    return techs.map(t => ({
+    return techs.map((t: any) => ({
       id: t.id,
       name: t.name,
       title: t.title,
       photoUrl: t.photoUrl,
-      activeJobs: activeJobs.filter(j => j.technicianId === t.id).length,
-      assignments: activeJobs.filter(j => j.technicianId === t.id),
+      activeJobs: activeJobs.filter((j: any) => j.technicianId === t.id).length,
+      assignments: activeJobs.filter((j: any) => j.technicianId === t.id),
     }));
   }),
 });
@@ -334,19 +334,19 @@ export const invoicesRouter = router({
       const prevInvoices = await d.select().from(invoices)
         .where(and(gte(invoices.invoiceDate, prevCutoff), lte(invoices.invoiceDate, cutoff), eq(invoices.paymentStatus, "paid")));
 
-      const totalRevenue = Math.round(currentInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0) / 100);
-      const prevRevenue = Math.round(prevInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0) / 100);
+      const totalRevenue = Math.round(currentInvoices.reduce((sum: any, inv: any) => sum + inv.totalAmount, 0) / 100);
+      const prevRevenue = Math.round(prevInvoices.reduce((sum: any, inv: any) => sum + inv.totalAmount, 0) / 100);
 
       // Revenue by day
       const byDay: Record<string, number> = {};
-      currentInvoices.forEach(inv => {
+      currentInvoices.forEach((inv: any) => {
         const day = new Date(inv.invoiceDate).toISOString().split("T")[0];
         byDay[day] = (byDay[day] || 0) + Math.round(inv.totalAmount / 100);
       });
 
       // Revenue by payment method
       const byPayment: Record<string, number> = {};
-      currentInvoices.forEach(inv => {
+      currentInvoices.forEach((inv: any) => {
         byPayment[inv.paymentMethod] = (byPayment[inv.paymentMethod] || 0) + Math.round(inv.totalAmount / 100);
       });
 
@@ -374,7 +374,7 @@ export const invoicesRouter = router({
         .where(eq(invoices.paymentStatus, "paid"));
       // Aggregate by customer name
       const byCustomer: Record<string, { name: string; phone: string | null; total: number; count: number; lastVisit: Date }> = {};
-      all.forEach(inv => {
+      all.forEach((inv: any) => {
         const key = inv.customerPhone || inv.customerName;
         if (!byCustomer[key]) {
           byCustomer[key] = { name: inv.customerName, phone: inv.customerPhone, total: 0, count: 0, lastVisit: new Date(inv.invoiceDate) };
@@ -410,16 +410,16 @@ export const kpiRouter = router({
     // Revenue this month
     const monthInvoices = await d.select().from(invoices)
       .where(and(gte(invoices.invoiceDate, monthAgo), eq(invoices.paymentStatus, "paid")));
-    const monthRevenue = Math.round(monthInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0) / 100);
+    const monthRevenue = Math.round(monthInvoices.reduce((sum: any, inv: any) => sum + inv.totalAmount, 0) / 100);
 
     // Review stats
     const monthReviews = await d.select().from(reviewRequests).where(gte(reviewRequests.createdAt, monthAgo));
-    const reviewsSent = monthReviews.filter(r => r.status === "sent" || r.status === "clicked").length;
-    const reviewsClicked = monthReviews.filter(r => r.status === "clicked").length;
+    const reviewsSent = monthReviews.filter((r: any) => r.status === "sent" || r.status === "clicked").length;
+    const reviewsClicked = monthReviews.filter((r: any) => r.status === "clicked").length;
 
     // Conversion rate
     const totalLeads = monthLeads.length;
-    const convertedLeads = monthLeads.filter(l => l.status === "booked").length;
+    const convertedLeads = monthLeads.filter((l: any) => l.status === "booked").length;
     const conversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0;
 
     // Customer counts
@@ -462,9 +462,9 @@ export const kpiRouter = router({
       newCustomersThisMonth: newCustomerCount?.count ?? 0,
       dayOfWeekCounts,
       hourCounts,
-      completedThisWeek: weekBookings.filter(b => b.status === "completed").length,
-      completedThisMonth: monthBookings.filter(b => b.status === "completed").length,
-      emergencyThisWeek: weekBookings.filter(b => b.urgency === "emergency").length,
+      completedThisWeek: weekBookings.filter((b: any) => b.status === "completed").length,
+      completedThisMonth: monthBookings.filter((b: any) => b.status === "completed").length,
+      emergencyThisWeek: weekBookings.filter((b: any) => b.urgency === "emergency").length,
     };
   }),
 

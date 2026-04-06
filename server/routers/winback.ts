@@ -194,10 +194,10 @@ export const winbackRouter = router({
         .where(eq(customers.segment, campaign.targetSegment as any))
         .limit(5);
 
-      return sampleCustomers.map(c => ({
+      return sampleCustomers.map((c: any) => ({
         customer: `${c.firstName} ${c.lastName || ""}`.trim(),
         phone: c.phone,
-        messages: messages.map(m => ({
+        messages: messages.map((m: any) => ({
           step: m.step,
           delayDays: m.delayDays,
           body: m.body.replace(/{firstName}/g, c.firstName),

@@ -118,9 +118,9 @@ export async function projectRevenue(): Promise<{
     d.select().from(invoices).where(and(gte(invoices.invoiceDate, monthAgo), eq(invoices.paymentStatus, "paid"))),
   ]);
 
-  const thisWeekRev = thisWeekInvoices.reduce((s, i) => s + i.totalAmount, 0) / 100;
-  const lastWeekRev = lastWeekInvoices.reduce((s, i) => s + i.totalAmount, 0) / 100;
-  const monthRev = monthInvoices.reduce((s, i) => s + i.totalAmount, 0) / 100;
+  const thisWeekRev = thisWeekInvoices.reduce((s: any, i: any) => s + i.totalAmount, 0) / 100;
+  const lastWeekRev = lastWeekInvoices.reduce((s: any, i: any) => s + i.totalAmount, 0) / 100;
+  const monthRev = monthInvoices.reduce((s: any, i: any) => s + i.totalAmount, 0) / 100;
 
   const dayOfWeek = now.getDay(); // 0=Sun
   const daysIntoWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
@@ -783,13 +783,13 @@ export async function getShopPulse(): Promise<{
   ]);
 
   // Calculate today
-  const todayRevenue = todayInvoicesPaid.reduce((s, i) => s + i.totalAmount, 0) / 100;
+  const todayRevenue = todayInvoicesPaid.reduce((s: any, i: any) => s + i.totalAmount, 0) / 100;
   const todayJobsClosed = todayInvoicesPaid.length;
   const todayAvgTicket = todayJobsClosed > 0 ? Math.round(todayRevenue / todayJobsClosed) : 0;
   const todayEstimates = todayEstimateLeads[0]?.count ?? 0;
 
   // Calculate week
-  const weekRevenue = weekInvoicesPaid.reduce((s, i) => s + i.totalAmount, 0) / 100;
+  const weekRevenue = weekInvoicesPaid.reduce((s: any, i: any) => s + i.totalAmount, 0) / 100;
   const weekJobsClosed = weekInvoicesPaid.length;
   const weekAvgTicket = weekJobsClosed > 0 ? Math.round(weekRevenue / weekJobsClosed) : 0;
   const weekEstimates = weekEstimateLeads[0]?.count ?? 0;

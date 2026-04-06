@@ -55,7 +55,7 @@ export default function EstimatesSection() {
   // Estimate-related leads
   const estimateLeads = useMemo(() => {
     if (!leads) return [];
-    return leads.filter(l =>
+    return leads.filter((l: any) =>
       l.source?.toLowerCase().includes("estimate") ||
       l.source?.toLowerCase().includes("labor") ||
       l.source?.toLowerCase().includes("cost") ||
@@ -79,7 +79,7 @@ export default function EstimatesSection() {
   // Pipeline counts
   const pipelineCounts = useMemo(() => {
     const counts: Record<PipelineStage, number> = { new: 0, contacted: 0, quoted: 0, booked: 0, lost: 0 };
-    estimateLeads.forEach(l => {
+    estimateLeads.forEach((l: any) => {
       const stage = mapStage(l.status || "new");
       counts[stage]++;
     });
@@ -90,11 +90,11 @@ export default function EstimatesSection() {
   const filteredLeads = useMemo(() => {
     let result = estimateLeads;
     if (stageFilter !== "all") {
-      result = result.filter(l => mapStage(l.status || "new") === stageFilter);
+      result = result.filter((l: any) => mapStage(l.status || "new") === stageFilter);
     }
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(l =>
+      result = result.filter((l: any) =>
         l.name?.toLowerCase().includes(q) ||
         l.phone?.includes(q) ||
         l.vehicle?.toLowerCase().includes(q) ||
@@ -111,7 +111,7 @@ export default function EstimatesSection() {
 
   // Avg time to contact (for contacted/booked leads)
   const avgResponseHours = useMemo(() => {
-    const contacted = estimateLeads.filter(l => ["contacted", "booked", "completed"].includes(l.status || ""));
+    const contacted = estimateLeads.filter((l: any) => ["contacted", "booked", "completed"].includes(l.status || ""));
     if (contacted.length === 0) return null;
     // Approximate: use createdAt as baseline
     return "< 4h"; // placeholder — real metric would need contactedAt field
@@ -230,7 +230,7 @@ export default function EstimatesSection() {
             </p>
           </div>
         ) : (
-          filteredLeads.map((lead) => {
+          filteredLeads.map((lead: any) => {
             const stage = mapStage(lead.status || "new");
             const stageCfg = PIPELINE_STAGES.find(s => s.id === stage) || PIPELINE_STAGES[0];
             return (

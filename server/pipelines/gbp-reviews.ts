@@ -272,8 +272,8 @@ export async function suggestResponse(review: AnalyzedReview): Promise<string> {
         .limit(5);
 
       pastResponses = approved
-        .filter(r => r.response)
-        .map(r => `[${r.rating}-star] "${r.reviewText?.slice(0, 80) || '(no text)'}" → Response: "${r.response!.slice(0, 150)}"`);
+        .filter((r: any) => r.response)
+        .map((r: any) => `[${r.rating}-star] "${r.reviewText?.slice(0, 80) || '(no text)'}" → Response: "${r.response!.slice(0, 150)}"`);
     }
   } catch {
     // Non-critical — proceed without learning data
@@ -401,10 +401,10 @@ export async function detectTrends(): Promise<ReviewTrendSnapshot> {
   // Compute current metrics
   const totalReviews = currentReviews.length;
   const avgRating = totalReviews > 0
-    ? currentReviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews
+    ? currentReviews.reduce((sum: any, r: any) => sum + r.rating, 0) / totalReviews
     : 0;
-  const positiveCount = currentReviews.filter(r => r.rating >= 4).length;
-  const negativeCount = currentReviews.filter(r => r.rating <= 2).length;
+  const positiveCount = currentReviews.filter((r: any) => r.rating >= 4).length;
+  const negativeCount = currentReviews.filter((r: any) => r.rating <= 2).length;
 
   // Sentiment distribution
   const sentimentDist: Record<string, number> = { positive: 0, negative: 0, neutral: 0, mixed: 0 };
@@ -432,7 +432,7 @@ export async function detectTrends(): Promise<ReviewTrendSnapshot> {
 
   // Trend detection
   const prevAvgRating = previousReviews.length > 0
-    ? previousReviews.reduce((sum, r) => sum + r.rating, 0) / previousReviews.length
+    ? previousReviews.reduce((sum: any, r: any) => sum + r.rating, 0) / previousReviews.length
     : avgRating;
 
   const ratingDelta = avgRating - prevAvgRating;

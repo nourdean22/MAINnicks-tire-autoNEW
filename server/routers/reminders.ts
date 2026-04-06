@@ -72,7 +72,7 @@ export async function processReminderQueue() {
   for (const reminder of due) {
     try {
       const settings = await getReminderSettings();
-      const setting = settings.find(s => s.serviceType === reminder.serviceType);
+      const setting = settings.find((s: any) => s.serviceType === reminder.serviceType);
       const template = setting?.messageTemplate;
 
       let message: string;

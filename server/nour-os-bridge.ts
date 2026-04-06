@@ -731,8 +731,8 @@ export async function dispatchShopFloorSnapshot(): Promise<void> {
     try {
       const { getDispatchLoad } = await import("./services/dispatch");
       const load = await getDispatchLoad();
-      const clockedIn = load.techs.filter(t => t.clockedIn).length;
-      const freeBays = load.bays.filter(b => !b.occupied).length;
+      const clockedIn = load.techs.filter((t: any) => t.clockedIn).length;
+      const freeBays = load.bays.filter((b: any) => !b.occupied).length;
       dispatchData = { techsClockedIn: clockedIn, freeBays: freeBays, totalBays: load.bays.length };
     } catch (err) {
       console.error("[NourOSBridge] Dispatch load fetch failed:", err instanceof Error ? err.message : err);

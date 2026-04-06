@@ -88,7 +88,7 @@ export default function TireOrdersSection() {
             <p className="text-xs mt-1">Orders placed through the online tire shop will appear here.</p>
           </div>
         ) : (
-          ordersData.orders.map((order, _oIdx) => {
+          ordersData.orders.map((order: any, _oIdx: any) => {
             const config = STATUS_CONFIG[order.status] || STATUS_CONFIG.received;
             const isSelected = selectedOrderId === order.id;
 

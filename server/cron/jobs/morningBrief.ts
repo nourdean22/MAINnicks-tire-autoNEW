@@ -64,7 +64,7 @@ export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; d
       d.select({ count: sql<number>`count(*)` }).from(bookings).where(gte(bookings.createdAt, monthAgo)),
     ]);
 
-    const monthRevenue = Math.round(monthPaidInvoices.reduce((s, inv) => s + inv.totalAmount, 0) / 100);
+    const monthRevenue = Math.round(monthPaidInvoices.reduce((s: any, inv: any) => s + inv.totalAmount, 0) / 100);
     const avgTicket = monthPaidInvoices.length > 0 ? Math.round(monthRevenue / monthPaidInvoices.length) : 0;
     const jobsWon = monthPaidInvoices.length;
     const conversionRate = (monthBookingsTotal[0]?.count ?? 0) > 0
@@ -124,7 +124,7 @@ ${conversionRate < 40 ? `- 📉 Conversion rate ${conversionRate}% is below 40% 
       // Yesterday's revenue
       const yesterdayPaid = await d.select().from(invoices)
         .where(and(gte(invoices.invoiceDate, yesterdayStart), sql`${invoices.invoiceDate} < ${todayStart}`, eq(invoices.paymentStatus, "paid")));
-      const yesterdayRevenue = Math.round(yesterdayPaid.reduce((s, inv) => s + inv.totalAmount, 0) / 100);
+      const yesterdayRevenue = Math.round(yesterdayPaid.reduce((s: any, inv: any) => s + inv.totalAmount, 0) / 100);
       enrichmentBlock += `\nYESTERDAY'S REVENUE: $${yesterdayRevenue.toLocaleString()} from ${yesterdayPaid.length} paid invoices.`;
 
       // Today's scheduled bookings

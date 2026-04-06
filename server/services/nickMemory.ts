@@ -116,7 +116,7 @@ export async function recall(params?: {
       .where(sql`${shopSettings.key} LIKE ${prefix + "%"}`)
       .limit(params?.limit || 50);
 
-    return rows.map(r => {
+    return rows.map((r: any) => {
       try {
         const data = JSON.parse(r.value);
         return {

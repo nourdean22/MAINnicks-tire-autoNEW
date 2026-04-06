@@ -65,7 +65,7 @@ export async function analyzeCustomers(): Promise<CustomerInsight> {
 
     // Revenue analysis from invoices
     const paidInvoices = await d.select().from(invoices).where(eq(invoices.paymentStatus, "paid"));
-    const totalRevenue = paidInvoices.reduce((s, i) => s + i.totalAmount, 0) / 100;
+    const totalRevenue = paidInvoices.reduce((s: any, i: any) => s + i.totalAmount, 0) / 100;
     const avgTicket = paidInvoices.length > 0 ? Math.round(totalRevenue / paidInvoices.length) : 0;
 
     // Top spenders (aggregate by customer name)
@@ -119,8 +119,8 @@ export async function analyzeCustomers(): Promise<CustomerInsight> {
         .limit(10);
 
       atRiskCustomers = lapsedRows
-        .filter(r => r.lastVisit)
-        .map(r => ({
+        .filter((r: any) => r.lastVisit)
+        .map((r: any) => ({
           name: `${r.firstName} ${r.lastName || ""}`.trim(),
           phone: r.phone || "",
           lastVisit: r.lastVisit ? new Date(r.lastVisit).toISOString().split("T")[0] : "unknown",

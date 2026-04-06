@@ -40,7 +40,7 @@ function OpportunityTracker() {
     const highValueServices = ["engine", "transmission", "brake", "timing", "head gasket", "catalytic", "turbo", "ac", "a/c"];
 
     if (leads) {
-      leads.forEach(l => {
+      leads.forEach((l: any) => {
         const text = `${l.problem || ""} ${l.vehicle || ""} ${l.source || ""}`.toLowerCase();
         const hasFinancingSignal = financingKeywords.some(k => text.includes(k));
         const hasHighValue = highValueServices.some(k => text.includes(k));
@@ -453,7 +453,7 @@ export default function FinancingSection() {
     if (!leads) return 0;
     const keywords = ["cost", "price", "afford", "financ", "payment", "expensive", "budget", "pay"];
     const highValue = ["engine", "transmission", "brake", "timing", "head gasket", "catalytic", "turbo", "ac", "a/c"];
-    return leads.filter(l => {
+    return leads.filter((l: any) => {
       const text = `${l.problem || ""} ${l.vehicle || ""} ${l.source || ""}`.toLowerCase();
       return keywords.some(k => text.includes(k)) || highValue.some(k => text.includes(k));
     }).length;

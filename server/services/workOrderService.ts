@@ -379,10 +379,10 @@ async function checkAllPartsReceived(workOrderId: string): Promise<void> {
     partStatus: workOrderItems.partStatus,
   }).from(workOrderItems).where(eq(workOrderItems.workOrderId, workOrderId));
 
-  const partsLines = lines.filter(l => l.partStatus !== "not_needed");
+  const partsLines = lines.filter((l: any) => l.partStatus !== "not_needed");
   if (partsLines.length === 0) return;
 
-  const pendingParts = partsLines.filter(l =>
+  const pendingParts = partsLines.filter((l: any) =>
     l.partStatus !== "received" && l.partStatus !== "installed"
   );
 
@@ -396,7 +396,7 @@ async function checkAllPartsReceived(workOrderId: string): Promise<void> {
       await updateStatus(workOrderId, "parts_received", "system", { note: "All parts received" });
       await updateStatus(workOrderId, "ready_for_bay", "system", { note: "Auto-advanced: all parts in" });
     }
-  } else if (partsLines.some(l => l.partStatus === "received")) {
+  } else if (partsLines.some((l: any) => l.partStatus === "received")) {
     if (wo.status === "parts_ordered") {
       await updateStatus(workOrderId, "parts_partial", "system", {
         note: `${pendingParts.length} parts still pending`,
@@ -703,7 +703,7 @@ export async function getDeclinedWorkHistory(customerId: string): Promise<any[]>
     .orderBy(desc(workOrders.createdAt))
     .limit(5);
 
-  return pastOrders.flatMap(wo => {
+  return pastOrders.flatMap((wo: any) => {
     const items = (wo.declinedWorkJson as any[] || []);
     return items.map((item: any) => ({
       ...item,

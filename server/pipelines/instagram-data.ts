@@ -233,7 +233,7 @@ export async function getEngagementByType(): Promise<EngagementByType[]> {
     .groupBy(instagramAnalytics.postType)
     .orderBy(sql`AVG(${instagramAnalytics.engagementRate}) DESC`);
 
-  return rows.map(r => ({
+  return rows.map((r: any) => ({
     type: r.postType || "UNKNOWN",
     postCount: Number(r.postCount),
     avgLikes: Number(r.avgLikes),
@@ -266,7 +266,7 @@ export async function getBestPostingTimes(opts?: { limit?: number }): Promise<Be
     .orderBy(sql`AVG(${instagramAnalytics.engagementRate}) DESC`)
     .limit(limit);
 
-  return rows.map(r => ({
+  return rows.map((r: any) => ({
     dayOfWeek: Number(r.dayOfWeek),
     dayName: DAY_NAMES[Number(r.dayOfWeek)] || "Unknown",
     hourOfDay: Number(r.hourOfDay),
@@ -303,15 +303,15 @@ export async function getFollowerGrowth(): Promise<FollowerGrowth> {
     return { currentFollowers, snapshots: [], growthRate7d: 0, growthRate30d: 0, trend: "stable" };
   }
 
-  const snapshotData = snapshots.map(s => ({
+  const snapshotData = snapshots.map((s: any) => ({
     date: String(s.date),
     followers: Number(s.followers),
   }));
 
   // Calculate growth rates
   const latest = snapshotData[0]?.followers || currentFollowers;
-  const sevenDaysAgo = snapshotData.find((_, i) => i >= 6)?.followers || latest;
-  const thirtyDaysAgo = snapshotData.find((_, i) => i >= 29)?.followers || latest;
+  const sevenDaysAgo = snapshotData.find((_: any, i: any) => i >= 6)?.followers || latest;
+  const thirtyDaysAgo = snapshotData.find((_: any, i: any) => i >= 29)?.followers || latest;
 
   const growthRate7d = sevenDaysAgo > 0
     ? Math.round(((latest - sevenDaysAgo) / sevenDaysAgo) * 10000) / 100
@@ -348,7 +348,7 @@ export async function getTopPosts(opts?: { limit?: number }): Promise<PostAnalys
     .orderBy(desc(instagramAnalytics.engagementRate))
     .limit(opts?.limit ?? 10);
 
-  return rows.map(r => ({
+  return rows.map((r: any) => ({
     postId: r.postId,
     postType: r.postType || "UNKNOWN",
     caption: r.caption || "",

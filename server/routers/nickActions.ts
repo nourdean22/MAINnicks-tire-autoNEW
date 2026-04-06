@@ -1648,7 +1648,7 @@ Return JSON:
             d.select({ count: sql<number>`count(*)` }).from(leads).where(gte(leads.createdAt, weekAgo)),
           ]);
 
-          const monthRevenueCents = monthInvoicesPaid.reduce((s, inv) => s + inv.totalAmount, 0);
+          const monthRevenueCents = monthInvoicesPaid.reduce((s: any, inv: any) => s + inv.totalAmount, 0);
           const monthRevenue = Math.round(monthRevenueCents / 100);
           const avgTicket = monthInvoicesPaid.length > 0 ? Math.round(monthRevenue / monthInvoicesPaid.length) : 0;
 
@@ -2069,7 +2069,7 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
       const result = await d.select().from(shopSettings)
         .where(sql`${shopSettings.key} LIKE 'camera_%'`);
 
-      const cameras = result.map(r => {
+      const cameras = result.map((r: any) => {
         try {
           const data = JSON.parse(r.value);
           return { id: r.key.replace("camera_", ""), name: data.name, url: data.url, type: data.type || "http" };
@@ -2096,7 +2096,7 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
     const result = await d.select().from(shopSettings)
       .where(sql`${shopSettings.key} LIKE 'camera_%'`);
 
-    return result.map(r => {
+    return result.map((r: any) => {
       try {
         const data = JSON.parse(r.value);
         return { id: r.key.replace("camera_", ""), ...data };
@@ -2262,7 +2262,7 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
 
       // Get all existing phones in one query (fast dedup)
       const allExisting = await d.select({ phone: customers.phone }).from(customers);
-      const existingPhones = new Set(allExisting.map(c => c.phone.replace(/\D/g, "").slice(-10)));
+      const existingPhones = new Set(allExisting.map((c: any) => c.phone.replace(/\D/g, "").slice(-10)));
 
       // Parse all rows into batch
       const toInsert: Array<{

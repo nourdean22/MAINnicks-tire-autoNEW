@@ -55,8 +55,8 @@ export async function getAtRiskJobs(): Promise<PromiseRiskResult[]> {
   const now = Date.now();
 
   return jobs
-    .map(wo => calculateRisk(wo, now))
-    .sort((a, b) => b.riskScore - a.riskScore);
+    .map((wo: any) => calculateRisk(wo, now))
+    .sort((a: any, b: any) => b.riskScore - a.riskScore);
 }
 
 function calculateRisk(wo: any, now: number): PromiseRiskResult {
