@@ -135,13 +135,16 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
     log.warn("Health check: self-healing not loaded", { error: err instanceof Error ? err.message : String(err) });
   }
 
-  // Memory usage
+  // Memory usage — compare against max-old-space-size ceiling, not V8's current allocation
   const mem = process.memoryUsage();
   const memUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
   const memTotalMB = Math.round(mem.heapTotal / 1024 / 1024);
-  const memPercent = memTotalMB > 0 ? Math.round((memUsedMB / memTotalMB) * 100) : 0;
+  // Parse --max-old-space-size from NODE_OPTIONS (defaults to 512MB if not set)
+  const maxMatch = (process.env.NODE_OPTIONS || "").match(/--max-old-space-size=(\d+)/);
+  const heapCeilingMB = maxMatch ? parseInt(maxMatch[1], 10) : 512;
+  const memPercent = heapCeilingMB > 0 ? Math.round((memUsedMB / heapCeilingMB) * 100) : 0;
 
-  // Memory pressure = degraded
+  // Memory pressure = degraded (only when truly approaching the ceiling)
   if (memPercent >= 90 && overallStatus === "healthy") {
     overallStatus = "degraded";
   }
