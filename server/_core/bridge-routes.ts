@@ -279,13 +279,46 @@ export function registerBridgeRoutes(app: Express): void {
           data.result?.token || data.result?.jwt;
         diag.extractedToken = token ? `${String(token).substring(0, 30)}...` : null;
 
-        // Step 2: If we got a token, try a few endpoints
+        // Step 2: If we got a token, probe many endpoint patterns
         if (token) {
           const testEndpoints = [
+            // PascalCase ASP.NET convention
+            "/api/Ticket/GetRecent",
+            "/api/Ticket/GetAll",
+            "/api/Ticket/Search",
+            "/api/Ticket/List",
+            "/api/Customer/GetAll",
+            "/api/Customer/Search",
+            "/api/Customer/List",
+            "/api/Invoice/GetAll",
+            "/api/Invoice/GetRecent",
+            "/api/WorkOrder/GetAll",
+            "/api/Report/TotalSales",
+            "/api/Report/Dashboard",
+            // camelCase variants
             "/api/ticket/getRecent",
             "/api/customer/getAll",
-            "/api/ticket/getAll",
-            "/api/invoice/getAll",
+            // Plural controllers
+            "/api/Tickets",
+            "/api/Customers",
+            "/api/Invoices",
+            "/api/WorkOrders",
+            // Client-scoped (using clientId from login)
+            `/api/Client/${data.clientId}/Tickets`,
+            `/api/Client/${data.clientId}/Customers`,
+            // OData-style
+            "/odata/Tickets",
+            "/odata/Customers",
+            // Version-prefixed
+            "/api/v1/tickets",
+            "/api/v1/customers",
+            "/api/v2/tickets",
+            // Dashboard / home endpoints (SPA landing page data)
+            "/api/Dashboard",
+            "/api/Dashboard/Get",
+            "/api/Home",
+            "/api/Home/GetDashboard",
+            "/api/Settings/Ticket",
           ];
           const probes: Record<string, unknown>[] = [];
           for (const ep of testEndpoints) {
