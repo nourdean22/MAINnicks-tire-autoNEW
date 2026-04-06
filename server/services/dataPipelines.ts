@@ -416,6 +416,14 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
     WHERE (c.firstVisitDate IS NULL OR c.firstVisitDate > i.earliest) AND LENGTH(c.phone) >= 10
   `);
 
+  // 0. One-time cleanup: strip trailing quotes from imported customer names
+  await step("cleanup", sql`
+    UPDATE customers
+    SET firstName = TRIM(TRAILING '"' FROM firstName),
+        lastName = TRIM(TRAILING '"' FROM lastName)
+    WHERE firstName LIKE '%"' OR lastName LIKE '%"'
+  `);
+
   // 3b. Also match by name for invoices without phone (LAST, FIRST format)
   await step("spent-name", sql`
     UPDATE customers c
