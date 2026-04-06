@@ -143,10 +143,11 @@ export async function executeAutoAction(parsed: ParsedResponse, phone: string, c
       case "unsubscribe-customer":
         if (db) {
           const { customers } = await import("../../drizzle/schema");
+          const { like } = await import("drizzle-orm");
           const normalized = phone.replace(/\D/g, "").slice(-10);
           await db.update(customers)
             .set({ smsOptOut: 1 })
-            .where(eq(customers.phone, normalized));
+            .where(like(customers.phone, `%${normalized}`));
           log.info("Customer opted out of SMS marketing", { phone: phone.slice(-4) });
         }
         return { executed: true, action: "unsubscribe-customer" };
