@@ -155,6 +155,8 @@ export default function Admin() {
       es.addEventListener("emergency_request", () => { invalidateAll(); toast.error("EMERGENCY request!"); });
       es.addEventListener("callback_requested", () => { invalidateAll(); toast.info("Callback requested"); });
       es.addEventListener("review_detected", () => { invalidateAll(); toast.info("New review detected"); });
+      es.addEventListener("work_order_updated", () => { invalidateAll(); });
+      es.addEventListener("work_order_created", () => { invalidateAll(); toast.info("New work order created"); });
       es.onerror = () => { /* EventSource auto-reconnects */ };
     } catch {}
     return () => { es?.close(); };
@@ -281,7 +283,9 @@ export default function Admin() {
                           item.id === "leads"
                             ? "bg-destructive/15 text-destructive"
                             : item.id === "workOrders"
-                            ? "bg-primary/15 text-primary"
+                            ? (woStats?.overdue || woStats?.blocked)
+                              ? "bg-destructive/15 text-destructive animate-pulse"
+                              : "bg-primary/15 text-primary"
                             : "bg-info/15 text-info"
                         }`}>{badge}</span>
                       )}
