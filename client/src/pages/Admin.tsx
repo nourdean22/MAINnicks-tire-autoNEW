@@ -122,6 +122,11 @@ export default function Admin() {
     refetchInterval: 30000,
   });
 
+  const { data: woStats } = trpc.nourOsBridge.shopFloor.useQuery(undefined, {
+    enabled: !!user && user.role === "admin",
+    refetchInterval: 30000,
+  });
+
   // ─── GLOBAL SSE: instant updates across ALL admin tabs ──────
   useEffect(() => {
     if (!user || user.role !== "admin") return;
@@ -137,6 +142,7 @@ export default function Admin() {
         utils.lead.list.invalidate();
         utils.nickActions.shopPulse.invalidate();
         utils.customers.campaignStats.invalidate();
+        utils.nourOsBridge.shopFloor.invalidate();
       };
 
       es.onmessage = invalidateAll;
@@ -260,6 +266,7 @@ export default function Admin() {
                   if (item.id === "bookings") badge = newBookings;
                   if (item.id === "leads") badge = urgentLeads + newLeads;
                   if (item.id === "callTrackingView") badge = pendingCallbacks;
+                  if (item.id === "workOrders") badge = woStats?.active ?? 0;
 
                   return (
                     <button
@@ -273,6 +280,8 @@ export default function Admin() {
                         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${
                           item.id === "leads"
                             ? "bg-destructive/15 text-destructive"
+                            : item.id === "workOrders"
+                            ? "bg-primary/15 text-primary"
                             : "bg-info/15 text-info"
                         }`}>{badge}</span>
                       )}
