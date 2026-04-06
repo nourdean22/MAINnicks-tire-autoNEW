@@ -518,6 +518,151 @@ export async function getWorkOrderStats(): Promise<{
   };
 }
 
+// ─── Conversion funnel: WO → Revenue ─────────────────
+export async function getConversionFunnel(days: number = 90): Promise<{
+  /** Total WOs created in period */
+  totalCreated: number;
+  /** WOs that entered in_progress */
+  started: number;
+  /** WOs that reached invoiced/closed/picked_up (completed) */
+  completed: number;
+  /** WOs cancelled */
+  cancelled: number;
+  /** WOs still active */
+  stillActive: number;
+  /** Conversion rate: completed / (total - still drafts) */
+  conversionRate: number;
+  /** Average hours from creation → in_progress */
+  avgHoursToStart: number | null;
+  /** Average hours from creation → completion */
+  avgHoursToCycle: number | null;
+  /** Revenue from completed WOs in period (dollars) */
+  revenueCompleted: number;
+  /** Revenue from cancelled WOs (lost, dollars) */
+  revenueLost: number;
+  /** Revenue in active pipeline (dollars) */
+  revenuePipeline: number;
+  /** Per-stage counts for funnel visualization */
+  stages: { name: string; count: number; value: number }[];
+}> {
+  const { db, workOrders } = await getDbAndSchema();
+  const cutoff = new Date(Date.now() - days * 86400000);
+
+  // All WOs created in period
+  const rows = await db.select({
+    status: workOrders.status,
+    total: workOrders.total,
+    createdAt: workOrders.createdAt,
+    startedAt: workOrders.startedAt,
+    completedAt: workOrders.completedAt,
+    pickedUpAt: workOrders.pickedUpAt,
+  })
+    .from(workOrders)
+    .where(sql`${workOrders.createdAt} >= ${cutoff}`);
+
+  const totalCreated = rows.length;
+  let started = 0, completed = 0, cancelled = 0, stillActive = 0;
+  let revenueCompleted = 0, revenueLost = 0, revenuePipeline = 0;
+  let totalStartHours = 0, startCount = 0;
+  let totalCycleHours = 0, cycleCount = 0;
+
+  // Stage accumulators
+  const stageCounts: Record<string, { count: number; value: number }> = {
+    created: { count: 0, value: 0 },
+    in_progress: { count: 0, value: 0 },
+    completed: { count: 0, value: 0 },
+    invoiced: { count: 0, value: 0 },
+    picked_up: { count: 0, value: 0 },
+    cancelled: { count: 0, value: 0 },
+  };
+
+  for (const row of rows) {
+    const val = Number(row.total) || 0;
+    stageCounts.created.count++;
+    stageCounts.created.value += val;
+
+    const s = row.status;
+    const isTerminalComplete = ["invoiced", "closed", "picked_up"].includes(s);
+    const hasStarted = row.startedAt != null;
+    const hasCompleted = row.completedAt != null || isTerminalComplete;
+
+    if (hasStarted || ["in_progress", "qc_review", "ready_for_pickup", "customer_notified", "picked_up", "invoiced", "closed"].includes(s)) {
+      started++;
+      stageCounts.in_progress.count++;
+      stageCounts.in_progress.value += val;
+    }
+
+    if (hasCompleted) {
+      stageCounts.completed.count++;
+      stageCounts.completed.value += val;
+    }
+
+    if (isTerminalComplete) {
+      completed++;
+      revenueCompleted += val;
+      if (s === "invoiced" || s === "closed") {
+        stageCounts.invoiced.count++;
+        stageCounts.invoiced.value += val;
+      }
+      if (s === "picked_up" || s === "closed") {
+        stageCounts.picked_up.count++;
+        stageCounts.picked_up.value += val;
+      }
+    } else if (s === "cancelled") {
+      cancelled++;
+      revenueLost += val;
+      stageCounts.cancelled.count++;
+      stageCounts.cancelled.value += val;
+    } else {
+      stillActive++;
+      revenuePipeline += val;
+    }
+
+    // Timing: creation → start
+    if (row.startedAt && row.createdAt) {
+      const hours = (new Date(row.startedAt).getTime() - new Date(row.createdAt).getTime()) / 3600000;
+      if (hours >= 0 && hours < 720) { // cap at 30 days to avoid outliers
+        totalStartHours += hours;
+        startCount++;
+      }
+    }
+
+    // Timing: creation → completion
+    const completionTime = row.completedAt || (isTerminalComplete ? row.pickedUpAt : null);
+    if (completionTime && row.createdAt) {
+      const hours = (new Date(completionTime).getTime() - new Date(row.createdAt).getTime()) / 3600000;
+      if (hours >= 0 && hours < 720) {
+        totalCycleHours += hours;
+        cycleCount++;
+      }
+    }
+  }
+
+  const nonDraft = totalCreated - (rows.filter((r: any) => r.status === "draft").length);
+  const conversionRate = nonDraft > 0 ? Math.round((completed / nonDraft) * 100) : 0;
+
+  return {
+    totalCreated,
+    started,
+    completed,
+    cancelled,
+    stillActive,
+    conversionRate,
+    avgHoursToStart: startCount > 0 ? Math.round(totalStartHours / startCount * 10) / 10 : null,
+    avgHoursToCycle: cycleCount > 0 ? Math.round(totalCycleHours / cycleCount * 10) / 10 : null,
+    revenueCompleted: Math.round(revenueCompleted * 100) / 100,
+    revenueLost: Math.round(revenueLost * 100) / 100,
+    revenuePipeline: Math.round(revenuePipeline * 100) / 100,
+    stages: [
+      { name: "Created", count: stageCounts.created.count, value: stageCounts.created.value },
+      { name: "In Progress", count: stageCounts.in_progress.count, value: stageCounts.in_progress.value },
+      { name: "Completed", count: stageCounts.completed.count, value: stageCounts.completed.value },
+      { name: "Invoiced", count: stageCounts.invoiced.count, value: stageCounts.invoiced.value },
+      { name: "Picked Up", count: stageCounts.picked_up.count, value: stageCounts.picked_up.value },
+    ],
+  };
+}
+
 // ─── Pending parts across all work orders ────────────
 export async function getPendingParts(): Promise<any[]> {
   const { db, workOrderItems, workOrders } = await getDbAndSchema();

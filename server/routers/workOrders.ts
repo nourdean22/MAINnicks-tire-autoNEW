@@ -244,6 +244,14 @@ export const workOrdersRouter = router({
       return getDeclinedWorkHistory(input.customerId);
     }),
 
+  /** Conversion funnel: WO creation → invoiced → paid */
+  conversionFunnel: adminProcedure
+    .input(z.object({ days: z.number().min(7).max(365).default(90) }).optional())
+    .query(async ({ input }) => {
+      const { getConversionFunnel } = await import("../services/workOrderService");
+      return getConversionFunnel(input?.days ?? 90);
+    }),
+
   /** Get status config for UI rendering */
   statusConfig: adminProcedure.query(async () => {
     const { STATUS_CONFIG } = await import("../services/workOrderService");

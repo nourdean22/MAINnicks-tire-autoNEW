@@ -9,7 +9,8 @@ import { toast } from "sonner";
 import {
   DollarSign, TrendingUp, TrendingDown, BarChart3, Users, Target,
   Loader2, Calendar, ArrowUpRight, ArrowDownRight, Minus, PieChart,
-  Zap, Star, Clock, Activity, Plus, X, Trash2, Edit2, FileText, Search
+  Zap, Star, Clock, Activity, Plus, X, Trash2, Edit2, FileText, Search,
+  ArrowRight, AlertTriangle, CheckCircle2, Wrench,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
@@ -34,6 +35,7 @@ export default function RevenueSection() {
   const { data: topCustomers } = trpc.invoices.topCustomers.useQuery({ limit: 10 });
   const { data: kpi } = trpc.kpi.current.useQuery(undefined, { refetchInterval: 60000 });
   const { data: shopFloor } = trpc.nourOsBridge.shopFloor.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: funnel } = trpc.workOrders.conversionFunnel.useQuery({ days: period }, { refetchInterval: 120000 });
   const utils = trpc.useUtils();
 
   if (isLoading) {
@@ -60,7 +62,7 @@ export default function RevenueSection() {
         </div>
       </div>
 
-      {tab === "dashboard" && <DashboardView stats={stats} topCustomers={topCustomers} kpi={kpi} shopFloor={shopFloor} period={period} setPeriod={setPeriod} />}
+      {tab === "dashboard" && <DashboardView stats={stats} topCustomers={topCustomers} kpi={kpi} shopFloor={shopFloor} funnel={funnel} period={period} setPeriod={setPeriod} />}
       {tab === "invoices" && <InvoiceListView onCreateNew={() => setTab("create")} />}
       {tab === "create" && <CreateInvoiceView onDone={() => { setTab("invoices"); utils.invoices.list.invalidate(); utils.invoices.stats.invalidate(); }} />}
     </div>
@@ -68,7 +70,7 @@ export default function RevenueSection() {
 }
 
 // ─── DASHBOARD VIEW ─────────────────────────────────────
-function DashboardView({ stats, topCustomers, kpi, shopFloor, period, setPeriod }: any) {
+function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, setPeriod }: any) {
   const revenueChange = stats?.periodComparison?.change ?? 0;
 
   return (
@@ -138,6 +140,109 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, period, setPeriod 
             <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded text-[11px] text-red-400">
               <Clock className="w-3.5 h-3.5 shrink-0" />
               {shopFloor.overdue} overdue work order{shopFloor.overdue > 1 ? "s" : ""} — revenue stuck in pipeline
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Conversion Funnel */}
+      {funnel && funnel.totalCreated > 0 && (
+        <div className="bg-card border border-border/30 p-5">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="font-bold text-sm text-foreground tracking-wider flex items-center gap-2">
+              <Wrench className="w-4 h-4 text-primary" />
+              WORK ORDER → REVENUE FUNNEL
+            </h3>
+            <span className="font-mono text-[10px] text-foreground/30">Last {period} days</span>
+          </div>
+
+          {/* Funnel stages */}
+          <div className="flex items-center gap-1 mb-5">
+            {funnel.stages.map((stage: any, i: number) => {
+              const maxCount = funnel.stages[0]?.count || 1;
+              const pct = maxCount > 0 ? (stage.count / maxCount) * 100 : 0;
+              const dropoff = i > 0 && funnel.stages[i - 1].count > 0
+                ? Math.round((1 - stage.count / funnel.stages[i - 1].count) * 100)
+                : 0;
+              const stageColors = ["text-blue-400", "text-primary", "text-amber-400", "text-emerald-400", "text-emerald-400"];
+              const stageBgs = ["bg-blue-500/20", "bg-primary/20", "bg-amber-500/20", "bg-emerald-500/20", "bg-emerald-500/20"];
+
+              return (
+                <div key={stage.name} className="flex items-center gap-1 flex-1">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-mono text-[9px] text-foreground/50 tracking-wide truncate">{stage.name}</span>
+                      <span className={`font-bold text-sm ${stageColors[i]}`}>{stage.count}</span>
+                    </div>
+                    <div className="h-2.5 bg-foreground/5 rounded-sm overflow-hidden">
+                      <div
+                        className={`h-full rounded-sm transition-all duration-700 ${stageBgs[i]}`}
+                        style={{ width: `${Math.max(pct, 3)}%` }}
+                      />
+                    </div>
+                    {i > 0 && dropoff > 0 && (
+                      <span className="font-mono text-[8px] text-red-400/60 mt-0.5 block">-{dropoff}% drop</span>
+                    )}
+                  </div>
+                  {i < funnel.stages.length - 1 && (
+                    <ArrowRight className="w-3 h-3 text-foreground/15 shrink-0 mx-0.5" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Funnel KPIs */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="text-center p-3 rounded-md border border-border/30">
+              <p className={`text-xl font-bold tracking-tight ${funnel.conversionRate >= 70 ? "text-emerald-400" : funnel.conversionRate >= 40 ? "text-amber-400" : "text-red-400"}`}>
+                {funnel.conversionRate}%
+              </p>
+              <p className="text-[9px] text-muted-foreground mt-1">Conversion Rate</p>
+            </div>
+            <div className="text-center p-3 rounded-md border border-border/30">
+              <p className="text-xl font-bold tracking-tight text-emerald-400">{formatDollars(funnel.revenueCompleted)}</p>
+              <p className="text-[9px] text-muted-foreground mt-1">Revenue Captured</p>
+            </div>
+            <div className="text-center p-3 rounded-md border border-border/30">
+              <p className={`text-xl font-bold tracking-tight ${funnel.revenueLost > 0 ? "text-red-400" : "text-foreground/30"}`}>
+                {formatDollars(funnel.revenueLost)}
+              </p>
+              <p className="text-[9px] text-muted-foreground mt-1">Revenue Lost</p>
+            </div>
+            <div className="text-center p-3 rounded-md border border-border/30">
+              <p className="text-xl font-bold tracking-tight text-foreground">
+                {funnel.avgHoursToCycle != null
+                  ? funnel.avgHoursToCycle < 24
+                    ? `${funnel.avgHoursToCycle}h`
+                    : `${(funnel.avgHoursToCycle / 24).toFixed(1)}d`
+                  : "—"}
+              </p>
+              <p className="text-[9px] text-muted-foreground mt-1">Avg Cycle Time</p>
+            </div>
+            <div className="text-center p-3 rounded-md border border-border/30">
+              <p className="text-xl font-bold tracking-tight text-foreground">
+                {funnel.avgHoursToStart != null
+                  ? funnel.avgHoursToStart < 24
+                    ? `${funnel.avgHoursToStart}h`
+                    : `${(funnel.avgHoursToStart / 24).toFixed(1)}d`
+                  : "—"}
+              </p>
+              <p className="text-[9px] text-muted-foreground mt-1">Avg Time to Start</p>
+            </div>
+          </div>
+
+          {/* Alerts */}
+          {funnel.cancelled > 0 && funnel.cancelled / funnel.totalCreated > 0.15 && (
+            <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded text-[11px] text-red-400">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              {Math.round((funnel.cancelled / funnel.totalCreated) * 100)}% cancellation rate — {funnel.cancelled} work order{funnel.cancelled > 1 ? "s" : ""} cancelled ({formatDollars(funnel.revenueLost)} lost)
+            </div>
+          )}
+          {funnel.stillActive > 0 && (
+            <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded text-[11px] text-blue-400">
+              <Activity className="w-3.5 h-3.5 shrink-0" />
+              {funnel.stillActive} active work order{funnel.stillActive > 1 ? "s" : ""} in pipeline — {formatDollars(funnel.revenuePipeline)} pending
             </div>
           )}
         </div>
