@@ -377,20 +377,17 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
     }
   }
 
-  // 1. Update totalSpent (cents) from paid invoices matched by phone
+  // 1. Update totalSpent (cents) from paid invoices matched by phone (last 10 digits)
   await step("spent", sql`
     UPDATE customers c
     INNER JOIN (
       SELECT customerPhone, SUM(totalAmount) as total
       FROM invoices
-      WHERE paymentStatus = 'paid' AND customerPhone IS NOT NULL
-        AND LENGTH(REPLACE(REPLACE(REPLACE(customerPhone, '-', ''), '(', ''), ')', '')) >= 10
+      WHERE paymentStatus = 'paid' AND customerPhone IS NOT NULL AND LENGTH(customerPhone) >= 10
       GROUP BY customerPhone
-    ) i ON RIGHT(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', ''), 10) =
-           RIGHT(REPLACE(REPLACE(REPLACE(i.customerPhone, '-', ''), '(', ''), ')', ''), 10)
+    ) i ON RIGHT(c.phone, 10) = RIGHT(i.customerPhone, 10)
     SET c.totalSpent = i.total
-    WHERE c.totalSpent != i.total
-      AND LENGTH(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', '')) >= 10
+    WHERE c.totalSpent != i.total AND LENGTH(c.phone) >= 10
   `);
 
   // 2. Update totalVisits from invoice count matched by phone
@@ -399,14 +396,11 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
     INNER JOIN (
       SELECT customerPhone, COUNT(*) as visits
       FROM invoices
-      WHERE customerPhone IS NOT NULL
-        AND LENGTH(REPLACE(REPLACE(REPLACE(customerPhone, '-', ''), '(', ''), ')', '')) >= 10
+      WHERE customerPhone IS NOT NULL AND LENGTH(customerPhone) >= 10
       GROUP BY customerPhone
-    ) i ON RIGHT(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', ''), 10) =
-           RIGHT(REPLACE(REPLACE(REPLACE(i.customerPhone, '-', ''), '(', ''), ')', ''), 10)
+    ) i ON RIGHT(c.phone, 10) = RIGHT(i.customerPhone, 10)
     SET c.totalVisits = i.visits
-    WHERE c.totalVisits != i.visits
-      AND LENGTH(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', '')) >= 10
+    WHERE c.totalVisits != i.visits AND LENGTH(c.phone) >= 10
   `);
 
   // 3. Update firstVisitDate from earliest invoice
@@ -415,43 +409,25 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
     INNER JOIN (
       SELECT customerPhone, MIN(invoiceDate) as earliest
       FROM invoices
-      WHERE customerPhone IS NOT NULL AND invoiceDate IS NOT NULL
-        AND LENGTH(REPLACE(REPLACE(REPLACE(customerPhone, '-', ''), '(', ''), ')', '')) >= 10
+      WHERE customerPhone IS NOT NULL AND invoiceDate IS NOT NULL AND LENGTH(customerPhone) >= 10
       GROUP BY customerPhone
-    ) i ON RIGHT(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', ''), 10) =
-           RIGHT(REPLACE(REPLACE(REPLACE(i.customerPhone, '-', ''), '(', ''), ')', ''), 10)
+    ) i ON RIGHT(c.phone, 10) = RIGHT(i.customerPhone, 10)
     SET c.firstVisitDate = i.earliest
-    WHERE c.firstVisitDate IS NULL OR c.firstVisitDate > i.earliest
+    WHERE (c.firstVisitDate IS NULL OR c.firstVisitDate > i.earliest) AND LENGTH(c.phone) >= 10
   `);
 
-  // 4. Update vehicle info from work orders (simplified — no window function)
-  await step("vehicles-wo", sql`
-    UPDATE customers c
-    INNER JOIN work_orders wo ON c.id = CAST(wo.customerId AS UNSIGNED)
-    SET c.vehicleMake = wo.vehicleMake,
-        c.vehicleModel = wo.vehicleModel,
-        c.vehicleYear = wo.vehicleYear
-    WHERE (c.vehicleMake IS NULL OR c.vehicleMake = '')
-      AND wo.vehicleMake IS NOT NULL AND wo.vehicleMake != ''
-      AND wo.id = (
-        SELECT MAX(w2.id) FROM work_orders w2
-        WHERE w2.customerId = wo.customerId AND w2.vehicleMake IS NOT NULL AND w2.vehicleMake != ''
-      )
-  `);
-
-  // 5. Fallback: vehicle from invoice vehicleInfo text (first word = make)
-  await step("vehicles-inv", sql`
+  // 4. Update vehicle info from invoices (work_orders may be empty)
+  await step("vehicles", sql`
     UPDATE customers c
     INNER JOIN (
       SELECT customerPhone, vehicleInfo
       FROM invoices
       WHERE customerPhone IS NOT NULL AND vehicleInfo IS NOT NULL AND vehicleInfo != ''
-        AND LENGTH(REPLACE(REPLACE(REPLACE(customerPhone, '-', ''), '(', ''), ')', '')) >= 10
+        AND LENGTH(customerPhone) >= 10
       ORDER BY invoiceDate DESC
-    ) i ON RIGHT(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', ''), 10) =
-           RIGHT(REPLACE(REPLACE(REPLACE(i.customerPhone, '-', ''), '(', ''), ')', ''), 10)
+    ) i ON RIGHT(c.phone, 10) = RIGHT(i.customerPhone, 10)
     SET c.vehicleMake = SUBSTRING_INDEX(i.vehicleInfo, ' ', 1)
-    WHERE c.vehicleMake IS NULL AND i.vehicleInfo IS NOT NULL
+    WHERE c.vehicleMake IS NULL AND i.vehicleInfo IS NOT NULL AND LENGTH(c.phone) >= 10
   `);
 
   // 6. Update segment based on lastVisitDate
