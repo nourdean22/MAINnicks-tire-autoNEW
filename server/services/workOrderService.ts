@@ -156,10 +156,18 @@ export async function createWorkOrder(params: {
 
   // Sync to Google Sheets (fire-and-forget)
   try {
+    // Resolve customer name from DB (params.customerId is an ID, not a name)
+    let customerName = params.customerId;
+    try {
+      const { db: db2, customers: custTable } = await getDbAndSchema();
+      const custRow = await db2.select({ firstName: custTable.firstName, lastName: custTable.lastName })
+        .from(custTable).where(eq(custTable.id, parseInt(params.customerId, 10))).limit(1);
+      if (custRow[0]) customerName = [custRow[0].firstName, custRow[0].lastName].filter(Boolean).join(" ") || params.customerId;
+    } catch {}
     const { syncWorkOrderToSheet } = await import("../sheets-sync");
     syncWorkOrderToSheet({
       orderNumber,
-      customerName: params.customerId,
+      customerName,
       vehicleYear: params.vehicleYear,
       vehicleMake: params.vehicleMake,
       vehicleModel: params.vehicleModel,

@@ -42,6 +42,30 @@ async function ensureTable(db: any): Promise<boolean> {
 }
 
 /**
+ * Check if customer is already enrolled in a campaign (dedup guard).
+ */
+export async function checkExistingEnrollment(phone: string, campaignId: string): Promise<boolean> {
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return false;
+
+    await ensureTable(db);
+    const [rows] = await db.execute(sql`
+      SELECT 1 FROM drip_enrollments
+      WHERE customerPhone = ${phone}
+        AND campaignId = ${campaignId}
+        AND status = 'active'
+      LIMIT 1
+    `);
+    return ((rows as any[])?.length || 0) > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Enroll a customer in a drip campaign (persists to DB).
  * Called from workOrderAutomation.enrollInDripCampaign after sending step 1.
  */

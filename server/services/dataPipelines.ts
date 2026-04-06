@@ -225,10 +225,13 @@ export async function syncVisitDatesFromInvoices(): Promise<{ recordsProcessed: 
         SELECT customerPhone, MAX(invoiceDate) as latestInvoice
         FROM invoices
         WHERE invoiceDate IS NOT NULL AND customerPhone IS NOT NULL AND customerPhone != ''
+          AND LENGTH(REPLACE(REPLACE(REPLACE(customerPhone, '-', ''), '(', ''), ')', '')) >= 10
         GROUP BY customerPhone
-      ) i ON REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', '') LIKE CONCAT('%', RIGHT(REPLACE(REPLACE(REPLACE(i.customerPhone, '-', ''), '(', ''), ')', ''), 10))
+      ) i ON RIGHT(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', ''), 10) =
+             RIGHT(REPLACE(REPLACE(REPLACE(i.customerPhone, '-', ''), '(', ''), ')', ''), 10)
       SET c.lastVisitDate = i.latestInvoice
       WHERE c.lastVisitDate IS NULL OR c.lastVisitDate < i.latestInvoice
+        AND LENGTH(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', '')) >= 10
     `);
 
     const affected = (result as any)?.affectedRows || 0;
@@ -367,11 +370,13 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
         SELECT customerPhone, SUM(totalAmount) as total
         FROM invoices
         WHERE paymentStatus = 'paid' AND customerPhone IS NOT NULL
+          AND LENGTH(REPLACE(REPLACE(REPLACE(customerPhone, '-', ''), '(', ''), ')', '')) >= 10
         GROUP BY customerPhone
       ) i ON RIGHT(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', ''), 10) =
              RIGHT(REPLACE(REPLACE(REPLACE(i.customerPhone, '-', ''), '(', ''), ')', ''), 10)
       SET c.totalSpent = CAST(i.total / 100 AS DECIMAL(10,2))
-      WHERE c.totalSpent IS NULL OR c.totalSpent != CAST(i.total / 100 AS DECIMAL(10,2))
+      WHERE (c.totalSpent IS NULL OR c.totalSpent != CAST(i.total / 100 AS DECIMAL(10,2)))
+        AND LENGTH(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', '')) >= 10
     `);
 
     // Update customer visitCount from invoices
@@ -381,11 +386,13 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
         SELECT customerPhone, COUNT(*) as visits
         FROM invoices
         WHERE customerPhone IS NOT NULL
+          AND LENGTH(REPLACE(REPLACE(REPLACE(customerPhone, '-', ''), '(', ''), ')', '')) >= 10
         GROUP BY customerPhone
       ) i ON RIGHT(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', ''), 10) =
              RIGHT(REPLACE(REPLACE(REPLACE(i.customerPhone, '-', ''), '(', ''), ')', ''), 10)
       SET c.visitCount = i.visits
-      WHERE c.visitCount IS NULL OR c.visitCount != i.visits
+      WHERE (c.visitCount IS NULL OR c.visitCount != i.visits)
+        AND LENGTH(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', '')) >= 10
     `);
 
     // Update customer vehicle info from most recent work order

@@ -468,13 +468,7 @@ export function startTieredScheduler(): void {
           return autoCampaignRetry();
         },
       },
-      {
-        name: "statenour-sync", // LAST: push everything out after all processing
-        handler: async () => {
-          const { syncToStatenour } = await import("./jobs/statenourSync");
-          return syncToStatenour();
-        },
-      },
+      // statenour-sync moved to pulse tier (15min) for live dashboard — no longer needed here
     ],
     running: false,
     lastRun: null,
