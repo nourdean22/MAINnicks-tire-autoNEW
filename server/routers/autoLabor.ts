@@ -56,7 +56,7 @@ async function getShopDriverSession(): Promise<string | null> {
     if (cookieStr) {
       shopDriverSession = {
         cookie: cookieStr,
-        expiresAt: Date.now() + 30 * 60 * 1000,
+        expiresAt: Date.now() + 3 * 60 * 1000, // Short cache — shop logins kill our session
       };
       return cookieStr;
     }
@@ -81,7 +81,7 @@ async function getShopDriverSession(): Promise<string | null> {
     if (altCookieStr) {
       shopDriverSession = {
         cookie: altCookieStr,
-        expiresAt: Date.now() + 30 * 60 * 1000,
+        expiresAt: Date.now() + 3 * 60 * 1000, // Short cache — shop logins kill our session
       };
       return altCookieStr;
     }
