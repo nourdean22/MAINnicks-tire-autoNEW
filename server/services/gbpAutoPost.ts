@@ -65,4 +65,55 @@ export function createSeasonalPost(season: { title: string; services: string[]; 
   };
 }
 
+/**
+ * Auto-generate a GBP post and send via Telegram for manual posting.
+ * Until we have GBP API access, this gives Nour copy-paste content weekly.
+ */
+export async function generateAndNotifyGBPPost(): Promise<{ recordsProcessed: number; details: string }> {
+  try {
+    // Only generate weekly (check day — run on Mondays)
+    const day = new Date().toLocaleString("en-US", { timeZone: "America/New_York", weekday: "long" });
+    if (day !== "Monday") return { recordsProcessed: 0, details: "Not Monday — skipping GBP post" };
+
+    const month = new Date().getMonth();
+    const isWinter = month >= 10 || month <= 2;
+    const isSummer = month >= 5 && month <= 7;
+
+    let post: GBPPost;
+    if (isWinter) {
+      post = createSeasonalPost({
+        title: "Winter Prep at Nick's Tire & Auto",
+        services: ["Battery Test (FREE)", "Tire Check", "Coolant Flush", "Wiper Blades"],
+        promoIdea: "Cleveland winters are brutal. Get your car ready before the first snow. Walk-ins welcome!",
+      });
+    } else if (isSummer) {
+      post = createSeasonalPost({
+        title: "Summer Road Trip Ready?",
+        services: ["A/C Check", "Tire Rotation", "Brake Inspection", "Oil Change"],
+        promoIdea: "Planning a road trip? Make sure your vehicle is ready. Free multi-point inspection this month!",
+      });
+    } else {
+      post = createSeasonalPost({
+        title: "Your Car Deserves Honest Repair",
+        services: ["Full Diagnosis", "Brakes", "Tires", "Maintenance"],
+        promoIdea: "Family-owned shop in Euclid. Honest pricing, quality work. Walk-ins welcome 7 days a week.",
+      });
+    }
+
+    const { sendTelegram } = await import("./telegram");
+    await sendTelegram(
+      `📝 WEEKLY GBP POST — Copy & paste to Google Business Profile:\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `${post.text}\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Type: ${post.type} | CTA: ${post.callToAction}\n` +
+      `Post at: business.google.com → Posts → Add update`
+    );
+
+    return { recordsProcessed: 1, details: "GBP post sent to Telegram" };
+  } catch (err: any) {
+    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+  }
+}
+
 log.info("GBP auto-poster loaded");

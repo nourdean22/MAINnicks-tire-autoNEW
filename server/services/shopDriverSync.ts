@@ -78,6 +78,7 @@ export async function pushTireOrder(order: {
 
       if (res.ok) {
         log.info(`Pushed tire order ${order.orderNumber} to ShopDriver via API`);
+        recordPush();
         return { success: true, method: "api" };
       }
     } catch (err) {
@@ -149,6 +150,7 @@ export async function pushInvoice(invoice: {
       });
       if (res.ok) {
         log.info(`Pushed invoice ${invoice.invoiceNumber} to ShopDriver via API`);
+        recordPush();
         return { success: true, method: "api" };
       }
     } catch (err) {
@@ -231,19 +233,70 @@ export async function pullRecentTickets(): Promise<Array<{
     });
     if (!res.ok) return [];
     const data = await res.json();
-    return Array.isArray(data) ? data.map((t: any) => ({
+    const tickets = Array.isArray(data) ? data.map((t: any) => ({
       id: String(t.id || t.ticketId || ""),
       customerName: t.customerName || t.customer?.name || "",
       status: t.status || "unknown",
       totalAmount: Number(t.totalAmount || t.total || 0),
       date: t.date || t.createdAt || "",
     })) : [];
+    if (tickets.length > 0) recordPull();
+    return tickets;
   } catch {
     return [];
   }
 }
 
 // ─── SYNC STATUS ──────────────────────────────────────
+
+// In-memory sync timestamps (persisted to DB when available)
+let _lastPushAt: Date | null = null;
+let _lastPullAt: Date | null = null;
+
+/** Record a successful push */
+export function recordPush(): void {
+  _lastPushAt = new Date();
+  persistSyncTimestamp("lastPushAt", _lastPushAt).catch(() => {});
+}
+
+/** Record a successful pull */
+export function recordPull(): void {
+  _lastPullAt = new Date();
+  persistSyncTimestamp("lastPullAt", _lastPullAt).catch(() => {});
+}
+
+async function persistSyncTimestamp(key: string, value: Date): Promise<void> {
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return;
+    await db.execute(sql`
+      INSERT INTO shop_settings (\`key\`, value, updatedAt)
+      VALUES (${`shopdriver_${key}`}, ${value.toISOString()}, NOW())
+      ON DUPLICATE KEY UPDATE value = ${value.toISOString()}, updatedAt = NOW()
+    `);
+  } catch {} // Best-effort — table might not have right schema
+}
+
+async function loadSyncTimestamps(): Promise<void> {
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return;
+    const [rows] = await db.execute(sql`
+      SELECT \`key\`, value FROM shop_settings WHERE \`key\` IN ('shopdriver_lastPushAt', 'shopdriver_lastPullAt')
+    `);
+    for (const row of (rows as any[]) || []) {
+      if (row.key === "shopdriver_lastPushAt") _lastPushAt = new Date(row.value);
+      if (row.key === "shopdriver_lastPullAt") _lastPullAt = new Date(row.value);
+    }
+  } catch {} // Best-effort
+}
+
+// Load on module init
+loadSyncTimestamps().catch(() => {});
 
 export async function getSyncStatus(): Promise<{
   shopDriverConnected: boolean;
@@ -254,8 +307,8 @@ export async function getSyncStatus(): Promise<{
   const session = await getSession();
   return {
     shopDriverConnected: !!session,
-    lastPushAt: null, // TODO: track in DB
-    lastPullAt: null,
+    lastPushAt: _lastPushAt?.toISOString() || null,
+    lastPullAt: _lastPullAt?.toISOString() || null,
     method: session ? "api" : "telegram",
   };
 }

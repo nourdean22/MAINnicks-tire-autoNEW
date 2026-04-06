@@ -475,7 +475,51 @@ export const gatewayTireRouter = router({
         return { ...cached.results, cached: true, cachedAt: new Date(cached.fetchedAt).toISOString() };
       }
 
-      // Try live Gateway Tire API first
+      // Check pipeline price cache first (populated by daily cron, avoids hitting Gateway live)
+      try {
+        const { getCachedPrices } = await import("../services/dataPipelines");
+        const pipelineCached = getCachedPrices(sizeClean);
+        if (pipelineCached && pipelineCached.length > 0) {
+          let tires: PublicTire[] = pipelineCached.map((item, idx) => {
+            const shopPrice = Math.ceil(item.wholesaleCost * (1 + markup / 100) * 100) / 100;
+            const pricePerTireCents = Math.round(shopPrice * 100);
+            const cat = item.wholesaleCost < 60 ? "budget" : item.wholesaleCost < 90 ? "mid" : "premium";
+            return {
+              id: `cache-${idx}-${item.brand.toLowerCase()}`,
+              name: `${item.brand} ${item.model}`.trim(),
+              brand: item.brand,
+              model: item.model,
+              size: item.size || sizeFormatted,
+              category: cat as "budget" | "mid" | "premium",
+              shopPrice,
+              pricePerTireCents,
+              warranty: "",
+              features: [],
+              speedRating: "",
+              loadIndex: "",
+              inStock: item.localQty > 0,
+              estimatedDelivery: item.localQty > 0 ? "Same day" : "1-2 business days",
+            };
+          });
+
+          if (input.category !== "all") tires = tires.filter(t => t.category === input.category);
+          tires.sort((a, b) => input.sortBy === "price-high" ? b.shopPrice - a.shopPrice : a.shopPrice - b.shopPrice);
+
+          const cacheResult = {
+            tires,
+            source: "pipeline-cache" as const,
+            serviceFee: 0,
+            sizeFormatted,
+            package: NICKS_PACKAGE,
+            packageValue: PACKAGE_VALUE_PER_SET,
+            dataFreshness: new Date(pipelineCached[0].fetchedAt).toISOString(),
+          };
+          setCachedSearch(cacheKey, cacheResult, "live");
+          return { ...cacheResult, cached: false };
+        }
+      } catch {} // Pipeline cache miss — fall through to live
+
+      // Try live Gateway Tire API
       const res = await gatewayFetch(`/api/products/search?q=${encodeURIComponent(sizeClean)}`);
 
       if (res && res.ok) {
