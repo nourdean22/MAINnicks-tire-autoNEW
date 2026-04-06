@@ -70,7 +70,7 @@ export default function PayInvoice() {
               {invoice && (
                 <div className="bg-background/50 rounded-lg p-4 text-left text-sm space-y-1">
                   <div className="flex justify-between"><span className="text-muted-foreground">Invoice</span><span>{invoice.invoiceNumber}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Amount</span><span className="font-bold text-primary">${(invoice.totalAmount / 100)?.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Amount</span><span className="font-bold text-primary">${invoice.totalAmount?.toFixed(2)}</span></div>
                 </div>
               )}
               <a href="/" className="inline-block mt-6 text-primary text-sm font-medium hover:underline">Back to Nick's Tire & Auto</a>
@@ -138,16 +138,16 @@ export default function PayInvoice() {
                 {invoice.serviceDescription && <p className="text-sm text-muted-foreground mt-2">{invoice.serviceDescription}</p>}
                 <div className="border-t border-border/30 mt-3 pt-3 space-y-1.5">
                   {(invoice.laborCost ?? 0) > 0 && (
-                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">Labor</span><span>${(invoice.laborCost / 100)?.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">Labor</span><span>${invoice.laborCost?.toFixed(2)}</span></div>
                   )}
                   {(invoice.partsCost ?? 0) > 0 && (
-                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">Parts</span><span>${(invoice.partsCost / 100)?.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">Parts</span><span>${invoice.partsCost?.toFixed(2)}</span></div>
                   )}
                   {(invoice.taxAmount ?? 0) > 0 && (
-                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">Tax</span><span>${(invoice.taxAmount / 100)?.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-sm"><span className="text-muted-foreground">Tax</span><span>${invoice.taxAmount?.toFixed(2)}</span></div>
                   )}
                   <div className="flex justify-between text-lg font-bold pt-1 border-t border-border/20">
-                    <span>Total</span><span className="text-primary">${(invoice.totalAmount / 100)?.toFixed(2)}</span>
+                    <span>Total</span><span className="text-primary">${invoice.totalAmount?.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
