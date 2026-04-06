@@ -284,6 +284,20 @@ export function registerBridgeRoutes(app: Express): void {
     res.json(results);
   });
 
+  // Run a specific cron job by name (e.g. enrich-customer-data)
+  app.post("/api/bridge/run-job", bridgeAuth, async (req, res) => {
+    try {
+      const { jobName } = req.body;
+      if (!jobName) { res.status(400).json({ error: "jobName required" }); return; }
+      const { runJobByName } = await import("../cron/index");
+      const result = await runJobByName(jobName);
+      res.json({ ...result, timestamp: new Date().toISOString() });
+    } catch (err: any) {
+      console.error("[Bridge] Run job error:", err);
+      res.status(500).json({ error: err.message || "Job failed" });
+    }
+  });
+
   // Get cron status (read-only action)
   app.get("/api/bridge/cron-status", bridgeAuth, async (_req, res) => {
     try {
