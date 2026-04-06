@@ -279,19 +279,16 @@ export function registerBridgeRoutes(app: Express): void {
           data.result?.token || data.result?.jwt;
         diag.extractedToken = token ? `${String(token).substring(0, 30)}...` : null;
 
-        // Step 2: If we got a token, probe REAL endpoints (discovered from SPA bundle)
-        // No /api/ prefix — these are direct controller routes
+        // Step 2: probe REAL endpoints (SPA axios baseURL = GUID.autolaborexperts.com/api)
         if (token) {
           const testEndpoints = [
-            "/ticket/listRecentTickets",
-            "/ticket/listTicketSessions",
-            "/Customer/listCustomers",
-            "/Customer/potentialMatches",
-            "/Report/listTotalSales",
-            "/Search/getTicketSearch",
-            "/Search/getCustomerSearch",
-            "/Report/listTotalPartSales",
-            "/Report/listCardPaymentReport",
+            "/api/ticket/listRecentTickets",
+            "/api/ticket/listTicketSessions",
+            "/api/Customer/listCustomers",
+            "/api/Customer/potentialMatches",
+            "/api/Report/listTotalSales",
+            "/api/Search/getTicketSearch",
+            "/api/Search/getCustomerSearch",
           ];
           const probes: Record<string, unknown>[] = [];
           for (const ep of testEndpoints) {
