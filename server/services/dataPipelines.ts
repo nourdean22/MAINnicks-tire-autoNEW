@@ -416,18 +416,38 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
     WHERE (c.firstVisitDate IS NULL OR c.firstVisitDate > i.earliest) AND LENGTH(c.phone) >= 10
   `);
 
-  // 4. Update vehicle info from invoices (work_orders may be empty)
+  // 3b. Also match by name for invoices without phone (LAST, FIRST format)
+  await step("spent-name", sql`
+    UPDATE customers c
+    INNER JOIN (
+      SELECT customerName, SUM(totalAmount) as total, COUNT(*) as visits, MIN(invoiceDate) as earliest
+      FROM invoices
+      WHERE paymentStatus = 'paid' AND customerName IS NOT NULL
+        AND (customerPhone IS NULL OR LENGTH(customerPhone) < 10)
+      GROUP BY customerName
+    ) i ON UPPER(TRIM(c.lastName)) = UPPER(TRIM(SUBSTRING_INDEX(i.customerName, ',', 1)))
+       AND UPPER(TRIM(c.firstName)) = UPPER(TRIM(SUBSTRING_INDEX(i.customerName, ', ', -1)))
+    SET c.totalSpent = c.totalSpent + i.total,
+        c.totalVisits = c.totalVisits + i.visits,
+        c.firstVisitDate = CASE WHEN c.firstVisitDate IS NULL OR c.firstVisitDate > i.earliest THEN i.earliest ELSE c.firstVisitDate END
+    WHERE i.total > 0
+  `);
+
+  // 4. Update vehicle info by matching customer name (LAST, FIRST format)
+  //    vehicleInfo format: "2009 ACURA TL" → year=2009, make=ACURA, model=TL
   await step("vehicles", sql`
     UPDATE customers c
     INNER JOIN (
-      SELECT customerPhone, vehicleInfo
+      SELECT customerName, vehicleInfo
       FROM invoices
-      WHERE customerPhone IS NOT NULL AND vehicleInfo IS NOT NULL AND vehicleInfo != ''
-        AND LENGTH(customerPhone) >= 10
+      WHERE vehicleInfo IS NOT NULL AND vehicleInfo != '' AND customerName IS NOT NULL
       ORDER BY invoiceDate DESC
-    ) i ON RIGHT(c.phone, 10) = RIGHT(i.customerPhone, 10)
-    SET c.vehicleMake = SUBSTRING_INDEX(i.vehicleInfo, ' ', 1)
-    WHERE c.vehicleMake IS NULL AND i.vehicleInfo IS NOT NULL AND LENGTH(c.phone) >= 10
+    ) i ON UPPER(TRIM(c.lastName)) = UPPER(TRIM(SUBSTRING_INDEX(i.customerName, ',', 1)))
+       AND UPPER(TRIM(c.firstName)) = UPPER(TRIM(SUBSTRING_INDEX(i.customerName, ', ', -1)))
+    SET c.vehicleYear = SUBSTRING_INDEX(i.vehicleInfo, ' ', 1),
+        c.vehicleMake = SUBSTRING_INDEX(SUBSTRING_INDEX(i.vehicleInfo, ' ', 2), ' ', -1),
+        c.vehicleModel = TRIM(SUBSTRING(i.vehicleInfo, LENGTH(SUBSTRING_INDEX(i.vehicleInfo, ' ', 2)) + 2))
+    WHERE c.vehicleMake IS NULL
   `);
 
   // 6. Update segment based on lastVisitDate
