@@ -520,9 +520,26 @@ Sitemap: ${SITE_URL}/sitemap-locations.xml
     }
   });
 
-  // Incoming Messenger messages
-  app.post("/api/messenger-webhook", express.json(), async (req, res) => {
-    const body = req.body;
+  // Incoming Messenger messages — validate X-Hub-Signature-256 to prevent forged requests
+  app.post("/api/messenger-webhook", express.raw({ type: "application/json" }), async (req, res) => {
+    const signature = req.headers["x-hub-signature-256"] as string | undefined;
+    const appSecret = process.env.FB_APP_SECRET;
+
+    // Verify signature if FB_APP_SECRET is configured
+    if (appSecret) {
+      if (!signature) {
+        console.warn("[Messenger] Missing X-Hub-Signature-256 header");
+        return res.sendStatus(403);
+      }
+      const { createHmac } = await import("crypto");
+      const expectedSig = "sha256=" + createHmac("sha256", appSecret).update(req.body).digest("hex");
+      if (signature.length !== expectedSig.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) {
+        console.warn("[Messenger] Invalid signature — possible forged request");
+        return res.sendStatus(403);
+      }
+    }
+
+    const body = JSON.parse(req.body.toString());
 
     if (body.object === "page") {
       for (const entry of body.entry || []) {

@@ -148,14 +148,18 @@ export function registerBridgeRoutes(app: Express): void {
           shopStatus: pulse.shopStatus,
           shopInsight: pulse.shopInsight,
         };
-      } catch {}
+      } catch (err) {
+        console.error("[Bridge] Shop pulse fetch failed:", err instanceof Error ? err.message : err);
+      }
       try {
         const { getDashboardStats } = await import("../admin-stats");
         const stats = await getDashboardStats();
         bookings = { total: stats.bookings.total, thisWeek: stats.bookings.thisWeek, new: stats.bookings.new };
         leads = { total: stats.leads.total, thisWeek: stats.leads.thisWeek, new: stats.leads.new, urgent: stats.leads.urgent };
         callbacks = { total: stats.callbacks.total, new: stats.callbacks.new };
-      } catch {}
+      } catch (err) {
+        console.error("[Bridge] Dashboard stats fetch failed:", err instanceof Error ? err.message : err);
+      }
 
       res.json({
         shop: "nickstire",

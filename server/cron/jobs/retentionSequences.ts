@@ -5,6 +5,7 @@
  */
 import { createLogger } from "../../lib/logger";
 import { eq, and, isNotNull, sql } from "drizzle-orm";
+import { STORE_PHONE } from "@shared/const";
 
 const log = createLogger("cron:retention");
 
@@ -52,7 +53,7 @@ export async function processRetention90Day(): Promise<{ recordsProcessed: numbe
   const processed = await sendRetentionSms(
     90,
     (firstName) =>
-      `Hi ${firstName}, it's been 3 months since your last visit at Nick's Tire & Auto! Your vehicle may be due for maintenance. Schedule at (216) 862-0005.`
+      `Hi ${firstName}, it's been 3 months since your last visit at Nick's Tire & Auto! Your vehicle may be due for maintenance. Schedule at ${STORE_PHONE}.`
   );
 
   if (processed > 0) log.info(`Retention 90-day: contacted ${processed} customers`);
@@ -66,7 +67,7 @@ export async function processRetention180Day(): Promise<{ recordsProcessed: numb
   const processed = await sendRetentionSms(
     180,
     (firstName) =>
-      `Hi ${firstName}, it's been 6 months since we've seen you at Nick's Tire & Auto! We'd love to help keep your vehicle running. Call (216) 862-0005 to schedule.`
+      `Hi ${firstName}, it's been 6 months since we've seen you at Nick's Tire & Auto! We'd love to help keep your vehicle running. Call ${STORE_PHONE} to schedule.`
   );
 
   if (processed > 0) log.info(`Retention 180-day: contacted ${processed} customers`);
@@ -80,7 +81,7 @@ export async function processRetention365Day(): Promise<{ recordsProcessed: numb
   const processed = await sendRetentionSms(
     365,
     (firstName) =>
-      `Hi ${firstName}, we haven't seen you at Nick's Tire & Auto in a year! Come back — reply YES for a free tire rotation on your next visit. (216) 862-0005`
+      `Hi ${firstName}, we haven't seen you at Nick's Tire & Auto in a year! Come back — reply YES for a free tire rotation on your next visit. ${STORE_PHONE}`
   );
 
   if (processed > 0) log.info(`Retention 365-day: contacted ${processed} customers`);

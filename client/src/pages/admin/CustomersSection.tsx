@@ -460,7 +460,8 @@ export default function CustomersSection() {
             setExporting(true);
             try {
               const result = await fetch(`/api/trpc/customers.exportCsv?input=${encodeURIComponent(JSON.stringify({ segment }))}`, { credentials: "include" }).then(r => r.json());
-              const csvData = result?.result?.data?.csv;
+              const data = result?.result?.data?.json ?? result?.result?.data;
+              const csvData = data?.csv;
               if (!csvData) { toast.error("Export failed"); return; }
               const blob = new Blob([csvData], { type: "text/csv" });
               const url = URL.createObjectURL(blob);
@@ -469,7 +470,7 @@ export default function CustomersSection() {
               a.download = `customers-${segment}-${new Date().toISOString().split("T")[0]}.csv`;
               a.click();
               URL.revokeObjectURL(url);
-              toast.success(`Exported ${result?.result?.data?.count ?? 0} customers`);
+              toast.success(`Exported ${data?.count ?? 0} customers`);
             } catch { toast.error("Export failed"); } finally { setExporting(false); }
           }}
           disabled={exporting}

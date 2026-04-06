@@ -329,10 +329,10 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(gte(invoices.invoiceDate, todayStart)),
         d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(gte(invoices.invoiceDate, weekAgo)),
         d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(gte(invoices.invoiceDate, monthStart)),
-        // Estimates = leads from ALG (source != 'popup' and != 'chat' and != 'booking')
-        d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, todayStart), sql`${leads.source} NOT IN ('popup', 'chat', 'booking')`)),
-        d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, weekAgo), sql`${leads.source} NOT IN ('popup', 'chat', 'booking')`)),
-        d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, monthStart), sql`${leads.source} NOT IN ('popup', 'chat', 'booking')`)),
+        // Estimates = leads with a recommended service (AI-classified as needing specific work)
+        d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, todayStart), sql`${leads.recommendedService} IS NOT NULL`)),
+        d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, weekAgo), sql`${leads.recommendedService} IS NOT NULL`)),
+        d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, monthStart), sql`${leads.recommendedService} IS NOT NULL`)),
         d.select({ count: sql<number>`count(*)` }).from(invoices).where(gte(invoices.invoiceDate, monthStart)),
         d.execute(sql`SELECT paymentMethod, COUNT(*) as cnt, SUM(totalAmount) as total FROM invoices WHERE invoiceDate >= ${monthStart.toISOString().slice(0, 10)} GROUP BY paymentMethod ORDER BY cnt DESC`).then(([rows]: any) => rows),
         d.select({ count: sql<number>`count(*)` }).from(customers),

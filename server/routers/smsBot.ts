@@ -90,8 +90,8 @@ export async function handleIncomingSMS(from: string, body: string): Promise<str
     return "";
   }
 
-  // Handle STOP keyword — persist to DB so opt-out survives restarts
-  if (message === "STOP" || message === "HALT") {
+  // Handle STOP keywords (TCPA-compliant set) — persist to DB so opt-out survives restarts
+  if (["STOP", "HALT", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"].includes(message)) {
     optOutSet.add(phone);
     try {
       const { getDb } = await import("../db");
@@ -104,7 +104,24 @@ export async function handleIncomingSMS(from: string, body: string): Promise<str
     } catch (err) {
       console.error("[SMSBot] Failed to persist opt-out to DB:", err instanceof Error ? err.message : err);
     }
-    return "You've been opted out. Text UNSTOP to re-enable.";
+    return "You've been opted out. Text START to re-enable.";
+  }
+
+  // Handle opt-in keywords (UNSTOP/START/YES) — persist to DB
+  if (["START", "UNSTOP", "YES"].includes(message)) {
+    optOutSet.delete(phone);
+    try {
+      const { getDb } = await import("../db");
+      const { customers } = await import("../../drizzle/schema");
+      const { like } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        await db.update(customers).set({ smsOptOut: 0 }).where(like(customers.phone, `%${phone}`));
+      }
+    } catch (err) {
+      console.error("[SMSBot] Failed to persist opt-in to DB:", err instanceof Error ? err.message : err);
+    }
+    return "You've been re-subscribed to messages from Nick's Tire & Auto!";
   }
 
   // Handle HELP keyword
