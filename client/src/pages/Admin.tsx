@@ -297,8 +297,27 @@ export default function Admin() {
           ))}
         </nav>
 
-        {/* Sidebar Footer */}
-        <div className="px-4 py-3 border-t border-sidebar-border shrink-0">
+        {/* Sidebar Footer — Shop Pulse + User */}
+        <div className="px-4 py-3 border-t border-sidebar-border shrink-0 space-y-2.5">
+          {/* Live shop pulse */}
+          {woStats && woStats.active > 0 && (
+            <button
+              onClick={() => { setSection("workOrders"); setSidebarOpen(false); }}
+              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 transition-colors text-left"
+            >
+              <div className={`w-2 h-2 rounded-full shrink-0 ${woStats.overdue > 0 ? "bg-red-400 animate-pulse" : woStats.blocked > 0 ? "bg-amber-400" : "bg-emerald-400"}`} />
+              <div className="flex-1 min-w-0">
+                <span className="text-[10px] font-bold text-foreground tracking-wide block">
+                  {woStats.active} active · {woStats.inProgress} in bay
+                </span>
+                <span className="text-[9px] text-muted-foreground">
+                  ${Math.round(woStats.totalValueInProgress).toLocaleString()} in shop
+                  {woStats.overdue > 0 && <span className="text-red-400 ml-1">· {woStats.overdue} overdue</span>}
+                </span>
+              </div>
+            </button>
+          )}
+          {/* User + links */}
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 bg-muted flex items-center justify-center rounded-full shrink-0">
               <span className="font-semibold text-muted-foreground text-[10px]">
@@ -310,32 +329,25 @@ export default function Admin() {
               <p className="text-[10px] text-muted-foreground">Administrator</p>
             </div>
           </div>
-          <div className="flex gap-2 mt-2.5">
+          <div className="flex items-center gap-3">
             <a
               href="https://autonicks.com/chat"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 flex items-center justify-center gap-1.5 bg-primary/10 hover:bg-primary/20 text-primary transition-colors text-xs font-semibold py-1.5 rounded-md"
+              className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 font-medium transition-colors"
             >
               <Sparkles className="w-3 h-3" />
               Ask Nick
             </a>
-            <a
-              href="https://autonicks.com/command"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 flex items-center justify-center gap-1.5 bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors text-xs font-medium py-1.5 rounded-md"
+            <span className="text-foreground/10">·</span>
+            <Link
+              href="/"
+              className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors font-medium"
             >
-              NOUR OS
-            </a>
+              <ArrowLeft className="w-3 h-3" />
+              Back to site
+            </Link>
           </div>
-          <Link
-            href="/"
-            className="flex items-center gap-1.5 mt-2 text-muted-foreground hover:text-primary transition-colors text-[10px] font-medium"
-          >
-            <ArrowLeft className="w-3 h-3" />
-            Back to site
-          </Link>
         </div>
       </aside>
 
