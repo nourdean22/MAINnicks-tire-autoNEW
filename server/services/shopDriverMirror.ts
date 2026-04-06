@@ -913,6 +913,245 @@ async function getDataStaleDays(): Promise<number | null> {
   }
 }
 
+// ─── HISTORICAL BACKFILL ──────────────────────────────────
+// Fetches ALL invoice history by paginating through every page and
+// probing date-range endpoints. Called manually via bridge, not cron.
+
+export async function runHistoricalBackfill(): Promise<{
+  recordsProcessed: number;
+  details: string;
+}> {
+  const start = Date.now();
+  log.info("Starting historical backfill — fetching ALL invoice history");
+
+  const token = await getSession();
+  if (!token) {
+    return { recordsProcessed: 0, details: "Auth failed — check credentials" };
+  }
+
+  let allInvoices: RawInvoice[] = [];
+  let allCustomers: RawCustomer[] = [];
+  const probeResults: string[] = [];
+
+  // ═══ STRATEGY 1: Paginate through ALL pages of each endpoint ═══
+  const paginatedEndpoints = [
+    "/api/ticket/listRecentTickets",
+    "/api/ticket/listTicketSessions",
+    "/api/Report/listTotalSales",
+    "/api/Search/getTicketSearch",
+  ];
+
+  for (const base of paginatedEndpoints) {
+    let page = 1;
+    let totalForEndpoint = 0;
+    const maxPages = 100; // Safety limit
+
+    while (page <= maxPages) {
+      try {
+        const url = `${SHOPDRIVER_API}${base}?pageNumber=${page}&pageSize=500`;
+        const res = await fetch(url, {
+          headers: HEADERS(token),
+          signal: AbortSignal.timeout(30000),
+        });
+
+        if (isSessionKicked(res)) {
+          invalidateSession();
+          const freshToken = await getSession();
+          if (!freshToken) break;
+          continue; // Retry same page with fresh token
+        }
+
+        if (!res.ok) break;
+
+        const contentType = res.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) break;
+
+        const data = await res.json();
+        const items = Array.isArray(data) ? data
+          : (data.invoices || data.tickets || data.data || data.items || data.result || data.results || []);
+        const list = Array.isArray(items) ? items : [];
+
+        if (list.length === 0) break; // No more pages
+
+        const invoices = list.map(normalizeInvoiceJson);
+        allInvoices.push(...invoices);
+        totalForEndpoint += list.length;
+        page++;
+
+        // If we got less than pageSize, this is the last page
+        if (list.length < 500) break;
+      } catch (err) {
+        log.warn(`Backfill page ${page} of ${base} failed`, { error: err instanceof Error ? err.message : String(err) });
+        break;
+      }
+    }
+
+    if (totalForEndpoint > 0) {
+      probeResults.push(`${base}: ${totalForEndpoint} tickets (${page - 1} pages)`);
+      break; // Found a working endpoint, don't duplicate
+    }
+  }
+
+  // ═══ STRATEGY 2: Try date-range parameters (common ASP.NET patterns) ═══
+  if (allInvoices.length < 100) {
+    const dateParams = [
+      "startDate=2020-01-01&endDate=2026-12-31",
+      "dateFrom=2020-01-01&dateTo=2026-12-31",
+      "fromDate=01/01/2020&toDate=12/31/2026",
+      "from=2020-01-01&to=2026-12-31",
+      "start=2020-01-01&end=2026-12-31",
+    ];
+    const dateEndpoints = [
+      "/api/Report/listTotalSales",
+      "/api/ticket/listTicketSessions",
+      "/api/Report/getSalesReport",
+      "/api/Report/getInvoiceReport",
+      "/api/Report/listInvoices",
+    ];
+
+    for (const ep of dateEndpoints) {
+      for (const dp of dateParams) {
+        try {
+          const url = `${SHOPDRIVER_API}${ep}?${dp}&pageNumber=1&pageSize=1000`;
+          const res = await fetch(url, {
+            headers: HEADERS(token),
+            signal: AbortSignal.timeout(30000),
+          });
+
+          if (!res.ok || isSessionKicked(res)) continue;
+
+          const contentType = res.headers.get("content-type") || "";
+          if (!contentType.includes("application/json")) continue;
+
+          const data = await res.json();
+          const items = Array.isArray(data) ? data
+            : (data.invoices || data.tickets || data.data || data.items || data.result || data.results || []);
+          const list = Array.isArray(items) ? items : [];
+
+          if (list.length > 0) {
+            probeResults.push(`DATE: ${ep}?${dp} → ${list.length} items`);
+            const invoices = list.map(normalizeInvoiceJson);
+            allInvoices.push(...invoices);
+
+            // If this date endpoint works, paginate through it fully
+            if (list.length >= 1000) {
+              let page = 2;
+              while (page <= 100) {
+                try {
+                  const pageUrl = `${SHOPDRIVER_API}${ep}?${dp}&pageNumber=${page}&pageSize=1000`;
+                  const pageRes = await fetch(pageUrl, {
+                    headers: HEADERS(token),
+                    signal: AbortSignal.timeout(30000),
+                  });
+                  if (!pageRes.ok) break;
+                  const pageData = await pageRes.json();
+                  const pageItems = Array.isArray(pageData) ? pageData
+                    : (pageData.invoices || pageData.tickets || pageData.data || pageData.items || pageData.result || pageData.results || []);
+                  const pageList = Array.isArray(pageItems) ? pageItems : [];
+                  if (pageList.length === 0) break;
+                  allInvoices.push(...pageList.map(normalizeInvoiceJson));
+                  if (pageList.length < 1000) break;
+                  page++;
+                } catch { break; }
+              }
+            }
+            break; // Found working date endpoint
+          }
+        } catch {}
+      }
+      if (allInvoices.length > 100) break; // Found enough
+    }
+  }
+
+  // ═══ STRATEGY 3: Try to get all customers with pagination too ═══
+  const custEndpoints = [
+    "/api/Customer/listCustomers",
+    "/api/Search/getCustomerSearch",
+  ];
+
+  for (const base of custEndpoints) {
+    let page = 1;
+    let totalCust = 0;
+
+    while (page <= 100) {
+      try {
+        const url = `${SHOPDRIVER_API}${base}?pageNumber=${page}&pageSize=500`;
+        const res = await fetch(url, {
+          headers: HEADERS(token),
+          signal: AbortSignal.timeout(30000),
+        });
+
+        if (!res.ok || isSessionKicked(res)) break;
+
+        const contentType = res.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) break;
+
+        const data = await res.json();
+        const items = Array.isArray(data) ? data
+          : (data.customers || data.data || data.items || data.result || data.results || []);
+        const list = Array.isArray(items) ? items : [];
+
+        if (list.length === 0) break;
+
+        allCustomers.push(...list.map(normalizeCustomerJson));
+        totalCust += list.length;
+        page++;
+
+        if (list.length < 500) break;
+      } catch { break; }
+    }
+
+    if (totalCust > 0) {
+      probeResults.push(`Customers: ${totalCust} (${page - 1} pages)`);
+      break;
+    }
+  }
+
+  // ═══ DEDUPLICATE invoices before upserting ═══
+  const seen = new Set<string>();
+  const uniqueInvoices = allInvoices.filter(inv => {
+    if (!inv.invoiceNumber || seen.has(inv.invoiceNumber)) return false;
+    seen.add(inv.invoiceNumber);
+    return true;
+  });
+
+  log.info(`Backfill fetched ${uniqueInvoices.length} unique invoices (from ${allInvoices.length} raw), ${allCustomers.length} customers`);
+
+  // Upsert to DB
+  let custResult = { created: 0, updated: 0 };
+  let invResult = { created: 0, updated: 0, skipped: 0 };
+
+  if (allCustomers.length > 0) {
+    custResult = await upsertCustomers(allCustomers);
+  }
+  if (uniqueInvoices.length > 0) {
+    invResult = await upsertInvoices(uniqueInvoices);
+  }
+
+  const duration = Date.now() - start;
+  const total = custResult.created + custResult.updated + invResult.created + invResult.updated;
+
+  const details = [
+    `Invoices: ${invResult.created} new, ${invResult.updated} updated, ${invResult.skipped} unchanged (${uniqueInvoices.length} fetched)`,
+    `Customers: ${custResult.created} new, ${custResult.updated} updated (${allCustomers.length} fetched)`,
+    `Probes: ${probeResults.join(" | ") || "no working endpoints found"}`,
+    `Duration: ${duration}ms`,
+  ].join(" | ");
+
+  log.info(`Historical backfill complete: ${details}`);
+
+  // Trigger enrichment after backfill
+  if (invResult.created > 0) {
+    try {
+      const { enrichCustomerData } = await import("./dataPipelines");
+      const enrichResult = await enrichCustomerData();
+      log.info(`Post-backfill enrichment: ${enrichResult.details}`);
+    } catch {}
+  }
+
+  return { recordsProcessed: total, details };
+}
+
 // ─── HEALTH CHECK (called by scheduler) ────────────────
 // Returns health status for the ALG mirror — used by heartbeat tier
 export async function checkMirrorHealth(): Promise<{
