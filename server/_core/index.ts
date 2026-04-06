@@ -220,6 +220,25 @@ async function startServer() {
     serverLog.info("Event bus initialized");
   }).catch(err => console.error("[EventBus] Failed to init:", err));
 
+  // ─── Schema Migrations (idempotent ALTER TABLE) ────────
+  import("../db").then(async ({ getDb }) => {
+    const db = await getDb();
+    if (!db) return;
+    const { sql } = await import("drizzle-orm");
+    const alters = [
+      `ALTER TABLE customers ADD COLUMN IF NOT EXISTS totalSpent int NOT NULL DEFAULT 0 AFTER totalVisits`,
+      `ALTER TABLE customers ADD COLUMN IF NOT EXISTS firstVisitDate timestamp NULL AFTER lastVisitDate`,
+      `ALTER TABLE customers ADD COLUMN IF NOT EXISTS vehicleYear varchar(10) NULL AFTER balanceDue`,
+      `ALTER TABLE customers ADD COLUMN IF NOT EXISTS vehicleMake varchar(50) NULL AFTER vehicleYear`,
+      `ALTER TABLE customers ADD COLUMN IF NOT EXISTS vehicleModel varchar(50) NULL AFTER vehicleMake`,
+    ];
+    let applied = 0;
+    for (const stmt of alters) {
+      try { await db.execute(sql.raw(stmt)); applied++; } catch {}
+    }
+    if (applied > 0) serverLog.info(`Schema migrations: ${applied} column checks passed`);
+  }).catch(() => {});
+
   // ─── Feature Flag Seeding (idempotent) ─────────────────
   import("../services/featureFlags").then(({ seedFlags }) => {
     seedFlags().then(({ seeded, skipped }) => {
