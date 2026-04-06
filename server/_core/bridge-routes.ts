@@ -222,6 +222,18 @@ export function registerBridgeRoutes(app: Express): void {
     }
   });
 
+  // Historical backfill — fetch ALL invoice history from ShopDriver (not just recent)
+  app.post("/api/bridge/backfill-history", bridgeAuth, async (_req, res) => {
+    try {
+      const { runHistoricalBackfill } = await import("../services/shopDriverMirror");
+      const result = await runHistoricalBackfill();
+      res.json({ ...result, timestamp: new Date().toISOString() });
+    } catch (err: any) {
+      console.error("[Bridge] Backfill error:", err);
+      res.status(500).json({ error: err.message || "Backfill failed" });
+    }
+  });
+
   // Force ShopDriver/ALG mirror sync (instead of waiting for 15-min pulse)
   app.post("/api/bridge/trigger-mirror", bridgeAuth, async (_req, res) => {
     try {
