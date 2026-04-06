@@ -23,17 +23,42 @@ let lastSuccessfulSync: Date | null = null;
 let lastAlertSent: Date | null = null;
 const ALERT_COOLDOWN_MS = 2 * 60 * 60 * 1000; // Don't spam — max 1 alert every 2 hours
 
-// ─── SESSION AUTH (mirrors autoLabor.ts pattern) ────────
+// ─── SESSION AUTH ──────────────────────────────────────
+// IMPORTANT: ShopDriver uses single-session auth.
+// When someone logs in at the shop computer, it kills our session.
+// So we NEVER cache sessions between sync runs — always re-auth fresh.
+// Within a single sync run we reuse the cookie (customers + invoices).
 
 let mirrorSession: { cookie: string; expiresAt: number } | null = null;
 
-/** Force-clear the cached session (used when fetches return 0 data) */
+/** Force-clear the cached session */
 function invalidateSession() {
   mirrorSession = null;
-  log.warn("Session invalidated — will re-authenticate on next attempt");
+}
+
+/**
+ * Detect if an HTTP response is actually a login-page redirect
+ * (ShopDriver kills our session when shop staff log in)
+ */
+function isSessionKicked(res: Response, body?: string): boolean {
+  // Redirect to login page
+  const location = res.headers.get("location") || "";
+  if (location.includes("/login") || location.includes("/signin")) return true;
+  // 401/403 = session dead
+  if (res.status === 401 || res.status === 403) return true;
+  // HTML body contains login form = we got redirected to login
+  if (body && (
+    body.includes('name="password"') ||
+    body.includes('id="login-form"') ||
+    body.includes('action="/login"') ||
+    (body.includes("Sign In") && body.includes("Password") && !body.includes("Invoice"))
+  )) return true;
+  return false;
 }
 
 async function getSession(): Promise<string | null> {
+  // Only reuse within a 3-minute window (covers one sync run)
+  // This prevents holding a dead cookie between 15-min sync cycles
   if (mirrorSession && Date.now() < mirrorSession.expiresAt) {
     return mirrorSession.cookie;
   }
@@ -63,7 +88,9 @@ async function getSession(): Promise<string | null> {
     const cookies = res.headers.getSetCookie?.() || [];
     const cookie = cookies.map(c => c.split(";")[0]).join("; ");
     if (cookie) {
-      mirrorSession = { cookie, expiresAt: Date.now() + 25 * 60 * 1000 };
+      // 3-minute cache — just enough for one sync run, not long enough to go stale
+      mirrorSession = { cookie, expiresAt: Date.now() + 3 * 60 * 1000 };
+      log.info("Authenticated via JSON login");
       return cookie;
     }
   } catch (err) {
@@ -88,7 +115,8 @@ async function getSession(): Promise<string | null> {
     const cookies = res.headers.getSetCookie?.() || [];
     const cookie = cookies.map(c => c.split(";")[0]).join("; ");
     if (cookie) {
-      mirrorSession = { cookie, expiresAt: Date.now() + 25 * 60 * 1000 };
+      mirrorSession = { cookie, expiresAt: Date.now() + 3 * 60 * 1000 };
+      log.info("Authenticated via form login");
       return cookie;
     }
   } catch (err) {
@@ -137,6 +165,7 @@ interface RawInvoice {
 /**
  * Try multiple endpoint patterns to fetch customer data.
  * ShopDriver may expose JSON API or server-rendered HTML.
+ * Detects kicked sessions (shop login killed our cookie).
  */
 async function fetchCustomers(cookie: string): Promise<RawCustomer[]> {
   const endpoints = [
@@ -151,8 +180,16 @@ async function fetchCustomers(cookie: string): Promise<RawCustomer[]> {
     try {
       const res = await fetch(`${SHOPDRIVER_BASE}${endpoint}`, {
         headers: HEADERS(cookie),
+        redirect: "manual", // Don't follow redirects — detect login redirects
         signal: AbortSignal.timeout(15000),
       });
+
+      // Detect session killed by shop login
+      if (isSessionKicked(res)) {
+        log.warn(`Session kicked detected on ${endpoint} — shop login likely killed our session`);
+        invalidateSession();
+        return []; // Caller will retry with fresh auth
+      }
 
       if (!res.ok) continue;
 
@@ -171,6 +208,12 @@ async function fetchCustomers(cookie: string): Promise<RawCustomer[]> {
       // HTML response — parse table rows
       if (contentType.includes("text/html")) {
         const html = await res.text();
+        // Check if we got a login page instead of data
+        if (isSessionKicked(res, html)) {
+          log.warn(`Login page returned on ${endpoint} — session was killed`);
+          invalidateSession();
+          return [];
+        }
         const customers = parseCustomerHtml(html);
         if (customers.length > 0) {
           log.info(`Scraped ${customers.length} customers from ${endpoint} (HTML)`);
@@ -188,6 +231,7 @@ async function fetchCustomers(cookie: string): Promise<RawCustomer[]> {
 
 /**
  * Try multiple endpoint patterns to fetch invoice/ticket data.
+ * Detects kicked sessions (shop login killed our cookie).
  */
 async function fetchInvoices(cookie: string): Promise<RawInvoice[]> {
   const endpoints = [
@@ -205,8 +249,16 @@ async function fetchInvoices(cookie: string): Promise<RawInvoice[]> {
     try {
       const res = await fetch(`${SHOPDRIVER_BASE}${endpoint}`, {
         headers: HEADERS(cookie),
+        redirect: "manual", // Don't follow redirects — detect login redirects
         signal: AbortSignal.timeout(15000),
       });
+
+      // Detect session killed by shop login
+      if (isSessionKicked(res)) {
+        log.warn(`Session kicked detected on ${endpoint} — shop login likely killed our session`);
+        invalidateSession();
+        return []; // Caller will retry with fresh auth
+      }
 
       if (!res.ok) continue;
 
@@ -223,6 +275,12 @@ async function fetchInvoices(cookie: string): Promise<RawInvoice[]> {
 
       if (contentType.includes("text/html")) {
         const html = await res.text();
+        // Check if we got a login page instead of data
+        if (isSessionKicked(res, html)) {
+          log.warn(`Login page returned on ${endpoint} — session was killed`);
+          invalidateSession();
+          return [];
+        }
         const invoices = parseInvoiceHtml(html);
         if (invoices.length > 0) {
           log.info(`Scraped ${invoices.length} invoices from ${endpoint} (HTML)`);
@@ -575,12 +633,13 @@ export async function runFullMirror(): Promise<{
     fetchInvoices(cookie),
   ]);
 
-  // If we got 0 invoices but had a cached session, force re-auth and retry once
-  if (rawInvoices.length === 0 && cookie) {
-    log.warn("0 invoices with cached session — forcing re-auth and retrying");
+  // If we got 0 invoices, the session was likely killed by a shop login.
+  // Force fresh re-auth and retry — this is the most common failure mode.
+  if (rawInvoices.length === 0) {
+    log.warn("0 invoices — likely session kicked by shop login. Re-authenticating...");
     invalidateSession();
     const freshCookie = await getSession();
-    if (freshCookie && freshCookie !== cookie) {
+    if (freshCookie) {
       const [retryCust, retryInv] = await Promise.all([
         rawCustomers.length === 0 ? fetchCustomers(freshCookie) : Promise.resolve(rawCustomers),
         fetchInvoices(freshCookie),
@@ -588,7 +647,7 @@ export async function runFullMirror(): Promise<{
       rawCustomers = retryCust;
       rawInvoices = retryInv;
       if (rawInvoices.length > 0) {
-        log.info(`Re-auth worked! Got ${rawInvoices.length} invoices on retry`);
+        log.info(`Re-auth fixed it! Got ${rawInvoices.length} invoices on retry`);
       }
     }
   }
