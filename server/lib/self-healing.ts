@@ -360,7 +360,10 @@ function checkMemory(): void {
   const heapUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
   const heapTotalMB = Math.round(mem.heapTotal / 1024 / 1024);
   const rssMB = Math.round(mem.rss / 1024 / 1024);
-  const heapPercent = heapTotalMB > 0 ? Math.round((heapUsedMB / heapTotalMB) * 100) : 0;
+  // Use --max-old-space-size ceiling (not V8's current dynamic allocation) for accurate %
+  const maxMatch = (process.env.NODE_OPTIONS || "").match(/--max-old-space-size=(\d+)/);
+  const heapCeilingMB = maxMatch ? parseInt(maxMatch[1], 10) : 512;
+  const heapPercent = heapCeilingMB > 0 ? Math.round((heapUsedMB / heapCeilingMB) * 100) : 0;
 
   if (heapPercent >= 95) {
     comp.status = "down";
