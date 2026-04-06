@@ -353,13 +353,13 @@ function normalizeCustomerJson(raw: any): RawCustomer {
   return {
     name: raw.name || raw.customerName || raw.fullName ||
       [raw.firstName, raw.lastName].filter(Boolean).join(" ") || "Unknown",
-    phone: normalizePhone(raw.phone || raw.phoneNumber || raw.mobile || raw.tel || ""),
-    phone2: normalizePhone(raw.phone2 || raw.altPhone || raw.workPhone || ""),
+    phone: normalizePhone(raw.primaryPhone || raw.primaryNumber || raw.phone || raw.phoneNumber || raw.mobile || ""),
+    phone2: normalizePhone(raw.secondaryPhone || raw.phone2 || raw.altPhone || ""),
     email: raw.email || raw.emailAddress || undefined,
-    address: raw.address || raw.streetAddress || raw.addr || undefined,
+    address: raw.addressLine1 || raw.address || raw.streetAddress || undefined,
     city: raw.city || undefined,
     state: raw.state || undefined,
-    zip: raw.zip || raw.zipCode || raw.postalCode || undefined,
+    zip: raw.postalCode || raw.zip || raw.zipCode || undefined,
     vehicles: extractVehicles(raw),
   };
 }
@@ -367,14 +367,15 @@ function normalizeCustomerJson(raw: any): RawCustomer {
 function normalizeInvoiceJson(raw: any): RawInvoice {
   const amount = raw.totalAmount || raw.total || raw.amount || raw.grandTotal || 0;
   return {
-    invoiceNumber: String(raw.invoiceNumber || raw.ticketNumber || raw.id || raw.ticketId || ""),
+    invoiceNumber: String(raw.invoiceNumber || raw.ticketNumber || raw.ticketId || raw.id || ""),
     customerName: raw.customerName || raw.customer?.name ||
+      [raw.firstName, raw.lastName].filter(Boolean).join(" ") ||
       [raw.customer?.firstName, raw.customer?.lastName].filter(Boolean).join(" ") || "Unknown",
-    customerPhone: normalizePhone(raw.customerPhone || raw.customer?.phone || ""),
+    customerPhone: normalizePhone(raw.primaryNumber || raw.primaryPhone || raw.customerPhone || raw.customer?.phone || ""),
     totalAmount: typeof amount === "number" ? Math.round(amount * 100) : parseDollarsToCents(String(amount)),
-    date: raw.date || raw.invoiceDate || raw.createdAt || raw.ticketDate || new Date().toISOString(),
-    service: raw.serviceDescription || raw.description || raw.service || raw.services?.join(", ") || "",
-    vehicleInfo: raw.vehicleInfo || raw.vehicle ||
+    date: raw.date || raw.invoiceDate || raw.createdAt || raw.ticketDate || raw.accessedDate || new Date().toISOString(),
+    service: raw.serviceDescription || raw.description || raw.service || raw.vehicleDescription || raw.services?.join(", ") || "",
+    vehicleInfo: raw.vehicleDescription || raw.vehicleInfo || raw.vehicle ||
       [raw.vehicleYear, raw.vehicleMake, raw.vehicleModel].filter(Boolean).join(" ") || undefined,
     paymentMethod: raw.paymentMethod || raw.payType || "other",
     paymentStatus: raw.paymentStatus || raw.status || "paid",
