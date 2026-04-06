@@ -572,26 +572,48 @@ async function upsertCustomers(rawCustomers: RawCustomer[]): Promise<{ created: 
   return { created, updated };
 }
 
-async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: number; skipped: number }> {
+async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: number; updated: number; skipped: number }> {
   const d = await getDb();
-  if (!d) return { created: 0, skipped: 0 };
+  if (!d) return { created: 0, updated: 0, skipped: 0 };
 
   const { invoices, customers } = await import("../../drizzle/schema");
   let created = 0;
+  let updated = 0;
   let skipped = 0;
 
   for (const ri of rawInvoices) {
     if (!ri.invoiceNumber) { skipped++; continue; }
 
     try {
-      // Skip if invoice already exists
-      const existing = await d.select({ id: invoices.id })
+      // Check if invoice already exists — UPDATE if it does (tickets evolve from draft → finalized)
+      const existing = await d.select({ id: invoices.id, totalAmount: invoices.totalAmount })
         .from(invoices)
         .where(eq(invoices.invoiceNumber, ri.invoiceNumber))
         .limit(1);
 
       if (existing.length > 0) {
-        skipped++;
+        // Update existing invoice — amount, service, date, payment info may have changed
+        const updates: Record<string, any> = {};
+        const ex = existing[0];
+        // Always update amount if it changed (draft → finalized)
+        if (ri.totalAmount > 0 && ri.totalAmount !== ex.totalAmount) updates.totalAmount = ri.totalAmount;
+        if (ri.service) updates.serviceDescription = ri.service;
+        if (ri.vehicleInfo) updates.vehicleInfo = ri.vehicleInfo;
+        if (ri.date) updates.invoiceDate = new Date(ri.date);
+        if (ri.paymentMethod && ri.paymentMethod !== "other") updates.paymentMethod = normalizePaymentMethod(ri.paymentMethod);
+        if (ri.paymentStatus && ri.paymentStatus !== "paid") updates.paymentStatus = normalizePaymentStatus(ri.paymentStatus);
+        if (ri.partsCost > 0) updates.partsCost = ri.partsCost;
+        if (ri.laborCost > 0) updates.laborCost = ri.laborCost;
+        if (ri.taxAmount > 0) updates.taxAmount = ri.taxAmount;
+        if (ri.customerPhone) updates.customerPhone = normalizePhone(ri.customerPhone);
+        if (ri.customerName && ri.customerName !== "Unknown") updates.customerName = ri.customerName;
+
+        if (Object.keys(updates).length > 0) {
+          await d.update(invoices).set(updates).where(eq(invoices.id, ex.id));
+          updated++;
+        } else {
+          skipped++;
+        }
         continue;
       }
 
@@ -635,7 +657,7 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
     }
   }
 
-  return { created, skipped };
+  return { created, updated, skipped };
 }
 
 function normalizePaymentMethod(raw?: string): "cash" | "card" | "check" | "financing" | "other" {
@@ -753,7 +775,7 @@ export async function runFullMirror(): Promise<{
   const invResult = await upsertInvoices(rawInvoices);
 
   const duration = Date.now() - start;
-  const total = custResult.created + custResult.updated + invResult.created;
+  const total = custResult.created + custResult.updated + invResult.created + invResult.updated;
 
   // SUCCESS — reset failure tracking
   const wasDown = consecutiveFailures > 0;
@@ -762,7 +784,7 @@ export async function runFullMirror(): Promise<{
 
   const details = [
     `Customers: ${custResult.created} new, ${custResult.updated} updated (${rawCustomers.length} fetched)`,
-    `Invoices: ${invResult.created} new, ${invResult.skipped} skipped (${rawInvoices.length} fetched)`,
+    `Invoices: ${invResult.created} new, ${invResult.updated} updated, ${invResult.skipped} unchanged (${rawInvoices.length} fetched)`,
     `Duration: ${duration}ms`,
   ].join(" | ");
 
