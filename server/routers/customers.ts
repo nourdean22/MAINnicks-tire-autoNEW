@@ -4,7 +4,7 @@
 import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq, like, or, sql, desc, asc } from "drizzle-orm";
-import { customers, customerMetrics, bookings, leads, callbackRequests, callEvents } from "../../drizzle/schema";
+import { customers, customerMetrics, bookings, leads, callbackRequests, callEvents, invoices, workOrders } from "../../drizzle/schema";
 import { logAdminAction } from "../services/auditTrail";
 
 async function db() {
@@ -376,11 +376,12 @@ export const customersRouter = router({
 
       const phone = input.phone;
       const events: Array<{
-        type: "booking" | "lead" | "callback" | "call";
+        type: "booking" | "lead" | "callback" | "call" | "workOrder" | "invoice";
         title: string;
         detail: string;
         status: string;
         date: Date;
+        amount?: number;
       }> = [];
 
       try {
@@ -422,6 +423,36 @@ export const customersRouter = router({
           detail: c.sourcePage || "",
           status: "completed",
           date: new Date(c.createdAt),
+        }));
+
+        // Invoices by phone
+        const invs = await d.select().from(invoices).where(eq(invoices.customerPhone, phone)).orderBy(desc(invoices.invoiceDate));
+        invs.forEach(inv => events.push({
+          type: "invoice",
+          title: `Invoice ${inv.invoiceNumber || `#${inv.id}`}`,
+          detail: `${inv.serviceDescription || "Service"} · ${inv.vehicleInfo || ""}`.trim(),
+          status: inv.paymentStatus || "paid",
+          date: new Date(inv.invoiceDate),
+          amount: inv.totalAmount, // cents
+        }));
+
+        // Work orders — match by customer ID (from customer record)
+        // Look up by customerId string match since WOs use string IDs
+        const custIdStr = String(input.phone ? "" : "");
+        // Actually match work orders by customer phone (denormalized) or customer ID
+        const woResults = await d.select().from(workOrders)
+          .where(sql`${workOrders.customerId} IN (
+            SELECT CAST(id AS CHAR) FROM customers WHERE phone = ${phone}
+          )`)
+          .orderBy(desc(workOrders.createdAt))
+          .limit(20);
+        woResults.forEach(wo => events.push({
+          type: "workOrder",
+          title: `WO ${wo.orderNumber}`,
+          detail: `${wo.serviceDescription || wo.status?.replace(/_/g, " ") || "Service"}${wo.vehicleMake ? ` · ${wo.vehicleMake} ${wo.vehicleModel || ""}` : ""}`.trim(),
+          status: wo.status || "draft",
+          amount: wo.total ? Math.round(Number(wo.total) * 100) : undefined, // convert dollars to cents for consistency
+          date: new Date(wo.createdAt),
         }));
       } catch (err) {
         // Some tables may not exist yet

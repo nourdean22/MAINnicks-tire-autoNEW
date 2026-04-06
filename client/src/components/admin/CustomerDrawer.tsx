@@ -6,6 +6,7 @@ import { SideDrawer } from "./SideDrawer";
 import {
   Phone, Mail, MapPin, Calendar, Hash, MessageSquare, Loader2,
   CalendarClock, Users, PhoneCall, Clock, CheckCircle2, XCircle,
+  Wrench, FileText, DollarSign, TrendingUp,
 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 
@@ -20,6 +21,8 @@ const EVENT_CONFIG: Record<string, { icon: React.ReactNode; color: string; bgCol
   lead: { icon: <Users className="w-3.5 h-3.5" />, color: "text-amber-400", bgColor: "bg-amber-500/10" },
   callback: { icon: <PhoneCall className="w-3.5 h-3.5" />, color: "text-emerald-400", bgColor: "bg-emerald-500/10" },
   call: { icon: <Phone className="w-3.5 h-3.5" />, color: "text-cyan-400", bgColor: "bg-cyan-500/10" },
+  workOrder: { icon: <Wrench className="w-3.5 h-3.5" />, color: "text-primary", bgColor: "bg-primary/10" },
+  invoice: { icon: <FileText className="w-3.5 h-3.5" />, color: "text-emerald-400", bgColor: "bg-emerald-500/10" },
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -30,6 +33,22 @@ const STATUS_COLORS: Record<string, string> = {
   contacted: "text-amber-400 bg-amber-500/10",
   booked: "text-emerald-400 bg-emerald-500/10",
   lost: "text-red-400 bg-red-500/10",
+  // Work order statuses
+  draft: "text-foreground/50 bg-foreground/5",
+  approved: "text-blue-400 bg-blue-500/10",
+  in_progress: "text-primary bg-primary/10",
+  parts_needed: "text-amber-400 bg-amber-500/10",
+  parts_ordered: "text-amber-400 bg-amber-500/10",
+  ready_for_pickup: "text-emerald-400 bg-emerald-500/10",
+  invoiced: "text-emerald-400 bg-emerald-500/10",
+  picked_up: "text-emerald-400 bg-emerald-500/10",
+  closed: "text-foreground/40 bg-foreground/5",
+  on_hold: "text-amber-400 bg-amber-500/10",
+  // Invoice statuses
+  paid: "text-emerald-400 bg-emerald-500/10",
+  pending: "text-amber-400 bg-amber-500/10",
+  partial: "text-blue-400 bg-blue-500/10",
+  refunded: "text-red-400 bg-red-500/10",
 };
 
 export function CustomerDrawer({ customerId, onClose, onNavigateToSection }: Props) {
@@ -89,30 +108,42 @@ export function CustomerDrawer({ customerId, onClose, onNavigateToSection }: Pro
             )}
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-background/50 border border-border/20 p-3">
-              <span className="text-[10px] text-foreground/40 tracking-wide block">Visits</span>
-              <span className="text-lg font-bold text-foreground">{customer.totalVisits ?? 0}</span>
-            </div>
-            <div className="bg-background/50 border border-border/20 p-3">
-              <span className="text-[10px] text-foreground/40 tracking-wide block">Last Visit</span>
-              <span className="text-xs font-medium text-foreground">
-                {customer.lastVisitDate
-                  ? new Date(customer.lastVisitDate).toLocaleDateString()
-                  : "Never"}
-              </span>
-            </div>
-            <div className="bg-background/50 border border-border/20 p-3">
-              <span className="text-[10px] text-foreground/40 tracking-wide block">Interactions</span>
-              <span className="text-lg font-bold text-foreground">{timeline?.length ?? 0}</span>
-            </div>
-          </div>
+          {/* Stats + Revenue */}
+          {(() => {
+            const woEvents = timeline?.filter((e: any) => e.type === "workOrder") ?? [];
+            const invoiceEvents = timeline?.filter((e: any) => e.type === "invoice") ?? [];
+            const totalSpent = invoiceEvents.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+            const activeWOs = woEvents.filter((e: any) => !["invoiced", "closed", "picked_up", "cancelled"].includes(e.status));
+            return (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="bg-background/50 border border-border/20 p-3">
+                  <span className="text-[10px] text-foreground/40 tracking-wide block">Visits</span>
+                  <span className="text-lg font-bold text-foreground">{customer.totalVisits ?? 0}</span>
+                </div>
+                <div className="bg-background/50 border border-border/20 p-3">
+                  <span className="text-[10px] text-foreground/40 tracking-wide block">Total Spent</span>
+                  <span className="text-lg font-bold text-emerald-400">
+                    ${(totalSpent / 100).toLocaleString("en-US", { minimumFractionDigits: 0 })}
+                  </span>
+                </div>
+                <div className="bg-background/50 border border-border/20 p-3">
+                  <span className="text-[10px] text-foreground/40 tracking-wide block">Invoices</span>
+                  <span className="text-lg font-bold text-foreground">{invoiceEvents.length}</span>
+                </div>
+                <div className="bg-background/50 border border-border/20 p-3">
+                  <span className="text-[10px] text-foreground/40 tracking-wide block">Active WOs</span>
+                  <span className={`text-lg font-bold ${activeWOs.length > 0 ? "text-primary" : "text-foreground/30"}`}>
+                    {activeWOs.length}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Quick actions */}
           <div className="space-y-2">
             <h4 className="text-[10px] font-semibold text-foreground/40 tracking-wider uppercase">Quick Actions</h4>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {customer.phone && (
                 <a
                   href={`tel:${customer.phone}`}
@@ -128,6 +159,14 @@ export function CustomerDrawer({ customerId, onClose, onNavigateToSection }: Pro
                 >
                   <MessageSquare className="w-3.5 h-3.5" /> Text
                 </a>
+              )}
+              {onNavigateToSection && (
+                <button
+                  onClick={() => { onClose(); onNavigateToSection("workOrders"); }}
+                  className="flex items-center gap-2 px-3 py-2 bg-blue-500/10 text-blue-400 text-xs font-medium hover:bg-blue-500/20 transition-colors"
+                >
+                  <Wrench className="w-3.5 h-3.5" /> Work Orders
+                </button>
               )}
             </div>
           </div>
@@ -171,8 +210,13 @@ export function CustomerDrawer({ customerId, onClose, onNavigateToSection }: Pro
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-medium text-foreground truncate">{event.title}</span>
                           <span className={`text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded ${statusCls}`}>
-                            {event.status.toUpperCase()}
+                            {event.status?.replace(/_/g, " ").toUpperCase()}
                           </span>
+                          {(event as any).amount > 0 && (
+                            <span className="text-[10px] font-mono text-emerald-400/70">
+                              ${((event as any).amount / 100).toLocaleString()}
+                            </span>
+                          )}
                         </div>
                         {event.detail && (
                           <p className="text-[11px] text-foreground/40 truncate mt-0.5">{event.detail}</p>
