@@ -33,6 +33,7 @@ export default function RevenueSection() {
   const { data: stats, isLoading } = trpc.invoices.stats.useQuery({ days: period }, { refetchInterval: 60000 });
   const { data: topCustomers } = trpc.invoices.topCustomers.useQuery({ limit: 10 });
   const { data: kpi } = trpc.kpi.current.useQuery(undefined, { refetchInterval: 60000 });
+  const { data: shopFloor } = trpc.nourOsBridge.shopFloor.useQuery(undefined, { refetchInterval: 30000 });
   const utils = trpc.useUtils();
 
   if (isLoading) {
@@ -59,7 +60,7 @@ export default function RevenueSection() {
         </div>
       </div>
 
-      {tab === "dashboard" && <DashboardView stats={stats} topCustomers={topCustomers} kpi={kpi} period={period} setPeriod={setPeriod} />}
+      {tab === "dashboard" && <DashboardView stats={stats} topCustomers={topCustomers} kpi={kpi} shopFloor={shopFloor} period={period} setPeriod={setPeriod} />}
       {tab === "invoices" && <InvoiceListView onCreateNew={() => setTab("create")} />}
       {tab === "create" && <CreateInvoiceView onDone={() => { setTab("invoices"); utils.invoices.list.invalidate(); utils.invoices.stats.invalidate(); }} />}
     </div>
@@ -67,7 +68,7 @@ export default function RevenueSection() {
 }
 
 // ─── DASHBOARD VIEW ─────────────────────────────────────
-function DashboardView({ stats, topCustomers, kpi, period, setPeriod }: any) {
+function DashboardView({ stats, topCustomers, kpi, shopFloor, period, setPeriod }: any) {
   const revenueChange = stats?.periodComparison?.change ?? 0;
 
   return (
@@ -101,6 +102,44 @@ function DashboardView({ stats, topCustomers, kpi, period, setPeriod }: any) {
           <MiniKPI label="Completed (Week)" value={kpi.completedThisWeek} sub="jobs" />
           <MiniKPI label="New Customers" value={kpi.newCustomersThisMonth} sub="this month" />
           <MiniKPI label="Emergency" value={kpi.emergencyThisWeek} sub="this week" alert={kpi.emergencyThisWeek > 0} />
+        </div>
+      )}
+
+      {/* Work Order Revenue Pipeline */}
+      {shopFloor && (shopFloor.active > 0 || shopFloor.totalValueInProgress > 0) && (
+        <div className="bg-card border border-primary/20 rounded-lg p-5">
+          <h3 className="font-bold text-sm text-foreground tracking-wider mb-4 flex items-center gap-2">
+            <Activity className="w-4 h-4 text-primary" />
+            REVENUE PIPELINE — WORK IN PROGRESS
+          </h3>
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="text-center p-3 rounded-md border border-border/30">
+              <p className="text-2xl font-bold tracking-tight text-primary">{formatDollars(Math.round(shopFloor.totalValueInProgress))}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Value In Shop</p>
+            </div>
+            <div className="text-center p-3 rounded-md border border-border/30">
+              <p className="text-2xl font-bold tracking-tight text-blue-400">{shopFloor.active}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Active Orders</p>
+            </div>
+            <div className="text-center p-3 rounded-md border border-border/30">
+              <p className="text-2xl font-bold tracking-tight text-emerald-400">{shopFloor.inProgress}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">In Progress</p>
+            </div>
+            <div className="text-center p-3 rounded-md border border-border/30">
+              <p className="text-2xl font-bold tracking-tight text-amber-400">{shopFloor.readyForPickup}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Ready for Pickup</p>
+            </div>
+            <div className="text-center p-3 rounded-md border border-border/30">
+              <p className={`text-2xl font-bold tracking-tight ${shopFloor.blocked > 0 ? "text-red-400" : "text-muted-foreground"}`}>{shopFloor.blocked}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Blocked</p>
+            </div>
+          </div>
+          {shopFloor.overdue > 0 && (
+            <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded text-[11px] text-red-400">
+              <Clock className="w-3.5 h-3.5 shrink-0" />
+              {shopFloor.overdue} overdue work order{shopFloor.overdue > 1 ? "s" : ""} — revenue stuck in pipeline
+            </div>
+          )}
         </div>
       )}
 
