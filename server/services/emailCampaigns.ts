@@ -75,4 +75,107 @@ export function createCampaign(params: {
   };
 }
 
+/**
+ * Auto-send email campaigns via Resend (or Telegram notification as fallback).
+ * Runs daily from scheduler. Picks the right campaign template based on season/segment.
+ */
+export async function autoSendEmailCampaigns(): Promise<{ recordsProcessed: number; details: string }> {
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return { recordsProcessed: 0, details: "No DB" };
+
+    // Pick seasonal template based on month
+    const month = new Date().getMonth(); // 0-11
+    const isWinter = month >= 10 || month <= 2;
+    const templateKey = isWinter ? "seasonal-winter" : "retention-90day";
+    const template = CAMPAIGN_TEMPLATES[templateKey];
+    if (!template) return { recordsProcessed: 0, details: "No template" };
+
+    // Find customers with email who haven't been emailed in 30+ days and are lapsed
+    const [rows] = await db.execute(sql`
+      SELECT c.id, c.firstName, c.email, c.vehicleMake, c.vehicleModel, c.segment
+      FROM customers c
+      WHERE c.email IS NOT NULL AND c.email != ''
+        AND c.smsOptOut = 0
+        AND c.segment IN ('lapsed', 'at-risk')
+        AND (c.lastEmailCampaignAt IS NULL OR c.lastEmailCampaignAt < DATE_SUB(NOW(), INTERVAL 30 DAY))
+      LIMIT 15
+    `);
+
+    const customers = rows as any[];
+    if (!customers || customers.length === 0) return { recordsProcessed: 0, details: "No eligible customers" };
+
+    // Try Resend first
+    const resendKey = process.env.RESEND_API_KEY;
+    let sent = 0;
+
+    if (resendKey) {
+      for (const cust of customers) {
+        try {
+          const subject = personalizeEmail(template.subject, {
+            firstName: cust.firstName || "there",
+            vehicleMake: cust.vehicleMake || "vehicle",
+            vehicleModel: cust.vehicleModel || "",
+          });
+          const body = personalizeEmail(template.body, {
+            firstName: cust.firstName || "there",
+            vehicleMake: cust.vehicleMake || "vehicle",
+            vehicleModel: cust.vehicleModel || "",
+          });
+
+          const res = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: "Nick's Tire & Auto <noreply@nickstire.org>",
+              to: cust.email,
+              subject,
+              html: body,
+            }),
+            signal: AbortSignal.timeout(10000),
+          });
+
+          if (res.ok) {
+            sent++;
+            // Mark as emailed
+            try {
+              await db.execute(sql`UPDATE customers SET lastEmailCampaignAt = NOW() WHERE id = ${cust.id}`);
+            } catch {} // Column might not exist yet
+          }
+
+          await new Promise(r => setTimeout(r, 500)); // Rate limit
+        } catch {
+          log.warn(`Email send failed for ${cust.firstName}`);
+        }
+      }
+    } else {
+      // No Resend key — send summary to Telegram so Nour knows
+      const { sendTelegram } = await import("./telegram");
+      await sendTelegram(
+        `📧 EMAIL CAMPAIGN READY (no RESEND_API_KEY set)\n\n` +
+        `Template: ${templateKey}\n` +
+        `Eligible: ${customers.length} lapsed/at-risk customers with email\n` +
+        `Top: ${customers.slice(0, 3).map((c: any) => `${c.firstName || "?"} (${c.email})`).join(", ")}\n\n` +
+        `Add RESEND_API_KEY to enable automatic sending.`
+      );
+      return { recordsProcessed: 0, details: `${customers.length} eligible but no RESEND_API_KEY` };
+    }
+
+    if (sent > 0) {
+      const { sendTelegram } = await import("./telegram");
+      await sendTelegram(`📧 EMAIL CAMPAIGN: ${sent}/${customers.length} ${templateKey} emails sent automatically.`);
+    }
+
+    return { recordsProcessed: sent, details: `${sent} emails sent (${templateKey})` };
+  } catch (err: any) {
+    // Graceful fail for missing columns
+    if (err.message?.includes("Unknown column") || err.message?.includes("lastEmailCampaignAt")) {
+      return { recordsProcessed: 0, details: "lastEmailCampaignAt column not yet added — skipping" };
+    }
+    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+  }
+}
+
 log.info("Email campaign engine loaded");

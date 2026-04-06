@@ -303,6 +303,17 @@ export async function enrollInDripCampaign(
 
     await sendSms(customer.phone, msg);
     log.info(`Drip enrolled: ${customer.name} → ${campaign.name} (step 1 sent)`);
+
+    // Persist enrollment for multi-step processing (Gap 2 fix)
+    try {
+      const { persistDripEnrollment } = await import("./dripProcessor");
+      await persistDripEnrollment({
+        campaignId: campaign.id,
+        customerPhone: customer.phone,
+        customerName: customer.name,
+        metadata: { vehicle: customer.vehicle || "", service: customer.service || "" },
+      });
+    } catch {}
   } catch (err: any) {
     log.warn(`Drip enrollment failed: ${err.message}`);
   }

@@ -153,6 +153,24 @@ export async function createWorkOrder(params: {
   } as any);
 
   await logTransition(id, null, "approved", "system", "Work order created");
+
+  // Sync to Google Sheets (fire-and-forget)
+  try {
+    const { syncWorkOrderToSheet } = await import("../sheets-sync");
+    syncWorkOrderToSheet({
+      orderNumber,
+      customerName: params.customerId,
+      vehicleYear: params.vehicleYear,
+      vehicleMake: params.vehicleMake,
+      vehicleModel: params.vehicleModel,
+      serviceDescription: params.serviceDescription,
+      status: "approved",
+      priority: params.priority,
+      source: params.source,
+      estimatedTotal: params.quotedTotal,
+    }).catch(() => {});
+  } catch {}
+
   return { id, orderNumber };
 }
 

@@ -301,3 +301,38 @@ export async function syncFinancingToSheet(application: {
     application.notes || "",
   ]);
 }
+
+/**
+ * Sync a work order to the WorkOrders sheet.
+ * Tracks the full WO lifecycle in the CRM spreadsheet.
+ */
+export async function syncWorkOrderToSheet(wo: {
+  orderNumber: string;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  vehicleYear?: number | null;
+  vehicleMake?: string | null;
+  vehicleModel?: string | null;
+  serviceDescription?: string | null;
+  status: string;
+  priority?: string | null;
+  assignedTech?: string | null;
+  source?: string | null;
+  estimatedTotal?: number | null;
+}): Promise<boolean> {
+  const now = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+  const vehicle = [wo.vehicleYear, wo.vehicleMake, wo.vehicleModel].filter(Boolean).join(" ");
+  return appendRow("WorkOrders", [
+    now,
+    wo.orderNumber,
+    wo.customerName || "",
+    wo.customerPhone || "",
+    vehicle,
+    wo.serviceDescription || "",
+    wo.status,
+    wo.priority || "normal",
+    wo.assignedTech || "",
+    wo.source || "",
+    wo.estimatedTotal ? `$${(wo.estimatedTotal / 100).toFixed(2)}` : "",
+  ]);
+}

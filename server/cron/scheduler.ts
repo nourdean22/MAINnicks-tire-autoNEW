@@ -232,6 +232,13 @@ export function startTieredScheduler(): void {
           return pollGatewayOrderStatuses();
         },
       },
+      {
+        name: "statenour-live-sync", // Push fresh data to NOUR OS dashboard every 15min
+        handler: async () => {
+          const { syncToStatenour } = await import("./jobs/statenourSync");
+          return syncToStatenour();
+        },
+      },
     ],
     running: false,
     lastRun: null,
@@ -438,6 +445,22 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "drip-step-processor", // Process multi-step drip campaigns (Gap 2 fix)
+        businessHoursOnly: true,
+        handler: async () => {
+          const { processDripSteps } = await import("../services/dripProcessor");
+          return processDripSteps();
+        },
+      },
+      {
+        name: "winback-auto-process", // Auto-send pending winback messages (Gap 4 fix)
+        businessHoursOnly: true,
+        handler: async () => {
+          const { processWinbackPending } = await import("../services/winbackProcessor");
+          return processWinbackPending();
+        },
+      },
+      {
         name: "campaign-auto-retry", // Auto-send review+referral campaign (was manual button)
         businessHoursOnly: true,
         handler: async () => {
@@ -566,6 +589,24 @@ export function startTieredScheduler(): void {
                 source: "declined_recovery",
                 confidence: 0.85,
               });
+
+              // AUTO-ENROLL declined customers into drip campaign (Gap 12 fix)
+              const { enrollInDripCampaign } = await import("../services/workOrderAutomation");
+              let enrolled = 0;
+              for (const entry of unrecovered.slice(0, 10)) {
+                if (entry.phone) {
+                  try {
+                    await enrollInDripCampaign("declined-estimate", {
+                      phone: entry.phone,
+                      name: entry.customerName || "there",
+                      vehicle: entry.vehicle || undefined,
+                      service: entry.declinedItems.map((i: any) => i.description || "service").join(", ").slice(0, 100),
+                    });
+                    enrolled++;
+                  } catch {}
+                }
+              }
+              if (enrolled > 0) log.info(`Enrolled ${enrolled} declined-estimate customers in drip`);
             } catch {}
           }
 
@@ -607,7 +648,7 @@ export function startTieredScheduler(): void {
       },
       // ─── NEW DAILY JOBS ────────────────────────────────
       {
-        name: "churn-detection", // Detect at-risk customers and alert
+        name: "churn-detection", // Detect at-risk customers and auto-enroll in drip
         handler: async () => {
           try {
             const { analyzeCustomers, getCustomerActionPlan } = await import("../services/customerIntelligence");
@@ -622,6 +663,22 @@ export function startTieredScheduler(): void {
                 `Retention: ${data.retentionRate}%\n` +
                 (plan ? `\n${plan.slice(0, 500)}` : "")
               );
+
+              // AUTO-ENROLL at-risk customers into drip campaign (Gap 1+6 fix)
+              const { enrollInDripCampaign } = await import("../services/workOrderAutomation");
+              let enrolled = 0;
+              for (const cust of data.atRiskCustomers.slice(0, 10)) {
+                if (cust.phone) {
+                  try {
+                    await enrollInDripCampaign("at-risk", {
+                      phone: cust.phone,
+                      name: cust.name || "there",
+                    });
+                    enrolled++;
+                  } catch {}
+                }
+              }
+              if (enrolled > 0) log.info(`Enrolled ${enrolled} at-risk customers in drip`);
             }
             return { recordsProcessed: data.atRiskCustomers.length, details: `${data.atRiskCustomers.length} at-risk, ${data.retentionRate}% retention` };
           } catch { return { details: "Churn detection failed" }; }
@@ -698,6 +755,20 @@ export function startTieredScheduler(): void {
         handler: async () => {
           const { processRevenueAnalytics } = await import("../services/dataPipelines");
           return processRevenueAnalytics();
+        },
+      },
+      {
+        name: "gbp-auto-post", // Generate and push GBP posts via Telegram (Gap 9 fix)
+        handler: async () => {
+          const { generateAndNotifyGBPPost } = await import("../services/gbpAutoPost");
+          return generateAndNotifyGBPPost();
+        },
+      },
+      {
+        name: "email-campaign-auto", // Auto-send email campaigns via Resend (Gap 5 fix)
+        handler: async () => {
+          const { autoSendEmailCampaigns } = await import("../services/emailCampaigns");
+          return autoSendEmailCampaigns();
         },
       },
       {
