@@ -664,6 +664,10 @@ function normalizePaymentStatus(raw?: string): "paid" | "pending" | "partial" | 
  * Full mirror sync: authenticate, fetch customers + invoices,
  * parse, deduplicate, and store in our DB.
  */
+// ─── DEBUG: Last fetch snapshot for diagnosis ──────────
+let _lastFetchDebug: any = null;
+export function debugLastFetch() { return _lastFetchDebug; }
+
 export async function runFullMirror(): Promise<{
   recordsProcessed: number;
   details: string;
@@ -685,6 +689,23 @@ export async function runFullMirror(): Promise<{
     fetchCustomers(token),
     fetchInvoices(token),
   ]);
+
+  // Debug snapshot — capture first 5 invoices' key fields
+  _lastFetchDebug = {
+    invoiceCount: rawInvoices.length,
+    customerCount: rawCustomers.length,
+    sampleInvoices: rawInvoices.slice(0, 5).map(i => ({
+      invoiceNumber: i.invoiceNumber,
+      customerName: i.customerName,
+      date: i.date,
+      totalAmount: i.totalAmount,
+      service: i.service?.substring(0, 60),
+    })),
+    sampleCustomers: rawCustomers.slice(0, 3).map(c => ({
+      name: c.name,
+      phone: c.phone,
+    })),
+  };
 
   // If we got 0 invoices, the token may have been invalidated by a shop login.
   // Force fresh re-auth and retry — this is the most common failure mode.
