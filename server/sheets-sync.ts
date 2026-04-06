@@ -35,9 +35,11 @@ async function getSheetsClient(): Promise<any> {
   const privateKey = rawKey.replace(/\\n/g, "\n");
 
   const { google } = await import("googleapis");
-  const auth = new google.auth.JWT(email, undefined, privateKey, [
-    "https://www.googleapis.com/auth/spreadsheets",
-  ]);
+  const auth = new google.auth.JWT({
+    email,
+    key: privateKey,
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+  });
 
   _sheets = google.sheets({ version: "v4", auth });
   return _sheets;

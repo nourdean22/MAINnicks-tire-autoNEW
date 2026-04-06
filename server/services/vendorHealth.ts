@@ -209,9 +209,11 @@ async function checkGoogleSheets(): Promise<VendorHealthResult> {
 
     const { google } = await import("googleapis");
     const privateKey = rawKey.replace(/\\n/g, "\n");
-    const auth = new google.auth.JWT(email, undefined, privateKey, [
-      "https://www.googleapis.com/auth/spreadsheets.readonly",
-    ]);
+    const auth = new google.auth.JWT({
+      email,
+      key: privateKey,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+    });
     const sheets = google.sheets({ version: "v4", auth });
     const spreadsheetId = process.env.GOOGLE_SHEETS_CRM_ID;
 
