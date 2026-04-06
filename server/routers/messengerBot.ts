@@ -141,9 +141,9 @@ export async function sendMessengerReply(
   text: string
 ): Promise<boolean> {
   try {
-    const token = process.env.FB_PAGE_ACCESS_TOKEN;
+    const token = process.env.META_PAGE_ACCESS_TOKEN || process.env.FB_PAGE_ACCESS_TOKEN;
     if (!token) {
-      console.warn("[Messenger] FB_PAGE_ACCESS_TOKEN not configured");
+      console.warn("[Messenger] META_PAGE_ACCESS_TOKEN not configured");
       return false;
     }
 
