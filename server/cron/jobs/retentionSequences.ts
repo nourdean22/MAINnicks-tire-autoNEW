@@ -13,6 +13,10 @@ async function sendRetentionSms(
   dayThreshold: number,
   messageBuilder: (firstName: string) => string
 ): Promise<number> {
+  // Check Twilio is configured before doing any DB work
+  if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_PHONE_NUMBER) {
+    return 0;
+  }
   const { getDb } = await import("../../db");
   const { customers } = await import("../../../drizzle/schema");
   const { sendSms } = await import("../../sms");

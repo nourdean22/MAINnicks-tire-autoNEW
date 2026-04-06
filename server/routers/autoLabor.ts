@@ -28,11 +28,11 @@ async function getShopDriverSession(): Promise<string | null> {
     return shopDriverSession.token;
   }
 
-  const username = process.env.AUTO_LABOR_USERNAME;
-  const password = process.env.AUTO_LABOR_PASSWORD;
+  const username = process.env.AUTO_LABOR_USERNAME || process.env.ALG_USERNAME;
+  const password = process.env.AUTO_LABOR_PASSWORD || process.env.ALG_PASSWORD;
 
   if (!username || !password) {
-    console.error("[ShopDriver] Missing credentials");
+    console.error("[ShopDriver] Missing credentials (AUTO_LABOR_USERNAME/PASSWORD or ALG_USERNAME/PASSWORD)");
     return null;
   }
 
@@ -208,8 +208,8 @@ let laborLookupCount = 0;
 export const autoLaborRouter = router({
   /** Check ShopDriver Elite connection status */
   status: adminProcedure.query(async () => {
-    const username = process.env.AUTO_LABOR_USERNAME;
-    const password = process.env.AUTO_LABOR_PASSWORD;
+    const username = process.env.AUTO_LABOR_USERNAME || process.env.ALG_USERNAME;
+    const password = process.env.AUTO_LABOR_PASSWORD || process.env.ALG_PASSWORD;
 
     if (!username || !password) {
       return {
@@ -335,7 +335,7 @@ export const autoLaborRouter = router({
     .query(({ input }) => {
       return {
         url: SHOPDRIVER_BASE + (input?.path || "/"),
-        accountId: process.env.AUTO_LABOR_USERNAME || "",
+        accountId: process.env.AUTO_LABOR_USERNAME || process.env.ALG_USERNAME || "",
       };
     }),
 

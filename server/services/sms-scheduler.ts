@@ -211,15 +211,18 @@ export async function processScheduledSms() {
       .filter(Boolean)
       .join(" ");
 
-    // Check feature flags for each reminder type
+    // Check feature flags for each reminder type — mark as skipped so they don't stay "processing" forever
     const { isEnabled } = await import("./featureFlags");
     if ((reminder.type === "24h-before" || reminder.type === "1h-before") && !(await isEnabled("sms_appointment_reminders"))) {
-      continue; // Skip — flag disabled
+      await db.update(appointmentReminders).set({ status: "skipped" }).where(eq(appointmentReminders.id, reminder.id));
+      continue;
     }
     if (reminder.type === "review-request" && !(await isEnabled("sms_review_requests"))) {
+      await db.update(appointmentReminders).set({ status: "skipped" }).where(eq(appointmentReminders.id, reminder.id));
       continue;
     }
     if (reminder.type === "maintenance-reminder" && !(await isEnabled("predictive_maintenance_alerts"))) {
+      await db.update(appointmentReminders).set({ status: "skipped" }).where(eq(appointmentReminders.id, reminder.id));
       continue;
     }
 

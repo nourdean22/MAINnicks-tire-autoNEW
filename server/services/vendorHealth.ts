@@ -448,8 +448,8 @@ async function checkStripe(): Promise<VendorHealthResult> {
 
 async function checkAutoLabor(): Promise<VendorHealthResult> {
   const start = Date.now();
-  const username = process.env.AUTO_LABOR_USERNAME;
-  const password = process.env.AUTO_LABOR_PASSWORD;
+  const username = process.env.AUTO_LABOR_USERNAME || process.env.ALG_USERNAME;
+  const password = process.env.AUTO_LABOR_PASSWORD || process.env.ALG_PASSWORD;
 
   if (!username || !password) {
     return {

@@ -303,7 +303,7 @@ export default function NeighborhoodPage() {
                   loading="lazy"
                   allowFullScreen
                   referrerPolicy="no-referrer-when-downgrade"
-                  src={`https://www.google.com/maps/embed/v1/directions?key=${import.meta.env.VITE_GOOGLE_MAPS_EMBED_KEY || "AIzaSyDHtuYf-3IHBeT8FmF4atVPfXqq9r_AWbo"}&origin=${neighborhood.lat},${neighborhood.lng}&destination=${BUSINESS.geo.lat},${BUSINESS.geo.lng}`}
+                  src={import.meta.env.VITE_GOOGLE_MAPS_EMBED_KEY ? `https://www.google.com/maps/embed/v1/directions?key=${import.meta.env.VITE_GOOGLE_MAPS_EMBED_KEY}&origin=${neighborhood.lat},${neighborhood.lng}&destination=${BUSINESS.geo.lat},${BUSINESS.geo.lng}` : `https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2988.5!2d-81.5268!3d41.5932!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDHCsDM1JzM1LjUiTiA4McKwMzEnMzYuNSJX!5e0!3m2!1sen!2sus!4v1`}
                 />
               </div>
             </FadeIn>
