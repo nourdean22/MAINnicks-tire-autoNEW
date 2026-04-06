@@ -216,6 +216,14 @@ export function startTieredScheduler(): void {
           return processAppointmentReminders24h();
         },
       },
+      {
+        name: "wo-overdue-check", // Detect work orders past promised time
+        businessHoursOnly: true,
+        handler: async () => {
+          const { detectOverdueWorkOrders } = await import("../services/workOrderAutomation");
+          return detectOverdueWorkOrders();
+        },
+      },
     ],
     running: false,
     lastRun: null,
@@ -405,6 +413,14 @@ export function startTieredScheduler(): void {
             const result = await sendEscalationAlerts();
             return { recordsProcessed: result.sent, details: `${result.sent} escalation alerts sent` };
           } catch { return { details: "Escalation check skipped" }; }
+        },
+      },
+      {
+        name: "campaign-auto-retry", // Auto-send review+referral campaign (was manual button)
+        businessHoursOnly: true,
+        handler: async () => {
+          const { autoCampaignRetry } = await import("../services/workOrderAutomation");
+          return autoCampaignRetry();
         },
       },
       {
@@ -617,6 +633,20 @@ export function startTieredScheduler(): void {
             }
             return { recordsProcessed: comebacks, details: `${comebacks} potential comebacks detected` };
           } catch { return { details: "QC comeback detection failed" }; }
+        },
+      },
+      {
+        name: "wo-auto-close", // Auto-close stale WOs in picked_up/invoiced >7 days
+        handler: async () => {
+          const { autoCloseStaleWorkOrders } = await import("../services/workOrderAutomation");
+          return autoCloseStaleWorkOrders();
+        },
+      },
+      {
+        name: "estimate-followup", // Auto-follow up on unconverted estimates after 2-3 days
+        handler: async () => {
+          const { processEstimateFollowUp } = await import("../services/workOrderAutomation");
+          return processEstimateFollowUp();
         },
       },
       {

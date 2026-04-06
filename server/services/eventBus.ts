@@ -120,6 +120,39 @@ async function ensureInitialized(): Promise<void> {
     },
   });
 
+  // 2b. Auto-WO Creation + Drip Campaign Enrollment (event-driven automation)
+  registerDestination({
+    name: "automation-engine",
+    enabled: true,
+    handles: ["booking_created", "booking_completed", "invoice_paid"],
+    softFail: true,
+    handler: async (event) => {
+      const auto = await import("./workOrderAutomation");
+
+      // Booking → auto-create draft work order
+      if (event.type === "booking_created") {
+        await auto.autoCreateWorkOrderFromBooking(event.data as any);
+      }
+
+      // Job completed → enroll in post-service drip (thank you + review + check-in)
+      if (event.type === "booking_completed" && event.data.phone) {
+        await auto.enrollInDripCampaign("post-service", {
+          phone: event.data.phone,
+          name: event.data.name || "Customer",
+          service: event.data.service,
+        });
+      }
+
+      // Invoice paid → enroll new customers in welcome drip
+      if (event.type === "invoice_paid" && event.data.isNewCustomer && event.data.phone) {
+        await auto.enrollInDripCampaign("new-customer", {
+          phone: event.data.phone,
+          name: event.data.customerName || "Customer",
+        });
+      }
+    },
+  });
+
   // 3. Telegram (critical alerts + media)
   registerDestination({
     name: "telegram",
