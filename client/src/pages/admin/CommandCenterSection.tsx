@@ -36,6 +36,10 @@ export default function CommandCenterSection() {
   const { data: shopFloor, isLoading: shopFloorLoading } = trpc.nourOsBridge.shopFloor.useQuery(undefined, {
     refetchInterval: 30_000,
   });
+  // System health from control center
+  const { data: systemOverview } = trpc.controlCenter.getOverview.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
 
   const pushMutation = trpc.nourOsBridge.pushShopFloor.useMutation({
     onSuccess: () => toast.success("Shop floor pushed to NOUR OS"),
@@ -247,6 +251,78 @@ export default function CommandCenterSection() {
           </div>
         )}
       </div>
+      {/* ──��� SYSTEM HEALTH ─── */}
+      {systemOverview && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Infrastructure */}
+          <div className="bg-card/50 border border-border/40 rounded-lg p-5">
+            <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-4 flex items-center gap-2">
+              <Wifi className="w-3.5 h-3.5 text-primary" />
+              System Health
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] text-muted-foreground">Database</span>
+                <span className={`text-[11px] font-semibold ${
+                  systemOverview.systemHealth.dbStatus === "connected" ? "text-emerald-400" :
+                  systemOverview.systemHealth.dbStatus === "degraded" ? "text-amber-400" : "text-red-400"
+                }`}>{systemOverview.systemHealth.dbStatus.toUpperCase()}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] text-muted-foreground">Environment</span>
+                <span className="text-[11px] font-mono text-foreground/70">{systemOverview.systemHealth.env}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] text-muted-foreground">Uptime</span>
+                <span className="text-[11px] font-mono text-foreground/70">
+                  {Math.floor(systemOverview.systemHealth.uptime / 3600)}h {Math.floor((systemOverview.systemHealth.uptime % 3600) / 60)}m
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] text-muted-foreground">Today's Stats</span>
+                <span className="text-[11px] text-foreground/70">
+                  {systemOverview.todayStats.leadsToday} leads · {systemOverview.todayStats.bookingsToday} bookings · {systemOverview.todayStats.callbacksPending} callbacks
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* AI Gateway */}
+          <div className="bg-card/50 border border-border/40 rounded-lg p-5">
+            <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-4 flex items-center gap-2">
+              <Zap className="w-3.5 h-3.5 text-primary" />
+              AI Gateway
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] text-muted-foreground">Ollama</span>
+                <span className={`text-[11px] font-semibold ${
+                  systemOverview.aiGateway.ollamaHealthy ? "text-emerald-400" : "text-red-400"
+                }`}>{systemOverview.aiGateway.ollamaHealthy ? "HEALTHY" : "DOWN"}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] text-muted-foreground">Recent Requests (5m)</span>
+                <span className="text-[11px] font-mono text-foreground/70">{systemOverview.aiGateway.recentRequests}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] text-muted-foreground">Fallback Rate</span>
+                <span className={`text-[11px] font-semibold ${
+                  systemOverview.aiGateway.fallbackRate > 30 ? "text-red-400" :
+                  systemOverview.aiGateway.fallbackRate > 10 ? "text-amber-400" : "text-emerald-400"
+                }`}>{systemOverview.aiGateway.fallbackRate}%</span>
+              </div>
+              {systemOverview.aiGateway.topModels.length > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] text-muted-foreground">Models</span>
+                  <span className="text-[11px] text-foreground/50 truncate max-w-[200px]">
+                    {systemOverview.aiGateway.topModels.join(", ")}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
