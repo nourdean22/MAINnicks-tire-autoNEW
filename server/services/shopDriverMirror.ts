@@ -702,8 +702,71 @@ export async function runFullMirror(): Promise<{
     } catch {}
   }
 
-  // Teach Nick AI about new invoices from the physical shop
-  if (invResult.created > 0) {
+  // ═══ PROPAGATE TO ALL SYSTEMS ═══
+  // When new data comes from ALG, push it EVERYWHERE so all sites stay current
+  if (invResult.created > 0 || custResult.created > 0) {
+    // 1. Event bus → NOUR OS, Telegram, Automation Engine, all destinations
+    try {
+      const { dispatch } = await import("./eventBus");
+      await dispatch("mirror_synced", {
+        newInvoices: invResult.created,
+        newCustomers: custResult.created,
+        updatedCustomers: custResult.updated,
+        totalInvoicesFetched: rawInvoices.length,
+        source: "shopdriver_alg",
+      }, { priority: "normal", source: "shopdriver_mirror" });
+    } catch {}
+
+    // 2. Admin dashboard SSE → live update for anyone viewing admin
+    try {
+      const { pushToAdminDashboards } = await import("./realtimePush");
+      pushToAdminDashboards({
+        type: "mirror_synced",
+        data: {
+          newInvoices: invResult.created,
+          newCustomers: custResult.created,
+          source: "ALG",
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch {}
+
+    // 3. Realtime SSE revenue update → admin sees fresh numbers instantly
+    try {
+      const { emitRevenueUpdate, emitAlert } = await import("./realtime");
+      // Get fresh revenue after import
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const d = await getDb();
+      if (d) {
+        const [todayRev] = await d.execute(sql`
+          SELECT COALESCE(SUM(totalAmount), 0) as rev, COUNT(*) as cnt
+          FROM invoices
+          WHERE DATE(invoiceDate) = CURDATE() AND source = 'shopdriver'
+        `);
+        const rev = (todayRev as any[])?.[0];
+        if (rev) {
+          emitRevenueUpdate({
+            todayRevenue: Math.round(Number(rev.rev) / 100), // cents → dollars
+            jobCount: Number(rev.cnt),
+          });
+        }
+      }
+      emitAlert({
+        type: "sync",
+        message: `ALG imported ${invResult.created} invoices, ${custResult.created} customers`,
+        severity: "info",
+      });
+    } catch {}
+
+    // 4. Trigger immediate statenour sync → NOUR OS dashboard updates NOW
+    try {
+      const { syncToStatenour } = await import("../cron/jobs/statenourSync");
+      // Fire and forget — don't block the mirror return
+      syncToStatenour().catch(() => {});
+    } catch {}
+
+    // 5. Nick AI memory
     try {
       const { remember } = await import("./nickMemory");
       await remember({
