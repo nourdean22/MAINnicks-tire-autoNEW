@@ -8,6 +8,7 @@ import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { getSEOServiceBySlug } from "@shared/seo-pages";
 import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FinancingCTA from "@/components/FinancingCTA";
 
 
@@ -46,8 +47,9 @@ export default function SEOServicePage() {
         description={page.metaDescription}
         canonicalPath={`/${page.slug}`}
       />
-      
-      
+      <LocalBusinessSchema />
+
+
         {/* Hero */}
         <section className="relative pt-28 pb-16 lg:pt-36 lg:pb-24 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-b from-background via-background/95 to-background" />

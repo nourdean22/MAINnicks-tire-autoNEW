@@ -6,6 +6,7 @@ import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { getVehicleMakeBySlug } from "@shared/seo-pages";
 import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
 
 function trackPhoneClick(location: string) {
@@ -40,12 +41,13 @@ export default function VehicleMakePage() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title={page.metaTitle}
+        title={`${page.make} Repair Cleveland OH | ${page.make} Mechanic Near Me`}
         description={page.metaDescription}
         canonicalPath={`/${page.slug}`}
       />
-      
-      
+      <LocalBusinessSchema pageName={`Nick's Tire & Auto - ${page.make} Repair Cleveland`} />
+
+
         {/* Hero */}
         <section className="relative pt-28 pb-16 lg:pt-36 lg:pb-24">
           <div className="absolute inset-0 bg-gradient-to-b from-background via-background/95 to-background" />

@@ -12,6 +12,8 @@ import { SEOHead } from "@/components/SEO";
 import { getUtmData } from "@/lib/utm";
 import { BUSINESS } from "@shared/business";
 import { motion } from "framer-motion";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
+import InternalLinks from "@/components/InternalLinks";
 import {
   Phone,
   CheckCircle,
@@ -219,6 +221,7 @@ export default function LandingPage() {
         canonicalPath={`/lp/${service}`}
         robots="noindex, nofollow"
       />
+      <LocalBusinessSchema />
       {/* Sticky Header */}
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0A0A0A]/95 backdrop-blur-sm">
         <div className="container flex items-center justify-between h-16">
@@ -491,6 +494,8 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      <InternalLinks />
 
       {/* Tiny Footer */}
       <footer className="border-t border-white/10 py-4 text-center text-xs text-white/60">
