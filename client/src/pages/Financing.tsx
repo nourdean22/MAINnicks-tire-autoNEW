@@ -14,6 +14,7 @@ import { BUSINESS } from "@shared/business";
 import { FINANCING_PROVIDERS, PAYMENT_METHODS, FINANCING_FAQ, type FinancingProvider } from "@shared/financing";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
+import FinancingPreApprovalModal from "@/components/FinancingPreApprovalModal";
 
 /* ── Provider card data (static, inline) ──────────────────── */
 const PROVIDERS = [
@@ -186,6 +187,7 @@ function FinancingSchema() {
 /* ── Main Financing Page ───────────────────────────────────── */
 export default function Financing() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [showPreApproval, setShowPreApproval] = useState(false);
   const trackMutation = trpc.financing.trackApplication.useMutation();
 
   const handleApplyClick = useCallback((providerId: string) => {
@@ -217,7 +219,7 @@ export default function Financing() {
             $0 Down. Instant Approval. No Hard Credit Check.
           </p>
 
-          <div className="mt-8">
+          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             <a
               href="#providers"
               className="inline-flex items-center gap-2 bg-[#FDB913] text-black px-8 py-4 rounded-lg font-bold text-base tracking-wide hover:bg-[#FDB913]/90 transition-colors"
@@ -225,6 +227,13 @@ export default function Financing() {
               Check Your Rate
               <ArrowRight className="w-5 h-5" />
             </a>
+            <button
+              onClick={() => setShowPreApproval(true)}
+              className="inline-flex items-center gap-2 border-2 border-[#FDB913]/40 text-[#FDB913] px-8 py-4 rounded-lg font-bold text-base tracking-wide hover:bg-[#FDB913]/10 transition-colors"
+            >
+              <CreditCard className="w-5 h-5" />
+              Check If You Qualify — No Credit Check
+            </button>
           </div>
 
           {/* Trust signals */}
@@ -414,6 +423,11 @@ export default function Financing() {
       </section>
 
       <InternalLinks title="Related Services" />
+
+      <FinancingPreApprovalModal
+        open={showPreApproval}
+        onClose={() => setShowPreApproval(false)}
+      />
     </PageLayout>
   );
 }

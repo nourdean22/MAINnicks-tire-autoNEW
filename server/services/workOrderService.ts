@@ -304,20 +304,44 @@ export async function updateStatus(
 
 // ─── Auto-advance rules ─────────────────────────────
 async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus): Promise<void> {
-  // ready_for_pickup → auto-send SMS
+  // Drop-off SMS flow — fires on relevant status transitions (feature-flagged)
+  if (newStatus === "approved") {
+    import("./dropOffFlow").then(({ sendDropOffConfirmation }) =>
+      sendDropOffConfirmation(workOrderId)
+    ).catch(() => {});
+  }
+  if (newStatus === "in_progress") {
+    import("./dropOffFlow").then(({ sendInProgressUpdate }) =>
+      sendInProgressUpdate(workOrderId)
+    ).catch(() => {});
+  }
+
+  // ready_for_pickup → auto-send SMS (drop-off flow supersedes when enabled)
   if (newStatus === "ready_for_pickup") {
+    // Fire the richer drop-off flow version (no-op when flag disabled)
+    import("./dropOffFlow").then(({ sendReadyForPickup }) =>
+      sendReadyForPickup(workOrderId)
+    ).catch(() => {});
+
     try {
-      const { db, workOrders, customers } = await getDbAndSchema();
-      const [wo] = await db.select().from(workOrders).where(eq(workOrders.id, workOrderId)).limit(1);
-      if (wo?.customerId) {
-        const [cust] = await db.select().from(customers).where(eq(customers.id, parseInt(wo.customerId, 10))).limit(1);
-        if (cust?.phone) {
-          const { sendSms } = await import("../sms");
-          const name = cust.firstName || "there";
-          await sendSms(cust.phone, `Hi ${name}, your vehicle is ready for pickup at Nick's Tire & Auto! We're open until 6pm. Call (216) 862-0005 with any questions.`);
-          await updateStatus(workOrderId, "customer_notified", "system", { note: "Pickup SMS sent" });
+      const { isEnabled } = await import("./featureFlags");
+      const dropOffEnabled = await isEnabled("drop_off_sms_flow");
+
+      // Only send the legacy simple SMS when drop-off flow is NOT enabled
+      if (!dropOffEnabled) {
+        const { db, workOrders, customers } = await getDbAndSchema();
+        const [wo] = await db.select().from(workOrders).where(eq(workOrders.id, workOrderId)).limit(1);
+        if (wo?.customerId) {
+          const [cust] = await db.select().from(customers).where(eq(customers.id, parseInt(wo.customerId, 10))).limit(1);
+          if (cust?.phone) {
+            const { sendSms } = await import("../sms");
+            const name = cust.firstName || "there";
+            await sendSms(cust.phone, `Hi ${name}, your vehicle is ready for pickup at Nick's Tire & Auto! We're open until 6pm. Call (216) 862-0005 with any questions.`);
+          }
         }
       }
+
+      await updateStatus(workOrderId, "customer_notified", "system", { note: "Pickup SMS sent" });
     } catch (e) {
       console.error("[WO] Auto-notify failed:", e);
     }

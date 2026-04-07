@@ -197,6 +197,48 @@ async function ensureInitialized(): Promise<void> {
     },
   });
 
+  // 2d. Live Feed (real-time Telegram closed job + milestone + review + lead notifications)
+  registerDestination({
+    name: "live-feed",
+    enabled: true,
+    handles: ["invoice_paid", "review_detected", "lead_captured"],
+    softFail: true,
+    handler: async (event) => {
+      const { notifyClosedJob, notifyNewFiveStarReview, notifyHotLead, trackLead } = await import("./liveFeed");
+
+      if (event.type === "invoice_paid") {
+        await notifyClosedJob({
+          customerName: event.data.customerName || event.data.name || "Customer",
+          service: event.data.service || event.data.serviceDescription || undefined,
+          totalAmount: event.data.totalAmount || event.data.amount || 0,
+          vehicle: event.data.vehicle || event.data.vehicleDescription || undefined,
+        });
+      }
+
+      if (event.type === "review_detected" && event.data.rating === 5) {
+        await notifyNewFiveStarReview({
+          text: event.data.text || event.data.comment || "",
+          authorName: event.data.author || event.data.authorName || "Anonymous",
+        });
+      }
+
+      if (event.type === "lead_captured") {
+        const score = event.data.urgencyScore || event.data.leadScore || 0;
+        if (score >= 80) {
+          await notifyHotLead({
+            name: event.data.name || "Unknown",
+            score,
+            problem: event.data.service || event.data.problem || undefined,
+            vehicle: event.data.vehicle || undefined,
+            source: event.data.source || undefined,
+          });
+        } else {
+          trackLead();
+        }
+      }
+    },
+  });
+
   // 3. Telegram (critical alerts + media)
   registerDestination({
     name: "telegram",

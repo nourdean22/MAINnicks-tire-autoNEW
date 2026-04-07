@@ -605,6 +605,13 @@ export function startTieredScheduler(): void {
         },
       },
       // statenour-sync moved to pulse tier (15min) for live dashboard — no longer needed here
+      {
+        name: "safety-check",
+        handler: async () => {
+          const { runSafetyCheckJob } = await import("../services/safetyMonitor");
+          return runSafetyCheckJob();
+        },
+      },
     ],
     running: false,
     lastRun: null,
@@ -1120,6 +1127,13 @@ export function startTieredScheduler(): void {
           const { checkWeatherTriggers } = await import("../services/weatherIntelligence");
           const result = await checkWeatherTriggers();
           return { recordsProcessed: result.triggered.length, details: result.details };
+        },
+      },
+      {
+        name: "daily-wins-digest",
+        handler: async () => {
+          const { sendDailyWinsDigest } = await import("../services/liveFeed");
+          return sendDailyWinsDigest();
         },
       },
       {
