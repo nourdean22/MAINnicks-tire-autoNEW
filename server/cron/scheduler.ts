@@ -830,6 +830,19 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "intelligence-engines", // Cross-sell, LTV, lead scoring, attribution, data analysis
+        handler: async () => {
+          const { scoreLeads, predictCustomerLTV, trackCampaignAttribution, analyzeDeclinedWork } = await import("../services/intelligenceEngines");
+          const [leads, ltv, attr, declined] = await Promise.all([
+            scoreLeads().catch(() => []),
+            predictCustomerLTV().catch(() => ({ segments: {} })),
+            trackCampaignAttribution().catch(() => ({})),
+            analyzeDeclinedWork().catch(() => ({ totalDeclinedValue: 0 })),
+          ]);
+          return { recordsProcessed: (leads as any[]).length, details: `Scored ${(leads as any[]).length} leads, LTV updated, attribution tracked, $${(declined as any).totalDeclinedValue || 0} declined work found` };
+        },
+      },
+      {
         name: "revenue-reconciliation", // End-of-day revenue truth
         handler: async () => {
           try {

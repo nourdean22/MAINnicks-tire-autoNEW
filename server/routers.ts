@@ -72,6 +72,7 @@ import {
   nickActionsRouter,
   paymentsRouter,
   featureFlagsRouter,
+  intelligenceRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -185,6 +186,9 @@ export const appRouter = router({
 
   // Feature Flags (admin toggle)
   featureFlags: featureFlagsRouter,
+
+  // Intelligence Engines (forecast, cross-sell, lead scoring, attribution, LTV, data analyzers)
+  intelligence: intelligenceRouter,
 });
 
 export type AppRouter = typeof appRouter;
