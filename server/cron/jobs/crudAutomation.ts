@@ -103,8 +103,10 @@ export async function autoCleanStaleBookings(): Promise<{ recordsProcessed: numb
     if (stale.length === 0) return { recordsProcessed: 0, details: "No stale bookings" };
 
     // Auto-cancel
-    const ids = stale.map((b: any) => b.id);
-    await d.execute(sql`UPDATE bookings SET status = 'cancelled', updatedAt = NOW() WHERE id IN (${sql.raw(ids.map((id: any) => `'${id}'`).join(","))})`);
+    // Cancel stale bookings one by one (safe parameterized queries)
+    for (const b of stale) {
+      await d.execute(sql`UPDATE bookings SET status = 'cancelled', updatedAt = NOW() WHERE id = ${b.id}`);
+    }
 
     // Send "rebook" SMS
     const { sendSms } = await import("../../sms");
@@ -182,13 +184,13 @@ export async function alertLowStock(): Promise<{ recordsProcessed: number; detai
     const d = await getDb();
     if (!d) return { recordsProcessed: 0, details: "No DB" };
 
-    // Check inventory table for items at or below reorder point
+    // Check inventory table for items at or below reorder threshold
     const [rows] = await d.execute(sql`
-      SELECT name, sku, quantity, reorderPoint, category
+      SELECT name, sku, quantity_on_hand as quantity, reorder_threshold as reorderPoint, category
       FROM inventory
-      WHERE quantity <= COALESCE(reorderPoint, 2)
-        AND quantity >= 0
-      ORDER BY quantity ASC
+      WHERE quantity_on_hand <= COALESCE(reorder_threshold, 2)
+        AND quantity_on_hand >= 0
+      ORDER BY quantity_on_hand ASC
       LIMIT 20
     `);
 
@@ -219,13 +221,15 @@ export async function autoAdvanceWorkOrders(): Promise<{ recordsProcessed: numbe
     const d = await getDb();
     if (!d) return { recordsProcessed: 0, details: "No DB" };
 
-    // Find completed WOs that have a matching invoice
+    // Auto-advance completed WOs older than 24h to invoiced
+    // (Invoices table has no workOrderId — can't join directly.
+    //  Instead, auto-advance WOs that have been in 'completed' for >24h,
+    //  since completed means the work is done and should be invoiced.)
     const [rows] = await d.execute(sql`
-      UPDATE work_orders wo
-      INNER JOIN invoices i ON i.workOrderId = wo.id
-      SET wo.status = 'invoiced', wo.updated_at = NOW()
-      WHERE wo.status = 'completed'
-        AND i.paymentStatus = 'paid'
+      UPDATE work_orders
+      SET status = 'invoiced', updated_at = NOW()
+      WHERE status = 'completed'
+        AND updated_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
     `);
 
     const affected = (rows as any)?.affectedRows || (rows as any)?.changedRows || 0;
@@ -277,13 +281,15 @@ export async function autoFetchAndDraftReviews(): Promise<{ recordsProcessed: nu
     if (!d) return { recordsProcessed: 0, details: "No DB" };
 
     // Find reviews that have no draft reply yet
+    // Column names from schema: reviewer_name, review_rating, review_text, draft_reply, final_reply, created_at
+    // No "skipped" column exists — use status != 'skipped' instead
     const [rows] = await d.execute(sql`
-      SELECT id, authorName, rating, text, reviewId
+      SELECT id, reviewer_name, review_rating, review_text, review_id
       FROM review_replies
-      WHERE draftReply IS NULL
-        AND finalReply IS NULL
-        AND skipped = 0
-        AND createdAt > DATE_SUB(NOW(), INTERVAL 7 DAY)
+      WHERE draft_reply IS NULL
+        AND final_reply IS NULL
+        AND status = 'draft'
+        AND created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
       LIMIT 10
     `);
 
@@ -293,10 +299,9 @@ export async function autoFetchAndDraftReviews(): Promise<{ recordsProcessed: nu
     let drafted = 0;
     for (const review of needDrafts) {
       try {
-        // Generate a professional reply
-        const rating = review.rating || 5;
-        const name = review.authorName || "Valued Customer";
-        const text = review.text || "";
+        const rating = review.review_rating || 5;
+        const name = review.reviewer_name || "Valued Customer";
+        const text = review.review_text || "";
 
         let draft: string;
         if (rating >= 4) {
@@ -307,24 +312,23 @@ export async function autoFetchAndDraftReviews(): Promise<{ recordsProcessed: nu
           draft = `${name}, we're sorry to hear about your experience. This doesn't reflect the level of service we strive for at Nick's Tire & Auto. Please call us directly at (216) 862-0005 so we can make this right.`;
         }
 
-        // If the review text mentions specific things, acknowledge it
         if (text.length > 20) {
           draft = draft.replace("!", "! ").trim();
         }
 
-        await d.execute(sql`UPDATE review_replies SET draftReply = ${draft}, updatedAt = NOW() WHERE id = ${review.id}`);
+        await d.execute(sql`UPDATE review_replies SET draft_reply = ${draft} WHERE id = ${review.id}`);
         drafted++;
       } catch {}
     }
 
     // Alert on negative reviews
-    const negative = needDrafts.filter((r: any) => (r.rating || 5) <= 3);
+    const negative = needDrafts.filter((r: any) => (r.review_rating || 5) <= 3);
     if (negative.length > 0) {
       try {
         const { sendTelegram } = await import("../../services/telegram");
         await sendTelegram(
           `⭐ ${negative.length} NEGATIVE REVIEW${negative.length > 1 ? "S" : ""} need reply:\n\n` +
-          negative.map((r: any) => `${r.rating}★ ${r.authorName || "Anon"}: "${(r.text || "").slice(0, 80)}"`).join("\n") +
+          negative.map((r: any) => `${r.review_rating}★ ${r.reviewer_name || "Anon"}: "${(r.review_text || "").slice(0, 80)}"`).join("\n") +
           `\n\nDrafts ready in admin → Review Replies.`
         );
       } catch {}
