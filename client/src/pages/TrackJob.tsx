@@ -6,6 +6,7 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { SEOHead } from "@/components/SEO";
 import { Loader2, CheckCircle2, Clock, Wrench, Truck, Search, ArrowRight } from "lucide-react";
+import { BUSINESS } from "@shared/business";
 
 const STATUS_STEPS = [
   { key: "approved", label: "Checked In", icon: CheckCircle2 },
@@ -160,7 +161,7 @@ export default function TrackJob() {
 
         {/* Footer */}
         <div className="text-center text-xs text-[#A0A0A0]">
-          Questions? Call <a href="tel:+12162711600" className="text-[#FDB913] hover:underline">(216) 271-1600</a>
+          Questions? Call <a href={BUSINESS.phone.href} className="text-[#FDB913] hover:underline">{BUSINESS.phone.display}</a>
         </div>
       </div>
     </div>

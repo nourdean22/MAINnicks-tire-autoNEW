@@ -25,7 +25,7 @@ export default function About() {
     <PageLayout activeHref="/about" showChat={true}>
       <SEOHead
         title="About Nick's Tire & Auto | Cleveland Auto Repair Since 2018"
-        description="Family-owned auto repair in Cleveland. 4.9★ Google rating, 1700+ reviews, 36-month warranty. Walk-ins welcome. (216) 862-0005"
+        description={`Family-owned auto repair in Cleveland. 4.9★ Google rating, ${BUSINESS.reviews.countDisplay} reviews, 36-month warranty. Walk-ins welcome. ${BUSINESS.phone.display}`}
         canonicalPath="/about"
       />
 

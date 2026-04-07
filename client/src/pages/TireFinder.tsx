@@ -1055,7 +1055,7 @@ export default function TireFinder() {
                       Try Different Size
                     </button>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-6">Walk-ins welcome • 17625 Euclid Ave • Mon–Sat 9AM–6PM</p>
+                  <p className="text-xs text-muted-foreground mt-6">Walk-ins welcome • 17625 Euclid Ave • Mon–Sat 8AM–6PM</p>
                 </div>
               )}
             </div>
