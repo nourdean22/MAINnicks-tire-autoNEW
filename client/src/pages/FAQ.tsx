@@ -266,7 +266,7 @@ export default function FAQ() {
     : allFaqs.filter(f => f.category === activeCategory);
 
   return (
-    <PageLayout>
+    <PageLayout showChat={true}>
       <SEOHead
         title="Frequently Asked Questions | Nick's Tire & Auto Cleveland"
         description="Common questions about auto repair, brakes, tires, diagnostics, emissions, and oil changes answered by Nick's Tire & Auto in Cleveland, Ohio."

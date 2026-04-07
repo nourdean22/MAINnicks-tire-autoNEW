@@ -146,7 +146,7 @@ export default function CityPage() {
   const topServices = SERVICES.slice(0, 6);
 
   return (
-    <PageLayout>
+    <PageLayout showChat={true}>
       <SEOHead
         title={city.metaTitle}
         description={city.metaDescription}

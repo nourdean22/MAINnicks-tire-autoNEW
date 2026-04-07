@@ -181,7 +181,7 @@ export default function NeighborhoodPage() {
 
   if (!neighborhood) {
     return (
-      <PageLayout>
+      <PageLayout showChat={true}>
         <div className="min-h-screen flex items-center justify-center bg-background">
           <div className="text-center">
             <h1 className="font-semibold font-bold text-4xl text-foreground mb-4">PAGE NOT FOUND</h1>
@@ -197,7 +197,7 @@ export default function NeighborhoodPage() {
   }
 
   return (
-    <PageLayout>
+    <PageLayout showChat={true}>
       <SEOHead
         title={`${neighborhood.name} Auto Repair — ${BUSINESS.name} (${neighborhood.driveTime} Away)`}
         description={neighborhood.description}

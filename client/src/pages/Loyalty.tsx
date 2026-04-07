@@ -137,7 +137,7 @@ export default function Loyalty() {
   const { isAuthenticated, loading } = useAuth();
 
   return (
-    <PageLayout activeHref="/rewards">
+    <PageLayout activeHref="/rewards" showChat={true}>
       <SEOHead
         title="Rewards Program | Nick's Tire & Auto — Cleveland, OH"
         description="Earn points on every service at Nick's Tire & Auto. Redeem for discounts on future repairs. Cleveland's most rewarding auto shop."

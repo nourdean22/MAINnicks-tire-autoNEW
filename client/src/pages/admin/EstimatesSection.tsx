@@ -109,12 +109,17 @@ export default function EstimatesSection() {
     ? Math.round((pipelineCounts.booked / estimateLeads.length) * 100)
     : 0;
 
-  // Avg time to contact (for contacted/booked leads)
+  // Avg time to contact — computed from createdAt vs updatedAt delta
   const avgResponseHours = useMemo(() => {
-    const contacted = estimateLeads.filter((l: any) => ["contacted", "booked", "completed"].includes(l.status || ""));
+    const contacted = estimateLeads.filter((l: any) => ["contacted", "booked", "completed"].includes(l.status || "") && l.updatedAt && l.createdAt);
     if (contacted.length === 0) return null;
-    // Approximate: use createdAt as baseline
-    return "< 4h"; // placeholder — real metric would need contactedAt field
+    const totalHours = contacted.reduce((sum: number, l: any) => {
+      const created = new Date(l.createdAt).getTime();
+      const updated = new Date(l.updatedAt).getTime();
+      return sum + Math.max(0, (updated - created) / (1000 * 60 * 60));
+    }, 0);
+    const avg = Math.round(totalHours / contacted.length);
+    return avg <= 1 ? "< 1h" : avg <= 4 ? `~${avg}h` : `${avg}h`;
   }, [estimateLeads]);
 
   if (isLoading) {

@@ -100,7 +100,7 @@ export default function IntersectionPage() {
   const moreServices = SERVICES.slice(6);
 
   return (
-    <PageLayout>
+    <PageLayout showChat={true}>
       <SEOHead
         title={`Auto Repair Near ${intersection.name} | Nick's Tire & Auto`}
         description={`${intersection.driveMinutes}-minute drive from ${intersection.name}${intersection.neighborhood ? ` in ${intersection.neighborhood}` : ""}. ${BUSINESS.reviews.rating} stars, ${BUSINESS.reviews.countDisplay} reviews. Tires, brakes, diagnostics & more. Walk-ins welcome.`}

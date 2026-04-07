@@ -120,7 +120,7 @@ const SERVICES_LIST = [
 
 export default function ServicesOverview() {
   return (
-    <PageLayout>
+    <PageLayout showChat={true}>
       <SEOHead
         title="Auto Repair Services | Nick's Tire & Auto Cleveland"
         description={`Complete auto repair services in Cleveland, Ohio. Tires, brakes, diagnostics, emissions, oil changes, and general repair. ${BUSINESS.taglines.hookAction} Honest diagnostics, fair prices. Call ${BUSINESS.phone.display}.`}

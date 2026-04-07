@@ -139,7 +139,7 @@ export default function Fleet() {
     "w-full bg-background/60 border border-[#2A2A2A] rounded-md text-foreground px-4 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary/30 focus:outline-none";
 
   return (
-    <PageLayout activeHref="/fleet">
+    <PageLayout activeHref="/fleet" showChat={true}>
       <SEOHead
         title="Fleet Services | Nick's Tire & Auto Cleveland"
         description="Fleet maintenance and commercial vehicle service in Cleveland. Priority scheduling, volume pricing, net-30 billing, and detailed reporting for businesses."

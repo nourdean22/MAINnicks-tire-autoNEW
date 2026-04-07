@@ -97,7 +97,7 @@ export default function ReviewPage() {
   }
 
   return (
-    <PageLayout>
+    <PageLayout showChat={true}>
       <SEOHead
         title="Leave a Review — Nick's Tire & Auto Cleveland"
         description="Had a great experience at Nick's Tire & Auto? Leave us a Google review. Your feedback helps other Cleveland drivers find honest, reliable auto repair."

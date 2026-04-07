@@ -758,7 +758,7 @@ export default function TireFinder() {
   }, [data]);
 
   return (
-    <PageLayout>
+    <PageLayout showChat={true}>
       <SEOHead
         title="Buy Tires Online Cleveland | Free Installation | Nick's Tire & Auto"
         description="Order tires online with free premium installation package ($289 value). New and used tires for every budget. Flat repair $15. Walk-ins 7 days. Financing from $10 down."
