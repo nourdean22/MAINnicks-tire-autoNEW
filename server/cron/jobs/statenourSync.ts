@@ -99,14 +99,53 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
         leadsBySource: stats.sourceAttribution.leadsBySource.slice(0, 5),
       },
       // ═══ Revenue (what command deck reads) ═══
-      revenue: {
-        todayEstimate: intelligence.pulse?.today?.revenue ?? 0,
-        weekRevenue: intelligence.pulse?.thisWeek?.revenue ?? 0,
-        monthRevenue: intelligence.revenue?.thisMonthProjection ?? 0,
-        avgTicket: intelligence.pulse?.today?.avgTicket ?? 0,
-        jobsToday: intelligence.pulse?.today?.jobsClosed ?? 0,
-        walkRate: intelligence.pulse?.thisWeek?.walkRate ?? 0,
-      },
+      revenue: await (async () => {
+        // Direct DB query as primary source — never returns 0 if invoices exist
+        try {
+          const { getDb } = await import("../../db");
+          const { sql } = await import("drizzle-orm");
+          const db = await getDb();
+          if (!db) throw new Error("no db");
+
+          const [todayRow] = await db.execute(sql`
+            SELECT COALESCE(SUM(totalAmount), 0) as rev, COUNT(*) as cnt,
+                   CASE WHEN COUNT(*) > 0 THEN ROUND(SUM(totalAmount) / COUNT(*)) ELSE 0 END as avgTkt
+            FROM invoices WHERE DATE(invoiceDate) = CURDATE()
+          `);
+          const [weekRow] = await db.execute(sql`
+            SELECT COALESCE(SUM(totalAmount), 0) as rev FROM invoices
+            WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+          `);
+          const [monthRow] = await db.execute(sql`
+            SELECT COALESCE(SUM(totalAmount), 0) as rev FROM invoices
+            WHERE invoiceDate >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+          `);
+          const today = (todayRow as any[])?.[0] || {};
+          const week = (weekRow as any[])?.[0] || {};
+          const month = (monthRow as any[])?.[0] || {};
+
+          return {
+            todayEstimate: Math.round(Number(today.rev || 0) / 100),
+            weekRevenue: Math.round(Number(week.rev || 0) / 100),
+            monthRevenue: Math.round(Number(month.rev || 0) / 100),
+            avgTicket: Math.round(Number(today.avgTkt || 0) / 100),
+            jobsToday: Number(today.cnt || 0),
+            monthlyTarget: 20000, // $20K monthly target
+            walkRate: intelligence.pulse?.thisWeek?.walkRate ?? 0,
+          };
+        } catch {
+          // Fallback to intelligence if DB query fails
+          return {
+            todayEstimate: intelligence.pulse?.today?.revenue ?? 0,
+            weekRevenue: intelligence.pulse?.thisWeek?.revenue ?? 0,
+            monthRevenue: intelligence.revenue?.thisMonthProjection ?? 0,
+            avgTicket: intelligence.pulse?.today?.avgTicket ?? 0,
+            jobsToday: intelligence.pulse?.today?.jobsClosed ?? 0,
+            monthlyTarget: 20000,
+            walkRate: intelligence.pulse?.thisWeek?.walkRate ?? 0,
+          };
+        }
+      })(),
       // ═══ Intelligence layer data ═══
       intelligence: {
         conversionPipeline: intelligence.pipeline || null,
