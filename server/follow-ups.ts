@@ -55,11 +55,14 @@ export async function process24hFollowUps() {
       message,
     });
 
-    // Send SMS thank-you
+    // Send SMS thank-you (gated by feature flag)
     if (booking.phone) {
-      const smsResult = await sendSms(booking.phone, thankYouSms(booking.name, booking.service)).catch(() => ({ success: false }));
-      if (smsResult.success && notification.id) {
-        await markNotificationSent(notification.id).catch(() => {});
+      const { isEnabled } = await import("./services/featureFlags");
+      if (await isEnabled("sms_review_requests")) {
+        const smsResult = await sendSms(booking.phone, thankYouSms(booking.name, booking.service)).catch(() => ({ success: false }));
+        if (smsResult.success && notification.id) {
+          await markNotificationSent(notification.id).catch(() => {});
+        }
       }
     }
 
@@ -103,11 +106,14 @@ export async function process7dReviewRequests() {
       message,
     });
 
-    // Send SMS review request
+    // Send SMS review request (gated by feature flag)
     if (booking.phone) {
-      const smsResult = await sendSms(booking.phone, reviewRequestSms(booking.name)).catch(() => ({ success: false }));
-      if (smsResult.success && notification.id) {
-        await markNotificationSent(notification.id).catch(() => {});
+      const { isEnabled } = await import("./services/featureFlags");
+      if (await isEnabled("sms_review_requests")) {
+        const smsResult = await sendSms(booking.phone, reviewRequestSms(booking.name)).catch(() => ({ success: false }));
+        if (smsResult.success && notification.id) {
+          await markNotificationSent(notification.id).catch(() => {});
+        }
       }
     }
 

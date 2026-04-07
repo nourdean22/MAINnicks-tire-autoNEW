@@ -45,7 +45,15 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
     let sent = 0;
     let failed = 0;
 
+    // Gate SMS behind feature flag
+    const { isEnabled } = await import("./featureFlags");
+    const winbackSmsEnabled = await isEnabled("sms_retention_sequences");
+
     for (const send of pendingSends) {
+      if (!winbackSmsEnabled) {
+        // Skip SMS sends but don't mark as failed
+        continue;
+      }
       const result = await sendSms(send.phone, send.personalizedBody);
 
       if (result.success) {

@@ -166,7 +166,11 @@ export async function processDripSteps(): Promise<{ recordsProcessed: number; de
         });
 
         if (step.channel === "sms") {
-          await sendSms(enrollment.customerPhone, msg);
+          // Gate SMS behind feature flag
+          const { isEnabled } = await import("./featureFlags");
+          if (await isEnabled("drip_campaigns_enabled")) {
+            await sendSms(enrollment.customerPhone, msg);
+          }
         }
         // TODO: Add email channel support
 

@@ -104,6 +104,13 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
           : recentMessage(firstName);
 
       try {
+        // Gate SMS behind feature flag
+        const { isEnabled } = await import("./services/featureFlags");
+        if (!(await isEnabled("sms_review_requests"))) {
+          result.skipped++;
+          continue;
+        }
+
         const smsResult = await sendSms(customer.phone, message);
 
         if (smsResult.success) {
