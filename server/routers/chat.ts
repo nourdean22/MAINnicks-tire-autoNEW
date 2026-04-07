@@ -6,7 +6,7 @@ import { publicProcedure, adminProcedure, router } from "../_core/trpc";
 import { chatWithAssistant, scoreLead, extractMemories } from "../gemini";
 import { z } from "zod";
 import { eq, desc, and, sql } from "drizzle-orm";
-import { chatSessions, leads, conversationMemory } from "../../drizzle/schema";
+import { chatSessions, leads, conversationMemory, customers } from "../../drizzle/schema";
 import type { InsertConversationMemory } from "../../drizzle/schema";
 import { sanitizeText } from "../sanitize";
 import { alertNewLead } from "../services/telegram";
@@ -489,6 +489,23 @@ function detectSentiment(
   return "neutral";
 }
 
+/**
+ * Detect price sensitivity from conversation messages.
+ * Scans for price-related keywords to adapt AI response strategy.
+ */
+function detectPriceSensitivity(
+  messages: Array<{ role: string; content: string }>,
+): "price_sensitive" | "not_detected" {
+  const userText = messages
+    .filter(m => m.role === "user")
+    .map(m => m.content.toLowerCase())
+    .join(" ");
+
+  const priceSignals = /\b(how much|cost|price|expensive|affordable|cheap|budget|payment plan|financing|estimate|what do you charge|total come to|gonna run me|out of pocket)\b/;
+
+  return priceSignals.test(userText) ? "price_sensitive" : "not_detected";
+}
+
 export const chatRouter = router({
   /** Admin: list recent chat sessions with transcripts */
   sessions: adminProcedure.query(async () => {
@@ -578,10 +595,60 @@ export const chatRouter = router({
         }
       } catch {}
 
+      // --- CUSTOMER INTELLIGENCE: look up known customer by phone ---
+      let customerContext: {
+        name: string;
+        segment: string;
+        totalVisits: number;
+        totalSpent: number;
+        lastVisitDate: string | null;
+        vehicleInfo: string | null;
+      } | undefined;
+
+      const extractedPhone = extractPhoneFromMessages(sessionMessages);
+      if (extractedPhone && d) {
+        try {
+          const normalizedPhone = extractedPhone.replace(/\D/g, "");
+          // Try exact match first, then partial (last 10 digits)
+          const phoneDigits = normalizedPhone.slice(-10);
+          const found = await d
+            .select()
+            .from(customers)
+            .where(sql`REPLACE(REPLACE(REPLACE(REPLACE(${customers.phone}, '-', ''), '(', ''), ')', ''), ' ', '') LIKE ${'%' + phoneDigits}`)
+            .limit(1);
+
+          if (found.length > 0) {
+            const c = found[0];
+            const vehicle = [c.vehicleYear, c.vehicleMake, c.vehicleModel]
+              .filter(Boolean)
+              .join(" ") || null;
+            customerContext = {
+              name: [c.firstName, c.lastName].filter(Boolean).join(" "),
+              segment: c.segment,
+              totalVisits: c.totalVisits,
+              totalSpent: c.totalSpent / 100, // cents to dollars
+              lastVisitDate: c.lastVisitDate ? c.lastVisitDate.toLocaleDateString("en-US") : null,
+              vehicleInfo: vehicle,
+            };
+          }
+        } catch (err) {
+          console.error("[Chat] Customer lookup failed:", err);
+        }
+      }
+
+      // --- PRICE SENSITIVITY DETECTION ---
+      const priceSensitivity = detectPriceSensitivity(sessionMessages);
+
+      // --- RETURNING VISITOR RECOGNITION ---
+      const isReturningVisitor = !!(memoryContext && activeMemoryIds.length > 0);
+
       const { reply, extractedInfo } = await chatWithAssistant(sessionMessages, memoryContext, {
         customerSentiment: sentiment,
         conversationLength: sessionMessages.length,
         businessIntel,
+        customerContext,
+        priceSensitivity,
+        isReturningVisitor,
       });
 
       // If wantsAppointment, enhance the reply with booking CTA

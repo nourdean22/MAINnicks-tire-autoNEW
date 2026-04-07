@@ -16,6 +16,9 @@ import {
   analyzeBottlenecks,
   analyzeDeclinedWork,
   generateFullIntelligenceReport,
+  forecastSeasonalDemand,
+  analyzeGeographicRevenue,
+  analyzeServiceBundles,
 } from "../services/intelligenceEngines";
 
 export const intelligenceRouter = router({
@@ -55,6 +58,23 @@ export const intelligenceRouter = router({
   geography: adminProcedure.query(async () => analyzeGeography()),
   bottlenecks: adminProcedure.query(async () => analyzeBottlenecks()),
   declinedWork: adminProcedure.query(async () => analyzeDeclinedWork()),
+
+  // ── New Intelligence Engines ──
+
+  /** #6 Seasonal Demand Forecasting — which services peak this month */
+  seasonalDemand: adminProcedure.query(async () => {
+    return forecastSeasonalDemand();
+  }),
+
+  /** #7 Geographic Revenue Intelligence — revenue by zip code */
+  geoRevenue: adminProcedure.query(async () => {
+    return analyzeGeographicRevenue();
+  }),
+
+  /** #8 Service Bundling Intelligence — frequently paired services */
+  serviceBundles: adminProcedure.query(async () => {
+    return analyzeServiceBundles();
+  }),
 
   // ── Full Report ──
   fullReport: adminProcedure.query(async () => {

@@ -644,11 +644,300 @@ export async function analyzeDeclinedWork() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// #6 SEASONAL DEMAND FORECASTING
+// ═══════════════════════════════════════════════════════════
+
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+const SEASONAL_PREP_ACTIONS: Record<string, string> = {
+  tires: "Stock seasonal tires, promote alignment bundles",
+  brakes: "Run brake inspection special, stock pads/rotors",
+  oil: "Promote oil change + multi-point inspection combo",
+  cooling: "Stock coolant, push radiator flush packages",
+  suspension: "Prep spring pothole damage repair marketing",
+  electrical: "Stock batteries, push battery + charging system checks",
+  engine: "Schedule diagnostic bay availability",
+  exhaust: "Prep emissions/exhaust marketing for inspection season",
+  transmission: "Promote transmission fluid flush packages",
+  diagnostic: "Extend diagnostic bay hours for seasonal volume",
+};
+
+export async function forecastSeasonalDemand(): Promise<{
+  currentMonth: string;
+  hotServices: Array<{ service: string; lastYearCount: number; trend: string }>;
+  upcomingDemand: Array<{ service: string; expectedIncrease: string; prepAction: string }>;
+}> {
+  const now = new Date();
+  const currentMonthNum = now.getMonth() + 1; // 1-12
+  const nextMonthNum = currentMonthNum === 12 ? 1 : currentMonthNum + 1;
+
+  // Get invoice service descriptions grouped by month for the last 24 months
+  const monthlyServices = await (await db()).select({
+    monthNum: sql<number>`MONTH(${invoices.invoiceDate})`.as("monthNum"),
+    yearNum: sql<number>`YEAR(${invoices.invoiceDate})`.as("yearNum"),
+    serviceDescription: invoices.serviceDescription,
+    cnt: sql<number>`COUNT(*)`.as("cnt"),
+  }).from(invoices)
+    .where(gte(invoices.invoiceDate, sql`DATE_SUB(NOW(), INTERVAL 24 MONTH)`))
+    .groupBy(sql`MONTH(${invoices.invoiceDate})`, sql`YEAR(${invoices.invoiceDate})`, invoices.serviceDescription);
+
+  // Categorize and aggregate by month + service category
+  const monthCategoryTotals: Record<number, Record<string, { count: number; years: Set<number> }>> = {};
+  for (let m = 1; m <= 12; m++) monthCategoryTotals[m] = {};
+
+  for (const row of monthlyServices) {
+    const cats = categorizeService(row.serviceDescription || "");
+    for (const cat of cats) {
+      if (!monthCategoryTotals[row.monthNum][cat]) {
+        monthCategoryTotals[row.monthNum][cat] = { count: 0, years: new Set() };
+      }
+      monthCategoryTotals[row.monthNum][cat].count += row.cnt;
+      monthCategoryTotals[row.monthNum][cat].years.add(row.yearNum);
+    }
+  }
+
+  // Hot services for current month (sorted by count, top 5)
+  const currentMonthData = monthCategoryTotals[currentMonthNum];
+  const hotServices = Object.entries(currentMonthData)
+    .map(([service, data]) => {
+      const yearCount = data.years.size || 1;
+      const avgPerYear = Math.round(data.count / yearCount);
+      // Compare to overall average across all months for this service
+      let totalAllMonths = 0;
+      let monthsWithData = 0;
+      for (let m = 1; m <= 12; m++) {
+        if (monthCategoryTotals[m][service]) {
+          totalAllMonths += monthCategoryTotals[m][service].count;
+          monthsWithData++;
+        }
+      }
+      const overallAvg = monthsWithData > 0 ? totalAllMonths / monthsWithData : 0;
+      const trend = data.count > overallAvg * 1.2 ? "above-average" : data.count < overallAvg * 0.8 ? "below-average" : "normal";
+      return { service, lastYearCount: avgPerYear, trend };
+    })
+    .sort((a, b) => b.lastYearCount - a.lastYearCount)
+    .slice(0, 5);
+
+  // Upcoming demand for next month
+  const nextMonthData = monthCategoryTotals[nextMonthNum];
+  const upcomingDemand = Object.entries(nextMonthData)
+    .map(([service, data]) => {
+      const currentCount = currentMonthData[service]?.count || 0;
+      const nextCount = data.count;
+      const yearCount = data.years.size || 1;
+      const pctChange = currentCount > 0 ? Math.round(((nextCount / yearCount - currentCount / (currentMonthData[service]?.years.size || 1)) / (currentCount / (currentMonthData[service]?.years.size || 1))) * 100) : 100;
+      return {
+        service,
+        expectedIncrease: pctChange > 0 ? `+${pctChange}%` : `${pctChange}%`,
+        prepAction: SEASONAL_PREP_ACTIONS[service] || "Review inventory and staffing",
+      };
+    })
+    .sort((a, b) => {
+      const aNum = parseInt(a.expectedIncrease);
+      const bNum = parseInt(b.expectedIncrease);
+      return bNum - aNum;
+    })
+    .slice(0, 5);
+
+  return {
+    currentMonth: MONTH_NAMES[currentMonthNum - 1],
+    hotServices,
+    upcomingDemand,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+// #7 GEOGRAPHIC REVENUE INTELLIGENCE
+// ═══════════════════════════════════════════════════════════
+
+export async function analyzeGeographicRevenue(): Promise<{
+  topZipCodes: Array<{ zip: string; customerCount: number; totalRevenue: number; avgTicket: number }>;
+  growthAreas: Array<{ zip: string; newCustomersLast90d: number }>;
+  underservedAreas: Array<{ zip: string; impressions: number; customers: number; gap: string }>;
+}> {
+  // Top zip codes by revenue — join customers with their invoices
+  const zipRevenue = await (await db()).select({
+    zip: customers.zip,
+    customerCount: sql<number>`COUNT(DISTINCT ${customers.id})`.as("customerCount"),
+    totalRevenue: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)`.as("totalRevenue"),
+    invoiceCount: sql<number>`COUNT(${invoices.id})`.as("invoiceCount"),
+  }).from(customers)
+    .leftJoin(invoices, eq(customers.id, invoices.customerId))
+    .where(sql`${customers.zip} IS NOT NULL AND ${customers.zip} != ''`)
+    .groupBy(customers.zip)
+    .orderBy(sql`totalRevenue DESC`)
+    .limit(10);
+
+  const topZipCodes = zipRevenue.map((z: any) => ({
+    zip: z.zip || "",
+    customerCount: z.customerCount,
+    totalRevenue: Math.round(z.totalRevenue / 100), // cents to dollars
+    avgTicket: z.invoiceCount > 0 ? Math.round(z.totalRevenue / 100 / z.invoiceCount) : 0,
+  }));
+
+  // Growth areas — new customers in last 90 days by zip
+  const growthData = await (await db()).select({
+    zip: customers.zip,
+    newCustomers: sql<number>`COUNT(*)`.as("newCustomers"),
+  }).from(customers)
+    .where(and(
+      sql`${customers.zip} IS NOT NULL AND ${customers.zip} != ''`,
+      gte(customers.createdAt, sql`DATE_SUB(NOW(), INTERVAL 90 DAY)`)
+    ))
+    .groupBy(customers.zip)
+    .orderBy(sql`newCustomers DESC`)
+    .limit(10);
+
+  const growthAreas = growthData.map((g: any) => ({
+    zip: g.zip || "",
+    newCustomersLast90d: g.newCustomers,
+  }));
+
+  // Underserved areas — zips with customers but low revenue vs. customer count
+  // This indicates areas where we have reach but aren't converting well
+  const underservedData = await (await db()).select({
+    zip: customers.zip,
+    totalCustomers: sql<number>`COUNT(DISTINCT ${customers.id})`.as("totalCustomers"),
+    activeCustomers: sql<number>`COUNT(DISTINCT CASE WHEN ${customers.totalVisits} > 0 THEN ${customers.id} END)`.as("activeCustomers"),
+    totalRevenue: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)`.as("totalRevenue"),
+  }).from(customers)
+    .leftJoin(invoices, eq(customers.id, invoices.customerId))
+    .where(sql`${customers.zip} IS NOT NULL AND ${customers.zip} != ''`)
+    .groupBy(customers.zip)
+    .having(sql`COUNT(DISTINCT ${customers.id}) >= 3`)
+    .orderBy(sql`(COUNT(DISTINCT ${customers.id}) - COUNT(DISTINCT CASE WHEN ${customers.totalVisits} > 0 THEN ${customers.id} END)) DESC`)
+    .limit(10);
+
+  const underservedAreas = underservedData
+    .filter((u: any) => u.totalCustomers > u.activeCustomers)
+    .map((u: any) => {
+      const conversionRate = u.totalCustomers > 0 ? Math.round((u.activeCustomers / u.totalCustomers) * 100) : 0;
+      return {
+        zip: u.zip || "",
+        impressions: u.totalCustomers, // total known customers in zip
+        customers: u.activeCustomers,
+        gap: `${u.totalCustomers - u.activeCustomers} known contacts, only ${conversionRate}% converted`,
+      };
+    });
+
+  return { topZipCodes, growthAreas, underservedAreas };
+}
+
+// ═══════════════════════════════════════════════════════════
+// #8 SERVICE BUNDLING INTELLIGENCE
+// ═══════════════════════════════════════════════════════════
+
+export async function analyzeServiceBundles(): Promise<{
+  frequentBundles: Array<{ services: string[]; count: number; avgTotal: number }>;
+  recommendedUpsells: Array<{ ifService: string; thenService: string; probability: number }>;
+}> {
+  // Pull invoices with customer linkage — look for same customer, same day
+  const recentInvoices = await (await db()).select({
+    customerId: invoices.customerId,
+    customerPhone: invoices.customerPhone,
+    serviceDescription: invoices.serviceDescription,
+    invoiceDate: invoices.invoiceDate,
+    totalAmount: invoices.totalAmount,
+  }).from(invoices)
+    .where(gte(invoices.invoiceDate, sql`DATE_SUB(NOW(), INTERVAL 12 MONTH)`))
+    .orderBy(asc(invoices.invoiceDate));
+
+  // Group invoices by customer + date window (same day)
+  const visits: Record<string, Array<{ categories: string[]; total: number; date: Date }>> = {};
+  for (const inv of recentInvoices) {
+    const custKey = inv.customerId?.toString() || inv.customerPhone || "";
+    if (!custKey || !inv.serviceDescription) continue;
+    const cats = categorizeService(inv.serviceDescription);
+    if (cats.length === 0) continue;
+    const dateKey = inv.invoiceDate ? new Date(inv.invoiceDate).toISOString().slice(0, 10) : "";
+    if (!dateKey) continue;
+    const groupKey = `${custKey}|${dateKey}`;
+    if (!visits[groupKey]) visits[groupKey] = [];
+    visits[groupKey].push({ categories: cats, total: inv.totalAmount || 0, date: new Date(inv.invoiceDate!) });
+  }
+
+  // Find bundles — visits with 2+ distinct service categories on the same day
+  const bundleCounts: Record<string, { count: number; totalRevenue: number }> = {};
+  const pairCounts: Record<string, number> = {};
+  const serviceTotals: Record<string, number> = {};
+
+  for (const items of Object.values(visits)) {
+    // Collect all unique categories for this visit
+    const allCats = new Set<string>();
+    let visitTotal = 0;
+    for (const item of items) {
+      for (const cat of item.categories) allCats.add(cat);
+      visitTotal += item.total;
+    }
+    const catArray = [...allCats].sort();
+
+    // Track individual service frequency
+    for (const cat of catArray) {
+      serviceTotals[cat] = (serviceTotals[cat] || 0) + 1;
+    }
+
+    if (catArray.length >= 2) {
+      const bundleKey = catArray.join("+");
+      if (!bundleCounts[bundleKey]) bundleCounts[bundleKey] = { count: 0, totalRevenue: 0 };
+      bundleCounts[bundleKey].count++;
+      bundleCounts[bundleKey].totalRevenue += visitTotal;
+
+      // Track pairs for upsell probability
+      for (let i = 0; i < catArray.length; i++) {
+        for (let j = i + 1; j < catArray.length; j++) {
+          const pairKey = `${catArray[i]}|${catArray[j]}`;
+          pairCounts[pairKey] = (pairCounts[pairKey] || 0) + 1;
+        }
+      }
+    }
+  }
+
+  // Top bundles
+  const frequentBundles = Object.entries(bundleCounts)
+    .map(([key, val]) => ({
+      services: key.split("+"),
+      count: val.count,
+      avgTotal: Math.round(val.totalRevenue / val.count / 100), // cents to dollars
+    }))
+    .filter(b => b.count >= 2)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  // Upsell recommendations — "if service A, then service B" with probability
+  const recommendedUpsells = Object.entries(pairCounts)
+    .flatMap(([pairKey, count]) => {
+      const [a, b] = pairKey.split("|");
+      const results: Array<{ ifService: string; thenService: string; probability: number }> = [];
+      // Both directions
+      if (serviceTotals[a] && serviceTotals[a] > 0) {
+        results.push({
+          ifService: a,
+          thenService: b,
+          probability: Math.round((count / serviceTotals[a]) * 100),
+        });
+      }
+      if (serviceTotals[b] && serviceTotals[b] > 0) {
+        results.push({
+          ifService: b,
+          thenService: a,
+          probability: Math.round((count / serviceTotals[b]) * 100),
+        });
+      }
+      return results;
+    })
+    .filter(u => u.probability >= 5) // at least 5% correlation
+    .sort((a, b) => b.probability - a.probability)
+    .slice(0, 15);
+
+  return { frequentBundles, recommendedUpsells };
+}
+
+// ═══════════════════════════════════════════════════════════
 // UNIFIED INTELLIGENCE REPORT
 // ═══════════════════════════════════════════════════════════
 
 export async function generateFullIntelligenceReport() {
-  const [forecast, crossSell, leadScores, attribution, ltv, chatDemand, callAttr, fleet, geo, bottlenecks, declined] = await Promise.all([
+  const [forecast, crossSell, leadScores, attribution, ltv, chatDemand, callAttr, fleet, geo, bottlenecks, declined, seasonal, geoRevenue, bundles] = await Promise.all([
     forecastRevenue().catch(e => ({ error: String(e) })),
     generateCrossSellRecommendations().catch(e => ({ error: String(e) })),
     scoreLeads().catch(e => ({ error: String(e) })),
@@ -660,7 +949,10 @@ export async function generateFullIntelligenceReport() {
     analyzeGeography().catch(e => ({ error: String(e) })),
     analyzeBottlenecks().catch(e => ({ error: String(e) })),
     analyzeDeclinedWork().catch(e => ({ error: String(e) })),
+    forecastSeasonalDemand().catch(e => ({ error: String(e) })),
+    analyzeGeographicRevenue().catch(e => ({ error: String(e) })),
+    analyzeServiceBundles().catch(e => ({ error: String(e) })),
   ]);
 
-  return { forecast, crossSell, leadScores, attribution, ltv, chatDemand, callAttr, fleet, geo, bottlenecks, declined, generatedAt: new Date().toISOString() };
+  return { forecast, crossSell, leadScores, attribution, ltv, chatDemand, callAttr, fleet, geo, bottlenecks, declined, seasonal, geoRevenue, bundles, generatedAt: new Date().toISOString() };
 }

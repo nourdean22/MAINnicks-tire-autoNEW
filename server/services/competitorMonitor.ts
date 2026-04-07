@@ -23,21 +23,73 @@ interface CompetitorData {
 }
 
 // Cleveland-area competitors
-const COMPETITORS: Array<{ name: string; placeId: string }> = [
-  { name: "Firestone Complete Auto Care (Euclid)", placeId: "ChIJ-firestone-euclid" },
-  { name: "Midas (Euclid Ave)", placeId: "ChIJ-midas-euclid" },
-  { name: "Pep Boys (Euclid)", placeId: "ChIJ-pepboys-euclid" },
-  { name: "Meineke (E 185th)", placeId: "ChIJ-meineke-185th" },
+// Place IDs resolved via Google Places text search at runtime if not cached.
+// To get exact Place IDs manually: search on Google Maps → share → extract from URL,
+// or use: https://developers.google.com/maps/documentation/places/web-service/place-id
+const COMPETITORS: Array<{ name: string; placeId: string; searchQuery: string }> = [
+  {
+    name: "Firestone Complete Auto Care (Euclid Ave)",
+    placeId: "", // resolved at runtime via searchQuery
+    searchQuery: "Firestone Complete Auto Care Euclid Ave Cleveland OH",
+  },
+  {
+    name: "Midas (Euclid Ave)",
+    placeId: "",
+    searchQuery: "Midas Euclid Ave Cleveland OH",
+  },
+  {
+    name: "Pep Boys Cleveland",
+    placeId: "",
+    searchQuery: "Pep Boys Cleveland OH",
+  },
+  {
+    name: "Meineke Car Care Center Cleveland",
+    placeId: "",
+    searchQuery: "Meineke Car Care Center Cleveland OH",
+  },
+  {
+    name: "Goodyear Auto Service Cleveland",
+    placeId: "",
+    searchQuery: "Goodyear Auto Service Center Cleveland OH",
+  },
 ];
+
+// In-memory cache of resolved Place IDs (survives across cron runs within same process)
+const resolvedPlaceIds: Record<string, string> = {};
 
 // Nick's Tire place ID
 const NICKS_PLACE_ID = process.env.GOOGLE_PLACE_ID || "";
+
+/** Resolve a business name to a Google Place ID via text search */
+async function findPlaceFromText(query: string): Promise<string | null> {
+  if (!API_KEY) return null;
+
+  // Check cache first
+  if (resolvedPlaceIds[query]) return resolvedPlaceIds[query];
+
+  try {
+    const url = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(query)}&inputtype=textquery&fields=place_id&key=${API_KEY}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+
+    const data = await res.json() as any;
+    if (data.status !== "OK" || !data.candidates?.length) return null;
+
+    const placeId = data.candidates[0].place_id;
+    resolvedPlaceIds[query] = placeId; // cache it
+    log.info("Resolved Place ID", { query, placeId });
+    return placeId;
+  } catch (err) {
+    log.warn("Place text search failed", { query, err });
+    return null;
+  }
+}
 
 /** Fetch place details from Google Places API */
 async function fetchPlaceDetails(
   placeId: string
 ): Promise<{ rating: number; reviewCount: number; name: string } | null> {
-  if (!API_KEY) return null;
+  if (!API_KEY || !placeId) return null;
 
   try {
     const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,user_ratings_total&key=${API_KEY}`;
@@ -85,13 +137,22 @@ export async function fetchCompetitorSnapshot(): Promise<CompetitorData[]> {
     }
   }
 
-  // Fetch competitors
+  // Fetch competitors — resolve Place IDs via text search if not already cached
   for (const c of COMPETITORS) {
-    const data = await fetchPlaceDetails(c.placeId);
+    let placeId = c.placeId || resolvedPlaceIds[c.searchQuery];
+    if (!placeId) {
+      placeId = await findPlaceFromText(c.searchQuery) || "";
+    }
+    if (!placeId) {
+      log.warn("Could not resolve Place ID for competitor", { name: c.name, query: c.searchQuery });
+      continue;
+    }
+
+    const data = await fetchPlaceDetails(placeId);
     if (data) {
       results.push({
         name: c.name,
-        placeId: c.placeId,
+        placeId,
         rating: data.rating,
         reviewCount: data.reviewCount,
         fetchedAt: now,
