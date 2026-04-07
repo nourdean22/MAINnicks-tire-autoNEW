@@ -3,7 +3,7 @@
  * Hardcoded specials with price-anchoring, urgency badges, and booking CTAs.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Link } from "wouter";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
@@ -15,6 +15,7 @@ import { motion, useInView } from "framer-motion";
 import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
+import { trpc } from "@/lib/trpc";
 
 /* ─── FADE-IN HELPER ────────────────────────────────────── */
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
@@ -200,8 +201,46 @@ function SpecialCard({ special }: { special: Special }) {
   );
 }
 
+const ICON_MAP: Record<string, React.ReactNode> = {
+  oil: <Droplets className="w-6 h-6" />,
+  brakes: <Disc3 className="w-6 h-6" />,
+  diagnostic: <ScanSearch className="w-6 h-6" />,
+  tires: <RotateCcw className="w-6 h-6" />,
+  cooling: <Wind className="w-6 h-6" />,
+  winter: <Snowflake className="w-6 h-6" />,
+};
+
+function mapDbSpecial(s: any, idx: number): Special {
+  const val = s.discountValue ? parseFloat(s.discountValue) : 0;
+  const label = s.discountType === "percent" ? `${val}% OFF` : s.discountType === "free_service" ? "FREE" : val > 0 ? `$${val} OFF` : "SPECIAL";
+  return {
+    id: idx + 100,
+    icon: ICON_MAP[s.serviceCategory || ""] || <Tag className="w-6 h-6" />,
+    service: s.serviceCategory || "Special",
+    headline: s.title,
+    description: s.description || "",
+    salePrice: label === "FREE" ? "FREE" : `$${val}`,
+    originalPrice: "",
+    discountLabel: label,
+    validThrough: s.expiresAt ? new Date(s.expiresAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "While supplies last",
+    terms: s.couponCode ? `Use code: ${s.couponCode}` : "See store for details.",
+    limited: s.discountType === "free_service",
+  };
+}
+
 /* ─── MAIN PAGE ─────────────────────────────────────────── */
 export default function SpecialsPage() {
+  const { data: dbSpecials } = trpc.specials.getActive.useQuery(undefined, { staleTime: 60_000 });
+
+  const specials = useMemo(() => {
+    if (dbSpecials && dbSpecials.length > 0) {
+      // Merge: DB specials first, then hardcoded fallbacks
+      const fromDb = dbSpecials.map((s: any, i: number) => mapDbSpecial(s, i));
+      return [...fromDb, ...SPECIALS];
+    }
+    return SPECIALS;
+  }, [dbSpecials]);
+
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
@@ -249,7 +288,7 @@ export default function SpecialsPage() {
           </FadeIn>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {SPECIALS.map((s, i) => (
+            {specials.map((s, i) => (
               <FadeIn key={s.id} delay={i * 0.05}>
                 <SpecialCard special={s} />
               </FadeIn>
