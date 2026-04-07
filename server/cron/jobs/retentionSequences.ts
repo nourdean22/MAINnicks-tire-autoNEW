@@ -52,6 +52,7 @@ async function sendRetentionSms(
 
 export async function processRetention45Day(): Promise<{ recordsProcessed: number; details?: string }> {
   const { isEnabled } = await import("../../services/featureFlags");
+  if (!(await isEnabled("retention_45day"))) return { recordsProcessed: 0, details: "Feature disabled" };
   if (!(await isEnabled("sms_retention_sequences"))) return { recordsProcessed: 0, details: "Feature disabled" };
 
   // 45-day retention: customers who visited 40-50 days ago (wider window for daily cron)

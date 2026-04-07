@@ -159,6 +159,8 @@ export async function executeAutoAction(parsed: ParsedResponse, phone: string, c
 
       case "auto-price-response":
         try {
+          const { isEnabled: isQuoteEnabled } = await import("./featureFlags");
+          if (!(await isQuoteEnabled("sms_auto_quote"))) return { executed: false };
           const priceResult = detectServiceAndPrice(parsed.extractedData?.question || "");
           if (priceResult) {
             const { sendSms } = await import("../sms");

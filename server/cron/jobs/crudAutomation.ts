@@ -373,6 +373,9 @@ export async function autoGenerateContent(): Promise<{ recordsProcessed: number;
 
 /** 10. Referral loop closer — match referred phone to recent bookings/invoices, SMS both parties */
 export async function closeReferralLoop(): Promise<{ recordsProcessed: number; details?: string }> {
+  const { isEnabled } = await import("../../services/featureFlags");
+  if (!(await isEnabled("referral_loop_closer"))) return { recordsProcessed: 0, details: "Feature disabled" };
+
   try {
     const { getDb } = await import("../../db");
     const { sql } = await import("drizzle-orm");
@@ -436,6 +439,9 @@ export async function closeReferralLoop(): Promise<{ recordsProcessed: number; d
 
 /** 11. VIP auto-recognition — notify newly-flagged VIP customers */
 export async function notifyNewVips(): Promise<{ recordsProcessed: number; details?: string }> {
+  const { isEnabled } = await import("../../services/featureFlags");
+  if (!(await isEnabled("vip_auto_recognition"))) return { recordsProcessed: 0, details: "Feature disabled" };
+
   try {
     const { getDb } = await import("../../db");
     const { sql } = await import("drizzle-orm");
