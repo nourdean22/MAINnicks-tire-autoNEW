@@ -12,7 +12,7 @@ import {
   type BookingStatus, type LeadStatus,
 } from "./shared";
 import {
-  AlertTriangle, ArrowDownRight, ArrowUpRight, Calendar, CalendarClock, Camera, Car, CheckCircle2, ChevronRight, Clock, Eye, FileText, Filter, Hash, Loader2, Mail, MessageSquare, Phone, RefreshCw, Search, Wrench, X, XCircle
+  AlertTriangle, ArrowDownRight, ArrowUpRight, Calendar, CalendarClock, Camera, Car, CheckCircle2, ChevronRight, Clock, Eye, FileText, Filter, Hash, Loader2, Mail, MessageSquare, Phone, RefreshCw, Search, Trash2, Wrench, X, XCircle
 } from "lucide-react";
 
 function BookingNotesEditor({ bookingId, initialNotes }: { bookingId: number; initialNotes: string | null }) {
@@ -139,6 +139,11 @@ export default function BookingsSection() {
   const updateBookingStatus = trpc.booking.updateStatus.useMutation({
     onSuccess: () => { refetch(); toast.success("Booking status updated"); },
     onError: (err) => toast.error("Failed: " + err.message),
+  });
+
+  const deleteBooking = trpc.booking.delete.useMutation({
+    onSuccess: () => { refetch(); toast.success("Booking deleted"); },
+    onError: (err) => toast.error("Delete failed: " + err.message),
   });
 
   const filteredBookings = useMemo(() => {
@@ -389,6 +394,17 @@ export default function BookingsSection() {
                         <RefreshCw className="w-4 h-4" /> REOPEN
                       </button>
                     )}
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Delete booking from ${booking.name}? This cannot be undone.`)) {
+                          deleteBooking.mutate({ id: booking.id });
+                        }
+                      }}
+                      disabled={deleteBooking.isPending}
+                      className="flex items-center gap-2 border border-red-500/20 text-red-400/60 px-4 py-2.5 font-bold text-xs tracking-wide hover:text-red-400 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" /> DELETE
+                    </button>
                   </div>
                 </div>
               </div>
