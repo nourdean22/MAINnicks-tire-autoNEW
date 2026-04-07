@@ -78,6 +78,9 @@ const WEATHER_SMS_TEMPLATES: Record<string, string> = {
  * Max 10 SMS per trigger event to keep costs controlled.
  */
 async function sendWeatherSms(triggerId: string): Promise<number> {
+  const { isEnabled } = await import("./featureFlags");
+  if (!(await isEnabled("weather_triggered_sms"))) return 0;
+
   const template = WEATHER_SMS_TEMPLATES[triggerId];
   if (!template) return 0;
 

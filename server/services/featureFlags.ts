@@ -28,6 +28,14 @@ export const FLAG_DEFINITIONS = [
   { key: "sms_blast_enabled", description: "Bulk SMS campaign sending" },
   { key: "smart_sms_auto_reply", description: "Auto-reply to inbound SMS based on intent" },
   { key: "sms_cross_sell_outreach", description: "Proactive cross-sell SMS based on service history patterns" },
+  { key: "auto_revenue_correction", description: "Auto-trigger winback when revenue behind pace" },
+  { key: "vip_auto_recognition", description: "Auto-SMS new VIP customers with 10% off perk" },
+  { key: "referral_loop_closer", description: "Auto-SMS both parties when referral converts" },
+  { key: "weather_triggered_sms", description: "Auto-SMS lapsed customers on weather events" },
+  { key: "retention_45day", description: "Auto-SMS 45-day retention maintenance tip" },
+  { key: "sms_auto_quote", description: "Auto-respond to inbound SMS price questions" },
+  { key: "churn_prediction_alerts", description: "Telegram alerts for high-risk churn customers" },
+  { key: "pricing_intelligence_alerts", description: "Telegram alerts for raise/lower pricing" },
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];

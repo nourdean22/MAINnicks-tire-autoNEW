@@ -51,7 +51,9 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
 
       // ── Auto-corrective revenue actions ─────────────────
       // Escalating actions based on how far behind pace
-      if (pacePercent < 80 && dayOfMonth >= 10) {
+      const { isEnabled: isRevCorrectionEnabled } = await import("../../services/featureFlags");
+      const revCorrectionOn = await isRevCorrectionEnabled("auto_revenue_correction");
+      if (revCorrectionOn && pacePercent < 80 && dayOfMonth >= 10) {
         // 10+ days into month and behind 80% pace → trigger winback batch
         try {
           const { processWinbackPending } = await import("../../services/winbackProcessor");
@@ -59,7 +61,7 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
           alerts.push(`🚨 AUTO-RECOVERY: Triggered winback batch (revenue ${pacePercent}% of pace)`);
         } catch {}
       }
-      if (pacePercent < 60 && dayOfMonth >= 15) {
+      if (revCorrectionOn && pacePercent < 60 && dayOfMonth >= 15) {
         // 15+ days in and behind 60% → generate emergency recommendations
         try {
           const { sendTelegram } = await import("../../services/telegram");
