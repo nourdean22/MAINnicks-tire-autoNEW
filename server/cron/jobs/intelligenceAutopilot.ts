@@ -143,6 +143,67 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
       log.warn("Declined work analysis failed:", { error: e.message });
     }
 
+    // ── 7. Walk-in vs Website Classification ────────────────
+    try {
+      const { getDb } = await import("../../db");
+      const { sql: rawSql } = await import("drizzle-orm");
+      const d = await getDb();
+      if (d) {
+        // Count today's invoices
+        const [invoiceRows] = await d.execute(rawSql`
+          SELECT COUNT(*) as total FROM invoices
+          WHERE invoiceDate >= CURDATE() AND paymentStatus = 'paid'
+        `);
+        const todayInvoices = Number((invoiceRows as any)?.[0]?.total || 0);
+
+        // Count today's website bookings
+        const [bookingRows] = await d.execute(rawSql`
+          SELECT COUNT(*) as total FROM bookings
+          WHERE createdAt >= CURDATE() AND status IN ('confirmed', 'completed')
+        `);
+        const todayBookings = Number((bookingRows as any)?.[0]?.total || 0);
+
+        const walkIns = Math.max(0, todayInvoices - todayBookings);
+        if (todayInvoices > 0) {
+          const walkInPct = Math.round((walkIns / todayInvoices) * 100);
+          alerts.push(
+            `🚶 TODAY: ${todayInvoices} jobs — ${walkIns} walk-ins (${walkInPct}%), ${todayBookings} from website. FCFS working.`
+          );
+        }
+
+        // Count free inspections (invoices with $0 or very low amount)
+        const [freeRows] = await d.execute(rawSql`
+          SELECT COUNT(*) as total FROM invoices
+          WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+            AND totalAmount <= 500
+            AND paymentStatus = 'paid'
+        `);
+        const freeInspections = Number((freeRows as any)?.[0]?.total || 0);
+        if (freeInspections > 0) {
+          // Don't alert — these are intentional. Just track.
+          actionsPerformed += freeInspections;
+        }
+
+        // Estimate-to-invoice conversion (ALG estimates = declined work)
+        const [estRows] = await d.execute(rawSql`
+          SELECT
+            COUNT(CASE WHEN paymentStatus = 'pending' AND invoiceDate >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) THEN 1 END) as estimates,
+            COUNT(CASE WHEN paymentStatus = 'paid' AND invoiceDate >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) THEN 1 END) as closed
+          FROM invoices
+        `);
+        const estimates = Number((estRows as any)?.[0]?.estimates || 0);
+        const closed = Number((estRows as any)?.[0]?.closed || 0);
+        if (estimates > 3) {
+          const conversionRate = closed > 0 ? Math.round((closed / (closed + estimates)) * 100) : 0;
+          alerts.push(
+            `📋 DECLINED ESTIMATES: ${estimates} pending (walked away) vs ${closed} closed this week. ${conversionRate}% close rate.`
+          );
+        }
+      }
+    } catch (e: any) {
+      log.warn("Walk-in classification failed:", { error: e.message });
+    }
+
     // ── Send Alerts ────────────────────────────────────────
     if (alerts.length > 0) {
       try {
