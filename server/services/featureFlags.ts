@@ -79,7 +79,6 @@ export const FLAG_DEFINITIONS = [
   { key: "daily_wins_digest", description: "End-of-day wins summary to Telegram" },
   { key: "master_intelligence_report", description: "Master intelligence report in morning brief" },
   { key: "safety_monitor_telegram", description: "Safety monitor Telegram alerts for non-critical items" },
-  { key: "drop_off_sms_flow", description: "Automated SMS sequence for drop-off customers (check-in, progress, ready)" },
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];

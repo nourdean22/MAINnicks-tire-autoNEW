@@ -57,16 +57,19 @@ export async function detectNoShows(): Promise<{ recordsProcessed: number; detai
       await d.execute(sql`UPDATE bookings SET status = 'cancelled', adminNotes = CONCAT(COALESCE(adminNotes, ''), '\n[AUTO] No-show: past preferred date, auto-cancelled') WHERE id = ${b.id} AND status IN ('new', 'confirmed')`);
     }
 
-    // Send follow-up SMS to those with phone numbers
+    // Send follow-up SMS to those with phone numbers (gated by feature flag)
     const { sendSms } = await import("../../sms");
+    const { isEnabled } = await import("../../services/featureFlags");
     let smsSent = 0;
-    for (const b of noShows.filter((n: any) => n.phone)) {
-      try {
-        const firstName = (b.name || "there").split(" ")[0];
-        await sendSms(b.phone, `Hi ${firstName}, we noticed you may have missed your appointment at Nick's Tire & Auto. We'd love to reschedule — call us at (216) 862-0005 or book online at nickstire.org. We're here when you're ready!`);
-        smsSent++;
-      } catch (err) { log.warn("detectNoShows: SMS send failed", { error: err instanceof Error ? err.message : String(err) }); }
-      if (smsSent >= 5) break; // Rate limit
+    if (await isEnabled("sms_retention_sequences")) {
+      for (const b of noShows.filter((n: any) => n.phone)) {
+        try {
+          const firstName = (b.name || "there").split(" ")[0];
+          await sendSms(b.phone, `Hi ${firstName}, we noticed you may have missed your appointment at Nick's Tire & Auto. We'd love to reschedule — call us at (216) 862-0005 or book online at nickstire.org. We're here when you're ready!`);
+          smsSent++;
+        } catch (err) { log.warn("detectNoShows: SMS send failed", { error: err instanceof Error ? err.message : String(err) }); }
+        if (smsSent >= 5) break; // Rate limit
+      }
     }
 
     // Alert
@@ -108,16 +111,19 @@ export async function autoCleanStaleBookings(): Promise<{ recordsProcessed: numb
       await d.execute(sql`UPDATE bookings SET status = 'cancelled', updatedAt = NOW() WHERE id = ${b.id}`);
     }
 
-    // Send "rebook" SMS
+    // Send "rebook" SMS (gated by feature flag)
     const { sendSms } = await import("../../sms");
+    const { isEnabled: isEnabledStale } = await import("../../services/featureFlags");
     let smsSent = 0;
-    for (const b of stale.filter((s: any) => s.phone)) {
-      try {
-        const firstName = (b.name || "there").split(" ")[0];
-        await sendSms(b.phone, `Hi ${firstName}! Your booking at Nick's Tire & Auto has expired. Need to reschedule? Call (216) 862-0005 or visit nickstire.org — drop-offs welcome!`);
-        smsSent++;
-      } catch (err) { log.warn("autoCleanStaleBookings: rebook SMS failed", { error: err instanceof Error ? err.message : String(err) }); }
-      if (smsSent >= 10) break;
+    if (await isEnabledStale("sms_retention_sequences")) {
+      for (const b of stale.filter((s: any) => s.phone)) {
+        try {
+          const firstName = (b.name || "there").split(" ")[0];
+          await sendSms(b.phone, `Hi ${firstName}! Your booking at Nick's Tire & Auto has expired. Need to reschedule? Call (216) 862-0005 or visit nickstire.org — drop-offs welcome!`);
+          smsSent++;
+        } catch (err) { log.warn("autoCleanStaleBookings: rebook SMS failed", { error: err instanceof Error ? err.message : String(err) }); }
+        if (smsSent >= 10) break;
+      }
     }
 
     return { recordsProcessed: stale.length, details: `${stale.length} stale bookings cancelled, ${smsSent} rebook SMS sent` };
@@ -145,17 +151,20 @@ export async function escalateStaleCallbacks(): Promise<{ recordsProcessed: numb
     const stale = rows as any[];
     if (stale.length === 0) return { recordsProcessed: 0, details: "No stale callbacks" };
 
-    // Send customer a "we'll call you back" SMS
+    // Send customer a "we'll call you back" SMS (gated by feature flag)
     const { sendSms } = await import("../../sms");
+    const { isEnabled: isEnabledCallback } = await import("../../services/featureFlags");
     let smsSent = 0;
-    for (const cb of stale.filter((c: any) => c.phone)) {
-      try {
-        const firstName = (cb.name || "there").split(" ")[0];
-        await sendSms(cb.phone, `Hi ${firstName}, we haven't forgotten about you! We'll be calling you back shortly regarding your request. — Nick's Tire & Auto (216) 862-0005`);
-        smsSent++;
-        // Mark as "called" so we don't re-SMS (valid enum: new, called, no-answer, completed)
-        await d.execute(sql`UPDATE callback_requests SET status = 'called', calledAt = NOW() WHERE id = ${cb.id}`);
-      } catch (err) { log.warn("escalateStaleCallbacks: SMS/status update failed", { error: err instanceof Error ? err.message : String(err) }); }
+    if (await isEnabledCallback("sms_appointment_reminders")) {
+      for (const cb of stale.filter((c: any) => c.phone)) {
+        try {
+          const firstName = (cb.name || "there").split(" ")[0];
+          await sendSms(cb.phone, `Hi ${firstName}, we haven't forgotten about you! We'll be calling you back shortly regarding your request. — Nick's Tire & Auto (216) 862-0005`);
+          smsSent++;
+          // Mark as "called" so we don't re-SMS (valid enum: new, called, no-answer, completed)
+          await d.execute(sql`UPDATE callback_requests SET status = 'called', calledAt = NOW() WHERE id = ${cb.id}`);
+        } catch (err) { log.warn("escalateStaleCallbacks: SMS/status update failed", { error: err instanceof Error ? err.message : String(err) }); }
+      }
     }
 
     // Alert shop via Telegram

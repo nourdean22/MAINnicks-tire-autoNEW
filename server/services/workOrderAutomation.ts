@@ -195,13 +195,19 @@ export async function processEstimateFollowUp(): Promise<{ recordsProcessed: num
     const { sendSms } = await import("../sms");
     let sent = 0;
 
+    // Gate SMS behind feature flag
+    const { isEnabled: isEnabledEstimate } = await import("./featureFlags");
+    const estimateSmsEnabled = await isEnabledEstimate("sms_retention_sequences");
+
     for (const est of estimates) {
       try {
-        await sendSms(
-          est.customerPhone,
-          `Hi ${est.customerName || "there"}, following up on your estimate for ${est.serviceType || "auto service"} ($${est.totalEstimate || "see estimate"}). ` +
-          `Ready to schedule? Call (216) 862-0005 or book at nickstire.org. We also offer financing! — Nick's Tire & Auto`
-        );
+        if (estimateSmsEnabled) {
+          await sendSms(
+            est.customerPhone,
+            `Hi ${est.customerName || "there"}, following up on your estimate for ${est.serviceType || "auto service"} ($${est.totalEstimate || "see estimate"}). ` +
+            `Ready to schedule? Call (216) 862-0005 or book at nickstire.org. We also offer financing! — Nick's Tire & Auto`
+          );
+        }
 
         // Mark as followed up
         await db.execute(sql`UPDATE estimates SET followUpSent = 1 WHERE id = ${est.id}`);
@@ -249,18 +255,24 @@ export async function autoCampaignRetry(): Promise<{ recordsProcessed: number; d
     const { sendSms } = await import("../sms");
     let sent = 0;
 
+    // Gate SMS behind feature flag
+    const { isEnabled: isEnabledCampaign } = await import("./featureFlags");
+    const campaignSmsEnabled = await isEnabledCampaign("sms_retention_sequences");
+
     for (const c of untexted) {
       const name = c.firstName || "there";
       const msg = c.segment === "lapsed"
         ? `Hi ${name}, this is Nick's Tire & Auto. Thank you for trusting us with your vehicle!\n\nA quick Google review means a lot to us:\n${REVIEW_URL}\n\nRefer a friend: ${REFER_URL}\nWe'd love to see you again. — Nick's Team ${STORE_PHONE}`
         : `Hi ${name}, thank you for choosing Nick's Tire & Auto! We truly appreciate your business.\n\nGot 30 sec? A Google review helps other Cleveland drivers find honest repair:\n${REVIEW_URL}\n\nRefer a friend: ${REFER_URL}\n— Nick's Team ${STORE_PHONE}`;
 
-      const result = await sendSms(c.phone, msg);
-      if (result.success) {
-        sent++;
-        await db.update(customers)
-          .set({ smsCampaignSent: 1, smsCampaignDate: new Date() } as any)
-          .where(eq(customers.id, c.id));
+      if (campaignSmsEnabled) {
+        const result = await sendSms(c.phone, msg);
+        if (result.success) {
+          sent++;
+          await db.update(customers)
+            .set({ smsCampaignSent: 1, smsCampaignDate: new Date() } as any)
+            .where(eq(customers.id, c.id));
+        }
       }
 
       // 1.5s delay between sends
@@ -311,7 +323,11 @@ export async function enrollInDripCampaign(
       referralCode: customer.phone.slice(-4),
     });
 
-    await sendSms(customer.phone, msg);
+    // Gate SMS behind feature flag
+    const { isEnabled: isEnabledDrip } = await import("./featureFlags");
+    if (await isEnabledDrip("sms_retention_sequences")) {
+      await sendSms(customer.phone, msg);
+    }
     log.info(`Drip enrolled: ${customer.name} → ${campaign.name} (step 1 sent)`);
 
     // Persist enrollment for multi-step processing

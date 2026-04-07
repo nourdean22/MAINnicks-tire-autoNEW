@@ -309,6 +309,72 @@ export default function SettingsSection() {
   );
 }
 
+// ─── FEATURE FLAG CATEGORIES ──────────────────────────
+type FlagCategory = {
+  label: string;
+  keys: string[];
+  matchFn: (key: string) => boolean;
+};
+
+const FLAG_CATEGORIES: FlagCategory[] = [
+  {
+    label: "Customer Intelligence",
+    keys: ["engine_churn_prediction", "engine_repeat_visit_predictor", "engine_customer_risk_scores", "engine_value_trend", "engine_service_affinity"],
+    matchFn: (k) => ["engine_churn_prediction", "engine_repeat_visit_predictor", "engine_customer_risk_scores", "engine_value_trend", "engine_service_affinity"].includes(k),
+  },
+  {
+    label: "Revenue Intelligence",
+    keys: ["engine_revenue_anomaly", "engine_cash_flow_forecast", "engine_profit_margins", "engine_pricing_intelligence", "engine_seasonal_demand"],
+    matchFn: (k) => ["engine_revenue_anomaly", "engine_cash_flow_forecast", "engine_profit_margins", "engine_pricing_intelligence", "engine_seasonal_demand"].includes(k),
+  },
+  {
+    label: "Operations Intelligence",
+    keys: ["engine_tech_efficiency", "engine_capacity_forecast", "engine_turnaround_time", "engine_no_show_predictor"],
+    matchFn: (k) => ["engine_tech_efficiency", "engine_capacity_forecast", "engine_turnaround_time", "engine_no_show_predictor"].includes(k),
+  },
+  {
+    label: "Marketing Intelligence",
+    keys: ["engine_channel_roi", "engine_review_velocity", "engine_lead_response_time", "engine_content_performance", "engine_competitor_monitor"],
+    matchFn: (k) => ["engine_channel_roi", "engine_review_velocity", "engine_lead_response_time", "engine_content_performance", "engine_competitor_monitor"].includes(k),
+  },
+  {
+    label: "SMS / Outreach",
+    keys: ["sms_appointment_reminders", "sms_review_requests", "sms_retention_sequences", "sms_blast_enabled", "smart_sms_auto_reply", "sms_cross_sell_outreach", "sms_auto_quote"],
+    matchFn: (k) => k.startsWith("sms_") || k === "smart_sms_auto_reply",
+  },
+  {
+    label: "Experience",
+    keys: ["fomo_ticker_enabled", "dynamic_social_proof", "smart_exit_intent", "financing_pre_approval", "drop_off_sms_flow", "uber_integration_cta"],
+    matchFn: (k) => ["fomo_ticker_enabled", "dynamic_social_proof", "smart_exit_intent", "financing_pre_approval", "drop_off_sms_flow", "uber_integration_cta"].includes(k),
+  },
+  {
+    label: "Admin / CEO",
+    keys: ["live_telegram_feed", "daily_wins_digest", "master_intelligence_report", "safety_monitor_telegram"],
+    matchFn: (k) => ["live_telegram_feed", "daily_wins_digest", "master_intelligence_report", "safety_monitor_telegram"].includes(k),
+  },
+];
+
+function categorizeFlags(flags: Array<{ key: string; value: boolean; description: string | null }>) {
+  const categorized: Array<{ label: string; flags: typeof flags }> = [];
+  const claimed = new Set<string>();
+
+  for (const cat of FLAG_CATEGORIES) {
+    const matching = flags.filter(f => cat.matchFn(f.key));
+    if (matching.length > 0) {
+      categorized.push({ label: cat.label, flags: matching });
+      matching.forEach(f => claimed.add(f.key));
+    }
+  }
+
+  // Remaining flags go to "Other"
+  const remaining = flags.filter(f => !claimed.has(f.key));
+  if (remaining.length > 0) {
+    categorized.push({ label: "Other", flags: remaining });
+  }
+
+  return categorized;
+}
+
 // ─── FEATURE FLAGS PANEL ──────────────────────────────
 function FeatureFlagsPanel() {
   const utils = trpc.useUtils();
@@ -331,50 +397,83 @@ function FeatureFlagsPanel() {
     );
   }
 
-  const enabledCount = flags?.filter(f => f.value).length ?? 0;
+  const allFlags = flags ?? [];
+  const enabledCount = allFlags.filter(f => f.value).length;
+  const grouped = categorizeFlags(allFlags);
 
   return (
     <div className="bg-card border border-border/30 p-4">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="font-bold text-sm text-foreground tracking-wide">FEATURE FLAGS</h3>
           <p className="text-foreground/50 text-[11px] mt-0.5">
-            {enabledCount} of {flags?.length ?? 0} enabled. Customer-contacting automations check these before executing.
+            {enabledCount} of {allFlags.length} enabled. Customer-contacting automations check these before executing.
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <span className={`inline-flex items-center gap-1 font-mono text-[10px] font-bold tracking-wide px-2 py-1 border ${
+            enabledCount > 0 ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" : "text-foreground/30 border-border/20"
+          }`}>
+            {enabledCount} ON
+          </span>
+          <span className="inline-flex items-center gap-1 font-mono text-[10px] font-bold tracking-wide px-2 py-1 border text-foreground/30 border-border/20">
+            {allFlags.length - enabledCount} OFF
+          </span>
+        </div>
       </div>
-      <div className="space-y-1">
-        {flags?.map((flag) => (
-          <div
-            key={flag.key}
-            className={`flex items-center gap-3 p-2.5 border transition-colors ${
-              flag.value ? "border-emerald-500/20 bg-emerald-500/5" : "border-border/10"
-            }`}
-          >
-            <button
-              onClick={() => toggleMut.mutate({ key: flag.key, value: !flag.value })}
-              disabled={toggleMut.isPending}
-              className="shrink-0"
-            >
-              {flag.value ? (
-                <ToggleRight className="w-6 h-6 text-emerald-400" />
-              ) : (
-                <ToggleLeft className="w-6 h-6 text-foreground/30" />
-              )}
-            </button>
-            <div className="flex-1 min-w-0">
-              <span className="text-foreground text-[12px] font-medium font-mono">{flag.key}</span>
-              {flag.description && (
-                <p className="text-foreground/40 text-[10px] truncate">{flag.description}</p>
-              )}
+
+      <div className="space-y-4">
+        {grouped.map((group) => {
+          const groupEnabled = group.flags.filter(f => f.value).length;
+          return (
+            <div key={group.label}>
+              {/* Category Header */}
+              <div className="flex items-center justify-between mb-1.5 pb-1 border-b border-border/10">
+                <span className="font-bold text-[11px] text-foreground/60 tracking-wider">
+                  {group.label.toUpperCase()}
+                </span>
+                <span className="font-mono text-[10px] text-foreground/30">
+                  {groupEnabled}/{group.flags.length}
+                </span>
+              </div>
+
+              {/* Flag Rows */}
+              <div className="space-y-1">
+                {group.flags.map((flag) => (
+                  <div
+                    key={flag.key}
+                    className={`flex items-center gap-3 p-2.5 border transition-colors ${
+                      flag.value ? "border-emerald-500/20 bg-emerald-500/5" : "border-border/10"
+                    }`}
+                  >
+                    <button
+                      onClick={() => toggleMut.mutate({ key: flag.key, value: !flag.value })}
+                      disabled={toggleMut.isPending}
+                      className="shrink-0"
+                    >
+                      {flag.value ? (
+                        <ToggleRight className="w-6 h-6 text-emerald-400" />
+                      ) : (
+                        <ToggleLeft className="w-6 h-6 text-foreground/30" />
+                      )}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-foreground text-[12px] font-medium font-mono">{flag.key}</span>
+                      {flag.description && (
+                        <p className="text-foreground/40 text-[10px] truncate">{flag.description}</p>
+                      )}
+                    </div>
+                    <span className={`font-mono text-[10px] font-bold tracking-wide ${
+                      flag.value ? "text-emerald-400" : "text-foreground/20"
+                    }`}>
+                      {flag.value ? "ON" : "OFF"}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <span className={`font-mono text-[10px] font-bold tracking-wide ${
-              flag.value ? "text-emerald-400" : "text-foreground/20"
-            }`}>
-              {flag.value ? "ON" : "OFF"}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
