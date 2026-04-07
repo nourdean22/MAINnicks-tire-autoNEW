@@ -329,6 +329,12 @@ export const autoLaborRouter = router({
       };
     }),
 
+  /** Probe ALG API endpoints to discover what's available */
+  probeEndpoints: adminProcedure.query(async () => {
+    const { probeAlgEndpoints } = await import("../services/shopDriverMirror");
+    return probeAlgEndpoints();
+  }),
+
   /** Get the ShopDriver portal URL */
   portalUrl: adminProcedure
     .input(z.object({ path: z.string().default("/") }).optional())
