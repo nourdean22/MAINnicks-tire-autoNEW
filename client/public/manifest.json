@@ -21,10 +21,12 @@
     { "src": "/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
+    { "name": "Book Now", "short_name": "Book", "url": "/booking", "description": "Book auto repair — walk-ins welcome" },
+    { "name": "Check Status", "short_name": "Status", "url": "/status", "description": "Track your vehicle repair" },
     { "name": "Order Tires", "short_name": "Tires", "url": "/tires", "description": "Browse and order tires online" },
-    { "name": "Get Estimate", "short_name": "Estimate", "url": "/estimate", "description": "AI-powered repair estimate" },
+    { "name": "Get Estimate", "short_name": "Estimate", "url": "/cost-estimator", "description": "Free repair cost estimate" },
     { "name": "Pay Invoice", "short_name": "Pay", "url": "/pay", "description": "Pay your invoice online" },
-    { "name": "Call Nick's", "short_name": "Call", "url": "tel:2168620005", "description": "Call (216) 862-0005" }
+    { "name": "Text Nick's", "short_name": "Text", "url": "sms:2168620005", "description": "Text (216) 862-0005" }
   ],
   "screenshots": [],
   "related_applications": [],
