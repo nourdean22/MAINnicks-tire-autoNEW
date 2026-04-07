@@ -12,7 +12,7 @@ import {
   type BookingStatus, type LeadStatus,
 } from "./shared";
 import {
-  Calendar, CheckCircle2, Loader2, Star, XCircle, Zap
+  Calendar, CheckCircle2, Loader2, Power, Star, XCircle, Zap
 } from "lucide-react";
 
 export default function CouponsSection() {
@@ -27,6 +27,9 @@ export default function CouponsSection() {
 
   const createCoupon = trpc.coupons.create.useMutation({
     onSuccess: () => { utils.coupons.all.invalidate(); setShowForm(false); setForm({ title: "", description: "", code: "", discountType: "dollar", discountValue: 0, applicableServices: "all", terms: "", isFeatured: 0, expiresAt: "" }); toast.success("Coupon created"); },
+  });
+  const toggleCoupon = trpc.coupons.update.useMutation({
+    onSuccess: () => { utils.coupons.all.invalidate(); toast.success("Coupon updated"); },
   });
   const deleteCoupon = trpc.coupons.delete.useMutation({
     onSuccess: () => { utils.coupons.all.invalidate(); toast.success("Coupon deleted"); },
@@ -122,9 +125,24 @@ export default function CouponsSection() {
                 <p className="text-foreground/50 text-xs mt-1">{c.description}</p>
                 {c.expiresAt && <p className="text-foreground/30 text-xs mt-1">Expires: {new Date(c.expiresAt).toLocaleDateString()}</p>}
               </div>
-              <button onClick={() => { if (confirm("Delete this coupon?")) deleteCoupon.mutate({ id: c.id }); }} className="text-foreground/30 hover:text-red-400 transition-colors">
-                <XCircle className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => toggleCoupon.mutate({ id: c.id, isActive: c.isActive === 1 ? 0 : 1 })}
+                  disabled={toggleCoupon.isPending}
+                  className={`flex items-center gap-1 px-2 py-1 text-[10px] font-bold tracking-wide border transition-colors ${
+                    c.isActive === 1
+                      ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20"
+                      : "text-foreground/40 border-border/30 bg-foreground/5 hover:bg-foreground/10"
+                  }`}
+                  title={c.isActive === 1 ? "Click to deactivate" : "Click to activate"}
+                >
+                  <Power className="w-3 h-3" />
+                  {c.isActive === 1 ? "ACTIVE" : "INACTIVE"}
+                </button>
+                <button onClick={() => { if (confirm("Delete this coupon?")) deleteCoupon.mutate({ id: c.id }); }} className="text-foreground/30 hover:text-red-400 transition-colors">
+                  <XCircle className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           ))}
         </div>

@@ -12,11 +12,41 @@ import {
   type BookingStatus, type LeadStatus,
 } from "./shared";
 import {
-  Activity, Clock, Loader2, MessageSquare, TrendingUp, UserCheck
+  Activity, CheckCircle2, ChevronDown, ChevronRight, Clock, Loader2, MessageSquare, TrendingUp, UserCheck, XCircle
 } from "lucide-react";
 
+/** Parse messagesJson and extract a customer name if present */
+function extractName(messagesJson: string): string {
+  try {
+    const msgs: Array<{ role: string; content: string }> = JSON.parse(messagesJson);
+    const userMsgs = msgs.filter(m => m.role === "user").map(m => m.content).join("\n");
+    const patterns = [
+      /(?:my name is|i'm|i am|this is|call me)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+      /^([A-Z][a-z]+)\s+here/im,
+    ];
+    for (const p of patterns) {
+      const match = userMsgs.match(p);
+      if (match?.[1]) return match[1].trim();
+    }
+  } catch {}
+  return "Anonymous Visitor";
+}
+
+/** Parse messagesJson into message array */
+function parseMessages(messagesJson: string): Array<{ role: string; content: string }> {
+  try {
+    return JSON.parse(messagesJson);
+  } catch {
+    return [];
+  }
+}
+
 export default function ChatSessionsSection() {
-  const { data: stats, isLoading } = trpc.adminDashboard.stats.useQuery();
+  const { data: stats, isLoading: statsLoading } = trpc.adminDashboard.stats.useQuery();
+  const { data: sessions, isLoading: sessionsLoading } = trpc.chat.sessions.useQuery();
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const isLoading = statsLoading || sessionsLoading;
 
   if (isLoading || !stats) {
     return (
@@ -25,8 +55,6 @@ export default function ChatSessionsSection() {
       </div>
     );
   }
-
-  const chatActivity = stats.recentActivity.filter(a => a.type === "chat");
 
   return (
     <div className="space-y-6">
@@ -56,28 +84,82 @@ export default function ChatSessionsSection() {
         </div>
       </div>
 
-      {/* Recent Chat Sessions */}
+      {/* Chat Sessions List */}
       <div>
         <h3 className="font-bold text-sm tracking-wide text-foreground mb-4 flex items-center gap-2">
           <MessageSquare className="w-4 h-4 text-primary" />
           RECENT CHAT SESSIONS
         </h3>
-        {chatActivity.length > 0 ? (
+        {(sessions ?? []).length > 0 ? (
           <div className="space-y-3">
-            {chatActivity.map((chat, i) => (
-              <div key={i} className="bg-card border border-border/30 p-4 flex items-start gap-4">
-                <div className="w-10 h-10 bg-purple-500/10 border border-purple-500/30 flex items-center justify-center shrink-0">
-                  <MessageSquare className="w-5 h-5 text-purple-400" />
+            {(sessions ?? []).map((session: any) => {
+              const isExpanded = expandedId === session.id;
+              const name = extractName(session.messagesJson);
+              const messages = isExpanded ? parseMessages(session.messagesJson) : [];
+
+              return (
+                <div key={session.id} className="bg-card border border-border/30">
+                  {/* Session header — clickable */}
+                  <button
+                    onClick={() => setExpandedId(isExpanded ? null : session.id)}
+                    className="w-full p-4 flex items-center gap-4 text-left hover:bg-foreground/[0.02] transition-colors"
+                  >
+                    <div className="w-10 h-10 bg-purple-500/10 border border-purple-500/30 flex items-center justify-center shrink-0">
+                      <MessageSquare className="w-5 h-5 text-purple-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-sm text-foreground tracking-wider">{name}</p>
+                        {session.converted === 1 && (
+                          <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-1.5 py-0.5">
+                            <CheckCircle2 className="w-3 h-3" /> CONVERTED
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1">
+                        {session.vehicleInfo && (
+                          <span className="text-[11px] text-foreground/50">{session.vehicleInfo}</span>
+                        )}
+                        {session.problemSummary && (
+                          <span className="text-[11px] text-foreground/40 truncate max-w-[200px]">{session.problemSummary}</span>
+                        )}
+                      </div>
+                      <p className="font-mono text-[10px] text-foreground/25 mt-1">
+                        {new Date(session.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-foreground/30">
+                      {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    </div>
+                  </button>
+
+                  {/* Expanded transcript */}
+                  {isExpanded && messages.length > 0 && (
+                    <div className="border-t border-border/20 p-4 space-y-3 max-h-[400px] overflow-y-auto">
+                      {messages.filter(m => m.role === "user" || m.role === "assistant").map((msg, i) => (
+                        <div
+                          key={i}
+                          className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                        >
+                          <div
+                            className={`max-w-[80%] px-3 py-2 text-[13px] leading-relaxed ${
+                              msg.role === "user"
+                                ? "bg-primary/10 border border-primary/20 text-foreground"
+                                : "bg-foreground/5 border border-border/20 text-foreground/80"
+                            }`}
+                          >
+                            <p className="font-bold text-[10px] text-foreground/40 mb-1 tracking-wider">
+                              {msg.role === "user" ? "CUSTOMER" : "NICK AI"}
+                            </p>
+                            <p className="whitespace-pre-wrap">{msg.content}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-sm text-foreground tracking-wider">{chat.title}</p>
-                  <p className="text-[12px] text-foreground/50 mt-1">{chat.subtitle}</p>
-                  <p className="font-mono text-[10px] text-foreground/25 mt-2">
-                    {new Date(chat.timestamp).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="text-center py-16 border border-border/30 bg-card">
@@ -92,4 +174,3 @@ export default function ChatSessionsSection() {
 }
 
 // ─── SITE HEALTH SECTION ────────────────────────────────
-

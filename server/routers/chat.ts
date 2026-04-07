@@ -2,7 +2,7 @@
  * Chat router — AI chat assistant for customer interactions.
  * When the AI detects wantsAppointment, auto-creates a lead and fires Telegram alert.
  */
-import { publicProcedure, router } from "../_core/trpc";
+import { publicProcedure, adminProcedure, router } from "../_core/trpc";
 import { chatWithAssistant, scoreLead, extractMemories } from "../gemini";
 import { z } from "zod";
 import { eq, desc, and, sql } from "drizzle-orm";
@@ -490,6 +490,13 @@ function detectSentiment(
 }
 
 export const chatRouter = router({
+  /** Admin: list recent chat sessions with transcripts */
+  sessions: adminProcedure.query(async () => {
+    const d = await db();
+    if (!d) return [];
+    return d.select().from(chatSessions).orderBy(desc(chatSessions.createdAt)).limit(50);
+  }),
+
   message: publicProcedure
     .input(z.object({
       sessionId: z.number().optional(),
