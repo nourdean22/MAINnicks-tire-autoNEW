@@ -213,7 +213,7 @@ export default function ServicesOverview() {
                     <Star key={i} className="w-5 h-5 fill-nick-yellow text-primary" />
                   ))}
                 </div>
-                <span className="font-bold text-2xl text-foreground">4.9 Stars</span>
+                <span className="font-bold text-2xl text-foreground">{BUSINESS.reviews.rating} Stars</span>
                 <p className="text-foreground/60 text-sm mt-1">{BUSINESS.reviews.countDisplay} Google Reviews</p>
               </div>
               <div className="text-center">

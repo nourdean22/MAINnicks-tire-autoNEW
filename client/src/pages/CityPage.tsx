@@ -177,7 +177,7 @@ export default function CityPage() {
                     <Star key={i} className="w-4 h-4 fill-nick-yellow text-primary" />
                   ))}
                 </div>
-                <span className="text-[13px] text-primary tracking-wider">4.9 STARS — {BUSINESS.reviews.countDisplay} REVIEWS</span>
+                <span className="text-[13px] text-primary tracking-wider">{BUSINESS.reviews.rating} STARS — {BUSINESS.reviews.countDisplay} REVIEWS</span>
               </div>
               <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.9] tracking-tight max-w-3xl whitespace-pre-line">
                 {city.heroHeadline}

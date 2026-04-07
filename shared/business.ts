@@ -95,6 +95,48 @@ export const BUSINESS = {
     "https://www.facebook.com/nickstireeuclid/",
   ] as readonly string[],
 
+  // ─── TRUST SIGNALS ──────────────────────────────────
+  warranty: {
+    months: 36,
+    display: "36-month warranty",
+    shortDisplay: "36-mo warranty",
+  },
+  founded: {
+    year: 2018,
+    display: "Since 2018",
+  },
+  languages: ["English", "Arabic"] as readonly string[],
+  languageDisplay: "Bilingual (English/Arabic)",
+
+  // ─── OPERATING MODEL ───────────────────────────────
+  model: {
+    type: "FCFS" as const,
+    display: "First come, first serve",
+    walkIns: "Walk-ins welcome 7 days a week",
+    dropOffs: "Drop-offs preferred — same day service",
+    freeInspections: "Free quick inspections",
+    noAppointment: "No appointment needed",
+  },
+
+  // ─── FINANCING ─────────────────────────────────────
+  financing: {
+    providers: ["Acima", "Snap", "Koalafi", "American First Finance"] as readonly string[],
+    display: "No-credit-check financing available",
+    downPayment: "$10 down",
+  },
+
+  // ─── STARTING PRICES (for SEO price anchoring) ─────
+  prices: {
+    oilChange: "$29.99",
+    brakes: "$129/axle",
+    alignment: "$89",
+    diagnostic: "Free with repair",
+    tireMount: "$20/tire",
+    tireRotation: "$19.99",
+    acService: "$49.99",
+    emissions: "$49",
+  },
+
   // ─── BRAND TAGLINES ─────────────────────────────────
   taglines: {
     meme: "Nick's got you rolling.",
