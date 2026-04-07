@@ -107,6 +107,19 @@ export interface NickAIContext {
   customerSentiment?: "positive" | "neutral" | "negative" | "frustrated";
   /** Number of messages in conversation so far (used to adapt prompt detail level) */
   conversationLength?: number;
+  /** Known customer context from DB lookup (when phone matched) */
+  customerContext?: {
+    name: string;
+    segment: string;
+    totalVisits: number;
+    totalSpent: number;
+    lastVisitDate: string | null;
+    vehicleInfo: string | null;
+  };
+  /** Whether the visitor has expressed price sensitivity */
+  priceSensitivity?: "price_sensitive" | "not_detected";
+  /** Whether this visitor has chatted before (has memories from prior sessions) */
+  isReturningVisitor?: boolean;
 }
 
 /**
@@ -149,6 +162,48 @@ export function buildSystemPrompt(ctx: NickAIContext = {}): string {
     sentimentDirective = "\nNote: This customer may have concerns or hesitation. Be especially transparent about costs and timelines. Build trust before pushing for a booking.";
   } else if (ctx.customerSentiment === "positive") {
     sentimentDirective = "\nThis customer is engaged and positive. Match their energy, be warm, and guide them toward booking confidently.";
+  }
+
+  // Customer context block (known customer from DB)
+  let customerContextBlock = "";
+  if (ctx.customerContext) {
+    const c = ctx.customerContext;
+    const daysSinceVisit = c.lastVisitDate
+      ? Math.floor((Date.now() - new Date(c.lastVisitDate).getTime()) / (1000 * 60 * 60 * 24))
+      : null;
+
+    let segmentDirective = "";
+    if (c.totalVisits >= 3) {
+      segmentDirective = "They are a VIP — give them the VIP treatment. Acknowledge loyalty, prioritize their needs.";
+    } else if (daysSinceVisit !== null && daysSinceVisit >= 60) {
+      segmentDirective = "They haven't been in for a while — acknowledge the gap warmly. \"Good to hear from you again!\"";
+    } else if (c.totalVisits <= 1) {
+      segmentDirective = "They are relatively new — welcome them, build trust, make the first impression count.";
+    }
+
+    customerContextBlock = `\n--- CUSTOMER CONTEXT ---
+This is a returning customer: ${c.name}, ${c.segment} segment, ${c.totalVisits} visit${c.totalVisits !== 1 ? "s" : ""}, $${Math.round(c.totalSpent)} lifetime spend.
+${c.lastVisitDate ? `Last visit: ${c.lastVisitDate}.` : ""}${c.vehicleInfo ? ` Vehicle: ${c.vehicleInfo}.` : ""}
+Use this naturally — ${c.vehicleInfo ? `"How's the ${c.vehicleInfo} running?" or reference their history.` : "reference their loyalty and past visits."}
+${segmentDirective}`;
+  }
+
+  // Price sensitivity adaptation
+  let priceSensitivityBlock = "";
+  if (ctx.priceSensitivity === "price_sensitive") {
+    priceSensitivityBlock = `\n--- PRICE SENSITIVITY DETECTED ---
+This customer has expressed interest in pricing. Adapt your approach:
+- Mention financing options early: "We also have no-credit-check financing if that helps — Acima, Snap, Koalafi."
+- Use contrast pricing: "The dealer would charge $800+ for this — we typically do it for around $400-500."
+- Emphasize free inspections: "We'll look at it for free and give you an honest estimate before any work."
+- Lead with value, not just price: "You get a 36-month warranty with us vs. 12 months at most shops."
+- If they seem hesitant on cost, offer a drop-off: "Drop it off, we'll call with the exact cost before doing anything."`;
+  }
+
+  // Returning visitor recognition
+  let returningVisitorBlock = "";
+  if (ctx.isReturningVisitor && !ctx.customerContext) {
+    returningVisitorBlock = "\nNote: This is a returning chat visitor who has chatted with us before. They already know us — skip the intro pitch and get right to helping them.";
   }
 
   // Adapt prompt detail based on conversation stage
@@ -213,7 +268,7 @@ Services offered:
 - Financing: Acima, Snap, Koalafi, American First Finance — no-credit-check options available
 
 Areas served: Cleveland, Euclid, East Cleveland, South Euclid, Richmond Heights, Northeast Ohio.
-${memoryBlock}${businessIntelBlock}
+${memoryBlock}${businessIntelBlock}${customerContextBlock}${priceSensitivityBlock}${returningVisitorBlock}
 When a customer describes a problem:
 1. Acknowledge the symptom — show you understand. Mirror their words.
 2. Explain the most likely causes in plain language
