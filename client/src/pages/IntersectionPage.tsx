@@ -14,51 +14,47 @@ import BookingForm from "@/components/BookingForm";
 import { Phone, MapPin, Clock, Navigation, ArrowLeft, ChevronRight, Landmark } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
 
-// ─── JSON-LD SCHEMA ──────────────────────────────────────
-function IntersectionSchema({ intersection }: { intersection: IntersectionData }) {
-  const schema = {
-    "@context": "https://schema.org",
-    "@type": "AutoRepair",
-    name: `Nick's Tire & Auto — Near ${intersection.name}`,
-    description: `Auto repair near ${intersection.name} in ${intersection.neighborhood || "Cleveland"}. ${BUSINESS.reviews.rating} stars, ${BUSINESS.reviews.countDisplay} reviews.`,
-    url: `https://nickstire.org/near/${intersection.slug}`,
-    telephone: `+1-${BUSINESS.phone.dashed}`,
-    address: {
-      "@type": "PostalAddress",
-      streetAddress: BUSINESS.address.street,
-      addressLocality: "Cleveland",
-      addressRegion: "OH",
-      postalCode: "44112",
-      addressCountry: "US",
-    },
-    geo: {
-      "@type": "GeoCoordinates",
-      latitude: intersection.lat,
-      longitude: intersection.lng,
-    },
-    areaServed: {
-      "@type": "Place",
-      name: intersection.neighborhood || "Cleveland",
-      geo: {
-        "@type": "GeoCoordinates",
-        latitude: intersection.lat,
-        longitude: intersection.lng,
-      },
-    },
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: String(BUSINESS.reviews.rating),
-      reviewCount: String(BUSINESS.reviews.count),
-    },
-    hasMap: `https://www.google.com/maps/dir/?api=1&destination=${BUSINESS.geo.lat},${BUSINESS.geo.lng}&origin=${intersection.lat},${intersection.lng}`,
-    sameAs: [...BUSINESS.sameAs],
-  };
+// ─── SEO HELPERS ─────────────────────────────────────────
+const MAX_TITLE_LEN = 60;
+const TITLE_SUFFIX = " | Nick's Tire & Auto";
 
-  return (
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />
-  );
+/** Abbreviate common road words to fit title under 60 chars */
+function abbreviateName(name: string): string {
+  return name
+    .replace(/\bBoulevard\b/gi, "Blvd")
+    .replace(/\bStreet\b/gi, "St")
+    .replace(/\bAvenue\b/gi, "Ave")
+    .replace(/\bRoad\b/gi, "Rd")
+    .replace(/\bDrive\b/gi, "Dr")
+    .replace(/\bPlace\b/gi, "Pl")
+    .replace(/\bHighway\b/gi, "Hwy")
+    .replace(/\bParkway\b/gi, "Pkwy")
+    .replace(/\bNorth\b/gi, "N")
+    .replace(/\bSouth\b/gi, "S")
+    .replace(/\bEast\b/gi, "E")
+    .replace(/\bWest\b/gi, "W");
+}
+
+function buildTitle(intersection: IntersectionData): string {
+  const driveTag = `${intersection.driveMinutes} Min`;
+  const fullName = intersection.name;
+  // Try full name first
+  const full = `Auto Repair Near ${fullName} | ${driveTag}${TITLE_SUFFIX}`;
+  if (full.length <= MAX_TITLE_LEN) return full;
+  // Try abbreviated name
+  const abbr = abbreviateName(fullName);
+  const shortened = `Auto Repair Near ${abbr} | ${driveTag}${TITLE_SUFFIX}`;
+  if (shortened.length <= MAX_TITLE_LEN) return shortened;
+  // Drop drive tag as last resort
+  const minimal = `Auto Repair Near ${abbr}${TITLE_SUFFIX}`;
+  return minimal.slice(0, MAX_TITLE_LEN);
+}
+
+function buildDescription(intersection: IntersectionData): string {
+  return `Need auto repair near ${intersection.name}? Nick's Tire & Auto is just ${intersection.driveMinutes} min away. Walk-ins welcome 7 days. ${BUSINESS.reviews.rating}\u2605 Google rating. ${BUSINESS.phone.display}`;
 }
 
 // ─── RELATED INTERSECTIONS ───────────────────────────────
@@ -102,11 +98,26 @@ export default function IntersectionPage() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title={`Auto Repair Near ${intersection.name} | Nick's Tire & Auto`}
-        description={`${intersection.driveMinutes}-minute drive from ${intersection.name}${intersection.neighborhood ? ` in ${intersection.neighborhood}` : ""}. ${BUSINESS.reviews.rating} stars, ${BUSINESS.reviews.countDisplay} reviews. Tires, brakes, diagnostics & more. Walk-ins welcome.`}
+        title={buildTitle(intersection)}
+        description={buildDescription(intersection)}
         canonicalPath={`/near/${intersection.slug}`}
       />
-      <IntersectionSchema intersection={intersection} />
+      <LocalBusinessSchema
+        pageName={`Nick's Tire & Auto — Near ${intersection.name}`}
+        additionalSchema={{
+          url: `https://nickstire.org/near/${intersection.slug}`,
+          areaServed: {
+            "@type": "Place",
+            name: intersection.neighborhood || "Cleveland",
+            geo: {
+              "@type": "GeoCoordinates",
+              latitude: intersection.lat,
+              longitude: intersection.lng,
+            },
+          },
+          hasMap: `https://www.google.com/maps/dir/?api=1&destination=${BUSINESS.geo.lat},${BUSINESS.geo.lng}&origin=${intersection.lat},${intersection.lng}`,
+        }}
+      />
 
       {/* ─── HERO ─── */}
       <section className="bg-[oklch(0.055_0.004_260)] pt-24 pb-16 lg:pt-32 lg:pb-20">
