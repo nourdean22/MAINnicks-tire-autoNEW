@@ -60,4 +60,28 @@ export const intelligenceRouter = router({
   fullReport: adminProcedure.query(async () => {
     return generateFullIntelligenceReport();
   }),
+
+  // ── Busy Hours Heat Map (own data, not Google) ──
+  busyHours: adminProcedure.query(async () => {
+    const { analyzeCustomers } = await import("../services/customerIntelligence");
+    const data = await analyzeCustomers();
+    return {
+      peakHours: data.peakHours,
+      dayOfWeekPattern: data.dayOfWeekPattern,
+      bestDropOffTimes: ["8:00 AM - 10:00 AM (best for same-day)", "Early afternoon (ready by next morning)"],
+    };
+  }),
+
+  // ── Shop Load (real-time) ──
+  shopLoad: adminProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const { sql: rawSql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return { activeWOs: 0, todayBookings: 0, estimatedWait: 0 };
+    const [woRows] = await d.execute(rawSql`SELECT COUNT(*) as cnt FROM work_orders WHERE status IN ('in_progress', 'approved', 'waiting_parts', 'quality_check')`);
+    const [bkRows] = await d.execute(rawSql`SELECT COUNT(*) as cnt FROM bookings WHERE createdAt >= CURDATE() AND status IN ('new', 'confirmed')`);
+    const activeWOs = Number((woRows as any)?.[0]?.cnt || 0);
+    const todayBookings = Number((bkRows as any)?.[0]?.cnt || 0);
+    return { activeWOs, todayBookings, estimatedWait: activeWOs === 0 ? 0 : Math.min(180, activeWOs * 45) };
+  }),
 });

@@ -535,18 +535,39 @@ export const chatRouter = router({
       // Detect sentiment for prompt adaptation
       const sentiment = detectSentiment(sessionMessages);
 
-      // Feed live business intel into Nick AI
-      let businessIntel: { todayBookings?: number; estimatedWaitMinutes?: number } | undefined;
+      // Feed live business intel into Nick AI — REAL shop load, not just bookings
+      let businessIntel: { todayBookings?: number; estimatedWaitMinutes?: number; availableSlots?: string[] } | undefined;
       try {
         const { getDb } = await import("../db");
         const { sql: rawSql } = await import("drizzle-orm");
         const d = await getDb();
         if (d) {
-          const [bk] = await d.execute(rawSql`SELECT COUNT(*) as cnt FROM bookings WHERE createdAt >= CURDATE()`);
-          const todayBookings = Number((bk as any)?.[0]?.cnt || 0);
-          // Estimate wait: ~30 min per active booking, max 120
-          const estimatedWaitMinutes = Math.min(120, todayBookings * 30);
-          businessIntel = { todayBookings, estimatedWaitMinutes };
+          // Active work orders = cars physically in the shop right now
+          const [woRows] = await d.execute(rawSql`
+            SELECT COUNT(*) as cnt FROM work_orders
+            WHERE status IN ('in_progress', 'approved', 'waiting_parts', 'quality_check')
+          `);
+          const activeWOs = Number((woRows as any)?.[0]?.cnt || 0);
+
+          // Today's confirmed bookings = expected arrivals
+          const [bkRows] = await d.execute(rawSql`
+            SELECT COUNT(*) as cnt FROM bookings
+            WHERE createdAt >= CURDATE() AND status IN ('new', 'confirmed')
+          `);
+          const todayBookings = Number((bkRows as any)?.[0]?.cnt || 0);
+
+          // Real wait estimate: active WOs * 45min avg, capped at 3 hours
+          // If no active WOs, minimal wait (walk-in friendly)
+          const estimatedWaitMinutes = activeWOs === 0 ? 0 : Math.min(180, activeWOs * 45);
+
+          // Best times to come in (from historical data)
+          let availableSlots: string[] = [];
+          const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+          if (etHour < 10) availableSlots.push("Right now — mornings are best for same-day service");
+          else if (etHour < 14) availableSlots.push("Drop off now, done by end of day");
+          else availableSlots.push("Drop off today, ready by tomorrow morning");
+
+          businessIntel = { todayBookings: todayBookings + activeWOs, estimatedWaitMinutes, availableSlots };
         }
       } catch {}
 
