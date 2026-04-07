@@ -463,29 +463,49 @@ async function main() {
     console.log(`  ${tech.name}: ${tech.totalHours}hrs, $${(tech.totalLaborCents / 100).toLocaleString()}, ${tech.lineItems} jobs`);
   }
 
-  // POST to Railway
-  console.log("\nSending to Railway...");
-  const payload = JSON.stringify({ invoices, analytics });
-  console.log(`Payload size: ${(payload.length / 1024 / 1024).toFixed(2)} MB`);
+  // POST to Railway in batches (200 invoices per batch to avoid timeout)
+  console.log("\nSending to Railway in batches...");
+  const BATCH_SIZE = 200;
+  let totalCreated = 0, totalUpdated = 0, totalMatched = 0;
 
-  const res = await fetch(BRIDGE_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Bridge-Key": BRIDGE_KEY,
-    },
-    body: payload,
-  });
+  for (let i = 0; i < invoices.length; i += BATCH_SIZE) {
+    const batch = invoices.slice(i, i + BATCH_SIZE);
+    const isLast = i + BATCH_SIZE >= invoices.length;
+    const payload = JSON.stringify({
+      invoices: batch,
+      analytics: isLast ? analytics : undefined, // Only send analytics with last batch
+    });
 
-  if (!res.ok) {
-    const err = await res.text();
-    console.error(`FAILED: HTTP ${res.status} — ${err}`);
-    process.exit(1);
+    console.log(`  Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(invoices.length / BATCH_SIZE)}: ${batch.length} invoices (${(payload.length / 1024).toFixed(0)} KB)...`);
+
+    try {
+      const res = await fetch(BRIDGE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Bridge-Key": BRIDGE_KEY },
+        body: payload,
+        signal: AbortSignal.timeout(120000), // 2 min timeout per batch
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        console.error(`  FAILED: HTTP ${res.status} — ${err.slice(0, 200)}`);
+        continue;
+      }
+
+      const result = await res.json();
+      totalCreated += result.ingestion?.created || 0;
+      totalUpdated += result.ingestion?.updated || 0;
+      totalMatched += result.ingestion?.matched || 0;
+      console.log(`  ✓ created=${result.ingestion?.created || 0} updated=${result.ingestion?.updated || 0} matched=${result.ingestion?.matched || 0}`);
+    } catch (err) {
+      console.error(`  Batch failed: ${err.message}`);
+    }
   }
 
-  const result = await res.json();
   console.log("\n═══ INGESTION RESULT ═══");
-  console.log(JSON.stringify(result, null, 2));
+  console.log(`Total Created: ${totalCreated}`);
+  console.log(`Total Updated: ${totalUpdated}`);
+  console.log(`Total Matched to Customers: ${totalMatched}`);
 }
 
 main().catch(err => {
