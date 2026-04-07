@@ -41,7 +41,7 @@ function AddVehicleForm({ onClose }: { onClose: () => void }) {
       utils.garage.vehicles.invalidate();
       onClose();
     },
-    onError: () => toast.error("Something went wrong. Please try again."),
+    onError: () => toast.error("Couldn't save your vehicle. Please try again."),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -107,7 +107,7 @@ function VehicleCard({ vehicle }: { vehicle: any }) {
   const utils = trpc.useUtils();
   const deleteVehicle = trpc.garage.deleteVehicle.useMutation({
     onSuccess: () => utils.garage.vehicles.invalidate(),
-    onError: () => toast.error("Something went wrong. Please try again."),
+    onError: () => toast.error("Update failed. Please try again."),
   });
 
   return (

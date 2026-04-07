@@ -302,7 +302,7 @@ export default function LaborEstimator() {
                 {estimateMutation.isError && (
                   <div className="bg-red-500/10 border border-red-500/30 rounded-md p-4 text-center">
                     <p className="text-red-400 text-sm">
-                      Something went wrong generating the estimate. Please try again or call us directly.
+                      Estimate generation failed. The service may be temporarily unavailable — try again in a moment.
                     </p>
                     <a
                       href={BUSINESS.phone.href}

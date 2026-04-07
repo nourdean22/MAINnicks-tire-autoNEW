@@ -107,7 +107,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
 
   const mutation = trpc.booking.create.useMutation({
     onSuccess: () => setSubmitted(true),
-    onError: () => toast.error("Something went wrong. Please try again."),
+    onError: () => toast.error("We couldn't submit your booking. Please check your info and try again, or call (216) 862-0005."),
   });
 
   const update = (field: string, value: string | boolean) =>
@@ -292,7 +292,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
       {mutation.error && (
         <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-md mb-6 text-sm">
           <AlertCircle className="w-4 h-4 shrink-0" />
-          Something went wrong. Please try again or call us directly.
+          We couldn't submit your booking. Please check your info and try again, or call (216) 862-0005.
         </div>
       )}
 

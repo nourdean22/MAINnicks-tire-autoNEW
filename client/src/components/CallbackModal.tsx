@@ -25,7 +25,7 @@ export default function CallbackModal() {
         setPhone("");
       }, 3000);
     },
-    onError: () => toast.error("Something went wrong. Please try again."),
+    onError: () => toast.error("Couldn't request your callback. Please call us directly at (216) 862-0005."),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -124,7 +124,7 @@ export default function CallbackModal() {
 
                 {mutation.isError && (
                   <p className="text-red-400 text-xs mt-2 text-center">
-                    Something went wrong. Please call us directly at {BUSINESS.phone.display}.
+                    Couldn't request your callback. Please call us directly at {BUSINESS.phone.display}.
                   </p>
                 )}
               </>

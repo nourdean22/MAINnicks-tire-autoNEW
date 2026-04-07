@@ -37,7 +37,7 @@ export default function AskMechanicPage() {
 
   const submitQuestion = trpc.qa.ask.useMutation({
     onSuccess: () => setSubmitted(true),
-    onError: () => toast.error("Something went wrong. Please try again."),
+    onError: () => toast.error("Your question couldn't be submitted. Please try again or call the shop."),
   });
 
   useEffect(() => { window.scrollTo(0, 0); }, []);

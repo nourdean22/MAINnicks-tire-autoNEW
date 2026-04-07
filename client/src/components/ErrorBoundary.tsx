@@ -78,12 +78,12 @@ class ErrorBoundary extends Component<Props, State> {
             </div>
 
             <h1 className="font-bold text-2xl sm:text-3xl text-foreground tracking-[-0.01em] mb-3">
-              SOMETHING WENT WRONG
+              THIS PAGE RAN INTO AN ERROR
             </h1>
 
             <p className="text-foreground/60 text-[13px] mb-8 leading-relaxed max-w-md mx-auto">
-              We hit an unexpected error. This has been logged and we will look into it.
-              You can try again or return to the homepage.
+              Try refreshing, or call (216) 862-0005 for help.
+              You can also return to the homepage.
             </p>
 
             {/* Error details (collapsed by default) */}
