@@ -448,6 +448,18 @@ export function registerBridgeRoutes(app: Express): void {
     }
   });
 
+  // Probe ALG API endpoints to discover what data is available
+  app.get("/api/bridge/probe-alg", bridgeAuth, async (_req, res) => {
+    try {
+      const { probeAlgEndpoints } = await import("../services/shopDriverMirror");
+      const results = await probeAlgEndpoints();
+      res.json({ results, timestamp: new Date().toISOString() });
+    } catch (err: any) {
+      console.error("[Bridge] ALG probe error:", err);
+      res.status(500).json({ error: err.message || "Probe failed" });
+    }
+  });
+
   // Full data cascade: mirror → sheets → statenour → brain (run all syncs)
   app.post("/api/bridge/full-sync", bridgeAuth, async (_req, res) => {
     const results: Record<string, any> = { timestamp: new Date().toISOString() };

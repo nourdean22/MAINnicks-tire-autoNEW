@@ -6,6 +6,7 @@ import { z } from "zod";
 import { eq, like, or, sql, desc, asc } from "drizzle-orm";
 import { customers, customerMetrics, bookings, leads, callbackRequests, callEvents, invoices, workOrders } from "../../drizzle/schema";
 import { logAdminAction } from "../services/auditTrail";
+import { predictCustomerLTV, generateCrossSellRecommendations, forecastRevenue } from "../services/intelligenceEngines";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -743,4 +744,49 @@ export const customersRouter = router({
       }
       return { lookup };
     }),
+
+  /** LTV Intelligence — predictive customer scoring from intelligence engine */
+  ltvIntelligence: adminProcedure.query(async () => {
+    try {
+      const result = await predictCustomerLTV();
+      return {
+        topCustomers: result.topCustomers,
+        atRiskHighValue: result.atRiskHighValue,
+        segments: result.segments,
+      };
+    } catch (e) {
+      console.error("[Customers] LTV intelligence failed:", e instanceof Error ? e.message : e);
+      return { topCustomers: [], atRiskHighValue: [], segments: { whales: 0, regulars: 0, occasional: 0, oneTimers: 0 } };
+    }
+  }),
+
+  /** Cross-sell recommendations — "customers who got X also needed Y" patterns */
+  crossSellRecommendations: adminProcedure.query(async () => {
+    try {
+      const result = await generateCrossSellRecommendations();
+      return {
+        patterns: result.patterns,
+        recommendations: result.recommendations,
+      };
+    } catch (e) {
+      console.error("[Customers] Cross-sell engine failed:", e instanceof Error ? e.message : e);
+      return { patterns: [], recommendations: [] };
+    }
+  }),
+
+  /** Customer forecast — revenue projections relevant to customer behavior */
+  customerForecast: adminProcedure.query(async () => {
+    try {
+      const result = await forecastRevenue();
+      return {
+        today: result.today,
+        month: result.month,
+        trend: result.trend,
+        weeklyTrend: result.weeklyTrend,
+      };
+    } catch (e) {
+      console.error("[Customers] Forecast engine failed:", e instanceof Error ? e.message : e);
+      return { today: null, month: null, trend: "flat", weeklyTrend: [] };
+    }
+  }),
 });

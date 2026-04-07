@@ -1183,3 +1183,83 @@ export async function checkMirrorHealth(): Promise<{
 
   return { recordsProcessed: 1, details: `OK | data: ${staleDays ?? 0}d old | session: ${status.sessionActive ? "active" : "expired"}` };
 }
+
+// ─── ALG ENDPOINT PROBE ──────────────────────────────────
+// Probe probable ALG API endpoints to discover what data is available.
+// Returns status/shape info for each endpoint without side effects.
+
+interface ProbeResult {
+  status: number;
+  isJson: boolean;
+  sampleSize: number;
+  firstChars: string;
+}
+
+export async function probeAlgEndpoints(): Promise<Record<string, ProbeResult>> {
+  const token = await getSession();
+  if (!token) {
+    log.error("probeAlgEndpoints: could not authenticate");
+    return { _error: { status: 0, isJson: false, sampleSize: 0, firstChars: "Auth failed — no token" } };
+  }
+
+  const endpoints = [
+    "/api/Vehicle/listVehicles?pageNumber=1&pageSize=10",
+    "/api/Vehicle/getVehicleHistory?pageNumber=1&pageSize=10",
+    "/api/Estimate/listEstimates?pageNumber=1&pageSize=10",
+    "/api/ticket/listEstimates?pageNumber=1&pageSize=10",
+    "/api/Recommendation/list?pageNumber=1&pageSize=10",
+    "/api/Inventory/listParts?pageNumber=1&pageSize=10",
+    "/api/Parts/search?pageNumber=1&pageSize=10",
+    "/api/Appointment/listAppointments?pageNumber=1&pageSize=10",
+    "/api/Schedule/getSchedule",
+    "/api/PurchaseOrder/list?pageNumber=1&pageSize=10",
+    "/api/Payment/listPayments?pageNumber=1&pageSize=10",
+    "/api/LaborMatrix/list?pageNumber=1&pageSize=10",
+    "/api/Report/getARReport",
+    "/api/Report/getProfitReport",
+    "/api/Report/getTaxReport",
+    "/api/WorkOrder/listWorkOrders?pageNumber=1&pageSize=10",
+    "/api/Note/list?pageNumber=1&pageSize=10",
+  ];
+
+  const results: Record<string, ProbeResult> = {};
+
+  for (const endpoint of endpoints) {
+    const url = `${SHOPDRIVER_API}${endpoint}`;
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        headers: HEADERS(token),
+        signal: AbortSignal.timeout(5000),
+      });
+
+      const body = await res.text();
+      let isJson = false;
+      try {
+        JSON.parse(body);
+        isJson = true;
+      } catch {}
+
+      const firstChars = body.substring(0, 200);
+      log.info(`[probe] ${endpoint} → ${res.status} json=${isJson} len=${body.length}`, { firstChars });
+
+      results[endpoint] = {
+        status: res.status,
+        isJson,
+        sampleSize: body.length,
+        firstChars,
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log.warn(`[probe] ${endpoint} → ERROR: ${msg}`);
+      results[endpoint] = {
+        status: 0,
+        isJson: false,
+        sampleSize: 0,
+        firstChars: `Error: ${msg}`,
+      };
+    }
+  }
+
+  return results;
+}
