@@ -574,6 +574,20 @@ export function startTieredScheduler(): void {
           return autoCampaignRetry();
         },
       },
+      {
+        name: "data-analyzers-live", // Chat demand, call attribution, fleet, geography — every 2h
+        businessHoursOnly: true,
+        handler: async () => {
+          const { analyzeChatDemand, analyzeCallAttribution, analyzeFleet, analyzeGeography } = await import("../services/intelligenceEngines");
+          const results = await Promise.all([
+            analyzeChatDemand().catch(() => null),
+            analyzeCallAttribution().catch(() => null),
+            analyzeFleet().catch(() => null),
+            analyzeGeography().catch(() => null),
+          ]);
+          return { recordsProcessed: results.filter(Boolean).length, details: `4 data analyzers refreshed` };
+        },
+      },
       // statenour-sync moved to pulse tier (15min) for live dashboard — no longer needed here
     ],
     running: false,
@@ -887,6 +901,89 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "pipelines-auto-run", // GBP reviews + GSC + Instagram — all pipelines that are due
+        handler: async () => {
+          const { runDuePipelines } = await import("../pipelines/orchestrator");
+          const result = await runDuePipelines();
+          return { recordsProcessed: result.ran.length, details: `Ran: ${result.ran.join(", ") || "none"}, skipped: ${result.skipped.join(", ") || "none"}` };
+        },
+      },
+      {
+        name: "review-pipeline", // Fetch + analyze Google reviews, alert on negatives
+        requiresEnv: "GOOGLE_PLACES_API_KEY",
+        handler: async () => {
+          try {
+            const { runReviewPipeline, getUrgentReviews } = await import("../pipelines/gbp-reviews");
+            const result = await runReviewPipeline();
+            const urgent = await getUrgentReviews();
+            if (urgent.length > 0) {
+              const { sendTelegram } = await import("../services/telegram");
+              await sendTelegram(
+                `⭐ URGENT REVIEWS: ${urgent.length} need response!\n\n` +
+                urgent.slice(0, 3).map((r: any) => `${r.rating}★ ${r.authorName || "Anonymous"}: "${(r.text || "").slice(0, 80)}..."`).join("\n") +
+                `\n\nRespond ASAP — negative reviews compound damage every hour.`
+              );
+            }
+            return { recordsProcessed: result.fetched || 0, details: `${result.fetched || 0} reviews synced, ${urgent.length} urgent` };
+          } catch { return { details: "Review pipeline skipped" }; }
+        },
+      },
+      {
+        name: "gsc-pipeline", // Google Search Console sync + ranking alerts
+        requiresEnv: "GOOGLE_SEARCH_CONSOLE_KEY",
+        handler: async () => {
+          try {
+            const { runGscPipeline, detectRankingChanges } = await import("../pipelines/gsc-data");
+            const result = await runGscPipeline();
+            const changes = await detectRankingChanges();
+            const drops = changes.filter((c: any) => c.direction === "down" && Math.abs(c.positionChange || 0) >= 5);
+            if (drops.length > 0) {
+              const { sendTelegram } = await import("../services/telegram");
+              await sendTelegram(
+                `📉 SEO RANKING DROPS: ${drops.length} queries lost 5+ positions!\n\n` +
+                drops.slice(0, 5).map((d: any) => `"${d.query}" dropped ${Math.abs(d.positionChange)} spots (now #${d.currentPosition})`).join("\n") +
+                `\n\nInvestigate content or technical issues.`
+              );
+            }
+            return { recordsProcessed: result.sync?.fetched || 0, details: `${result.sync?.fetched || 0} rows synced, ${drops.length} ranking drops` };
+          } catch { return { details: "GSC pipeline skipped" }; }
+        },
+      },
+      {
+        name: "full-intelligence-digest", // Compound intelligence report → Telegram
+        handler: async () => {
+          try {
+            const { generateFullIntelligenceReport } = await import("../services/intelligenceEngines");
+            const report = await generateFullIntelligenceReport();
+            const { sendTelegram } = await import("../services/telegram");
+            const { remember } = await import("../services/nickMemory");
+
+            // Build digest from report
+            const parts: string[] = [`📊 DAILY INTELLIGENCE DIGEST`];
+            const f = report.forecast as any;
+            if (f && !f.error) {
+              parts.push(`Revenue: $${Math.round(f.month?.soFar || 0)} MTD (${f.month?.onPace ? "ON PACE" : "BEHIND"} for $${f.month?.target || 20000})`);
+            }
+            const ls = report.leadScores as any[];
+            if (ls?.length > 0) {
+              parts.push(`Leads: ${ls.length} scored, top: ${ls.slice(0, 2).map((l: any) => `${l.name} (${l.score})`).join(", ")}`);
+            }
+            const cs = report.crossSell as any;
+            if (cs?.recommendations?.length > 0) {
+              parts.push(`Cross-sell: ${cs.recommendations.length} opportunities`);
+            }
+            const dec = report.declined as any;
+            if (dec?.totalDeclinedValue > 0) {
+              parts.push(`Declined work: $${Math.round(dec.totalDeclinedValue)} recoverable`);
+            }
+
+            await sendTelegram(parts.join("\n\n"));
+            await remember({ type: "insight", content: parts.join(". ").slice(0, 1500), source: "daily_digest", confidence: 0.9 });
+            return { recordsProcessed: 1, details: "Full digest sent" };
+          } catch (e: any) { return { details: `Digest failed: ${e.message}` }; }
+        },
+      },
+      {
         name: "revenue-reconciliation", // End-of-day revenue truth
         handler: async () => {
           try {
@@ -934,6 +1031,22 @@ export function startTieredScheduler(): void {
           const { checkWeatherTriggers } = await import("../services/weatherIntelligence");
           const result = await checkWeatherTriggers();
           return { recordsProcessed: result.triggered.length, details: result.details };
+        },
+      },
+      {
+        name: "weekly-strategic-insight", // AI strategic brief — only fires on Sundays
+        handler: async () => {
+          const dow = new Date().toLocaleString("en-US", { timeZone: "America/New_York", weekday: "long" });
+          if (dow !== "Sunday") return { details: "Not Sunday, skipped" };
+          try {
+            const { generateWeeklyInsight } = await import("../services/nickIntelligence");
+            const insight = await generateWeeklyInsight();
+            if (insight) {
+              const { sendTelegram } = await import("../services/telegram");
+              await sendTelegram(`🧠 WEEKLY STRATEGIC BRIEF\n\n${insight.slice(0, 3500)}`);
+            }
+            return { recordsProcessed: 1, details: "Weekly insight sent" };
+          } catch { return { details: "Weekly insight failed" }; }
         },
       },
     ],
