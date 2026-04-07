@@ -53,6 +53,7 @@ const WorkOrdersSection = lazy(() => import("./admin/WorkOrdersSection"));
 const DispatchSection = lazy(() => import("./admin/DispatchSection"));
 const CommandCenterSection = lazy(() => import("./admin/CommandCenterSection"));
 const IntelligenceSection = lazy(() => import("./admin/IntelligenceSection"));
+const SpecialsSection = lazy(() => import("./admin/SpecialsSection"));
 
 function SectionSpinner() {
   return (
@@ -102,6 +103,7 @@ function SectionContent({ section }: { section: AdminSection }) {
       {section === "workOrders" && <WorkOrdersSection />}
       {section === "dispatch" && <DispatchSection />}
       {section === "intelligence" && <IntelligenceSection />}
+      {section === "specials" && <SpecialsSection />}
     </Suspense>
   );
 }

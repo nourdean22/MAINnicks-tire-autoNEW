@@ -59,4 +59,15 @@ export const specialsRouter = router({
       });
       return { id, success: true };
     }),
+
+  delete: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { specials } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      await db.delete(specials).where(eq(specials.id, input.id));
+      return { success: true };
+    }),
 });
