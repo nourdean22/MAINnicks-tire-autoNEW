@@ -73,13 +73,11 @@ async function refreshCache(): Promise<void> {
  * - auto_review_responses: drafts only (admin approves before posting)
  * - gbp_auto_posting: generates to Telegram for manual post (no direct API)
  */
-const AUTO_ENABLE_FLAGS: string[] = [
-  "sms_review_requests",
-  "sms_retention_sequences",
-  "drip_campaigns_enabled",
-  "auto_review_responses",
-  "gbp_auto_posting",
-];
+/**
+ * All flags start DISABLED. Nour enables manually after QA review.
+ * Use the admin Feature Flags panel (ShopDriver HQ) to toggle.
+ */
+const AUTO_ENABLE_FLAGS: string[] = [];
 
 /** Seed all flags — idempotent (skips existing). High-value flags auto-enable. */
 export async function seedFlags(): Promise<{ seeded: number; skipped: number }> {
@@ -108,19 +106,7 @@ export async function seedFlags(): Promise<{ seeded: number; skipped: number }> 
     log.info(`Feature flag seeded: ${flag.key} = ${autoEnable ? "ENABLED" : "DISABLED"}`);
   }
 
-  // Auto-enable high-value flags that were previously seeded as disabled
-  let enabled = 0;
-  for (const key of AUTO_ENABLE_FLAGS) {
-    const current = await db.select().from(featureFlags).where(eq(featureFlags.key, key)).limit(1);
-    if (current.length > 0 && !current[0].value) {
-      await db.update(featureFlags).set({ value: true, updatedAt: new Date() }).where(eq(featureFlags.key, key));
-      flagCache.set(key, true);
-      enabled++;
-      log.info(`Feature flag auto-enabled: ${key}`);
-    }
-  }
-
-  log.info(`Feature flags: ${seeded} new, ${skipped} existing, ${enabled} auto-enabled`);
+  log.info(`Feature flags: ${seeded} new, ${skipped} existing`);
   return { seeded, skipped };
 }
 
