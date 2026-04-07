@@ -95,10 +95,10 @@ async function autoCreateInvoiceFromTireOrder(d: any, orderId: number): Promise<
     serviceDescription: `Tire Install: ${order.quantity}x ${order.tireBrand} ${order.tireModel}`,
   }).catch(() => {});
 
-  // Notify to create in Auto Labor Guide
+  // Notify admin — synced to dashboard
   import("../services/telegram").then(({ sendTelegram }) =>
     sendTelegram(
-      `🧾 TIRE INVOICE — Create in Auto Labor Guide\n\n` +
+      `🧾 TIRE INVOICE — SYNCED TO ADMIN\n\n` +
       `Invoice: ${invoiceNumber}\n` +
       `Order: ${order.orderNumber}\n` +
       `Customer: ${order.customerName} | ${order.customerPhone}\n` +

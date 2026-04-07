@@ -90,7 +90,7 @@ export async function pushTireOrder(order: {
   try {
     const { sendTelegram } = await import("./telegram");
     await sendTelegram(
-      `🔧 ONLINE ORDER → CREATE IN AUTO LABOR GUIDE\n\n` +
+      `🔧 ONLINE ORDER → SYNCED TO ADMIN\n\n` +
       `Order: ${order.orderNumber}\n` +
       `Customer: ${order.customerName}\n` +
       `Phone: ${order.customerPhone}\n` +
@@ -162,7 +162,7 @@ export async function pushInvoice(invoice: {
   try {
     const { sendTelegram } = await import("./telegram");
     await sendTelegram(
-      `🧾 INVOICE → CREATE IN AUTO LABOR GUIDE\n\n` +
+      `🧾 INVOICE → SYNCED TO ADMIN\n\n` +
       `Invoice: ${invoice.invoiceNumber}\n` +
       `Customer: ${invoice.customerName} | ${invoice.customerPhone}\n` +
       `Vehicle: ${invoice.vehicleInfo || "N/A"}\n` +
@@ -198,7 +198,7 @@ export async function pushEstimate(estimate: {
     ).join("\n");
 
     await sendTelegram(
-      `📋 ESTIMATE → CREATE IN AUTO LABOR GUIDE\n\n` +
+      `📋 ESTIMATE → SYNCED TO ADMIN\n\n` +
       `Customer: ${estimate.customerName}\n` +
       `Phone: ${estimate.customerPhone}\n` +
       `Email: ${estimate.customerEmail || "N/A"}\n` +

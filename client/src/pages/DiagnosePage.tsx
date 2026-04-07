@@ -362,6 +362,11 @@ export default function DiagnosePage() {
   const [result, setResult] = useState<DiagnosisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [diagLeadName, setDiagLeadName] = useState("");
+  const [diagLeadPhone, setDiagLeadPhone] = useState("");
+  const [diagLeadSubmitted, setDiagLeadSubmitted] = useState(false);
+  const [diagLeadSaving, setDiagLeadSaving] = useState(false);
+  const submitDiagLead = trpc.lead.submit.useMutation();
 
   const formRef = useRef<HTMLDivElement>(null);
 
@@ -813,6 +818,45 @@ export default function DiagnosePage() {
                     <ArrowRight className="w-5 h-5" />
                   </Link>
                 </div>
+
+                {/* Lead Capture */}
+                {!diagLeadSubmitted ? (
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+                    <h4 className="font-heading text-white text-sm tracking-wider mb-1">WANT US TO LOOK AT IT?</h4>
+                    <p className="text-white/50 text-xs mb-4">Leave your number — we'll check it out when you come in. Quick inspections are free.</p>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input type="text" placeholder="Your name" value={diagLeadName} onChange={e => setDiagLeadName(e.target.value)}
+                        className="flex-1 bg-white/5 border border-white/10 rounded px-3 py-2.5 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-[#FDB913]/50" />
+                      <input type="tel" placeholder="Phone number" value={diagLeadPhone} onChange={e => setDiagLeadPhone(e.target.value)}
+                        className="flex-1 bg-white/5 border border-white/10 rounded px-3 py-2.5 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-[#FDB913]/50" />
+                      <button
+                        disabled={!diagLeadName || !diagLeadPhone || diagLeadPhone.replace(/\D/g, "").length < 7 || diagLeadSaving}
+                        onClick={async () => {
+                          setDiagLeadSaving(true);
+                          try {
+                            await submitDiagLead.mutateAsync({
+                              name: diagLeadName,
+                              phone: diagLeadPhone,
+                              vehicle: `${vehicle.year} ${vehicle.make} ${vehicle.model}`.trim() || undefined,
+                              problem: `Diagnosis: ${result?.recommendedService || "inspection"} — ${result?.urgency || "unknown"} urgency. ${symptomText.slice(0, 200)}`,
+                              source: "popup",
+                            });
+                            setDiagLeadSubmitted(true);
+                          } catch {}
+                          setDiagLeadSaving(false);
+                        }}
+                        className="px-6 py-2.5 rounded bg-[#FDB913] text-black font-bold text-sm hover:bg-[#FDB913]/90 transition-colors disabled:opacity-40 whitespace-nowrap"
+                      >
+                        {diagLeadSaving ? "..." : "Send"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-5 text-center">
+                    <p className="font-bold text-emerald-400 text-sm">We'll have a look when you come in!</p>
+                    <p className="text-white/50 text-xs mt-1">Quick inspections are free — just walk in.</p>
+                  </div>
+                )}
 
                 <button
                   onClick={handleReset}
