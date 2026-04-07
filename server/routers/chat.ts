@@ -535,9 +535,25 @@ export const chatRouter = router({
       // Detect sentiment for prompt adaptation
       const sentiment = detectSentiment(sessionMessages);
 
+      // Feed live business intel into Nick AI
+      let businessIntel: { todayBookings?: number; estimatedWaitMinutes?: number } | undefined;
+      try {
+        const { getDb } = await import("../db");
+        const { sql: rawSql } = await import("drizzle-orm");
+        const d = await getDb();
+        if (d) {
+          const [bk] = await d.execute(rawSql`SELECT COUNT(*) as cnt FROM bookings WHERE createdAt >= CURDATE()`);
+          const todayBookings = Number((bk as any)?.[0]?.cnt || 0);
+          // Estimate wait: ~30 min per active booking, max 120
+          const estimatedWaitMinutes = Math.min(120, todayBookings * 30);
+          businessIntel = { todayBookings, estimatedWaitMinutes };
+        }
+      } catch {}
+
       const { reply, extractedInfo } = await chatWithAssistant(sessionMessages, memoryContext, {
         customerSentiment: sentiment,
         conversationLength: sessionMessages.length,
+        businessIntel,
       });
 
       // If wantsAppointment, enhance the reply with booking CTA

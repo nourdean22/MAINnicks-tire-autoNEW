@@ -112,8 +112,13 @@ export default function CostEstimator() {
   const [serviceId, setServiceId] = useState("");
   const [showResult, setShowResult] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [leadName, setLeadName] = useState("");
+  const [leadPhone, setLeadPhone] = useState("");
+  const [leadSubmitted, setLeadSubmitted] = useState(false);
+  const [leadSaving, setLeadSaving] = useState(false);
 
   const estimate = trpc.costEstimator.estimate.useMutation();
+  const submitLead = trpc.lead.submit.useMutation();
 
   // Group services by category
   const groupedServices = useMemo(() => {
@@ -176,7 +181,7 @@ export default function CostEstimator() {
   const ready = vehicleComplete && serviceId;
 
   return (
-    <PageLayout activeHref="/cost-estimator">
+    <PageLayout activeHref="/cost-estimator" showChat={true}>
       <SEOHead
         title="Auto Repair Cost Estimator | Cleveland Repair Prices"
         description="Get instant repair cost estimates for your vehicle. Brake repair, tires, diagnostics, and more. Transparent pricing from Nick's Tire & Auto in Cleveland, OH."
@@ -467,6 +472,59 @@ export default function CostEstimator() {
 
                     <FinancingCTA variant="card" />
                   </div>
+
+                  {/* Lead Capture — warm prospect, capture them */}
+                  {!leadSubmitted ? (
+                    <div className="mt-6 bg-white/5 border border-white/10 rounded-lg p-5">
+                      <h4 className="font-bold text-white text-sm mb-1">Want us to hold this price?</h4>
+                      <p className="text-white/50 text-xs mb-4">Drop your name and number — we'll have everything ready when you arrive. No appointment needed.</p>
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          placeholder="Your name"
+                          value={leadName}
+                          onChange={e => setLeadName(e.target.value)}
+                          className="w-full bg-white/5 border border-white/10 rounded px-3 py-2.5 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-primary/50"
+                        />
+                        <input
+                          type="tel"
+                          placeholder="Phone number"
+                          value={leadPhone}
+                          onChange={e => setLeadPhone(e.target.value)}
+                          className="w-full bg-white/5 border border-white/10 rounded px-3 py-2.5 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-primary/50"
+                        />
+                        <button
+                          disabled={!leadName || !leadPhone || leadPhone.replace(/\D/g, "").length < 7 || leadSaving}
+                          onClick={async () => {
+                            setLeadSaving(true);
+                            try {
+                              const selectedService = SERVICE_TYPES.find(s => s.id === serviceId);
+                              await submitLead.mutateAsync({
+                                name: leadName,
+                                phone: leadPhone,
+                                vehicle: `${year} ${make} ${model}`,
+                                problem: `Cost estimate: ${selectedService?.name || serviceId} — $${estimate.data?.totalLow}–$${estimate.data?.totalHigh}`,
+                                source: "popup",
+                                landingPage: "/cost-estimator",
+                              });
+                              setLeadSubmitted(true);
+                            } catch { /* handled by tRPC */ }
+                            setLeadSaving(false);
+                          }}
+                          className="w-full py-3 rounded-lg bg-emerald-500 text-black font-bold text-sm hover:bg-emerald-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          {leadSaving ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                          {leadSaving ? "Saving..." : "Lock In My Estimate"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-6 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-5 text-center">
+                      <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
+                      <p className="font-bold text-emerald-400 text-sm">You're all set!</p>
+                      <p className="text-white/50 text-xs mt-1">We'll have your estimate ready. Just walk in — no appointment needed.</p>
+                    </div>
+                  )}
 
                   <button
                     onClick={handleReset}
