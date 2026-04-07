@@ -317,6 +317,8 @@ async function startServer() {
   // ─── NOUR OS Bridge REST Endpoints ─────────────────────
   // These are plain REST endpoints (not tRPC) that NOUR OS calls
   // to pull shop data. Authenticated via X-Bridge-Key header.
+  // Higher body limit for bridge report ingestion (large JSON payloads)
+  app.use("/api/bridge/ingest-reports", express.json({ limit: "20mb" }));
   registerBridgeRoutes(app);
 
   // Higher body limit for photo upload (base64 encoded images up to 7.5MB)
