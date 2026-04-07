@@ -177,6 +177,49 @@ ${conversionRate < 40 ? `- 📉 Conversion rate ${conversionRate}% is below 40% 
       customerBlock = await getCustomerBrief();
     } catch {}
 
+    // ─── Intelligence Engines data ────────────────────
+    let intelligenceBlock = "";
+    try {
+      const {
+        forecastRevenue, predictCustomerLTV, scoreLeads,
+        generateCrossSellRecommendations, analyzeDeclinedWork,
+      } = await import("../../services/intelligenceEngines");
+
+      const [forecast, ltv, scoredLeads, crossSell, declined] = await Promise.all([
+        forecastRevenue().catch(() => null),
+        predictCustomerLTV().catch(() => null),
+        scoreLeads().catch(() => null),
+        generateCrossSellRecommendations().catch(() => null),
+        analyzeDeclinedWork().catch(() => null),
+      ]);
+
+      intelligenceBlock = "\nINTELLIGENCE:";
+
+      if (forecast) {
+        const monthPct = forecast.month.target > 0 ? Math.round((forecast.month.soFar / forecast.month.target) * 100) : 0;
+        intelligenceBlock += `\n📊 Revenue Forecast — Today expected: $${Math.round(forecast.today.expected)} | Week projection: $${forecast.week.projection} | Month: $${Math.round(forecast.month.soFar)}/$${(forecast.month.target / 1000)}K (${monthPct}%)`;
+      }
+
+      if (ltv && ltv.atRiskHighValue && ltv.atRiskHighValue.length > 0) {
+        const top3 = ltv.atRiskHighValue.slice(0, 3);
+        const lines = top3.map((c: any) => `  - ${c.name || "Unknown"} ($${Math.round(c.totalSpent)} spent, ${c.daysSinceLastVisit}d ago)`).join("\n");
+        intelligenceBlock += `\n⚠️ At-Risk High-Value Customers:\n${lines}`;
+      }
+
+      if (scoredLeads && Array.isArray(scoredLeads)) {
+        const hotLeads = scoredLeads.filter((l: any) => l.score > 70);
+        intelligenceBlock += `\n🎯 Lead Scoring — ${hotLeads.length} high-score leads (>70) waiting for contact`;
+      }
+
+      if (crossSell && crossSell.recommendations) {
+        intelligenceBlock += `\n🔄 Cross-Sell — ${crossSell.recommendations.length} customers due for follow-up service`;
+      }
+
+      if (declined) {
+        intelligenceBlock += `\n💸 Declined Work Recovery — $${declined.totalDeclinedValue} total declined | $${declined.recoveryOpportunity} recoverable (20% est.)`;
+      }
+    } catch {}
+
     // ─── Use Nick AI to write the brief ────────────────
     let briefText: string;
     try {
@@ -206,7 +249,7 @@ FORMAT RULES:
           },
           {
             role: "user",
-            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n\n${enrichmentBlock}\n\n${briefReviewBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
+            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n\n${enrichmentBlock}\n\n${intelligenceBlock}\n\n${briefReviewBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
           },
         ],
         maxTokens: 800,
@@ -235,6 +278,7 @@ THIS WEEK: ${weekBookings[0]?.count ?? 0} drop-offs | ${weekLeads[0]?.count ?? 0
 PIPELINE: ${pendingLeads[0]?.count ?? 0} new leads | ${pendingCallbacks[0]?.count ?? 0} callbacks | ${staleCount} stale leads | ${openWorkOrders[0]?.count ?? 0} open WOs
 
 CUSTOMERS: ${totalCustomers[0]?.count ?? 0} total | ${newCustomersMonth[0]?.count ?? 0} new this month
+${intelligenceBlock}
 
 Systems over motivation. Let's go.`;
     }

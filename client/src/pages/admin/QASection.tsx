@@ -12,8 +12,19 @@ import {
   type BookingStatus, type LeadStatus,
 } from "./shared";
 import {
-  CheckCircle2, Clock, Loader2, MessageSquare, XCircle
+  CheckCircle2, Clock, Loader2, MessageSquare, XCircle, HelpCircle, BarChart3, TrendingUp, AlertCircle
 } from "lucide-react";
+
+const TOPIC_KEYWORDS: Record<string, string[]> = {
+  "Tires": ["tire", "tires", "flat", "rotation", "alignment", "wheel"],
+  "Brakes": ["brake", "brakes", "rotor", "pad", "pads", "stopping"],
+  "Oil": ["oil", "oil change", "synthetic", "filter"],
+  "Pricing": ["price", "cost", "how much", "estimate", "quote", "cheap"],
+  "Hours": ["hours", "open", "close", "weekend", "saturday", "sunday", "when"],
+  "Engine": ["engine", "check engine", "misfire", "overheating", "coolant"],
+  "AC/Heat": ["ac", "air conditioning", "heat", "heater", "blowing"],
+  "Appointments": ["appointment", "book", "schedule", "available", "walk-in"],
+};
 
 export default function QASection() {
   const { data: questions, isLoading } = trpc.qa.all.useQuery();
@@ -28,9 +39,72 @@ export default function QASection() {
     onSuccess: () => { utils.qa.all.invalidate(); toast.success("Question removed"); },
   });
 
+  const stats = useMemo(() => {
+    const all = questions ?? [];
+    const total = all.length;
+    const answered = all.filter((q: any) => q.answer && q.answer !== "[removed]").length;
+    const unanswered = total - answered;
+    const answeredPct = total > 0 ? Math.round((answered / total) * 100) : 0;
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thisWeek = all.filter((q: any) => new Date(q.createdAt) >= weekAgo).length;
+
+    // Trending topics
+    const topicCounts: Record<string, number> = {};
+    for (const q of all) {
+      const text = ((q as any).question || "").toLowerCase();
+      for (const [topic, keywords] of Object.entries(TOPIC_KEYWORDS)) {
+        if (keywords.some(kw => text.includes(kw))) {
+          topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+        }
+      }
+    }
+    const topics = Object.entries(topicCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+    const maxTopicCount = topics.length > 0 ? topics[0][1] : 0;
+
+    return { total, answered, unanswered, answeredPct, thisWeek, topics, maxTopicCount };
+  }, [questions]);
+
   return (
     <div className="space-y-6">
       <h2 className="font-bold text-xl text-foreground tracking-wider">CUSTOMER QUESTIONS</h2>
+
+      {/* Analytics Strip */}
+      {!isLoading && stats.total > 0 && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard label="TOTAL QUESTIONS" value={stats.total} icon={<HelpCircle className="w-4 h-4" />} />
+            <StatCard label="ANSWERED" value={`${stats.answeredPct}%`} icon={<CheckCircle2 className="w-4 h-4" />} color={stats.answeredPct >= 80 ? "text-emerald-400" : "text-foreground"} />
+            <StatCard label="UNANSWERED" value={stats.unanswered} icon={<AlertCircle className="w-4 h-4" />} color={stats.unanswered > 5 ? "text-red-400" : "text-foreground"} />
+            <StatCard label="THIS WEEK" value={stats.thisWeek} icon={<TrendingUp className="w-4 h-4" />} />
+          </div>
+
+          {stats.topics.length > 0 && (
+            <div className="bg-card border border-border/30 p-4">
+              <h3 className="font-bold text-xs text-foreground/60 tracking-wider mb-3 flex items-center gap-2">
+                <BarChart3 className="w-3.5 h-3.5" /> COMMON TOPICS
+              </h3>
+              <div className="space-y-2">
+                {stats.topics.map(([topic, count]) => (
+                  <div key={topic} className="flex items-center gap-3">
+                    <span className="text-xs text-foreground/60 w-24 shrink-0">{topic}</span>
+                    <div className="flex-1 h-5 bg-foreground/5 overflow-hidden">
+                      <div
+                        className="h-full bg-primary/30 flex items-center px-2"
+                        style={{ width: `${Math.max((count / stats.maxTopicCount) * 100, 12)}%` }}
+                      >
+                        <span className="text-[10px] font-bold text-primary">{count}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
