@@ -34,12 +34,6 @@ const SERVICE_LABELS: Record<string, string> = {
 };
 
 export async function processCrossSellOutreach(): Promise<{ recordsProcessed: number; details?: string }> {
-  // Check feature flag
-  const { isEnabled } = await import("../../services/featureFlags");
-  if (!(await isEnabled("sms_cross_sell_outreach"))) {
-    return { recordsProcessed: 0, details: "Feature disabled" };
-  }
-
   // Check Twilio is configured
   if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_PHONE_NUMBER) {
     return { recordsProcessed: 0, details: "Twilio not configured" };

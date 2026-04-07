@@ -268,6 +268,26 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "revenue-pulse", // Live revenue pacing — alert on big jobs or falling behind
+        businessHoursOnly: true,
+        handler: async () => {
+          try {
+            const { forecastRevenue } = await import("../services/intelligenceEngines");
+            const forecast = await forecastRevenue();
+            const todayRevenue = forecast.today?.soFar || 0;
+            const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+            const dailyTarget = 20000 / daysInMonth;
+
+            // Alert if a single big job came in (>$1000)
+            if (todayRevenue > 1000 && todayRevenue > dailyTarget * 2) {
+              const { sendTelegram } = await import("../services/telegram");
+              await sendTelegram(`💰 Big day building: $${Math.round(todayRevenue)} so far today (${Math.round((todayRevenue/dailyTarget)*100)}% of daily target)`);
+            }
+            return { recordsProcessed: 1, details: `Today: $${Math.round(todayRevenue)}` };
+          } catch { return { details: "Revenue pulse skipped" }; }
+        },
+      },
+      {
         name: "statenour-live-sync", // Push fresh data to NOUR OS dashboard every 15min
         handler: async () => {
           const { syncToStatenour } = await import("./jobs/statenourSync");
@@ -417,6 +437,28 @@ export function startTieredScheduler(): void {
             const { processCustomerSegmentation } = await import("./jobs/customerSegmentation");
             return processCustomerSegmentation();
           } catch { return { details: "Segmentation skipped" }; }
+        },
+      },
+      {
+        name: "intelligence-autopilot", // Autonomous intelligence — alerts, scoring, pacing
+        businessHoursOnly: true,
+        handler: async () => {
+          const { runIntelligenceAutopilot } = await import("./jobs/intelligenceAutopilot");
+          return runIntelligenceAutopilot();
+        },
+      },
+      {
+        name: "intelligence-engines-live", // Cross-sell, LTV, lead scoring, attribution — every 2h not daily
+        businessHoursOnly: true,
+        handler: async () => {
+          const { scoreLeads, predictCustomerLTV, trackCampaignAttribution, analyzeDeclinedWork } = await import("../services/intelligenceEngines");
+          const [leads, ltv, attr, declined] = await Promise.all([
+            scoreLeads().catch(() => []),
+            predictCustomerLTV().catch(() => ({ segments: {} })),
+            trackCampaignAttribution().catch(() => ({})),
+            analyzeDeclinedWork().catch(() => ({ totalDeclinedValue: 0 })),
+          ]);
+          return { recordsProcessed: (leads as any[]).length, details: `Scored ${(leads as any[]).length} leads, LTV+attribution+declined updated` };
         },
       },
       {
@@ -838,16 +880,10 @@ export function startTieredScheduler(): void {
         },
       },
       {
-        name: "intelligence-engines", // Cross-sell, LTV, lead scoring, attribution, data analysis
+        name: "alg-auto-discovery", // Probe ShopDriver API for new endpoints
         handler: async () => {
-          const { scoreLeads, predictCustomerLTV, trackCampaignAttribution, analyzeDeclinedWork } = await import("../services/intelligenceEngines");
-          const [leads, ltv, attr, declined] = await Promise.all([
-            scoreLeads().catch(() => []),
-            predictCustomerLTV().catch(() => ({ segments: {} })),
-            trackCampaignAttribution().catch(() => ({})),
-            analyzeDeclinedWork().catch(() => ({ totalDeclinedValue: 0 })),
-          ]);
-          return { recordsProcessed: (leads as any[]).length, details: `Scored ${(leads as any[]).length} leads, LTV updated, attribution tracked, $${(declined as any).totalDeclinedValue || 0} declined work found` };
+          const { runAlgAutoDiscovery } = await import("./jobs/intelligenceAutopilot");
+          return runAlgAutoDiscovery();
         },
       },
       {
