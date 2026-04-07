@@ -222,6 +222,132 @@ export function registerBridgeRoutes(app: Express): void {
     }
   });
 
+  // Ingest parsed report data (invoices + analytics) from local machine
+  app.post("/api/bridge/ingest-reports", bridgeAuth, async (req, res) => {
+    try {
+      const { invoices, analytics } = req.body;
+      if (!invoices || !Array.isArray(invoices)) {
+        res.status(400).json({ error: "invoices array required" });
+        return;
+      }
+
+      // Store analytics as a memory for the brain
+      if (analytics) {
+        try {
+          const { remember } = await import("../services/nickMemory");
+          await remember({
+            type: "insight",
+            content: JSON.stringify({
+              source: "shopdriver_reports",
+              totalRevenue: analytics.totalRevenue,
+              invoiceCount: analytics.invoiceCount,
+              operatingDays: analytics.operatingDays,
+              avgTicketSize: analytics.avgTicketSize,
+              repeatRate: analytics.repeatRate,
+              growthRate: analytics.growthRate,
+              topCategories: analytics.serviceCategories?.slice(0, 5),
+              projectedAnnual: analytics.projectedAnnualRevenue,
+            }).slice(0, 2000),
+            source: "report_ingestion",
+            confidence: 0.95,
+          });
+        } catch {}
+      }
+
+      // Ingest invoices
+      const { ingestInvoices } = await import("../services/reportIngestion");
+      const result = await ingestInvoices(invoices);
+
+      // Run enrichment after ingestion
+      try {
+        const { enrichCustomerData } = await import("../services/dataPipelines");
+        const enrichResult = await enrichCustomerData();
+        res.json({
+          ingestion: result,
+          enrichment: enrichResult.details,
+          analyticsStored: !!analytics,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (enrichErr: any) {
+        res.json({
+          ingestion: result,
+          enrichment: `failed: ${enrichErr.message}`,
+          analyticsStored: !!analytics,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (err: any) {
+      console.error("[Bridge] Ingest error:", err);
+      res.status(500).json({ error: err.message || "Ingestion failed" });
+    }
+  });
+
+  // Get stored analytics
+  app.get("/api/bridge/analytics", bridgeAuth, async (_req, res) => {
+    try {
+      // Return stored analytics from the last ingestion
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
+
+      // Get invoice stats directly
+      const [stats] = await db.execute(sql`
+        SELECT
+          COUNT(*) as totalInvoices,
+          SUM(totalAmount) as totalRevenue,
+          SUM(laborCost) as totalLabor,
+          SUM(partsCost) as totalParts,
+          SUM(taxAmount) as totalTax,
+          AVG(totalAmount) as avgTicket,
+          MIN(invoiceDate) as firstInvoice,
+          MAX(invoiceDate) as lastInvoice,
+          COUNT(DISTINCT customerName) as uniqueCustomers,
+          COUNT(DISTINCT DATE(invoiceDate)) as operatingDays
+        FROM invoices
+      `);
+
+      // Monthly trend
+      const [monthly] = await db.execute(sql`
+        SELECT
+          DATE_FORMAT(invoiceDate, '%Y-%m') as month,
+          COUNT(*) as invoices,
+          SUM(totalAmount) as revenue,
+          SUM(laborCost) as labor,
+          SUM(partsCost) as parts
+        FROM invoices
+        GROUP BY DATE_FORMAT(invoiceDate, '%Y-%m')
+        ORDER BY month
+      `);
+
+      // Payment method breakdown
+      const [payments] = await db.execute(sql`
+        SELECT paymentMethod, COUNT(*) as cnt, SUM(totalAmount) as revenue
+        FROM invoices GROUP BY paymentMethod ORDER BY revenue DESC
+      `);
+
+      // Customer stats
+      const [custStats] = await db.execute(sql`
+        SELECT
+          SUM(CASE WHEN totalSpent > 0 THEN 1 ELSE 0 END) as withSpend,
+          SUM(CASE WHEN totalVisits >= 2 THEN 1 ELSE 0 END) as repeatCustomers,
+          SUM(CASE WHEN totalVisits >= 3 THEN 1 ELSE 0 END) as vip,
+          SUM(CASE WHEN vehicleMake IS NOT NULL THEN 1 ELSE 0 END) as withVehicle,
+          COUNT(*) as total
+        FROM customers
+      `);
+
+      res.json({
+        invoiceStats: (stats as any[])?.[0],
+        monthlyTrend: monthly,
+        paymentBreakdown: payments,
+        customerStats: (custStats as any[])?.[0],
+        timestamp: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Historical backfill — fetch ALL invoice history from ShopDriver (not just recent)
   app.post("/api/bridge/backfill-history", bridgeAuth, async (_req, res) => {
     try {
