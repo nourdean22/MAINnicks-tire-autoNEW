@@ -74,7 +74,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
 
   const mutation = trpc.booking.create.useMutation({
     onSuccess: () => setSubmitted(true),
-    onError: () => toast.error("Something went wrong. Please try again."),
+    onError: () => toast.error("Booking failed. Please verify your details or call us at (216) 862-0005."),
   });
 
   const uploadPhoto = trpc.booking.uploadPhoto.useMutation();
@@ -333,7 +333,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
       {mutation.error && (
         <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-md mb-6 text-sm">
           <AlertCircle className="w-4 h-4 shrink-0" />
-          Something went wrong. Please try again or call us directly.
+          Booking failed. Please verify your details or call us at (216) 862-0005.
         </div>
       )}
 

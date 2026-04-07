@@ -40,7 +40,7 @@ export default function LeadPopup() {
 
   const submitLead = trpc.lead.submit.useMutation({
     onSuccess: () => setSubmitted(true),
-    onError: () => toast.error("Something went wrong. Please try again."),
+    onError: () => toast.error("We couldn't save your info. Please try again or call (216) 862-0005."),
   });
 
   const dismiss = useCallback(() => {

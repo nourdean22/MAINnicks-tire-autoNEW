@@ -65,7 +65,7 @@ export async function detectNoShows(): Promise<{ recordsProcessed: number; detai
         const firstName = (b.name || "there").split(" ")[0];
         await sendSms(b.phone, `Hi ${firstName}, we noticed you may have missed your appointment at Nick's Tire & Auto. We'd love to reschedule — call us at (216) 862-0005 or book online at nickstire.org. We're here when you're ready!`);
         smsSent++;
-      } catch {}
+      } catch (err) { log.warn("detectNoShows: SMS send failed", { error: err instanceof Error ? err.message : String(err) }); }
       if (smsSent >= 5) break; // Rate limit
     }
 
@@ -74,7 +74,7 @@ export async function detectNoShows(): Promise<{ recordsProcessed: number; detai
       try {
         const { sendTelegram } = await import("../../services/telegram");
         await sendTelegram(`📋 NO-SHOW: ${noShows.length} bookings past date, marked as no-show. ${smsSent} follow-up SMS sent.`);
-      } catch {}
+      } catch (err) { log.warn("detectNoShows: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
     }
 
     return { recordsProcessed: noShows.length, details: `${noShows.length} no-shows flagged, ${smsSent} SMS sent` };
@@ -116,7 +116,7 @@ export async function autoCleanStaleBookings(): Promise<{ recordsProcessed: numb
         const firstName = (b.name || "there").split(" ")[0];
         await sendSms(b.phone, `Hi ${firstName}! Your booking at Nick's Tire & Auto has expired. Need to reschedule? Call (216) 862-0005 or visit nickstire.org — drop-offs welcome!`);
         smsSent++;
-      } catch {}
+      } catch (err) { log.warn("autoCleanStaleBookings: rebook SMS failed", { error: err instanceof Error ? err.message : String(err) }); }
       if (smsSent >= 10) break;
     }
 
@@ -155,7 +155,7 @@ export async function escalateStaleCallbacks(): Promise<{ recordsProcessed: numb
         smsSent++;
         // Mark as "pending" so we don't re-SMS
         await d.execute(sql`UPDATE callback_requests SET status = 'pending', updatedAt = NOW() WHERE id = ${cb.id}`);
-      } catch {}
+      } catch (err) { log.warn("escalateStaleCallbacks: SMS/status update failed", { error: err instanceof Error ? err.message : String(err) }); }
     }
 
     // Alert shop via Telegram
@@ -167,7 +167,7 @@ export async function escalateStaleCallbacks(): Promise<{ recordsProcessed: numb
           stale.slice(0, 5).map((c: any) => `${c.name || "?"} — ${c.phone || "no phone"}: ${(c.reason || "general").slice(0, 50)}`).join("\n") +
           `\n\nCall them back NOW.`
         );
-      } catch {}
+      } catch (err) { log.warn("escalateStaleCallbacks: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
     }
 
     return { recordsProcessed: stale.length, details: `${stale.length} escalated, ${smsSent} SMS sent` };
@@ -262,7 +262,7 @@ export async function autoEscalateBookingPriority(): Promise<{ recordsProcessed:
       try {
         const { sendTelegram } = await import("../../services/telegram");
         await sendTelegram(`🔺 ${affected} booking${affected > 1 ? "s" : ""} auto-escalated to HIGH priority (untouched >48h). Check the bookings tab.`);
-      } catch {}
+      } catch (err) { log.warn("autoEscalateBookingPriority: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
     }
     return { recordsProcessed: affected, details: `${affected} bookings escalated` };
   } catch (e: any) {
@@ -318,7 +318,7 @@ export async function autoFetchAndDraftReviews(): Promise<{ recordsProcessed: nu
 
         await d.execute(sql`UPDATE review_replies SET draft_reply = ${draft} WHERE id = ${review.id}`);
         drafted++;
-      } catch {}
+      } catch (err) { log.warn("autoFetchAndDraftReviews: draft generation failed", { error: err instanceof Error ? err.message : String(err), reviewId: review.id }); }
     }
 
     // Alert on negative reviews
@@ -331,7 +331,7 @@ export async function autoFetchAndDraftReviews(): Promise<{ recordsProcessed: nu
           negative.map((r: any) => `${r.review_rating}★ ${r.reviewer_name || "Anon"}: "${(r.review_text || "").slice(0, 80)}"`).join("\n") +
           `\n\nDrafts ready in admin → Review Replies.`
         );
-      } catch {}
+      } catch (err) { log.warn("autoFetchAndDraftReviews: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
     }
 
     return { recordsProcessed: drafted, details: `${drafted} reply drafts generated, ${negative.length} negative` };
@@ -360,7 +360,7 @@ export async function autoGenerateContent(): Promise<{ recordsProcessed: number;
           `"${(article as any).title || "Untitled"}"\n\n` +
           `Review in admin → Content → Drafts`
         );
-      } catch {}
+      } catch (err) { log.warn("autoGenerateContent: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
     }
 
     return { recordsProcessed: 1, details: `Article draft: "${(article as any)?.title || "generated"}"` };

@@ -23,7 +23,7 @@ export default function ReferralPage() {
 
   const submitReferral = trpc.referrals.submit.useMutation({
     onSuccess: () => setSubmitted(true),
-    onError: () => toast.error("Something went wrong. Please try again."),
+    onError: () => toast.error("Referral couldn't be submitted. Please try again."),
   });
 
   useEffect(() => { window.scrollTo(0, 0); }, []);
