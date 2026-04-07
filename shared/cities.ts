@@ -27,8 +27,8 @@ export const CITIES: CityData[] = [
   {
     slug: "euclid-auto-repair",
     name: "Euclid",
-    metaTitle: "Auto Repair in Euclid, OH | Nick's Tire & Auto | (216) 862-0005",
-    metaDescription: "Trusted auto repair shop serving Euclid, Ohio. Brakes, tires, diagnostics, emissions, and oil changes. Located on Euclid Ave, minutes from downtown Euclid. Call (216) 862-0005.",
+    metaTitle: "Auto Repair Euclid, OH | Nick's Tire & Auto | On Euclid Ave",
+    metaDescription: "Nick's Tire & Auto is Euclid's top auto repair shop on Euclid Ave. Brakes, tires, diagnostics, oil changes. 4.9 stars. Walk-ins 7 days. (216) 862-0005.",
     heroHeadline: "EUCLID'S TRUSTED\nAUTO REPAIR SHOP",
     heroSubline: "Located right on Euclid Avenue, we have been serving Euclid drivers with honest diagnostics, fair pricing, and expert repairs. From brake jobs to E-Check failures, our technicians handle it all.",
     distance: "0.5 miles",
@@ -52,8 +52,8 @@ export const CITIES: CityData[] = [
   {
     slug: "lakewood-auto-repair",
     name: "Lakewood",
-    metaTitle: "Auto Repair Near Lakewood, OH | Nick's Tire & Auto | (216) 862-0005",
-    metaDescription: "Reliable auto repair serving Lakewood, Ohio drivers. Brakes, tires, diagnostics, emissions testing, and general repair. Worth the short drive for honest service. Call (216) 862-0005.",
+    metaTitle: "Auto Repair Near Lakewood, OH | Nick's Tire | 20 Min Away",
+    metaDescription: "Lakewood drivers trust Nick's Tire & Auto for honest auto repair. Brakes, tires, diagnostics, emissions. 4.9 stars. 20 min drive. Call (216) 862-0005.",
     heroHeadline: "AUTO REPAIR FOR\nLAKEWOOD DRIVERS",
     heroSubline: "Lakewood drivers trust Nick's Tire & Auto for honest diagnostics and expert repairs. Our experienced technicians handle brakes, tires, emissions, and engine diagnostics at fair prices.",
     distance: "12 miles",
@@ -77,8 +77,8 @@ export const CITIES: CityData[] = [
   {
     slug: "parma-auto-repair",
     name: "Parma",
-    metaTitle: "Auto Repair Near Parma, OH | Nick's Tire & Auto | (216) 862-0005",
-    metaDescription: "Trusted auto repair serving Parma, Ohio. Expert brake, tire, diagnostic, and emissions repair. Over 1,600 five-star reviews. Call Nick's Tire & Auto at (216) 862-0005.",
+    metaTitle: "Auto Repair Near Parma, OH | Nick's Tire | 25 Min Away",
+    metaDescription: "Parma drivers choose Nick's Tire & Auto for honest auto repair. Brakes, tires, diagnostics, emissions. 1700+ five-star reviews. Call (216) 862-0005.",
     heroHeadline: "TRUSTED AUTO REPAIR\nFOR PARMA DRIVERS",
     heroSubline: "Parma drivers choose Nick's Tire & Auto for expert diagnostics, quality repairs, and fair pricing. Our technicians treat every vehicle like their own.",
     distance: "15 miles",
@@ -102,8 +102,8 @@ export const CITIES: CityData[] = [
   {
     slug: "east-cleveland-auto-repair",
     name: "East Cleveland",
-    metaTitle: "Auto Repair Near East Cleveland, OH | Nick's Tire & Auto | (216) 862-0005",
-    metaDescription: "Auto repair serving East Cleveland, Ohio. Brakes, tires, engine diagnostics, emissions repair, and more. Conveniently located on Euclid Ave. Call (216) 862-0005.",
+    metaTitle: "Auto Repair Near East Cleveland, OH | Nick's | 8 Min Away",
+    metaDescription: "East Cleveland auto repair at Nick's Tire & Auto, just 8 min away on Euclid Ave. Brakes, tires, diagnostics, emissions. Walk-ins 7 days. (216) 862-0005.",
     heroHeadline: "AUTO REPAIR NEAR\nEAST CLEVELAND",
     heroSubline: "Just minutes from East Cleveland on Euclid Avenue, Nick's Tire & Auto provides expert auto repair with honest diagnostics and fair pricing. No surprises, no upselling.",
     distance: "3 miles",
@@ -127,8 +127,8 @@ export const CITIES: CityData[] = [
   {
     slug: "shaker-heights-auto-repair",
     name: "Shaker Heights",
-    metaTitle: "Auto Repair Near Shaker Heights, OH | Nick's Tire & Auto | (216) 862-0005",
-    metaDescription: "Trusted auto repair serving Shaker Heights, Ohio. Expert brake, tire, diagnostic, and emissions repair. Over 1,685 five-star reviews. Call (216) 862-0005.",
+    metaTitle: "Auto Repair Near Shaker Heights, OH | Nick's | 18 Min Away",
+    metaDescription: "Shaker Heights drivers trust Nick's Tire & Auto for quality auto repair. Brakes, tires, diagnostics. 4.9 stars, 1700+ reviews. Call (216) 862-0005.",
     heroHeadline: "TRUSTED AUTO REPAIR\nFOR SHAKER HEIGHTS",
     heroSubline: "Shaker Heights drivers choose Nick's Tire & Auto for expert diagnostics, honest assessments, and fair pricing. We show you the problem before we fix it.",
     distance: "8 miles",
@@ -152,8 +152,8 @@ export const CITIES: CityData[] = [
   {
     slug: "cleveland-heights-auto-repair",
     name: "Cleveland Heights",
-    metaTitle: "Auto Repair Near Cleveland Heights, OH | Nick's Tire & Auto | (216) 862-0005",
-    metaDescription: "Auto repair serving Cleveland Heights, Ohio. Brakes, tires, engine diagnostics, emissions repair, and more. 4.9 stars, 1,685+ reviews. Call (216) 862-0005.",
+    metaTitle: "Auto Repair Near Cleveland Heights, OH | Nick's | 15 Min Away",
+    metaDescription: "Cleveland Heights auto repair at Nick's Tire & Auto, 15 min away. Brakes, tires, diagnostics, emissions. 4.9 stars. Walk-ins 7 days. (216) 862-0005.",
     heroHeadline: "AUTO REPAIR NEAR\nCLEVELAND HEIGHTS",
     heroSubline: "Cleveland Heights drivers trust Nick's Tire & Auto for honest diagnostics, quality repairs, and transparent pricing. No surprises, no upselling.",
     distance: "7 miles",
@@ -177,8 +177,8 @@ export const CITIES: CityData[] = [
   {
     slug: "mentor-auto-repair",
     name: "Mentor",
-    metaTitle: "Auto Repair Near Mentor, OH | Nick's Tire & Auto | (216) 862-0005",
-    metaDescription: "Trusted auto repair serving Mentor, Ohio. Expert brake, tire, diagnostic, and emissions repair. Honest pricing, 4.9 stars. Call Nick's Tire & Auto at (216) 862-0005.",
+    metaTitle: "Auto Repair Near Mentor, OH | Nick's Tire | 30 Min Away",
+    metaDescription: "Mentor drivers make the drive to Nick's Tire & Auto for honest auto repair. Brakes, tires, diagnostics. 4.9 stars. Worth the trip. Call (216) 862-0005.",
     heroHeadline: "TRUSTED AUTO REPAIR\nFOR MENTOR DRIVERS",
     heroSubline: "Mentor drivers make the drive to Nick's Tire & Auto because they know they will get honest diagnostics, expert repairs, and prices that are fair.",
     distance: "22 miles",
@@ -202,8 +202,8 @@ export const CITIES: CityData[] = [
   {
     slug: "strongsville-auto-repair",
     name: "Strongsville",
-    metaTitle: "Auto Repair Near Strongsville, OH | Nick's Tire & Auto | (216) 862-0005",
-    metaDescription: "Auto repair serving Strongsville, Ohio. Brakes, tires, diagnostics, emissions, and general repair. 4.9 stars, 1,685+ reviews. Call (216) 862-0005.",
+    metaTitle: "Auto Repair Near Strongsville, OH | Nick's | 28 Min Away",
+    metaDescription: "Strongsville drivers choose Nick's Tire & Auto for honest auto repair. Brakes, tires, diagnostics, emissions. 1700+ five-star reviews. (216) 862-0005.",
     heroHeadline: "AUTO REPAIR FOR\nSTRONGSVILLE DRIVERS",
     heroSubline: "Strongsville drivers choose Nick's Tire & Auto for the kind of honest, thorough auto repair that is hard to find. We diagnose it right the first time.",
     distance: "20 miles",
@@ -227,8 +227,8 @@ export const CITIES: CityData[] = [
   {
     slug: "south-euclid-auto-repair",
     name: "South Euclid",
-    metaTitle: "Auto Repair Near South Euclid, OH | Nick's Tire & Auto | (216) 862-0005",
-    metaDescription: "Trusted auto repair serving South Euclid, Ohio. Expert brake, tire, diagnostic, and emissions repair. Honest pricing. Call Nick's Tire & Auto at (216) 862-0005.",
+    metaTitle: "Auto Repair Near South Euclid, OH | Nick's | 12 Min Away",
+    metaDescription: "South Euclid auto repair at Nick's Tire & Auto, just 12 min away. Brakes, tires, diagnostics, emissions. Honest pricing. Walk-ins 7 days. (216) 862-0005.",
     heroHeadline: "TRUSTED AUTO REPAIR\nNEAR SOUTH EUCLID",
     heroSubline: "South Euclid drivers are just minutes from Nick's Tire & Auto. Expert diagnostics, honest assessments, and fair pricing on every repair.",
     distance: "5 miles",
@@ -252,8 +252,8 @@ export const CITIES: CityData[] = [
   {
     slug: "garfield-heights-auto-repair",
     name: "Garfield Heights",
-    metaTitle: "Auto Repair Near Garfield Heights, OH | Nick's Tire & Auto | (216) 862-0005",
-    metaDescription: "Auto repair serving Garfield Heights, Ohio. Brakes, tires, engine diagnostics, emissions repair. 4.9 stars. Call Nick's Tire & Auto at (216) 862-0005.",
+    metaTitle: "Auto Repair Near Garfield Heights, OH | Nick's | 20 Min Away",
+    metaDescription: "Garfield Heights auto repair at Nick's Tire & Auto, 20 min away. Brakes, tires, diagnostics, emissions. 4.9 stars, honest pricing. (216) 862-0005.",
     heroHeadline: "AUTO REPAIR NEAR\nGARFIELD HEIGHTS",
     heroSubline: "Garfield Heights drivers trust Nick's Tire & Auto for reliable auto repair. We diagnose problems accurately, explain your options, and fix it right.",
     distance: "10 miles",
@@ -277,8 +277,8 @@ export const CITIES: CityData[] = [
   {
     slug: "richmond-heights-auto-repair",
     name: "Richmond Heights",
-    metaTitle: "Auto Repair Near Richmond Heights, OH | Nick's Tire & Auto | (216) 862-0005",
-    metaDescription: "Trusted auto repair serving Richmond Heights, Ohio. Expert brake, tire, diagnostic, and emissions repair. Honest pricing, 4.9 stars. Call (216) 862-0005.",
+    metaTitle: "Auto Repair Near Richmond Heights, OH | Nick's | 13 Min Away",
+    metaDescription: "Richmond Heights auto repair at Nick's Tire & Auto, just 13 min away on Euclid Ave. Brakes, tires, diagnostics. 4.9 stars. Call (216) 862-0005.",
     heroHeadline: "TRUSTED AUTO REPAIR\nNEAR RICHMOND HEIGHTS",
     heroSubline: "Richmond Heights drivers choose Nick's Tire & Auto for honest diagnostics, expert repairs, and transparent pricing. Just minutes from Richmond Heights on Euclid Avenue.",
     distance: "6 miles",
@@ -302,8 +302,8 @@ export const CITIES: CityData[] = [
   {
     slug: "lyndhurst-auto-repair",
     name: "Lyndhurst",
-    metaTitle: "Auto Repair Near Lyndhurst, OH | Nick's Tire & Auto | (216) 862-0005",
-    metaDescription: "Auto repair serving Lyndhurst, Ohio. Brakes, tires, engine diagnostics, emissions repair, and general service. 4.9 stars. Call (216) 862-0005.",
+    metaTitle: "Auto Repair Near Lyndhurst, OH | Nick's Tire | 16 Min Away",
+    metaDescription: "Lyndhurst auto repair at Nick's Tire & Auto, 16 min away via Mayfield Rd. Brakes, tires, diagnostics, emissions. Walk-ins 7 days. (216) 862-0005.",
     heroHeadline: "AUTO REPAIR NEAR\nLYNDHURST",
     heroSubline: "Lyndhurst drivers trust Nick's Tire & Auto for quality repairs, honest diagnostics, and fair pricing. Located just minutes away on Euclid Avenue.",
     distance: "8 miles",
@@ -327,8 +327,8 @@ export const CITIES: CityData[] = [
   {
     slug: "willoughby-auto-repair",
     name: "Willoughby",
-    metaTitle: "Auto Repair Near Willoughby, OH | Nick's Tire & Auto | (216) 862-0005",
-    metaDescription: "Trusted auto repair serving Willoughby, Ohio. Expert brake, tire, diagnostic, and emissions repair. Honest service, 4.9 stars. Call (216) 862-0005.",
+    metaTitle: "Auto Repair Near Willoughby, OH | Nick's | 27 Min Away",
+    metaDescription: "Willoughby drivers trust Nick's Tire & Auto for honest auto repair. Brakes, tires, diagnostics. 4.9 stars, fair pricing. Call (216) 862-0005.",
     heroHeadline: "TRUSTED AUTO REPAIR\nFOR WILLOUGHBY DRIVERS",
     heroSubline: "Willoughby drivers make the drive to Nick's Tire & Auto for expert diagnostics, honest assessments, and quality repairs at fair prices.",
     distance: "18 miles",
@@ -352,8 +352,8 @@ export const CITIES: CityData[] = [
   {
     slug: "cleveland-auto-repair",
     name: "Cleveland",
-    metaTitle: "Auto Repair Cleveland OH | Nick's Tire & Auto | (216) 862-0005",
-    metaDescription: "Cleveland's #1 auto repair shop and tire specialist. 1,685+ Google reviews, 4.9 stars. Tires, brakes, diagnostics, emissions, oil changes. Walk-ins 7 days. $10 down financing.",
+    metaTitle: "Auto Repair Cleveland OH | 4.9 Stars | Nick's Tire & Auto",
+    metaDescription: "Cleveland's top-rated auto repair shop. Tires, brakes, diagnostics, emissions, oil changes. 1700+ reviews, 4.9 stars. Walk-ins 7 days. (216) 862-0005.",
     heroHeadline: "CLEVELAND'S #1 AUTO\nREPAIR & TIRE SHOP",
     heroSubline: "Nick's Tire & Auto is Cleveland's top-rated shop for a reason. With over 1,685 five-star reviews, honest diagnostics, and the largest new and used tire selection in the area, we are the shop Cleveland trusts.",
     distance: "0 miles",
@@ -379,8 +379,8 @@ export const CITIES: CityData[] = [
   {
     slug: "maple-heights-auto-repair",
     name: "Maple Heights",
-    metaTitle: "Auto Repair Near Maple Heights, OH | Nick's Tire & Auto | (216) 862-0005",
-    metaDescription: "Trusted auto repair serving Maple Heights, Ohio. Brakes, tires, diagnostics, emissions, oil changes. Just 15 minutes via Dunham Rd or Broadway Ave. Call (216) 862-0005.",
+    metaTitle: "Auto Repair Near Maple Heights, OH | Nick's | 15 Min Away",
+    metaDescription: "Maple Heights auto repair at Nick's Tire & Auto, 15 min via Dunham Rd. Brakes, tires, diagnostics, emissions. Walk-ins 7 days. Call (216) 862-0005.",
     heroHeadline: "AUTO REPAIR NEAR\nMAPLE HEIGHTS",
     heroSubline: "Maple Heights drivers trust Nick's Tire & Auto for honest diagnostics, expert repairs, and fair pricing. Located just 15 minutes away via Dunham Road or Broadway Avenue.",
     distance: "8 miles",
@@ -404,8 +404,8 @@ export const CITIES: CityData[] = [
   {
     slug: "bedford-auto-repair",
     name: "Bedford",
-    metaTitle: "Auto Repair Near Bedford, OH | Nick's Tire & Auto | (216) 862-0005",
-    metaDescription: "Reliable auto repair serving Bedford, Ohio. Brakes, tires, diagnostics, emissions, and general repair. Easy access via Rockside Rd and I-480. Call (216) 862-0005.",
+    metaTitle: "Auto Repair Near Bedford, OH | Nick's Tire | 18 Min Away",
+    metaDescription: "Bedford auto repair at Nick's Tire & Auto. Easy access via Rockside Rd and I-480. Brakes, tires, diagnostics. 4.9 stars. Walk-ins 7 days. (216) 862-0005.",
     heroHeadline: "TRUSTED AUTO REPAIR\nFOR BEDFORD DRIVERS",
     heroSubline: "Bedford drivers choose Nick's Tire & Auto for expert diagnostics, honest assessments, and fair pricing. Easy access via Rockside Road and I-480 — just 18 minutes away.",
     distance: "12 miles",
@@ -429,8 +429,8 @@ export const CITIES: CityData[] = [
   {
     slug: "warrensville-heights-auto-repair",
     name: "Warrensville Heights",
-    metaTitle: "Auto Repair Near Warrensville Heights, OH | Nick's Tire & Auto | (216) 862-0005",
-    metaDescription: "Trusted auto repair serving Warrensville Heights, Ohio. Brakes, tires, diagnostics, emissions. Just 12 minutes away, between Cleveland Heights and Garfield Heights. Call (216) 862-0005.",
+    metaTitle: "Auto Repair Warrensville Heights, OH | Nick's | 12 Min Away",
+    metaDescription: "Warrensville Heights auto repair at Nick's Tire & Auto, just 12 min away. Brakes, tires, diagnostics, emissions. Walk-ins 7 days. Call (216) 862-0005.",
     heroHeadline: "AUTO REPAIR NEAR\nWARRENSVILLE HEIGHTS",
     heroSubline: "Warrensville Heights drivers are just 12 minutes from Nick's Tire & Auto. Located between Cleveland Heights and Garfield Heights, we provide expert auto repair with honest diagnostics and fair pricing.",
     distance: "7 miles",
@@ -449,6 +449,81 @@ export const CITIES: CityData[] = [
       text: "Living in Warrensville Heights, Nick's is the closest honest shop I have found. They show me exactly what is wrong and never push unnecessary work. Great team.",
       author: "Tamika J.",
       location: "Warrensville Heights, OH"
+    }
+  },
+  {
+    slug: "beachwood-auto-repair",
+    name: "Beachwood",
+    metaTitle: "Auto Repair Near Beachwood, OH | Nick's Tire | 15 Min Away",
+    metaDescription: "Beachwood auto repair at Nick's Tire & Auto, 15 min away via Cedar Rd. Brakes, tires, diagnostics, emissions. 4.9 stars. Walk-ins 7 days. (216) 862-0005.",
+    heroHeadline: "TRUSTED AUTO REPAIR\nNEAR BEACHWOOD",
+    heroSubline: "Beachwood drivers choose Nick's Tire & Auto for honest diagnostics, expert repairs, and fair pricing. Just a quick drive down Cedar Road to Euclid Avenue.",
+    distance: "9 miles",
+    driveTime: "15 minutes",
+    neighborhoods: ["Beachwood Place", "Cedar Road corridor", "Chagrin Boulevard", "Richmond Road", "Commerce Park"],
+    localContent: "Beachwood residents value quality and reliability, and that is exactly what Nick's Tire & Auto delivers. Our shop on Euclid Avenue is easily accessible from Beachwood via Cedar Road, making us a convenient choice for all your vehicle maintenance and repair needs. While Beachwood has no shortage of dealerships, many drivers prefer our honest approach: we show you the problem before we fix it, explain every repair in plain language, and charge fair prices. Whether you need brake service, new tires, an oil change, or complex engine diagnostics, our experienced technicians handle it all with the care and precision Beachwood drivers expect.",
+    serviceHighlights: [
+      "Advanced engine diagnostics for check engine and warning lights",
+      "Complete brake service — pads, rotors, calipers, ABS",
+      "Tire sales and professional installation from major brands",
+      "Ohio E-Check and emissions system diagnosis and repair",
+      "Oil change service — conventional and synthetic options",
+      "Suspension and steering repair for Northeast Ohio roads"
+    ],
+    testimonial: {
+      text: "I switched from the Beachwood dealership to Nick's and saved hundreds. Same quality work, half the price, and they actually explain what they are doing.",
+      author: "Rachel M.",
+      location: "Beachwood, OH"
+    }
+  },
+  {
+    slug: "mayfield-heights-auto-repair",
+    name: "Mayfield Heights",
+    metaTitle: "Auto Repair Near Mayfield Heights, OH | Nick's | 14 Min Away",
+    metaDescription: "Mayfield Heights auto repair at Nick's Tire & Auto, 14 min away. Brakes, tires, diagnostics, emissions. 4.9 stars, honest pricing. Call (216) 862-0005.",
+    heroHeadline: "AUTO REPAIR NEAR\nMAYFIELD HEIGHTS",
+    heroSubline: "Mayfield Heights drivers trust Nick's Tire & Auto for quality repairs, honest diagnostics, and fair pricing. Just 14 minutes away on Euclid Avenue.",
+    distance: "8 miles",
+    driveTime: "14 minutes",
+    neighborhoods: ["Mayfield Road", "Golden Gate", "SOM Center Road", "Eastgate", "Lander Road"],
+    localContent: "Mayfield Heights residents enjoy easy access to Nick's Tire & Auto via Mayfield Road, making us just a 14-minute drive away. We have built our reputation among Mayfield Heights drivers by consistently delivering honest diagnostics and quality repairs at fair prices. Our technicians use advanced OBD-II diagnostic equipment to pinpoint problems accurately the first time, which saves you money and gets you back on the road faster. Whether you need an oil change, brake repair, tire service, or complex engine diagnostics, we handle every job with care and integrity. Many Mayfield Heights drivers have made us their go-to shop after experiencing our commitment to transparent, affordable auto repair.",
+    serviceHighlights: [
+      "Full diagnostic service for all dashboard warning lights",
+      "Brake inspection, repair, and replacement",
+      "New and used tire sales with mounting and balancing",
+      "Emissions testing preparation and E-Check repair",
+      "Oil change — conventional and full synthetic options",
+      "General mechanical repair and maintenance"
+    ],
+    testimonial: {
+      text: "Quick drive from Mayfield Heights and always worth it. Nick's diagnosed a noise that two other shops couldn't figure out. Honest and skilled.",
+      author: "Steve K.",
+      location: "Mayfield Heights, OH"
+    }
+  },
+  {
+    slug: "university-heights-auto-repair",
+    name: "University Heights",
+    metaTitle: "Auto Repair University Heights, OH | Nick's | 14 Min Away",
+    metaDescription: "University Heights auto repair at Nick's Tire & Auto, 14 min away. Brakes, tires, diagnostics, emissions. 4.9 stars. Walk-ins 7 days. (216) 862-0005.",
+    heroHeadline: "AUTO REPAIR NEAR\nUNIVERSITY HEIGHTS",
+    heroSubline: "University Heights drivers trust Nick's Tire & Auto for reliable auto repair. Honest diagnostics, fair pricing, and quality work — just 14 minutes from your door.",
+    distance: "8 miles",
+    driveTime: "14 minutes",
+    neighborhoods: ["Cedar Road", "Warrensville Center Road", "Silsby Road", "Bushnell Road", "John Carroll area"],
+    localContent: "University Heights sits right between South Euclid and Cleveland Heights, making Nick's Tire & Auto an easy 14-minute drive for residents. We serve the University Heights community with the same honest, expert service that has earned us a 4.9-star rating and over 1,700 five-star reviews. Our technicians understand Northeast Ohio driving conditions and provide thorough diagnostics using advanced OBD-II equipment. Whether you need brake work, tire replacement, an oil change, or complex engine diagnostics, we treat your car with the same care we would give our own. Many University Heights residents have made us their regular shop after experiencing our transparent pricing and no-pressure approach.",
+    serviceHighlights: [
+      "Check engine light diagnosis and repair",
+      "Complete brake service — pads, rotors, calipers, and ABS",
+      "Tire sales and professional installation from major brands",
+      "Ohio E-Check and emissions system repair",
+      "Oil change service — conventional and synthetic options",
+      "Cooling system service and radiator repair"
+    ],
+    testimonial: {
+      text: "Living near John Carroll, I needed a trustworthy shop. Nick's was recommended by a neighbor and they have been fantastic. Fair prices and honest work every time.",
+      author: "Daniel F.",
+      location: "University Heights, OH"
     }
   },
 ];
