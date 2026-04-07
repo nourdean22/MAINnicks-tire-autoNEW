@@ -65,7 +65,7 @@ export default function RevenueSection() {
         </div>
       </div>
 
-      {tab === "dashboard" && <DashboardView stats={stats} topCustomers={topCustomers} kpi={kpi} shopFloor={shopFloor} funnel={funnel} period={period} setPeriod={setPeriod} intel={intel} intelPeriod={intelPeriod} setIntelPeriod={setIntelPeriod} />}
+      {tab === "dashboard" && <DashboardView stats={stats} topCustomers={topCustomers} kpi={kpi} shopFloor={shopFloor} funnel={funnel} period={period} setPeriod={setPeriod} intel={intel} intelPeriod={intelPeriod} setIntelPeriod={setIntelPeriod} custIntel={custIntel} />}
       {tab === "invoices" && <InvoiceListView onCreateNew={() => setTab("create")} />}
       {tab === "create" && <CreateInvoiceView onDone={() => { setTab("invoices"); utils.invoices.list.invalidate(); utils.invoices.stats.invalidate(); }} />}
     </div>
@@ -73,7 +73,7 @@ export default function RevenueSection() {
 }
 
 // ─── DASHBOARD VIEW ─────────────────────────────────────
-function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, setPeriod, intel, intelPeriod, setIntelPeriod }: any) {
+function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, setPeriod, intel, intelPeriod, setIntelPeriod, custIntel }: any) {
   const revenueChange = stats?.periodComparison?.change ?? 0;
 
   return (
