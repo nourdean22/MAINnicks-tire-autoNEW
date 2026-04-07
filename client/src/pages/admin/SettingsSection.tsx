@@ -1,60 +1,88 @@
 /**
- * Shop Settings — manage pricing, contact info, hours, and SMS settings.
- * All settings auto-sync with the estimator and other features.
+ * Settings & Sync → ShopDriver Command Center
+ *
+ * Nick's Tire is FCFS (first come first serve). All revenue flows through
+ * ShopDriver/ALG. This page is the nerve center:
+ *
+ * 1. ALG connection status + last sync time
+ * 2. Invoice/customer counts from mirror
+ * 3. One-click sync, probe, backfill controls
+ * 4. Walk-in vs website lead classification
+ * 5. Declined work (ALG estimates that didn't convert) = recovery revenue
+ * 6. Free inspections tracking (keeps shop busy, no charge on quick ones)
  */
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { Loader2, Save, CheckCircle2, DollarSign, Phone, Clock, MessageSquare, Settings } from "lucide-react";
+import {
+  Loader2, RefreshCw, CheckCircle2, XCircle, Wifi, WifiOff,
+  Users, FileText, TrendingUp, Search, Upload, Zap,
+  AlertTriangle, Clock, DollarSign, Wrench, ArrowRight,
+} from "lucide-react";
 
-type SettingCategory = "pricing" | "contact" | "hours" | "sms" | "general";
-
-const CATEGORY_CONFIG: Record<SettingCategory, { label: string; icon: React.ReactNode; description: string }> = {
-  pricing: { label: "Pricing", icon: <DollarSign className="w-4 h-4" />, description: "Internal pricing settings. Changes auto-sync with the AI Estimator. Not shown to customers." },
-  contact: { label: "Contact Info", icon: <Phone className="w-4 h-4" />, description: "Shop name, phone, address, and email." },
-  hours: { label: "Business Hours", icon: <Clock className="w-4 h-4" />, description: "Operating hours displayed on the website." },
-  sms: { label: "SMS Settings", icon: <MessageSquare className="w-4 h-4" />, description: "SMS campaign batch size and send controls." },
-  general: { label: "General", icon: <Settings className="w-4 h-4" />, description: "General shop settings." },
-};
-
-const CATEGORIES: SettingCategory[] = ["pricing", "contact", "hours", "sms", "general"];
+function StatCard({ label, value, icon, color = "text-foreground", sub }: {
+  label: string; value: string | number; icon: React.ReactNode; color?: string; sub?: string;
+}) {
+  return (
+    <div className="bg-card border border-border/30 p-4">
+      <div className="flex items-start justify-between mb-2">
+        <span className="text-[11px] font-medium text-muted-foreground tracking-wide">{label}</span>
+        <div className="text-muted-foreground/30">{icon}</div>
+      </div>
+      <div className={`font-bold text-2xl tracking-tight ${color}`}>{value}</div>
+      {sub && <p className="text-[10px] text-muted-foreground mt-1">{sub}</p>}
+    </div>
+  );
+}
 
 export default function SettingsSection() {
-  const [activeCategory, setActiveCategory] = useState<SettingCategory>("pricing");
-  const [editValues, setEditValues] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState<string | null>(null);
-  const [saved, setSaved] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState<string | null>(null);
+  const [probeResults, setProbeResults] = useState<any>(null);
+  const [syncResult, setSyncResult] = useState<{ type: string; data: any } | null>(null);
 
-  const { data: settings, isLoading, refetch } = trpc.shopdriver.getSettings.useQuery();
-  const updateMutation = trpc.shopdriver.updateSetting.useMutation();
+  // ALG connection status
+  const { data: algStatus, isLoading: algLoading } = trpc.autoLabor.status.useQuery(undefined, { staleTime: 30_000 });
 
-  // Initialize edit values when settings load
-  useEffect(() => {
-    if (settings) {
-      const vals: Record<string, string> = {};
-      settings.forEach((s: any) => { vals[s.key] = s.value; });
-      setEditValues(vals);
-    }
-  }, [settings]);
+  // Invoice + customer counts
+  const { data: invoiceStats } = trpc.adminDashboard.stats.useQuery(undefined, { staleTime: 60_000 });
 
-  const handleSave = async (key: string) => {
-    const value = editValues[key];
-    if (value === undefined) return;
-    setSaving(key);
+  // Sync mutations
+  const syncInvoicesMut = trpc.shopdriver.syncInvoices.useMutation();
+  const syncCustomersMut = trpc.shopdriver.syncCustomers.useMutation();
+
+  // ALG probe
+  const { refetch: runProbe, isFetching: probing } = trpc.autoLabor.probeEndpoints.useQuery(undefined, {
+    enabled: false,
+    staleTime: 0,
+  });
+
+  // Import history
+  const { data: importHistory } = trpc.shopdriver.importHistory.useQuery(undefined, { staleTime: 120_000 });
+
+  const handleSync = async (type: "invoices" | "customers") => {
+    setSyncing(type);
+    setSyncResult(null);
     try {
-      await updateMutation.mutateAsync({ key, value });
-      setSaved(key);
-      setTimeout(() => setSaved(null), 2000);
-      refetch();
-    } catch {
-      // error handled by tRPC
+      const result = type === "invoices"
+        ? await syncInvoicesMut.mutateAsync()
+        : await syncCustomersMut.mutateAsync();
+      setSyncResult({ type, data: result });
+    } catch (err: any) {
+      setSyncResult({ type, data: { success: false, error: err.message } });
     } finally {
-      setSaving(null);
+      setSyncing(null);
     }
   };
 
-  const categorySettings = settings?.filter((s: any) => s.category === activeCategory) || [];
+  const handleProbe = async () => {
+    setProbeResults(null);
+    const { data } = await runProbe();
+    setProbeResults(data);
+  };
 
-  if (isLoading) {
+  const connected = algStatus?.connected ?? false;
+  const usingFallback = algStatus?.usingFallback ?? true;
+
+  if (algLoading) {
     return (
       <div className="flex items-center justify-center py-32">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -66,95 +94,211 @@ export default function SettingsSection() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="font-bold text-2xl text-foreground tracking-wider">SHOP SETTINGS</h2>
-        <p className="text-foreground/50 text-[12px] mt-1">Manage shop configuration. Changes take effect immediately.</p>
-      </div>
-
-      {/* Category Tabs */}
-      <div className="flex gap-1 overflow-x-auto pb-1">
-        {CATEGORIES.map(cat => (
-          <button
-            key={cat}
-            onClick={() => setActiveCategory(cat)}
-            className={`flex items-center gap-2 px-4 py-2.5 font-bold text-xs tracking-wide whitespace-nowrap transition-colors ${
-              activeCategory === cat
-                ? "bg-primary/10 text-primary border-b-2 border-primary"
-                : "text-foreground/50 hover:text-foreground hover:bg-foreground/5"
-            }`}
-          >
-            {CATEGORY_CONFIG[cat].icon}
-            {CATEGORY_CONFIG[cat].label}
-          </button>
-        ))}
-      </div>
-
-      {/* Settings Panel */}
-      <div className="bg-card border border-border/30 p-6">
-        <div className="mb-6">
-          <h3 className="font-bold text-sm text-foreground tracking-wide">
-            {CATEGORY_CONFIG[activeCategory].label}
-          </h3>
-          <p className="text-foreground/50 text-xs mt-1">{CATEGORY_CONFIG[activeCategory].description}</p>
-        </div>
-
-        {categorySettings.length === 0 ? (
-          <p className="text-foreground/40 text-[12px]">No settings in this category</p>
-        ) : (
-          <div className="space-y-4">
-            {categorySettings.map((setting: any) => {
-              const isChanged = editValues[setting.key] !== setting.value;
-              const isSaving = saving === setting.key;
-              const isSaved = saved === setting.key;
-
-              return (
-                <div key={setting.key} className="flex flex-col sm:flex-row sm:items-center gap-3 py-3 border-b border-border/10 last:border-0">
-                  <div className="sm:w-1/3">
-                    <label className="font-bold text-xs text-foreground tracking-wide block">
-                      {setting.label || setting.key}
-                    </label>
-                    <span className="font-mono text-[10px] text-foreground/30">{setting.key}</span>
-                  </div>
-                  <div className="flex-1 flex gap-2">
-                    <input
-                      type="text"
-                      value={editValues[setting.key] ?? setting.value}
-                      onChange={(e) => setEditValues(prev => ({ ...prev, [setting.key]: e.target.value }))}
-                      className="flex-1 bg-foreground/5 border border-border/30 px-3 py-2 text-foreground text-[13px] focus:outline-none focus:border-primary/50 transition-colors"
-                    />
-                    <button
-                      onClick={() => handleSave(setting.key)}
-                      disabled={!isChanged || isSaving}
-                      className={`flex items-center gap-1.5 px-4 py-2 font-bold text-[10px] tracking-wide transition-colors ${
-                        isSaved
-                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
-                          : isChanged
-                          ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                          : "bg-foreground/5 text-foreground/30 cursor-not-allowed"
-                      }`}
-                    >
-                      {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : isSaved ? <CheckCircle2 className="w-3 h-3" /> : <Save className="w-3 h-3" />}
-                      {isSaved ? "SAVED" : "SAVE"}
-                    </button>
-                  </div>
-                  <div className="sm:w-24 text-right">
-                    <span className="font-mono text-[10px] text-foreground/20">
-                      {setting.updatedBy === "admin" ? "Manual" : "Auto-sync"}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Info Box */}
-      <div className="bg-primary/5 border border-primary/20 p-4">
-        <h4 className="font-bold text-xs text-primary tracking-wide mb-2">AUTO-SYNC WITH ESTIMATOR</h4>
-        <p className="text-foreground/60 text-xs leading-relaxed">
-          Changes here auto-sync with the AI Repair Estimator on the website. The estimator uses these settings in real time for all future estimates.
-          The labor rate is used internally for calculations but is not displayed to customers.
+        <h2 className="font-bold text-2xl text-foreground tracking-wider">SHOPDRIVER COMMAND CENTER</h2>
+        <p className="text-foreground/50 text-[12px] mt-1">
+          ALG is the source of truth. Invoices = closed jobs. No website booking = walk-in. Estimates = declined work.
         </p>
+      </div>
+
+      {/* Connection Status Banner */}
+      <div className={`flex items-center gap-3 p-4 border ${
+        connected ? "bg-emerald-500/5 border-emerald-500/20" : "bg-red-500/5 border-red-500/20"
+      }`}>
+        {connected ? <Wifi className="w-5 h-5 text-emerald-400" /> : <WifiOff className="w-5 h-5 text-red-400" />}
+        <div className="flex-1">
+          <span className={`font-bold text-sm ${connected ? "text-emerald-400" : "text-red-400"}`}>
+            {connected ? "ALG CONNECTED" : "ALG OFFLINE — Using Built-in Labor Guide"}
+          </span>
+          <p className="text-foreground/50 text-[11px] mt-0.5">
+            {connected
+              ? `Authenticated as ${algStatus?.accountId || "?"} • Last check: ${algStatus?.lastAuthCheck || "just now"}`
+              : algStatus?.error || "No credentials configured"
+            }
+          </p>
+        </div>
+        <div className="text-right">
+          <span className="font-mono text-[10px] text-foreground/30">
+            {algStatus?.fallbackCategories || 0} categories • {algStatus?.fallbackJobs || 0} jobs
+          </span>
+          <br />
+          <span className="font-mono text-[10px] text-foreground/30">
+            {algStatus?.totalLookups || 0} lookups total
+          </span>
+        </div>
+      </div>
+
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard
+          label="INVOICES THIS WEEK"
+          value={invoiceStats?.shopFloor?.invoicesThisWeek ?? "—"}
+          icon={<FileText className="w-4 h-4" />}
+          sub={`$${Math.round((invoiceStats?.shopFloor?.revenueThisWeek ?? 0) / 100).toLocaleString()} revenue`}
+        />
+        <StatCard
+          label="CUSTOMERS"
+          value={invoiceStats?.shopFloor?.totalCustomers ?? "—"}
+          icon={<Users className="w-4 h-4" />}
+          sub={`${invoiceStats?.shopFloor?.vipCustomers ?? 0} VIP (3+ visits)`}
+        />
+        <StatCard
+          label="AVG TICKET"
+          value={`$${Math.round((invoiceStats?.shopFloor?.avgTicket ?? 0) / 100)}`}
+          icon={<DollarSign className="w-4 h-4" />}
+          sub="From ALG invoices"
+        />
+        <StatCard
+          label="WEBSITE LEADS"
+          value={invoiceStats?.leads?.total ?? "—"}
+          icon={<TrendingUp className="w-4 h-4" />}
+          color={Number(invoiceStats?.leads?.urgent || 0) > 0 ? "text-red-400" : "text-foreground"}
+          sub={`${invoiceStats?.leads?.urgent ?? 0} urgent • rest = walk-ins`}
+        />
+      </div>
+
+      {/* Business Model Card */}
+      <div className="bg-primary/5 border border-primary/20 p-4">
+        <h4 className="font-bold text-xs text-primary tracking-wide mb-2">HOW DATA FLOWS</h4>
+        <div className="text-foreground/60 text-xs leading-relaxed space-y-1">
+          <p><span className="text-foreground font-medium">Invoice in ALG</span> → Closed job, revenue counted. Customer auto-created/updated.</p>
+          <p><span className="text-foreground font-medium">Website booking/lead</span> → Tracked as online conversion. Everything else = walk-in (FCFS).</p>
+          <p><span className="text-foreground font-medium">ALG estimate (no invoice)</span> → Declined work. Customer walked. Recovery opportunity.</p>
+          <p><span className="text-foreground font-medium">Quick inspection (no charge)</span> → Free service, keeps bays busy, builds trust. Not lost revenue.</p>
+        </div>
+      </div>
+
+      {/* Sync Controls */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Sync Invoices */}
+        <button
+          onClick={() => handleSync("invoices")}
+          disabled={syncing === "invoices"}
+          className="flex items-center gap-3 bg-card border border-border/30 p-4 hover:border-primary/30 transition-colors text-left group"
+        >
+          {syncing === "invoices" ? <Loader2 className="w-5 h-5 animate-spin text-primary" /> : <RefreshCw className="w-5 h-5 text-foreground/50 group-hover:text-primary transition-colors" />}
+          <div>
+            <span className="font-bold text-sm text-foreground">Sync Invoices</span>
+            <p className="text-foreground/40 text-[11px]">Pull latest from ALG → DB</p>
+          </div>
+        </button>
+
+        {/* Sync Customers */}
+        <button
+          onClick={() => handleSync("customers")}
+          disabled={syncing === "customers"}
+          className="flex items-center gap-3 bg-card border border-border/30 p-4 hover:border-primary/30 transition-colors text-left group"
+        >
+          {syncing === "customers" ? <Loader2 className="w-5 h-5 animate-spin text-primary" /> : <Users className="w-5 h-5 text-foreground/50 group-hover:text-primary transition-colors" />}
+          <div>
+            <span className="font-bold text-sm text-foreground">Sync Customers</span>
+            <p className="text-foreground/40 text-[11px]">Merge ALG customer data</p>
+          </div>
+        </button>
+
+        {/* Probe ALG Endpoints */}
+        <button
+          onClick={handleProbe}
+          disabled={probing}
+          className="flex items-center gap-3 bg-card border border-border/30 p-4 hover:border-primary/30 transition-colors text-left group"
+        >
+          {probing ? <Loader2 className="w-5 h-5 animate-spin text-primary" /> : <Search className="w-5 h-5 text-foreground/50 group-hover:text-primary transition-colors" />}
+          <div>
+            <span className="font-bold text-sm text-foreground">Probe ALG API</span>
+            <p className="text-foreground/40 text-[11px]">Discover available endpoints</p>
+          </div>
+        </button>
+      </div>
+
+      {/* Sync Result */}
+      {syncResult && (
+        <div className={`p-4 border ${syncResult.data?.success !== false ? "bg-emerald-500/5 border-emerald-500/20" : "bg-red-500/5 border-red-500/20"}`}>
+          <div className="flex items-center gap-2 mb-1">
+            {syncResult.data?.success !== false ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-red-400" />}
+            <span className="font-bold text-xs tracking-wide">
+              {syncResult.type.toUpperCase()} SYNC {syncResult.data?.success !== false ? "COMPLETE" : "FAILED"}
+            </span>
+          </div>
+          <p className="text-foreground/60 text-xs">
+            {syncResult.data?.error || `${syncResult.data?.synced || 0} synced, ${syncResult.data?.updated || 0} updated`}
+          </p>
+          {syncResult.data?.hint && (
+            <p className="text-foreground/40 text-[11px] mt-1 italic">{syncResult.data.hint}</p>
+          )}
+        </div>
+      )}
+
+      {/* Probe Results */}
+      {probeResults && (
+        <div className="bg-card border border-border/30 p-4">
+          <h3 className="font-bold text-sm text-foreground tracking-wide mb-3">ALG ENDPOINT DISCOVERY</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {Object.entries(probeResults).map(([endpoint, result]: [string, any]) => (
+              <div key={endpoint} className={`flex items-center gap-2 p-2 border ${
+                result.status >= 200 && result.status < 400 ? "border-emerald-500/20 bg-emerald-500/5" : "border-border/20"
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${
+                  result.status >= 200 && result.status < 400 ? "bg-emerald-400" : "bg-foreground/20"
+                }`} />
+                <span className="font-mono text-[11px] text-foreground/70 flex-1 truncate">{endpoint}</span>
+                <span className={`font-mono text-[10px] ${
+                  result.status >= 200 && result.status < 400 ? "text-emerald-400" : "text-foreground/30"
+                }`}>
+                  {result.status} {result.isJson ? "JSON" : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* CSV Import History */}
+      {importHistory && importHistory.length > 0 && (
+        <div className="bg-card border border-border/30 p-4">
+          <h3 className="font-bold text-sm text-foreground tracking-wide mb-3">IMPORT HISTORY</h3>
+          <div className="space-y-2">
+            {importHistory.slice(0, 5).map((h: any) => (
+              <div key={h.id} className="flex items-center gap-3 text-[12px] py-2 border-b border-border/10 last:border-0">
+                <Clock className="w-3.5 h-3.5 text-foreground/30" />
+                <span className="text-foreground/50 w-36">{new Date(h.createdAt).toLocaleString()}</span>
+                <span className="text-foreground">{h.totalRows} rows</span>
+                <span className="text-emerald-400">{h.newCustomers || 0} new</span>
+                <span className="text-foreground/50">{h.updatedCustomers || 0} updated</span>
+                <span className={`ml-auto font-bold text-[10px] tracking-wide ${
+                  h.status === "completed" ? "text-emerald-400" : h.status === "failed" ? "text-red-400" : "text-amber-400"
+                }`}>
+                  {h.status?.toUpperCase()}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Cron Status */}
+      <div className="bg-card border border-border/30 p-4">
+        <h3 className="font-bold text-sm text-foreground tracking-wide mb-3">AUTONOMOUS OPERATIONS</h3>
+        <p className="text-foreground/50 text-[11px] mb-3">These run automatically. No manual action needed.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {[
+            { name: "ALG Mirror", interval: "Every 15min", desc: "Invoices + customers from ShopDriver" },
+            { name: "Intelligence Autopilot", interval: "Every 2h", desc: "Lead scoring, revenue pacing, cross-sell" },
+            { name: "No-Show Detection", interval: "Daily", desc: "Flags past-date bookings, sends SMS" },
+            { name: "Declined Work Recovery", interval: "Daily", desc: "Identifies recoverable revenue from estimates" },
+            { name: "Review Auto-Draft", interval: "Daily", desc: "AI drafts for new Google reviews" },
+            { name: "Cross-Sell Outreach", interval: "Daily", desc: "SMS recommendations from service history" },
+            { name: "Stale Booking Cleanup", interval: "Daily", desc: "Auto-cancels 30+ day old bookings" },
+            { name: "Callback Escalation", interval: "Every 2h", desc: "Re-alerts on unanswered callbacks >4h" },
+          ].map(job => (
+            <div key={job.name} className="flex items-center gap-3 p-2.5 border border-border/10">
+              <Zap className="w-3.5 h-3.5 text-primary shrink-0" />
+              <div className="flex-1 min-w-0">
+                <span className="text-foreground text-[12px] font-medium">{job.name}</span>
+                <p className="text-foreground/40 text-[10px] truncate">{job.desc}</p>
+              </div>
+              <span className="font-mono text-[10px] text-primary/60 whitespace-nowrap">{job.interval}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

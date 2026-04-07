@@ -102,8 +102,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "System",
     items: [
-      { id: "settings", label: "Settings & Sync", icon: <Settings className="w-4 h-4" /> },
-      { id: "shopdriver", label: "ShopDriver", icon: <Plug className="w-4 h-4" /> },
+      { id: "settings", label: "ShopDriver HQ", icon: <Plug className="w-4 h-4" /> },
       { id: "content", label: "Content", icon: <FileText className="w-4 h-4" /> },
       { id: "analyticsView", label: "Analytics", icon: <BarChart3 className="w-4 h-4" /> },
       { id: "exportView", label: "Export", icon: <Download className="w-4 h-4" /> },
@@ -137,7 +136,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   winback: "Win-Back",
   campaigns: "Outreach Hub",
   autoFollowUp: "Auto Follow-Up",
-  settings: "Settings & Sync",
+  settings: "ShopDriver HQ",
   shopdriver: "ShopDriver Sync",
   estimates: "Walk-In Estimates",
   activity: "Activity",
