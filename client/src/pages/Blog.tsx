@@ -9,20 +9,40 @@ import { Link } from "wouter";
 import { BLOG_ARTICLES } from "@shared/blog";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { Phone, Clock, ArrowRight } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
-
-// Get unique categories
-const categories = ["All", ...Array.from(new Set(BLOG_ARTICLES.map(a => a.category)))];
+import { trpc } from "@/lib/trpc";
 
 export default function Blog() {
   const [activeCategory, setActiveCategory] = useState("All");
+  const { data: dbArticles } = trpc.content.publishedArticles.useQuery(undefined, { staleTime: 120_000 });
+
+  // Merge DB-generated articles with static blog articles
+  const allArticles = useMemo(() => {
+    const fromDb = (dbArticles || []).map((a: any) => ({
+      slug: a.slug || `article-${a.id}`,
+      title: a.title,
+      excerpt: a.metaDescription || (a.body || "").slice(0, 160) + "...",
+      category: a.category || "Maintenance",
+      readTime: `${Math.max(3, Math.round((a.body || "").split(" ").length / 200))} min read`,
+      date: a.publishedAt ? new Date(a.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Recent",
+      image: a.imageUrl || undefined,
+      generated: true,
+    }));
+    // DB articles first (newest content), then static fallbacks
+    return [...fromDb, ...BLOG_ARTICLES];
+  }, [dbArticles]);
+
+  const categories = useMemo(() =>
+    ["All", ...Array.from(new Set(allArticles.map((a: any) => a.category)))],
+    [allArticles]
+  );
 
   const filtered = activeCategory === "All"
-    ? BLOG_ARTICLES
-    : BLOG_ARTICLES.filter(a => a.category === activeCategory);
+    ? allArticles
+    : allArticles.filter((a: any) => a.category === activeCategory);
 
   return (
     <PageLayout activeHref="/blog" showChat={true}>

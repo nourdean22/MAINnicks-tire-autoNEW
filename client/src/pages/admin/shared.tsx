@@ -69,6 +69,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "overview", label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
       { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
       { id: "workOrders", label: "Work Orders", icon: <Wrench className="w-4 h-4" /> },
+      { id: "dispatch", label: "Dispatch & QC", icon: <ClipboardList className="w-4 h-4" /> },
       { id: "tireOrders", label: "Tire Orders", icon: <ShoppingCart className="w-4 h-4" /> },
     ],
   },
@@ -85,6 +86,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "revenue", label: "Revenue", icon: <TrendingUp className="w-4 h-4" /> },
       { id: "intelligence", label: "Intelligence", icon: <Brain className="w-4 h-4" /> },
+      { id: "financing", label: "Financing", icon: <CreditCard className="w-4 h-4" /> },
       { id: "callTrackingView", label: "Calls", icon: <PhoneCall className="w-4 h-4" /> },
     ],
   },
@@ -92,12 +94,19 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Outreach",
     items: [
       { id: "campaigns", label: "Outreach Hub", icon: <Send className="w-4 h-4" /> },
+      { id: "loyalty", label: "Loyalty", icon: <Trophy className="w-4 h-4" /> },
+      { id: "referrals", label: "Referrals", icon: <Gift className="w-4 h-4" /> },
+      { id: "coupons", label: "Coupons", icon: <Star className="w-4 h-4" /> },
     ],
   },
   {
     label: "System",
     items: [
       { id: "settings", label: "Settings & Sync", icon: <Settings className="w-4 h-4" /> },
+      { id: "shopdriver", label: "ShopDriver", icon: <Plug className="w-4 h-4" /> },
+      { id: "content", label: "Content", icon: <FileText className="w-4 h-4" /> },
+      { id: "analyticsView", label: "Analytics", icon: <BarChart3 className="w-4 h-4" /> },
+      { id: "exportView", label: "Export", icon: <Download className="w-4 h-4" /> },
       { id: "health", label: "Site Health", icon: <Globe className="w-4 h-4" /> },
       { id: "activity", label: "Activity", icon: <Activity className="w-4 h-4" /> },
     ],
