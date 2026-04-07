@@ -378,7 +378,37 @@ const CITY_PAGES: RouteEntry[] = [
     priority: 0.8,
     changefreq: "monthly",
     title: "Auto Repair Warrensville Heights OH — Nick's Tire & Auto",
-    description: "Top-rated auto repair near Warrensville Heights, OH. Nick's Tire & Auto — 4.9 stars, 1,685+ reviews. Tires, brakes, diagnostics. 12 min drive.",
+    description: "Top-rated auto repair near Warrensville Heights, OH. Nick's Tire & Auto — 4.9 stars, 1,700+ reviews. Tires, brakes, diagnostics. 12 min drive.",
+    group: "city",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/beachwood-auto-repair",
+    priority: 0.8,
+    changefreq: "monthly",
+    title: "Auto Repair Near Beachwood OH — Nick's Tire & Auto",
+    description: "Top-rated auto repair near Beachwood, OH. Nick's Tire & Auto — 4.9 stars, 1,700+ reviews. Tires, brakes, diagnostics. 15 min via Cedar Rd.",
+    group: "city",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/mayfield-heights-auto-repair",
+    priority: 0.8,
+    changefreq: "monthly",
+    title: "Auto Repair Near Mayfield Heights OH — Nick's Tire & Auto",
+    description: "Top-rated auto repair near Mayfield Heights, OH. Nick's Tire & Auto — 4.9 stars, 1,700+ reviews. Tires, brakes, diagnostics. 14 min drive.",
+    group: "city",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/university-heights-auto-repair",
+    priority: 0.8,
+    changefreq: "monthly",
+    title: "Auto Repair University Heights OH — Nick's Tire & Auto",
+    description: "Top-rated auto repair near University Heights, OH. Nick's Tire & Auto — 4.9 stars, 1,700+ reviews. Tires, brakes, diagnostics. 14 min drive.",
     group: "city",
     sitemap: true,
     prerender: true,
@@ -451,12 +481,12 @@ const NEIGHBORHOOD_PAGES: RouteEntry[] = [
 
 // ─── SEO SERVICE PAGES (long-tail keywords) ──────────────
 const SEO_SERVICE_PAGES: RouteEntry[] = [
-  { path: "/brake-repair-cleveland", priority: 0.8, changefreq: "monthly", title: "Cleveland Brake Repair Experts — Nick's Tire & Auto", description: "Expert brake repair in Cleveland. Pads, rotors, calipers, ABS. Honest diagnosis before any repair. 4.9 stars, 1,685+ reviews. Walk-ins welcome.", group: "seo-service", sitemap: true, prerender: true },
-  { path: "/check-engine-light-cleveland", priority: 0.8, changefreq: "monthly", title: "Check Engine Light On? Same-Day Diagnostics | Cleveland OH", description: "Check engine light on? We diagnose it fast with OBD-II scanners — no guesswork. Walk in today, get answers in minutes. 4.9 stars, 1,685+ reviews. Open 7 days. Call (216) 862-0005.", group: "seo-service", sitemap: true, prerender: true },
-  { path: "/tire-repair-cleveland", priority: 0.9, changefreq: "monthly", title: "Tire Repair Cleveland OH — Nick's Tire & Auto", description: "Flat tire repair from $15 in Cleveland. Plug and patch in 15 min. Largest new & used tire selection. Free installation with purchase. Walk-ins 7 days.", group: "seo-service", sitemap: true, prerender: true },
-  { path: "/suspension-repair-cleveland", priority: 0.8, changefreq: "monthly", title: "Suspension Repair Cleveland — Nick's Tire & Auto", description: "Suspension and steering repair in Cleveland. Struts, shocks, ball joints, tie rods. 4.9 stars. Financing available. Walk-ins welcome.", group: "seo-service", sitemap: true, prerender: true },
-  { path: "/ac-repair-cleveland", priority: 0.8, changefreq: "monthly", title: "Cleveland AC & Heating Repair — Nick's Tire & Auto", description: "Auto AC repair in Cleveland. Recharge, compressor, condenser, evaporator. Stay cool this summer. 4.9 stars. Walk-ins welcome.", group: "seo-service", sitemap: true, prerender: true },
-  { path: "/diagnostics-cleveland", priority: 0.8, changefreq: "monthly", title: "Auto Diagnostics Cleveland — Nick's Tire & Auto", description: "Advanced auto diagnostics in Cleveland. Computer scanning, electrical testing, drivability issues. We find the real problem. Walk-ins welcome.", group: "seo-service", sitemap: true, prerender: true },
+  { path: "/brake-repair-cleveland", priority: 0.8, changefreq: "monthly", title: "Brake Repair Cleveland OH | 36-Month Warranty | Nick's Tire", description: "Brake repair in Cleveland, OH. Pads, rotors, calipers, ABS. 36-month warranty, same-day service. 4.9 stars, 1,700+ reviews. Call (216) 862-0005.", group: "seo-service", sitemap: true, prerender: true },
+  { path: "/check-engine-light-cleveland", priority: 0.8, changefreq: "monthly", title: "Check Engine Light Cleveland OH | Free Scan w/ Repair | Nick's", description: "Check engine light on in Cleveland? Free diagnostic scan with repair. We find the exact cause with OBD-II. Walk-ins 7 days. Call (216) 862-0005.", group: "seo-service", sitemap: true, prerender: true },
+  { path: "/tire-repair-cleveland", priority: 0.9, changefreq: "monthly", title: "Tire Shop Cleveland OH | New & Used Tires | Walk-Ins | Nick's", description: "Cleveland's top tire shop. New and used tires, mounting, balancing, flat repair. All major brands, fair prices. Walk-ins 7 days. Call (216) 862-0005.", group: "seo-service", sitemap: true, prerender: true },
+  { path: "/suspension-repair-cleveland", priority: 0.8, changefreq: "monthly", title: "Suspension Repair Cleveland OH | Struts & Shocks | Nick's Tire", description: "Suspension repair in Cleveland. Struts, shocks, ball joints, tie rods. Fix pothole damage. Same-day service, 4.9 stars. Call (216) 862-0005.", group: "seo-service", sitemap: true, prerender: true },
+  { path: "/ac-repair-cleveland", priority: 0.8, changefreq: "monthly", title: "AC Repair Cleveland OH | Same Day Service | Nick's Tire", description: "Car AC not blowing cold in Cleveland? Recharge, compressor, leak repair. Same-day service, walk-ins welcome 7 days. Call (216) 862-0005.", group: "seo-service", sitemap: true, prerender: true },
+  { path: "/diagnostics-cleveland", priority: 0.8, changefreq: "monthly", title: "Auto Diagnostics Cleveland OH | Walk-Ins Welcome | Nick's Tire", description: "Advanced auto diagnostics in Cleveland. OBD-II scanning, electrical testing, sensor diagnostics. Walk-ins 7 days. 4.9 stars. Call (216) 862-0005.", group: "seo-service", sitemap: true, prerender: true },
 ];
 
 // ─── VEHICLE MAKE PAGES ──────────────────────────────────

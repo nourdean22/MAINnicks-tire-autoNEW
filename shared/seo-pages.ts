@@ -28,8 +28,8 @@ export interface SEOServicePage {
 export const SEO_SERVICE_PAGES: SEOServicePage[] = [
   {
     slug: "brake-repair-cleveland",
-    metaTitle: "Brake Repair Cleveland OH | Pads, Rotors, ABS | Nick's Tire & Auto",
-    metaDescription: "Expert brake repair in Cleveland. Brake pads, rotors, calipers, ABS diagnostics, and brake fluid service. Honest diagnosis before any repair. Call (216) 862-0005.",
+    metaTitle: "Brake Repair Cleveland OH | 36-Month Warranty | Nick's Tire",
+    metaDescription: "Brake repair in Cleveland, OH. Pads, rotors, calipers, ABS. 36-month warranty, same-day service. 4.9 stars, 1700+ reviews. Call (216) 862-0005.",
     heroHeadline: "BRAKE REPAIR\nIN CLEVELAND",
     heroSubline: "Squealing, grinding, or a soft brake pedal all point to brake components that need attention. Our technicians inspect the entire braking system, show you the worn parts, and explain your options before any work begins.",
     category: "service",
@@ -84,8 +84,8 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
   },
   {
     slug: "check-engine-light-cleveland",
-    metaTitle: "Check Engine Light Cleveland OH | OBD-II Diagnostics | Nick's Tire & Auto",
-    metaDescription: "Check engine light on? Our Cleveland technicians use advanced OBD-II diagnostics to find the exact cause. No guesswork, no unnecessary repairs. Call (216) 862-0005.",
+    metaTitle: "Check Engine Light Cleveland OH | Free Scan w/ Repair | Nick's",
+    metaDescription: "Check engine light on in Cleveland? Free diagnostic scan with repair. We find the exact cause with OBD-II. Walk-ins 7 days. Call (216) 862-0005.",
     heroHeadline: "CHECK ENGINE LIGHT\nDIAGNOSTICS",
     heroSubline: "A check engine light can mean anything from a loose gas cap to a failing catalytic converter. We read the codes, run live data tests, and tell you exactly what is wrong before recommending any repair.",
     category: "service",
@@ -136,8 +136,8 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
   },
   {
     slug: "tire-repair-cleveland",
-    metaTitle: "Tire Repair & Replacement Cleveland OH | All Brands | Nick's Tire & Auto",
-    metaDescription: "Tire repair, replacement, mounting, balancing, and rotation in Cleveland. New and used tires from all major brands at fair prices. Call (216) 862-0005.",
+    metaTitle: "Tire Shop Cleveland OH | New & Used Tires | Walk-Ins | Nick's",
+    metaDescription: "Cleveland's top tire shop. New and used tires, mounting, balancing, flat repair. All major brands, fair prices. Walk-ins 7 days. Call (216) 862-0005.",
     heroHeadline: "TIRE REPAIR &\nREPLACEMENT",
     heroSubline: "Whether you have a flat, need new tires, or want a rotation and balance, we handle it. We carry all major tire brands and offer honest recommendations based on your driving needs and budget.",
     category: "service",
@@ -192,8 +192,8 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
   },
   {
     slug: "suspension-repair-cleveland",
-    metaTitle: "Suspension Repair Cleveland OH | Shocks, Struts, Ball Joints | Nick's Tire & Auto",
-    metaDescription: "Suspension repair in Cleveland. Shocks, struts, ball joints, tie rods, control arms, and alignment. Cleveland roads are tough — we keep your ride smooth. Call (216) 862-0005.",
+    metaTitle: "Suspension Repair Cleveland OH | Struts & Shocks | Nick's Tire",
+    metaDescription: "Suspension repair in Cleveland. Struts, shocks, ball joints, tie rods. Fix pothole damage. Same-day service, 4.9 stars. Call (216) 862-0005.",
     heroHeadline: "SUSPENSION REPAIR\nFOR CLEVELAND ROADS",
     heroSubline: "Cleveland potholes, frost heaves, and rough roads take a toll on suspension components. When your ride feels loose, bouncy, or unstable, our technicians inspect every component and restore safe handling.",
     category: "service",
@@ -244,8 +244,8 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
   },
   {
     slug: "ac-repair-cleveland",
-    metaTitle: "AC Repair Cleveland OH | Car Air Conditioning Service | Nick's Tire & Auto",
-    metaDescription: "Car AC not blowing cold? AC repair, recharge, compressor replacement, and leak detection in Cleveland. Stay cool this summer. Call (216) 862-0005.",
+    metaTitle: "AC Repair Cleveland OH | Same Day Service | Nick's Tire",
+    metaDescription: "Car AC not blowing cold in Cleveland? Recharge, compressor, leak repair. Same-day service, walk-ins welcome 7 days. Call (216) 862-0005.",
     heroHeadline: "CAR AC REPAIR\nIN CLEVELAND",
     heroSubline: "When your air conditioning stops blowing cold, driving in summer heat becomes miserable. We diagnose AC problems accurately, fix the root cause, and restore full cold air — not just add refrigerant and hope.",
     category: "service",
@@ -296,8 +296,8 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
   },
   {
     slug: "diagnostics-cleveland",
-    metaTitle: "Auto Diagnostics Cleveland OH | Computer & Electrical | Nick's Tire & Auto",
-    metaDescription: "Advanced auto diagnostics in Cleveland. OBD-II scanning, electrical troubleshooting, sensor testing, and computer module diagnostics. Call (216) 862-0005.",
+    metaTitle: "Auto Diagnostics Cleveland OH | Walk-Ins Welcome | Nick's Tire",
+    metaDescription: "Advanced auto diagnostics in Cleveland. OBD-II scanning, electrical testing, sensor diagnostics. Walk-ins 7 days. 4.9 stars. Call (216) 862-0005.",
     heroHeadline: "ADVANCED AUTO\nDIAGNOSTICS",
     heroSubline: "Modern vehicles have dozens of computers and hundreds of sensors. When something goes wrong, you need a shop with the tools and knowledge to find the real problem — not just read a code and guess.",
     category: "service",
