@@ -199,8 +199,8 @@ export default function NeighborhoodPage() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title={`${neighborhood.name} Auto Repair — ${BUSINESS.name} (${neighborhood.driveTime} Away)`}
-        description={neighborhood.description}
+        title={`Auto Repair Near ${neighborhood.name} | Nick's Tire & Auto Cleveland`}
+        description={`${neighborhood.name} auto repair and tire shop. ${neighborhood.driveMiles} from Nick's Tire & Auto. Walk-ins welcome 7 days. ${BUSINESS.reviews.rating}\u2605 rated. ${BUSINESS.phone.display}`}
         canonicalPath={`/${neighborhood.slug}`}
       />
       <NeighborhoodSchema neighborhood={neighborhood} />
