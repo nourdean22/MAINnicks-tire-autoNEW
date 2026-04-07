@@ -299,7 +299,7 @@ function PositionCard({ pos }: { pos: Position }) {
 // ─── PAGE ─────────────────────────────────────────────────
 export default function Careers() {
   return (
-    <PageLayout activeHref="/careers">
+    <PageLayout activeHref="/careers" showChat={true}>
       <SEOHead
         title="Careers | Nick's Tire & Auto Cleveland — We're Hiring"
         description="We're hiring automotive technicians, service advisors, and tire techs in Cleveland, Ohio. Family-owned shop. Honest work environment. No flat-rate grind. Apply now."

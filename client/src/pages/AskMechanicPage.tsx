@@ -59,7 +59,7 @@ export default function AskMechanicPage() {
   });
 
   return (
-    <PageLayout>
+    <PageLayout showChat={true}>
       <SEOHead
         title="Ask a Mechanic | Nick's Tire & Auto Cleveland"
         description="Got a car question? Ask our mechanics for free. Browse answered questions about brakes, engine problems, tires, and more at Nick's Tire & Auto."

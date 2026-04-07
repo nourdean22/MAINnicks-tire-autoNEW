@@ -36,7 +36,7 @@ export default function AreasServed() {
   const intersectionAreas = Object.keys(intersectionsByArea).sort();
 
   return (
-    <PageLayout activeHref="/areas-served">
+    <PageLayout activeHref="/areas-served" showChat={true}>
       <SEOHead
         title="Areas Served — Nick's Tire & Auto | Cleveland & Northeast Ohio"
         description="Nick's Tire & Auto serves 150+ locations across Cleveland, Euclid, Parma, Lakewood, Mentor, and all of Northeast Ohio. Find your neighborhood auto repair page."

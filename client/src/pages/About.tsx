@@ -22,7 +22,7 @@ export default function About() {
   const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
 
   return (
-    <PageLayout activeHref="/about">
+    <PageLayout activeHref="/about" showChat={true}>
       <SEOHead
         title="About Us | Nick's Tire & Auto Cleveland"
         description="Learn about Nick's Tire & Auto — honest diagnostics, fair pricing, experienced technicians serving Cleveland, Euclid, and Northeast Ohio since 2018."

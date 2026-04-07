@@ -1036,7 +1036,7 @@ export default function ServicePage() {
   }
 
   return (
-    <PageLayout>
+    <PageLayout showChat={true}>
       {service && (
         <SEOHead
           title={service.metaTitle}

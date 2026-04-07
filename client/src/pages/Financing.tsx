@@ -196,7 +196,7 @@ export default function Financing() {
   }, [trackMutation]);
 
   return (
-    <PageLayout activeHref="/financing">
+    <PageLayout activeHref="/financing" showChat={true}>
       <SEOHead
         title="Financing Options | Nick's Tire & Auto Cleveland OH"
         description="$0 down auto repair financing in Cleveland. Instant approval, no hard credit check. Acima, Snap Finance, Koalafi, American First Finance. Apply online in minutes."

@@ -317,7 +317,7 @@ function BookingSection() {
 // ─── MAIN PAGE ─────────────────────────────────────────
 export default function AlignmentPage() {
   return (
-    <PageLayout>
+    <PageLayout showChat={true}>
       <SEOHead
         title="Wheel Alignment Cleveland OH | Nick's Tire & Auto"
         description="Professional wheel alignment and tire balancing in Cleveland. We fix pulling, uneven tire wear, and crooked steering wheels. Same-day service. Call (216) 862-0005."

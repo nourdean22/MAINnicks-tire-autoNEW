@@ -103,7 +103,7 @@ export default function LaborEstimator() {
   const result = estimateMutation.data;
 
   return (
-    <PageLayout activeHref="/estimate">
+    <PageLayout activeHref="/estimate" showChat={true}>
       <SEOHead
         title="AI Repair Estimator | Nick's Tire & Auto — Cleveland, OH"
         description="Get a detailed repair cost estimate for your vehicle. Enter your year, make, model, and repair needed. AI-powered labor and parts breakdown. Cleveland's trusted auto repair shop."

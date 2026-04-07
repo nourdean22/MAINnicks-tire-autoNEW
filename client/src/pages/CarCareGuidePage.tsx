@@ -109,7 +109,7 @@ export default function CarCareGuidePage() {
   }, []);
 
   return (
-    <PageLayout>
+    <PageLayout showChat={true}>
       <SEOHead
         title="Car Care Guide | Nick's Tire & Auto Cleveland"
         description="Complete car care guide from Nick's Tire & Auto in Cleveland. Seasonal maintenance tips, mileage milestones, and warning signs every driver should know."

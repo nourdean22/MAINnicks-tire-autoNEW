@@ -194,7 +194,7 @@ export default function MyGaragePage() {
   }, []);
 
   return (
-    <PageLayout>
+    <PageLayout showChat={true}>
       <SEOHead
         title="My Garage | Nick's Tire & Auto Cleveland"
         description="Save your vehicles, track service history, and get personalized maintenance reminders at Nick's Tire & Auto in Cleveland."

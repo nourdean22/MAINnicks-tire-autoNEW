@@ -48,7 +48,7 @@ export default function ReferralPage() {
   };
 
   return (
-    <PageLayout>
+    <PageLayout showChat={true}>
       <SEOHead
         title="Refer a Friend — Save $25 | Nick's Tire & Auto"
         description="Refer a friend to Nick's Tire & Auto and you both get $25 off your next service. Real rewards for real trust. Cleveland, Ohio."

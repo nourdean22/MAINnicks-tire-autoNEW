@@ -91,7 +91,7 @@ export default function Contact() {
   }, []);
 
   return (
-    <PageLayout>
+    <PageLayout showChat={true}>
       <SEOHead
         title="Contact Us | Nick's Tire & Auto Cleveland"
         description={`Contact Nick's Tire & Auto at ${BUSINESS.phone.display}. Located at ${BUSINESS.address.full}. Open ${BUSINESS.hours.display}. Walk-ins welcome.`}

@@ -58,7 +58,7 @@ export default function PriceEstimator() {
   const selectedVehicle = VEHICLE_CATEGORIES.find(v => v.value === vehicleCategory);
 
   return (
-    <PageLayout activeHref="/pricing">
+    <PageLayout activeHref="/pricing" showChat={true}>
       <SEOHead
         title="Auto Repair Pricing — Nick's Tire & Auto Cleveland"
         description="Transparent auto repair pricing at Nick's Tire & Auto, Cleveland. Get estimates for brakes, tires, oil changes, diagnostics, and more."

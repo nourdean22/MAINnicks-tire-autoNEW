@@ -124,7 +124,7 @@ export default function SeasonalPage() {
   const SeasonIcon = page.season === "Winter" ? Snowflake : Sun;
 
   return (
-    <PageLayout>
+    <PageLayout showChat={true}>
       <SEOHead
         title={page.metaTitle}
         description={page.metaDescription}
