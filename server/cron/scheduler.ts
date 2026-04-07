@@ -1139,6 +1139,19 @@ export function startTieredScheduler(): void {
   }
 
   log.info(`Tiered scheduler started: ${tiers.length} tiers, ${tiers.reduce((s, t) => s + t.jobs.length, 0)} jobs`);
+
+  // Seed business model into Nick's memory (runs once on startup)
+  setTimeout(async () => {
+    try {
+      const { remember } = await import("../services/nickMemory");
+      await remember({
+        type: "preference",
+        content: "BUSINESS MODEL: Nick's Tire & Auto is FIRST COME FIRST SERVE (FCFS). No appointments needed. DROP-OFFS PREFERRED — customer drops car off, holds their place in line without waiting. Most jobs done SAME DAY if dropped off before 10am. Quick inspections are FREE. Estimates are free. We don't charge to look at a car. Walk-ins welcome 7 days a week. If a customer didn't come through the website, they're a walk-in. ALG estimates without matching invoices are declined work (customer walked). Free inspections keep bays busy and build trust.",
+        source: "business_model_seed",
+        confidence: 1.0,
+      });
+    } catch {}
+  }, 60_000); // Wait 60s after boot for DB to be ready
 }
 
 /**
