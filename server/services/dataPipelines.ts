@@ -377,6 +377,13 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
     }
   }
 
+  // 0. Reset all spend/visit data to 0 first — ensures idempotency.
+  // Each subsequent step SETs (not ADDs) from the authoritative invoice source.
+  await step("reset", sql`
+    UPDATE customers SET totalSpent = 0, totalVisits = 0
+    WHERE totalSpent != 0 OR totalVisits != 0
+  `);
+
   // 1. Update totalSpent (cents) from paid invoices matched by phone (last 10 digits)
   await step("spent", sql`
     UPDATE customers c
@@ -425,6 +432,7 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
   `);
 
   // 3b. Also match by name for invoices without phone (LAST, FIRST format)
+  // IMPORTANT: SET (not ADD) — this is idempotent. Safe to run multiple times.
   await step("spent-name", sql`
     UPDATE customers c
     INNER JOIN (
@@ -435,10 +443,10 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
       GROUP BY customerName
     ) i ON UPPER(TRIM(c.lastName)) = UPPER(TRIM(SUBSTRING_INDEX(i.customerName, ',', 1)))
        AND UPPER(TRIM(c.firstName)) = UPPER(TRIM(SUBSTRING_INDEX(i.customerName, ', ', -1)))
-    SET c.totalSpent = c.totalSpent + i.total,
-        c.totalVisits = c.totalVisits + i.visits,
+    SET c.totalSpent = i.total,
+        c.totalVisits = i.visits,
         c.firstVisitDate = CASE WHEN c.firstVisitDate IS NULL OR c.firstVisitDate > i.earliest THEN i.earliest ELSE c.firstVisitDate END
-    WHERE i.total > 0
+    WHERE c.totalSpent != i.total OR c.totalVisits != i.visits
   `);
 
   // 4. Update vehicle info by matching customer name (LAST, FIRST format)
