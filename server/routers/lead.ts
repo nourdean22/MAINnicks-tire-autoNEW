@@ -296,4 +296,19 @@ export const leadRouter = router({
   sheetUrl: adminProcedure.query(() => {
     return { url: getSpreadsheetUrl(), configured: isSheetConfigured() };
   }),
+
+  delete: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      await d.delete(leads).where(eq(leads.id, input.id));
+      logAdminAction({
+        action: "lead.deleted",
+        entityType: "lead",
+        entityId: input.id,
+        details: `Lead #${input.id} deleted`,
+      }).catch(() => {});
+      return { success: true };
+    }),
 });

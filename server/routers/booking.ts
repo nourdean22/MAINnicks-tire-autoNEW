@@ -590,4 +590,19 @@ export const bookingRouter = router({
     .query(async ({ input }) => {
       return getBookingByRef(input.ref);
     }),
+
+  delete: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      await d.delete(bookings).where(eq(bookings.id, input.id));
+      logAdminAction({
+        action: "booking.deleted",
+        entityType: "booking",
+        entityId: input.id,
+        details: `Booking #${input.id} deleted`,
+      }).catch(() => {});
+      return { success: true };
+    }),
 });
