@@ -177,6 +177,23 @@ ${conversionRate < 40 ? `- 📉 Conversion rate ${conversionRate}% is below 40% 
       customerBlock = await getCustomerBrief();
     } catch {}
 
+    // ─── Master Intelligence Report ─────────────────────
+    let masterBlock = "";
+    try {
+      const { generateMasterIntelligenceReport } = await import("../../services/masterIntelligence");
+      const master = await generateMasterIntelligenceReport();
+      const s = master.summary;
+      const churnCount = master.customers.churnRisk?.highRisk?.length || 0;
+      const reviewRate = (master.marketing.reviewVelocity as any)?.weeklyRate || (master.marketing.reviewVelocity as any)?.monthlyRate || 0;
+      masterBlock = `\nBUSINESS HEALTH: ${s.score}/100`;
+      masterBlock += `\n🔔 Alert: ${s.topAlert}`;
+      masterBlock += `\n💡 Opportunity: ${s.topOpportunity}`;
+      masterBlock += `\n⚠️ Risk: ${s.topRisk}`;
+      masterBlock += `\nKEY: Churn risk: ${churnCount} | New customers: ${newCustomersMonth[0]?.count ?? 0} | Reviews/wk: ${reviewRate}`;
+    } catch (e) {
+      log.warn("Master intelligence for brief failed:", { error: e instanceof Error ? e.message : String(e) });
+    }
+
     // ─── Intelligence Engines data ────────────────────
     let intelligenceBlock = "";
     try {
@@ -249,7 +266,7 @@ FORMAT RULES:
           },
           {
             role: "user",
-            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n\n${enrichmentBlock}\n\n${intelligenceBlock}\n\n${briefReviewBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
+            content: `Write today's morning brief based on this data:\n\n${dataBlock}\n\n${enrichmentBlock}\n\n${masterBlock}\n\n${intelligenceBlock}\n\n${briefReviewBlock}\n\n${customerBlock}\n\n${memoryBlock}`,
           },
         ],
         maxTokens: 800,
@@ -278,6 +295,7 @@ THIS WEEK: ${weekBookings[0]?.count ?? 0} drop-offs | ${weekLeads[0]?.count ?? 0
 PIPELINE: ${pendingLeads[0]?.count ?? 0} new leads | ${pendingCallbacks[0]?.count ?? 0} callbacks | ${staleCount} stale leads | ${openWorkOrders[0]?.count ?? 0} open WOs
 
 CUSTOMERS: ${totalCustomers[0]?.count ?? 0} total | ${newCustomersMonth[0]?.count ?? 0} new this month
+${masterBlock}
 ${intelligenceBlock}
 
 Systems over motivation. Let's go.`;
