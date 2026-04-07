@@ -389,6 +389,167 @@ export const invoicesRouter = router({
         .sort((a, b) => b.total - a.total)
         .slice(0, input?.limit ?? 10);
     }),
+
+  /** Deep revenue intelligence — labor/parts split, service breakdown, tech performance, monthly trends, payment mix, projections */
+  intelligence: adminProcedure
+    .input(z.object({
+      period: z.enum(["7d", "30d", "90d", "6mo", "1yr", "all"]).default("30d"),
+    }).optional())
+    .query(async ({ input }) => {
+      const d = await db();
+      if (!d) return null;
+      const { sql: rawSql } = await import("drizzle-orm");
+
+      const periodMap: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90, "6mo": 180, "1yr": 365, "all": 9999 };
+      const days = periodMap[input?.period ?? "30d"];
+
+      // All queries in parallel for speed
+      const [overviewRows, laborPartsRows, monthlyRows, paymentRows, serviceRows, topDaysRows, hourRows] = await Promise.all([
+        // 1. Overview stats
+        d.execute(rawSql`
+          SELECT COUNT(*) as cnt, COALESCE(SUM(totalAmount),0) as rev,
+                 COALESCE(SUM(laborCost),0) as labor, COALESCE(SUM(partsCost),0) as parts,
+                 COALESCE(SUM(taxAmount),0) as tax,
+                 COALESCE(AVG(totalAmount),0) as avgTicket,
+                 COUNT(DISTINCT customerName) as uniqueCustomers,
+                 COUNT(DISTINCT DATE(invoiceDate)) as activeDays
+          FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+        `),
+        // 2. Labor vs Parts ratio
+        d.execute(rawSql`
+          SELECT
+            SUM(CASE WHEN laborCost > 0 AND partsCost = 0 THEN 1 ELSE 0 END) as laborOnly,
+            SUM(CASE WHEN laborCost = 0 AND partsCost > 0 THEN 1 ELSE 0 END) as partsOnly,
+            SUM(CASE WHEN laborCost > 0 AND partsCost > 0 THEN 1 ELSE 0 END) as both,
+            COALESCE(SUM(laborCost),0) as totalLabor,
+            COALESCE(SUM(partsCost),0) as totalParts
+          FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+        `),
+        // 3. Monthly trend (last 12 months regardless of period)
+        d.execute(rawSql`
+          SELECT DATE_FORMAT(invoiceDate, '%Y-%m') as month,
+                 COUNT(*) as cnt, SUM(totalAmount) as rev,
+                 SUM(laborCost) as labor, SUM(partsCost) as parts,
+                 AVG(totalAmount) as avgTicket
+          FROM invoices
+          GROUP BY DATE_FORMAT(invoiceDate, '%Y-%m')
+          ORDER BY month DESC LIMIT 24
+        `),
+        // 4. Payment method breakdown
+        d.execute(rawSql`
+          SELECT paymentMethod, COUNT(*) as cnt, SUM(totalAmount) as rev
+          FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+          GROUP BY paymentMethod ORDER BY rev DESC
+        `),
+        // 5. Service category breakdown (from description keywords)
+        d.execute(rawSql`
+          SELECT
+            CASE
+              WHEN serviceDescription REGEXP 'brake|pad|rotor|caliper' THEN 'Brakes'
+              WHEN serviceDescription REGEXP 'tire|mount|balance|tpms' THEN 'Tires'
+              WHEN serviceDescription REGEXP 'align' THEN 'Alignment'
+              WHEN serviceDescription REGEXP 'oil|lube|filter' THEN 'Oil Change'
+              WHEN serviceDescription REGEXP 'strut|shock|control|tie.rod|bearing|hub|sway|spring' THEN 'Suspension'
+              WHEN serviceDescription REGEXP 'tune|spark|oxygen|alternator|starter|exhaust|muffler|weld|belt' THEN 'Engine/Exhaust'
+              WHEN serviceDescription REGEXP 'radiator|coolant|thermostat|water.pump|flush' THEN 'Cooling'
+              WHEN serviceDescription REGEXP 'battery|wiper|window|sensor|light' THEN 'Electrical'
+              WHEN serviceDescription REGEXP 'steering|power.steering' THEN 'Steering'
+              WHEN serviceDescription REGEXP 'transmission|cv.axle|axle' THEN 'Transmission'
+              ELSE 'Other'
+            END as category,
+            COUNT(*) as cnt, SUM(totalAmount) as rev, AVG(totalAmount) as avgTicket
+          FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+            AND serviceDescription IS NOT NULL AND serviceDescription != ''
+          GROUP BY category ORDER BY rev DESC
+        `),
+        // 6. Best/worst revenue days
+        d.execute(rawSql`
+          SELECT DATE(invoiceDate) as day, COUNT(*) as jobs, SUM(totalAmount) as rev
+          FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+          GROUP BY DATE(invoiceDate) ORDER BY rev DESC LIMIT 10
+        `),
+        // 7. Revenue by day of week
+        d.execute(rawSql`
+          SELECT DAYNAME(invoiceDate) as dayName, DAYOFWEEK(invoiceDate) as dayNum,
+                 COUNT(*) as cnt, SUM(totalAmount) as rev, AVG(totalAmount) as avgTicket
+          FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+          GROUP BY dayName, dayNum ORDER BY dayNum
+        `),
+      ]);
+
+      const overview = (overviewRows as any[])?.[0]?.[0] || {};
+      const lp = (laborPartsRows as any[])?.[0]?.[0] || {};
+      const monthly = ((monthlyRows as any[])?.[0] || []).reverse();
+      const payments = (paymentRows as any[])?.[0] || [];
+      const services = (serviceRows as any[])?.[0] || [];
+      const topDays = (topDaysRows as any[])?.[0] || [];
+      const byDayOfWeek = (hourRows as any[])?.[0] || [];
+
+      // Projections
+      const recentMonths = monthly.slice(-3);
+      const recentAvg = recentMonths.length > 0
+        ? recentMonths.reduce((s: number, m: any) => s + Number(m.rev || 0), 0) / recentMonths.length
+        : 0;
+
+      return {
+        overview: {
+          invoiceCount: Number(overview.cnt || 0),
+          totalRevenue: Math.round(Number(overview.rev || 0) / 100),
+          totalLabor: Math.round(Number(overview.labor || 0) / 100),
+          totalParts: Math.round(Number(overview.parts || 0) / 100),
+          totalTax: Math.round(Number(overview.tax || 0) / 100),
+          avgTicket: Math.round(Number(overview.avgTicket || 0) / 100),
+          uniqueCustomers: Number(overview.uniqueCustomers || 0),
+          activeDays: Number(overview.activeDays || 0),
+          avgDailyRevenue: Number(overview.activeDays) > 0 ? Math.round(Number(overview.rev || 0) / Number(overview.activeDays) / 100) : 0,
+        },
+        laborVsParts: {
+          laborTotal: Math.round(Number(lp.totalLabor || 0) / 100),
+          partsTotal: Math.round(Number(lp.totalParts || 0) / 100),
+          laborPct: Number(overview.rev) > 0 ? Math.round(Number(lp.totalLabor || 0) / Number(overview.rev) * 100) : 0,
+          partsPct: Number(overview.rev) > 0 ? Math.round(Number(lp.totalParts || 0) / Number(overview.rev) * 100) : 0,
+          laborOnlyJobs: Number(lp.laborOnly || 0),
+          partsOnlyJobs: Number(lp.partsOnly || 0),
+          bothJobs: Number(lp.both || 0),
+        },
+        monthlyTrend: monthly.map((m: any) => ({
+          month: m.month,
+          invoices: Number(m.cnt),
+          revenue: Math.round(Number(m.rev || 0) / 100),
+          labor: Math.round(Number(m.labor || 0) / 100),
+          parts: Math.round(Number(m.parts || 0) / 100),
+          avgTicket: Math.round(Number(m.avgTicket || 0) / 100),
+        })),
+        paymentMix: payments.map((p: any) => ({
+          method: p.paymentMethod || "unknown",
+          count: Number(p.cnt),
+          revenue: Math.round(Number(p.rev || 0) / 100),
+        })),
+        serviceBreakdown: services.map((s: any) => ({
+          category: s.category,
+          count: Number(s.cnt),
+          revenue: Math.round(Number(s.rev || 0) / 100),
+          avgTicket: Math.round(Number(s.avgTicket || 0) / 100),
+        })),
+        topDays: topDays.map((d: any) => ({
+          day: d.day,
+          jobs: Number(d.jobs),
+          revenue: Math.round(Number(d.rev || 0) / 100),
+        })),
+        dayOfWeek: byDayOfWeek.map((d: any) => ({
+          day: d.dayName,
+          count: Number(d.cnt),
+          revenue: Math.round(Number(d.rev || 0) / 100),
+          avgTicket: Math.round(Number(d.avgTicket || 0) / 100),
+        })),
+        projections: {
+          monthlyAvg: Math.round(recentAvg / 100),
+          annualProjection: Math.round(recentAvg * 12 / 100),
+          dailyTarget: Math.round(20000 / 26), // $20K / 26 working days
+          monthlyTarget: 20000,
+        },
+      };
+    }),
 });
 
 // ─── KPI COMMAND CENTER ─────────────────────────────────

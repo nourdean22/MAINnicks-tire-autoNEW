@@ -30,12 +30,14 @@ function formatDollars(dollars: number): string {
 
 export default function RevenueSection() {
   const [period, setPeriod] = useState(30);
+  const [intelPeriod, setIntelPeriod] = useState<"7d" | "30d" | "90d" | "6mo" | "1yr" | "all">("30d");
   const [tab, setTab] = useState<"dashboard" | "invoices" | "create">("dashboard");
   const { data: stats, isLoading } = trpc.invoices.stats.useQuery({ days: period }, { refetchInterval: 60000 });
   const { data: topCustomers } = trpc.invoices.topCustomers.useQuery({ limit: 10 });
   const { data: kpi } = trpc.kpi.current.useQuery(undefined, { refetchInterval: 60000 });
   const { data: shopFloor } = trpc.nourOsBridge.shopFloor.useQuery(undefined, { refetchInterval: 30000 });
   const { data: funnel } = trpc.workOrders.conversionFunnel.useQuery({ days: period }, { refetchInterval: 120000 });
+  const { data: intel } = trpc.invoices.intelligence.useQuery({ period: intelPeriod }, { refetchInterval: 120000 });
   const utils = trpc.useUtils();
 
   if (isLoading) {
@@ -62,7 +64,7 @@ export default function RevenueSection() {
         </div>
       </div>
 
-      {tab === "dashboard" && <DashboardView stats={stats} topCustomers={topCustomers} kpi={kpi} shopFloor={shopFloor} funnel={funnel} period={period} setPeriod={setPeriod} />}
+      {tab === "dashboard" && <DashboardView stats={stats} topCustomers={topCustomers} kpi={kpi} shopFloor={shopFloor} funnel={funnel} period={period} setPeriod={setPeriod} intel={intel} intelPeriod={intelPeriod} setIntelPeriod={setIntelPeriod} />}
       {tab === "invoices" && <InvoiceListView onCreateNew={() => setTab("create")} />}
       {tab === "create" && <CreateInvoiceView onDone={() => { setTab("invoices"); utils.invoices.list.invalidate(); utils.invoices.stats.invalidate(); }} />}
     </div>
@@ -70,13 +72,13 @@ export default function RevenueSection() {
 }
 
 // ─── DASHBOARD VIEW ─────────────────────────────────────
-function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, setPeriod }: any) {
+function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, setPeriod, intel, intelPeriod, setIntelPeriod }: any) {
   const revenueChange = stats?.periodComparison?.change ?? 0;
 
   return (
     <div className="space-y-6">
-      {/* Period selector */}
-      <div className="flex items-center gap-2">
+      {/* Period selector — expanded */}
+      <div className="flex items-center gap-2 flex-wrap">
         {[7, 30, 90].map((d: number) => (
           <button
             key={d}
@@ -355,6 +357,202 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
             ))}
           </div>
         </div>
+      )}
+
+      {/* ═══ DEEP INTELLIGENCE SECTION ═══ */}
+      {intel && (
+        <>
+          {/* Intelligence Period Selector */}
+          <div className="flex items-center justify-between flex-wrap gap-3 pt-4 border-t border-border/20">
+            <h3 className="font-bold text-sm text-foreground tracking-wider flex items-center gap-2">
+              <Activity className="w-4 h-4 text-primary" /> DEEP REVENUE INTELLIGENCE
+            </h3>
+            <div className="flex items-center gap-1.5">
+              {(["7d", "30d", "90d", "6mo", "1yr", "all"] as const).map(p => (
+                <button key={p} onClick={() => setIntelPeriod(p)}
+                  className={`px-2.5 py-1 text-[10px] tracking-wider ${intelPeriod === p ? "bg-primary text-primary-foreground" : "bg-card border border-border/30 text-foreground/60 hover:text-foreground"}`}>
+                  {p.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Intelligence Overview */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <KPICard label="Total Revenue" value={formatDollars(intel.overview.totalRevenue)} icon={<DollarSign className="w-5 h-5" />} color="text-primary" />
+            <KPICard label="Avg Daily Revenue" value={formatDollars(intel.overview.avgDailyRevenue)} icon={<TrendingUp className="w-5 h-5" />} color="text-emerald-400" />
+            <KPICard label="Unique Customers" value={intel.overview.uniqueCustomers} icon={<Users className="w-5 h-5" />} color="text-blue-400" />
+            <KPICard label="Active Days" value={intel.overview.activeDays} icon={<Calendar className="w-5 h-5" />} color="text-purple-400" />
+          </div>
+
+          {/* Labor vs Parts Split */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div className="bg-card border border-border/30 p-5">
+              <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">LABOR vs PARTS SPLIT</h3>
+              <div className="flex items-center gap-4 mb-4">
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] text-foreground/60">Labor</span>
+                    <span className="font-bold text-sm text-blue-400">{formatDollars(intel.laborVsParts.laborTotal)} ({intel.laborVsParts.laborPct}%)</span>
+                  </div>
+                  <div className="h-3 bg-foreground/5 rounded-sm overflow-hidden">
+                    <div className="h-full bg-blue-500/40 rounded-sm" style={{ width: `${intel.laborVsParts.laborPct}%` }} />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] text-foreground/60">Parts</span>
+                    <span className="font-bold text-sm text-emerald-400">{formatDollars(intel.laborVsParts.partsTotal)} ({intel.laborVsParts.partsPct}%)</span>
+                  </div>
+                  <div className="h-3 bg-foreground/5 rounded-sm overflow-hidden">
+                    <div className="h-full bg-emerald-500/40 rounded-sm" style={{ width: `${intel.laborVsParts.partsPct}%` }} />
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="p-2 rounded border border-border/20">
+                  <p className="text-lg font-bold text-blue-400">{intel.laborVsParts.laborOnlyJobs}</p>
+                  <p className="text-[9px] text-foreground/40">Labor Only</p>
+                </div>
+                <div className="p-2 rounded border border-border/20">
+                  <p className="text-lg font-bold text-emerald-400">{intel.laborVsParts.partsOnlyJobs}</p>
+                  <p className="text-[9px] text-foreground/40">Parts Only</p>
+                </div>
+                <div className="p-2 rounded border border-border/20">
+                  <p className="text-lg font-bold text-primary">{intel.laborVsParts.bothJobs}</p>
+                  <p className="text-[9px] text-foreground/40">Both</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Service Category Breakdown */}
+            <div className="bg-card border border-border/30 p-5">
+              <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">SERVICE BREAKDOWN</h3>
+              <div className="space-y-2 max-h-[280px] overflow-y-auto">
+                {intel.serviceBreakdown.map((s: any, i: number) => {
+                  const maxRev = intel.serviceBreakdown[0]?.revenue || 1;
+                  return (
+                    <div key={s.category} className="flex items-center gap-3">
+                      <span className="text-[10px] text-foreground/60 w-24 truncate">{s.category}</span>
+                      <div className="flex-1 h-5 bg-foreground/5 rounded-sm overflow-hidden relative">
+                        <div className="h-full rounded-sm" style={{ width: `${(s.revenue / maxRev) * 100}%`, backgroundColor: CHART_COLORS[i % CHART_COLORS.length], opacity: 0.4 }} />
+                        <span className="absolute right-2 top-0.5 text-[10px] font-bold text-foreground/80">{formatDollars(s.revenue)}</span>
+                      </div>
+                      <span className="text-[10px] text-foreground/40 w-12 text-right">{s.count} jobs</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Monthly Trend with Labor/Parts Stack */}
+          {intel.monthlyTrend.length > 1 && (
+            <div className="bg-card border border-border/30 p-5">
+              <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">MONTHLY REVENUE TREND (LABOR + PARTS)</h3>
+              <div style={{ height: 300 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={intel.monthlyTrend}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#666" }} />
+                    <YAxis tick={{ fontSize: 10, fill: "#666" }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
+                    <RechartsTooltip contentStyle={{ background: "#1a1a1a", border: "1px solid #333", fontSize: 12 }}
+                      formatter={(value: number, name: string) => [`$${value.toLocaleString()}`, name.charAt(0).toUpperCase() + name.slice(1)]} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Bar dataKey="labor" stackId="rev" fill="#3B82F6" name="Labor" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="parts" stackId="rev" fill="#10B981" name="Parts" radius={[2, 2, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Day of Week Revenue + Payment Mix */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {intel.dayOfWeek.length > 0 && (
+              <div className="bg-card border border-border/30 p-5">
+                <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">REVENUE BY DAY OF WEEK</h3>
+                <div style={{ height: 200 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={intel.dayOfWeek}>
+                      <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#888" }} tickFormatter={(v: string) => v.slice(0, 3)} />
+                      <YAxis tick={{ fontSize: 10, fill: "#666" }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
+                      <RechartsTooltip contentStyle={{ background: "#1a1a1a", border: "1px solid #333", fontSize: 12 }}
+                        formatter={(value: number) => [`$${value.toLocaleString()}`, "Revenue"]} />
+                      <Bar dataKey="revenue" fill="#F5A623" radius={[2, 2, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {intel.paymentMix.length > 0 && (
+              <div className="bg-card border border-border/30 p-5">
+                <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">PAYMENT MIX</h3>
+                <div className="space-y-3">
+                  {intel.paymentMix.map((p: any, i: number) => {
+                    const maxRev = intel.paymentMix[0]?.revenue || 1;
+                    return (
+                      <div key={p.method}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[11px] text-foreground/60 uppercase">{p.method}</span>
+                          <span className="font-bold text-sm text-foreground">{formatDollars(p.revenue)} <span className="text-foreground/30 font-normal">({p.count})</span></span>
+                        </div>
+                        <div className="h-2.5 bg-foreground/5 rounded-sm overflow-hidden">
+                          <div className="h-full rounded-sm" style={{ width: `${(p.revenue / maxRev) * 100}%`, backgroundColor: CHART_COLORS[i % CHART_COLORS.length], opacity: 0.5 }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Projections + Target */}
+          <div className="bg-card border border-primary/20 p-5">
+            <h3 className="font-bold text-sm text-foreground tracking-wider mb-4 flex items-center gap-2">
+              <Target className="w-4 h-4 text-primary" /> $20K MONTHLY TARGET
+            </h3>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="text-center p-3 rounded border border-border/20">
+                <p className="text-2xl font-bold text-primary">{formatDollars(intel.projections.monthlyAvg)}</p>
+                <p className="text-[9px] text-foreground/40 mt-1">Monthly Avg (recent 3mo)</p>
+              </div>
+              <div className="text-center p-3 rounded border border-border/20">
+                <p className="text-2xl font-bold text-emerald-400">{formatDollars(intel.projections.annualProjection)}</p>
+                <p className="text-[9px] text-foreground/40 mt-1">Annual Projection</p>
+              </div>
+              <div className="text-center p-3 rounded border border-border/20">
+                <p className="text-2xl font-bold text-blue-400">{formatDollars(intel.projections.dailyTarget)}</p>
+                <p className="text-[9px] text-foreground/40 mt-1">Daily Target (26 days)</p>
+              </div>
+              <div className="text-center p-3 rounded border border-border/20">
+                <p className={`text-2xl font-bold ${intel.projections.monthlyAvg >= 20000 ? "text-emerald-400" : "text-red-400"}`}>
+                  {intel.projections.monthlyAvg >= 20000 ? "ON TRACK" : `$${(20000 - intel.projections.monthlyAvg).toLocaleString()} GAP`}
+                </p>
+                <p className="text-[9px] text-foreground/40 mt-1">vs $20K Target</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Top Revenue Days */}
+          {intel.topDays.length > 0 && (
+            <div className="bg-card border border-border/30 p-5">
+              <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4 flex items-center gap-2">
+                <Star className="w-4 h-4 text-primary" /> TOP REVENUE DAYS
+              </h3>
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
+                {intel.topDays.slice(0, 10).map((d: any, i: number) => (
+                  <div key={d.day} className={`text-center p-3 rounded border ${i === 0 ? "border-primary/30 bg-primary/5" : "border-border/20"}`}>
+                    <p className="text-lg font-bold text-primary">{formatDollars(d.revenue)}</p>
+                    <p className="text-[9px] text-foreground/40">{d.day} ({d.jobs} jobs)</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Empty state */}
