@@ -53,4 +53,57 @@ export const waitlistRouter = router({
       await db.update(waitlist).set({ status: "notified", notifiedAt: new Date() }).where(eq(waitlist.id, input.id));
       return { success: true };
     }),
+
+  /** Smart queue — waitlist sorted by VIP status (high-value customers first) */
+  smartQueue: adminProcedure.query(async () => {
+    try {
+      const { getDb } = await import("../db");
+      const { waitlist, customers, customerMetrics } = await import("../../drizzle/schema");
+      const { eq: eqOp, sql: sqlFn } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) return [];
+
+      const entries = await db
+        .select({
+          id: waitlist.id,
+          customerName: waitlist.customerName,
+          customerPhone: waitlist.customerPhone,
+          customerEmail: waitlist.customerEmail,
+          serviceType: waitlist.serviceType,
+          preferredDate: waitlist.preferredDate,
+          notes: waitlist.notes,
+          status: waitlist.status,
+          createdAt: waitlist.createdAt,
+          // Customer match fields
+          customerId: customers.id,
+          totalSpent: customers.totalSpent,
+          totalVisits: customers.totalVisits,
+          isVip: customerMetrics.isVip,
+        })
+        .from(waitlist)
+        .leftJoin(customers, sqlFn`RIGHT(REPLACE(REPLACE(REPLACE(${customers.phone}, '-', ''), '(', ''), ')', ''), 10) = RIGHT(REPLACE(REPLACE(REPLACE(${waitlist.customerPhone}, '-', ''), '(', ''), ')', ''), 10)`)
+        .leftJoin(customerMetrics, eqOp(customers.id, customerMetrics.customerId))
+        .where(eqOp(waitlist.status, "waiting"))
+        .orderBy(sqlFn`${customerMetrics.isVip} DESC, ${waitlist.createdAt} ASC`);
+
+      return entries.map((e: any) => ({
+        id: e.id,
+        customerName: e.customerName,
+        customerPhone: e.customerPhone,
+        customerEmail: e.customerEmail,
+        serviceType: e.serviceType,
+        preferredDate: e.preferredDate,
+        notes: e.notes,
+        status: e.status,
+        createdAt: e.createdAt,
+        isExistingCustomer: !!e.customerId,
+        isVip: !!(e.isVip),
+        totalSpent: e.totalSpent ? (e.totalSpent as number) / 100 : 0,
+        priority: e.isVip ? "vip" : e.customerId ? "returning" : "new",
+      }));
+    } catch (e) {
+      console.error("[Waitlist] Smart queue failed:", e instanceof Error ? e.message : e);
+      return [];
+    }
+  }),
 });

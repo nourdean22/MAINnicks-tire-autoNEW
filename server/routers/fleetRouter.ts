@@ -43,4 +43,29 @@ export const fleetRouter = router({
     if (!db) return [];
     return db.select().from(leads).where(eq(leads.source, "fleet"));
   }),
+
+  /** Fleet intelligence — vehicle make distribution + geographic hot zones */
+  fleetIntelligence: adminProcedure.query(async () => {
+    try {
+      const { analyzeFleet, analyzeGeography } = await import("../services/intelligenceEngines");
+      const [fleet, geo] = await Promise.all([
+        analyzeFleet(),
+        analyzeGeography(),
+      ]);
+      return {
+        fleet: {
+          totalVehicles: fleet.totalVehicles,
+          topMakes: fleet.topMakes,
+          topByRevenue: fleet.topByRevenue,
+        },
+        geography: {
+          totalWithZip: geo.totalWithZip,
+          hotZones: geo.hotZones,
+        },
+      };
+    } catch (e) {
+      console.error("[Fleet] Intelligence engine failed:", e instanceof Error ? e.message : e);
+      return { fleet: { totalVehicles: 0, topMakes: [], topByRevenue: [] }, geography: { totalWithZip: 0, hotZones: [] } };
+    }
+  }),
 });

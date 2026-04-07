@@ -62,4 +62,37 @@ export const inventoryRouter = router({
       });
       return { id };
     }),
+
+  /** Demand forecast — which vehicle makes we service most (predicts parts to stock) */
+  demandForecast: adminProcedure.query(async () => {
+    try {
+      const { analyzeFleet } = await import("../services/intelligenceEngines");
+      const result = await analyzeFleet();
+      return {
+        totalVehicles: result.totalVehicles,
+        topMakes: result.topMakes,
+        topByRevenue: result.topByRevenue,
+      };
+    } catch (e) {
+      console.error("[Inventory] Demand forecast failed:", e instanceof Error ? e.message : e);
+      return { totalVehicles: 0, topMakes: [], topByRevenue: [] };
+    }
+  }),
+
+  /** Declined work parts — which services (and parts) customers decline most */
+  declinedWorkParts: adminProcedure.query(async () => {
+    try {
+      const { analyzeDeclinedWork } = await import("../services/intelligenceEngines");
+      const result = await analyzeDeclinedWork();
+      return {
+        totalWithDeclined: result.totalWithDeclined,
+        totalDeclinedValue: result.totalDeclinedValue,
+        topDeclinedServices: result.topDeclinedServices,
+        recoveryOpportunity: result.recoveryOpportunity,
+      };
+    } catch (e) {
+      console.error("[Inventory] Declined work analysis failed:", e instanceof Error ? e.message : e);
+      return { totalWithDeclined: 0, totalDeclinedValue: 0, topDeclinedServices: [], recoveryOpportunity: 0 };
+    }
+  }),
 });
