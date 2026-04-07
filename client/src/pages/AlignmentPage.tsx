@@ -4,6 +4,7 @@
  * Problem Hook → Signs → Benefits → FAQ → Booking CTA
  */
 
+import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead } from "@/components/SEO";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
@@ -319,8 +320,8 @@ export default function AlignmentPage() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title="Wheel Alignment Cleveland OH | Nick's Tire & Auto"
-        description="Professional wheel alignment and tire balancing in Cleveland. We fix pulling, uneven tire wear, and crooked steering wheels. Same-day service. Call (216) 862-0005."
+        title="Wheel Alignment Cleveland OH | $89 | Nick's Tire & Auto"
+        description="Professional wheel alignment in Cleveland. Fix pulling, uneven tire wear, crooked steering. Same-day service, 36-month warranty. Call (216) 862-0005"
         canonicalPath="/alignment"
       />
       <LocalBusinessSchema additionalSchema={{ "hasOfferCatalog": { "@type": "OfferCatalog", "name": "Wheel Alignment", "itemListElement": [{ "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Wheel Alignment", "serviceType": "Wheel Alignment" } }] } }} />
@@ -330,6 +331,7 @@ export default function AlignmentPage() {
       <BenefitsSection />
       <FAQSection />
       <BookingSection />
+      <InternalLinks />
     </PageLayout>
   );
 }

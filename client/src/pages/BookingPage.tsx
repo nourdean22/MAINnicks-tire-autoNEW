@@ -1,4 +1,5 @@
 import BookingWizard from "@/components/BookingWizard";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead } from "@/components/SEO";
 import InternalLinks from "@/components/InternalLinks";
@@ -9,10 +10,11 @@ export default function BookingPage() {
   return (
     <PageLayout activeHref="/booking">
       <SEOHead
-        title="Book Auto Repair Appointment | Nick's Tire & Auto Cleveland"
-        description="Schedule your auto repair or tire service online at Nick's Tire & Auto in Cleveland. Walk-ins welcome 7 days a week. Same-day service available. Call (216) 862-0005."
+        title="Book Auto Repair Online | Cleveland OH | Walk-Ins Welcome"
+        description="Schedule auto repair or tire service online at Nick's Tire & Auto Cleveland. Walk-ins welcome 7 days. Same-day service available. (216) 862-0005"
         canonicalPath="/booking"
       />
+      <LocalBusinessSchema />
       <main className="max-w-3xl mx-auto px-4 py-12 sm:py-16">
         <div className="text-center mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">

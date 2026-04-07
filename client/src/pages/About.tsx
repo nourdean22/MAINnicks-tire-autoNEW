@@ -24,8 +24,8 @@ export default function About() {
   return (
     <PageLayout activeHref="/about" showChat={true}>
       <SEOHead
-        title="About Us | Nick's Tire & Auto Cleveland"
-        description="Learn about Nick's Tire & Auto — honest diagnostics, fair pricing, experienced technicians serving Cleveland, Euclid, and Northeast Ohio since 2018."
+        title="About Nick's Tire & Auto | Cleveland Auto Repair Since 2018"
+        description="Family-owned auto repair in Cleveland. 4.9★ Google rating, 1700+ reviews, 36-month warranty. Walk-ins welcome. (216) 862-0005"
         canonicalPath="/about"
       />
 
