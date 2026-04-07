@@ -3,7 +3,7 @@
  * Hardcoded specials with price-anchoring, urgency badges, and booking CTAs.
  */
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
 import { Link } from "wouter";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
@@ -11,28 +11,11 @@ import {
   Phone, Tag, ChevronRight, Clock, AlertTriangle,
   Droplets, Disc3, ScanSearch, RotateCcw, Snowflake, Wind,
 } from "lucide-react";
-import { motion, useInView } from "framer-motion";
 import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import { trpc } from "@/lib/trpc";
-
-/* ─── FADE-IN HELPER ────────────────────────────────────── */
-function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-80px" });
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 30 }}
-      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-      transition={{ duration: 0.5, delay, ease: "easeOut" }}
-      className={className}
-    >
-      {children}
-    </motion.div>
-  );
-}
+import FadeIn from "@/components/FadeIn";
 
 /* ─── SPECIALS DATA ─────────────────────────────────────── */
 interface Special {

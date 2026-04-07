@@ -6,30 +6,14 @@
 
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import BookingForm from "@/components/BookingForm";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, Navigation } from "lucide-react";
-import { motion, useInView } from "framer-motion";
 import { BUSINESS } from "@shared/business";
 import { Link } from "wouter";
 import { GBP_REVIEW_URL } from "@shared/const";
-
-function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-80px" });
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 30 }}
-      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-      transition={{ duration: 0.5, delay, ease: "easeOut" }}
-      className={className}
-    >
-      {children}
-    </motion.div>
-  );
-}
+import FadeIn from "@/components/FadeIn";
 
 function ContactSchema() {
   const schema = {

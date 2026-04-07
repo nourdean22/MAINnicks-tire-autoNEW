@@ -4,25 +4,15 @@
  */
 
 import PageLayout from "@/components/PageLayout";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Link } from "wouter";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { Users, Gift, CheckCircle, Heart } from "lucide-react";
-import { motion, useInView } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
-
-function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-80px" });
-  return (
-    <motion.div ref={ref} initial={{ opacity: 0, y: 30 }} animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }} transition={{ duration: 0.5, delay, ease: "easeOut" }} className={className}>
-      {children}
-    </motion.div>
-  );
-}
+import FadeIn from "@/components/FadeIn";
 
 export default function ReferralPage() {
   const [submitted, setSubmitted] = useState(false);

@@ -74,6 +74,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "tireOrders", label: "Tire Orders", icon: <ShoppingCart className="w-4 h-4" /> },
       { id: "warranty", label: "Warranties", icon: <Shield className="w-4 h-4" /> },
       { id: "inventory", label: "Inventory", icon: <Package className="w-4 h-4" /> },
+      { id: "inspections", label: "Inspections", icon: <Gauge className="w-4 h-4" /> },
     ],
   },
   {
@@ -83,6 +84,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "bookings", label: "Online Bookings", icon: <CalendarClock className="w-4 h-4" />, badge: "bookings" },
       { id: "estimates", label: "Walk-In Estimates", icon: <DollarSign className="w-4 h-4" /> },
       { id: "waitlist", label: "Waitlist", icon: <ListOrdered className="w-4 h-4" /> },
+      { id: "chats", label: "Chat Sessions", icon: <MessageSquare className="w-4 h-4" /> },
     ],
   },
   {
@@ -102,17 +104,20 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "referrals", label: "Referrals", icon: <Gift className="w-4 h-4" /> },
       { id: "coupons", label: "Coupons", icon: <Star className="w-4 h-4" /> },
       { id: "specials", label: "Specials", icon: <Tag className="w-4 h-4" /> },
+      { id: "qa", label: "Q&A", icon: <Mail className="w-4 h-4" /> },
     ],
   },
   {
     label: "System",
     items: [
-      { id: "settings", label: "ShopDriver HQ", icon: <Plug className="w-4 h-4" /> },
+      { id: "settings", label: "ShopDriver HQ", icon: <Settings className="w-4 h-4" /> },
       { id: "content", label: "Content", icon: <FileText className="w-4 h-4" /> },
       { id: "analyticsView", label: "Analytics", icon: <BarChart3 className="w-4 h-4" /> },
       { id: "exportView", label: "Export", icon: <Download className="w-4 h-4" /> },
       { id: "health", label: "Site Health", icon: <Globe className="w-4 h-4" /> },
       { id: "activity", label: "Activity", icon: <Activity className="w-4 h-4" /> },
+      { id: "integrations", label: "Integrations", icon: <Plug className="w-4 h-4" /> },
+      { id: "jobs", label: "Job Board", icon: <Timer className="w-4 h-4" /> },
     ],
   },
 ];
