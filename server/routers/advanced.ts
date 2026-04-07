@@ -404,7 +404,7 @@ export const invoicesRouter = router({
       const days = periodMap[input?.period ?? "30d"];
 
       // All queries in parallel for speed
-      const [overviewRows, laborPartsRows, monthlyRows, paymentRows, serviceRows, topDaysRows, hourRows] = await Promise.all([
+      const [overviewRows, laborPartsRows, monthlyRows, paymentRows, serviceRows, topDaysRows, hourRows, weeklyRows, velocityRows] = await Promise.all([
         // 1. Overview stats
         d.execute(rawSql`
           SELECT COUNT(*) as cnt, COALESCE(SUM(totalAmount),0) as rev,
@@ -475,6 +475,31 @@ export const invoicesRouter = router({
           FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
           GROUP BY dayName, dayNum ORDER BY dayNum
         `),
+        // 8. Weekly revenue trend (for week-over-week growth)
+        d.execute(rawSql`
+          SELECT YEARWEEK(invoiceDate, 1) as yw,
+                 MIN(DATE(invoiceDate)) as weekStart,
+                 COUNT(*) as cnt, SUM(totalAmount) as rev,
+                 SUM(laborCost) as labor, SUM(partsCost) as parts,
+                 AVG(totalAmount) as avgTicket
+          FROM invoices
+          WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL LEAST(${days}, 365) DAY)
+          GROUP BY YEARWEEK(invoiceDate, 1)
+          ORDER BY yw DESC LIMIT 52
+        `),
+        // 9. Revenue velocity — jobs per day and avg revenue per job trending
+        d.execute(rawSql`
+          SELECT DATE(invoiceDate) as day,
+                 COUNT(*) as jobs,
+                 SUM(totalAmount) as rev,
+                 AVG(totalAmount) as avgTicket,
+                 SUM(laborCost) as labor,
+                 SUM(partsCost) as parts
+          FROM invoices
+          WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+          GROUP BY DATE(invoiceDate)
+          ORDER BY day
+        `),
       ]);
 
       const overview = (overviewRows as any[])?.[0]?.[0] || {};
@@ -484,6 +509,8 @@ export const invoicesRouter = router({
       const services = (serviceRows as any[])?.[0] || [];
       const topDays = (topDaysRows as any[])?.[0] || [];
       const byDayOfWeek = (hourRows as any[])?.[0] || [];
+      const weekly = ((weeklyRows as any[])?.[0] || []).reverse();
+      const dailyVelocity = (velocityRows as any[])?.[0] || [];
 
       // Projections
       const recentMonths = monthly.slice(-3);
@@ -542,6 +569,32 @@ export const invoicesRouter = router({
           revenue: Math.round(Number(d.rev || 0) / 100),
           avgTicket: Math.round(Number(d.avgTicket || 0) / 100),
         })),
+        weeklyTrend: weekly.map((w: any) => ({
+          week: w.weekStart,
+          invoices: Number(w.cnt),
+          revenue: Math.round(Number(w.rev || 0) / 100),
+          labor: Math.round(Number(w.labor || 0) / 100),
+          parts: Math.round(Number(w.parts || 0) / 100),
+          avgTicket: Math.round(Number(w.avgTicket || 0) / 100),
+        })),
+        dailyVelocity: dailyVelocity.map((d: any) => ({
+          day: d.day,
+          jobs: Number(d.jobs),
+          revenue: Math.round(Number(d.rev || 0) / 100),
+          avgTicket: Math.round(Number(d.avgTicket || 0) / 100),
+          labor: Math.round(Number(d.labor || 0) / 100),
+          parts: Math.round(Number(d.parts || 0) / 100),
+        })),
+        weekOverWeek: (() => {
+          if (weekly.length < 2) return { growth: 0, prevWeek: 0, thisWeek: 0 };
+          const thisW = Number(weekly[weekly.length - 1]?.rev || 0);
+          const lastW = Number(weekly[weekly.length - 2]?.rev || 0);
+          return {
+            thisWeek: Math.round(thisW / 100),
+            prevWeek: Math.round(lastW / 100),
+            growth: lastW > 0 ? Math.round((thisW - lastW) / lastW * 100) : 0,
+          };
+        })(),
         projections: {
           monthlyAvg: Math.round(recentAvg / 100),
           annualProjection: Math.round(recentAvg * 12 / 100),

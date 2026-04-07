@@ -79,13 +79,13 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
     <div className="space-y-6">
       {/* Period selector — expanded */}
       <div className="flex items-center gap-2 flex-wrap">
-        {[7, 30, 90].map((d: number) => (
+        {[1, 7, 30, 90].map((d: number) => (
           <button
             key={d}
             onClick={() => setPeriod(d)}
             className={`px-3 py-1.5 text-[12px] tracking-wider ${period === d ? "bg-primary text-primary-foreground" : "bg-card border border-border/30 text-foreground/60 hover:text-foreground"}`}
           >
-            {d}D
+            {d === 1 ? "TODAY" : `${d}D`}
           </button>
         ))}
       </div>
@@ -486,28 +486,89 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
               </div>
             )}
 
-            {intel.paymentMix.length > 0 && (
+            {/* Avg Ticket by Service */}
+            {intel.serviceBreakdown.length > 0 && (
               <div className="bg-card border border-border/30 p-5">
-                <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">PAYMENT MIX</h3>
-                <div className="space-y-3">
-                  {intel.paymentMix.map((p: any, i: number) => {
-                    const maxRev = intel.paymentMix[0]?.revenue || 1;
-                    return (
-                      <div key={p.method}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[11px] text-foreground/60 uppercase">{p.method}</span>
-                          <span className="font-bold text-sm text-foreground">{formatDollars(p.revenue)} <span className="text-foreground/30 font-normal">({p.count})</span></span>
-                        </div>
-                        <div className="h-2.5 bg-foreground/5 rounded-sm overflow-hidden">
-                          <div className="h-full rounded-sm" style={{ width: `${(p.revenue / maxRev) * 100}%`, backgroundColor: CHART_COLORS[i % CHART_COLORS.length], opacity: 0.5 }} />
-                        </div>
-                      </div>
-                    );
-                  })}
+                <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">AVG TICKET BY SERVICE</h3>
+                <div style={{ height: 200 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={intel.serviceBreakdown.filter((s: any) => s.category !== "Other").slice(0, 8)} layout="vertical">
+                      <XAxis type="number" tick={{ fontSize: 10, fill: "#666" }} tickFormatter={(v: number) => `$${v}`} />
+                      <YAxis type="category" dataKey="category" tick={{ fontSize: 10, fill: "#888" }} width={80} />
+                      <RechartsTooltip contentStyle={{ background: "#1a1a1a", border: "1px solid #333", fontSize: 12 }}
+                        formatter={(value: number) => [`$${value.toLocaleString()}`, "Avg Ticket"]} />
+                      <Bar dataKey="avgTicket" fill="#8B5CF6" radius={[0, 2, 2, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             )}
           </div>
+
+          {/* Week-over-Week Growth */}
+          {intel.weekOverWeek && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              <div className="bg-card border border-border/30 p-5 text-center">
+                <p className="text-[10px] text-foreground/40 mb-1">THIS WEEK</p>
+                <p className="text-3xl font-bold text-primary">{formatDollars(intel.weekOverWeek.thisWeek)}</p>
+              </div>
+              <div className="bg-card border border-border/30 p-5 text-center">
+                <p className="text-[10px] text-foreground/40 mb-1">LAST WEEK</p>
+                <p className="text-3xl font-bold text-foreground/60">{formatDollars(intel.weekOverWeek.prevWeek)}</p>
+              </div>
+              <div className="bg-card border border-border/30 p-5 text-center">
+                <p className="text-[10px] text-foreground/40 mb-1">WEEK-OVER-WEEK</p>
+                <p className={`text-3xl font-bold flex items-center justify-center gap-1 ${intel.weekOverWeek.growth >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  {intel.weekOverWeek.growth >= 0 ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
+                  {intel.weekOverWeek.growth >= 0 ? "+" : ""}{intel.weekOverWeek.growth}%
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Daily Revenue Velocity — jobs + revenue per day scatter/line */}
+          {intel.dailyVelocity && intel.dailyVelocity.length > 1 && (
+            <div className="bg-card border border-border/30 p-5">
+              <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4 flex items-center gap-2">
+                <Zap className="w-4 h-4 text-primary" /> DAILY REVENUE VELOCITY
+              </h3>
+              <div style={{ height: 260 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={intel.dailyVelocity}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <XAxis dataKey="day" tick={{ fontSize: 9, fill: "#666" }} tickFormatter={(v: string) => v.slice(5)} />
+                    <YAxis yAxisId="rev" tick={{ fontSize: 10, fill: "#666" }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
+                    <YAxis yAxisId="jobs" orientation="right" tick={{ fontSize: 10, fill: "#666" }} />
+                    <RechartsTooltip contentStyle={{ background: "#1a1a1a", border: "1px solid #333", fontSize: 11 }}
+                      formatter={(value: number, name: string) => [name === "jobs" ? value : `$${value.toLocaleString()}`, name === "jobs" ? "Jobs" : name === "avgTicket" ? "Avg Ticket" : "Revenue"]} />
+                    <Legend wrapperStyle={{ fontSize: 10 }} />
+                    <Line yAxisId="rev" type="monotone" dataKey="revenue" stroke="#F5A623" strokeWidth={2} dot={false} name="Revenue" />
+                    <Line yAxisId="rev" type="monotone" dataKey="avgTicket" stroke="#8B5CF6" strokeWidth={1.5} dot={false} strokeDasharray="4 2" name="Avg Ticket" />
+                    <Line yAxisId="jobs" type="monotone" dataKey="jobs" stroke="#3B82F6" strokeWidth={1.5} dot={false} name="Jobs" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Weekly Trend */}
+          {intel.weeklyTrend && intel.weeklyTrend.length > 2 && (
+            <div className="bg-card border border-border/30 p-5">
+              <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">WEEKLY REVENUE TREND</h3>
+              <div style={{ height: 240 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={intel.weeklyTrend}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <XAxis dataKey="week" tick={{ fontSize: 9, fill: "#666" }} tickFormatter={(v: string) => v?.slice(5) || ""} />
+                    <YAxis tick={{ fontSize: 10, fill: "#666" }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
+                    <RechartsTooltip contentStyle={{ background: "#1a1a1a", border: "1px solid #333", fontSize: 12 }}
+                      formatter={(value: number) => [`$${value.toLocaleString()}`, "Revenue"]} />
+                    <Area type="monotone" dataKey="revenue" stroke="#10B981" fill="#10B981" fillOpacity={0.15} strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
 
           {/* Projections + Target */}
           <div className="bg-card border border-primary/20 p-5">
