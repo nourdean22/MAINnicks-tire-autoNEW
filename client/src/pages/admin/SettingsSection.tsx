@@ -13,10 +13,12 @@
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import {
   Loader2, RefreshCw, CheckCircle2, XCircle, Wifi, WifiOff,
   Users, FileText, TrendingUp, Search, Upload, Zap,
   AlertTriangle, Clock, DollarSign, Wrench, ArrowRight,
+  ToggleLeft, ToggleRight,
 } from "lucide-react";
 
 function StatCard({ label, value, icon, color = "text-foreground", sub }: {
@@ -299,6 +301,80 @@ export default function SettingsSection() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Feature Flags */}
+      <FeatureFlagsPanel />
+    </div>
+  );
+}
+
+// ─── FEATURE FLAGS PANEL ──────────────────────────────
+function FeatureFlagsPanel() {
+  const utils = trpc.useUtils();
+  const { data: flags, isLoading } = trpc.featureFlags.list.useQuery();
+  const toggleMut = trpc.featureFlags.toggle.useMutation({
+    onSuccess: (result) => {
+      toast.success(`${result.key} ${result.value ? "ENABLED" : "DISABLED"}`);
+      utils.featureFlags.list.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="bg-card border border-border/30 p-4">
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        </div>
+      </div>
+    );
+  }
+
+  const enabledCount = flags?.filter(f => f.value).length ?? 0;
+
+  return (
+    <div className="bg-card border border-border/30 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h3 className="font-bold text-sm text-foreground tracking-wide">FEATURE FLAGS</h3>
+          <p className="text-foreground/50 text-[11px] mt-0.5">
+            {enabledCount} of {flags?.length ?? 0} enabled. Customer-contacting automations check these before executing.
+          </p>
+        </div>
+      </div>
+      <div className="space-y-1">
+        {flags?.map((flag) => (
+          <div
+            key={flag.key}
+            className={`flex items-center gap-3 p-2.5 border transition-colors ${
+              flag.value ? "border-emerald-500/20 bg-emerald-500/5" : "border-border/10"
+            }`}
+          >
+            <button
+              onClick={() => toggleMut.mutate({ key: flag.key, value: !flag.value })}
+              disabled={toggleMut.isPending}
+              className="shrink-0"
+            >
+              {flag.value ? (
+                <ToggleRight className="w-6 h-6 text-emerald-400" />
+              ) : (
+                <ToggleLeft className="w-6 h-6 text-foreground/30" />
+              )}
+            </button>
+            <div className="flex-1 min-w-0">
+              <span className="text-foreground text-[12px] font-medium font-mono">{flag.key}</span>
+              {flag.description && (
+                <p className="text-foreground/40 text-[10px] truncate">{flag.description}</p>
+              )}
+            </div>
+            <span className={`font-mono text-[10px] font-bold tracking-wide ${
+              flag.value ? "text-emerald-400" : "text-foreground/20"
+            }`}>
+              {flag.value ? "ON" : "OFF"}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );
