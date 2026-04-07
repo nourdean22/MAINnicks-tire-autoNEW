@@ -1220,6 +1220,9 @@ export async function probeAlgEndpoints(): Promise<Record<string, ProbeResult>> 
     "/api/Report/getTaxReport",
     "/api/WorkOrder/listWorkOrders?pageNumber=1&pageSize=10",
     "/api/Note/list?pageNumber=1&pageSize=10",
+    "/api/ticket/getTicketPdf?ticketId=1",
+    "/api/Report/getInvoicePdf?invoiceId=1",
+    "/api/Estimate/getEstimatePdf?estimateId=1",
   ];
 
   const results: Record<string, ProbeResult> = {};
