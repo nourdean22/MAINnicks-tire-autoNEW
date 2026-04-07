@@ -116,6 +116,156 @@ export function analyzeObjections(
     .sort((a, b) => b.count - a.count);
 }
 
+/**
+ * Known service categories and their keyword matchers.
+ * Invoices are categorized by matching serviceDescription against these.
+ */
+const SERVICE_CATEGORIES: Record<string, string[]> = {
+  "Oil Change": ["oil change", "oil & filter", "lube", "synthetic oil"],
+  "Brakes": ["brake", "rotor", "pad", "caliper"],
+  "Tires": ["tire", "mount", "balance", "alignment", "rotate"],
+  "Suspension": ["strut", "shock", "suspension", "ball joint", "tie rod", "control arm"],
+  "Engine": ["engine", "timing", "head gasket", "valve", "spark plug", "ignition"],
+  "Transmission": ["transmission", "trans fluid", "trans flush"],
+  "Exhaust": ["exhaust", "muffler", "catalytic", "pipe"],
+  "Electrical": ["battery", "alternator", "starter", "electrical", "wiring"],
+  "AC/Heating": ["ac ", "a/c", "compressor", "freon", "heater core", "hvac"],
+  "Diagnostics": ["diagnostic", "check engine", "scan", "inspection"],
+  "General Maintenance": ["flush", "coolant", "power steering", "belt", "hose", "filter"],
+};
+
+/**
+ * Categorize a service description into a known category.
+ */
+function categorizeService(description: string): string {
+  const lower = (description || "").toLowerCase();
+  for (const [category, keywords] of Object.entries(SERVICE_CATEGORIES)) {
+    if (keywords.some((kw) => lower.includes(kw))) {
+      return category;
+    }
+  }
+  return "Other";
+}
+
+/**
+ * Compute approval rates per service category from live invoice data.
+ * paid/partial = approved, pending = declined/walked.
+ * @param days Number of days to look back (default 30)
+ */
+export async function getServiceApprovalRates(days = 30): Promise<Array<{
+  service: string;
+  approved: number;
+  declined: number;
+  total: number;
+  approvalRate: number;
+}>> {
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return [];
+
+    const [rows] = await db.execute(sql`
+      SELECT serviceDescription, paymentStatus
+      FROM invoices
+      WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL ${days} DAY)
+        AND serviceDescription IS NOT NULL
+        AND serviceDescription != ''
+    `);
+
+    const invoiceRows = rows as Array<{ serviceDescription: string; paymentStatus: string }>;
+    if (!invoiceRows || invoiceRows.length === 0) return [];
+
+    // Aggregate by category
+    const categoryStats: Record<string, { approved: number; declined: number }> = {};
+
+    for (const row of invoiceRows) {
+      const category = categorizeService(row.serviceDescription);
+      if (!categoryStats[category]) {
+        categoryStats[category] = { approved: 0, declined: 0 };
+      }
+      if (row.paymentStatus === "paid" || row.paymentStatus === "partial") {
+        categoryStats[category].approved++;
+      } else {
+        categoryStats[category].declined++;
+      }
+    }
+
+    return Object.entries(categoryStats)
+      .map(([service, stats]) => ({
+        service,
+        approved: stats.approved,
+        declined: stats.declined,
+        total: stats.approved + stats.declined,
+        approvalRate: Math.round((stats.approved / (stats.approved + stats.declined)) * 100),
+      }))
+      .filter((r) => r.total >= 3) // Need at least 3 data points
+      .sort((a, b) => b.total - a.total);
+  } catch (err: any) {
+    log.error("Failed to compute approval rates:", { error: err.message });
+    return [];
+  }
+}
+
+/**
+ * Run the full pricing intelligence cron job.
+ * Queries DB, computes approval rates, alerts on over/under-priced services.
+ */
+export async function runPricingIntelligenceJob(): Promise<{
+  recordsProcessed: number;
+  details: string;
+}> {
+  const alerts: string[] = [];
+
+  try {
+    const rates = await getServiceApprovalRates(30);
+    if (rates.length === 0) {
+      return { recordsProcessed: 0, details: "No invoice data to analyze" };
+    }
+
+    for (const rate of rates) {
+      if (rate.approvalRate > 85) {
+        alerts.push(
+          `💰 RAISE PRICE: ${rate.service} has ${rate.approvalRate}% approval (${rate.approved}/${rate.total}) — you're leaving money on the table`
+        );
+      } else if (rate.approvalRate < 40) {
+        alerts.push(
+          `📉 PRICE TOO HIGH: ${rate.service} has ${rate.approvalRate}% approval (${rate.approved}/${rate.total}) — consider lowering or bundling`
+        );
+      }
+    }
+
+    // Send via Telegram if we have actionable alerts
+    if (alerts.length > 0) {
+      try {
+        const { sendTelegram } = await import("./telegram");
+        await sendTelegram(
+          `🏷️ PRICING INTELLIGENCE (30-day)\n\n` +
+          alerts.join("\n\n") +
+          `\n\n📊 ${rates.length} service categories analyzed`
+        );
+      } catch {}
+
+      try {
+        const { remember } = await import("./nickMemory");
+        await remember({
+          type: "insight",
+          content: `Pricing intelligence: ${alerts.length} alerts. ${alerts.join(" | ").slice(0, 1500)}`,
+          source: "pricing_intelligence",
+          confidence: 0.85,
+        });
+      } catch {}
+    }
+
+    const details = `${rates.length} categories, ${alerts.length} pricing alerts`;
+    if (alerts.length > 0) log.info(`Pricing intelligence: ${details}`);
+    return { recordsProcessed: rates.length, details };
+  } catch (err: any) {
+    log.error("Pricing intelligence job failed:", { error: err.message });
+    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+  }
+}
+
 function normalizeDeclineReason(reason: string): string {
   const lower = reason.toLowerCase().trim();
   if (/price|expensive|cost|afford|too much|budget/.test(lower)) return "price_concern";

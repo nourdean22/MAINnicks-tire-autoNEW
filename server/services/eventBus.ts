@@ -127,7 +127,44 @@ async function ensureInitialized(): Promise<void> {
     },
   });
 
-  // 2b. Auto-WO Creation + Drip Campaign Enrollment (event-driven automation)
+  // 2b. Customer Journey Tracker (lifecycle events → nickMemory)
+  registerDestination({
+    name: "journey-tracker",
+    enabled: true,
+    handles: ["lead_captured", "estimate_generated", "booking_created", "invoice_created", "invoice_paid", "review_detected"],
+    softFail: true,
+    handler: async (event) => {
+      const { trackJourneyEvent, checkRepeatCustomer } = await import("./journeyTracker");
+      const phone = event.data.phone || event.data.customerPhone || "";
+      const name = event.data.name || event.data.customerName || "";
+
+      if (event.type === "lead_captured") {
+        await trackJourneyEvent({ phone, eventType: "lead_created", metadata: { name, source: event.data.source } });
+      }
+      if (event.type === "estimate_generated") {
+        await trackJourneyEvent({ phone, eventType: "estimate_requested", metadata: { name } });
+      }
+      if (event.type === "booking_created") {
+        await trackJourneyEvent({ phone, eventType: "booking_made", metadata: { name, service: event.data.service } });
+      }
+      if (event.type === "invoice_created") {
+        await trackJourneyEvent({ phone, eventType: "work_order_created", metadata: { name } });
+      }
+      if (event.type === "invoice_paid") {
+        // Check for repeat visit
+        const repeat = await checkRepeatCustomer(phone);
+        if (repeat.isRepeat && repeat.priorInvoiceCount > 0) {
+          await trackJourneyEvent({ phone, eventType: "repeat_visit", metadata: { name, daysSinceLastVisit: repeat.daysSinceLastVisit } });
+        }
+        await trackJourneyEvent({ phone, eventType: "invoice_paid", metadata: { name, amount: event.data.totalAmount } });
+      }
+      if (event.type === "review_detected") {
+        await trackJourneyEvent({ phone, eventType: "review_left", metadata: { name, rating: event.data.rating } });
+      }
+    },
+  });
+
+  // 2c. Auto-WO Creation + Drip Campaign Enrollment (event-driven automation)
   registerDestination({
     name: "automation-engine",
     enabled: true,

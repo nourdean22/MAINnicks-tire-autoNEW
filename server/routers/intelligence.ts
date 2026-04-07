@@ -19,6 +19,7 @@ import {
   forecastSeasonalDemand,
   analyzeGeographicRevenue,
   analyzeServiceBundles,
+  predictChurn,
 } from "../services/intelligenceEngines";
 
 export const intelligenceRouter = router({
@@ -74,6 +75,11 @@ export const intelligenceRouter = router({
   /** #8 Service Bundling Intelligence — frequently paired services */
   serviceBundles: adminProcedure.query(async () => {
     return analyzeServiceBundles();
+  }),
+
+  /** #9 Churn Prediction — identify at-risk customers before they leave */
+  churnPrediction: adminProcedure.query(async () => {
+    return predictChurn();
   }),
 
   // ── Full Report ──
