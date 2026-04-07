@@ -447,8 +447,8 @@ export default function DiagnosePage() {
   return (
     <PageLayout activeHref="/diagnose" showChat={true}>
       <SEOHead
-        title="Free Car Diagnostic Tool | Nick's Tire & Auto"
-        description="Describe your car symptoms and get a free preliminary diagnosis from Nick's Tire & Auto in Cleveland. AI-powered symptom checker identifies potential issues."
+        title="Free Car Diagnostic Tool | Cleveland Auto Repair | Nick's"
+        description="Describe your car problem and get a free diagnosis. Check engine light? Brakes grinding? We'll tell you what's wrong. Walk in or call (216) 862-0005"
         canonicalPath="/diagnose"
       />
 

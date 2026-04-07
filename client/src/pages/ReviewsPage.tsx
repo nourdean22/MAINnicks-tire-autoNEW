@@ -5,6 +5,7 @@
  */
 
 import InternalLinks from "@/components/InternalLinks";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import ReviewCTA from "@/components/ReviewCTA";
 import PageLayout from "@/components/PageLayout";
 import { useState, useRef, useMemo, useCallback } from "react";
@@ -257,14 +258,15 @@ export default function ReviewsPage() {
   return (
     <PageLayout activeHref="/reviews" showChat={true}>
       <SEOHead
-        title="Customer Reviews | Nick's Tire & Auto Cleveland"
-        description={`Read real Google reviews from Cleveland drivers. Nick's Tire & Auto is rated 4.9 stars with ${BUSINESS.reviews.countDisplay} reviews. Honest diagnostics, fair prices, and trusted auto repair.`}
+        title="Auto Repair Reviews Cleveland | 4.9★ 1700+ Reviews | Nick's"
+        description="Read 1700+ real Google reviews. Cleveland's top-rated auto repair shop. 4.9 stars for brakes, tires, diagnostics. Walk-ins welcome 7 days. (216) 862-0005"
         canonicalPath="/reviews"
       />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(reviewSchema) }}
       />
+      <LocalBusinessSchema />
 
       <main id="main-content">
         {/* ─── HERO ─── */}

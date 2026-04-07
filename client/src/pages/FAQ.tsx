@@ -4,6 +4,7 @@
  */
 
 import InternalLinks from "@/components/InternalLinks";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import PageLayout from "@/components/PageLayout";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
@@ -253,13 +254,14 @@ export default function FAQ() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title="Frequently Asked Questions | Nick's Tire & Auto Cleveland"
-        description="Common questions about auto repair, brakes, tires, diagnostics, emissions, and oil changes answered by Nick's Tire & Auto in Cleveland, Ohio."
+        title="Auto Repair FAQ | Brake, Tire & Oil Change Prices | Cleveland"
+        description="Get answers about auto repair costs, tire prices, brake service, and oil changes in Cleveland. Walk-ins welcome 7 days. Free estimates."
         canonicalPath="/faq"
       />
       <FAQSchema />
-      
-      
+      <LocalBusinessSchema />
+
+
         {/* Hero */}
         <section className="pt-32 pb-12 lg:pt-40 lg:pb-16 bg-[oklch(0.065_0.004_260)]">
           <div className="container">

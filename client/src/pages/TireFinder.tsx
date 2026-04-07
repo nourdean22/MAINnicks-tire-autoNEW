@@ -8,6 +8,7 @@
  */
 
 import { useState, useRef, useEffect, useMemo } from "react";
+import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead } from "@/components/SEO";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
@@ -760,8 +761,8 @@ export default function TireFinder() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title="Buy Tires Online Cleveland | Free Installation | Nick's Tire & Auto"
-        description="Order tires online with free premium installation package ($289 value). New and used tires for every budget. Flat repair $15. Walk-ins 7 days. Financing from $10 down."
+        title="Buy Tires Online Cleveland | Free Install | Nick's Tire"
+        description="Order tires online with free installation ($289 value). New and used tires for every budget. Walk-ins 7 days. Financing from $10 down. (216) 862-0005"
         canonicalPath="/tires"
       />
       <LocalBusinessSchema includeServices />
@@ -1364,6 +1365,7 @@ export default function TireFinder() {
         />
       )}
       </div>
+      <InternalLinks />
     </PageLayout>
   );
 }

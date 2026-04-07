@@ -3,6 +3,8 @@
  * Targets skilled technicians who are tired of dealership chaos and flat-rate grind.
  * Built for search: JobPosting schema, plain-language job descriptions, local SEO.
  */
+import InternalLinks from "@/components/InternalLinks";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead } from "@/components/SEO";
 import { Link } from "wouter";
@@ -306,6 +308,7 @@ export default function Careers() {
         canonicalPath="/careers"
       />
       <JobPostingSchemas />
+      <LocalBusinessSchema />
 
       {/* ─── HERO ───────────────────────────────────────── */}
       <section className="relative bg-[oklch(0.055_0.004_260)] pt-28 pb-20 lg:pt-36 lg:pb-28 border-b border-border/20">
@@ -491,6 +494,7 @@ export default function Careers() {
           </div>
         </div>
       </section>
+      <InternalLinks />
     </PageLayout>
   );
 }

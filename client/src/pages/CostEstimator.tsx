@@ -183,8 +183,8 @@ export default function CostEstimator() {
   return (
     <PageLayout activeHref="/cost-estimator" showChat={true}>
       <SEOHead
-        title="Auto Repair Cost Estimator | Cleveland Repair Prices"
-        description="Get instant repair cost estimates for your vehicle. Brake repair, tires, diagnostics, and more. Transparent pricing from Nick's Tire & Auto in Cleveland, OH."
+        title="Auto Repair Cost Estimator | Cleveland OH | Free Quotes"
+        description="Get instant repair cost estimates for your car. Brakes, tires, oil changes, diagnostics. Transparent pricing at Nick's Tire & Auto Cleveland."
         canonicalPath="/cost-estimator"
       />
       <Breadcrumbs

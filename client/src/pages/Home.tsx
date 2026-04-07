@@ -468,8 +468,8 @@ export default function Home() {
   return (
     <PageLayout activeHref="/" showChat={true}>
       <SEOHead
-        title="Nick's Tire & Auto — Cleveland's #1 Tire Shop & Auto Repair"
-        description={`Cleveland's top-rated new & used tire specialist + full-service auto repair. Free premium installation ($289 value). Flat repair $15. Brakes, diagnostics, emissions. ${BUSINESS.reviews.countDisplay} reviews, 4.9 stars. Walk-ins 7 days. $10 down financing.`}
+        title="Auto Repair Cleveland OH | Nick's Tire & Auto | 4.9★ Reviews"
+        description="Cleveland's top-rated auto repair shop. Walk-ins welcome 7 days. Brakes, tires, diagnostics, oil changes. 36-month warranty. (216) 862-0005"
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />

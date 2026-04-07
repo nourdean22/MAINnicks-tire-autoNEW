@@ -3,6 +3,7 @@
  * Organized by category with search + filter
  */
 
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import PageLayout from "@/components/PageLayout";
 import { useRef, useState, useMemo } from "react";
 import { Link } from "wouter";
@@ -85,6 +86,7 @@ export default function GuidesIndex() {
         canonicalPath="/guides"
       />
       <Breadcrumbs items={[{ label: "Guides" }]} />
+      <LocalBusinessSchema />
 
       <script
         type="application/ld+json"
