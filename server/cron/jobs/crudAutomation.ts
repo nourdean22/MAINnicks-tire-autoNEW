@@ -52,9 +52,9 @@ export async function detectNoShows(): Promise<{ recordsProcessed: number; detai
     const noShows = rows as any[];
     if (noShows.length === 0) return { recordsProcessed: 0, details: "No no-shows" };
 
-    // Mark as no-show
+    // Mark as cancelled (no "no-show" enum value — use cancelled + adminNotes)
     for (const b of noShows) {
-      await d.execute(sql`UPDATE bookings SET status = 'no-show' WHERE id = ${b.id} AND status IN ('new', 'confirmed')`);
+      await d.execute(sql`UPDATE bookings SET status = 'cancelled', adminNotes = CONCAT(COALESCE(adminNotes, ''), '\n[AUTO] No-show: past preferred date, auto-cancelled') WHERE id = ${b.id} AND status IN ('new', 'confirmed')`);
     }
 
     // Send follow-up SMS to those with phone numbers
@@ -135,7 +135,7 @@ export async function escalateStaleCallbacks(): Promise<{ recordsProcessed: numb
     if (!d) return { recordsProcessed: 0, details: "No DB" };
 
     const [rows] = await d.execute(sql`
-      SELECT id, name, phone, reason FROM callback_requests
+      SELECT id, name, phone, context FROM callback_requests
       WHERE status = 'new'
         AND createdAt < DATE_SUB(NOW(), INTERVAL 4 HOUR)
         AND createdAt > DATE_SUB(NOW(), INTERVAL 3 DAY)
@@ -153,8 +153,8 @@ export async function escalateStaleCallbacks(): Promise<{ recordsProcessed: numb
         const firstName = (cb.name || "there").split(" ")[0];
         await sendSms(cb.phone, `Hi ${firstName}, we haven't forgotten about you! We'll be calling you back shortly regarding your request. — Nick's Tire & Auto (216) 862-0005`);
         smsSent++;
-        // Mark as "pending" so we don't re-SMS
-        await d.execute(sql`UPDATE callback_requests SET status = 'pending', updatedAt = NOW() WHERE id = ${cb.id}`);
+        // Mark as "called" so we don't re-SMS (valid enum: new, called, no-answer, completed)
+        await d.execute(sql`UPDATE callback_requests SET status = 'called', calledAt = NOW() WHERE id = ${cb.id}`);
       } catch (err) { log.warn("escalateStaleCallbacks: SMS/status update failed", { error: err instanceof Error ? err.message : String(err) }); }
     }
 
@@ -164,7 +164,7 @@ export async function escalateStaleCallbacks(): Promise<{ recordsProcessed: numb
         const { sendTelegram } = await import("../../services/telegram");
         await sendTelegram(
           `📞 CALLBACK ALERT: ${stale.length} callbacks unanswered >4h!\n\n` +
-          stale.slice(0, 5).map((c: any) => `${c.name || "?"} — ${c.phone || "no phone"}: ${(c.reason || "general").slice(0, 50)}`).join("\n") +
+          stale.slice(0, 5).map((c: any) => `${c.name || "?"} — ${c.phone || "no phone"}: ${(c.context || "general").slice(0, 50)}`).join("\n") +
           `\n\nCall them back NOW.`
         );
       } catch (err) { log.warn("escalateStaleCallbacks: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
@@ -248,11 +248,13 @@ export async function autoEscalateBookingPriority(): Promise<{ recordsProcessed:
     const d = await getDb();
     if (!d) return { recordsProcessed: 0, details: "No DB" };
 
+    // priority is int (lower = higher priority). Default is 0.
+    // Set to -1 (highest) for bookings untouched >48h
     const [result] = await d.execute(sql`
       UPDATE bookings
-      SET priority = 'high', updatedAt = NOW()
+      SET priority = -1, updatedAt = NOW()
       WHERE status = 'new'
-        AND priority IN ('normal', 'low')
+        AND priority >= 0
         AND createdAt < DATE_SUB(NOW(), INTERVAL 48 HOUR)
         AND createdAt > DATE_SUB(NOW(), INTERVAL 30 DAY)
     `);
