@@ -21,6 +21,40 @@ import {
   analyzeServiceBundles,
   predictChurn,
 } from "../services/intelligenceEngines";
+import {
+  predictRepeatVisits,
+  analyzeCustomerValueTrend,
+  buildServiceAffinityMap,
+  analyzeFirstVisitConversion,
+  computeCustomerRiskScores,
+  analyzeTechEfficiency,
+  analyzeBayUtilization,
+  analyzeTurnaroundTime,
+  analyzePartsCostRatio,
+  forecastCapacity,
+  analyzeChannelROI,
+  analyzeReviewVelocity,
+  analyzeSmsEngagement,
+  analyzeLeadResponseTime,
+  analyzeContentPerformance,
+  analyzeCompetitorGap,
+  detectRevenueAnomalies,
+  predictNoShows,
+  analyzePeakDemandWindows,
+  forecastCashFlow,
+  estimateMarketShare,
+  analyzeProfitMargins,
+  analyzePaymentTrends,
+  analyzeTicketTrend,
+  analyzeRevenueConcentration,
+  analyzeChatFunnel,
+  analyzeReviewSentiment,
+  analyzeWebsiteJourneys,
+  analyzeCallPatterns,
+  analyzeNewCustomerVelocity,
+  analyzeReferralNetwork,
+  forecastPortfolioLTV,
+} from "../services/advancedEngines";
 
 export const intelligenceRouter = router({
   // ── Core Engines ──
@@ -97,6 +131,106 @@ export const intelligenceRouter = router({
       bestDropOffTimes: ["8:00 AM - 10:00 AM (best for same-day)", "Early afternoon (ready by next morning)"],
     };
   }),
+
+  // ── Advanced Intelligence Engines (19-34) ──
+
+  /** #19 Repeat Visit Predictor */
+  repeatVisit: adminProcedure.query(async () => predictRepeatVisits()),
+
+  /** #20 Customer Value Trend */
+  valueTrend: adminProcedure.query(async () => analyzeCustomerValueTrend()),
+
+  /** #21 Service Affinity Map */
+  serviceAffinity: adminProcedure.query(async () => buildServiceAffinityMap()),
+
+  /** #22 First Visit Conversion */
+  firstVisitConversion: adminProcedure.query(async () => analyzeFirstVisitConversion()),
+
+  /** #23 Customer Risk Score */
+  riskScores: adminProcedure.query(async () => computeCustomerRiskScores()),
+
+  /** #24 Tech Efficiency */
+  techEfficiency: adminProcedure.query(async () => analyzeTechEfficiency()),
+
+  /** #25 Bay Utilization */
+  bayUtilization: adminProcedure.query(async () => analyzeBayUtilization()),
+
+  /** #26 Turnaround Time */
+  turnaroundTime: adminProcedure.query(async () => analyzeTurnaroundTime()),
+
+  /** #27 Parts Cost Optimizer */
+  partsCost: adminProcedure.query(async () => analyzePartsCostRatio()),
+
+  /** #28 Capacity Forecaster */
+  capacityForecast: adminProcedure.query(async () => forecastCapacity()),
+
+  /** #29 Channel ROI */
+  channelROI: adminProcedure.query(async () => analyzeChannelROI()),
+
+  /** #30 Review Velocity */
+  reviewVelocity: adminProcedure.query(async () => analyzeReviewVelocity()),
+
+  /** #31 SMS Engagement */
+  smsEngagement: adminProcedure.query(async () => analyzeSmsEngagement()),
+
+  /** #32 Lead Response Time */
+  leadResponseTime: adminProcedure.query(async () => analyzeLeadResponseTime()),
+
+  /** #33 Content Performance */
+  contentPerformance: adminProcedure.query(async () => analyzeContentPerformance()),
+
+  /** #34 Competitor Gap Analysis */
+  competitorGap: adminProcedure.query(async () => analyzeCompetitorGap()),
+
+  // ── Advanced Intelligence Engines (35-50) ──
+
+  /** #35 Revenue Anomaly Detector */
+  revenueAnomaly: adminProcedure.query(async () => detectRevenueAnomalies()),
+
+  /** #36 No-Show Predictor */
+  noShowPredictor: adminProcedure.query(async () => predictNoShows()),
+
+  /** #37 Peak Demand Windows */
+  peakDemand: adminProcedure.query(async () => analyzePeakDemandWindows()),
+
+  /** #38 Cash Flow Forecast */
+  cashFlow: adminProcedure.query(async () => forecastCashFlow()),
+
+  /** #39 Market Share Estimator */
+  marketShare: adminProcedure.query(async () => estimateMarketShare()),
+
+  /** #40 Profit Margin Analysis */
+  profitMargins: adminProcedure.query(async () => analyzeProfitMargins()),
+
+  /** #41 Payment Method Trends */
+  paymentTrends: adminProcedure.query(async () => analyzePaymentTrends()),
+
+  /** #42 Average Ticket Trend */
+  ticketTrend: adminProcedure.query(async () => analyzeTicketTrend()),
+
+  /** #43 Revenue Concentration */
+  revenueConcentration: adminProcedure.query(async () => analyzeRevenueConcentration()),
+
+  /** #44 Chat Conversion Funnel */
+  chatFunnel: adminProcedure.query(async () => analyzeChatFunnel()),
+
+  /** #45 Review Sentiment Breakdown */
+  reviewSentiment: adminProcedure.query(async () => analyzeReviewSentiment()),
+
+  /** #46 Website Journey Analysis */
+  websiteJourneys: adminProcedure.query(async () => analyzeWebsiteJourneys()),
+
+  /** #47 Call Pattern Analysis */
+  callPatterns: adminProcedure.query(async () => analyzeCallPatterns()),
+
+  /** #48 New Customer Velocity */
+  customerVelocity: adminProcedure.query(async () => analyzeNewCustomerVelocity()),
+
+  /** #49 Referral Network Map */
+  referralNetwork: adminProcedure.query(async () => analyzeReferralNetwork()),
+
+  /** #50 Lifetime Value Forecast */
+  portfolioLTV: adminProcedure.query(async () => forecastPortfolioLTV()),
 
   // ── Shop Load (real-time) ──
   shopLoad: adminProcedure.query(async () => {
