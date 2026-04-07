@@ -7,7 +7,7 @@ import { trpc } from "@/lib/trpc";
 import {
   Wrench, Clock, AlertTriangle, User, ChevronRight, Plus, RefreshCw,
   Package, Truck, CheckCircle2, XCircle, Timer, Phone, MapPin,
-  ArrowRight, Filter, BarChart3, Loader2,
+  ArrowRight, Filter, BarChart3, Loader2, Search,
 } from "lucide-react";
 
 // ─── Status columns for kanban ───────────────────────────
@@ -659,6 +659,7 @@ function PickupQueueView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
 export default function WorkOrdersSection() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showTerminal, setShowTerminal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [view, setView] = useState<"board" | "parts" | "blockers" | "pickup">("board");
   const { data: workOrders, isLoading } = trpc.workOrders.list.useQuery({
     includeTerminal: showTerminal,
@@ -666,20 +667,37 @@ export default function WorkOrdersSection() {
   }, { refetchInterval: 15000 });
   const utils = trpc.useUtils();
 
+  // Filter work orders by search query
+  const filteredWorkOrders = useMemo(() => {
+    if (!workOrders) return [];
+    if (!searchQuery.trim()) return workOrders;
+    const q = searchQuery.toLowerCase();
+    return workOrders.filter((wo: any) =>
+      (wo.customerName && wo.customerName.toLowerCase().includes(q)) ||
+      (wo.orderNumber && wo.orderNumber.toLowerCase().includes(q)) ||
+      (wo.vehicleMake && wo.vehicleMake.toLowerCase().includes(q)) ||
+      (wo.vehicleModel && wo.vehicleModel.toLowerCase().includes(q)) ||
+      (wo.vehicleYear && String(wo.vehicleYear).includes(q)) ||
+      (wo.serviceDescription && wo.serviceDescription.toLowerCase().includes(q)) ||
+      (wo.assignedTech && wo.assignedTech.toLowerCase().includes(q)) ||
+      (wo.status && (STATUS_LABELS[wo.status] || wo.status).toLowerCase().includes(q))
+    );
+  }, [workOrders, searchQuery]);
+
   // Group work orders by kanban column
   const columns = useMemo(() => {
-    if (!workOrders) return KANBAN_COLUMNS.map(c => ({ ...c, orders: [] as any[] }));
+    if (!filteredWorkOrders.length) return KANBAN_COLUMNS.map(c => ({ ...c, orders: [] as any[] }));
     return KANBAN_COLUMNS.map(col => ({
       ...col,
-      orders: workOrders.filter((wo: any) => col.statuses.includes(wo.status)),
+      orders: filteredWorkOrders.filter((wo: any) => col.statuses.includes(wo.status)),
     }));
-  }, [workOrders]);
+  }, [filteredWorkOrders]);
 
   // On-hold / cancelled sidebar
   const holdOrders = useMemo(() => {
-    if (!workOrders) return [];
-    return workOrders.filter((wo: any) => wo.status === "on_hold" || wo.status === "cancelled");
-  }, [workOrders]);
+    if (!filteredWorkOrders.length) return [];
+    return filteredWorkOrders.filter((wo: any) => wo.status === "on_hold" || wo.status === "cancelled");
+  }, [filteredWorkOrders]);
 
   return (
     <div className="space-y-4">
@@ -737,6 +755,20 @@ export default function WorkOrdersSection() {
 
       {/* Stats bar */}
       <StatsBar />
+
+      {/* Search */}
+      {view === "board" && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-foreground/40" />
+          <input
+            type="text"
+            placeholder="Search work orders by name, vehicle, tech, status..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full bg-card border border-border/50 text-foreground pl-10 pr-4 py-2.5 text-[13px] rounded placeholder:text-foreground/30 focus:outline-none focus:border-primary/50"
+          />
+        </div>
+      )}
 
       {/* Parts view */}
       {view === "parts" && <PendingPartsView onSelectWO={setSelectedId} />}

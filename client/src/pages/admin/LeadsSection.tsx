@@ -13,7 +13,7 @@ import {
   type BookingStatus, type LeadStatus,
 } from "./shared";
 import {
-  AlertTriangle, Car, CheckCircle2, ChevronRight, ExternalLink, FileSpreadsheet, Filter, Hash, Loader2, Mail, MessageSquare, Phone, PhoneCall, RefreshCw, Search, UserCheck, Users, Wrench, XCircle, Zap, LayoutGrid, List
+  AlertTriangle, Car, CheckCircle2, ChevronRight, ExternalLink, FileSpreadsheet, Filter, Hash, Loader2, Mail, MessageSquare, Phone, PhoneCall, RefreshCw, Search, Trash2, UserCheck, Users, Wrench, XCircle, Zap, LayoutGrid, List
 } from "lucide-react";
 
 // ── SLA Timer for leads ──
@@ -214,6 +214,7 @@ function KanbanBoard({ leadsData, onUpdate, isLoading }: {
 export default function LeadsSection() {
   const [leadFilter, setLeadFilter] = useState<LeadStatus | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
 
   const { data: leadsData, isLoading, refetch } = trpc.lead.list.useQuery(undefined, {
@@ -224,6 +225,18 @@ export default function LeadsSection() {
     onSuccess: () => { refetch(); toast.success("Lead updated"); },
     onError: (err) => toast.error("Failed: " + err.message),
   });
+
+  const deleteLead = trpc.lead.delete.useMutation({
+    onSuccess: () => { refetch(); toast.success("Lead deleted"); },
+    onError: (err) => toast.error("Delete failed: " + err.message),
+  });
+
+  const availableSources = useMemo((): string[] => {
+    if (!leadsData) return [];
+    const sourceSet = new Set<string>();
+    leadsData.forEach((l: any) => { if (l.source) sourceSet.add(String(l.source)); });
+    return [...sourceSet].sort();
+  }, [leadsData]);
 
   const handleStatusChange = (id: number, status: LeadStatus) => {
     if (status === "lost") {
@@ -244,6 +257,7 @@ export default function LeadsSection() {
     if (!leadsData) return [];
     let list = [...leadsData];
     if (leadFilter !== "all") list = list.filter(l => l.status === leadFilter);
+    if (sourceFilter !== "all") list = list.filter(l => l.source === sourceFilter);
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter(l =>
@@ -254,7 +268,7 @@ export default function LeadsSection() {
       );
     }
     return list;
-  }, [leadsData, leadFilter, searchQuery]);
+  }, [leadsData, leadFilter, sourceFilter, searchQuery]);
 
   const leadStats = useMemo(() => {
     if (!leadsData) return { new: 0, contacted: 0, urgent: 0, total: 0, booked: 0 };
@@ -336,6 +350,21 @@ export default function LeadsSection() {
                   {f}
                 </button>
               ))}
+              {availableSources.length > 1 && (
+                <>
+                  <div className="h-6 w-px bg-border/30 mx-1" />
+                  <select
+                    value={sourceFilter}
+                    onChange={e => setSourceFilter(e.target.value)}
+                    className="bg-card border border-border/30 text-foreground/60 px-3 py-2 text-[12px] tracking-wide focus:outline-none focus:border-primary/50"
+                  >
+                    <option value="all">All Sources</option>
+                    {availableSources.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </>
+              )}
             </div>
           </div>
 
@@ -483,6 +512,17 @@ export default function LeadsSection() {
                           <RefreshCw className="w-4 h-4" /> REOPEN
                         </button>
                       )}
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Delete lead from ${lead.name}? This cannot be undone.`)) {
+                            deleteLead.mutate({ id: lead.id });
+                          }
+                        }}
+                        disabled={deleteLead.isPending}
+                        className="flex items-center gap-2 border border-red-500/20 text-red-400/60 px-4 py-2.5 font-bold text-xs tracking-wide hover:text-red-400 hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" /> DELETE
+                      </button>
                     </div>
                   </div>
                 </div>

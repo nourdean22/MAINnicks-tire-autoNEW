@@ -9,10 +9,11 @@ import {
   ClipboardList, Trophy, Gift, Send, Star, UserCheck, RotateCcw, Timer,
   Settings, Upload, DollarSign, Activity, TrendingUp, Plug, ShoppingCart,
   BarChart3, PhoneCall, Download, CreditCard, Zap, Brain, Tag,
+  Shield, Package, ListOrdered,
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch" | "intelligence" | "specials";
+export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch" | "intelligence" | "specials" | "warranty" | "inventory" | "waitlist";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -71,6 +72,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "workOrders", label: "Work Orders", icon: <Wrench className="w-4 h-4" /> },
       { id: "dispatch", label: "Dispatch & QC", icon: <ClipboardList className="w-4 h-4" /> },
       { id: "tireOrders", label: "Tire Orders", icon: <ShoppingCart className="w-4 h-4" /> },
+      { id: "warranty", label: "Warranties", icon: <Shield className="w-4 h-4" /> },
+      { id: "inventory", label: "Inventory", icon: <Package className="w-4 h-4" /> },
     ],
   },
   {
@@ -79,6 +82,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "leads", label: "Website Leads", icon: <Users className="w-4 h-4" />, badge: "leads" },
       { id: "bookings", label: "Online Bookings", icon: <CalendarClock className="w-4 h-4" />, badge: "bookings" },
       { id: "estimates", label: "Walk-In Estimates", icon: <DollarSign className="w-4 h-4" /> },
+      { id: "waitlist", label: "Waitlist", icon: <ListOrdered className="w-4 h-4" /> },
     ],
   },
   {
@@ -152,6 +156,9 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   dispatch: "Dispatch",
   intelligence: "Intelligence",
   specials: "Specials",
+  warranty: "Warranties",
+  inventory: "Inventory",
+  waitlist: "Waitlist",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────
