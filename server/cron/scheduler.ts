@@ -455,6 +455,35 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "stale-estimate-alert",
+        businessHoursOnly: true,
+        handler: async () => {
+          try {
+            const { getDb } = await import("../db");
+            const { sql: rawSql } = await import("drizzle-orm");
+            const d = await getDb();
+            if (!d) return { details: "No DB" };
+            const [rows] = await d.execute(rawSql`
+              SELECT customerName, totalAmount, invoiceDate, DATEDIFF(NOW(), invoiceDate) as daysOld
+              FROM invoices WHERE paymentStatus = 'pending'
+              AND invoiceDate < DATE_SUB(NOW(), INTERVAL 3 DAY)
+              ORDER BY totalAmount DESC LIMIT 5
+            `);
+            const stale = rows as any[];
+            if (stale.length > 0) {
+              const { sendTelegram } = await import("../services/telegram");
+              const totalPotential = stale.reduce((s: number, e: any) => s + Number(e.totalAmount || 0), 0);
+              await sendTelegram(
+                `💰 STALE ESTIMATES — ${stale.length} pending 3+ days ($${Math.round(totalPotential/100)})\n\n` +
+                stale.map((e: any) => `${e.customerName} — $${Math.round(Number(e.totalAmount)/100)} (${e.daysOld}d old)`).join("\n") +
+                `\n\nFollow up NOW — every day = lost conversion probability.`
+              );
+            }
+            return { recordsProcessed: stale.length, details: `${stale.length} stale estimates alerted` };
+          } catch { return { details: "Stale estimate check failed" }; }
+        },
+      },
+      {
         name: "predictive-escalation",
         businessHoursOnly: true,
         handler: async () => {

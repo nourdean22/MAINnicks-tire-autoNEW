@@ -348,6 +348,82 @@ export function registerBridgeRoutes(app: Express): void {
     }
   });
 
+  // SMS Thank You + Referral + Review campaign — targets recent customers
+  app.post("/api/bridge/sms-campaign", bridgeAuth, async (req, res) => {
+    try {
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
+
+      const { dryRun = true, limit = 50, daysSince = 30 } = req.body;
+
+      // Find recent customers with phone numbers who visited in the last N days
+      const [targets] = await db.execute(sql`
+        SELECT c.id, c.firstName, c.lastName, c.phone, c.totalSpent, c.totalVisits, c.lastVisitDate,
+               c.vehicleMake, c.vehicleModel, c.vehicleYear
+        FROM customers c
+        WHERE c.lastVisitDate >= DATE_SUB(NOW(), INTERVAL ${daysSince} DAY)
+          AND c.phone IS NOT NULL AND LENGTH(c.phone) >= 10
+          AND c.smsOptOut = 0 AND c.smsCampaignSent = 0
+        ORDER BY c.lastVisitDate DESC
+        LIMIT ${limit}
+      `);
+
+      const customers = targets as any[];
+      const messages: { phone: string; name: string; message: string }[] = [];
+
+      for (const c of customers) {
+        const firstName = c.firstName || "there";
+        const vehicle = [c.vehicleYear, c.vehicleMake, c.vehicleModel].filter(Boolean).join(" ");
+        const vehicleLine = vehicle ? ` on your ${vehicle}` : "";
+
+        // Personalized message: thank you + referral + review
+        const msg = `Hi ${firstName}! Thank you for choosing Nick's Tire & Auto for your recent service${vehicleLine}. ` +
+          `We appreciate your business! If you were happy with our work, we'd love a quick Google review: https://g.page/r/nickstire/review ` +
+          `Know someone who needs tires or auto service? Refer a friend and both of you get 10% off your next visit! ` +
+          `— Nick's Tire & Auto (216) 862-0005`;
+
+        messages.push({ phone: c.phone, name: `${c.firstName} ${c.lastName}`, message: msg });
+      }
+
+      if (dryRun) {
+        res.json({
+          dryRun: true,
+          targetCount: messages.length,
+          sampleMessages: messages.slice(0, 3),
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      // Actually send via Twilio
+      let sent = 0, failed = 0;
+      const { sendSms } = await import("../sms");
+      for (const m of messages) {
+        try {
+          await sendSms(m.phone, m.message);
+          // Mark customer as campaign-sent
+          await db.execute(sql`UPDATE customers SET smsCampaignSent = 1, smsCampaignDate = NOW() WHERE phone = ${m.phone}`);
+          sent++;
+        } catch {
+          failed++;
+        }
+      }
+
+      // Log to Telegram
+      try {
+        const { sendTelegram } = await import("../services/telegram");
+        await sendTelegram(`📱 SMS Campaign Sent\n\n${sent} messages sent, ${failed} failed\nCampaign: Thank You + Referral + Review`);
+      } catch {}
+
+      res.json({ sent, failed, total: messages.length, timestamp: new Date().toISOString() });
+    } catch (err: any) {
+      console.error("[Bridge] SMS campaign error:", err);
+      res.status(500).json({ error: err.message || "Campaign failed" });
+    }
+  });
+
   // Historical backfill — fetch ALL invoice history from ShopDriver (not just recent)
   app.post("/api/bridge/backfill-history", bridgeAuth, async (_req, res) => {
     try {

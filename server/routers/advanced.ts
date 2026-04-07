@@ -601,6 +601,42 @@ export const invoicesRouter = router({
           dailyTarget: Math.round(20000 / 26), // $20K / 26 working days
           monthlyTarget: 20000,
         },
+        // Smart recommendations based on data
+        recommendations: await (async () => {
+          const recs: { text: string; type: "revenue" | "risk" | "growth"; priority: "high" | "medium" | "low" }[] = [];
+          try {
+            // Check for stale estimates
+            const [staleEst] = await d.execute(rawSql`
+              SELECT COUNT(*) as cnt, COALESCE(SUM(totalAmount), 0) as potential
+              FROM invoices WHERE paymentStatus = 'pending'
+              AND invoiceDate < DATE_SUB(NOW(), INTERVAL 3 DAY)
+            `);
+            const se = (staleEst as any[])?.[0];
+            if (Number(se?.cnt) > 0) {
+              recs.push({ text: `Follow up on ${se.cnt} stale estimates — ~$${Math.round(Number(se.potential)/100)} potential revenue`, type: "revenue", priority: "high" });
+            }
+            // Check dormant high-value customers
+            const [dormant] = await d.execute(rawSql`
+              SELECT COUNT(*) as cnt FROM customers
+              WHERE lastVisitDate < DATE_SUB(NOW(), INTERVAL 90 DAY) AND totalSpent > 20000
+            `);
+            if (Number((dormant as any[])?.[0]?.cnt) > 5) {
+              recs.push({ text: `${(dormant as any[])?.[0]?.cnt} high-value customers haven't visited in 90+ days — win-back campaign opportunity`, type: "growth", priority: "high" });
+            }
+            // Revenue pacing
+            const monthlyTarget = 20000;
+            const avg = Math.round(recentAvg / 100);
+            if (avg < monthlyTarget * 0.8) {
+              recs.push({ text: `Revenue trending $${(monthlyTarget - avg).toLocaleString()} below $20K target — need ${Math.round((monthlyTarget - avg) / 26)}/day more`, type: "risk", priority: "high" });
+            }
+            // Slow days
+            const slowDays = byDayOfWeek.filter((d: any) => Number(d.cnt) < 2);
+            if (slowDays.length > 0) {
+              recs.push({ text: `${slowDays.map((d: any) => d.dayName).join(', ')} are slow days — consider promotions or appointments-only`, type: "growth", priority: "medium" });
+            }
+          } catch {}
+          return recs;
+        })(),
       };
     }),
 });
