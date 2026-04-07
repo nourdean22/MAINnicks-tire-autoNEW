@@ -21,6 +21,7 @@ import {
   analyzeServiceBundles,
   predictChurn,
 } from "../services/intelligenceEngines";
+import { generateMasterIntelligenceReport } from "../services/masterIntelligence";
 import {
   predictRepeatVisits,
   analyzeCustomerValueTrend,
@@ -231,6 +232,11 @@ export const intelligenceRouter = router({
 
   /** #50 Lifetime Value Forecast */
   portfolioLTV: adminProcedure.query(async () => forecastPortfolioLTV()),
+
+  /** Master Intelligence Report — unified digest across all 50 engines */
+  masterReport: adminProcedure.query(async () => {
+    return generateMasterIntelligenceReport();
+  }),
 
   // ── Shop Load (real-time) ──
   shopLoad: adminProcedure.query(async () => {
