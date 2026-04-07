@@ -1,5 +1,5 @@
 /**
- * Public router — weather, reviews, Instagram, search, and diagnostics.
+ * Public router — weather, reviews, Instagram, search, diagnostics, and social proof.
  */
 import { publicProcedure, router } from "../_core/trpc";
 import { getWeather, getWeatherAlert } from "../weather";
@@ -10,6 +10,7 @@ import { runDiagnosis } from "../diagnose";
 import { generateLaborEstimate } from "../laborEstimate";
 import { z } from "zod";
 import { sanitizeText } from "../sanitize";
+import { desc, gte, like, or, and, sql } from "drizzle-orm";
 
 export const weatherRouter = router({
   current: publicProcedure.query(async () => {
@@ -127,6 +128,216 @@ export const laborEstimateRouter = router({
       return estimate;
     }),
 });
+
+// ── Neighborhoods for anonymized activity messages ──────
+const NEIGHBORHOODS = [
+  "Cleveland Heights", "Lakewood", "Parma", "Euclid", "Shaker Heights",
+  "South Euclid", "East Cleveland", "Garfield Heights", "Mentor", "Strongsville",
+];
+
+function pickNeighborhood(index: number): string {
+  return NEIGHBORHOODS[index % NEIGHBORHOODS.length];
+}
+
+function anonymizeName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/);
+  return parts[0] || "Someone";
+}
+
+export interface ActivityItem {
+  type: "booking" | "completed" | "review";
+  message: string;
+  minutesAgo: number;
+}
+
+export const activityRouter = router({
+  /** Recent real activity for FOMO ticker — anonymized bookings, jobs, reviews from today */
+  recent: publicProcedure.query(async (): Promise<ActivityItem[]> => {
+    try {
+      const { getDb } = await import("../db");
+      const d = await getDb();
+      if (!d) return [];
+
+      const { bookings, invoices, reviewReplies } = await import("../../drizzle/schema");
+
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+
+      const items: ActivityItem[] = [];
+
+      // 1. Recent bookings from today
+      const recentBookings = await d
+        .select({
+          name: bookings.name,
+          service: bookings.service,
+          createdAt: bookings.createdAt,
+        })
+        .from(bookings)
+        .where(gte(bookings.createdAt, todayStart))
+        .orderBy(desc(bookings.createdAt))
+        .limit(5);
+
+      for (const b of recentBookings) {
+        const ago = Math.max(1, Math.round((Date.now() - new Date(b.createdAt).getTime()) / 60000));
+        const neighborhood = pickNeighborhood(ago);
+        items.push({
+          type: "booking",
+          message: `Someone in ${neighborhood} just booked ${b.service}`,
+          minutesAgo: ago,
+        });
+      }
+
+      // 2. Completed jobs today (invoices)
+      const recentJobs = await d
+        .select({
+          vehicleInfo: invoices.vehicleInfo,
+          serviceDescription: invoices.serviceDescription,
+          invoiceDate: invoices.invoiceDate,
+        })
+        .from(invoices)
+        .where(gte(invoices.invoiceDate, todayStart))
+        .orderBy(desc(invoices.invoiceDate))
+        .limit(5);
+
+      for (const j of recentJobs) {
+        const ago = Math.max(1, Math.round((Date.now() - new Date(j.invoiceDate).getTime()) / 60000));
+        const vehicle = j.vehicleInfo || "a vehicle";
+        const service = j.serviceDescription?.split(",")[0]?.trim() || "service";
+        items.push({
+          type: "completed",
+          message: `A ${vehicle} just got ${service.toLowerCase()} completed`,
+          minutesAgo: ago,
+        });
+      }
+
+      // 3. Recent positive reviews
+      const recentReviews = await d
+        .select({
+          reviewerName: reviewReplies.reviewerName,
+          reviewText: reviewReplies.reviewText,
+          reviewRating: reviewReplies.reviewRating,
+          reviewDate: reviewReplies.reviewDate,
+        })
+        .from(reviewReplies)
+        .where(gte(reviewReplies.reviewRating, 4))
+        .orderBy(desc(reviewReplies.reviewDate))
+        .limit(5);
+
+      for (const r of recentReviews) {
+        const ago = r.reviewDate
+          ? Math.max(1, Math.round((Date.now() - new Date(r.reviewDate).getTime()) / 60000))
+          : 60;
+        const stars = "\u2605".repeat(r.reviewRating || 5);
+        const excerpt = r.reviewText
+          ? `"${r.reviewText.slice(0, 80)}${r.reviewText.length > 80 ? "..." : ""}"`
+          : '"Great service!"';
+        items.push({
+          type: "review",
+          message: `${stars} New ${r.reviewRating}-star review: ${excerpt}`,
+          minutesAgo: ago,
+        });
+      }
+
+      // Sort by recency and return up to 10
+      items.sort((a, b) => a.minutesAgo - b.minutesAgo);
+      return items.slice(0, 10);
+    } catch (err) {
+      console.error("[Activity] Failed to fetch recent activity:", err);
+      return [];
+    }
+  }),
+});
+
+export const serviceReviewsRouter = router({
+  /** Real reviews mentioning a specific service — for dynamic social proof on service pages */
+  forService: publicProcedure
+    .input(z.object({ service: z.string().min(1).max(100) }))
+    .query(async ({ input }): Promise<{
+      reviews: Array<{
+        name: string;
+        rating: number;
+        text: string;
+        date: string;
+      }>;
+    }> => {
+      try {
+        const { getDb } = await import("../db");
+        const d = await getDb();
+        if (!d) return { reviews: [] };
+
+        const { reviewReplies } = await import("../../drizzle/schema");
+
+        // Build keyword variations for the service
+        const serviceKeywords = buildServiceKeywords(input.service);
+
+        // Query reviews that mention this service (4-5 stars, most recent)
+        const conditions = serviceKeywords.map(
+          (kw) => like(reviewReplies.reviewText, `%${kw}%`)
+        );
+
+        const matchingReviews: Array<{
+          reviewerName: string | null;
+          reviewRating: number | null;
+          reviewText: string | null;
+          reviewDate: Date | null;
+        }> = await d
+          .select({
+            reviewerName: reviewReplies.reviewerName,
+            reviewRating: reviewReplies.reviewRating,
+            reviewText: reviewReplies.reviewText,
+            reviewDate: reviewReplies.reviewDate,
+          })
+          .from(reviewReplies)
+          .where(
+            and(
+              gte(reviewReplies.reviewRating, 4),
+              or(...conditions)
+            )
+          )
+          .orderBy(desc(reviewReplies.reviewDate))
+          .limit(3);
+
+        return {
+          reviews: matchingReviews.map((r) => ({
+            name: anonymizeName(r.reviewerName || "Customer"),
+            rating: r.reviewRating || 5,
+            text: r.reviewText || "",
+            date: r.reviewDate ? new Date(r.reviewDate).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            }) : "",
+          })),
+        };
+      } catch (err) {
+        console.error("[ServiceReviews] Failed:", err);
+        return { reviews: [] };
+      }
+    }),
+});
+
+/** Map service slugs/names to keyword variations for searching review text */
+function buildServiceKeywords(service: string): string[] {
+  const lower = service.toLowerCase();
+  const keywordMap: Record<string, string[]> = {
+    tires: ["tire", "tires", "flat", "rotation", "mount", "balance"],
+    brakes: ["brake", "brakes", "rotor", "pad", "pads", "stopping"],
+    diagnostics: ["diagnostic", "check engine", "engine light", "scan", "code"],
+    emissions: ["emission", "e-check", "smog", "echeck"],
+    "oil-change": ["oil change", "oil", "lube", "synthetic"],
+    "oil change": ["oil change", "oil", "lube", "synthetic"],
+    "general-repair": ["repair", "fix", "mechanic", "honest"],
+    "ac-repair": ["ac", "air conditioning", "a/c", "heat", "cooling", "cold air"],
+    "ac repair": ["ac", "air conditioning", "a/c", "heat", "cooling", "cold air"],
+    transmission: ["transmission", "trans", "shifting", "gear"],
+    electrical: ["electrical", "wiring", "alternator", "starter"],
+    battery: ["battery", "dead battery", "jump", "starting"],
+    exhaust: ["exhaust", "muffler", "catalytic", "pipe"],
+    cooling: ["coolant", "radiator", "overheating", "thermostat"],
+  };
+
+  return keywordMap[lower] || [lower, lower.replace(/-/g, " ")];
+}
 
 export const diagnoseRouter = router({
   analyze: publicProcedure

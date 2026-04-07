@@ -1,58 +1,37 @@
 /**
- * FomoTicker — Live Social Proof Notification (Phase 1.5).
+ * FomoTicker — Live Social Proof Notification.
+ * Pulls REAL recent activity (bookings, completed jobs, reviews) from the server.
+ * Falls back to hardcoded entries when no real data is available.
  * Slides in a small toast from the bottom-left (desktop) or bottom-center (mobile)
- * showing recent bookings and reviews. Rotates every 30-45s, visible for 5s each.
+ * showing recent activity. Rotates every 30-45s, visible for 5s each.
  * Dismissable permanently via localStorage.
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { X, Star, Clock, Wrench } from "lucide-react";
+import { X, Star, Clock, Wrench, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { trpc } from "@/lib/trpc";
 
 // ── Data ─────────────────────────────────────────────────────────────
 
-interface BookingEntry {
-  type: "booking";
-  name: string;
-  neighborhood: string;
-  service: string;
+interface FomoEntry {
+  type: "booking" | "completed" | "review";
+  message: string;
   minutesAgo: number;
 }
 
-interface ReviewEntry {
-  type: "review";
-  name: string;
-  excerpt: string;
-  timeAgo: string;
-}
-
-type FomoEntry = BookingEntry | ReviewEntry;
-
-const ENTRIES: FomoEntry[] = [
-  // Bookings
-  { type: "booking", name: "Marcus", neighborhood: "Euclid", service: "Brake Inspection", minutesAgo: 8 },
-  { type: "booking", name: "Denise", neighborhood: "Lakewood", service: "Oil Change", minutesAgo: 12 },
-  { type: "booking", name: "James", neighborhood: "Parma", service: "Tire Rotation", minutesAgo: 4 },
-  { type: "booking", name: "Angela", neighborhood: "Cleveland Heights", service: "Engine Diagnostic", minutesAgo: 18 },
-  { type: "booking", name: "Terrance", neighborhood: "Shaker Heights", service: "Alignment", minutesAgo: 6 },
-  { type: "booking", name: "Nicole", neighborhood: "East Cleveland", service: "Transmission Service", minutesAgo: 22 },
-  { type: "booking", name: "David", neighborhood: "South Euclid", service: "Brake Pad Replacement", minutesAgo: 15 },
-  { type: "booking", name: "Crystal", neighborhood: "Garfield Heights", service: "AC Repair", minutesAgo: 9 },
-  { type: "booking", name: "Robert", neighborhood: "Lakewood", service: "Tire Installation", minutesAgo: 3 },
-  { type: "booking", name: "Tamika", neighborhood: "Parma", service: "Check Engine Light", minutesAgo: 27 },
-  { type: "booking", name: "Kevin", neighborhood: "Euclid", service: "Suspension Repair", minutesAgo: 11 },
-  { type: "booking", name: "Lisa", neighborhood: "Cleveland Heights", service: "Battery Replacement", minutesAgo: 7 },
-  // Reviews
-  { type: "review", name: "Anthony", excerpt: "Best tire shop in Cleveland. Fair prices, honest work.", timeAgo: "2 hours ago" },
-  { type: "review", name: "Sharon", excerpt: "Got me in same day for brakes. Lifesaver!", timeAgo: "1 hour ago" },
-  { type: "review", name: "Michael", excerpt: "Nick and his team are the real deal. Highly recommend.", timeAgo: "3 hours ago" },
-  { type: "review", name: "Patricia", excerpt: "Fixed my AC fast and didn't try to upsell me.", timeAgo: "45 min ago" },
-  { type: "review", name: "Dwayne", excerpt: "Been coming here 10 years. Wouldn't go anywhere else.", timeAgo: "5 hours ago" },
-  { type: "review", name: "Maria", excerpt: "Honest mechanics are hard to find. These guys are it.", timeAgo: "30 min ago" },
-  { type: "review", name: "Tyrone", excerpt: "Quick oil change, fair price. In and out in 20 min.", timeAgo: "4 hours ago" },
-  { type: "review", name: "Jennifer", excerpt: "They explained everything before doing the work. Respect.", timeAgo: "2 hours ago" },
-  { type: "review", name: "Carlos", excerpt: "New tires at a great price. Rides like a dream now.", timeAgo: "6 hours ago" },
-  { type: "review", name: "Brenda", excerpt: "My whole family brings their cars here. Trust them completely.", timeAgo: "1 hour ago" },
+// Hardcoded fallback entries used when real data is not available
+const FALLBACK_ENTRIES: FomoEntry[] = [
+  { type: "booking", message: "Someone in Euclid just booked Brake Inspection", minutesAgo: 8 },
+  { type: "booking", message: "Someone in Lakewood just booked Oil Change", minutesAgo: 12 },
+  { type: "booking", message: "Someone in Parma just booked Tire Rotation", minutesAgo: 4 },
+  { type: "booking", message: "Someone in Cleveland Heights just booked Engine Diagnostic", minutesAgo: 18 },
+  { type: "booking", message: "Someone in Shaker Heights just booked Alignment", minutesAgo: 6 },
+  { type: "review", message: "\u2605\u2605\u2605\u2605\u2605 New 5-star review: \"Best tire shop in Cleveland. Fair prices, honest work.\"", minutesAgo: 30 },
+  { type: "review", message: "\u2605\u2605\u2605\u2605\u2605 New 5-star review: \"Got me in same day for brakes. Lifesaver!\"", minutesAgo: 45 },
+  { type: "review", message: "\u2605\u2605\u2605\u2605\u2605 New 5-star review: \"Nick and his team are the real deal.\"", minutesAgo: 60 },
+  { type: "completed", message: "A 2019 Honda Civic just got new tires installed", minutesAgo: 15 },
+  { type: "completed", message: "A 2021 Toyota Camry just got brakes completed", minutesAgo: 22 },
 ];
 
 const STORAGE_KEY = "fomo-dismissed";
@@ -60,12 +39,21 @@ const SHOW_DURATION = 5000;
 const MIN_INTERVAL = 30000;
 const MAX_INTERVAL = 45000;
 
-function getInitials(name: string): string {
-  return name.charAt(0).toUpperCase();
-}
-
 function randomInterval(): number {
   return MIN_INTERVAL + Math.random() * (MAX_INTERVAL - MIN_INTERVAL);
+}
+
+function getIcon(type: FomoEntry["type"]) {
+  switch (type) {
+    case "booking":
+      return <Clock size={11} />;
+    case "completed":
+      return <CheckCircle size={11} />;
+    case "review":
+      return <Star size={11} fill="#FDB913" color="#FDB913" />;
+    default:
+      return <Wrench size={11} />;
+  }
 }
 
 // ── Component ────────────────────────────────────────────────────────
@@ -78,6 +66,23 @@ export default function FomoTicker() {
   const indexRef = useRef(0);
   const showTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const cycleTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Fetch real activity data from server
+  const { data: realActivity } = trpc.activity.recent.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    refetchInterval: 5 * 60 * 1000,
+    retry: 1,
+  });
+
+  // Use real data when available, fallback to hardcoded
+  const entriesRef = useRef<FomoEntry[]>(FALLBACK_ENTRIES);
+  useEffect(() => {
+    if (realActivity && realActivity.length > 0) {
+      entriesRef.current = realActivity;
+    } else {
+      entriesRef.current = FALLBACK_ENTRIES;
+    }
+  }, [realActivity]);
 
   // Check localStorage on mount
   useEffect(() => {
@@ -106,19 +111,22 @@ export default function FomoTicker() {
   }, []);
 
   // Shuffle entries once on mount
-  const shuffledRef = useRef<FomoEntry[]>([]);
+  const shuffledOnce = useRef(false);
   useEffect(() => {
-    const shuffled = [...ENTRIES];
+    if (shuffledOnce.current) return;
+    shuffledOnce.current = true;
+    const shuffled = [...entriesRef.current];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
-    shuffledRef.current = shuffled;
+    entriesRef.current = shuffled;
   }, []);
 
   const showNext = useCallback(() => {
-    if (shuffledRef.current.length === 0) return;
-    const entry = shuffledRef.current[indexRef.current % shuffledRef.current.length];
+    const entries = entriesRef.current;
+    if (entries.length === 0) return;
+    const entry = entries[indexRef.current % entries.length];
     indexRef.current += 1;
 
     setCurrentEntry(entry);
@@ -169,7 +177,7 @@ export default function FomoTicker() {
 
   if (dismissed) return null;
 
-  const shouldHide = isNearBottom && window.innerWidth < 768;
+  const shouldHide = isNearBottom && typeof window !== "undefined" && window.innerWidth < 768;
 
   return (
     <AnimatePresence>
@@ -182,9 +190,9 @@ export default function FomoTicker() {
           style={{
             position: "fixed",
             bottom: 20,
-            left: window.innerWidth >= 768 ? 20 : "50%",
-            transform: window.innerWidth < 768 ? "translateX(-50%)" : undefined,
-            width: window.innerWidth >= 768 ? 320 : 280,
+            left: typeof window !== "undefined" && window.innerWidth >= 768 ? 20 : "50%",
+            transform: typeof window !== "undefined" && window.innerWidth < 768 ? "translateX(-50%)" : undefined,
+            width: typeof window !== "undefined" && window.innerWidth >= 768 ? 340 : 290,
             zIndex: 40,
             background: "#1A1A1A",
             border: "1px solid #2A2A2A",
@@ -199,14 +207,14 @@ export default function FomoTicker() {
           role="status"
           aria-live="polite"
         >
-          {/* Avatar circle */}
+          {/* Icon circle */}
           <div
             style={{
               width: 38,
               height: 38,
               minWidth: 38,
               borderRadius: "50%",
-              background: "#FDB913",
+              background: currentEntry.type === "review" ? "#FDB913" : currentEntry.type === "completed" ? "#22c55e" : "#3b82f6",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -216,73 +224,38 @@ export default function FomoTicker() {
               lineHeight: 1,
             }}
           >
-            {getInitials(currentEntry.name)}
+            {currentEntry.type === "booking" && <Clock size={18} color="#fff" />}
+            {currentEntry.type === "completed" && <CheckCircle size={18} color="#fff" />}
+            {currentEntry.type === "review" && <Star size={18} color="#1A1A1A" />}
           </div>
 
           {/* Content */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            {currentEntry.type === "booking" ? (
-              <>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 14,
-                    color: "#F5F5F5",
-                    lineHeight: 1.4,
-                  }}
-                >
-                  <strong>{currentEntry.name}</strong> from{" "}
-                  <strong>{currentEntry.neighborhood}</strong> just booked{" "}
-                  <span style={{ color: "#FDB913" }}>{currentEntry.service}</span>
-                </p>
-                <p
-                  style={{
-                    margin: "4px 0 0",
-                    fontSize: 12,
-                    color: "#A0A0A0",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                  }}
-                >
-                  <Clock size={11} />
-                  {currentEntry.minutesAgo} min ago
-                </p>
-              </>
-            ) : (
-              <>
-                <div style={{ display: "flex", gap: 2, marginBottom: 4 }}>
-                  {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      size={12}
-                      fill="#FDB913"
-                      color="#FDB913"
-                    />
-                  ))}
-                </div>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 13,
-                    color: "#F5F5F5",
-                    lineHeight: 1.4,
-                    fontStyle: "italic",
-                  }}
-                >
-                  &ldquo;{currentEntry.excerpt}&rdquo;
-                </p>
-                <p
-                  style={{
-                    margin: "4px 0 0",
-                    fontSize: 12,
-                    color: "#A0A0A0",
-                  }}
-                >
-                  — {currentEntry.name}, {currentEntry.timeAgo}
-                </p>
-              </>
-            )}
+            <p
+              style={{
+                margin: 0,
+                fontSize: 13,
+                color: "#F5F5F5",
+                lineHeight: 1.4,
+              }}
+            >
+              {currentEntry.message}
+            </p>
+            <p
+              style={{
+                margin: "4px 0 0",
+                fontSize: 12,
+                color: "#A0A0A0",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              {getIcon(currentEntry.type)}
+              {currentEntry.minutesAgo < 60
+                ? `${currentEntry.minutesAgo} min ago`
+                : `${Math.round(currentEntry.minutesAgo / 60)}h ago`}
+            </p>
           </div>
 
           {/* Close button */}

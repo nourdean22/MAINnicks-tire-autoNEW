@@ -24,6 +24,7 @@ import ApprovalPromiseBlock from "@/components/ApprovalPromiseBlock";
 import WhatToExpectAtYourVisit from "@/components/WhatToExpectAtYourVisit";
 import WhatAffectsPrice, { PRICE_FACTORS } from "@/components/WhatAffectsPrice";
 import EstimateTrustBlock from "@/components/EstimateTrustBlock";
+import ServiceReviewsBlock from "@/components/ServiceReviewsBlock";
 import { getProofConfig } from "@shared/proof";
 
 // CDN images
@@ -563,6 +564,12 @@ function WhyUs({ service }: { service: ServiceData }) {
             </FadeIn>
           );
         })()}
+
+        {/* Dynamic real reviews mentioning this service */}
+        <ServiceReviewsBlock
+          service={service.slug}
+          serviceTitle={service.title}
+        />
       </div>
     </section>
   );

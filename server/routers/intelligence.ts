@@ -238,6 +238,13 @@ export const intelligenceRouter = router({
     return generateMasterIntelligenceReport();
   }),
 
+  // ── Safety & Risk Monitor ──
+  /** Full safety check — financial, reputation, operational, data, compliance */
+  safetyCheck: adminProcedure.query(async () => {
+    const { runFullSafetyCheck } = await import("../services/safetyMonitor");
+    return runFullSafetyCheck();
+  }),
+
   // ── Shop Load (real-time) ──
   shopLoad: adminProcedure.query(async () => {
     const { getDb } = await import("../db");

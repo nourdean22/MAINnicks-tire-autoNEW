@@ -21,6 +21,8 @@ import {
   searchRouter,
   diagnoseRouter,
   laborEstimateRouter,
+  activityRouter,
+  serviceReviewsRouter,
   couponsRouter,
   garageRouter,
   referralsRouter,
@@ -93,6 +95,8 @@ export const appRouter = router({
   search: searchRouter,
   diagnose: diagnoseRouter,
   laborEstimate: laborEstimateRouter,
+  activity: activityRouter,
+  serviceReviews: serviceReviewsRouter,
   costEstimator: costEstimatorRouter,
   content: contentRouter,
 

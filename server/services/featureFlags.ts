@@ -16,6 +16,7 @@ const CACHE_TTL_MS = 60_000;
 
 /** All known flags and their descriptions */
 export const FLAG_DEFINITIONS = [
+  // ─── SMS & COMMUNICATION ──────────────────────────
   { key: "sms_appointment_reminders", description: "Send 24h/2h appointment reminder SMS" },
   { key: "sms_review_requests", description: "Auto-send review request SMS 3 days after service" },
   { key: "sms_retention_sequences", description: "Send 90/180/365 day re-engagement SMS" },
@@ -36,6 +37,49 @@ export const FLAG_DEFINITIONS = [
   { key: "sms_auto_quote", description: "Auto-respond to inbound SMS price questions" },
   { key: "churn_prediction_alerts", description: "Telegram alerts for high-risk churn customers" },
   { key: "pricing_intelligence_alerts", description: "Telegram alerts for raise/lower pricing" },
+  { key: "safety_monitor_enabled", description: "Telegram alerts for non-critical safety monitor warnings" },
+
+  // ─── ENGINE CONTROL: CUSTOMER INTELLIGENCE ────────
+  { key: "engine_churn_prediction", description: "Churn prediction engine (5-factor model)" },
+  { key: "engine_repeat_visit_predictor", description: "Predict when customers are due back" },
+  { key: "engine_customer_risk_scores", description: "Unified 0-100 customer risk scoring" },
+  { key: "engine_value_trend", description: "Track customer ticket size trends" },
+  { key: "engine_service_affinity", description: "Per-customer service preference mapping" },
+
+  // ─── ENGINE CONTROL: REVENUE INTELLIGENCE ─────────
+  { key: "engine_revenue_anomaly", description: "Detect unusual revenue spikes or dips" },
+  { key: "engine_cash_flow_forecast", description: "7/30-day cash flow projections" },
+  { key: "engine_profit_margins", description: "Gross margin analysis per service" },
+  { key: "engine_pricing_intelligence", description: "Approval rate monitoring + raise/lower alerts" },
+  { key: "engine_seasonal_demand", description: "Seasonal service demand forecasting" },
+
+  // ─── ENGINE CONTROL: OPERATIONS INTELLIGENCE ──────
+  { key: "engine_tech_efficiency", description: "Technician performance scoring" },
+  { key: "engine_capacity_forecast", description: "Tomorrow/next week shop load prediction" },
+  { key: "engine_turnaround_time", description: "Service completion time tracking" },
+  { key: "engine_no_show_predictor", description: "Booking no-show risk scoring" },
+
+  // ─── ENGINE CONTROL: MARKETING INTELLIGENCE ───────
+  { key: "engine_channel_roi", description: "Lead source ROI analysis" },
+  { key: "engine_review_velocity", description: "Review growth rate tracking" },
+  { key: "engine_lead_response_time", description: "Speed-to-lead monitoring" },
+  { key: "engine_content_performance", description: "Page-to-lead conversion tracking" },
+  { key: "engine_competitor_monitor", description: "Competitor rating/review tracking" },
+
+  // ─── EXPERIENCE FLAGS ─────────────────────────────
+  { key: "fomo_ticker_enabled", description: "Live activity ticker on public site (X just booked...)" },
+  { key: "dynamic_social_proof", description: "Real-time review quotes on service pages" },
+  { key: "smart_exit_intent", description: "Exit-intent popup with personalized offer" },
+  { key: "financing_pre_approval", description: "Pre-approval CTA before customer arrives" },
+  { key: "drop_off_sms_flow", description: "Automated drop-off → status → pickup SMS sequence" },
+  { key: "uber_integration_cta", description: "Suggest Uber/Lyft after drop-off" },
+
+  // ─── ADMIN / CEO FLAGS ────────────────────────────
+  { key: "live_telegram_feed", description: "Real-time closed job notifications to Telegram" },
+  { key: "daily_wins_digest", description: "End-of-day wins summary to Telegram" },
+  { key: "master_intelligence_report", description: "Master intelligence report in morning brief" },
+  { key: "safety_monitor_telegram", description: "Safety monitor Telegram alerts for non-critical items" },
+  { key: "drop_off_sms_flow", description: "Automated SMS sequence for drop-off customers (check-in, progress, ready)" },
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];
