@@ -47,6 +47,12 @@ export interface ServiceData {
   duration?: string;
   /** Starting price anchor for the service page hero */
   startingPrice?: string;
+  /** SEO price anchoring — approximate starting price for Google snippets */
+  priceRange?: string;
+  /** Short paragraph (2-3 sentences) specific to this service: why Nick's is the best choice */
+  whyChooseUs?: string;
+  /** Symptom-based phrases for long-tail SEO (people search symptoms, not service names) */
+  commonSymptoms?: string[];
 
   // ─── PILLAR PAGE FIELDS (for comprehensive service guides) ───
   /** Extended intro paragraph for pillar pages */
@@ -163,6 +169,15 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "30-60 min",
     startingPrice: "See tire prices",
+    priceRange: "Starting at $20/tire (mounting)",
+    whyChooseUs: "Nick's carries all major tire brands plus quality used tires at prices that make sense. Every tire install includes mounting, balancing, TPMS reset, and a 36-month warranty backed by 4.9 stars and 1,700+ reviews. Walk in any day of the week -- no appointment needed.",
+    commonSymptoms: [
+      "Car shaking at highway speed",
+      "Tire keeps losing air overnight",
+      "Uneven tire wear on inside edge",
+      "TPMS light won't turn off",
+      "Bulge or bubble on tire sidewall",
+    ],
 
   },
   {
@@ -255,6 +270,15 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "1-3 hours",
     startingPrice: "FREE inspection",
+    priceRange: "Starting at $129/axle",
+    whyChooseUs: "Every brake job at Nick's starts with a free inspection -- we show you the worn parts before quoting a penny. Our 36-month warranty on parts and labor, same-day turnaround, and transparent pricing are why Cleveland drivers give us 4.9 stars across 1,700+ reviews.",
+    commonSymptoms: [
+      "Car making grinding noise when braking",
+      "Brake pedal goes to the floor",
+      "Steering wheel shakes when stopping",
+      "Car pulls to one side when braking",
+      "Squealing sound every time I brake",
+    ],
 
   },
   {
@@ -345,6 +369,15 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "30-60 min",
     startingPrice: "$59.99 (credited toward repair)",
+    priceRange: "Free scan with repair",
+    whyChooseUs: "We test before we replace -- no parts guessing. Our advanced OBD-II scanners and live data analysis pinpoint the exact failed component so you only pay for what you need. Diagnostic fee is credited toward your repair, and everything is backed by our 36-month warranty.",
+    commonSymptoms: [
+      "Check engine light on and off",
+      "Car running rough at idle",
+      "Engine light flashing while driving",
+      "Car losing power going uphill",
+      "Gas mileage suddenly dropped",
+    ],
 
   },
   {
@@ -436,6 +469,15 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "20-40 min (test) / 1-2 days (repair)",
     startingPrice: "From $24.99",
+    priceRange: "Starting at $49",
+    whyChooseUs: "We specialize in Ohio E-Check failures and know the exact drive cycles to get your monitors to complete fast. We fix the root cause -- not just clear codes -- so you pass the first time back. Walk-ins 7 days, same-day diagnosis, and a 36-month warranty on repairs.",
+    commonSymptoms: [
+      "Failed Ohio E-Check inspection",
+      "Check engine light before emissions test",
+      "Car won't pass smog test",
+      "Readiness monitors not ready",
+      "Strong exhaust smell from tailpipe",
+    ],
 
   },
   {
@@ -526,6 +568,15 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "15-30 min",
     startingPrice: "From $39.99",
+    priceRange: "Starting at $29.99",
+    whyChooseUs: "Every oil change at Nick's uses the correct oil weight per your manufacturer spec -- not the cheapest option. We include a free multi-point inspection with every service so small problems get caught early. Walk in any day, no appointment needed, and most are done in under 30 minutes.",
+    commonSymptoms: [
+      "Oil change light on dashboard",
+      "Engine oil looks dark and gritty",
+      "Engine louder than usual",
+      "Oil level low between changes",
+      "Burning oil smell from engine",
+    ],
 
   },
   {
@@ -615,6 +666,15 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "Varies — we'll call with estimate",
     startingPrice: "FREE estimates",
+    priceRange: "Starting at $89",
+    whyChooseUs: "From suspension and steering to exhaust and cooling, Nick's diagnoses the root cause and explains every repair in plain language. Written estimates before any work, no surprise charges, and a 36-month warranty. Open 7 days with same-day service for most repairs.",
+    commonSymptoms: [
+      "Car making clunking noise over bumps",
+      "Steering wheel vibrating while driving",
+      "Fluid leaking under my car",
+      "Car pulling to one side",
+      "Rattling noise from underneath the car",
+    ],
 
   },
   // ─── PHASE 2: NEW SERVICE PAGES ─────────────────────────
@@ -701,6 +761,15 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "Recharge: 30-60 min. Component repair: 2-4 hours. Evaporator: 4-8 hours.",
     startingPrice: "From $149",
+    priceRange: "Starting at $49.99",
+    whyChooseUs: "We diagnose before we recharge -- too many shops just dump refrigerant in and call it fixed. Nick's finds the actual leak, gives you a written estimate, and backs every repair with a 36-month warranty. Same-day service for most AC jobs, walk-ins welcome 7 days a week.",
+    commonSymptoms: [
+      "Car AC blowing warm air",
+      "Musty smell from car vents",
+      "AC only works on highway not in traffic",
+      "Car heater not blowing hot air",
+      "Hissing sound from dashboard when AC is on",
+    ],
 
     // ─── PILLAR PAGE CONTENT ───────────────────────────────
     pillarIntro: "Your car's air conditioning system is more complex than most drivers realize. It is a sealed loop of high-pressure refrigerant that cycles between liquid and gas states to absorb heat from your cabin and release it outside. The system includes a compressor (the pump), a condenser (releases heat outside), an evaporator (absorbs heat inside the cabin), an expansion valve (controls refrigerant flow), and a network of hoses, O-rings, and sensors. When any one of these components fails, the whole system stops working. Cleveland's climate is especially hard on AC systems — freezing winters cause O-ring seals to dry out and crack, and humid summers push the system to its limits. This guide covers every common AC problem, what causes it, what it costs to fix, and how to tell if your shop is giving you an honest diagnosis.",
@@ -833,6 +902,15 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "Fluid service: 1 hour. Repairs: 1-3 days.",
     startingPrice: "From $150",
+    priceRange: "Starting at $149",
+    whyChooseUs: "Transmission work requires precision -- Nick's diagnoses shifting problems with proper scan tools and road testing, not guesswork. You get an honest assessment, a written estimate before any work, and a 36-month warranty. We tell you if a fluid service will fix it before recommending a rebuild.",
+    commonSymptoms: [
+      "Car jerking when shifting gears",
+      "Transmission slipping out of gear",
+      "Burning smell from under the car",
+      "Red fluid leaking under my car",
+      "Car won't go into reverse",
+    ],
   },
   {
     slug: "electrical",
@@ -887,6 +965,15 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "Battery/alternator: 1-2 hours. Wiring: varies.",
     startingPrice: "FREE battery test",
+    priceRange: "Starting at $120",
+    whyChooseUs: "Electrical problems stump most shops. Nick's uses wiring diagrams, multimeters, and systematic circuit testing to find the actual fault -- no parts-swapping guesswork. Free battery and charging system test, same-day service, and a 36-month warranty on all repairs.",
+    commonSymptoms: [
+      "Car won't start clicking sound",
+      "Battery dies every morning",
+      "Headlights dimming while driving",
+      "Power windows stopped working",
+      "Dashboard lights flickering randomly",
+    ],
   },
   {
     slug: "battery",
@@ -935,6 +1022,15 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "15–30 minutes",
     startingPrice: "FREE test",
+    priceRange: "Starting at $129 installed",
+    whyChooseUs: "Nick's tests your battery and charging system for free before recommending anything. If you need a replacement, we install quality batteries at fair prices with a 36-month warranty -- most replacements done in 30 minutes. Walk in any day, no appointment needed.",
+    commonSymptoms: [
+      "Car won't start in cold weather",
+      "Slow engine crank in the morning",
+      "Battery light on dashboard",
+      "Had to jump start my car again",
+      "Car battery is 4 years old",
+    ],
   },
   {
     slug: "exhaust",
@@ -984,6 +1080,15 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "1–4 hours depending on repair",
     startingPrice: "From $100",
+    priceRange: "Starting at $149",
+    whyChooseUs: "Nick's inspects your entire exhaust system from manifold to tailpipe before quoting anything. We handle mufflers, catalytic converters, and emissions-related exhaust work with same-day service, written estimates, and a 36-month warranty on parts and labor.",
+    commonSymptoms: [
+      "Exhaust louder than normal suddenly",
+      "Rattling noise from underneath the car",
+      "Smell exhaust inside the car",
+      "Failed emissions test catalytic converter",
+      "Rust holes in exhaust pipe",
+    ],
   },
   {
     slug: "cooling",
@@ -1035,6 +1140,15 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "1–4 hours depending on repair",
     startingPrice: "From $100",
+    priceRange: "Starting at $89",
+    whyChooseUs: "Overheating damage is preventable. Nick's pressure-tests your cooling system, diagnoses the root cause, and uses the correct coolant for your vehicle. Same-day service for most cooling repairs, written estimates before work begins, and a 36-month warranty.",
+    commonSymptoms: [
+      "Car temperature gauge in the red",
+      "Sweet smell from engine bay",
+      "Coolant leaking under my car",
+      "Car heater blowing cold air",
+      "Steam coming from under the hood",
+    ],
   },
   {
     slug: "pre-purchase-inspection",
@@ -1082,6 +1196,15 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "1–2 hours",
     startingPrice: "From $100",
+    priceRange: "Starting at $100",
+    whyChooseUs: "A $100 inspection at Nick's can save you thousands on a bad used car purchase. Our 150+ point bumper-to-bumper inspection covers engine, transmission, brakes, suspension, electrical, body, and frame -- with a written report and photos. Same-day results, honest assessment.",
+    commonSymptoms: [
+      "Buying a used car from private seller",
+      "Used car making weird noise on test drive",
+      "Is this used car worth buying",
+      "Used car check engine light on",
+      "Want mechanic to check car before I buy",
+    ],
   },
   {
     slug: "belts-hoses",
@@ -1131,6 +1254,15 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "Belt: 30 min–1 hr. Timing belt: 4–8 hrs.",
     startingPrice: "From $80",
+    priceRange: "Starting at $80",
+    whyChooseUs: "Belts and hoses fail without warning -- a $50 belt replacement prevents a $500 tow. Nick's inspects belts and hoses during every service visit and recommends replacement before they leave you stranded. Same-day service, fair prices, and a 36-month warranty.",
+    commonSymptoms: [
+      "Squealing noise from engine on startup",
+      "Cracks visible on serpentine belt",
+      "Coolant leaking from hose",
+      "Power steering stopped working suddenly",
+      "Timing belt never been replaced high mileage",
+    ],
   },
   {
     slug: "starter-alternator",
@@ -1180,6 +1312,15 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "1–3 hours",
     startingPrice: "FREE test",
+    priceRange: "Starting at $250",
+    whyChooseUs: "When your car won't start, Nick's tests the battery, starter, and alternator to find the actual cause -- no parts-swapping guesswork. Free charging system test, same-day replacement for most vehicles, and a 36-month warranty on parts and labor.",
+    commonSymptoms: [
+      "Car won't start just clicks",
+      "Battery keeps dying after replacement",
+      "Whining noise from engine alternator",
+      "Car stalls while driving",
+      "Battery warning light stays on",
+    ],
   },
 ];
 

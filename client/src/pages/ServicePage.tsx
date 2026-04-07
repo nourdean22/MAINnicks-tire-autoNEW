@@ -214,6 +214,11 @@ function ServiceHero({ service }: { service: ServiceData }) {
         {/* Turnaround + Pricing badges */}
         <FadeIn delay={0.4}>
           <div className="mt-8 flex flex-wrap gap-4 stagger-in text-sm">
+            {service.priceRange && (
+              <div className="flex items-center gap-2 stagger-in bg-primary/10 border border-primary/20 rounded-md px-4 py-2">
+                <span className="text-primary font-bold text-[13px]">{service.priceRange}</span>
+              </div>
+            )}
             {service.turnaround && (
               <div className="flex items-center gap-2 stagger-in bg-nick-blue/10 border border-nick-blue/20 rounded-md px-4 py-2">
                 <Clock className="w-4 h-4 text-nick-blue-light shrink-0" />
@@ -370,6 +375,84 @@ function WarningSigns({ service }: { service: ServiceData }) {
                 </a>
                 <a href="#booking" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/40 text-nick-blue-light px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:bg-nick-blue/10 transition-colors">
                   SCHEDULE INSPECTION
+                  <ChevronRight className="w-4 h-4" />
+                </a>
+              </div>
+            </FadeIn>
+          </div>
+        </FadeIn>
+      </div>
+    </section>
+  );
+}
+
+// ─── COMMON SYMPTOMS ─────────────────────────────────
+function CommonSymptoms({ service }: { service: ServiceData }) {
+  if (!service.commonSymptoms || service.commonSymptoms.length === 0) return null;
+
+  return (
+    <section className="bg-[oklch(0.055_0.004_260)] py-16 lg:py-20">
+      <div className="container">
+        <FadeIn>
+          <div className="max-w-4xl mx-auto">
+            <span className="font-mono text-primary text-sm tracking-wide">Symptoms</span>
+            <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight">
+              COMMON SIGNS YOU NEED <span className="text-primary">{service.title}</span>
+            </h2>
+            <p className="mt-4 text-foreground/60 text-lg">
+              If any of these sound familiar, your vehicle may need {service.title.toLowerCase()} service.
+            </p>
+
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 stagger-in">
+              {service.commonSymptoms.map((symptom, i) => (
+                <FadeIn key={i} delay={i * 0.05}>
+                  <div className="flex items-start gap-3 stagger-in bg-card/60 border border-nick-blue/10 rounded-md p-4">
+                    <div className="w-2 h-2 bg-primary rounded-full shrink-0 mt-2" />
+                    <p className="text-foreground/80 text-sm leading-relaxed">{symptom}</p>
+                  </div>
+                </FadeIn>
+              ))}
+            </div>
+
+            <FadeIn delay={0.3}>
+              <div className="mt-8">
+                <a href="#booking" className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors">
+                  SCHEDULE INSPECTION
+                  <ChevronRight className="w-4 h-4" />
+                </a>
+              </div>
+            </FadeIn>
+          </div>
+        </FadeIn>
+      </div>
+    </section>
+  );
+}
+
+// ─── WHY CHOOSE US BLOCK ─────────────────────────────
+function WhyChooseUsBlock({ service }: { service: ServiceData }) {
+  if (!service.whyChooseUs) return null;
+
+  return (
+    <section className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-20">
+      <div className="container">
+        <FadeIn>
+          <div className="max-w-4xl mx-auto">
+            <span className="font-mono text-nick-blue-light text-sm tracking-wide">Why Nick's</span>
+            <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight">
+              WHY CHOOSE NICK'S FOR <span className="text-primary">{service.title}</span>?
+            </h2>
+            <p className="mt-6 text-foreground/70 text-lg leading-relaxed">
+              {service.whyChooseUs}
+            </p>
+            <FadeIn delay={0.15}>
+              <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('service-whychoose-cta')} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+                  <Phone className="w-4 h-4" />
+                  CALL {BUSINESS.phone.display}
+                </a>
+                <a href="#booking" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/40 text-nick-blue-light px-6 py-3 rounded-md font-semibold font-bold text-sm tracking-wide hover:bg-nick-blue/10 transition-colors">
+                  BOOK ONLINE
                   <ChevronRight className="w-4 h-4" />
                 </a>
               </div>
@@ -1063,11 +1146,13 @@ export default function ServicePage() {
         <PillarIntro service={service} />
         <Problems service={service} />
         <WarningSigns service={service} />
+        <CommonSymptoms service={service} />
         <CostBreakdown service={service} />
         <Process service={service} />
         <WhyUs service={service} />
         <QuickAnswers service={service} />
         <PillarFAQ service={service} />
+        <WhyChooseUsBlock service={service} />
         <RelatedLinks service={service} />
         <BookingSection service={service} />
         <OtherServices currentSlug={service.slug} />
