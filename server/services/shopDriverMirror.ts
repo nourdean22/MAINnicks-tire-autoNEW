@@ -602,9 +602,9 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
         if (ri.date) updates.invoiceDate = new Date(ri.date);
         if (ri.paymentMethod && ri.paymentMethod !== "other") updates.paymentMethod = normalizePaymentMethod(ri.paymentMethod);
         if (ri.paymentStatus && ri.paymentStatus !== "paid") updates.paymentStatus = normalizePaymentStatus(ri.paymentStatus);
-        if (ri.partsCost > 0) updates.partsCost = ri.partsCost;
-        if (ri.laborCost > 0) updates.laborCost = ri.laborCost;
-        if (ri.taxAmount > 0) updates.taxAmount = ri.taxAmount;
+        if (ri.partsCost != null && ri.partsCost > 0) updates.partsCost = ri.partsCost;
+        if (ri.laborCost != null && ri.laborCost > 0) updates.laborCost = ri.laborCost;
+        if (ri.taxAmount != null && ri.taxAmount > 0) updates.taxAmount = ri.taxAmount;
         if (ri.customerPhone) updates.customerPhone = normalizePhone(ri.customerPhone);
         if (ri.customerName && ri.customerName !== "Unknown") updates.customerName = ri.customerName;
 
