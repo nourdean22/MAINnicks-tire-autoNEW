@@ -84,10 +84,10 @@ export const SERVICES: ServiceData[] = [
     num: "01",
     title: "TIRES",
     shortDesc: "New and used tires. Mounting, balancing, rotation, TPMS sensors, and flat repair. We carry all major brands at fair prices.",
-    metaTitle: "Tire Shop Cleveland OH | New & Used | Walk-Ins Welcome | Nick's",
-    metaDescription: "Cleveland's top-rated tire shop. New and used tires, mounting, balancing, TPMS, and flat repair. Walk-ins 7 days. Call (216) 862-0005 for a free quote.",
-    heroHeadline: "CLEVELAND'S TIRE EXPERTS",
-    heroSubline: "New tires, used tires, flat repair, TPMS sensors, mounting, and balancing. We carry all major brands at prices that make sense.",
+    metaTitle: "Tire Shop Near Me | Cleveland OH | Walk-Ins 7 Days | Nick's",
+    metaDescription: "Looking for a tire shop near me in Cleveland? New and used tires, mounting, balancing, TPMS, flat repair. Walk-ins 7 days. Call (216) 862-0005.",
+    heroHeadline: "TIRE SHOP NEAR ME\nIN CLEVELAND",
+    heroSubline: "Searching for a tire shop near me? Nick's Tire & Auto is Cleveland's top-rated tire shop — new tires, used tires, flat repair, TPMS sensors, mounting, and balancing. Walk in any day, all major brands at prices that make sense.",
     heroCTA: "GET A TIRE QUOTE",
     turnaround: "Most tire installations completed in under an hour. Walk-ins welcome.",
     pricingNote: "Free tire pressure checks · Fair prices on all major brands · Quality used tires available",
@@ -134,7 +134,7 @@ export const SERVICES: ServiceData[] = [
       "Tire rotation service",
       "No appointment needed for tire pressure checks",
     ],
-    keywords: ["tire shop Cleveland", "tires Cleveland OH", "used tires Cleveland", "tire repair Cleveland", "TPMS sensor replacement", "tire balancing Cleveland", "flat tire repair"],
+    keywords: ["tire shop near me", "tire shops near me", "tire repair near me", "tire shop Cleveland", "tires Cleveland OH", "used tires Cleveland", "tire repair Cleveland", "TPMS sensor replacement", "tire balancing Cleveland", "flat tire repair"],
     quickAnswers: [
       {
         question: "How much does it cost to replace tires in Cleveland?",
@@ -151,6 +151,10 @@ export const SERVICES: ServiceData[] = [
       {
         question: "What causes tires to wear unevenly?",
         answer: "Uneven tire wear is caused by misalignment, worn suspension components, improper tire pressure, or lack of rotation. Inner-edge wear indicates a camber problem. Outer-edge wear suggests toe misalignment. Center wear means overinflation. A qualified technician can diagnose the root cause by reading the wear pattern."
+      },
+      {
+        question: "Where is the best tire shop near me in Cleveland?",
+        answer: "Nick's Tire & Auto at 21300 Euclid Ave is Cleveland's top-rated tire shop with 4.9 stars from 1,700+ Google reviews. We carry new and quality used tires from all major brands, offer same-day installation, and are open 7 days a week for walk-ins. Call (216) 862-0005 for a free tire quote."
       }
     ],
     includedItems: [
@@ -185,10 +189,10 @@ export const SERVICES: ServiceData[] = [
     num: "02",
     title: "BRAKES",
     shortDesc: "Brake pads, rotors, calipers, brake lines, and ABS diagnostics. We show you the problem before we fix it. Every time.",
-    metaTitle: "Brake Repair Cleveland OH | 36-Month Warranty | Nick's Tire",
-    metaDescription: "Expert brake repair in Cleveland, OH. Pads, rotors, calipers, ABS. 36-month warranty, same-day service. 4.9 stars. Call (216) 862-0005 for a free quote.",
-    heroHeadline: "BRAKE REPAIR DONE RIGHT",
-    heroSubline: "Squealing, grinding, or soft pedal? We diagnose the exact problem, show you the worn parts, and fix it at a fair price. No guesswork.",
+    metaTitle: "Brake Repair Cleveland OH | Starting at $129/Axle | Nick's Tire",
+    metaDescription: "Expert brake repair in Cleveland starting at $129/axle. Pads, rotors, calipers, ABS. 36-month warranty, same-day service. Call (216) 862-0005.",
+    heroHeadline: "BRAKE REPAIR CLEVELAND",
+    heroSubline: "Cleveland's trusted brake shop. Squealing, grinding, or soft pedal? We diagnose the exact problem, show you the worn parts, and fix it starting at $129/axle. No guesswork, no surprises.",
     heroCTA: "SCHEDULE BRAKE INSPECTION",
     turnaround: "Most brake jobs completed same day. Drop off in the morning, drive home by afternoon.",
     pricingNote: "Free brake inspection · We show you the problem before quoting · No surprise charges",
@@ -234,7 +238,7 @@ export const SERVICES: ServiceData[] = [
       "No surprise charges — the quote is the price",
       "Experienced technicians who specialize in brake systems",
     ],
-    keywords: ["brake repair Cleveland", "brake pads Cleveland", "rotor replacement Cleveland OH", "ABS diagnostics", "brake service Cleveland", "squealing brakes repair"],
+    keywords: ["brake repair Cleveland", "brakes Cleveland", "brake repair near me", "brakes near me", "brake pads Cleveland", "rotor replacement Cleveland OH", "ABS diagnostics", "brake service Cleveland", "squealing brakes repair"],
     quickAnswers: [
       {
         question: "How much does brake repair cost in Cleveland?",
@@ -251,6 +255,10 @@ export const SERVICES: ServiceData[] = [
       {
         question: "Is it safe to drive with squealing brakes?",
         answer: "Squealing brakes are a warning sign that should not be ignored. A high-pitched squeal usually means the brake pad wear indicators are contacting the rotor, indicating the pads are nearly worn through. Continued driving can damage the rotors and calipers, increasing repair cost significantly. Have your brakes inspected as soon as possible."
+      },
+      {
+        question: "Where can I find brake repair near me in Cleveland?",
+        answer: "Nick's Tire & Auto at 21300 Euclid Ave, Cleveland is open 7 days a week for brake repair. We offer free brake inspections, same-day brake service starting at $129/axle, and a 36-month warranty on all brake work. Walk-ins welcome. Call (216) 862-0005."
       }
     ],
     includedItems: [
@@ -286,10 +294,10 @@ export const SERVICES: ServiceData[] = [
     num: "03",
     title: "DIAGNOSTICS",
     shortDesc: "Check engine light, OBD-II code reading, advanced computer diagnostics. We pinpoint the exact cause so you only pay for what you need.",
-    metaTitle: "Check Engine Light Cleveland | Free Scan with Repair | Nick's",
-    metaDescription: "Check engine light on in Cleveland? OBD-II diagnostics that pinpoint the problem. Free scan with repair. Walk-ins 7 days. Call (216) 862-0005 today.",
-    heroHeadline: "ADVANCED DIAGNOSTICS",
-    heroSubline: "Check engine light, warning lights, performance problems. We use advanced OBD-II scanners to find the exact cause — not guess at it.",
+    metaTitle: "Check Engine Light Near Me | Cleveland OH | Free Scan | Nick's",
+    metaDescription: "Check engine light near me? Cleveland's trusted diagnostics shop. Free scan with repair. OBD-II experts, walk-ins 7 days. Call (216) 862-0005.",
+    heroHeadline: "CHECK ENGINE LIGHT\nDIAGNOSTICS",
+    heroSubline: "Searching for check engine light service near me in Cleveland? We use advanced OBD-II scanners to find the exact cause — not guess at it. Free code scan with repair, same-day service, walk-ins welcome.",
     heroCTA: "SCHEDULE DIAGNOSTICS",
     turnaround: "Most diagnostic scans completed within the hour. Complex issues may require extended testing.",
     pricingNote: "Diagnostic fee applies toward repair · No charge for code reading · Written estimate before any work",
@@ -335,7 +343,7 @@ export const SERVICES: ServiceData[] = [
       "Clear explanation of what is wrong and what it costs to fix",
       "Fair diagnostic fees that apply toward the repair",
     ],
-    keywords: ["check engine light Cleveland", "OBD-II diagnostics Cleveland", "car diagnostics Cleveland OH", "engine light repair", "auto diagnostics Cleveland", "vehicle computer diagnostics"],
+    keywords: ["check engine light near me", "check engine light Cleveland", "mechanic near me", "auto repair near me", "OBD-II diagnostics Cleveland", "car diagnostics Cleveland OH", "engine light repair", "auto diagnostics Cleveland", "vehicle computer diagnostics"],
     quickAnswers: [
       {
         question: "Why is my check engine light on?",
@@ -352,6 +360,10 @@ export const SERVICES: ServiceData[] = [
       {
         question: "What is an OBD-II diagnostic scan?",
         answer: "OBD-II stands for On-Board Diagnostics, second generation. It is a standardized system in all vehicles made after 1996 that monitors engine performance and emissions. A diagnostic scan tool connects to the OBD-II port under the dashboard and reads trouble codes stored by the vehicle's computer, helping technicians identify the source of a problem."
+      },
+      {
+        question: "Where can I find check engine light service near me?",
+        answer: "Nick's Tire & Auto at 21300 Euclid Ave, Cleveland is open 7 days a week for check engine light diagnostics. We offer a free code scan with repair, advanced OBD-II testing, and same-day service for most check engine light issues. No appointment needed. Call (216) 862-0005."
       }
     ],
     includedItems: [
@@ -373,6 +385,7 @@ export const SERVICES: ServiceData[] = [
     whyChooseUs: "We test before we replace -- no parts guessing. Our advanced OBD-II scanners and live data analysis pinpoint the exact failed component so you only pay for what you need. Diagnostic fee is credited toward your repair, and everything is backed by our 36-month warranty.",
     commonSymptoms: [
       "Check engine light on and off",
+      "Check engine light near me",
       "Car running rough at idle",
       "Engine light flashing while driving",
       "Car losing power going uphill",
@@ -485,10 +498,10 @@ export const SERVICES: ServiceData[] = [
     num: "05",
     title: "OIL CHANGE",
     shortDesc: "Conventional and synthetic oil changes with filter replacement. Quick, affordable, done right.",
-    metaTitle: "Oil Change Cleveland OH | Starting at $29.99 | Nick's Tire & Auto",
-    metaDescription: "Fast, affordable oil changes in Cleveland starting at $29.99. Synthetic and conventional. No appointment needed. Walk-ins 7 days. Call (216) 862-0005.",
-    heroHeadline: "OIL CHANGE SERVICE",
-    heroSubline: "Conventional and synthetic oil changes with filter replacement. Quick service, fair prices, and we check your vehicle while it is here.",
+    metaTitle: "Oil Change Cleveland OH | $29.99 Conventional | Nick's Tire & Auto",
+    metaDescription: "Oil change in Cleveland starting at $29.99. Conventional and synthetic. Free inspection included. Walk-ins 7 days. Call (216) 862-0005.",
+    heroHeadline: "OIL CHANGE\nCLEVELAND OH",
+    heroSubline: "Looking for an oil change in Cleveland? $29.99 conventional oil changes with filter replacement and a free multi-point inspection. Synthetic options from $69.99. Quick service, walk-ins welcome, no appointment needed.",
     heroCTA: "SCHEDULE OIL CHANGE",
     turnaround: "Most oil changes done in under 30 minutes. No appointment needed.",
     pricingNote: "Free multi-point inspection with every oil change · Correct oil weight per manufacturer spec",
@@ -534,7 +547,7 @@ export const SERVICES: ServiceData[] = [
       "No appointment needed for oil changes",
       "Honest recommendation on change intervals",
     ],
-    keywords: ["oil change Cleveland", "synthetic oil change Cleveland OH", "oil change near me", "quick oil change Cleveland", "oil change service Cleveland"],
+    keywords: ["oil change Cleveland", "oil change near me", "synthetic oil change Cleveland OH", "quick oil change Cleveland", "oil change service Cleveland", "oil change Cleveland OH"],
     quickAnswers: [
       {
         question: "How often should I change my oil?",
@@ -551,6 +564,10 @@ export const SERVICES: ServiceData[] = [
       {
         question: "What happens if I skip an oil change?",
         answer: "Skipping oil changes allows old oil to break down and form sludge inside the engine. Sludge restricts oil flow, increases friction, and causes accelerated wear on internal components. Over time, this can lead to overheating, reduced fuel economy, and eventually catastrophic engine failure. Regular oil changes are the single most important maintenance for engine longevity."
+      },
+      {
+        question: "Where can I get an oil change near me in Cleveland?",
+        answer: "Nick's Tire & Auto at 21300 Euclid Ave, Cleveland offers oil changes starting at $29.99 for conventional and $69.99 for full synthetic. Every oil change includes a free multi-point inspection. Walk-ins welcome 7 days a week, most oil changes done in under 30 minutes. Call (216) 862-0005."
       }
     ],
     includedItems: [
@@ -584,10 +601,10 @@ export const SERVICES: ServiceData[] = [
     num: "06",
     title: "GENERAL REPAIR",
     shortDesc: "Suspension, steering, exhaust, cooling systems, belts, hoses, and more. If it is broken, we fix it.",
-    metaTitle: "Auto Repair Cleveland OH | 4.9 Stars | Nick's Tire & Auto",
-    metaDescription: "Full-service auto repair in Cleveland, OH. Suspension, steering, exhaust, and more. 4.9 stars, 1700+ reviews. Walk-ins 7 days. Call (216) 862-0005.",
-    heroHeadline: "FULL-SERVICE AUTO REPAIR",
-    heroSubline: "Suspension, steering, exhaust, cooling systems, belts, hoses, electrical, and more. If it is broken, we diagnose it and fix it right.",
+    metaTitle: "Auto Repair Near Me | Cleveland OH | 4.9 Stars | Nick's Tire",
+    metaDescription: "Looking for auto repair near me in Cleveland? Full-service auto shop. Suspension, steering, exhaust, and more. 4.9 stars. Walk-ins 7 days. (216) 862-0005.",
+    heroHeadline: "AUTO REPAIR NEAR ME\nIN CLEVELAND",
+    heroSubline: "Searching for auto repair near me or a mechanic near me in Cleveland? Nick's Tire & Auto is your full-service auto shop for suspension, steering, exhaust, cooling systems, belts, hoses, and more. If it is broken, we diagnose it and fix it right.",
     heroCTA: "DESCRIBE YOUR PROBLEM",
     turnaround: "Most repairs completed same day or next day. We call you with updates.",
     pricingNote: "Free estimates · Written quote before any work begins · No hidden fees",
@@ -633,7 +650,7 @@ export const SERVICES: ServiceData[] = [
       "We explain every repair in plain language",
       "Written estimates before any work begins",
     ],
-    keywords: ["auto repair Cleveland", "suspension repair Cleveland", "steering repair Cleveland OH", "exhaust repair Cleveland", "cooling system repair", "Cleveland mechanic", "car repair Cleveland"],
+    keywords: ["auto repair near me", "mechanic near me", "auto shops near me", "auto repair Cleveland", "suspension repair Cleveland", "steering repair Cleveland OH", "exhaust repair Cleveland", "cooling system repair", "Cleveland mechanic", "car repair Cleveland"],
     quickAnswers: [
       {
         question: "How do I find a trustworthy mechanic in Cleveland?",
@@ -650,6 +667,14 @@ export const SERVICES: ServiceData[] = [
       {
         question: "Why is my car making a strange noise?",
         answer: "Strange vehicle noises indicate specific problems. Squealing from the front usually means worn brake pads or a loose belt. Grinding suggests metal-on-metal contact in brakes or transmission. Clunking over bumps points to worn suspension components. Humming at highway speed often indicates a wheel bearing issue. A diagnostic inspection can identify the exact source."
+      },
+      {
+        question: "Where can I find auto repair near me in Cleveland?",
+        answer: "Nick's Tire & Auto at 21300 Euclid Ave, Cleveland is a full-service auto repair shop open 7 days a week. Whether you need brake repair, oil changes, engine diagnostics, or suspension work, we handle it all with free estimates, written quotes, and a 36-month warranty. 4.9 stars from 1,700+ Google reviews. Call (216) 862-0005."
+      },
+      {
+        question: "How do I find a good mechanic near me?",
+        answer: "Look for a mechanic with verified Google reviews, transparent pricing, and technicians who explain repairs in plain language. Nick's Tire & Auto has 4.9 stars from 1,700+ reviews because we show you the problem before we fix it, provide written estimates, and never pressure you into unnecessary repairs. Walk-ins welcome 7 days a week."
       }
     ],
     includedItems: [
@@ -1037,10 +1062,10 @@ export const SERVICES: ServiceData[] = [
     num: "11",
     title: "EXHAUST & MUFFLER",
     shortDesc: "Muffler, catalytic converter, exhaust pipe, manifold, and resonator repair. Quiet your ride and pass emissions.",
-    metaTitle: "Exhaust Repair Cleveland OH | Muffler Shop | Nick's Tire",
-    metaDescription: "Exhaust and muffler repair in Cleveland. Catalytic converter, exhaust pipe, manifold, resonator. Pass E-Check. Walk-ins 7 days. Call (216) 862-0005.",
-    heroHeadline: "EXHAUST & MUFFLER REPAIR",
-    heroSubline: "Loud exhaust, failed emissions, or a check engine light for a catalytic converter — we handle the entire exhaust system from manifold to tailpipe.",
+    metaTitle: "Muffler Shop Near Me | Cleveland OH | Exhaust Repair | Nick's",
+    metaDescription: "Looking for muffler shops near me in Cleveland? Exhaust and muffler repair from $149. Catalytic converter, exhaust pipe, manifold. Walk-ins 7 days. Call (216) 862-0005.",
+    heroHeadline: "MUFFLER SHOP &\nEXHAUST REPAIR",
+    heroSubline: "Searching for muffler shops near me in Cleveland? Nick's handles the entire exhaust system from manifold to tailpipe — muffler replacement, catalytic converters, exhaust pipes, and emissions repair. Same-day service starting at $149.",
     heroCTA: "FIX MY EXHAUST",
     turnaround: "Most exhaust repairs completed same day.",
     pricingNote: "Free exhaust inspection · Emissions-related repairs can help you pass E-Check",
@@ -1071,7 +1096,17 @@ export const SERVICES: ServiceData[] = [
       "Exhaust manifold repair",
       "Custom exhaust work available",
     ],
-    keywords: ["exhaust repair Cleveland", "muffler repair Cleveland OH", "catalytic converter Cleveland", "E-Check repair Cleveland", "exhaust leak repair"],
+    keywords: ["muffler shops near me", "muffler shop near me", "exhaust repair Cleveland", "muffler repair Cleveland OH", "catalytic converter Cleveland", "E-Check repair Cleveland", "exhaust leak repair"],
+    quickAnswers: [
+      {
+        question: "How much does muffler repair cost in Cleveland?",
+        answer: "Muffler replacement in Cleveland typically costs $150 to $400 depending on vehicle make and model. Exhaust pipe section repair runs $100 to $300. Catalytic converter replacement ranges from $500 to $2,000. At Nick's Tire & Auto, every exhaust repair starts with a free inspection and written estimate. Call (216) 862-0005."
+      },
+      {
+        question: "Where can I find muffler shops near me in Cleveland?",
+        answer: "Nick's Tire & Auto at 21300 Euclid Ave, Cleveland is a full-service muffler and exhaust shop. We handle muffler replacement, exhaust pipe repair, catalytic converters, and emissions-related exhaust work. Walk-ins welcome 7 days a week with same-day service on most exhaust repairs. Call (216) 862-0005."
+      }
+    ],
     includedItems: ["Full exhaust inspection", "Code reading", "Written estimate", "Post-repair leak check"],
     pricingTiers: [
       { label: "Muffler replacement", range: "$150–$400" },

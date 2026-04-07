@@ -43,13 +43,13 @@ function AlignmentHero() {
 
         <FadeIn delay={0.1}>
           <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.9] tracking-tight max-w-3xl mt-4">
-            WHEEL ALIGNMENT & TIRE BALANCING
+            WHEEL ALIGNMENT CLEVELAND OH
           </h1>
         </FadeIn>
 
         <FadeIn delay={0.2}>
           <p className="mt-6 text-lg sm:text-xl text-foreground/80 max-w-2xl font-light leading-relaxed">
-            Professional wheel alignment keeps your tires pointing in the right direction. Proper alignment extends tire life, improves fuel economy, and ensures safer handling on Cleveland roads.
+            Searching for wheel alignment near me in Cleveland? Nick's Tire & Auto provides professional wheel alignment starting at $89. Proper alignment extends tire life, improves fuel economy, and ensures safer handling on Cleveland's pothole-heavy roads. Walk-ins welcome 7 days a week.
           </p>
         </FadeIn>
 
@@ -220,7 +220,15 @@ function FAQSection() {
     },
     {
       question: "Can alignment affect my gas mileage?",
-      answer: "Yes. Misaligned wheels create rolling resistance and drag. Proper alignment can improve fuel economy by 3–5%, which adds up to real savings over time.",
+      answer: "Yes. Misaligned wheels create rolling resistance and drag. Proper alignment can improve fuel economy by 3-5%, which adds up to real savings over time.",
+    },
+    {
+      question: "Where can I get wheel alignment near me in Cleveland?",
+      answer: "Nick's Tire & Auto at 21300 Euclid Ave, Cleveland offers professional wheel alignment starting at $89. We use computerized alignment equipment and adjust all wheels to manufacturer specifications. Walk-ins welcome 7 days a week, same-day service on most alignments. Call (216) 862-0005.",
+    },
+    {
+      question: "How much does wheel alignment cost in Cleveland?",
+      answer: "A two-wheel alignment typically costs $80-$100, while a four-wheel alignment runs $100-$120 at Nick's Tire & Auto in Cleveland. We also offer free alignment checks so you know if your vehicle actually needs adjustment before paying anything.",
     },
   ];
 
@@ -320,8 +328,8 @@ export default function AlignmentPage() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title="Wheel Alignment Cleveland OH | $89 | Nick's Tire & Auto"
-        description="Professional wheel alignment in Cleveland. Fix pulling, uneven tire wear, crooked steering. Same-day service, 36-month warranty. Call (216) 862-0005"
+        title="Wheel Alignment Cleveland OH | Near Me | $89 | Nick's Tire"
+        description="Wheel alignment in Cleveland starting at $89. Fix pulling, uneven tire wear, crooked steering. Same-day service. Walk-ins 7 days. Call (216) 862-0005"
         canonicalPath="/alignment"
       />
       <LocalBusinessSchema additionalSchema={{ "hasOfferCatalog": { "@type": "OfferCatalog", "name": "Wheel Alignment", "itemListElement": [{ "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Wheel Alignment", "serviceType": "Wheel Alignment" } }] } }} />

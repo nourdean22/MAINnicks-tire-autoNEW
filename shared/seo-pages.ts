@@ -28,16 +28,16 @@ export interface SEOServicePage {
 export const SEO_SERVICE_PAGES: SEOServicePage[] = [
   {
     slug: "brake-repair-cleveland",
-    metaTitle: "Brake Repair Cleveland OH | 36-Month Warranty | Nick's Tire",
-    metaDescription: "Brake repair in Cleveland, OH. Pads, rotors, calipers, ABS. 36-month warranty, same-day service. 4.9 stars, 1700+ reviews. Call (216) 862-0005.",
-    heroHeadline: "BRAKE REPAIR\nIN CLEVELAND",
-    heroSubline: "Squealing, grinding, or a soft brake pedal all point to brake components that need attention. Our technicians inspect the entire braking system, show you the worn parts, and explain your options before any work begins.",
+    metaTitle: "Brake Repair Cleveland OH | Starting at $129/Axle | Nick's Tire",
+    metaDescription: "Cleveland's top brake shop. Brake repair starting at $129/axle. Pads, rotors, calipers, ABS. 36-month warranty, same-day service. Call (216) 862-0005.",
+    heroHeadline: "BRAKE REPAIR\nCLEVELAND OH",
+    heroSubline: "Looking for brake repair in Cleveland? Our Cleveland brake shop has been the trusted choice for brakes Cleveland drivers depend on. Starting at $129/axle, we inspect the entire braking system, show you the worn parts, and explain your options before any work begins.",
     category: "service",
     parentService: "brakes",
     sections: [
       {
         title: "How We Diagnose Brake Problems",
-        content: "Every brake inspection at Nick's Tire & Auto starts with a visual check of all four wheels. We measure pad thickness with a caliper gauge, check rotor surfaces for scoring and minimum thickness, inspect calipers for leaks and sticking, and test brake fluid condition. We also road test the vehicle to feel for pulsation, pulling, or noise that might not show up on a lift. If your vehicle has ABS, we scan the ABS module for stored codes. You see every measurement before we recommend anything."
+        content: "Every brake inspection at Nick's Tire & Auto — Cleveland's trusted brake repair shop — starts with a visual check of all four wheels. We measure pad thickness with a caliper gauge, check rotor surfaces for scoring and minimum thickness, inspect calipers for leaks and sticking, and test brake fluid condition. We also road test the vehicle to feel for pulsation, pulling, or noise that might not show up on a lift. If your vehicle has ABS, we scan the ABS module for stored codes. You see every measurement before we recommend anything. Whether you searched for brakes Cleveland or brake repair Cleveland, you will get the same thorough inspection."
       },
       {
         title: "Brake Pad and Rotor Replacement",
@@ -78,22 +78,26 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
       {
         question: "Can I drive with grinding brakes?",
         answer: "Grinding brakes mean the pads are completely worn and metal is contacting metal. This damages rotors rapidly and reduces stopping power. We recommend having the vehicle towed or driving directly to the shop — do not delay."
+      },
+      {
+        question: "Where is the best brake shop in Cleveland?",
+        answer: "Nick's Tire & Auto at 21300 Euclid Ave is Cleveland's top-rated brake shop with 4.9 stars from 1,700+ reviews. We offer brake repair starting at $129/axle with a 36-month warranty on parts and labor. Walk-ins welcome 7 days a week. Call (216) 862-0005."
       }
     ],
     relatedPages: ["brakes", "diagnostics-cleveland", "car-shaking-while-driving", "brakes-grinding"]
   },
   {
     slug: "check-engine-light-cleveland",
-    metaTitle: "Check Engine Light Cleveland OH | Free Scan w/ Repair | Nick's",
-    metaDescription: "Check engine light on in Cleveland? Free diagnostic scan with repair. We find the exact cause with OBD-II. Walk-ins 7 days. Call (216) 862-0005.",
-    heroHeadline: "CHECK ENGINE LIGHT\nDIAGNOSTICS",
-    heroSubline: "A check engine light can mean anything from a loose gas cap to a failing catalytic converter. We read the codes, run live data tests, and tell you exactly what is wrong before recommending any repair.",
+    metaTitle: "Check Engine Light Near Me | Cleveland OH | Free Scan | Nick's",
+    metaDescription: "Searching for check engine light service near me in Cleveland? Free diagnostic scan with repair. OBD-II experts. Walk-ins 7 days. Call (216) 862-0005.",
+    heroHeadline: "CHECK ENGINE LIGHT\nSERVICE NEAR ME",
+    heroSubline: "If you are searching for check engine light service near me in Cleveland, you found the right shop. A check engine light can mean anything from a loose gas cap to a failing catalytic converter. We read the codes, run live data tests, and tell you exactly what is wrong before recommending any repair.",
     category: "service",
     parentService: "diagnostics",
     sections: [
       {
         title: "What the Check Engine Light Actually Means",
-        content: "The check engine light is your vehicle's way of telling you the engine control module has detected a problem. The light itself does not tell you what is wrong — it only tells you that a diagnostic trouble code has been stored. There are hundreds of possible codes covering the engine, transmission, emissions system, and more. Reading the code is just the first step. The real diagnosis comes from interpreting the code in context with live sensor data, freeze frame data, and physical inspection."
+        content: "When drivers search for check engine light near me, they usually need answers fast. The check engine light is your vehicle's way of telling you the engine control module has detected a problem. The light itself does not tell you what is wrong — it only tells you that a diagnostic trouble code has been stored. There are hundreds of possible codes covering the engine, transmission, emissions system, and more. Reading the code is just the first step. The real diagnosis comes from interpreting the code in context with live sensor data, freeze frame data, and physical inspection. At Nick's Tire & Auto in Cleveland, we go beyond code reading to find the actual cause."
       },
       {
         title: "Our Diagnostic Process",
@@ -130,16 +134,20 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
       {
         question: "Is it safe to drive with the check engine light on?",
         answer: "A steady check engine light usually means you can drive to the shop safely, but you should not ignore it for weeks. A flashing check engine light means stop driving as soon as safely possible — continued driving risks serious engine damage."
+      },
+      {
+        question: "Where can I find check engine light service near me in Cleveland?",
+        answer: "Nick's Tire & Auto at 21300 Euclid Ave in Cleveland is open 7 days a week for check engine light diagnostics. We offer free code scans with repair and same-day service for most check engine light problems. Call (216) 862-0005 or walk in — no appointment needed."
       }
     ],
     relatedPages: ["diagnostics", "emissions", "check-engine-light-flashing", "car-overheating"]
   },
   {
     slug: "tire-repair-cleveland",
-    metaTitle: "Tire Shop Cleveland OH | New & Used Tires | Walk-Ins | Nick's",
-    metaDescription: "Cleveland's top tire shop. New and used tires, mounting, balancing, flat repair. All major brands, fair prices. Walk-ins 7 days. Call (216) 862-0005.",
-    heroHeadline: "TIRE REPAIR &\nREPLACEMENT",
-    heroSubline: "Whether you have a flat, need new tires, or want a rotation and balance, we handle it. We carry all major tire brands and offer honest recommendations based on your driving needs and budget.",
+    metaTitle: "Tire Repair Near Me | Cleveland OH | Walk-Ins 7 Days | Nick's",
+    metaDescription: "Need tire repair near me in Cleveland? Flat repair, new & used tires, mounting, balancing. All major brands. Walk-ins 7 days. Call (216) 862-0005.",
+    heroHeadline: "TIRE REPAIR &\nTIRE SHOP NEAR ME",
+    heroSubline: "Searching for tire repair near me in Cleveland? Whether you have a flat, need new tires, or want a rotation and balance, Nick's has you covered. We carry all major tire brands and offer honest recommendations based on your driving needs and budget.",
     category: "service",
     parentService: "tires",
     sections: [

@@ -70,9 +70,9 @@ function Hero() {
             transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
             className="font-heading text-[2.5rem] sm:text-5xl lg:text-[5.5rem] font-extrabold uppercase text-[#F5F5F5] leading-[0.95] tracking-tight"
           >
-            Cleveland&rsquo;s #1 Rated
+            Your Trusted Mechanic
             <br />
-            <span className="text-[#FDB913] text-gradient-yellow">Tire & Auto Repair</span>
+            <span className="text-[#FDB913] text-gradient-yellow">& Auto Repair Near Me</span>
           </motion.h1>
 
           {/* Subheadline */}
@@ -82,7 +82,7 @@ function Hero() {
             transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
             className="mt-6 text-lg sm:text-xl lg:text-2xl font-sans text-[#A0A0A0] max-w-lg"
           >
-            We show you the problem before we fix it.
+            Cleveland&rsquo;s #1 rated auto shop. We show you the problem before we fix it.
           </motion.p>
 
           {/* CTA buttons */}
@@ -468,8 +468,8 @@ export default function Home() {
   return (
     <PageLayout activeHref="/" showChat={true}>
       <SEOHead
-        title="Auto Repair Cleveland OH | Nick's Tire & Auto | 4.9★ Reviews"
-        description="Cleveland's top-rated auto repair shop. Walk-ins welcome 7 days. Brakes, tires, diagnostics, oil changes. 36-month warranty. (216) 862-0005"
+        title="Mechanic Near Me | Auto Repair Cleveland OH | Nick's Tire & Auto"
+        description="Looking for a mechanic near me or auto repair near me in Cleveland? 4.9 stars, 1700+ reviews. Brakes, tires, diagnostics, oil changes. Walk-ins 7 days. (216) 862-0005"
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />
@@ -487,25 +487,29 @@ export default function Home() {
       <section className="bg-[oklch(0.055_0.004_260)] py-16 border-t border-border/30">
         <div className="container">
           <h2 className="font-heading text-2xl font-bold text-foreground tracking-tight uppercase mb-8">
-            Everything You Need — One Shop
+            Your Mechanic Near Me in Cleveland — Every Service, One Shop
           </h2>
+          <p className="text-foreground/50 text-sm leading-relaxed mb-8 max-w-3xl">
+            Whether you are searching for a mechanic near me, auto repair near me, or a tire shop near me in Cleveland, Nick's Tire & Auto has you covered. From brake repair and oil changes to check engine light diagnostics and wheel alignment, we are the trusted auto shop near me that Cleveland drivers rely on for honest, affordable service 7 days a week.
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Services column */}
             <div>
               <h3 className="text-xs font-semibold text-foreground/30 uppercase tracking-widest mb-4">Our Services</h3>
               <ul className="space-y-2">
                 {[
-                  { href: "/tires", label: "Tires — New & Used" },
-                  { href: "/brakes", label: "Brake Repair" },
-                  { href: "/diagnostics", label: "Engine Diagnostics" },
+                  { href: "/tires", label: "Tire Shop Near Me" },
+                  { href: "/brakes", label: "Brake Repair Cleveland" },
+                  { href: "/diagnostics", label: "Check Engine Light Near Me" },
                   { href: "/emissions", label: "Emissions & E-Check" },
-                  { href: "/oil-change", label: "Oil Change" },
-                  { href: "/general-repair", label: "General Repair" },
+                  { href: "/oil-change", label: "Oil Change Cleveland" },
+                  { href: "/general-repair", label: "Auto Repair Near Me" },
                   { href: "/ac-repair", label: "AC & Heating" },
                   { href: "/transmission", label: "Transmission" },
-                  { href: "/alignment", label: "Wheel Alignment" },
+                  { href: "/alignment", label: "Wheel Alignment Cleveland" },
                   { href: "/electrical", label: "Electrical Repair" },
                   { href: "/battery", label: "Battery Service" },
+                  { href: "/exhaust", label: "Muffler Shop Near Me" },
                   { href: "/services", label: "View All Services" },
                 ].map((link) => (
                   <li key={link.href}>
