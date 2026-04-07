@@ -233,12 +233,19 @@ export default function SpecialsPage() {
   const { data: dbSpecials } = trpc.specials.getActive.useQuery(undefined, { staleTime: 60_000 });
 
   const specials = useMemo(() => {
+    // Filter out expired hardcoded specials
+    const now = new Date();
+    const activeHardcoded = SPECIALS.filter((s) => {
+      const expires = new Date(s.validThrough);
+      return isNaN(expires.getTime()) || expires >= now;
+    });
+
     if (dbSpecials && dbSpecials.length > 0) {
-      // Merge: DB specials first, then hardcoded fallbacks
+      // Merge: DB specials first, then active hardcoded fallbacks
       const fromDb = dbSpecials.map((s: any, i: number) => mapDbSpecial(s, i));
-      return [...fromDb, ...SPECIALS];
+      return [...fromDb, ...activeHardcoded];
     }
-    return SPECIALS;
+    return activeHardcoded;
   }, [dbSpecials]);
 
   useEffect(() => {

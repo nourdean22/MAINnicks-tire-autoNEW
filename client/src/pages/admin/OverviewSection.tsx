@@ -95,6 +95,8 @@ export default function OverviewSection() {
   const { data: callbacks } = trpc.callback.list.useQuery(undefined, { refetchInterval: 30000 });
   // Nick AI intelligence — shop pulse for real-time awareness
   const { data: shopPulse } = trpc.nickActions.shopPulse.useQuery(undefined, { refetchInterval: 15000 });
+  // Shop load indicator — cars in shop, active WOs, today's bookings, wait time
+  const { data: shopLoad } = trpc.intelligence.shopLoad.useQuery(undefined, { refetchInterval: 30000 });
   // Work order stats from NOUR OS bridge
   const { data: workOrderStats } = trpc.nourOsBridge.shopFloor.useQuery(undefined, { refetchInterval: 30000 });
   // Active work orders for priority queue (blocked, overdue, urgent)
@@ -303,6 +305,29 @@ export default function OverviewSection() {
 
   return (
     <div className="space-y-6">
+      {/* ─── SHOP LOAD INDICATOR ─── */}
+      {shopLoad && (
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-[10px] font-bold tracking-wider text-muted-foreground mr-1">SHOP LOAD</span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold">
+            <Wrench className="w-3 h-3" />
+            {shopLoad.activeWOs} Active WOs
+          </span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-500/10 text-blue-400 text-xs font-bold">
+            <CalendarClock className="w-3 h-3" />
+            {shopLoad.todayBookings} Today
+          </span>
+          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${
+            shopLoad.estimatedWait > 120 ? "bg-red-500/10 text-red-400" :
+            shopLoad.estimatedWait > 60 ? "bg-amber-500/10 text-amber-400" :
+            "bg-emerald-500/10 text-emerald-400"
+          }`}>
+            <Clock className="w-3 h-3" />
+            {shopLoad.estimatedWait > 0 ? `~${Math.round(shopLoad.estimatedWait / 60)}h wait` : "No wait"}
+          </span>
+        </div>
+      )}
+
       {/* ─── PRIMARY METRICS ─── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
