@@ -5,12 +5,13 @@
 
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { Phone, ChevronDown } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { BUSINESS } from "@shared/business";
+import { trpc } from "@/lib/trpc";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -177,8 +178,6 @@ const FAQ_DATA: FAQItem[] = [
   },
 ];
 
-const CATEGORIES = ["All", ...Array.from(new Set(FAQ_DATA.map(f => f.category)))];
-
 // ─── NAVBAR ───────────────────────────────────────────
 
 
@@ -239,14 +238,32 @@ function FAQSchema() {
 // ─── MAIN PAGE ────────────────────────────────────────
 export default function FAQ() {
   const [activeCategory, setActiveCategory] = useState("All");
+  const { data: dbQuestions } = trpc.qa.published.useQuery(undefined, { staleTime: 120_000 });
+
+  // Merge DB Q&A entries with hardcoded FAQs — DB first, then static fallbacks
+  const allFaqs = useMemo(() => {
+    const fromDb: FAQItem[] = (dbQuestions || [])
+      .filter((q: any) => q.answer)
+      .map((q: any) => ({
+        question: q.question,
+        answer: q.answer,
+        category: q.category || "Community Questions",
+      }));
+    return [...fromDb, ...FAQ_DATA];
+  }, [dbQuestions]);
+
+  const CATEGORIES = useMemo(() =>
+    ["All", ...Array.from(new Set(allFaqs.map(f => f.category)))],
+    [allFaqs]
+  );
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
   const filtered = activeCategory === "All"
-    ? FAQ_DATA
-    : FAQ_DATA.filter(f => f.category === activeCategory);
+    ? allFaqs
+    : allFaqs.filter(f => f.category === activeCategory);
 
   return (
     <PageLayout>

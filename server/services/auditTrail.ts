@@ -21,10 +21,12 @@ async function db() {
 export type AuditAction =
   | "lead.status_changed"
   | "lead.notes_updated"
+  | "lead.deleted"
   | "booking.status_changed"
   | "booking.notes_updated"
   | "booking.stage_changed"
   | "booking.priority_changed"
+  | "booking.deleted"
   | "customer.sms_sent"
   | "customer.notes_updated"
   | "customer.segment_changed"
