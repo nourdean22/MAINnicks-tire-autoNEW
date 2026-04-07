@@ -347,9 +347,9 @@ export async function autoFetchAndDraftReviews(): Promise<{ recordsProcessed: nu
 /** 9. Content auto-generation — weekly blog article draft */
 export async function autoGenerateContent(): Promise<{ recordsProcessed: number; details?: string }> {
   try {
-    // Only run on Wednesdays (mid-week content)
+    // Run on Wednesdays (mid-week) and Saturdays (weekend) — 2 articles per week
     const dow = new Date().toLocaleString("en-US", { timeZone: "America/New_York", weekday: "long" });
-    if (dow !== "Wednesday") return { recordsProcessed: 0, details: "Not Wednesday" };
+    if (dow !== "Wednesday" && dow !== "Saturday") return { recordsProcessed: 0, details: "Not a content day (Wed/Sat)" };
 
     const { generateArticle } = await import("../../content-generator");
     const article = await generateArticle();
@@ -368,5 +368,135 @@ export async function autoGenerateContent(): Promise<{ recordsProcessed: number;
     return { recordsProcessed: 1, details: `Article draft: "${(article as any)?.title || "generated"}"` };
   } catch (e: any) {
     return { recordsProcessed: 0, details: `Content gen failed: ${e.message}` };
+  }
+}
+
+/** 10. Referral loop closer — match referred phone to recent bookings/invoices, SMS both parties */
+export async function closeReferralLoop(): Promise<{ recordsProcessed: number; details?: string }> {
+  try {
+    const { getDb } = await import("../../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return { recordsProcessed: 0, details: "No DB" };
+
+    // Find pending referrals where the referred person's phone matches a booking or invoice from last 7 days
+    const [rows] = await d.execute(sql`
+      SELECT r.id, r.referrerName, r.referrerPhone, r.refereeName, r.refereePhone
+      FROM referrals r
+      WHERE r.status = 'pending'
+        AND (
+          EXISTS (SELECT 1 FROM bookings b WHERE b.phone = r.refereePhone AND b.createdAt > DATE_SUB(NOW(), INTERVAL 7 DAY))
+          OR EXISTS (SELECT 1 FROM invoices i WHERE i.customerPhone = r.refereePhone AND i.createdAt > DATE_SUB(NOW(), INTERVAL 7 DAY))
+        )
+      LIMIT 20
+    `);
+
+    const matched = rows as any[];
+    if (matched.length === 0) return { recordsProcessed: 0, details: "No referral matches" };
+
+    const { sendSms } = await import("../../sms");
+    let closed = 0;
+
+    for (const ref of matched) {
+      try {
+        const referrerFirst = (ref.referrerName || "there").split(" ")[0];
+        const refereeFirst = (ref.refereeName || "there").split(" ")[0];
+
+        // SMS the referrer
+        if (ref.referrerPhone) {
+          await sendSms(ref.referrerPhone, `Great news, ${referrerFirst}! ${refereeFirst} just visited Nick's. Your $25 credit is active — mention it on your next visit! (216) 862-0005`);
+        }
+
+        // SMS the referred customer
+        if (ref.refereePhone) {
+          await sendSms(ref.refereePhone, `Welcome to Nick's! ${referrerFirst} sent you — you both have $25 off. Drop off anytime! (216) 862-0005`);
+        }
+
+        // Update referral status to "visited"
+        await d.execute(sql`UPDATE referrals SET status = 'visited', updatedAt = NOW() WHERE id = ${ref.id}`);
+        closed++;
+      } catch (err) {
+        log.warn("closeReferralLoop: SMS/update failed", { error: err instanceof Error ? err.message : String(err), referralId: ref.id });
+      }
+    }
+
+    if (closed > 0) {
+      try {
+        const { sendTelegram } = await import("../../services/telegram");
+        await sendTelegram(`🤝 REFERRAL LOOP: ${closed} referral${closed > 1 ? "s" : ""} matched! Both parties notified with $25 credit.`);
+      } catch (err) { log.warn("closeReferralLoop: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
+    }
+
+    return { recordsProcessed: closed, details: `${closed} referrals matched and notified` };
+  } catch (e: any) {
+    if (e.message?.includes("doesn't exist")) return { recordsProcessed: 0, details: "No referrals table" };
+    return { recordsProcessed: 0, details: `Referral loop failed: ${e.message}` };
+  }
+}
+
+/** 11. VIP auto-recognition — notify newly-flagged VIP customers */
+export async function notifyNewVips(): Promise<{ recordsProcessed: number; details?: string }> {
+  try {
+    const { getDb } = await import("../../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return { recordsProcessed: 0, details: "No DB" };
+
+    // Find customers who qualify as VIP (3+ visits, $2000+ spent in cents = 200000)
+    // AND haven't been VIP-notified yet (smsCampaignSent < 2 — using 2 as VIP-notified flag)
+    const [rows] = await d.execute(sql`
+      SELECT c.id, c.firstName, c.phone, c.totalVisits, c.totalSpent, c.smsOptOut
+      FROM customers c
+      WHERE c.totalVisits >= 3
+        AND c.totalSpent >= 200000
+        AND c.smsOptOut = 0
+        AND c.phone IS NOT NULL
+        AND c.phone != ''
+        AND c.smsCampaignSent < 2
+      LIMIT 20
+    `);
+
+    const vips = rows as any[];
+    if (vips.length === 0) return { recordsProcessed: 0, details: "No new VIPs to notify" };
+
+    const { sendSms } = await import("../../sms");
+    let notified = 0;
+
+    for (const vip of vips) {
+      try {
+        const result = await sendSms(
+          vip.phone,
+          `You're a Nick's VIP! As a thank you, you get 10% off every visit. Just mention 'VIP' when you drop off. — Nick's Tire & Auto (216) 862-0005`
+        );
+        if (result.success) {
+          // Mark as VIP-notified (smsCampaignSent = 2 means VIP notification sent)
+          await d.execute(sql`UPDATE customers SET smsCampaignSent = 2, smsCampaignDate = NOW() WHERE id = ${vip.id}`);
+          notified++;
+        }
+      } catch (err) {
+        log.warn("notifyNewVips: SMS failed", { error: err instanceof Error ? err.message : String(err), customerId: vip.id });
+      }
+    }
+
+    // Also update the customer_metrics table isVip flag for these customers
+    if (notified > 0) {
+      try {
+        await d.execute(sql`
+          UPDATE customer_metrics cm
+          INNER JOIN customers c ON cm.customerId = c.id
+          SET cm.isVip = 1
+          WHERE c.totalVisits >= 3 AND c.totalSpent >= 200000
+        `);
+      } catch { /* customer_metrics table may not exist yet */ }
+
+      try {
+        const { sendTelegram } = await import("../../services/telegram");
+        await sendTelegram(`⭐ VIP RECOGNITION: ${notified} customer${notified > 1 ? "s" : ""} newly recognized as VIP and notified with 10% off perk.`);
+      } catch (err) { log.warn("notifyNewVips: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
+    }
+
+    return { recordsProcessed: notified, details: `${notified} new VIPs notified` };
+  } catch (e: any) {
+    return { recordsProcessed: 0, details: `VIP notification failed: ${e.message}` };
   }
 }

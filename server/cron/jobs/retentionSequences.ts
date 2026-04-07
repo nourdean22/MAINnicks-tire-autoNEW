@@ -50,6 +50,70 @@ async function sendRetentionSms(
   return processed;
 }
 
+export async function processRetention45Day(): Promise<{ recordsProcessed: number; details?: string }> {
+  const { isEnabled } = await import("../../services/featureFlags");
+  if (!(await isEnabled("sms_retention_sequences"))) return { recordsProcessed: 0, details: "Feature disabled" };
+
+  // 45-day retention: customers who visited 40-50 days ago (wider window for daily cron)
+  if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_PHONE_NUMBER) {
+    return { recordsProcessed: 0, details: "Twilio not configured" };
+  }
+  const { getDb } = await import("../../db");
+  const { customers } = await import("../../../drizzle/schema");
+  const { sendSms } = await import("../../sms");
+  const db = await getDb();
+  if (!db) return { recordsProcessed: 0, details: "No DB" };
+
+  // Match customers whose last visit was 40-50 days ago, have valid phone, not opted out
+  const targets = await db.select({
+    id: customers.id,
+    firstName: customers.firstName,
+    phone: customers.phone,
+  }).from(customers).where(
+    and(
+      isNotNull(customers.lastVisitDate),
+      eq(customers.smsOptOut, 0),
+      sql`DATEDIFF(CURDATE(), ${customers.lastVisitDate}) BETWEEN 40 AND 50`
+    )
+  ).limit(100);
+
+  // Generate a seasonal tip based on current month
+  const month = new Date().getMonth(); // 0-indexed
+  const seasonalTips: Record<number, string> = {
+    0: "winter tires and battery checks keep you safe in the cold",
+    1: "salt and ice can damage your undercarriage — worth an inspection",
+    2: "pothole season is brutal on alignments — a quick check prevents bigger issues",
+    3: "spring is perfect for a full vehicle checkup after winter wear",
+    4: "summer is coming — AC check and coolant top-off keep you comfortable",
+    5: "hot weather is hard on batteries and tires — quick inspection keeps you safe",
+    6: "summer heat stresses tires and AC systems — stay ahead of breakdowns",
+    7: "back-to-school time — make sure the family car is road-ready",
+    8: "fall prep: tire rotation and brake check before winter hits",
+    9: "first freeze is around the corner — winter tires and battery test recommended",
+    10: "winter is here — make sure your heater, defroster, and wipers are ready",
+    11: "holiday travel season — full inspection gives you peace of mind on the road",
+  };
+  const tip = seasonalTips[month] || "regular maintenance prevents costly surprises";
+
+  let processed = 0;
+  for (const c of targets) {
+    if (!c.phone) continue;
+    const firstName = c.firstName || "there";
+    const result = await sendSms(
+      c.phone,
+      `Hi ${firstName}! It's been about 6 weeks since your last visit at Nick's. Quick reminder: ${tip}. Drop off anytime — ${STORE_PHONE}`
+    );
+    if (result.success) {
+      processed++;
+    } else {
+      log.warn(`Retention 45d SMS failed for customer #${c.id}`);
+    }
+  }
+
+  if (processed > 0) log.info(`Retention 45-day: contacted ${processed} customers`);
+  return { recordsProcessed: processed, details: `${processed} customers contacted (45d)` };
+}
+
 export async function processRetention90Day(): Promise<{ recordsProcessed: number; details?: string }> {
   const { isEnabled } = await import("../../services/featureFlags");
   if (!(await isEnabled("sms_retention_sequences"))) return { recordsProcessed: 0, details: "Feature disabled" };

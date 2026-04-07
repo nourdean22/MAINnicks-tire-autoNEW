@@ -64,6 +64,69 @@ const TRIGGERS: WeatherTrigger[] = [
   },
 ];
 
+/** SMS messages for each weather trigger type */
+const WEATHER_SMS_TEMPLATES: Record<string, string> = {
+  first_freeze: "Hi {name}, first freeze alert! Free battery test at Nick's. Don't get stranded. Drop off anytime. (216) 862-0005",
+  heavy_rain: "Hi {name}, heavy rain today in Cleveland. Worn tires = danger. Free tread depth check — drop by anytime. (216) 862-0005",
+  pothole_season: "Hi {name}, pothole season is here in Cleveland. Free alignment check at Nick's — just drop off. (216) 862-0005",
+  extreme_heat: "Hi {name}, extreme heat alert! Is your AC blowing cold? Free AC check at Nick's — drop off anytime. (216) 862-0005",
+  salt_season_end: "Hi {name}, salt season is over — time to check for rust damage. Free undercarriage inspection at Nick's. (216) 862-0005",
+};
+
+/**
+ * Send weather-triggered SMS to lapsed customers (60+ days since last visit).
+ * Max 10 SMS per trigger event to keep costs controlled.
+ */
+async function sendWeatherSms(triggerId: string): Promise<number> {
+  const template = WEATHER_SMS_TEMPLATES[triggerId];
+  if (!template) return 0;
+
+  try {
+    const { getDb } = await import("../db");
+    const { customers } = await import("../../drizzle/schema");
+    const { sendSms } = await import("../sms");
+    const { sql, and, isNotNull, eq } = await import("drizzle-orm");
+
+    const db = await getDb();
+    if (!db) return 0;
+
+    // Find customers who haven't visited in 60+ days, have valid phone, not opted out
+    const targets = await db.select({
+      id: customers.id,
+      firstName: customers.firstName,
+      phone: customers.phone,
+    }).from(customers).where(
+      and(
+        isNotNull(customers.lastVisitDate),
+        eq(customers.smsOptOut, 0),
+        isNotNull(customers.phone),
+        sql`DATEDIFF(CURDATE(), ${customers.lastVisitDate}) >= 60`
+      )
+    ).limit(10);
+
+    let sent = 0;
+    for (const c of targets) {
+      if (!c.phone) continue;
+      const firstName = c.firstName || "there";
+      const msg = template.replace("{name}", firstName);
+      try {
+        const result = await sendSms(c.phone, msg);
+        if (result.success) sent++;
+      } catch (err) {
+        log.warn(`Weather SMS failed for customer #${c.id}`, { error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
+    if (sent > 0) {
+      log.info(`Weather SMS: sent ${sent} messages for trigger "${triggerId}"`);
+    }
+    return sent;
+  } catch (err) {
+    log.warn(`sendWeatherSms failed for "${triggerId}"`, { error: err instanceof Error ? err.message : String(err) });
+    return 0;
+  }
+}
+
 export async function checkWeatherTriggers(): Promise<{ triggered: string[]; details: string }> {
   const apiKey = process.env.OPENWEATHER_API_KEY;
   if (!apiKey) {
@@ -98,6 +161,15 @@ export async function checkWeatherTriggers(): Promise<{ triggered: string[]; det
           `Weather: ${trigger.name}`,
           `${trigger.gbpDraft.slice(0, 200)}\n\nTemp: ${data.tempMin}-${data.tempMax}°F`
         ).catch(() => {});
+
+        // Send weather-triggered SMS to lapsed customers
+        const smsSent = await sendWeatherSms(trigger.id);
+        if (smsSent > 0) {
+          alertSystem(
+            `Weather SMS: ${trigger.name}`,
+            `Sent ${smsSent} weather-triggered SMS for "${trigger.id}"`
+          ).catch(() => {});
+        }
       }
     }
 

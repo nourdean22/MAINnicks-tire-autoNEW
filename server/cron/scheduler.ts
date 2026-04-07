@@ -663,13 +663,14 @@ export function startTieredScheduler(): void {
       {
         name: "retention-all",
         handler: async () => {
-          const { processRetention90Day, processRetention180Day, processRetention365Day } = await import("./jobs/retentionSequences");
+          const { processRetention45Day, processRetention90Day, processRetention180Day, processRetention365Day } = await import("./jobs/retentionSequences");
+          const r45 = await processRetention45Day();
           const r90 = await processRetention90Day();
           const r180 = await processRetention180Day();
           const r365 = await processRetention365Day();
           return {
-            recordsProcessed: (r90.recordsProcessed || 0) + (r180.recordsProcessed || 0) + (r365.recordsProcessed || 0),
-            details: `90d: ${(r90 as any).details || "done"}, 180d: ${(r180 as any).details || "done"}, 365d: ${(r365 as any).details || "done"}`,
+            recordsProcessed: (r45.recordsProcessed || 0) + (r90.recordsProcessed || 0) + (r180.recordsProcessed || 0) + (r365.recordsProcessed || 0),
+            details: `45d: ${(r45 as any).details || "done"}, 90d: ${(r90 as any).details || "done"}, 180d: ${(r180 as any).details || "done"}, 365d: ${(r365 as any).details || "done"}`,
           };
         },
       },
@@ -952,10 +953,26 @@ export function startTieredScheduler(): void {
         },
       },
       {
-        name: "content-auto-gen", // Weekly blog article draft (Wednesdays)
+        name: "content-auto-gen", // Blog article draft (Wed + Sat — 2x/week)
         handler: async () => {
           const { autoGenerateContent } = await import("./jobs/crudAutomation");
           return autoGenerateContent();
+        },
+      },
+      {
+        name: "referral-loop-closer", // Match referred customers to bookings/invoices, SMS both parties
+        businessHoursOnly: true,
+        handler: async () => {
+          const { closeReferralLoop } = await import("./jobs/crudAutomation");
+          return closeReferralLoop();
+        },
+      },
+      {
+        name: "vip-auto-recognition", // Notify new VIP customers (3+ visits, $2000+ spent)
+        businessHoursOnly: true,
+        handler: async () => {
+          const { notifyNewVips } = await import("./jobs/crudAutomation");
+          return notifyNewVips();
         },
       },
       {

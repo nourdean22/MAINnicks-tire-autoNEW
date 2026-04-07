@@ -20,7 +20,13 @@ export default function SiteFooter() {
             <a href={BUSINESS.phone.href} className="underline hover:no-underline">
               Call {BUSINESS.phone.display}
             </a>{" "}
-            or{" "}
+            <span className="sm:hidden">
+              {" "}or{" "}
+              <a href={`sms:${BUSINESS.phone.raw}`} className="underline hover:no-underline">
+                Text Us
+              </a>
+            </span>
+            {" "}or{" "}
             <Link href="/booking" className="underline hover:no-underline">
               Book Online
             </Link>
