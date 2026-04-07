@@ -76,8 +76,8 @@ async function runTier(tier: Tier): Promise<void> {
     if (job.requiresEnv && !process.env[job.requiresEnv]) { skipped++; continue; }
 
     let jobTimer: ReturnType<typeof setTimeout> | undefined;
+    const jobStart = Date.now();
     try {
-      const jobStart = Date.now();
       const result = await Promise.race([
         job.handler(),
         new Promise<never>((_, reject) => {
@@ -92,9 +92,9 @@ async function runTier(tier: Tier): Promise<void> {
       // Log to cron_log table for audit trail
       logTierJob(job.name, "completed", dur, result?.recordsProcessed, result?.details).catch(() => {});
     } catch (err) {
-      const dur = Date.now() - (Date.now()); // approximate
+      const dur = Date.now() - jobStart;
       log.error(`[${tier.name}] ${job.name} failed:`, { error: err instanceof Error ? err.message : String(err) });
-      logTierJob(job.name, "failed", 0, 0, err instanceof Error ? err.message : String(err)).catch(() => {});
+      logTierJob(job.name, "failed", dur, 0, err instanceof Error ? err.message : String(err)).catch(() => {});
     } finally {
       if (jobTimer) clearTimeout(jobTimer);
     }

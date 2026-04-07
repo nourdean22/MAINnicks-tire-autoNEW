@@ -477,7 +477,12 @@ Sitemap: ${SITE_URL}/sitemap-locations.xml
   // ─── Voice Webhooks (Twilio) ──────────────────────────
   // Mount AI voice receptionist endpoints
   const { twilioWebhookRouter } = await import("../routes/webhooks/twilio");
-  app.use(twilioWebhookRouter);
+  // CRITICAL: Mount ONLY on /api/v1/webhooks — NOT app.use(router) globally.
+  // Global mount applies Twilio signature validation to ALL requests (including
+  // homepage/admin), returning 403 + XML <Response/> and blocking the entire site.
+  // The router defines routes with full paths (/api/v1/webhooks/...) so we mount
+  // at /api/v1/webhooks to scope the validation middleware to only webhook requests.
+  app.use("/api/v1/webhooks", twilioWebhookRouter);
 
   // ─── Stripe Webhook ─────────────────────────────────────
   // Receives payment_intent.succeeded events to confirm invoice payments

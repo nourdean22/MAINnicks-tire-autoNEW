@@ -18,7 +18,7 @@ const router = Router();
 router.use(validateTwilioRequest);
 
 // ─── Inbound SMS ────────────────────────────────
-router.post("/api/v1/webhooks/twilio/incoming-sms", async (req: Request, res: Response) => {
+router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
   try {
     const { Body: body, From: from, To: to } = req.body;
 
@@ -49,13 +49,13 @@ router.post("/api/v1/webhooks/twilio/incoming-sms", async (req: Request, res: Re
 });
 
 // ─── Voice: Incoming Call ───────────────────────
-router.post("/api/v1/webhooks/voice/incoming", (_req: Request, res: Response) => {
+router.post("/voice/incoming", (_req: Request, res: Response) => {
   log.info("Incoming voice call");
   res.type("text/xml").send(generateGreetingTwiML());
 });
 
 // ─── Voice: Process Speech ──────────────────────
-router.post("/api/v1/webhooks/voice/process", (req: Request, res: Response) => {
+router.post("/voice/process", (req: Request, res: Response) => {
   const speechResult = req.body?.SpeechResult || "";
   const digits = req.body?.Digits || "";
   const callerPhone = req.body?.From || "";
