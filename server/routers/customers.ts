@@ -286,6 +286,108 @@ export const customersRouter = router({
       };
     }),
 
+  /** Customer Intelligence — spend tiers, churn risk, actionable recommendations */
+  intelligence: adminProcedure.query(async () => {
+    const d = await db();
+    if (!d) return null;
+
+    // Spend tiers
+    const [tierRows] = await d.execute(sql`
+      SELECT
+        SUM(CASE WHEN totalSpent >= 200000 THEN 1 ELSE 0 END) as whales,
+        SUM(CASE WHEN totalSpent >= 50000 AND totalSpent < 200000 THEN 1 ELSE 0 END) as regulars,
+        SUM(CASE WHEN totalSpent > 0 AND totalSpent < 50000 THEN 1 ELSE 0 END) as oneTimers,
+        SUM(CASE WHEN totalSpent = 0 THEN 1 ELSE 0 END) as neverPaid,
+        COUNT(*) as total,
+        SUM(totalSpent) as totalRevenue,
+        AVG(CASE WHEN totalSpent > 0 THEN totalSpent ELSE NULL END) as avgSpend
+      FROM customers
+    `);
+
+    // Churn risk — customers who visited 60-180 days ago but not since
+    const [churnRows] = await d.execute(sql`
+      SELECT COUNT(*) as atRisk FROM customers
+      WHERE lastVisitDate BETWEEN DATE_SUB(NOW(), INTERVAL 180 DAY) AND DATE_SUB(NOW(), INTERVAL 60 DAY)
+        AND totalSpent > 0
+    `);
+
+    // Win-back targets — 90+ day dormant with spend history
+    const [winbackRows] = await d.execute(sql`
+      SELECT COUNT(*) as targets,
+        SUM(totalSpent) as potentialRevenue,
+        AVG(totalSpent) as avgValue
+      FROM customers
+      WHERE lastVisitDate < DATE_SUB(NOW(), INTERVAL 90 DAY) AND totalSpent > 10000
+    `);
+
+    // Top 5 at-risk whales (high-value customers going quiet)
+    const [atRiskWhales] = await d.execute(sql`
+      SELECT firstName, lastName, phone, totalSpent, totalVisits, lastVisitDate,
+        DATEDIFF(NOW(), lastVisitDate) as daysSince
+      FROM customers
+      WHERE lastVisitDate < DATE_SUB(NOW(), INTERVAL 60 DAY)
+        AND totalSpent >= 100000
+      ORDER BY totalSpent DESC LIMIT 5
+    `);
+
+    // Segment counts
+    const [segRows] = await d.execute(sql`
+      SELECT segment, COUNT(*) as cnt, SUM(totalSpent) as rev
+      FROM customers GROUP BY segment
+    `);
+
+    // New customers this month
+    const [newThisMonth] = await d.execute(sql`
+      SELECT COUNT(*) as cnt FROM customers
+      WHERE createdAt >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+    `);
+
+    const tiers = (tierRows as any[])?.[0] || {};
+    const churn = (churnRows as any[])?.[0] || {};
+    const winback = (winbackRows as any[])?.[0] || {};
+
+    // Generate recommendations
+    const recommendations: string[] = [];
+    if (Number(winback.targets) > 10)
+      recommendations.push(`${winback.targets} customers haven't visited in 90+ days — send win-back SMS campaign (~$${Math.round(Number(winback.avgValue) / 100)} avg value each)`);
+    if (Number(churn.atRisk) > 5)
+      recommendations.push(`${churn.atRisk} customers at churn risk (60-180 days quiet) — proactive outreach before they leave`);
+    if ((atRiskWhales as any[])?.length > 0)
+      recommendations.push(`${(atRiskWhales as any[]).length} high-value customers going quiet — personal call recommended: ${(atRiskWhales as any[]).map((w: any) => `${w.firstName} ${w.lastName} ($${Math.round(w.totalSpent/100)})`).join(', ')}`);
+    if (Number(tiers.neverPaid) > 500)
+      recommendations.push(`${tiers.neverPaid} customers have $0 spend — likely imported contacts without invoice history`);
+
+    return {
+      spendTiers: {
+        whales: { count: Number(tiers.whales) || 0, label: "Whales ($2K+)", color: "#F5A623" },
+        regulars: { count: Number(tiers.regulars) || 0, label: "Regulars ($500-$2K)", color: "#3B82F6" },
+        oneTimers: { count: Number(tiers.oneTimers) || 0, label: "One-Timers (<$500)", color: "#10B981" },
+        neverPaid: { count: Number(tiers.neverPaid) || 0, label: "No Spend History", color: "#6B7280" },
+      },
+      churnRisk: {
+        atRisk: Number(churn.atRisk) || 0,
+        winbackTargets: Number(winback.targets) || 0,
+        winbackPotential: Math.round(Number(winback.potentialRevenue || 0) / 100),
+      },
+      atRiskWhales: (atRiskWhales as any[])?.map((w: any) => ({
+        name: `${w.firstName} ${w.lastName}`,
+        phone: w.phone,
+        totalSpent: Math.round(w.totalSpent / 100),
+        visits: w.totalVisits,
+        daysSince: w.daysSince,
+      })) || [],
+      segments: (segRows as any[])?.map((s: any) => ({
+        segment: s.segment,
+        count: Number(s.cnt),
+        revenue: Math.round(Number(s.rev || 0) / 100),
+      })) || [],
+      newThisMonth: Number((newThisMonth as any[])?.[0]?.cnt) || 0,
+      avgCustomerValue: Math.round(Number(tiers.avgSpend || 0) / 100),
+      totalRevenue: Math.round(Number(tiers.totalRevenue || 0) / 100),
+      recommendations,
+    };
+  }),
+
   /** Trigger a full customer data enrichment now */
   enrich: adminProcedure.mutation(async () => {
     const { enrichCustomerData } = await import("../services/dataPipelines");

@@ -466,19 +466,26 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
     WHERE c.vehicleMake IS NULL
   `);
 
-  // 6. Update segment based on lastVisitDate
+  // 6. Smart segmentation — visit recency + spend tier + churn risk
+  // Segment logic:
+  //   recent = visited in last 90 days
+  //   lapsed = visited 90-365 days ago (churn risk)
+  //   new = only 1 visit ever OR never visited
+  //   unknown = visited but >365 days ago (likely lost)
   await step("segments", sql`
     UPDATE customers
     SET segment = CASE
       WHEN lastVisitDate >= DATE_SUB(NOW(), INTERVAL 90 DAY) THEN 'recent'
       WHEN lastVisitDate >= DATE_SUB(NOW(), INTERVAL 365 DAY) THEN 'lapsed'
+      WHEN totalVisits <= 1 AND lastVisitDate IS NULL THEN 'new'
       WHEN lastVisitDate IS NOT NULL THEN 'unknown'
       ELSE segment
     END
-    WHERE lastVisitDate IS NOT NULL
+    WHERE (lastVisitDate IS NOT NULL OR totalVisits <= 1)
       AND segment != CASE
         WHEN lastVisitDate >= DATE_SUB(NOW(), INTERVAL 90 DAY) THEN 'recent'
         WHEN lastVisitDate >= DATE_SUB(NOW(), INTERVAL 365 DAY) THEN 'lapsed'
+        WHEN totalVisits <= 1 AND lastVisitDate IS NULL THEN 'new'
         ELSE 'unknown'
       END
   `);

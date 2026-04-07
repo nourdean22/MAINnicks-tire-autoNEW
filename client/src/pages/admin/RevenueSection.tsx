@@ -38,6 +38,7 @@ export default function RevenueSection() {
   const { data: shopFloor } = trpc.nourOsBridge.shopFloor.useQuery(undefined, { refetchInterval: 30000 });
   const { data: funnel } = trpc.workOrders.conversionFunnel.useQuery({ days: period }, { refetchInterval: 120000 });
   const { data: intel } = trpc.invoices.intelligence.useQuery({ period: intelPeriod }, { refetchInterval: 120000 });
+  const { data: custIntel } = trpc.customers.intelligence.useQuery(undefined, { refetchInterval: 300000 });
   const utils = trpc.useUtils();
 
   if (isLoading) {
@@ -614,6 +615,85 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
             </div>
           )}
         </>
+      )}
+
+      {/* ═══ SMART RECOMMENDATIONS ═══ */}
+      {intel?.recommendations && intel.recommendations.length > 0 && (
+        <div className="bg-card border border-primary/20 p-5">
+          <h3 className="font-bold text-sm text-foreground tracking-wider mb-3 flex items-center gap-2">
+            <Zap className="w-4 h-4 text-primary" /> WHAT TO DO NOW
+          </h3>
+          <div className="space-y-2">
+            {intel.recommendations.map((r: any, i: number) => (
+              <div key={i} className={`flex items-start gap-3 p-3 rounded border ${
+                r.priority === "high" ? "border-red-500/20 bg-red-500/5" :
+                r.priority === "medium" ? "border-amber-500/20 bg-amber-500/5" :
+                "border-border/20"
+              }`}>
+                <span className={`text-[9px] font-bold uppercase shrink-0 mt-0.5 ${
+                  r.type === "revenue" ? "text-emerald-400" : r.type === "risk" ? "text-red-400" : "text-blue-400"
+                }`}>{r.type}</span>
+                <p className="text-xs text-foreground/80 flex-1">{r.text}</p>
+                <span className={`text-[8px] font-bold uppercase shrink-0 ${
+                  r.priority === "high" ? "text-red-400" : "text-amber-400"
+                }`}>{r.priority}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ CUSTOMER INTELLIGENCE ═══ */}
+      {custIntel && (
+        <div className="bg-card border border-border/30 p-5">
+          <h3 className="font-bold text-sm text-foreground tracking-wider mb-4 flex items-center gap-2">
+            <Users className="w-4 h-4 text-blue-400" /> CUSTOMER INTELLIGENCE
+          </h3>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+            <div className="text-center p-3 rounded border border-primary/20 bg-primary/5">
+              <p className="text-2xl font-bold text-primary">{custIntel.spendTiers.whales.count}</p>
+              <p className="text-[9px] text-foreground/40 mt-1">Whales ($2K+)</p>
+            </div>
+            <div className="text-center p-3 rounded border border-blue-500/20 bg-blue-500/5">
+              <p className="text-2xl font-bold text-blue-400">{custIntel.spendTiers.regulars.count}</p>
+              <p className="text-[9px] text-foreground/40 mt-1">Regulars ($500-$2K)</p>
+            </div>
+            <div className="text-center p-3 rounded border border-emerald-500/20 bg-emerald-500/5">
+              <p className="text-2xl font-bold text-emerald-400">{custIntel.spendTiers.oneTimers.count}</p>
+              <p className="text-[9px] text-foreground/40 mt-1">One-Timers (&lt;$500)</p>
+            </div>
+            <div className="text-center p-3 rounded border border-red-500/20 bg-red-500/5">
+              <p className="text-2xl font-bold text-red-400">{custIntel.churnRisk.atRisk}</p>
+              <p className="text-[9px] text-foreground/40 mt-1">Churn Risk (60-180d quiet)</p>
+            </div>
+          </div>
+          {/* Win-back potential */}
+          {custIntel.churnRisk.winbackTargets > 0 && (
+            <div className="flex items-center gap-3 p-3 rounded bg-amber-500/5 border border-amber-500/20 mb-3">
+              <TrendingUp className="w-4 h-4 text-amber-400 shrink-0" />
+              <p className="text-xs text-foreground/70">
+                <span className="font-bold text-amber-400">{custIntel.churnRisk.winbackTargets}</span> dormant customers with
+                <span className="font-bold text-primary"> ${custIntel.churnRisk.winbackPotential.toLocaleString()}</span> in past revenue — win-back SMS campaign ready
+              </p>
+            </div>
+          )}
+          {/* At-risk whales */}
+          {custIntel.atRiskWhales.length > 0 && (
+            <div>
+              <p className="text-[10px] text-foreground/40 font-bold uppercase mb-2">High-Value Customers Going Quiet</p>
+              <div className="space-y-1">
+                {custIntel.atRiskWhales.map((w: any, i: number) => (
+                  <div key={i} className="flex items-center gap-3 py-1.5 px-2 rounded bg-red-500/5 border border-red-500/10">
+                    <span className="text-xs font-medium text-foreground flex-1">{w.name}</span>
+                    <span className="text-xs font-bold text-primary">${w.totalSpent.toLocaleString()}</span>
+                    <span className="text-[10px] text-foreground/40">{w.visits} visits</span>
+                    <span className="text-[10px] text-red-400 font-bold">{w.daysSince}d ago</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Empty state */}

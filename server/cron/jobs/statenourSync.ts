@@ -124,13 +124,24 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
           const week = (weekRow as any[])?.[0] || {};
           const month = (monthRow as any[])?.[0] || {};
 
+          // Yesterday's revenue for morning brief comparison
+          const [yesterdayRow] = await db.execute(sql`
+            SELECT COALESCE(SUM(totalAmount), 0) as rev, COUNT(*) as cnt
+            FROM invoices WHERE DATE(invoiceDate) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+          `);
+          const yesterday = (yesterdayRow as any[])?.[0] || {};
+
           return {
             todayEstimate: Math.round(Number(today.rev || 0) / 100),
+            yesterdayRevenue: Math.round(Number(yesterday.rev || 0) / 100),
+            yesterdayJobs: Number(yesterday.cnt || 0),
             weekRevenue: Math.round(Number(week.rev || 0) / 100),
             monthRevenue: Math.round(Number(month.rev || 0) / 100),
             avgTicket: Math.round(Number(today.avgTkt || 0) / 100),
             jobsToday: Number(today.cnt || 0),
-            monthlyTarget: 20000, // $20K monthly target
+            monthlyTarget: 20000,
+            dailyTarget: 770, // $20K / 26 working days
+            pacing: Math.round(Number(month.rev || 0) / 100) >= 20000 ? "on_track" : "behind",
             walkRate: intelligence.pulse?.thisWeek?.walkRate ?? 0,
           };
         } catch {
