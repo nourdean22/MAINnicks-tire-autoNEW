@@ -8,11 +8,11 @@ import {
   LayoutDashboard, FileText, Globe, Wrench, Gauge,
   ClipboardList, Trophy, Gift, Send, Star, UserCheck, RotateCcw, Timer,
   Settings, Upload, DollarSign, Activity, TrendingUp, Plug, ShoppingCart,
-  BarChart3, PhoneCall, Download, CreditCard, Zap, Brain,
+  BarChart3, PhoneCall, Download, CreditCard, Zap, Brain, Tag,
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch" | "intelligence";
+export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch" | "intelligence" | "specials";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -97,6 +97,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "loyalty", label: "Loyalty", icon: <Trophy className="w-4 h-4" /> },
       { id: "referrals", label: "Referrals", icon: <Gift className="w-4 h-4" /> },
       { id: "coupons", label: "Coupons", icon: <Star className="w-4 h-4" /> },
+      { id: "specials", label: "Specials", icon: <Tag className="w-4 h-4" /> },
     ],
   },
   {
@@ -150,6 +151,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   workOrders: "Work Orders",
   dispatch: "Dispatch",
   intelligence: "Intelligence",
+  specials: "Specials",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────
