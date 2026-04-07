@@ -258,8 +258,8 @@ export default function ReviewsPage() {
   return (
     <PageLayout activeHref="/reviews" showChat={true}>
       <SEOHead
-        title="Auto Repair Reviews Cleveland | 4.9★ 1700+ Reviews | Nick's"
-        description="Read 1700+ real Google reviews. Cleveland's top-rated auto repair shop. 4.9 stars for brakes, tires, diagnostics. Walk-ins welcome 7 days. (216) 862-0005"
+        title={`Auto Repair Reviews Cleveland | 4.9★ ${BUSINESS.reviews.countDisplay} Reviews | Nick's`}
+        description={`Read ${BUSINESS.reviews.countDisplay} real Google reviews. Cleveland's top-rated auto repair shop. 4.9 stars for brakes, tires, diagnostics. Walk-ins welcome 7 days. ${BUSINESS.phone.display}`}
         canonicalPath="/reviews"
       />
       <script

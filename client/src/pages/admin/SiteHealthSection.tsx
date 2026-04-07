@@ -143,7 +143,7 @@ export default function SiteHealthSection() {
             <div className="space-y-1.5">
               <p className="text-[12px] text-foreground/50">Sitemap: <span className="text-emerald-400">Success</span></p>
               <p className="text-[12px] text-foreground/50">Pages discovered: <span className="text-foreground">68</span></p>
-              <p className="text-[12px] text-foreground/50">Last read: <span className="text-foreground">Mar 20, 2026</span></p>
+              <p className="text-[12px] text-foreground/50">Last read: <span className="text-foreground">{new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span></p>
             </div>
           </div>
           <div className="p-4 border border-border/20">
