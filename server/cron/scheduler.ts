@@ -575,6 +575,22 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "reminder-queue", // Process due maintenance reminder SMS
+        businessHoursOnly: true,
+        handler: async () => {
+          const { processReminders } = await import("./jobs/crudAutomation");
+          return processReminders();
+        },
+      },
+      {
+        name: "callback-escalation", // Re-alert on callbacks stuck >4h
+        businessHoursOnly: true,
+        handler: async () => {
+          const { escalateStaleCallbacks } = await import("./jobs/crudAutomation");
+          return escalateStaleCallbacks();
+        },
+      },
+      {
         name: "data-analyzers-live", // Chat demand, call attribution, fleet, geography — every 2h
         businessHoursOnly: true,
         handler: async () => {
@@ -891,6 +907,55 @@ export function startTieredScheduler(): void {
         handler: async () => {
           const { autoSendEmailCampaigns } = await import("../services/emailCampaigns");
           return autoSendEmailCampaigns();
+        },
+      },
+      {
+        name: "no-show-detection", // Flag past-date bookings as no-show + follow-up SMS
+        handler: async () => {
+          const { detectNoShows } = await import("./jobs/crudAutomation");
+          return detectNoShows();
+        },
+      },
+      {
+        name: "stale-booking-cleanup", // Auto-cancel 30+ day untouched bookings + rebook SMS
+        handler: async () => {
+          const { autoCleanStaleBookings } = await import("./jobs/crudAutomation");
+          return autoCleanStaleBookings();
+        },
+      },
+      {
+        name: "wo-auto-advance", // completed → invoiced when invoice exists
+        handler: async () => {
+          const { autoAdvanceWorkOrders } = await import("./jobs/crudAutomation");
+          return autoAdvanceWorkOrders();
+        },
+      },
+      {
+        name: "booking-priority-escalation", // 48h+ untouched → high priority
+        handler: async () => {
+          const { autoEscalateBookingPriority } = await import("./jobs/crudAutomation");
+          return autoEscalateBookingPriority();
+        },
+      },
+      {
+        name: "review-auto-draft", // Fetch reviews + generate AI reply drafts
+        handler: async () => {
+          const { autoFetchAndDraftReviews } = await import("./jobs/crudAutomation");
+          return autoFetchAndDraftReviews();
+        },
+      },
+      {
+        name: "low-stock-alerts", // Telegram when inventory hits reorder threshold
+        handler: async () => {
+          const { alertLowStock } = await import("./jobs/crudAutomation");
+          return alertLowStock();
+        },
+      },
+      {
+        name: "content-auto-gen", // Weekly blog article draft (Wednesdays)
+        handler: async () => {
+          const { autoGenerateContent } = await import("./jobs/crudAutomation");
+          return autoGenerateContent();
         },
       },
       {
