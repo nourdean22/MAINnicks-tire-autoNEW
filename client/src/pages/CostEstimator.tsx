@@ -598,7 +598,7 @@ export default function CostEstimator() {
                 {BUSINESS.reviews.countDisplay}
               </div>
               <p className="text-white/70">Google Reviews</p>
-              <p className="text-2xl font-bold text-white">4.9★</p>
+              <p className="text-2xl font-bold text-white">{BUSINESS.reviews.rating}★</p>
             </motion.div>
 
             <motion.div

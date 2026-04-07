@@ -81,7 +81,7 @@ export default function LocalBusinessSchema({
       name: area,
     })),
     description:
-      "Cleveland's #1 new and used tire specialist and full-service auto repair. Buy tires online with free premium installation package ($289+ value). Flat tire repair from $15. Expert brake, diagnostic, emissions, and general repair. 4.9 stars, 1,700+ reviews. Walk-ins welcome 7 days. $10 down financing available.",
+      `Cleveland's #1 new and used tire specialist and full-service auto repair. Buy tires online with free premium installation package ($289+ value). Flat tire repair from $15. Expert brake, diagnostic, emissions, and general repair. ${BUSINESS.reviews.rating} stars, ${BUSINESS.reviews.countDisplay} reviews. Walk-ins welcome 7 days. $10 down financing available.`,
     knowsAbout: [
       "New tire sales and installation",
       "Used tire sales and installation",

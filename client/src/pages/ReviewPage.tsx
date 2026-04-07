@@ -73,7 +73,7 @@ export default function ReviewPage() {
                 <Star key={i} className="w-8 h-8 fill-yellow-500 text-yellow-500" />
               ))}
             </div>
-            <p className="text-2xl font-bold text-gray-900 mb-1">{`4.9 Stars — ${BUSINESS.reviews.countDisplay} Reviews`}</p>
+            <p className="text-2xl font-bold text-gray-900 mb-1">{`${BUSINESS.reviews.rating} Stars — ${BUSINESS.reviews.countDisplay} Reviews`}</p>
           </div>
           <div className="border-2 border-gray-300 rounded-lg p-6 mb-6 inline-block">
             <QRCodeSVG
@@ -248,7 +248,7 @@ export default function ReviewPage() {
                 <Star key={i} className="w-10 h-10 fill-primary text-primary" />
               ))}
             </div>
-            <p className="font-bold text-5xl lg:text-6xl text-foreground mb-2">4.9</p>
+            <p className="font-bold text-5xl lg:text-6xl text-foreground mb-2">{BUSINESS.reviews.rating}</p>
             <p className="font-mono text-primary text-lg tracking-[-0.01em] mb-4">{BUSINESS.reviews.countDisplay} GOOGLE REVIEWS</p>
             <p className="text-foreground/60 text-lg max-w-xl mx-auto mb-8">
               Cleveland drivers have spoken. Join them in sharing your experience.

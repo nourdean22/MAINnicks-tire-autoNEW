@@ -287,7 +287,7 @@ function Problems({ service }: { service: ServiceData }) {
                     <Star key={i} className="w-4 h-4 fill-nick-yellow text-primary" />
                   ))}
                 </div>
-                <span className="text-[12px]">4.9 stars from {BUSINESS.reviews.countDisplay} reviews</span>
+                <span className="text-[12px]">{BUSINESS.reviews.rating} stars from {BUSINESS.reviews.countDisplay} reviews</span>
               </div>
             </div>
           </FadeIn>

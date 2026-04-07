@@ -201,7 +201,7 @@ export default function Contact() {
                           <Star key={i} className="w-5 h-5 fill-nick-yellow text-primary" />
                         ))}
                       </div>
-                      <span className="font-mono text-primary text-lg font-bold">4.9</span>
+                      <span className="font-mono text-primary text-lg font-bold">{BUSINESS.reviews.rating}</span>
                       <span className="text-foreground/50 text-sm">from {BUSINESS.reviews.countDisplay} reviews</span>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3">

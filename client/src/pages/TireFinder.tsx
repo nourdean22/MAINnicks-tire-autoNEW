@@ -1254,7 +1254,7 @@ export default function TireFinder() {
                     <Star key={i} className="w-4 h-4 fill-primary text-primary" />
                   ))}
                 </div>
-                <p className="text-sm text-foreground font-medium">4.9 Stars — Thousands of Google Reviews</p>
+                <p className="text-sm text-foreground font-medium">{BUSINESS.reviews.rating} Stars — {BUSINESS.reviews.countDisplay} Google Reviews</p>
                 <p className="text-xs text-muted-foreground mt-1">Real reviews from real Cleveland drivers</p>
               </div>
             </motion.div>
@@ -1329,7 +1329,7 @@ export default function TireFinder() {
                   <Star key={i} className="w-5 h-5 fill-primary text-primary" />
                 ))}
               </div>
-              <p className="text-lg text-foreground font-medium mb-1">4.9 Stars — Thousands of Reviews</p>
+              <p className="text-lg text-foreground font-medium mb-1">{BUSINESS.reviews.rating} Stars — {BUSINESS.reviews.countDisplay} Reviews</p>
               <p className="text-sm text-muted-foreground">
                 Cleveland's most trusted tire shop. Serving Euclid, Lakewood, Parma, and all of Northeast Ohio.
               </p>
