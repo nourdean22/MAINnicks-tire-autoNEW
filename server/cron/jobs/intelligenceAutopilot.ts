@@ -49,6 +49,31 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
         alerts.push(`🔥 REVENUE AHEAD: $${Math.round(monthRevenue).toLocaleString()} — ${pacePercent}% of pace. On track to beat $${MONTHLY_TARGET.toLocaleString()} target.`);
       }
 
+      // ── Auto-corrective revenue actions ─────────────────
+      // Escalating actions based on how far behind pace
+      if (pacePercent < 80 && dayOfMonth >= 10) {
+        // 10+ days into month and behind 80% pace → trigger winback batch
+        try {
+          const { processWinbackPending } = await import("../../services/winbackProcessor");
+          await processWinbackPending();
+          alerts.push(`🚨 AUTO-RECOVERY: Triggered winback batch (revenue ${pacePercent}% of pace)`);
+        } catch {}
+      }
+      if (pacePercent < 60 && dayOfMonth >= 15) {
+        // 15+ days in and behind 60% → generate emergency recommendations
+        try {
+          const { sendTelegram } = await import("../../services/telegram");
+          await sendTelegram(
+            `🔴 REVENUE EMERGENCY: ${pacePercent}% of pace at day ${dayOfMonth}.\n\n` +
+            `RECOMMENDED ACTIONS:\n` +
+            `1. Post a flash special on GBP (20% off oil changes this week)\n` +
+            `2. Send SMS blast to lapsed 90+ day customers\n` +
+            `3. Activate referral bonus double-up ($50 instead of $25)\n` +
+            `4. Push tire sale on social media`
+          );
+        } catch {}
+      }
+
       // Today's revenue check
       const todayRevenue = forecast.today?.soFar || 0;
       const dailyTarget = MONTHLY_TARGET / daysInMonth;
@@ -113,6 +138,24 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
       }
     } catch (e: any) {
       log.warn("LTV prediction failed:", { error: e.message });
+    }
+
+    // ── 4b. Churn Prediction ─────────────────────────────────
+    try {
+      const { predictChurn } = await import("../../services/intelligenceEngines");
+      const churn = await predictChurn();
+      actionsPerformed += (churn.highRisk.length + churn.mediumRisk.length);
+
+      if (churn.highRisk.length > 0) {
+        const topRisk = churn.highRisk.slice(0, 5);
+        alerts.push(
+          `🚨 ${churn.highRisk.length} CHURN RISK (>70%): ` +
+          topRisk.map(c => `${c.name} (${c.churnProbability}%, ${c.daysSinceVisit}d ago)`).join(" | ") +
+          `. Reach out NOW before they go to a competitor.`
+        );
+      }
+    } catch (e: any) {
+      log.warn("Churn prediction failed:", { error: e.message });
     }
 
     // ── 5. Bottleneck Detection ────────────────────────────

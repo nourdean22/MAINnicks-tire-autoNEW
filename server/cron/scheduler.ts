@@ -976,6 +976,13 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "pricing-intelligence", // Approval rate analysis — raise/lower alerts
+        handler: async () => {
+          const { runPricingIntelligenceJob } = await import("../services/pricingIntelligence");
+          return runPricingIntelligenceJob();
+        },
+      },
+      {
         name: "alg-auto-discovery", // Probe ShopDriver API for new endpoints
         handler: async () => {
           const { runAlgAutoDiscovery } = await import("./jobs/intelligenceAutopilot");
@@ -1129,6 +1136,17 @@ export function startTieredScheduler(): void {
             }
             return { recordsProcessed: 1, details: "Weekly insight sent" };
           } catch { return { details: "Weekly insight failed" }; }
+        },
+      },
+      {
+        name: "chat-faq-pipeline", // Weekly chat question analysis — Sunday only
+        handler: async () => {
+          const dow = new Date().toLocaleString("en-US", { timeZone: "America/New_York", weekday: "long" });
+          if (dow !== "Sunday") return { details: "Not Sunday, skipped" };
+          try {
+            const { runChatFaqPipeline } = await import("./jobs/chatFaqPipeline");
+            return runChatFaqPipeline();
+          } catch { return { details: "Chat FAQ pipeline failed" }; }
         },
       },
     ],

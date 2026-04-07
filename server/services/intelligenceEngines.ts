@@ -956,3 +956,197 @@ export async function generateFullIntelligenceReport() {
 
   return { forecast, crossSell, leadScores, attribution, ltv, chatDemand, callAttr, fleet, geo, bottlenecks, declined, seasonal, geoRevenue, bundles, generatedAt: new Date().toISOString() };
 }
+
+// ═══════════════════════════════════════════════════════════
+// #9 PREDICTIVE CHURN MODELING
+// ═══════════════════════════════════════════════════════════
+
+interface ChurnCustomer {
+  name: string;
+  phone: string;
+  daysSinceVisit: number;
+  churnProbability: number;
+  reason: string;
+}
+
+/**
+ * Predict which customers are likely to churn.
+ *
+ * Factors:
+ * - Days since last visit (primary signal)
+ * - Declining ticket size trend
+ * - Declined work history (estimates but no invoice)
+ * - No review left after service
+ * - VIP status (loyal customers churn slower)
+ */
+export async function predictChurn(): Promise<{
+  highRisk: ChurnCustomer[];
+  mediumRisk: ChurnCustomer[];
+}> {
+  // Pull all customers with at least 1 visit
+  const allCustomers = await (await db()).select({
+    id: customers.id,
+    firstName: customers.firstName,
+    lastName: customers.lastName,
+    phone: customers.phone,
+    totalSpent: customers.totalSpent,
+    totalVisits: customers.totalVisits,
+    lastVisitDate: customers.lastVisitDate,
+    segment: customers.segment,
+  }).from(customers)
+    .where(gte(customers.totalVisits, 1));
+
+  // Get VIP flags from customer_metrics
+  const vipMap = new Map<number, boolean>();
+  try {
+    const metrics = await (await db()).select({
+      customerId: customerMetrics.customerId,
+      isVip: customerMetrics.isVip,
+    }).from(customerMetrics);
+    for (const m of metrics) {
+      vipMap.set(m.customerId, m.isVip === 1);
+    }
+  } catch {}
+
+  // Get customers who had estimates but no paid invoice (declined work signal)
+  const declinedSet = new Set<number>();
+  try {
+    const withDeclined = await (await db()).select({
+      customerId: workOrders.customerId,
+    }).from(workOrders)
+      .where(and(
+        eq(workOrders.hasDeclinedWork, true),
+        gte(workOrders.createdAt, sql`DATE_SUB(NOW(), INTERVAL 180 DAY)`)
+      ));
+    for (const w of withDeclined) {
+      if (w.customerId) declinedSet.add(w.customerId);
+    }
+  } catch {}
+
+  // Get customers who left reviews (review signal)
+  const reviewedSet = new Set<string>();
+  try {
+    const reviewed = await (await db()).select({
+      phone: reviewRequests.phone,
+    }).from(reviewRequests)
+      .where(eq(reviewRequests.status, "clicked"));
+    for (const r of reviewed) {
+      if (r.phone) reviewedSet.add(r.phone.replace(/\D/g, "").slice(-10));
+    }
+  } catch {}
+
+  // Get ticket size trends per customer (last 3 invoices)
+  const ticketTrends = new Map<number, number[]>();
+  try {
+    const recentInvoices = await (await db()).select({
+      customerId: invoices.customerId,
+      totalAmount: invoices.totalAmount,
+      invoiceDate: invoices.invoiceDate,
+    }).from(invoices)
+      .where(and(
+        sql`${invoices.customerId} IS NOT NULL`,
+        gte(invoices.invoiceDate, sql`DATE_SUB(NOW(), INTERVAL 365 DAY)`)
+      ))
+      .orderBy(asc(invoices.invoiceDate));
+
+    for (const inv of recentInvoices) {
+      if (!inv.customerId) continue;
+      if (!ticketTrends.has(inv.customerId)) ticketTrends.set(inv.customerId, []);
+      ticketTrends.get(inv.customerId)!.push(inv.totalAmount || 0);
+    }
+  } catch {}
+
+  const highRisk: ChurnCustomer[] = [];
+  const mediumRisk: ChurnCustomer[] = [];
+
+  for (const c of allCustomers) {
+    const name = `${c.firstName || ""} ${c.lastName || ""}`.trim();
+    const phone = c.phone || "";
+    const phone10 = phone.replace(/\D/g, "").slice(-10);
+
+    // Base: days since last visit
+    const daysSince = c.lastVisitDate
+      ? Math.floor((Date.now() - new Date(c.lastVisitDate).getTime()) / (24 * 60 * 60 * 1000))
+      : 999;
+
+    // Skip very recent customers (no churn risk)
+    if (daysSince <= 30) continue;
+
+    let probability = 0;
+    const reasons: string[] = [];
+
+    // Factor 1: Days since last visit (primary)
+    if (daysSince > 120) {
+      probability += 90;
+      reasons.push(`${daysSince}d since last visit`);
+    } else if (daysSince > 90) {
+      probability += 70;
+      reasons.push(`${daysSince}d since last visit`);
+    } else if (daysSince > 60) {
+      probability += 50;
+      reasons.push(`${daysSince}d since last visit`);
+    } else {
+      probability += 20;
+      reasons.push(`${daysSince}d since last visit`);
+    }
+
+    // Factor 2: Declining ticket size (-10% loyalty)
+    const tickets = ticketTrends.get(c.id);
+    if (tickets && tickets.length >= 2) {
+      const recent = tickets.slice(-2);
+      const older = tickets.slice(0, -2);
+      if (older.length > 0) {
+        const avgRecent = recent.reduce((s, v) => s + v, 0) / recent.length;
+        const avgOlder = older.reduce((s, v) => s + v, 0) / older.length;
+        if (avgRecent < avgOlder * 0.7) {
+          probability += 10;
+          reasons.push("declining ticket size");
+        }
+      }
+    }
+
+    // Factor 3: Declined work history (+20%)
+    if (declinedSet.has(c.id)) {
+      probability += 20;
+      reasons.push("has declined work");
+    }
+
+    // Factor 4: No review left (+10%)
+    if (!reviewedSet.has(phone10) && (c.totalVisits || 0) >= 1) {
+      probability += 10;
+      reasons.push("no review left");
+    }
+
+    // Factor 5: VIP status (-20%)
+    if (vipMap.get(c.id)) {
+      probability -= 20;
+      reasons.push("VIP (reduced risk)");
+    }
+
+    // Clamp
+    probability = Math.max(0, Math.min(100, probability));
+
+    const entry: ChurnCustomer = {
+      name,
+      phone,
+      daysSinceVisit: daysSince,
+      churnProbability: probability,
+      reason: reasons.join("; "),
+    };
+
+    if (probability >= 70) {
+      highRisk.push(entry);
+    } else if (probability >= 40) {
+      mediumRisk.push(entry);
+    }
+  }
+
+  // Sort by probability descending
+  highRisk.sort((a, b) => b.churnProbability - a.churnProbability);
+  mediumRisk.sort((a, b) => b.churnProbability - a.churnProbability);
+
+  return {
+    highRisk: highRisk.slice(0, 25),
+    mediumRisk: mediumRisk.slice(0, 25),
+  };
+}
