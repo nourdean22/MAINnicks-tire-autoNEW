@@ -285,8 +285,8 @@ export function registerBridgeRoutes(app: Express): void {
   // Get stored analytics
   app.get("/api/bridge/analytics", bridgeAuth, async (_req, res) => {
     try {
-      // Return stored analytics from the last ingestion
       const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
       const db = await getDb();
       if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
 
