@@ -78,19 +78,23 @@ async function runTier(tier: Tier): Promise<void> {
     let jobTimer: ReturnType<typeof setTimeout> | undefined;
     try {
       const jobStart = Date.now();
-      await Promise.race([
+      const result = await Promise.race([
         job.handler(),
         new Promise<never>((_, reject) => {
           jobTimer = setTimeout(() => reject(new Error("timeout")), 4 * 60 * 1000);
         }),
-      ]);
+      ]) as { recordsProcessed?: number; details?: string };
       completed++;
       const dur = Date.now() - jobStart;
       if (dur > 5000) {
         log.info(`[${tier.name}] ${job.name}: ${dur}ms`);
       }
+      // Log to cron_log table for audit trail
+      logTierJob(job.name, "completed", dur, result?.recordsProcessed, result?.details).catch(() => {});
     } catch (err) {
+      const dur = Date.now() - (Date.now()); // approximate
       log.error(`[${tier.name}] ${job.name} failed:`, { error: err instanceof Error ? err.message : String(err) });
+      logTierJob(job.name, "failed", 0, 0, err instanceof Error ? err.message : String(err)).catch(() => {});
     } finally {
       if (jobTimer) clearTimeout(jobTimer);
     }
@@ -102,6 +106,27 @@ async function runTier(tier: Tier): Promise<void> {
   if (completed > 0) {
     log.info(`Tier ${tier.name}: ${completed} completed, ${skipped} skipped (${totalMs}ms)`);
   }
+}
+
+/** Log tier job execution to cron_log table */
+async function logTierJob(jobName: string, status: string, durationMs: number, recordsProcessed?: number, details?: string): Promise<void> {
+  try {
+    const { getDb } = await import("../db");
+    const { cronLog } = await import("../../drizzle/schema");
+    const { randomUUID } = await import("crypto");
+    const db = await getDb();
+    if (!db) return;
+    await db.insert(cronLog).values({
+      id: randomUUID(),
+      jobName,
+      status,
+      durationMs,
+      recordsProcessed: recordsProcessed || 0,
+      details: details?.slice(0, 2000) || null,
+      startedAt: new Date(Date.now() - durationMs),
+      completedAt: new Date(),
+    });
+  } catch {}
 }
 
 /**
