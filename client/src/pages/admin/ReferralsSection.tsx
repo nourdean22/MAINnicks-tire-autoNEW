@@ -12,7 +12,7 @@ import {
   type BookingStatus, type LeadStatus,
 } from "./shared";
 import {
-  CheckCircle2, ChevronRight, Clock, Gift, Loader2, Phone, Users
+  CheckCircle2, ChevronRight, Clock, Gift, Loader2, Phone, Users, TrendingUp, ArrowRight
 } from "lucide-react";
 
 export default function ReferralsSection() {
@@ -30,9 +30,56 @@ export default function ReferralsSection() {
     expired: "text-foreground/40 bg-foreground/5",
   };
 
+  const stats = useMemo(() => {
+    const all = referrals ?? [];
+    const total = all.length;
+    const contacted = all.filter((r: any) => r.status === "contacted" || r.status === "redeemed").length;
+    const redeemed = all.filter((r: any) => r.status === "redeemed").length;
+    const pending = all.filter((r: any) => r.status === "pending").length;
+    const contactedPct = total > 0 ? Math.round((contacted / total) * 100) : 0;
+    const redeemedPct = total > 0 ? Math.round((redeemed / total) * 100) : 0;
+    const conversionRate = total > 0 ? Math.round((redeemed / total) * 100) : 0;
+    return { total, contacted, redeemed, pending, contactedPct, redeemedPct, conversionRate };
+  }, [referrals]);
+
+  const conversionColor = stats.conversionRate >= 20 ? "text-emerald-400" : stats.conversionRate >= 10 ? "text-amber-400" : "text-red-400";
+
   return (
     <div className="space-y-6">
       <h2 className="font-bold text-xl text-foreground tracking-wider">REFERRAL TRACKING</h2>
+
+      {/* Analytics Strip */}
+      {!isLoading && stats.total > 0 && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard label="TOTAL REFERRALS" value={stats.total} icon={<Users className="w-4 h-4" />} />
+            <StatCard label="CONTACTED" value={`${stats.contactedPct}%`} icon={<Phone className="w-4 h-4" />} />
+            <StatCard label="REDEEMED" value={`${stats.redeemedPct}%`} icon={<Gift className="w-4 h-4" />} />
+            <StatCard label="CONVERSION RATE" value={`${stats.conversionRate}%`} icon={<TrendingUp className="w-4 h-4" />} color={conversionColor} />
+          </div>
+
+          {/* Funnel */}
+          <div className="bg-card border border-border/30 p-4">
+            <h3 className="font-bold text-xs text-foreground/60 tracking-wider mb-3">REFERRAL FUNNEL</h3>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex-1 text-center">
+                <div className="text-2xl font-bold text-foreground">{stats.total}</div>
+                <div className="text-[10px] text-foreground/40 tracking-wide mt-1">SUBMITTED</div>
+              </div>
+              <ArrowRight className="w-4 h-4 text-foreground/20 shrink-0" />
+              <div className="flex-1 text-center">
+                <div className="text-2xl font-bold text-primary">{stats.contacted}</div>
+                <div className="text-[10px] text-foreground/40 tracking-wide mt-1">CONTACTED</div>
+              </div>
+              <ArrowRight className="w-4 h-4 text-foreground/20 shrink-0" />
+              <div className="flex-1 text-center">
+                <div className={`text-2xl font-bold ${conversionColor}`}>{stats.redeemed}</div>
+                <div className="text-[10px] text-foreground/40 tracking-wide mt-1">REDEEMED</div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>

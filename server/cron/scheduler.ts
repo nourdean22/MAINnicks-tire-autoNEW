@@ -602,6 +602,14 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "cross-sell-outreach", // Proactive SMS from intelligence engine cross-sell patterns
+        businessHoursOnly: true,
+        handler: async () => {
+          const { processCrossSellOutreach } = await import("./jobs/crossSellOutreach");
+          return processCrossSellOutreach();
+        },
+      },
+      {
         name: "warranty-alerts",
         handler: async () => {
           const { processWarrantyAlerts } = await import("./jobs/warrantyAlerts");

@@ -12,7 +12,7 @@ import {
   type BookingStatus, type LeadStatus,
 } from "./shared";
 import {
-  Loader2, Trophy, Gift, Star, Phone
+  Loader2, Trophy, Gift, Star, Phone, Award, TrendingUp, BarChart3
 } from "lucide-react";
 
 export default function LoyaltyAdminSection() {
@@ -35,9 +35,50 @@ export default function LoyaltyAdminSection() {
     onError: (err: any) => toast.error(err.message),
   });
 
+  const rewardStats = useMemo(() => {
+    const all = rewards ?? [];
+    const totalRewards = all.length;
+    const activeRewards = all.filter((r: any) => r.isActive !== 0).length;
+    const totalPointsValue = all.reduce((sum: number, r: any) => sum + (r.pointsCost || 0), 0);
+    const totalDiscountValue = all.reduce((sum: number, r: any) => sum + (r.discountValue || r.rewardValue || 0), 0);
+    // "Most Popular" = lowest cost reward (most accessible)
+    const cheapest = all.length > 0
+      ? [...all].sort((a: any, b: any) => (a.pointsCost || 0) - (b.pointsCost || 0))[0]
+      : null;
+    const avgCost = totalRewards > 0 ? Math.round(totalPointsValue / totalRewards) : 0;
+    return { totalRewards, activeRewards, totalDiscountValue, cheapest, avgCost };
+  }, [rewards]);
+
   return (
     <div className="space-y-8">
       <h2 className="font-bold text-xl text-foreground tracking-wider">LOYALTY PROGRAM</h2>
+
+      {/* ROI Metrics */}
+      {!rewardsLoading && rewardStats.totalRewards > 0 && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard label="TOTAL REWARDS" value={rewardStats.totalRewards} icon={<Gift className="w-4 h-4" />} />
+            <StatCard label="ACTIVE REWARDS" value={rewardStats.activeRewards} icon={<Star className="w-4 h-4" />} color={rewardStats.activeRewards > 0 ? "text-emerald-400" : "text-foreground"} />
+            <StatCard label="AVG POINT COST" value={`${rewardStats.avgCost} pts`} icon={<BarChart3 className="w-4 h-4" />} />
+            <StatCard label="TOTAL DISCOUNT VALUE" value={`$${rewardStats.totalDiscountValue}`} icon={<TrendingUp className="w-4 h-4" />} />
+          </div>
+
+          {rewardStats.cheapest && (
+            <div className="bg-card border border-border/30 p-4 flex items-center gap-3">
+              <Award className="w-5 h-5 text-primary shrink-0" />
+              <div>
+                <span className="text-[10px] text-foreground/40 tracking-wider">MOST ACCESSIBLE REWARD</span>
+                <div className="text-sm font-bold text-foreground">
+                  {(rewardStats.cheapest as any).title}
+                  <span className="text-foreground/40 font-normal ml-2">
+                    {(rewardStats.cheapest as any).pointsCost} pts &middot; ${(rewardStats.cheapest as any).discountValue || (rewardStats.cheapest as any).rewardValue} off
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       {/* Award Points */}
       <div className="bg-card border border-border/30 p-5">

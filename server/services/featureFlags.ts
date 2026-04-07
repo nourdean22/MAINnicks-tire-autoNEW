@@ -27,6 +27,7 @@ export const FLAG_DEFINITIONS = [
   { key: "gbp_auto_posting", description: "Auto-post to Google Business Profile" },
   { key: "sms_blast_enabled", description: "Bulk SMS campaign sending" },
   { key: "smart_sms_auto_reply", description: "Auto-reply to inbound SMS based on intent" },
+  { key: "sms_cross_sell_outreach", description: "Proactive cross-sell SMS based on service history patterns" },
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];

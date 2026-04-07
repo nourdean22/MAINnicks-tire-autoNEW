@@ -8,11 +8,11 @@ import {
   LayoutDashboard, FileText, Globe, Wrench, Gauge,
   ClipboardList, Trophy, Gift, Send, Star, UserCheck, RotateCcw, Timer,
   Settings, Upload, DollarSign, Activity, TrendingUp, Plug, ShoppingCart,
-  BarChart3, PhoneCall, Download, CreditCard, Zap,
+  BarChart3, PhoneCall, Download, CreditCard, Zap, Brain,
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch";
+export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch" | "intelligence";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -84,6 +84,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Revenue",
     items: [
       { id: "revenue", label: "Revenue", icon: <TrendingUp className="w-4 h-4" /> },
+      { id: "intelligence", label: "Intelligence", icon: <Brain className="w-4 h-4" /> },
       { id: "callTrackingView", label: "Calls", icon: <PhoneCall className="w-4 h-4" /> },
     ],
   },
@@ -140,6 +141,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   financing: "Financing",
   workOrders: "Work Orders",
   dispatch: "Dispatch",
+  intelligence: "Intelligence",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────

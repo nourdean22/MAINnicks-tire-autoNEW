@@ -52,6 +52,7 @@ const FinancingSection = lazy(() => import("./admin/FinancingSection"));
 const WorkOrdersSection = lazy(() => import("./admin/WorkOrdersSection"));
 const DispatchSection = lazy(() => import("./admin/DispatchSection"));
 const CommandCenterSection = lazy(() => import("./admin/CommandCenterSection"));
+const IntelligenceSection = lazy(() => import("./admin/IntelligenceSection"));
 
 function SectionSpinner() {
   return (
@@ -100,6 +101,7 @@ function SectionContent({ section }: { section: AdminSection }) {
       {section === "exportView" && <ExportSection />}
       {section === "workOrders" && <WorkOrdersSection />}
       {section === "dispatch" && <DispatchSection />}
+      {section === "intelligence" && <IntelligenceSection />}
     </Suspense>
   );
 }
