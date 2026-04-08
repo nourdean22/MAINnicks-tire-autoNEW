@@ -364,84 +364,96 @@ export async function trackCampaignAttribution() {
 // ═══════════════════════════════════════════════════════════
 
 export async function predictCustomerLTV() {
-  const allCustomers = await (await db()).select({
-    id: customers.id,
-    firstName: customers.firstName,
-    lastName: customers.lastName,
-    phone: customers.phone,
-    totalSpent: customers.totalSpent,
-    totalVisits: customers.totalVisits,
-    lastVisitDate: customers.lastVisitDate,
-    firstVisitDate: customers.firstVisitDate,
-    segment: customers.segment,
-    city: customers.city,
-    zip: customers.zip,
-  }).from(customers)
-    .where(gte(customers.totalVisits, 1));
+  try {
+    const allCustomers = await (await db()).select({
+      id: customers.id,
+      firstName: customers.firstName,
+      lastName: customers.lastName,
+      phone: customers.phone,
+      totalSpent: customers.totalSpent,
+      totalVisits: customers.totalVisits,
+      lastVisitDate: customers.lastVisitDate,
+      firstVisitDate: customers.firstVisitDate,
+      segment: customers.segment,
+      city: customers.city,
+      zip: customers.zip,
+    }).from(customers)
+      .where(gte(customers.totalVisits, 1));
 
-  const scored = allCustomers.map((c: any) => {
-    let ltvScore = 0;
+    const scored = allCustomers.map((c: any) => {
+      let ltvScore = 0;
 
-    // 1. Historical spend (0-30)
-    const spent = (c.totalSpent || 0) / 100;
-    ltvScore += Math.min(30, Math.round(spent / 100)); // $100 = 1 point
+      // 1. Historical spend (0-30)
+      const spent = (c.totalSpent || 0) / 100;
+      ltvScore += Math.min(30, Math.round(spent / 100)); // $100 = 1 point
 
-    // 2. Visit frequency (0-25)
-    const visits = c.totalVisits || 0;
-    const firstVisit = c.firstVisitDate ? new Date(c.firstVisitDate) : new Date();
-    const monthsActive = Math.max(1, (Date.now() - firstVisit.getTime()) / (30 * 86400000));
-    const visitsPerMonth = visits / monthsActive;
-    ltvScore += Math.min(25, Math.round(visitsPerMonth * 15));
+      // 2. Visit frequency (0-25)
+      const visits = c.totalVisits || 0;
+      const firstVisit = c.firstVisitDate ? new Date(c.firstVisitDate) : new Date();
+      const monthsActive = Math.max(1, (Date.now() - firstVisit.getTime()) / (30 * 86400000));
+      const visitsPerMonth = visits / monthsActive;
+      ltvScore += Math.min(25, Math.round(visitsPerMonth * 15));
 
-    // 3. Recency (0-20)
-    const daysSince = c.lastVisitDate ? Math.floor((Date.now() - new Date(c.lastVisitDate).getTime()) / 86400000) : 999;
-    const recencyScore = daysSince <= 30 ? 20 : daysSince <= 60 ? 15 : daysSince <= 90 ? 10 : daysSince <= 180 ? 5 : 0;
-    ltvScore += recencyScore;
+      // 3. Recency (0-20)
+      const daysSince = c.lastVisitDate ? Math.floor((Date.now() - new Date(c.lastVisitDate).getTime()) / 86400000) : 999;
+      const recencyScore = daysSince <= 30 ? 20 : daysSince <= 60 ? 15 : daysSince <= 90 ? 10 : daysSince <= 180 ? 5 : 0;
+      ltvScore += recencyScore;
 
-    // 4. Average ticket value (0-15)
-    const avgTicket = visits > 0 ? spent / visits : 0;
-    ltvScore += Math.min(15, Math.round(avgTicket / 30));
+      // 4. Average ticket value (0-15)
+      const avgTicket = visits > 0 ? spent / visits : 0;
+      ltvScore += Math.min(15, Math.round(avgTicket / 30));
 
-    // 5. Loyalty tenure (0-10)
-    const tenureMonths = monthsActive;
-    ltvScore += Math.min(10, Math.round(tenureMonths / 3));
+      // 5. Loyalty tenure (0-10)
+      const tenureMonths = monthsActive;
+      ltvScore += Math.min(10, Math.round(tenureMonths / 3));
 
-    const churnRisk = daysSince > 180 ? "high" : daysSince > 90 ? "medium" : "low";
+      const churnRisk = daysSince > 180 ? "high" : daysSince > 90 ? "medium" : "low";
+
+      return {
+        id: c.id,
+        name: `${c.firstName || ""} ${c.lastName || ""}`.trim(),
+        phone: c.phone,
+        ltvScore: Math.min(100, ltvScore),
+        totalSpent: spent,
+        visits,
+        avgTicket: Math.round(avgTicket),
+        daysSinceLastVisit: daysSince,
+        churnRisk,
+        segment: c.segment,
+      };
+    });
+
+    // Update customer_metrics in background (fire-and-forget, don't block the response)
+    const dbRef = await db();
+    Promise.resolve().then(async () => {
+      try {
+        for (const s of scored.slice(0, 200)) {
+          await dbRef.update(customerMetrics)
+            .set({ churnRisk: s.churnRisk as any, isVip: s.ltvScore >= 70 ? 1 : 0 })
+            .where(eq(customerMetrics.customerId, s.id));
+        }
+      } catch (e) {
+        console.error("[intelligence:ltv] background metrics update failed:", e);
+      }
+    });
+
+    const sorted = scored.sort((a: any, b: any) => b.ltvScore - a.ltvScore);
+    const atRiskHighValue = sorted.filter((c: any) => c.ltvScore >= 50 && c.daysSinceLastVisit > 60).slice(0, 15);
 
     return {
-      id: c.id,
-      name: `${c.firstName || ""} ${c.lastName || ""}`.trim(),
-      phone: c.phone,
-      ltvScore: Math.min(100, ltvScore),
-      totalSpent: spent,
-      visits,
-      avgTicket: Math.round(avgTicket),
-      daysSinceLastVisit: daysSince,
-      churnRisk,
-      segment: c.segment,
+      topCustomers: sorted.slice(0, 20),
+      atRiskHighValue,
+      segments: {
+        whales: sorted.filter((c: any) => c.ltvScore >= 70).length,
+        regulars: sorted.filter((c: any) => c.ltvScore >= 40 && c.ltvScore < 70).length,
+        occasional: sorted.filter((c: any) => c.ltvScore >= 15 && c.ltvScore < 40).length,
+        oneTimers: sorted.filter((c: any) => c.ltvScore < 15).length,
+      },
     };
-  });
-
-  // Update customer_metrics
-  for (const s of scored.slice(0, 200)) { // batch top 200
-    await (await db()).update(customerMetrics)
-      .set({ churnRisk: s.churnRisk as any, isVip: s.ltvScore >= 70 ? 1 : 0 })
-      .where(eq(customerMetrics.customerId, s.id));
+  } catch (e) {
+    console.error("[intelligence:ltv] predictCustomerLTV failed:", e);
+    return { topCustomers: [], atRiskHighValue: [], segments: { whales: 0, regulars: 0, occasional: 0, oneTimers: 0 } };
   }
-
-  const sorted = scored.sort((a: any, b: any) => b.ltvScore - a.ltvScore);
-  const atRiskHighValue = sorted.filter((c: any) => c.ltvScore >= 50 && c.daysSinceLastVisit > 60).slice(0, 15);
-
-  return {
-    topCustomers: sorted.slice(0, 20),
-    atRiskHighValue,
-    segments: {
-      whales: sorted.filter((c: any) => c.ltvScore >= 70).length,
-      regulars: sorted.filter((c: any) => c.ltvScore >= 40 && c.ltvScore < 70).length,
-      occasional: sorted.filter((c: any) => c.ltvScore >= 15 && c.ltvScore < 40).length,
-      oneTimers: sorted.filter((c: any) => c.ltvScore < 15).length,
-    },
-  };
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -984,6 +996,7 @@ export async function predictChurn(): Promise<{
   highRisk: ChurnCustomer[];
   mediumRisk: ChurnCustomer[];
 }> {
+  try {
   // Pull all customers with at least 1 visit
   const allCustomers = await (await db()).select({
     id: customers.id,
@@ -1150,4 +1163,8 @@ export async function predictChurn(): Promise<{
     highRisk: highRisk.slice(0, 25),
     mediumRisk: mediumRisk.slice(0, 25),
   };
+  } catch (e) {
+    console.error("[intelligence:churn] predictChurn failed:", e);
+    return { highRisk: [], mediumRisk: [] };
+  }
 }

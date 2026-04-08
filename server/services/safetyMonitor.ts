@@ -200,8 +200,8 @@ export async function checkReputationSafety(): Promise<CheckResult<ReputationMet
     const [negRows] = await db.execute(sql`
       SELECT COUNT(*) as cnt
       FROM review_pipeline
-      WHERE rating <= 2
-        AND createdAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+      WHERE \`rating\` <= 2
+        AND \`createdAt\` >= DATE_SUB(NOW(), INTERVAL 7 DAY)
     `);
     metrics.recentNegativeReviews = Number((negRows as any)?.[0]?.cnt || 0);
     if (metrics.recentNegativeReviews >= 2) {
@@ -218,9 +218,9 @@ export async function checkReputationSafety(): Promise<CheckResult<ReputationMet
 
     // 30-day avg rating
     const [avgRows] = await db.execute(sql`
-      SELECT COALESCE(AVG(rating), 5) as avgRating
+      SELECT COALESCE(AVG(\`rating\`), 5) as avgRating
       FROM review_pipeline
-      WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+      WHERE \`createdAt\` >= DATE_SUB(NOW(), INTERVAL 30 DAY)
     `);
     metrics.avgRatingLast30 = Math.round(Number((avgRows as any)?.[0]?.avgRating || 5) * 100) / 100;
     if (metrics.avgRatingLast30 < 4.5) {
@@ -234,8 +234,8 @@ export async function checkReputationSafety(): Promise<CheckResult<ReputationMet
     const [unansweredRows] = await db.execute(sql`
       SELECT COUNT(*) as cnt
       FROM review_pipeline
-      WHERE reviewed = 0
-        AND responseSent = 0
+      WHERE \`reviewed\` = 0
+        AND \`responseSent\` = 0
     `);
     metrics.unansweredReviews = Number((unansweredRows as any)?.[0]?.cnt || 0);
     if (metrics.unansweredReviews > 5) {

@@ -164,7 +164,7 @@ async function ensureInitialized(): Promise<void> {
     },
   });
 
-  // 2c. Auto-WO Creation + Drip Campaign Enrollment (event-driven automation)
+  // 2c. Auto-Lead Creation + Drip Campaign Enrollment (event-driven automation)
   registerDestination({
     name: "automation-engine",
     enabled: true,
@@ -173,9 +173,9 @@ async function ensureInitialized(): Promise<void> {
     handler: async (event) => {
       const auto = await import("./workOrderAutomation");
 
-      // Booking → auto-create draft work order
+      // Booking → create lead (NOT a work order — WOs are created manually when customer shows up)
       if (event.type === "booking_created") {
-        await auto.autoCreateWorkOrderFromBooking(event.data as any);
+        await auto.autoCreateLeadFromBooking(event.data as any);
       }
 
       // Job completed → enroll in post-service drip (thank you + review + check-in)
