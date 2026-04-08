@@ -37,7 +37,7 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
       LIMIT 50
     `);
 
-    const pendingSends = rows as any[];
+    const pendingSends = rows as Array<Record<string, unknown>>;
     if (!pendingSends || pendingSends.length === 0) {
       return { recordsProcessed: 0, details: "No pending winback sends" };
     }
@@ -55,7 +55,7 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
         // Skip SMS sends but don't mark as failed
         continue;
       }
-      const result = await sendSms(send.phone, send.personalizedBody);
+      const result = await sendSms(String(send.phone), String(send.personalizedBody));
 
       if (result.success) {
         await db.execute(sql`
@@ -79,13 +79,13 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
       try {
         const { sendTelegram } = await import("./telegram");
         await sendTelegram(`📬 WINBACK AUTO: ${sent} messages sent, ${failed} failed`);
-      } catch (err: any) {
-        log.warn(`Winback Telegram notification failed: ${err.message}`);
+      } catch (err: unknown) {
+        log.warn(`Winback Telegram notification failed: ${(err as Error).message}`);
       }
     }
 
     return { recordsProcessed: sent, details: `${sent} sent, ${failed} failed out of ${pendingSends.length}` };
-  } catch (err: any) {
-    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+  } catch (err: unknown) {
+    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }
