@@ -590,6 +590,7 @@ export default function DiagnosePage() {
                     />
                     <input
                       type="text"
+                      inputMode="numeric"
                       value={vehicle.mileage}
                       onChange={(e) => setVehicle({ ...vehicle, mileage: e.target.value })}
                       placeholder="Mileage"
