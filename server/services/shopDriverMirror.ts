@@ -30,9 +30,11 @@ const ALERT_COOLDOWN_MS = 2 * 60 * 60 * 1000; // Don't spam — max 1 alert ever
 // ShopDriver uses JWT token auth via a GUID-subdomain API.
 // The SPA at secure.autolaborexperts.com calls the GUID API for all data.
 // When someone logs in at the shop computer, it MAY invalidate our token.
-// We keep tokens for 3 min (one sync run), then re-auth fresh.
+// TTL extended to 30 min to reduce re-auth frequency and avoid session conflicts.
+// lastAuthAt guard prevents re-auth within 25 min even if token is stale.
 
 let mirrorSession: { token: string; expiresAt: number } | null = null;
+let lastMirrorAuthAt = 0;
 
 /** Force-clear the cached session */
 function invalidateSession() {
@@ -60,8 +62,15 @@ function isSessionKicked(res: Response, body?: string): boolean {
 }
 
 async function getSession(): Promise<string | null> {
-  // Reuse token within a 3-minute window (covers one sync run)
+  // Reuse token within its TTL window
   if (mirrorSession && Date.now() < mirrorSession.expiresAt) {
+    return mirrorSession.token;
+  }
+
+  // Don't re-authenticate if we already authed within 25 minutes — prevents
+  // kicking the physical shop's browser session with rapid re-logins
+  const AUTH_COOLDOWN = 25 * 60 * 1000;
+  if (mirrorSession && (Date.now() - lastMirrorAuthAt) < AUTH_COOLDOWN) {
     return mirrorSession.token;
   }
 
@@ -107,14 +116,16 @@ async function getSession(): Promise<string | null> {
       data.result?.token || data.result?.jwt;
 
     if (token && typeof token === "string") {
-      mirrorSession = { token, expiresAt: Date.now() + 3 * 60 * 1000 };
+      mirrorSession = { token, expiresAt: Date.now() + 30 * 60 * 1000 }; // 30 min TTL
+      lastMirrorAuthAt = Date.now();
       log.info("Authenticated via JWT token");
       return token;
     }
 
     // If no obvious token field, check if the response IS the token (raw string)
     if (typeof data === "string" && data.length > 20) {
-      mirrorSession = { token: data, expiresAt: Date.now() + 3 * 60 * 1000 };
+      mirrorSession = { token: data, expiresAt: Date.now() + 30 * 60 * 1000 }; // 30 min TTL
+      lastMirrorAuthAt = Date.now();
       log.info("Authenticated — raw token response");
       return data;
     }
@@ -123,7 +134,8 @@ async function getSession(): Promise<string | null> {
     const cookies = res.headers.getSetCookie?.() || [];
     const cookie = cookies.map(c => c.split(";")[0]).join("; ");
     if (cookie) {
-      mirrorSession = { token: `cookie:${cookie}`, expiresAt: Date.now() + 3 * 60 * 1000 };
+      mirrorSession = { token: `cookie:${cookie}`, expiresAt: Date.now() + 30 * 60 * 1000 }; // 30 min TTL
+      lastMirrorAuthAt = Date.now();
       log.info("Authenticated via cookie fallback");
       return `cookie:${cookie}`;
     }

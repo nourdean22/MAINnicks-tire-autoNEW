@@ -20,11 +20,22 @@ const SHOPDRIVER_BASE = "https://secure.autolaborexperts.com";
 const SHOPDRIVER_API = "https://8DD0FCE9-80F9-4A9E-B0C3-CF76825AD9B7.autolaborexperts.com";
 
 // Session management for ShopDriver — JWT token auth
+// TTL set to 30 min to avoid frequent re-auth that invalidates the shop's browser session.
+// lastAuthAt guard prevents re-auth within 25 min even if token object is cleared.
 let shopDriverSession: { token: string; expiresAt: number } | null = null;
+let lastAuthAt = 0;
 
 /** Authenticate with ShopDriver Elite via GUID API endpoint */
 async function getShopDriverSession(): Promise<string | null> {
+  // If token exists and hasn't expired, reuse it
   if (shopDriverSession && Date.now() < shopDriverSession.expiresAt) {
+    return shopDriverSession.token;
+  }
+
+  // Don't re-authenticate if we already authed within 25 minutes — prevents
+  // kicking the physical shop's browser session with rapid re-logins
+  const AUTH_COOLDOWN = 25 * 60 * 1000;
+  if (shopDriverSession && (Date.now() - lastAuthAt) < AUTH_COOLDOWN) {
     return shopDriverSession.token;
   }
 
@@ -69,8 +80,9 @@ async function getShopDriverSession(): Promise<string | null> {
     if (token && typeof token === "string") {
       shopDriverSession = {
         token,
-        expiresAt: Date.now() + 3 * 60 * 1000,
+        expiresAt: Date.now() + 30 * 60 * 1000, // 30 min TTL — reduced re-auth frequency
       };
+      lastAuthAt = Date.now();
       return token;
     }
 
@@ -80,8 +92,9 @@ async function getShopDriverSession(): Promise<string | null> {
     if (cookieStr) {
       shopDriverSession = {
         token: `cookie:${cookieStr}`,
-        expiresAt: Date.now() + 3 * 60 * 1000,
+        expiresAt: Date.now() + 30 * 60 * 1000, // 30 min TTL
       };
+      lastAuthAt = Date.now();
       return `cookie:${cookieStr}`;
     }
 
