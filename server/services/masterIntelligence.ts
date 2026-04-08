@@ -9,6 +9,7 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { BUSINESS } from "@shared/business";
 
 const log = createLogger("master-intelligence");
 
@@ -149,7 +150,7 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
   const seasonal      = settled(r[24]);
   const marketShare   = settled(r[25]);
   const referralNet   = settled(r[26]);
-  const portfolioLTV  = settled(results[27]);
+  const portfolioLTV  = settled(r[27]);
 
   // ── Compute Business Health Score (0-100) ──────────────
   // Weighted composite: revenue pacing (30%), churn (20%), reviews (15%), customer growth (15%), margins (20%)
@@ -158,7 +159,7 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
 
   // Revenue pacing component (30 pts)
   if (pacing) {
-    const monthTarget = 20_000;
+    const monthTarget = BUSINESS.revenueTarget.monthly;
     const dayOfMonth = new Date().getDate();
     const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
     const expectedPace = (dayOfMonth / daysInMonth) * monthTarget;
@@ -175,11 +176,11 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
     score += clamp(10 - highRiskCount * 2, -10, 10);
   }
 
-  // Review velocity component (15 pts)
+  // Review velocity component (15 pts) — velocity is % change month-over-month
   if (reviewVel) {
-    const velocity = (reviewVel as any).weeklyRate || (reviewVel as any).monthlyRate || 0;
-    // 4+ reviews/week = +7, 0 = -7
-    score += clamp(Math.round(velocity * 1.75) - 7, -7, 7);
+    const velocity = (reviewVel as any)?.velocity ?? 0;
+    // Positive velocity = growing reviews = good; negative = losing momentum
+    score += velocity > 0 ? 15 : velocity > -10 ? 10 : 5;
   }
 
   // Customer growth component (15 pts)
@@ -206,7 +207,7 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
 
   // Revenue alerts
   if (pacing) {
-    const monthTarget = 20_000;
+    const monthTarget = BUSINESS.revenueTarget.monthly;
     const dayOfMonth = new Date().getDate();
     const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
     const expectedPace = (dayOfMonth / daysInMonth) * monthTarget;

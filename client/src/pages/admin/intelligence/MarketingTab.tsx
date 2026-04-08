@@ -28,7 +28,7 @@ export default function MarketingTab() {
               rows={channel.data.channels.slice(0, 8).map((c: any) => [
                 <span className="text-foreground font-medium capitalize">{c.channel}</span>,
                 <span className="font-mono">{c.leads}</span>,
-                <span className="font-mono text-emerald-400">{c.converted}</span>,
+                <span className="font-mono text-emerald-400">{c.conversions}</span>,
                 <span className="font-mono">{fmt(c.revenue ?? 0)}</span>,
               ])}
             />
