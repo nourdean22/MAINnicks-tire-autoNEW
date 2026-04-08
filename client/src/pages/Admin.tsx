@@ -282,7 +282,7 @@ export default function Admin() {
                   if (item.id === "bookings") badge = newBookings;
                   if (item.id === "leads") badge = urgentLeads + newLeads;
                   if (item.id === "callTrackingView") badge = pendingCallbacks;
-                  if (item.id === "workOrders") badge = woStats?.active ?? 0;
+                  if (item.id === "revenue") badge = woStats?.active ?? 0;
 
                   return (
                     <button
@@ -296,7 +296,7 @@ export default function Admin() {
                         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${
                           item.id === "leads"
                             ? "bg-destructive/15 text-destructive"
-                            : item.id === "workOrders"
+                            : item.id === "revenue"
                             ? (woStats?.overdue || woStats?.blocked)
                               ? "bg-destructive/15 text-destructive animate-pulse"
                               : "bg-primary/15 text-primary"
@@ -316,7 +316,7 @@ export default function Admin() {
           {/* Live shop pulse */}
           {woStats && woStats.active > 0 && (
             <button
-              onClick={() => { setSection("workOrders"); setSidebarOpen(false); }}
+              onClick={() => { setSection("revenue"); setSidebarOpen(false); }}
               className="w-full flex items-center gap-2 px-2.5 py-2 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 transition-colors text-left"
             >
               <div className={`w-2 h-2 rounded-full shrink-0 ${woStats.overdue > 0 ? "bg-red-400 animate-pulse" : woStats.blocked > 0 ? "bg-amber-400" : "bg-emerald-400"}`} />

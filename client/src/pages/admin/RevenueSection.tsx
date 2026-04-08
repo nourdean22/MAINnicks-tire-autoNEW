@@ -3,7 +3,7 @@
  * invoice management, create invoice form, and hour-of-day heatmap.
  * AUDIT-FIXED: Added create invoice, hour heatmap, invoice table with edit/delete.
  */
-import { useState, useMemo, lazy, Suspense } from "react";
+import React, { useState, useMemo, lazy, Suspense } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -15,6 +15,9 @@ import {
 
 const SpecialsSection = lazy(() => import("./SpecialsSection"));
 const FinancingSection = lazy(() => import("./FinancingSection"));
+const WorkOrdersSection = lazy(() => import("./WorkOrdersSection"));
+const CustomersSection = lazy(() => import("./CustomersSection"));
+const DispatchSection = lazy(() => import("./DispatchSection"));
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
   ResponsiveContainer, LineChart, Line, PieChart as RPieChart, Pie, Cell, Legend,
@@ -31,24 +34,29 @@ function formatDollars(dollars: number): string {
   return "$" + dollars.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
-type SectionTab = "revenue" | "specials" | "financing";
+type SectionTab = "revenue" | "specials" | "financing" | "shopPulse" | "customers" | "shopStatus";
+
+const REVENUE_TABS: { id: SectionTab; label: string; icon: React.ReactNode }[] = [
+  { id: "revenue", label: "Revenue", icon: <DollarSign className="w-3.5 h-3.5" /> },
+  { id: "specials", label: "Specials", icon: <Tag className="w-3.5 h-3.5" /> },
+  { id: "financing", label: "Financing", icon: <CreditCard className="w-3.5 h-3.5" /> },
+  { id: "shopPulse", label: "Shop Pulse", icon: <Wrench className="w-3.5 h-3.5" /> },
+  { id: "customers", label: "Customers", icon: <Users className="w-3.5 h-3.5" /> },
+  { id: "shopStatus", label: "Shop Status", icon: <Activity className="w-3.5 h-3.5" /> },
+];
 
 export default function RevenueSection() {
   const [section, setSection] = useState<SectionTab>("revenue");
 
   return (
     <div className="space-y-6">
-      {/* Section-level tabs */}
-      <div className="flex items-center gap-1 border-b border-border/20 pb-0">
-        {([
-          { id: "revenue" as const, label: "Revenue", icon: <DollarSign className="w-3.5 h-3.5" /> },
-          { id: "specials" as const, label: "Specials", icon: <Tag className="w-3.5 h-3.5" /> },
-          { id: "financing" as const, label: "Financing", icon: <CreditCard className="w-3.5 h-3.5" /> },
-        ]).map((t) => (
+      {/* Section-level tabs — wraps on mobile */}
+      <div className="flex flex-wrap items-center gap-1 border-b border-border/20 pb-0">
+        {REVENUE_TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => setSection(t.id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-[12px] font-bold tracking-wider border-b-2 transition-colors ${
+            className={`flex items-center gap-1.5 px-3 sm:px-4 py-2.5 text-[11px] sm:text-[12px] font-bold tracking-wider border-b-2 transition-colors whitespace-nowrap ${
               section === t.id
                 ? "border-primary text-primary"
                 : "border-transparent text-foreground/40 hover:text-foreground/60"
@@ -68,6 +76,21 @@ export default function RevenueSection() {
       {section === "financing" && (
         <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
           <FinancingSection />
+        </Suspense>
+      )}
+      {section === "shopPulse" && (
+        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+          <WorkOrdersSection />
+        </Suspense>
+      )}
+      {section === "customers" && (
+        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+          <CustomersSection />
+        </Suspense>
+      )}
+      {section === "shopStatus" && (
+        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+          <DispatchSection />
         </Suspense>
       )}
     </div>
