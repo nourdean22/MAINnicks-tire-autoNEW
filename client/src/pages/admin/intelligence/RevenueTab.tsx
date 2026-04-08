@@ -1,6 +1,9 @@
 import { trpc } from "@/lib/trpc";
+import { BUSINESS } from "@shared/business";
 import { StatCard } from "../shared";
 import { SectionSpinner, NoData, EngineCard, MiniTable, fmt, pct, STALE_TIME } from "./utils";
+
+const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
 import {
   DollarSign, BarChart3, Target, TrendingUp, TrendingDown, Minus,
   AlertTriangle, CreditCard, Activity,
@@ -55,13 +58,13 @@ export default function RevenueTab() {
           {/* Progress bar */}
           <div className="bg-card border border-border/30 p-5">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-medium text-foreground/50 tracking-wide">MONTH VS $20K TARGET</span>
-              <span className="text-[12px] font-mono text-foreground/70">{fmt(forecast.data.month?.soFar ?? 0)} / $20,000</span>
+              <span className="text-[11px] font-medium text-foreground/50 tracking-wide">MONTH VS {BUSINESS.revenueTarget.display} TARGET</span>
+              <span className="text-[12px] font-mono text-foreground/70">{fmt(forecast.data.month?.soFar ?? 0)} / {BUSINESS.revenueTarget.display}</span>
             </div>
             <div className="w-full h-3 bg-background rounded-sm overflow-hidden">
               <div
                 className={`h-full transition-all duration-700 rounded-sm ${forecast.data.month?.onPace ? "bg-emerald-500" : "bg-red-500"}`}
-                style={{ width: `${Math.min(100, Math.round(((forecast.data.month?.soFar ?? 0) / 20000) * 100))}%` }}
+                style={{ width: `${Math.min(100, Math.round(((forecast.data.month?.soFar ?? 0) / MONTHLY_TARGET) * 100))}%` }}
               />
             </div>
           </div>

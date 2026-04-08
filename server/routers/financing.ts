@@ -47,7 +47,7 @@ export const financingRouter = router({
         notes: `Applied via ${input.sourcePage}`,
       });
 
-      console.log(
+      console.info(
         `[Financing] ${providerInfo.name} application tracked from ${input.sourcePage}`,
         synced ? "(synced to sheets)" : "(sheets sync failed)"
       );

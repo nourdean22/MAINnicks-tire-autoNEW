@@ -883,7 +883,7 @@ export default function WorkOrdersSection() {
               {/* Cards */}
               <div className="p-2 space-y-2">
                 {col.orders.length === 0 && (
-                  <div className="text-[10px] text-foreground/20 text-center py-6">Empty</div>
+                  <p className="text-foreground/20 text-xs text-center py-6">No jobs in this stage</p>
                 )}
                 {col.orders.map((wo: any) => (
                   <WOCard key={wo.id} wo={wo} onClick={() => setSelectedId(wo.id)} />

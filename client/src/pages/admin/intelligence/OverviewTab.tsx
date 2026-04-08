@@ -1,6 +1,9 @@
 import { trpc } from "@/lib/trpc";
+import { BUSINESS } from "@shared/business";
 import { StatCard } from "../shared";
 import { Spinner, NoData, STALE_TIME } from "./utils";
+
+const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
 import {
   Activity, AlertTriangle, TrendingUp, Users, Star, Zap,
 } from "lucide-react";
@@ -18,7 +21,7 @@ export default function OverviewTab() {
 
   // Derived stats from sub-reports
   const revenuePace = data.revenue.pacing?.month?.soFar != null
-    ? Math.round(((data.revenue.pacing.month.soFar) / 20000) * 100)
+    ? Math.round(((data.revenue.pacing.month.soFar) / MONTHLY_TARGET) * 100)
     : null;
   const churnCount = data.customers.churnRisk?.highRisk?.length ?? null;
   const reviewVel = data.marketing.reviewVelocity?.velocity ?? null;
