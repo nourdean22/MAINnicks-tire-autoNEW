@@ -17,7 +17,7 @@ export interface RouteEntry {
   /** SEO meta description — max 160 chars */
   description: string;
   /** Group for organizational purposes */
-  group: "core" | "service" | "city" | "neighborhood" | "seo-service" | "vehicle" | "problem" | "seasonal" | "utility" | "legal" | "landing" | "blog";
+  group: "core" | "service" | "city" | "neighborhood" | "seo-service" | "vehicle" | "problem" | "seasonal" | "utility" | "legal" | "landing" | "blog" | "tire-size" | "vehicle-service";
   /** Whether to include in sitemap (false for auth-gated, landing pages, etc.) */
   sitemap: boolean;
   /** Whether to prerender this page */
@@ -735,6 +735,34 @@ const EXCLUDED_PAGES: RouteEntry[] = [
   { path: "/lp/emergency", priority: 0, changefreq: "monthly", title: "Emergency Auto Repair — Nick's Tire & Auto", description: "Emergency auto repair at Nick's Tire & Auto, Cleveland.", group: "landing", sitemap: false, prerender: false },
 ];
 
+// ─── TIRE SIZE PAGES (30 programmatic SEO pages) ────────────
+import { TIRE_SIZE_PAGES } from "./tireSizes";
+
+const TIRE_SIZE_ROUTE_PAGES: RouteEntry[] = TIRE_SIZE_PAGES.map(t => ({
+  path: `/tires/${t.slug}`,
+  priority: 0.7,
+  changefreq: "monthly" as const,
+  title: t.metaTitle,
+  description: t.metaDescription,
+  group: "tire-size" as const,
+  sitemap: true,
+  prerender: true,
+}));
+
+// ─── VEHICLE + SERVICE COMBO PAGES (50 programmatic SEO pages) ──
+import { VEHICLE_SERVICE_PAGES } from "./vehicleServicePages";
+
+const VEHICLE_SERVICE_ROUTE_PAGES: RouteEntry[] = VEHICLE_SERVICE_PAGES.map(p => ({
+  path: `/${p.slug}`,
+  priority: 0.6,
+  changefreq: "monthly" as const,
+  title: p.metaTitle,
+  description: p.metaDescription,
+  group: "vehicle-service" as const,
+  sitemap: true,
+  prerender: true,
+}));
+
 // ─── COMBINED REGISTRY ───────────────────────────────────
 
 export const ALL_ROUTES: RouteEntry[] = [
@@ -746,6 +774,8 @@ export const ALL_ROUTES: RouteEntry[] = [
   ...VEHICLE_PAGES,
   ...PROBLEM_PAGES,
   ...SEASONAL_PAGES,
+  ...TIRE_SIZE_ROUTE_PAGES,
+  ...VEHICLE_SERVICE_ROUTE_PAGES,
   ...UTILITY_PAGES,
   ...LEGAL_PAGES,
   ...EXCLUDED_PAGES,
