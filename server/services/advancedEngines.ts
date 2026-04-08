@@ -256,6 +256,7 @@ export async function computeCustomerRiskScores(): Promise<{
       id: customers.id, firstName: customers.firstName, lastName: customers.lastName,
       phone: customers.phone, totalSpent: customers.totalSpent, totalVisits: customers.totalVisits,
       lastVisitDate: customers.lastVisitDate, firstVisitDate: customers.firstVisitDate,
+      balanceDue: customers.balanceDue,
     }).from(customers).where(gte(customers.totalVisits, 1));
 
     const highRisk: Array<{ name: string; phone: string; riskScore: number; factors: string[] }> = [];
@@ -277,14 +278,10 @@ export async function computeCustomerRiskScores(): Promise<{
       // Low engagement: single visit customers
       if ((c.totalVisits || 0) === 1) { risk += 20; factors.push("Single visit only"); }
 
-      // Declined work check
-      const woRows = await (await db()).execute(sql`
-        SELECT COUNT(*) as cnt FROM work_orders
-        WHERE customer_id = ${String(c.id)} AND has_declined_work = 1
-        AND created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
-      `);
-      const declinedCount = Number((woRows as any)?.[0]?.[0]?.cnt || (woRows as any)?.[0]?.cnt || 0);
-      if (declinedCount > 0) { risk += 25; factors.push(`${declinedCount} declined work order(s)`); }
+      // Declined work proxy: pending invoices indicate unresolved/declined work
+      const pendingBalance = Number(c.balanceDue || 0) / 100;
+      if (pendingBalance > 200) { risk += 25; factors.push(`$${Math.round(pendingBalance)} outstanding balance`); }
+      else if (pendingBalance > 0) { risk += 10; factors.push(`$${Math.round(pendingBalance)} outstanding balance`); }
 
       risk = Math.min(100, risk);
       if (risk >= 40) highRisk.push({
@@ -308,36 +305,38 @@ export async function analyzeTechEfficiency(): Promise<{
   rankings: Array<{ name: string; revenuePerHour: number; jobsPerDay: number; comebackRate: number; score: number }>;
 }> {
   try {
-    const techs = await (await db()).select({
-      id: technicians.id, name: technicians.name,
-      comebackRate: technicians.comebackRate, totalJobs: technicians.totalJobsCompleted,
-    }).from(technicians).where(eq(technicians.isActive, 1));
+    // Single aggregated query instead of N+1 per tech
+    const rows = await (await db()).execute(sql`
+      SELECT t.name, t.id,
+        COALESCE(SUM(CAST(wo.total AS DECIMAL(10,2))), 0) as totalRev,
+        COUNT(wo.id) as jobCount,
+        COALESCE(SUM(TIMESTAMPDIFF(HOUR, wo.started_at, wo.completed_at)), 1) as totalHours,
+        COALESCE(DATEDIFF(MAX(wo.completed_at), MIN(wo.started_at)), 1) as spanDays,
+        t.comeback_rate as comebackRate
+      FROM technicians t
+      LEFT JOIN work_orders wo ON wo.assigned_tech_id = t.id
+        AND wo.status = 'completed'
+        AND wo.completed_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+      WHERE t.is_active = 1
+      GROUP BY t.id, t.name, t.comeback_rate
+      ORDER BY totalRev DESC
+    `);
 
+    const results = (rows as any[])[0] || rows;
     const rankings: Array<{ name: string; revenuePerHour: number; jobsPerDay: number; comebackRate: number; score: number }> = [];
 
-    for (const tech of techs) {
-      const revenueRows = await (await db()).execute(sql`
-        SELECT COALESCE(SUM(CAST(wo.total AS DECIMAL(10,2))), 0) as totalRev,
-          COUNT(*) as jobCount,
-          COALESCE(SUM(TIMESTAMPDIFF(HOUR, wo.started_at, wo.completed_at)), 1) as totalHours,
-          DATEDIFF(MAX(wo.completed_at), MIN(wo.started_at)) as spanDays
-        FROM work_orders wo
-        WHERE wo.assigned_tech_id = ${tech.id}
-          AND wo.status = 'completed'
-          AND wo.completed_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
-      `);
-      const r = (revenueRows as any)?.[0]?.[0] || (revenueRows as any)?.[0] || {};
+    for (const r of (Array.isArray(results) ? results : [])) {
       const totalRev = Number(r.totalRev || 0);
       const totalHours = Math.max(1, Number(r.totalHours || 1));
       const jobCount = Number(r.jobCount || 0);
       const spanDays = Math.max(1, Number(r.spanDays || 1));
-      const comeback = Number(tech.comebackRate || 0);
+      const comeback = Number(r.comebackRate || 0);
 
       const revenuePerHour = Math.round(totalRev / totalHours);
       const jobsPerDay = Math.round((jobCount / spanDays) * 100) / 100;
       const score = Math.round(revenuePerHour * 0.4 + jobsPerDay * 20 - comeback * 50);
 
-      rankings.push({ name: tech.name, revenuePerHour, jobsPerDay, comebackRate: comeback, score });
+      rankings.push({ name: r.name, revenuePerHour, jobsPerDay, comebackRate: comeback, score });
     }
 
     rankings.sort((a, b) => b.score - a.score);
@@ -1679,13 +1678,17 @@ export async function analyzeReferralNetwork(): Promise<{
   avgReferralValue: number;
 }> {
   try {
+    // Single aggregated query: referrals + revenue in one pass (no N+1)
     const rows = await (await db()).execute(sql`
       SELECT r.referrerName as name, r.referrerPhone as phone,
-        COUNT(*) as referralCount,
-        SUM(CASE WHEN r.status IN ('visited', 'redeemed') THEN 1 ELSE 0 END) as convertedCount
+        COUNT(DISTINCT r.id) as referralCount,
+        SUM(CASE WHEN r.status IN ('visited', 'redeemed') THEN 1 ELSE 0 END) as convertedCount,
+        COALESCE(SUM(i.totalAmount), 0) as totalRev
       FROM referrals r
+      LEFT JOIN customers c ON RIGHT(c.phone, 10) = RIGHT(r.refereePhone, 10)
+      LEFT JOIN invoices i ON i.customerId = c.id
       GROUP BY r.referrerPhone, r.referrerName
-      ORDER BY referralCount DESC
+      ORDER BY totalRev DESC
       LIMIT 30
     `);
 
@@ -1693,22 +1696,12 @@ export async function analyzeReferralNetwork(): Promise<{
     const topReferrers: Array<{ name: string; phone: string; referralCount: number; convertedCount: number; totalRevenue: number }> = [];
 
     for (const r of (Array.isArray(results) ? results : [])) {
-      // Get revenue from referred customers
-      const revRows = await (await db()).execute(sql`
-        SELECT COALESCE(SUM(i.totalAmount), 0) as totalRev
-        FROM referrals ref
-        JOIN customers c ON RIGHT(c.phone, 10) = RIGHT(ref.refereePhone, 10)
-        JOIN invoices i ON i.customerId = c.id
-        WHERE RIGHT(ref.referrerPhone, 10) = RIGHT(${r.phone}, 10)
-      `);
-      const totalRevenue = Math.round(Number(((revRows as any)?.[0]?.[0] || (revRows as any)?.[0] || {}).totalRev || 0) / 100);
-
       topReferrers.push({
         name: r.name || "",
         phone: r.phone || "",
         referralCount: Number(r.referralCount || 0),
         convertedCount: Number(r.convertedCount || 0),
-        totalRevenue,
+        totalRevenue: Math.round(Number(r.totalRev || 0) / 100),
       });
     }
 
