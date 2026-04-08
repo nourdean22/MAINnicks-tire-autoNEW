@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { trackBookingSubmission, getUserDataForCAPI } from "@/lib/metaPixel";
@@ -110,6 +110,24 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
     onSuccess: () => setSubmitted(true),
     onError: () => toast.error("We couldn't submit your booking. Please check your info and try again, or call (216) 862-0005."),
   });
+
+  // Track partial form data for abandoned form recovery
+  useEffect(() => {
+    const handleUnload = () => {
+      if (submitted) return;
+      if (formData.name || formData.phone || formData.service) {
+        navigator.sendBeacon('/api/track-abandoned', JSON.stringify({
+          name: formData.name,
+          phone: formData.phone,
+          service: formData.service,
+          vehicle: `${formData.vehicleYear} ${formData.vehicleMake} ${formData.vehicleModel}`.trim(),
+          step: step,
+        }));
+      }
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, [formData, step, submitted]);
 
   const update = (field: string, value: string | boolean) =>
     setFormData((prev) => ({ ...prev, [field]: value }));

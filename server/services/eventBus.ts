@@ -194,6 +194,25 @@ async function ensureInitialized(): Promise<void> {
           name: event.data.customerName || "Customer",
         });
       }
+
+      // Invoice paid → real-time customer enrichment (totalSpent, totalVisits, lastVisitDate)
+      if (event.type === "invoice_paid") {
+        try {
+          const { getDb } = await import("../db");
+          const { sql } = await import("drizzle-orm");
+          const d = await getDb();
+          const phone = (event.data.customerPhone || event.data.phone || "").replace(/\D/g, "").slice(-10);
+          if (d && phone.length === 10) {
+            await d.execute(sql`
+              UPDATE customers
+              SET totalSpent = totalSpent + ${event.data.totalAmount || 0},
+                  totalVisits = totalVisits + 1,
+                  lastVisitDate = NOW()
+              WHERE RIGHT(phone, 10) = ${phone}
+            `);
+          }
+        } catch {}
+      }
     },
   });
 
