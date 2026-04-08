@@ -248,6 +248,13 @@ async function startServer() {
       `ALTER TABLE customers ADD COLUMN IF NOT EXISTS vehicleYear varchar(10) NULL AFTER balanceDue`,
       `ALTER TABLE customers ADD COLUMN IF NOT EXISTS vehicleMake varchar(50) NULL AFTER vehicleYear`,
       `ALTER TABLE customers ADD COLUMN IF NOT EXISTS vehicleModel varchar(50) NULL AFTER vehicleMake`,
+      // Migration 0024: Retention SMS tracking
+      `ALTER TABLE customers ADD COLUMN IF NOT EXISTS lastRetentionTier int DEFAULT NULL`,
+      `ALTER TABLE customers ADD COLUMN IF NOT EXISTS lastRetentionDate timestamp DEFAULT NULL`,
+      // Migration 0025: Booking confirmation tracking
+      `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS confirmedAt timestamp NULL`,
+      `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS confirmationMethod varchar(20) NULL`,
+      `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS confirmationSentAt timestamp NULL`,
     ];
     let applied = 0;
     for (const stmt of alters) {
