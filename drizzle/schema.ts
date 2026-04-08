@@ -91,7 +91,7 @@ export const leads = mysqlTable("leads", {
   vehicle: varchar("vehicle", { length: 255 }),
   problem: text("problem"),
   /** Where the lead came from */
-  source: mysqlEnum("source", ["popup", "chat", "booking", "manual", "callback", "fleet"]).default("popup").notNull(),
+  source: mysqlEnum("source", ["popup", "chat", "booking", "manual", "callback", "fleet", "financing_preapproval"]).default("popup").notNull(),
   /** AI-assigned urgency score: 1 (low) to 5 (critical) */
   urgencyScore: int("urgencyScore").default(3).notNull(),
   /** AI-generated reason for the urgency score */
