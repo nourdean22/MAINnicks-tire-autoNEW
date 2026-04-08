@@ -122,16 +122,16 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             SELECT COALESCE(SUM(totalAmount), 0) as rev FROM invoices
             WHERE invoiceDate >= DATE_FORMAT(CURDATE(), '%Y-%m-01') AND paymentStatus = 'paid'
           `);
-          const today = (todayRow as any[])?.[0] || {};
-          const week = (weekRow as any[])?.[0] || {};
-          const month = (monthRow as any[])?.[0] || {};
+          const today = (todayRow as Record<string, unknown>[])?.[0] || {};
+          const week = (weekRow as Record<string, unknown>[])?.[0] || {};
+          const month = (monthRow as Record<string, unknown>[])?.[0] || {};
 
           // Yesterday's revenue for morning brief comparison
           const [yesterdayRow] = await db.execute(sql`
             SELECT COALESCE(SUM(totalAmount), 0) as rev, COUNT(*) as cnt
             FROM invoices WHERE DATE(invoiceDate) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND paymentStatus = 'paid'
           `);
-          const yesterday = (yesterdayRow as any[])?.[0] || {};
+          const yesterday = (yesterdayRow as Record<string, unknown>[])?.[0] || {};
 
           return {
             todayEstimate: Math.round(Number(today.rev || 0) / 100),

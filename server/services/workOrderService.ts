@@ -759,7 +759,7 @@ export async function getDeclinedWorkHistory(customerId: string): Promise<any[]>
     .limit(5);
 
   return pastOrders.flatMap((wo: any) => {
-    const items = (wo.declinedWorkJson as any[] || []);
+    const items = (wo.declinedWorkJson as Record<string, unknown>[] || []);
     return items.map((item: any) => ({
       ...item,
       declinedDate: wo.createdAt,

@@ -48,7 +48,7 @@ export async function processDashboardSync(): Promise<{ recordsProcessed: number
         SELECT COUNT(*) as cnt, COALESCE(SUM(totalAmount), 0) as rev
         FROM invoices WHERE DATE(invoiceDate) = ${todayStr}
       `);
-      const inv = (invMetrics as any[])?.[0];
+      const inv = (invMetrics as Record<string, unknown>[])?.[0];
       if (inv) {
         invoiceCount = Number(inv.cnt) || 0;
         todayRevenue = Math.round((Number(inv.rev) || 0) / 100); // cents → dollars
