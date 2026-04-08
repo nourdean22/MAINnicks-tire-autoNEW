@@ -334,9 +334,14 @@ async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus)
         if (wo?.customerId) {
           const [cust] = await db.select().from(customers).where(eq(customers.id, parseInt(wo.customerId, 10))).limit(1);
           if (cust?.phone) {
-            const { sendSms } = await import("../sms");
-            const name = cust.firstName || "there";
-            await sendSms(cust.phone, `Hi ${name}, your vehicle is ready for pickup at Nick's Tire & Auto! We're open until 6pm. Call (216) 862-0005 with any questions.`);
+            // Check smsOptOut before sending legacy pickup SMS
+            if (cust.smsOptOut) {
+              console.log("[WO] Skipping legacy pickup SMS — customer opted out");
+            } else {
+              const { sendSms } = await import("../sms");
+              const name = cust.firstName || "there";
+              await sendSms(cust.phone, `Hi ${name}, your vehicle is ready for pickup at Nick's Tire & Auto! We're open until 6pm. Call (216) 862-0005 with any questions.`);
+            }
           }
         }
       }

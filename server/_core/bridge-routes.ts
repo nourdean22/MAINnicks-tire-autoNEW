@@ -351,6 +351,11 @@ export function registerBridgeRoutes(app: Express): void {
   // SMS Thank You + Referral + Review campaign — targets recent customers
   app.post("/api/bridge/sms-campaign", bridgeAuth, async (req, res) => {
     try {
+      const { isEnabled } = await import("../services/featureFlags");
+      if (!(await isEnabled("sms_blast_enabled"))) {
+        res.json({ error: "SMS blast feature is disabled", sent: 0 });
+        return;
+      }
       const { getDb } = await import("../db");
       const { sql } = await import("drizzle-orm");
       const db = await getDb();
