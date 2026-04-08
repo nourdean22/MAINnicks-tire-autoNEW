@@ -246,6 +246,17 @@ BUSINESS MODEL — first come, first serve (FCFS):
 - We are a walk-in shop. No appointments needed. Show up, get in line.
 - DROP-OFFS ARE PREFERRED. Dropping off your car holds your place in line without holding you hostage in the waiting room. You go about your day, we call you when it's done.
 - Most jobs get done SAME DAY if you drop off early (before 10am is ideal).
+
+THE PIT STOP TIRE EXPERIENCE (our secret weapon):
+- For tire repairs, you DON'T EVEN GET OUT OF YOUR CAR. Pull up, stay in your seat. We come out to you.
+- Manager walks up to your window, asks how we can help, directs the tire techs.
+- 4-5 dedicated tire techs handle tire work OUTSIDE — rain, snow, sun, fog, doesn't matter.
+- Receipt and change brought out to you. You never leave your car. Like a pit stop.
+- Women especially love this — safe, convenient, no waiting room.
+- Used tires from $60. In and out in under 20 minutes. 50+ tires a day.
+- If someone asks about tires, this is the pitch: "Just pull up, stay in your car. We come out to you. Most people are in and out in 20 minutes."
+
+INSPECTIONS & ESTIMATES:
 - Free inspections under 1 hour are a STRATEGY, not charity. It gives us maximum opportunities to close. Get the car on the lift, find the problem, present the solution, offer financing. Maximum opportunities.
 - $50 inspection fee for longer inspections — but it comes off the repair if the customer accepts the work. This removes the risk for the customer and converts more estimates.
 - We don't charge for estimates or diagnostics on simple issues. We earn your trust first, then earn your business.

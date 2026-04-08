@@ -189,7 +189,10 @@ function UsedTiresCallout() {
                 USED TIRES FROM $60
               </h2>
               <p className="mt-2 text-black/70 text-lg lg:text-xl font-medium max-w-lg">
-                In and out in under 20 minutes. Drive away like nothing happened.
+                Pull up. Stay in your car. We come out to you.
+              </p>
+              <p className="mt-1 text-black/50 text-sm lg:text-base max-w-lg">
+                In and out in under 20 minutes — rain or shine. Like a pit stop for your car.
               </p>
             </FadeIn>
           </div>

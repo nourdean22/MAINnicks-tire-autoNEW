@@ -87,10 +87,10 @@ export const SERVICES: ServiceData[] = [
     metaTitle: "Tire Shop Near Me | Cleveland OH | Walk-Ins 7 Days | Nick's",
     metaDescription: "Looking for a tire shop near me in Cleveland? New and used tires, mounting, balancing, TPMS, flat repair. Walk-ins 7 days. Call (216) 862-0005.",
     heroHeadline: "TIRE SHOP NEAR ME\nIN CLEVELAND",
-    heroSubline: "Searching for a tire shop near me? Nick's Tire & Auto is Cleveland's top-rated tire shop — new tires, used tires, flat repair, TPMS sensors, mounting, and balancing. Walk in any day, all major brands at prices that make sense.",
+    heroSubline: "Pull up, stay in your car — we come out to you. Used tires from $60, new tires from all major brands. In and out in under 20 minutes for tire repairs. Rain or shine, like a pit stop. Cleveland's top-rated tire shop.",
     heroCTA: "GET A TIRE QUOTE",
-    turnaround: "Most tire installations completed in under an hour. Walk-ins welcome.",
-    pricingNote: "Free tire pressure checks · Fair prices on all major brands · Quality used tires available",
+    turnaround: "Most tire repairs done in under 20 minutes. Full installations under an hour. Walk-ins welcome — just pull up.",
+    pricingNote: "Stay in your car · We come to you · Used tires from $60 · All major brands",
     urgencyNote: "Tires below the legal tread limit triple your stopping distance on wet roads. Cleveland's freeze-thaw cycles and potholes accelerate wear — don't wait for a blowout.",
     signs: [
       "Tread depth below 2/32 of an inch (the penny test)",
