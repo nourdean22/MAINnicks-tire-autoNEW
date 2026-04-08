@@ -45,8 +45,8 @@ export async function autoCloseStaleWorkOrders(): Promise<{ recordsProcessed: nu
           note: `Auto-closed: ${wo.status} for >7 days`,
         });
         closed++;
-      } catch (err: any) {
-        log.warn(`Auto-close failed for WO ${wo.orderNumber}: ${err.message}`);
+      } catch (err: unknown) {
+        log.warn(`Auto-close failed for WO ${wo.orderNumber}: ${(err as Error).message}`);
       }
     }
 
@@ -58,9 +58,9 @@ export async function autoCloseStaleWorkOrders(): Promise<{ recordsProcessed: nu
     }
 
     return { recordsProcessed: closed, details: `${closed} WOs auto-closed` };
-  } catch (err: any) {
-    log.error("Auto-close failed:", { error: err.message });
-    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+  } catch (err: unknown) {
+    log.error("Auto-close failed:", { error: (err as Error).message });
+    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }
 
@@ -102,9 +102,9 @@ export async function detectOverdueWorkOrders(): Promise<{ recordsProcessed: num
     );
 
     return { recordsProcessed: overdue.length, details: `${overdue.length} overdue WOs alerted` };
-  } catch (err: any) {
-    log.error("Overdue detection failed:", { error: err.message });
-    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+  } catch (err: unknown) {
+    log.error("Overdue detection failed:", { error: (err as Error).message });
+    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }
 
@@ -162,9 +162,9 @@ export async function autoCreateWorkOrderFromBooking(data: {
     });
 
     log.info(`Auto-created WO#${wo.orderNumber} from booking #${data.id}`);
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Don't throw — this is fire-and-forget from event bus
-    log.warn(`Auto WO creation failed for booking #${data.id}: ${err.message}`);
+    log.warn(`Auto WO creation failed for booking #${data.id}: ${(err as Error).message}`);
   }
 }
 
@@ -235,9 +235,9 @@ export async function autoCreateLeadFromBooking(data: {
       console.warn("[services/workOrderAutomation] operation failed:", e);
       // Non-critical
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Don't throw — this is fire-and-forget from event bus
-    log.warn(`Auto lead creation failed for booking #${data.id}: ${err.message}`);
+    log.warn(`Auto lead creation failed for booking #${data.id}: ${(err as Error).message}`);
   }
 }
 
@@ -295,12 +295,12 @@ export async function processEstimateFollowUp(): Promise<{ recordsProcessed: num
     }
 
     return { recordsProcessed: sent, details: `${sent} estimate follow-ups sent` };
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Table might not have followUpSent column yet — graceful fail
-    if (err.message?.includes("followUpSent") || err.message?.includes("Unknown column")) {
+    if ((err as Error).message?.includes("followUpSent") || (err as Error).message?.includes("Unknown column")) {
       return { recordsProcessed: 0, details: "followUpSent column not yet added — skipping" };
     }
-    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }
 
@@ -360,9 +360,9 @@ export async function autoCampaignRetry(): Promise<{ recordsProcessed: number; d
     }
 
     return { recordsProcessed: sent, details: `${sent} campaign SMS auto-sent` };
-  } catch (err: any) {
-    log.error("Auto campaign retry failed:", { error: err.message });
-    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+  } catch (err: unknown) {
+    log.error("Auto campaign retry failed:", { error: (err as Error).message });
+    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }
 
@@ -414,10 +414,10 @@ export async function enrollInDripCampaign(
         customerName: customer.name,
         metadata: { vehicle: customer.vehicle || "", service: customer.service || "" },
       });
-    } catch (err: any) {
-      log.warn(`Drip persist failed for ${customer.name}: ${err.message}`);
+    } catch (err: unknown) {
+      log.warn(`Drip persist failed for ${customer.name}: ${(err as Error).message}`);
     }
-  } catch (err: any) {
-    log.warn(`Drip enrollment failed: ${err.message}`);
+  } catch (err: unknown) {
+    log.warn(`Drip enrollment failed: ${(err as Error).message}`);
   }
 }

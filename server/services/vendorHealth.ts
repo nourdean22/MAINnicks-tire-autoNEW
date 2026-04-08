@@ -177,13 +177,13 @@ async function checkDatabase(): Promise<VendorHealthResult> {
       checks: [{ name: "query", passed: true, latencyMs: latency }],
       checkedAt: new Date().toISOString(),
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     const latency = Date.now() - start;
     updateSLA("Database", false, latency);
     return {
       vendor: "Database",
       status: "down",
-      checks: [{ name: "query", passed: false, latencyMs: latency, error: err.message }],
+      checks: [{ name: "query", passed: false, latencyMs: latency, error: (err as Error).message }],
       checkedAt: new Date().toISOString(),
     };
   }
@@ -234,7 +234,7 @@ async function checkGoogleSheets(): Promise<VendorHealthResult> {
       ],
       checkedAt: new Date().toISOString(),
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     const latency = Date.now() - start;
     updateSLA("Google Sheets CRM", false, latency);
     return {
@@ -242,7 +242,7 @@ async function checkGoogleSheets(): Promise<VendorHealthResult> {
       status: "degraded",
       checks: [
         { name: "env_config", passed: true, latencyMs: 0 },
-        { name: "api_access", passed: false, latencyMs: latency, error: err.message?.slice(0, 100) },
+        { name: "api_access", passed: false, latencyMs: latency, error: (err as Error).message?.slice(0, 100) },
       ],
       checkedAt: new Date().toISOString(),
     };
@@ -326,7 +326,7 @@ async function checkGatewayTire(): Promise<VendorHealthResult> {
       ],
       checkedAt: new Date().toISOString(),
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     const latency = Date.now() - start;
     updateSLA("Gateway Tire B2B", false, latency);
     return {
@@ -334,7 +334,7 @@ async function checkGatewayTire(): Promise<VendorHealthResult> {
       status: "down",
       checks: [
         { name: "credentials", passed: true, latencyMs: 0 },
-        { name: "auth_probe", passed: false, latencyMs: latency, error: err.message },
+        { name: "auth_probe", passed: false, latencyMs: latency, error: (err as Error).message },
       ],
       checkedAt: new Date().toISOString(),
     };
@@ -380,7 +380,7 @@ async function checkTwilio(): Promise<VendorHealthResult> {
       ],
       checkedAt: new Date().toISOString(),
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     const latency = Date.now() - start;
     updateSLA("Twilio SMS", false, latency);
     return {
@@ -388,7 +388,7 @@ async function checkTwilio(): Promise<VendorHealthResult> {
       status: "down",
       checks: [
         { name: "credentials", passed: true, latencyMs: 0 },
-        { name: "account_verify", passed: false, latencyMs: latency, error: err.message },
+        { name: "account_verify", passed: false, latencyMs: latency, error: (err as Error).message },
       ],
       checkedAt: new Date().toISOString(),
     };
@@ -433,7 +433,7 @@ async function checkStripe(): Promise<VendorHealthResult> {
       ],
       checkedAt: new Date().toISOString(),
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     const latency = Date.now() - start;
     updateSLA("Stripe Payments", false, latency);
     return {
@@ -441,7 +441,7 @@ async function checkStripe(): Promise<VendorHealthResult> {
       status: "down",
       checks: [
         { name: "credentials", passed: true, latencyMs: 0 },
-        { name: "balance_fetch", passed: false, latencyMs: latency, error: err.message },
+        { name: "balance_fetch", passed: false, latencyMs: latency, error: (err as Error).message },
       ],
       checkedAt: new Date().toISOString(),
     };
@@ -495,7 +495,7 @@ async function checkAutoLabor(): Promise<VendorHealthResult> {
       ],
       checkedAt: new Date().toISOString(),
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     const latency = Date.now() - start;
     updateSLA("Auto Labor Guide", false, latency);
     return {
@@ -503,7 +503,7 @@ async function checkAutoLabor(): Promise<VendorHealthResult> {
       status: "down",
       checks: [
         { name: "credentials", passed: true, latencyMs: 0 },
-        { name: "auth_probe", passed: false, latencyMs: latency, error: err.message },
+        { name: "auth_probe", passed: false, latencyMs: latency, error: (err as Error).message },
       ],
       checkedAt: new Date().toISOString(),
     };
@@ -528,13 +528,13 @@ async function checkNourOsBridge(): Promise<VendorHealthResult> {
       ],
       checkedAt: new Date().toISOString(),
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     const latency = Date.now() - start;
     updateSLA("NOUR OS Bridge", false, latency);
     return {
       vendor: "NOUR OS Bridge",
       status: "down",
-      checks: [{ name: "bridge_status", passed: false, latencyMs: latency, error: err.message }],
+      checks: [{ name: "bridge_status", passed: false, latencyMs: latency, error: (err as Error).message }],
       checkedAt: new Date().toISOString(),
     };
   }
@@ -574,7 +574,7 @@ async function checkTelegram(): Promise<VendorHealthResult> {
       ],
       checkedAt: new Date().toISOString(),
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     const latency = Date.now() - start;
     updateSLA("Telegram", false, latency);
     return {
@@ -582,7 +582,7 @@ async function checkTelegram(): Promise<VendorHealthResult> {
       status: "down",
       checks: [
         { name: "credentials", passed: true, latencyMs: 0 },
-        { name: "bot_verify", passed: false, latencyMs: latency, error: err.message },
+        { name: "bot_verify", passed: false, latencyMs: latency, error: (err as Error).message },
       ],
       checkedAt: new Date().toISOString(),
     };
@@ -738,7 +738,7 @@ export function startContinuousMonitoring(): void {
       lastMonitoringResult = report.results;
     } catch (err) {
       log.warn("Continuous monitoring check failed", {
-        error: err instanceof Error ? err.message : String(err),
+        error: err instanceof Error ? (err as Error).message : String(err),
       });
     }
   }, 5 * 60 * 1000); // Every 5 minutes

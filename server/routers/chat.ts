@@ -60,7 +60,7 @@ async function createChatLead(
   if (info.problem) {
     try {
       scoring = await scoreLead(info.problem, info.vehicle);
-    } catch (err) { console.error("[Chat] Lead scoring failed, using defaults:", err instanceof Error ? err.message : err); }
+    } catch (err) { console.error("[Chat] Lead scoring failed, using defaults:", err instanceof Error ? (err as Error).message : err); }
   }
 
   const insertedRows = await d.insert(leads).values({
@@ -531,7 +531,7 @@ export const chatRouter = router({
           try {
             sessionMessages = JSON.parse(existing[0].messagesJson);
           } catch (err) {
-            console.error("[Chat] Failed to parse session messages JSON:", err instanceof Error ? err.message : err);
+            console.error("[Chat] Failed to parse session messages JSON:", err instanceof Error ? (err as Error).message : err);
           }
         }
       }

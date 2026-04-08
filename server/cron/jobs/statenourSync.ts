@@ -321,7 +321,7 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
       details: `Synced: ${payload.bookings.total} bookings, ${payload.leads.total} leads, ${payload.chat.totalSessions} chats`,
     };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = err instanceof Error ? (err as Error).message : String(err);
     log.error("Statenour sync failed", { error: msg });
     return { recordsProcessed: 0, details: `Error: ${msg}` };
   }
