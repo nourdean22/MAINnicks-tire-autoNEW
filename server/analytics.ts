@@ -84,7 +84,7 @@ export async function logAnalyticsEvent(event: AnalyticsEvent) {
     if (!response.ok) {
       console.warn('[Analytics] GA4 event failed:', response.status, await response.text());
     } else {
-      console.log('[Analytics] GA4 event logged:', eventName);
+      console.info('[analytics:ga4] event logged:', eventName);
     }
   } catch (error) {
     console.error('[Analytics] Failed to log event:', error);
@@ -162,5 +162,5 @@ export async function updateAnalyticsSnapshot(metrics: {
 
   // This would be implemented with actual database logic
   // For now, just log the update
-  console.log('[Analytics] Snapshot updated for', today, metrics);
+  console.info('[analytics:snapshot] updated for', today);
 }

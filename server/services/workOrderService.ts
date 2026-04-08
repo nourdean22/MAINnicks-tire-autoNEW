@@ -336,7 +336,7 @@ async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus)
           if (cust?.phone) {
             // Check smsOptOut before sending legacy pickup SMS
             if (cust.smsOptOut) {
-              console.log("[WO] Skipping legacy pickup SMS — customer opted out");
+              console.info("[workorder:sms] Skipping pickup SMS — customer opted out");
             } else {
               const { sendSms } = await import("../sms");
               const name = cust.firstName || "there";

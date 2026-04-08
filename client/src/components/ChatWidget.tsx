@@ -116,7 +116,7 @@ export default function ChatWidget() {
                   </span>
                 </div>
               </div>
-              <button onClick={() => setOpen(false)} className="text-foreground/30 hover:text-foreground/60 transition-colors p-1">
+              <button onClick={() => setOpen(false)} className="text-foreground/30 hover:text-foreground/60 transition-colors p-1" aria-label="Close chat">
                 <X className="w-4 h-4" />
               </button>
             </div>

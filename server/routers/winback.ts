@@ -65,7 +65,7 @@ export const winbackRouter = router({
   campaigns: adminProcedure.query(async () => {
     const d = await db();
     if (!d) return [];
-    return d.select().from(winbackCampaigns).orderBy(desc(winbackCampaigns.createdAt));
+    return d.select().from(winbackCampaigns).orderBy(desc(winbackCampaigns.createdAt)).limit(100);
   }),
 
   /** Get campaign details with message steps and send stats */

@@ -13,6 +13,14 @@ export const GBP_REVIEW_URL = `https://search.google.com/local/writereview?place
 export const GBP_CID = "913066080091298245";
 export const GBP_EMBED_URL = "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2987.5!2d-81.5597624!3d41.5525118!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x8830ffda2d516449%3A0xcabdcc3204cd9c5!2sNick's%20Tire%20And%20Auto%20Euclid!5e0!3m2!1sen!2sus!4v1710000000000";
 
+/**
+ * Build a Google Places API details URL for the shop.
+ * Centralizes URL construction so Place ID and fields are never duplicated.
+ */
+export function buildPlaceDetailsUrl(apiKey: string, fields: string = "reviews"): string {
+  return `https://maps.googleapis.com/maps/api/place/details/json?place_id=${GOOGLE_PLACE_ID}&key=${apiKey}&fields=${fields}`;
+}
+
 // Store info
 export const STORE_NAME = "Nick's Tire & Auto";
 export const STORE_PHONE = "(216) 862-0005";

@@ -159,7 +159,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
                   className="flex-1 bg-transparent text-sm text-foreground placeholder:text-foreground/30 outline-none"
                 />
                 {query && (
-                  <button onClick={() => setQuery("")} className="text-foreground/30 hover:text-foreground/60">
+                  <button onClick={() => setQuery("")} className="text-foreground/30 hover:text-foreground/60" aria-label="Clear search">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 )}

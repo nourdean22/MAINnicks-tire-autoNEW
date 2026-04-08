@@ -8,12 +8,7 @@ import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
-
-function trackPhoneClick(location: string) {
-  if (typeof window !== "undefined" && (window as any).gtag) {
-    (window as any).gtag("event", "phone_call_click", { event_category: "conversion", event_label: location });
-  }
-}
+import { trackPhoneClick } from "@/lib/analytics";
 
 export default function TireSizePage() {
   const { size: paramSlug } = useParams<{ size: string }>();

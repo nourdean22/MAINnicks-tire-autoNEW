@@ -259,7 +259,7 @@ async function findReturningCustomer(d: any, messages: Array<{ role: string; con
         .orderBy(desc(workOrders.createdAt))
         .limit(10);
     }
-  } catch {}
+  } catch (e) { console.warn("[nickActions:createQuote] past work order lookup failed:", e); }
 
   // Check past bookings
   const pastBookings = await d.select().from(bookings)
@@ -1689,16 +1689,16 @@ SOURCES: Auto Labor Guide (ShopDriver Elite), Gateway for invoices`;
               if (health.total > 0) {
                 bizContext += `\nMEMORY HEALTH: ${health.total} total memories, avg confidence ${health.avgConfidence}, top topics: ${health.topTopics.join(", ")}`;
               }
-            } catch {}
+            } catch (e) { console.warn("[nickActions:operator] memory health check failed:", e); }
 
             // Inject Nour's deep personal context (from 463 analyzed conversations)
             try {
               const { getNourPersonalContext } = await import("../services/nourContext");
               const personalContext = getNourPersonalContext();
               if (personalContext) bizContext += personalContext;
-            } catch {}
+            } catch (e) { console.warn("[nickActions:operator] personal context load failed:", e); }
             if (memContext) bizContext += memContext;
-          } catch {}
+          } catch (e) { console.warn("[nickActions:operator] memory context load failed:", e); }
 
           // Inject customer intelligence + action plan
           let customerBrief = "";
@@ -1706,7 +1706,7 @@ SOURCES: Auto Labor Guide (ShopDriver Elite), Gateway for invoices`;
             const { getCustomerBrief, getCustomerActionPlan } = await import("../services/customerIntelligence");
             const [brief, plan] = await Promise.all([getCustomerBrief(), getCustomerActionPlan()]);
             customerBrief = brief + plan;
-          } catch {}
+          } catch (e) { console.warn("[nickActions:operator] customer intelligence load failed:", e); }
 
 
           // Inject intelligence data
@@ -1740,7 +1740,7 @@ BUSINESS: Invoice=WIN, Estimate without invoice=WALKED. Walk rate=${shopPulse.th
 ${customerBrief}
 ${pipeline.insights.length > 0 ? "⚠ " + pipeline.insights.join(" | ") : ""}
 ${alerts.length > 0 ? "🔴 " + alerts.join(" | ") : ""}`;
-          } catch {}
+          } catch (e) { console.warn("[nickActions:operator] intelligence data load failed:", e); }
 
           // Inject declined work — money on the table
           try {
@@ -1752,7 +1752,7 @@ ${alerts.length > 0 ? "🔴 " + alerts.join(" | ") : ""}`;
             if (unrecovered.length > 0) {
               bizContext += `\nDECLINED WORK: $${totalRecoverable} recoverable from ${unrecovered.length} customers. ${safetyCount} have SAFETY items. Top: ${unrecovered.slice(0, 3).map(e => `${e.customerName || "?"} ($${e.totalDeclinedValue})`).join(", ")}`;
             }
-          } catch {}
+          } catch (e) { console.warn("[nickActions:operator] declined work data load failed:", e); }
 
           // Inject staff performance
           try {
@@ -1761,7 +1761,7 @@ ${alerts.length > 0 ? "🔴 " + alerts.join(" | ") : ""}`;
             if (team.techs && team.techs.length > 0) {
               bizContext += `\nTEAM: ${team.techs.length} techs. Jobs: ${team.teamTotals?.totalJobs ?? 0}. QC pass rate: ${team.teamTotals?.avgQcPassRate ?? "N/A"}%. Comeback rate: ${team.teamTotals?.avgComebackRate ?? "N/A"}%.`;
             }
-          } catch {}
+          } catch (e) { console.warn("[nickActions:operator] staff performance load failed:", e); }
 
           // Inject feedback loop anomalies
           try {
@@ -1770,7 +1770,7 @@ ${alerts.length > 0 ? "🔴 " + alerts.join(" | ") : ""}`;
             if (anomalies.length > 0) {
               bizContext += `\nANOMALIES: ${anomalies.map(a => `${a.type}: ${a.current} (avg ${a.average}/hr) ${a.deviation}`).join(" | ")}`;
             }
-          } catch {}
+          } catch (e) { console.warn("[nickActions:operator] anomaly detection load failed:", e); }
 
           // Inject what Nour asks about most — predict before he asks
           try {
@@ -1783,7 +1783,7 @@ ${alerts.length > 0 ? "🔴 " + alerts.join(" | ") : ""}`;
             if (memAlerts.length > 0) {
               bizContext += `\nPROACTIVE MEMORY ALERTS: ${memAlerts.slice(0, 3).join(" | ")}`;
             }
-          } catch {}
+          } catch (e) { console.warn("[nickActions:operator] proactive memory alerts load failed:", e); }
 
         } catch (err) {
           log.warn("Failed to gather biz context for operator command", { error: err instanceof Error ? err.message : String(err) });
@@ -1970,7 +1970,7 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
       // Auto-learn from this interaction (async, don't block)
       import("../services/nickMemory").then(({ learnFromInteraction }) =>
         learnFromInteraction(input.command, reply)
-      ).catch(() => {});
+      ).catch(e => console.warn("[nickActions:operator] interaction learning failed:", e));
 
       // Track what Nour asks about — predict needs before he asks
       import("../services/nickMemory").then(({ trackQuestion }) => {
@@ -1978,12 +1978,12 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
         const words = input.command.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(w => w.length > 3);
         const topic = words.slice(0, 3).join(" ");
         if (topic) trackQuestion(topic);
-      }).catch(() => {});
+      }).catch(e => console.warn("[nickActions:operator] question tracking failed:", e));
 
       // Track brief engagement — if Nour is talking to Nick, he read the brief
       import("../services/feedbackLoop").then(({ recordBriefResponse }) =>
         recordBriefResponse()
-      ).catch(() => {});
+      ).catch(e => console.warn("[nickActions:operator] brief response tracking failed:", e));
 
       // Self-critique — did this response actually help? Score it.
       import("../_core/llm").then(async ({ invokeLLM: llm }) => {
@@ -2004,8 +2004,8 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
               await mem({ type: "lesson", content: `Self-critique: scored ${score}/10 on "${input.command.slice(0, 60)}". Need to be more specific/actionable.`, source: "self_critique", confidence: 0.6 });
             }
           }
-        } catch {}
-      }).catch(() => {});
+        } catch (e) { console.warn("[nickActions:operator] self-critique scoring failed:", e); }
+      }).catch(e => console.warn("[nickActions:operator] self-critique LLM call failed:", e));
 
       return {
         reply,
@@ -2037,7 +2037,7 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
           platforms: input.platforms,
           success: result.results.every(r => r.success),
         })
-      ).catch(() => {});
+      ).catch(e => console.warn("[nickActions:socialPost] event bus dispatch failed:", e));
 
       return result;
     }),
@@ -2473,7 +2473,7 @@ Respond with JSON:
       try {
         const { recordReviewResult } = await import("../services/feedbackLoop");
         await recordReviewResult(input.contentType, result.score, result.issues);
-      } catch {}
+      } catch (e) { console.warn("[nickActions:selfReview] feedback recording failed:", e); }
 
       return result;
     }),

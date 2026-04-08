@@ -636,7 +636,7 @@ export const customersRouter = router({
 
       try {
         // Bookings
-        const bks = await d.select().from(bookings).where(eq(bookings.phone, phone)).orderBy(desc(bookings.createdAt));
+        const bks = await d.select().from(bookings).where(eq(bookings.phone, phone)).orderBy(desc(bookings.createdAt)).limit(100);
         bks.forEach((b: any) => events.push({
           type: "booking",
           title: `Booking: ${b.service || "General"}`,
@@ -646,7 +646,7 @@ export const customersRouter = router({
         }));
 
         // Leads
-        const lds = await d.select().from(leads).where(eq(leads.phone, phone)).orderBy(desc(leads.createdAt));
+        const lds = await d.select().from(leads).where(eq(leads.phone, phone)).orderBy(desc(leads.createdAt)).limit(100);
         lds.forEach((l: any) => events.push({
           type: "lead",
           title: `Lead: ${l.source || "Direct"}`,
@@ -656,7 +656,7 @@ export const customersRouter = router({
         }));
 
         // Callbacks
-        const cbs = await d.select().from(callbackRequests).where(eq(callbackRequests.phone, phone)).orderBy(desc(callbackRequests.createdAt));
+        const cbs = await d.select().from(callbackRequests).where(eq(callbackRequests.phone, phone)).orderBy(desc(callbackRequests.createdAt)).limit(50);
         cbs.forEach((c: any) => events.push({
           type: "callback",
           title: "Callback Request",
@@ -666,7 +666,7 @@ export const customersRouter = router({
         }));
 
         // Call events
-        const cls = await d.select().from(callEvents).where(eq(callEvents.phoneNumber, phone)).orderBy(desc(callEvents.createdAt));
+        const cls = await d.select().from(callEvents).where(eq(callEvents.phoneNumber, phone)).orderBy(desc(callEvents.createdAt)).limit(50);
         cls.forEach((c: any) => events.push({
           type: "call",
           title: "Phone Call",
@@ -676,7 +676,7 @@ export const customersRouter = router({
         }));
 
         // Invoices by phone
-        const invs = await d.select().from(invoices).where(eq(invoices.customerPhone, phone)).orderBy(desc(invoices.invoiceDate));
+        const invs = await d.select().from(invoices).where(eq(invoices.customerPhone, phone)).orderBy(desc(invoices.invoiceDate)).limit(100);
         invs.forEach((inv: any) => events.push({
           type: "invoice",
           title: `Invoice ${inv.invoiceNumber || `#${inv.id}`}`,

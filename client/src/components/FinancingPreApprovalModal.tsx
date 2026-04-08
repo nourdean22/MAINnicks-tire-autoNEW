@@ -9,6 +9,7 @@ import { useState, useCallback } from "react";
 import { X, CreditCard, CheckCircle, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
+import { BUSINESS } from "@shared/business";
 
 interface FinancingPreApprovalModalProps {
   open: boolean;
@@ -154,7 +155,7 @@ export default function FinancingPreApprovalModal({ open, onClose }: FinancingPr
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         required
-                        placeholder="(216) 555-1234"
+                        placeholder={BUSINESS.phone.placeholder}
                         className="w-full bg-[#141414] border border-[#2A2A2A] rounded-lg px-4 py-2.5 text-white text-sm placeholder:text-white/25 focus:border-[#FDB913]/50 focus:outline-none transition-colors"
                       />
                     </div>

@@ -52,7 +52,7 @@ async function getSegmentCustomers(segment: "recent" | "lapsed" | "all"): Promis
       phone: customers.phone,
     }).from(customers).where(
       and(phoneFilter, sql`${customers.lastVisitDate} IS NOT NULL AND DATEDIFF(CURDATE(), ${customers.lastVisitDate}) <= 90`)
-    );
+    ).limit(5000);
   } else if (segment === "lapsed") {
     // Haven't visited in 91-365 days
     return d.select({
@@ -61,14 +61,14 @@ async function getSegmentCustomers(segment: "recent" | "lapsed" | "all"): Promis
       phone: customers.phone,
     }).from(customers).where(
       and(phoneFilter, sql`${customers.lastVisitDate} IS NOT NULL AND DATEDIFF(CURDATE(), ${customers.lastVisitDate}) BETWEEN 91 AND 365`)
-    );
+    ).limit(5000);
   } else {
     // All customers
     return d.select({
       id: customers.id,
       firstName: customers.firstName,
       phone: customers.phone,
-    }).from(customers).where(phoneFilter);
+    }).from(customers).where(phoneFilter).limit(5000);
   }
 }
 
@@ -80,7 +80,7 @@ export const campaignsRouter = router({
     const d = await db();
     if (!d) return [];
 
-    return d.select().from(smsCampaigns).orderBy(desc(smsCampaigns.createdAt));
+    return d.select().from(smsCampaigns).orderBy(desc(smsCampaigns.createdAt)).limit(100);
   }),
 
   /** Get campaign detail with send stats */
@@ -182,24 +182,25 @@ export const campaignsRouter = router({
         .set({ status: "active", startedAt: new Date() })
         .where(eq(smsCampaigns.id, input.campaignId));
 
-      // Create send records for all customers
+      // Create send records for all customers (batch insert)
       const messageBody = campaign.customMessage ||
         CAMPAIGN_TEMPLATES[campaign.template](
           "{firstName}",
           campaign.customMessage ?? undefined
         );
 
-      for (const customer of targetCustomers) {
-        const personalizedMessage = messageBody.replace(/{firstName}/g, customer.firstName);
+      const sendRecords = targetCustomers.map(customer => ({
+        campaignId: input.campaignId,
+        customerId: customer.id,
+        phone: customer.phone,
+        messageBody: messageBody.replace(/{firstName}/g, customer.firstName),
+        status: "pending" as const,
+      }));
 
-        // Create pending send record
-        await d.insert(smsCampaignSends).values({
-          campaignId: input.campaignId,
-          customerId: customer.id,
-          phone: customer.phone,
-          messageBody: personalizedMessage,
-          status: "pending",
-        });
+      // Batch insert in chunks of 500 to avoid query size limits
+      for (let i = 0; i < sendRecords.length; i += 500) {
+        const chunk = sendRecords.slice(i, i + 500);
+        await d.insert(smsCampaignSends).values(chunk);
       }
 
       // Start async processing
@@ -282,6 +283,8 @@ async function processCampaignSends(campaignId: number, batchSize: number = 50):
     if (pendingSends.length === 0) break;
 
     // Process each send with rate limiting
+    let batchSent = 0;
+    let batchFailed = 0;
     for (const send of pendingSends) {
       try {
         const result = await sendSms(send.phone, send.messageBody);
@@ -292,22 +295,14 @@ async function processCampaignSends(campaignId: number, batchSize: number = 50):
             sentAt: new Date(),
             twilioSid: result.sid || null,
           }).where(eq(smsCampaignSends.id, send.id));
-
-          // Update campaign sent count
-          await d.update(smsCampaigns)
-            .set({ sentCount: sql`${smsCampaigns.sentCount} + 1` })
-            .where(eq(smsCampaigns.id, campaignId));
+          batchSent++;
           totalSent++;
         } else {
           await d.update(smsCampaignSends).set({
             status: "failed",
             errorMessage: result.error || "Unknown error",
           }).where(eq(smsCampaignSends.id, send.id));
-
-          // Update campaign failed count
-          await d.update(smsCampaigns)
-            .set({ failedCount: sql`${smsCampaigns.failedCount} + 1` })
-            .where(eq(smsCampaigns.id, campaignId));
+          batchFailed++;
           totalFailed++;
         }
       } catch (err) {
@@ -316,11 +311,24 @@ async function processCampaignSends(campaignId: number, batchSize: number = 50):
           status: "failed",
           errorMessage: String(err),
         }).where(eq(smsCampaignSends.id, send.id));
+        batchFailed++;
         totalFailed++;
       }
 
       // Rate limiting: 1 second delay between sends
       await new Promise(r => setTimeout(r, 1000));
+    }
+
+    // Batch update campaign counts once per batch instead of per-send
+    if (batchSent > 0) {
+      await d.update(smsCampaigns)
+        .set({ sentCount: sql`${smsCampaigns.sentCount} + ${batchSent}` })
+        .where(eq(smsCampaigns.id, campaignId));
+    }
+    if (batchFailed > 0) {
+      await d.update(smsCampaigns)
+        .set({ failedCount: sql`${smsCampaigns.failedCount} + ${batchFailed}` })
+        .where(eq(smsCampaigns.id, campaignId));
     }
   }
 
@@ -341,5 +349,5 @@ async function processCampaignSends(campaignId: number, batchSize: number = 50):
     })
   ).catch(() => {});
 
-  console.log(`[Campaigns] Campaign ${campaignId} completed: ${totalSent} sent, ${totalFailed} failed`);
+  console.info(`[campaigns:done] Campaign ${campaignId} completed: ${totalSent} sent, ${totalFailed} failed`);
 }

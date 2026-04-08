@@ -300,6 +300,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
           <button
             type="button"
             onClick={() => { if (s.num < step || canGoNext(step)) setStep(s.num as Step); }}
+            aria-label={`Go to step ${s.num}: ${s.label}`}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[12px] font-medium transition-all ${
               step === s.num
                 ? "bg-primary text-primary-foreground"
@@ -441,6 +442,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                   <button
                     type="button"
                     onClick={() => removePhoto(photo.preview)}
+                    aria-label="Remove photo"
                     className="absolute top-0.5 right-0.5 w-5 h-5 bg-background/80 rounded-full flex items-center justify-center text-foreground/80 hover:text-red-400"
                   >
                     <X className="w-3 h-3" />
@@ -552,7 +554,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                   value={formData.phone}
                   onChange={(e) => update("phone", e.target.value)}
                   className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
-                  placeholder="(216) 555-0000"
+                  placeholder={BUSINESS.phone.placeholder}
                 />
               </div>
             </div>
@@ -646,6 +648,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
               type="button"
               onClick={() => setStep(1)}
               className="flex items-center gap-2 border border-[oklch(0.17_0.004_260)] text-foreground/40 px-6 py-3 rounded-lg font-semibold text-[13px] hover:text-foreground/60 transition-colors"
+              aria-label="Go back to step 1"
             >
               <ChevronLeft className="w-4 h-4" /> Back
             </button>

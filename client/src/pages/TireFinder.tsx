@@ -419,7 +419,7 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
             <input
               type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
               className="w-full bg-background border border-border/50 rounded-md px-4 py-2.5 text-foreground text-sm focus:outline-none focus:border-primary/50 transition-colors"
-              placeholder="(216) 555-0123"
+              placeholder={BUSINESS.phone.placeholder}
             />
           </div>
           <div>

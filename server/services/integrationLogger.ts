@@ -61,7 +61,7 @@ export function logIntegrationEvent(params: {
   if (level === "error") {
     console.error(`${prefix} ${params.type}: ${params.message}${params.error ? ` — ${params.error}` : ""}`);
   } else {
-    console.log(`${prefix} ${params.type}: ${params.message}${params.latencyMs ? ` (${params.latencyMs}ms)` : ""}`);
+    console.info(`${prefix} ${params.type}: ${params.message}${params.latencyMs ? ` (${params.latencyMs}ms)` : ""}`);
   }
 }
 

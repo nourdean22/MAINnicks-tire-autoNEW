@@ -126,7 +126,7 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
       serviceDescription: labor.description,
     }),
     { maxRetries: 3, baseDelayMs: 1000, label: "notifyInvoiceCreated" }
-  ).catch(() => {});
+  ).catch(e => console.warn("[booking:autoInvoice] invoice email notification failed:", e));
 
   // Dispatch to event bus — makes auto-invoices visible to NOUR OS, Nick AI, ShopDriver, Statenour
   import("../services/eventBus").then(({ emit }) =>
@@ -136,7 +136,7 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
       totalAmount: totalAmount / 100,
       source: "booking",
     })
-  ).catch(() => {});
+  ).catch(e => console.warn("[booking:autoInvoice] event bus invoice dispatch failed:", e));
 
   // Link invoice to matching work order (WO created from same booking)
   try {
@@ -157,7 +157,7 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
     console.error("[Invoice] WO linkage failed:", err instanceof Error ? err.message : err);
   }
 
-  console.log(`[Invoice] Auto-created ${invoiceNumber} for booking #${booking.id} — $${(totalAmount / 100).toFixed(2)}`);
+  console.info(`[invoice:created] ${invoiceNumber} for booking #${booking.id} — $${(totalAmount / 100).toFixed(2)}`);
 }
 
 async function db() {
@@ -430,7 +430,7 @@ export const bookingRouter = router({
         entityId: input.id,
         details: `Booking status changed to ${input.status}`,
         newValue: input.status,
-      }).catch(() => {});
+      }).catch(e => console.warn("[booking:updateStatus] audit trail logging failed:", e));
 
       // Send confirmation SMS when booking is confirmed by admin
       if (input.status === "confirmed") {
@@ -508,7 +508,7 @@ export const bookingRouter = router({
                 name: booking.name,
                 service: booking.service,
               })
-            ).catch(() => {});
+            ).catch(e => console.warn("[booking:updateStatus] event bus booking completed dispatch failed:", e));
 
             // Auto-create invoice from completed booking
             autoCreateInvoiceFromBooking(d, booking).catch(err => {
@@ -540,7 +540,7 @@ export const bookingRouter = router({
         entityId: input.id,
         details: "Booking notes updated",
         newValue: input.notes,
-      }).catch(() => {});
+      }).catch(e => console.warn("[booking:updateNotes] audit trail logging failed:", e));
 
       return result;
     }),
@@ -566,7 +566,7 @@ export const bookingRouter = router({
         entityId: input.id,
         details: `Booking stage changed to ${input.stage}`,
         newValue: input.stage,
-      }).catch(() => {});
+      }).catch(e => console.warn("[booking:updateStage] audit trail logging failed:", e));
 
       const d = await db();
       if (d) {
@@ -650,7 +650,7 @@ export const bookingRouter = router({
         entityType: "booking",
         entityId: input.id,
         details: `Booking #${input.id} deleted`,
-      }).catch(() => {});
+      }).catch(e => console.warn("[booking:delete] audit trail logging failed:", e));
       return { success: true };
     }),
 });

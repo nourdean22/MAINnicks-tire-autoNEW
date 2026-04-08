@@ -1068,7 +1068,7 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Customer Name *" value={form.customerName} onChange={(v) => setForm(f => ({ ...f, customerName: v }))} placeholder="John Smith" />
-          <FormField label="Phone" value={form.customerPhone} onChange={(v) => setForm(f => ({ ...f, customerPhone: v }))} placeholder="(216) 555-0123" />
+          <FormField label="Phone" value={form.customerPhone} onChange={(v) => setForm(f => ({ ...f, customerPhone: v }))} placeholder={BUSINESS.phone.placeholder} />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Vehicle" value={form.vehicleInfo} onChange={(v) => setForm(f => ({ ...f, vehicleInfo: v }))} placeholder="2019 Honda Civic" />

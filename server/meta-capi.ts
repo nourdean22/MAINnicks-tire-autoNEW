@@ -111,7 +111,7 @@ export async function sendCAPIEvent(options: SendEventOptions): Promise<{
 }> {
   const accessToken = getAccessToken();
   if (!accessToken) {
-    console.log("[CAPI] No META_CAPI_ACCESS_TOKEN configured — skipping server event");
+    console.warn("[capi:send] META_CAPI_ACCESS_TOKEN not configured — skipping server event");
     return { success: false, error: "No access token configured" };
   }
 
@@ -180,7 +180,7 @@ export async function sendCAPIEvent(options: SendEventOptions): Promise<{
       return { success: false, error: result.error?.message || "Unknown error" };
     }
 
-    console.log(`[CAPI] ${options.eventName} event sent successfully (events_received: ${result.events_received})`);
+    console.info(`[capi:send] ${options.eventName} event sent (events_received: ${result.events_received})`);
     return { success: true, eventsReceived: result.events_received };
   } catch (err) {
     console.error("[CAPI] Failed to send event:", err);

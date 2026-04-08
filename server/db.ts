@@ -184,7 +184,7 @@ export async function getActiveCoupons() {
 export async function getAllCoupons() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(coupons).orderBy(desc(coupons.createdAt));
+  return db.select().from(coupons).orderBy(desc(coupons.createdAt)).limit(200);
 }
 
 export async function updateCoupon(id: number, data: Partial<InsertCoupon>) {
@@ -263,7 +263,7 @@ export async function createReferral(referral: InsertReferral) {
 export async function getReferrals() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(referrals).orderBy(desc(referrals.createdAt));
+  return db.select().from(referrals).orderBy(desc(referrals.createdAt)).limit(500);
 }
 
 export async function updateReferralStatus(id: number, status: "pending" | "visited" | "redeemed" | "expired") {
@@ -293,7 +293,7 @@ export async function getPublishedQuestions() {
 export async function getAllQuestions() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(mechanicQA).orderBy(desc(mechanicQA.createdAt));
+  return db.select().from(mechanicQA).orderBy(desc(mechanicQA.createdAt)).limit(200);
 }
 
 export async function answerQuestion(id: number, answer: string, answeredBy: string) {
@@ -380,7 +380,7 @@ export async function createCallbackRequest(data: InsertCallbackRequest) {
 export async function getCallbackRequests() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(callbackRequests).orderBy(desc(callbackRequests.createdAt));
+  return db.select().from(callbackRequests).orderBy(desc(callbackRequests.createdAt)).limit(500);
 }
 
 export async function updateCallbackStatus(id: number, status: "new" | "called" | "no-answer" | "completed", notes?: string) {
@@ -609,7 +609,7 @@ export async function getInspectionByToken(token: string) {
 export async function getInspections() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(vehicleInspections).orderBy(desc(vehicleInspections.createdAt));
+  return db.select().from(vehicleInspections).orderBy(desc(vehicleInspections.createdAt)).limit(500);
 }
 
 export async function addInspectionItem(data: InsertInspectionItem) {
@@ -1070,14 +1070,20 @@ export async function snoozeReminder(id: number, snoozeDays: number) {
 export async function getReminderStats() {
   const db = await getDb();
   if (!db) return { total: 0, scheduled: 0, sent: 0, snoozed: 0, dueNow: 0 };
-  const all = await db.select().from(serviceReminders);
   const now = new Date();
+  const [stats] = await db.select({
+    total: sql<number>`count(*)`,
+    scheduled: sql<number>`sum(case when ${serviceReminders.status} = 'scheduled' then 1 else 0 end)`,
+    sent: sql<number>`sum(case when ${serviceReminders.status} = 'sent' then 1 else 0 end)`,
+    snoozed: sql<number>`sum(case when ${serviceReminders.status} = 'snoozed' then 1 else 0 end)`,
+    dueNow: sql<number>`sum(case when ${serviceReminders.status} = 'scheduled' and ${serviceReminders.nextDueDate} <= ${now} then 1 else 0 end)`,
+  }).from(serviceReminders);
   return {
-    total: all.length,
-    scheduled: all.filter((r: any) => r.status === "scheduled").length,
-    sent: all.filter((r: any) => r.status === "sent").length,
-    snoozed: all.filter((r: any) => r.status === "snoozed").length,
-    dueNow: all.filter((r: any) => r.status === "scheduled" && r.nextDueDate <= now).length,
+    total: stats?.total ?? 0,
+    scheduled: stats?.scheduled ?? 0,
+    sent: stats?.sent ?? 0,
+    snoozed: stats?.snoozed ?? 0,
+    dueNow: stats?.dueNow ?? 0,
   };
 }
 
@@ -1197,9 +1203,10 @@ export async function markConversationRead(conversationId: number) {
 export async function getUnreadConversationCount() {
   const db = await getDb();
   if (!db) return 0;
-  const result = await db.select().from(smsConversations)
+  const [result] = await db.select({ count: sql<number>`count(*)` })
+    .from(smsConversations)
     .where(gt(smsConversations.unreadCount, 0));
-  return result.length;
+  return result?.count ?? 0;
 }
 
 // ─── REPAIR GALLERY ──────────────────────────────────────
@@ -1214,7 +1221,7 @@ export async function getPublicGalleryItems() {
 export async function getAllGalleryItems() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(repairGallery).orderBy(desc(repairGallery.createdAt));
+  return db.select().from(repairGallery).orderBy(desc(repairGallery.createdAt)).limit(200);
 }
 
 export async function createGalleryItem(data: InsertRepairGalleryItem) {
@@ -1250,7 +1257,7 @@ export async function getActiveTechnicians() {
 export async function getAllTechnicians() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(technicians).orderBy(desc(technicians.createdAt));
+  return db.select().from(technicians).orderBy(desc(technicians.createdAt)).limit(100);
 }
 
 export async function createTechnician(data: InsertTechnician) {

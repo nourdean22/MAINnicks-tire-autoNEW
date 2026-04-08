@@ -80,7 +80,7 @@ export async function trackAlertOutcome(alertType: string, outcome: "acted" | "i
       source: "feedback_loop",
       confidence: outcome === "acted" ? 0.9 : 0.5,
     });
-  } catch {}
+  } catch (e) { console.warn("[feedbackLoop:trackAlertOutcome] memory save for alert outcome failed:", e); }
 }
 
 // ─── SELF-REVIEW FEEDBACK ────────────────────────────
@@ -107,7 +107,7 @@ export async function recordReviewResult(contentType: string, score: number, iss
         confidence: 0.8,
       });
     }
-  } catch {}
+  } catch (e) { console.warn("[feedbackLoop:recordReviewResult] memory save for review result failed:", e); }
 }
 
 // ─── BRIEF DELIVERY TRACKING ─────────────────────────
@@ -181,7 +181,7 @@ export async function checkPendingImpacts(): Promise<number> {
       });
       checked++;
     }
-  } catch {}
+  } catch (e) { console.warn("[feedbackLoop:checkPendingImpacts] revenue impact comparison failed:", e); }
   return checked;
 }
 
@@ -217,7 +217,7 @@ export async function runFeedbackCycle(): Promise<{ recordsProcessed?: number; d
           anomalies.map(a => `${a.type}: ${a.current} (avg ${a.average}/hr) — ${a.deviation}`).join("\n")
         );
       }
-    } catch {}
+    } catch (e) { console.warn("[feedbackLoop:feedbackCycle] anomaly detection + memory save failed:", e); }
   }
 
   // 2. Check brief engagement
@@ -230,7 +230,7 @@ export async function runFeedbackCycle(): Promise<{ recordsProcessed?: number; d
   try {
     const impactChecked = await checkPendingImpacts();
     processed += impactChecked;
-  } catch {}
+  } catch (e) { console.warn("[feedbackLoop:feedbackCycle] pending impact check failed:", e); }
 
   // 4. Memory decay — reduce stale memories, prune dead ones
   try {
@@ -240,7 +240,7 @@ export async function runFeedbackCycle(): Promise<{ recordsProcessed?: number; d
       log.info(`Memory decay: ${decayed} memories aged or pruned`);
       processed += decayed;
     }
-  } catch {}
+  } catch (e) { console.warn("[feedbackLoop:feedbackCycle] memory decay failed:", e); }
 
   // 4. Proactive memory alerts — fire Telegram for memory-driven insights
   try {
@@ -254,7 +254,7 @@ export async function runFeedbackCycle(): Promise<{ recordsProcessed?: number; d
       );
       processed += memAlerts.length;
     }
-  } catch {}
+  } catch (e) { console.warn("[feedbackLoop:feedbackCycle] proactive memory alerts failed:", e); }
 
   // 5. Revenue pacing — check if today is tracking ahead or behind
   try {
@@ -279,7 +279,7 @@ export async function runFeedbackCycle(): Promise<{ recordsProcessed?: number; d
       );
       processed++;
     }
-  } catch {}
+  } catch (e) { console.warn("[feedbackLoop:feedbackCycle] revenue pacing check failed:", e); }
 
   return { recordsProcessed: processed, details: `${anomalies.length} anomalies, brief: ${brief.engagementRate}` };
 }
