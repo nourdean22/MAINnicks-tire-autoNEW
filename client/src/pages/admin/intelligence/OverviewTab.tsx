@@ -19,13 +19,15 @@ export default function OverviewTab() {
   const score = data.summary.score ?? 0;
   const scoreColor = score >= 70 ? "text-emerald-400" : score >= 40 ? "text-amber-400" : "text-red-400";
 
-  // Derived stats from sub-reports
-  const revenuePace = data.revenue.pacing?.month?.soFar != null
-    ? Math.round(((data.revenue.pacing.month.soFar) / MONTHLY_TARGET) * 100)
+  // Derived stats from sub-reports — engine results are Record<string, unknown>
+  const pacingMonth = data.revenue.pacing?.month as Record<string, unknown> | undefined;
+  const revenuePace = typeof pacingMonth?.soFar === "number"
+    ? Math.round((pacingMonth.soFar / MONTHLY_TARGET) * 100)
     : null;
-  const churnCount = data.customers.churnRisk?.highRisk?.length ?? null;
-  const reviewVel = data.marketing.reviewVelocity?.velocity ?? null;
-  const newCusts = data.customers.velocity?.thisMonth ?? null;
+  const highRiskArr = data.customers.churnRisk?.highRisk;
+  const churnCount = Array.isArray(highRiskArr) ? highRiskArr.length : null;
+  const reviewVel = typeof data.marketing.reviewVelocity?.velocity === "number" ? data.marketing.reviewVelocity.velocity : null;
+  const newCusts = typeof data.customers.velocity?.thisMonth === "number" ? data.customers.velocity.thisMonth : null;
 
   return (
     <div className="space-y-6">
