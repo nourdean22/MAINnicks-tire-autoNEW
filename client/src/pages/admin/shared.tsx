@@ -71,15 +71,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "leads", label: "Leads & Estimates", icon: <Users className="w-4 h-4" />, badge: "leads" },
       { id: "declinedEstimates", label: "Declined Work", icon: <AlertTriangle className="w-4 h-4" /> },
-      { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
-      { id: "revenue", label: "Revenue", icon: <TrendingUp className="w-4 h-4" /> },
-    ],
-  },
-  {
-    label: "SHOP FLOOR",
-    items: [
-      { id: "workOrders", label: "Shop Pulse", icon: <Wrench className="w-4 h-4" /> },
-      { id: "dispatch", label: "Shop Status", icon: <ClipboardList className="w-4 h-4" /> },
+      { id: "revenue", label: "Revenue & Shop", icon: <TrendingUp className="w-4 h-4" /> },
     ],
   },
   {
@@ -126,7 +118,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   shopdriver: "ShopDriver Sync",
   estimates: "Walk-In Estimates",
   activity: "Activity",
-  revenue: "Revenue",
+  revenue: "Revenue & Shop",
   integrations: "Integrations",
   tireOrders: "Tire Orders",
   analyticsView: "Analytics",
