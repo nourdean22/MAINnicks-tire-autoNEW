@@ -410,6 +410,22 @@ export const bookingRouter = router({
         newValue: input.status,
       }).catch(() => {});
 
+      // Send confirmation SMS when booking is confirmed
+      if (input.status === "confirmed") {
+        const d = await db();
+        if (d) {
+          const [booking] = await d.select().from(bookings).where(eq(bookings.id, input.id)).limit(1);
+          if (booking && booking.phone) {
+            const { isEnabled } = await import("../services/featureFlags");
+            if (await isEnabled("sms_appointment_reminders")) {
+              const { sendSms } = await import("../sms");
+              const firstName = (booking.name || "").split(" ")[0] || "there";
+              await sendSms(booking.phone, `Hi ${firstName}! Your booking at Nick's Tire & Auto is confirmed. Just drop off when you're ready — no appointment time needed. (216) 862-0005`);
+            }
+          }
+        }
+      }
+
       // Auto-schedule Google review request when booking is completed
       if (input.status === "completed") {
         const d = await db();

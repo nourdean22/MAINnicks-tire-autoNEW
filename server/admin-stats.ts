@@ -326,9 +326,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         d.select({ count: sql<number>`count(*)` }).from(invoices).where(gte(invoices.invoiceDate, todayStart)),
         d.select({ count: sql<number>`count(*)` }).from(invoices).where(gte(invoices.invoiceDate, weekAgo)),
         d.select({ count: sql<number>`count(*)` }).from(invoices).where(gte(invoices.invoiceDate, monthStart)),
-        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(gte(invoices.invoiceDate, todayStart)),
-        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(gte(invoices.invoiceDate, weekAgo)),
-        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(gte(invoices.invoiceDate, monthStart)),
+        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(gte(invoices.invoiceDate, todayStart), eq(invoices.paymentStatus, "paid"))),
+        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(gte(invoices.invoiceDate, weekAgo), eq(invoices.paymentStatus, "paid"))),
+        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(gte(invoices.invoiceDate, monthStart), eq(invoices.paymentStatus, "paid"))),
         // Estimates = leads with a recommended service (AI-classified as needing specific work)
         d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, todayStart), sql`${leads.recommendedService} IS NOT NULL`)),
         d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, weekAgo), sql`${leads.recommendedService} IS NOT NULL`)),

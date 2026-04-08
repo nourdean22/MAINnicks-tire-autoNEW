@@ -4,8 +4,10 @@
  * to statenour-os /api/sync/business so the AI has business context.
  */
 import { createLogger } from "../../lib/logger";
+import { BUSINESS } from "@shared/business";
 
 const log = createLogger("cron:statenour-sync");
+const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
 
 export async function syncToStatenour(): Promise<{ recordsProcessed: number; details: string }> {
   const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
@@ -110,15 +112,15 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
           const [todayRow] = await db.execute(sql`
             SELECT COALESCE(SUM(totalAmount), 0) as rev, COUNT(*) as cnt,
                    CASE WHEN COUNT(*) > 0 THEN ROUND(SUM(totalAmount) / COUNT(*)) ELSE 0 END as avgTkt
-            FROM invoices WHERE DATE(invoiceDate) = CURDATE()
+            FROM invoices WHERE DATE(invoiceDate) = CURDATE() AND paymentStatus = 'paid'
           `);
           const [weekRow] = await db.execute(sql`
             SELECT COALESCE(SUM(totalAmount), 0) as rev FROM invoices
-            WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+            WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND paymentStatus = 'paid'
           `);
           const [monthRow] = await db.execute(sql`
             SELECT COALESCE(SUM(totalAmount), 0) as rev FROM invoices
-            WHERE invoiceDate >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+            WHERE invoiceDate >= DATE_FORMAT(CURDATE(), '%Y-%m-01') AND paymentStatus = 'paid'
           `);
           const today = (todayRow as any[])?.[0] || {};
           const week = (weekRow as any[])?.[0] || {};
@@ -127,7 +129,7 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
           // Yesterday's revenue for morning brief comparison
           const [yesterdayRow] = await db.execute(sql`
             SELECT COALESCE(SUM(totalAmount), 0) as rev, COUNT(*) as cnt
-            FROM invoices WHERE DATE(invoiceDate) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+            FROM invoices WHERE DATE(invoiceDate) = DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND paymentStatus = 'paid'
           `);
           const yesterday = (yesterdayRow as any[])?.[0] || {};
 
@@ -139,9 +141,9 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             monthRevenue: Math.round(Number(month.rev || 0) / 100),
             avgTicket: Math.round(Number(today.avgTkt || 0) / 100),
             jobsToday: Number(today.cnt || 0),
-            monthlyTarget: 20000,
-            dailyTarget: 770, // $20K / 26 working days
-            pacing: Math.round(Number(month.rev || 0) / 100) >= 20000 ? "on_track" : "behind",
+            monthlyTarget: MONTHLY_TARGET,
+            dailyTarget: Math.round(MONTHLY_TARGET / 26), // target / 26 working days
+            pacing: Math.round(Number(month.rev || 0) / 100) >= MONTHLY_TARGET ? "on_track" : "behind",
             walkRate: intelligence.pulse?.thisWeek?.walkRate ?? 0,
           };
         } catch {
@@ -152,7 +154,7 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             monthRevenue: intelligence.revenue?.thisMonthProjection ?? 0,
             avgTicket: intelligence.pulse?.today?.avgTicket ?? 0,
             jobsToday: intelligence.pulse?.today?.jobsClosed ?? 0,
-            monthlyTarget: 20000,
+            monthlyTarget: MONTHLY_TARGET,
             walkRate: intelligence.pulse?.thisWeek?.walkRate ?? 0,
           };
         }
