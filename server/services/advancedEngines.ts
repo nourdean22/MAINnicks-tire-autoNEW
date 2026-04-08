@@ -932,11 +932,12 @@ export async function predictNoShows(): Promise<{
   historicalNoShowRate: number;
 }> {
   try {
-    // Historical no-show rate
+    // Historical no-show rate — track cancelled bookings past their preferred date as no-shows
+    // (bookings enum has no 'no-show' status — we detect them by: cancelled + preferredDate in the past)
     const histRows = await (await db()).execute(sql`
       SELECT
         COUNT(*) as total,
-        SUM(CASE WHEN status = 'no-show' THEN 1 ELSE 0 END) as noShows
+        SUM(CASE WHEN status = 'cancelled' AND preferredDate IS NOT NULL AND preferredDate < CURDATE() THEN 1 ELSE 0 END) as noShows
       FROM bookings
       WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
     `);
@@ -949,7 +950,7 @@ export async function predictNoShows(): Promise<{
     const rows = await (await db()).execute(sql`
       SELECT b.id, b.name, b.phone, b.preferredDate, b.preferredTime, b.createdAt,
         DATEDIFF(b.preferredDate, b.createdAt) as leadDays,
-        (SELECT COUNT(*) FROM bookings b2 WHERE RIGHT(b2.phone, 10) = RIGHT(b.phone, 10) AND b2.status != 'no-show') as priorVisits
+        (SELECT COUNT(*) FROM bookings b2 WHERE RIGHT(b2.phone, 10) = RIGHT(b.phone, 10) AND b2.status IN ('confirmed', 'completed')) as priorVisits
       FROM bookings b
       WHERE b.status IN ('new', 'confirmed')
         AND b.preferredDate >= CURDATE()
@@ -969,9 +970,9 @@ export async function predictNoShows(): Promise<{
       // First-time customer
       if (priorVisits === 0) { prob += 20; reasons.push("First-time customer"); }
 
-      // Booked far in advance
-      if (leadDays > 7) { prob += 15; reasons.push(`Booked ${leadDays} days ahead`); }
-      else if (leadDays > 14) { prob += 25; reasons.push(`Booked ${leadDays} days ahead`); }
+      // Booked far in advance (check longer first)
+      if (leadDays > 14) { prob += 25; reasons.push(`Booked ${leadDays} days ahead`); }
+      else if (leadDays > 7) { prob += 15; reasons.push(`Booked ${leadDays} days ahead`); }
 
       // Afternoon slot (historically higher no-show)
       if (r.preferredTime === "afternoon") { prob += 10; reasons.push("Afternoon slot"); }
