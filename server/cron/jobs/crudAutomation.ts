@@ -95,7 +95,7 @@ export async function autoCleanStaleBookings(): Promise<{ recordsProcessed: numb
     if (!d) return { recordsProcessed: 0, details: "No DB" };
 
     const [rows] = await d.execute(sql`
-      SELECT id, name, phone FROM bookings
+      SELECT id, name, phone, adminNotes FROM bookings
       WHERE status = 'new'
         AND createdAt < DATE_SUB(NOW(), INTERVAL 30 DAY)
         AND updatedAt < DATE_SUB(NOW(), INTERVAL 14 DAY)
@@ -112,11 +112,12 @@ export async function autoCleanStaleBookings(): Promise<{ recordsProcessed: numb
     }
 
     // Send "rebook" SMS (gated by feature flag)
+    // Skip bookings already handled by detectNoShows to prevent double-SMS
     const { sendSms } = await import("../../sms");
     const { isEnabled: isEnabledStale } = await import("../../services/featureFlags");
     let smsSent = 0;
     if (await isEnabledStale("sms_retention_sequences")) {
-      for (const b of stale.filter((s: any) => s.phone)) {
+      for (const b of stale.filter((s: any) => s.phone && !(s.adminNotes && String(s.adminNotes).includes("[AUTO] No-show")))) {
         try {
           const firstName = (b.name || "there").split(" ")[0];
           await sendSms(b.phone, `Hi ${firstName}! Your booking at Nick's Tire & Auto has expired. Need to reschedule? Call (216) 862-0005 or visit nickstire.org — drop-offs welcome!`);
@@ -161,8 +162,8 @@ export async function escalateStaleCallbacks(): Promise<{ recordsProcessed: numb
           const firstName = (cb.name || "there").split(" ")[0];
           await sendSms(cb.phone, `Hi ${firstName}, we haven't forgotten about you! We'll be calling you back shortly regarding your request. — Nick's Tire & Auto (216) 862-0005`);
           smsSent++;
-          // Mark as "called" so we don't re-SMS (valid enum: new, called, no-answer, completed)
-          await d.execute(sql`UPDATE callback_requests SET status = 'called', calledAt = NOW() WHERE id = ${cb.id}`);
+          // Mark as "no-answer" — SMS sent but no actual call made yet
+          await d.execute(sql`UPDATE callback_requests SET status = 'no-answer', notes = CONCAT(COALESCE(notes, ''), '\nAuto-SMS: we will call you back'), calledAt = NOW() WHERE id = ${cb.id}`);
         } catch (err) { log.warn("escalateStaleCallbacks: SMS/status update failed", { error: err instanceof Error ? err.message : String(err) }); }
       }
     }
