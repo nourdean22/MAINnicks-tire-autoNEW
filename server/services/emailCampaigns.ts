@@ -170,12 +170,12 @@ export async function autoSendEmailCampaigns(): Promise<{ recordsProcessed: numb
     }
 
     return { recordsProcessed: sent, details: `${sent} emails sent (${templateKey})` };
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Graceful fail for missing columns
-    if (err.message?.includes("Unknown column") || err.message?.includes("lastEmailCampaignAt")) {
+    if ((err as Error).message?.includes("Unknown column") || (err as Error).message?.includes("lastEmailCampaignAt")) {
       return { recordsProcessed: 0, details: "lastEmailCampaignAt column not yet added — skipping" };
     }
-    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }
 

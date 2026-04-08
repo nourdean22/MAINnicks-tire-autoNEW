@@ -135,8 +135,8 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
     const details = `${sent} SMS sent, ${skipped} skipped (${actionable.length} actionable recommendations)`;
     if (sent > 0) log.info(`Cross-sell outreach: ${details}`);
     return { recordsProcessed: sent, details };
-  } catch (err: any) {
-    log.error("Cross-sell outreach failed:", { error: err.message });
-    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+  } catch (err: unknown) {
+    log.error("Cross-sell outreach failed:", { error: (err as Error).message });
+    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }

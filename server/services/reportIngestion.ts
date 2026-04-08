@@ -794,10 +794,10 @@ export async function ingestInvoices(invoices: ParsedInvoice[]): Promise<{ creat
         source: "shopdriver",
       });
       created++;
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Skip duplicates
-      if (err.message?.includes("Duplicate")) continue;
-      log.warn(`Failed to ingest invoice ${inv.invoiceNumber}: ${err.message}`);
+      if ((err as Error).message?.includes("Duplicate")) continue;
+      log.warn(`Failed to ingest invoice ${inv.invoiceNumber}: ${(err as Error).message}`);
     }
   }
 

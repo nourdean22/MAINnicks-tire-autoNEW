@@ -201,8 +201,8 @@ export async function getServiceApprovalRates(days = 30): Promise<Array<{
       }))
       .filter((r) => r.total >= 3) // Need at least 3 data points
       .sort((a, b) => b.total - a.total);
-  } catch (err: any) {
-    log.error("Failed to compute approval rates:", { error: err.message });
+  } catch (err: unknown) {
+    log.error("Failed to compute approval rates:", { error: (err as Error).message });
     return [];
   }
 }
@@ -260,9 +260,9 @@ export async function runPricingIntelligenceJob(): Promise<{
     const details = `${rates.length} categories, ${alerts.length} pricing alerts`;
     if (alerts.length > 0) log.info(`Pricing intelligence: ${details}`);
     return { recordsProcessed: rates.length, details };
-  } catch (err: any) {
-    log.error("Pricing intelligence job failed:", { error: err.message });
-    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+  } catch (err: unknown) {
+    log.error("Pricing intelligence job failed:", { error: (err as Error).message });
+    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }
 
