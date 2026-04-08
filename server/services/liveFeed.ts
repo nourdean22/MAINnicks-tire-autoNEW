@@ -249,7 +249,9 @@ export async function sendDailyWinsDigest(): Promise<{ recordsProcessed: number;
         const pulse = await getShopPulse();
         daily.revenue = pulse.today.revenue || 0;
         daily.jobCount = pulse.today.jobsClosed || 0;
-      } catch {}
+      } catch (err) {
+        console.warn("[LiveFeed] Shop pulse fetch failed:", err instanceof Error ? err.message : err);
+      }
     }
 
     const pacePercent = getMonthlyPacePercent();
