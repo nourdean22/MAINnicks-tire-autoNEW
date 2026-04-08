@@ -275,7 +275,8 @@ export async function suggestResponse(review: AnalyzedReview): Promise<string> {
         .filter((r: any) => r.response)
         .map((r: any) => `[${r.rating}-star] "${r.reviewText?.slice(0, 80) || '(no text)'}" → Response: "${r.response!.slice(0, 150)}"`);
     }
-  } catch {
+  } catch (e) {
+    console.warn("[pipelines/gbp-reviews] operation failed:", e);
     // Non-critical — proceed without learning data
   }
 
@@ -349,7 +350,7 @@ export async function extractKeywords(opts?: { limit?: number }): Promise<Array<
         if (review.sentiment) existing.sentiments.push(review.sentiment);
         keywordMap.set(key, existing);
       }
-    } catch { /* skip malformed JSON */ }
+    } catch (e) { /* skip malformed JSON */ console.warn("[pipelines/gbp-reviews] operation failed:", e); }
   }
 
   // Sort by frequency, determine dominant sentiment for each keyword
@@ -423,7 +424,7 @@ export async function detectTrends(): Promise<ReviewTrendSnapshot> {
         const key = t.toLowerCase().trim();
         keywordFreq.set(key, (keywordFreq.get(key) || 0) + 1);
       }
-    } catch { /* skip */ }
+    } catch (e) { /* skip */ console.warn("[pipelines/gbp-reviews] operation failed:", e); }
   }
   const topKeywords = [...keywordFreq.entries()]
     .sort((a, b) => b[1] - a[1])

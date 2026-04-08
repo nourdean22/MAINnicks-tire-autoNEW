@@ -106,7 +106,7 @@ async function sdLogin(): Promise<boolean> {
           sdSessionExpiry = Date.now() + 30 * 60 * 1000;
           return true;
         }
-      } catch { /* response not JSON — expected for some auth flows */ }
+      } catch (e) { /* response not JSON — expected for some auth flows */ console.warn("[routers/shopdriver] operation failed:", e); }
     }
 
     return false;
@@ -336,7 +336,8 @@ export const shopdriverRouter = router({
       let data: any;
       try {
         data = JSON.parse(bodyText);
-      } catch {
+      } catch (e) {
+        console.warn("[routers/shopdriver] operation failed:", e);
         console.error("[ShopDriver] Invoice sync non-JSON response:", bodyText.substring(0, 200));
         return { success: false, error: "ShopDriver returned non-JSON response — check API credentials", synced: 0 };
       }
@@ -433,7 +434,8 @@ export const shopdriverRouter = router({
       let data: any;
       try {
         data = JSON.parse(bodyText);
-      } catch {
+      } catch (e) {
+        console.warn("[routers/shopdriver] operation failed:", e);
         console.error("[ShopDriver] Customer sync non-JSON response:", bodyText.substring(0, 200));
         return { success: false, error: "ShopDriver returned non-JSON response — check API credentials", synced: 0 };
       }

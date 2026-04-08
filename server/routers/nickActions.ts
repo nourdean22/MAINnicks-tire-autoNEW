@@ -515,7 +515,8 @@ export const nickActionsRouter = router({
       let quote: any;
       try {
         quote = JSON.parse(rawContent);
-      } catch {
+      } catch (e) {
+        console.warn("[routers/nickActions] operation failed:", e);
         log.error("AI returned invalid JSON for quote", { preview: rawContent.slice(0, 200) });
         throw new Error("Failed to parse quote — AI returned invalid JSON");
       }
@@ -768,7 +769,7 @@ export const nickActionsRouter = router({
       let extracted: any;
       try {
         extracted = JSON.parse(rawContent);
-      } catch {
+      } catch (e) {
         throw new Error("AI returned invalid work order data");
       }
 
@@ -1014,7 +1015,8 @@ Return JSON:
       let chainData: any;
       try {
         chainData = JSON.parse(typeof chainRaw === "string" ? chainRaw : "{}");
-      } catch {
+      } catch (e) {
+        console.warn("[routers/nickActions] operation failed:", e);
         log.warn("Failed to parse follow-up chain, building fallback");
         chainData = null;
       }
@@ -1288,7 +1290,7 @@ Use realistic Cleveland-area pricing. Our labor rate is $85/hour.`,
       let pricing: any;
       try {
         pricing = JSON.parse(rawContent);
-      } catch {
+      } catch (e) {
         throw new Error("Invalid pricing data from AI");
       }
 
@@ -1426,7 +1428,7 @@ Return JSON:
       let analysis: any;
       try {
         analysis = JSON.parse(analysisRaw);
-      } catch {
+      } catch (e) {
         throw new Error("Invalid analysis data from AI");
       }
 
@@ -2073,7 +2075,7 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
         try {
           const data = JSON.parse(r.value);
           return { id: r.key.replace("camera_", ""), name: data.name, url: data.url, type: data.type || "http" };
-        } catch { return null; }
+        } catch (e) { console.warn("[routers/nickActions] operation failed:", e); return null; }
       }).filter(Boolean);
 
       const target = cameras.find((c: any) => c.id === input.cameraId);
@@ -2100,7 +2102,7 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
       try {
         const data = JSON.parse(r.value);
         return { id: r.key.replace("camera_", ""), ...data };
-      } catch { return null; }
+      } catch (e) { console.warn("[routers/nickActions] operation failed:", e); return null; }
     }).filter(Boolean);
   }),
 
@@ -2297,10 +2299,11 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
         try {
           await d.insert(customers).values(batch);
           imported += batch.length;
-        } catch {
+        } catch (e) {
+          console.warn("[routers/nickActions] operation failed:", e);
           // If batch fails, try one by one
           for (const c of batch) {
-            try { await d.insert(customers).values(c); imported++; } catch { skipped++; }
+            try { await d.insert(customers).values(c); imported++; } catch (e) { console.warn("[routers/nickActions] single customer insert failed:", e); skipped++; }
           }
         }
       }
@@ -2463,7 +2466,8 @@ Respond with JSON:
           // Strip markdown fences if LLM wraps JSON in ```json blocks
           const cleaned = raw.replace(/```json\s*\n?/g, "").replace(/```\s*$/g, "").trim();
           result = JSON.parse(cleaned);
-        } catch {
+        } catch (e) {
+          console.warn("[routers/nickActions] operation failed:", e);
           // Fail safe — don't auto-approve unparseable content
           result = { approved: false, score: 0, issues: ["AI review response was not valid JSON"], suggestions: ["Re-run review"], correctedContent: null };
         }

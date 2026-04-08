@@ -202,7 +202,8 @@ export async function autoCreateLeadFromBooking(data: {
     try {
       const { scoreLead } = await import("../gemini");
       scoring = await scoreLead(data.service, data.vehicle);
-    } catch {
+    } catch (e) {
+      console.warn("[services/workOrderAutomation] operation failed:", e);
       // Non-critical — use defaults
     }
 
@@ -230,7 +231,8 @@ export async function autoCreateLeadFromBooking(data: {
     try {
       const { alertNewLead } = await import("./telegram");
       await alertNewLead({ name: data.name, phone: data.phone, service: data.service, source: "booking" });
-    } catch {
+    } catch (e) {
+      console.warn("[services/workOrderAutomation] operation failed:", e);
       // Non-critical
     }
   } catch (err: any) {
@@ -286,7 +288,8 @@ export async function processEstimateFollowUp(): Promise<{ recordsProcessed: num
         sent++;
         // 1.5s delay between sends
         await new Promise(r => setTimeout(r, 1500));
-      } catch {
+      } catch (e) {
+        console.warn("[services/workOrderAutomation] operation failed:", e);
         log.warn(`Estimate follow-up SMS failed for ${est.customerName}`);
       }
     }
@@ -382,7 +385,7 @@ export async function enrollInDripCampaign(
         log.info(`Drip skip: ${customer.name} already enrolled in ${campaign.name}`);
         return;
       }
-    } catch {} // If check fails, proceed (first-time enrollment is more likely)
+    } catch (e) { console.warn("[services/workOrderAutomation] operation failed:", e); } // If check fails, proceed (first-time enrollment is more likely)
 
     const step = campaign.steps[0];
     if (step.delayDays > 0) return; // Only send immediate steps here, scheduled ones need DB

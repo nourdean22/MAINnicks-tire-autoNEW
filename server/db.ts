@@ -18,7 +18,7 @@ let _pool: mysql.Pool | null = null;
 
 /** Reset the cached DB connection — used by self-healing to force reconnection */
 export function resetDbConnection(): void {
-  _pool?.end().catch(() => {});
+  _pool?.end().catch((e) => { console.warn("[db] fire-and-forget failed:", e); });
   _pool = null;
   _db = null;
 }

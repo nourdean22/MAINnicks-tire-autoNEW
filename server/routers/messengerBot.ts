@@ -126,7 +126,7 @@ async function saveLeadToDb(
           source: "chat",
           urgencyScore: 3,
         })
-      ).catch(() => {});
+      ).catch((e) => { console.warn("[routers/messengerBot] fire-and-forget failed:", e); });
     }
 
     return leadId;

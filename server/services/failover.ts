@@ -49,7 +49,8 @@ export async function checkEngineHealth(): Promise<EngineHealth> {
       latencyMs: Date.now() - vercelStart,
       lastCheck: new Date().toISOString(),
     };
-  } catch {
+  } catch (e) {
+    console.warn("[services/failover] operation failed:", e);
     lastHealth.vercel = {
       healthy: false,
       latencyMs: -1,
@@ -91,7 +92,7 @@ export async function runHealthCheck(): Promise<{ recordsProcessed?: number; det
         `Railway is running normally.\n` +
         `Cloud backup and sync are paused until Vercel recovers.`
       );
-    } catch {}
+    } catch (e) { console.warn("[services/failover] operation failed:", e); }
   }
 
   return {

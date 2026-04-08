@@ -153,7 +153,7 @@ export const paymentsRouter = router({
           totalAmount: status.amountReceived / 100,
           method: input.paymentMethod,
         })
-      ).catch(() => {});
+      ).catch((e) => { console.warn("[routers/payments] fire-and-forget failed:", e); });
 
       return { success: true };
     }),

@@ -26,7 +26,8 @@ async function findMatchingLaborJobs(repairDescription: string): Promise<string>
     );
 
     return `\n\nAUTO LABOR GUIDE REFERENCE DATA (use these verified labor times):\n${matches.join("\n")}`;
-  } catch {
+  } catch (e) {
+    console.warn("[laborEstimate] labor guide lookup failed:", e);
     return "";
   }
 }

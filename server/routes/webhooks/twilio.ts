@@ -38,7 +38,7 @@ router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
     }
 
     // Log communication (fire-and-forget)
-    logInboundSms(from, body, parsed.intent).catch(() => {});
+    logInboundSms(from, body, parsed.intent).catch((e) => { console.warn("[webhooks/twilio] fire-and-forget failed:", e); });
 
     // Send empty TwiML response (no auto-reply for now)
     res.type("text/xml").send("<Response></Response>");

@@ -203,11 +203,11 @@ ${conversionRate < 40 ? `- 📉 Conversion rate ${conversionRate}% is below 40% 
       } = await import("../../services/intelligenceEngines");
 
       const [forecast, ltv, scoredLeads, crossSell, declined] = await Promise.all([
-        forecastRevenue().catch(() => null),
-        predictCustomerLTV().catch(() => null),
-        scoreLeads().catch(() => null),
-        generateCrossSellRecommendations().catch(() => null),
-        analyzeDeclinedWork().catch(() => null),
+        forecastRevenue().catch((e) => { console.warn("[jobs/morningBrief] optional operation failed:", e); return null; }),
+        predictCustomerLTV().catch((e) => { console.warn("[jobs/morningBrief] optional operation failed:", e); return null; }),
+        scoreLeads().catch((e) => { console.warn("[jobs/morningBrief] optional operation failed:", e); return null; }),
+        generateCrossSellRecommendations().catch((e) => { console.warn("[jobs/morningBrief] optional operation failed:", e); return null; }),
+        analyzeDeclinedWork().catch((e) => { console.warn("[jobs/morningBrief] optional operation failed:", e); return null; }),
       ]);
 
       intelligenceBlock = "\nINTELLIGENCE:";

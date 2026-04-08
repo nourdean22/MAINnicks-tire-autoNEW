@@ -667,7 +667,8 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
                   .limit(1);
             if (nameMatch.length === 1) customerId = nameMatch[0].id;
           }
-        } catch {
+        } catch (e) {
+          console.warn("[services/shopDriverMirror] operation failed:", e);
           // Name matching is best-effort, don't fail the import
         }
       }
@@ -950,7 +951,8 @@ async function getDataStaleDays(): Promise<number | null> {
     const latest = (rows as any[])?.[0]?.latest;
     if (!latest) return null;
     return Math.round((Date.now() - new Date(latest).getTime()) / (1000 * 60 * 60 * 24));
-  } catch {
+  } catch (e) {
+    console.warn("[services/shopDriverMirror] operation failed:", e);
     return null;
   }
 }
@@ -1140,7 +1142,7 @@ export async function runHistoricalBackfill(): Promise<{
         page++;
 
         if (list.length < 500) break;
-      } catch { break; }
+      } catch (e) { console.warn("[services/shopDriverMirror] customer page fetch failed:", e); break; }
     }
 
     if (totalCust > 0) {
@@ -1283,7 +1285,7 @@ export async function probeAlgEndpoints(): Promise<Record<string, ProbeResult>> 
       try {
         JSON.parse(body);
         isJson = true;
-      } catch { /* expected for non-JSON responses */ }
+      } catch (e) { /* expected for non-JSON responses */ console.warn("[services/shopDriverMirror] operation failed:", e); }
 
       const firstChars = body.substring(0, 200);
       log.info(`[probe] ${endpoint} → ${res.status} json=${isJson} len=${body.length}`, { firstChars });

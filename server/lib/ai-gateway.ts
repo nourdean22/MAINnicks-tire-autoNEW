@@ -29,7 +29,8 @@ async function ensureLogDir() {
   try {
     await mkdir(LOG_DIR, { recursive: true });
     logDirReady = true;
-  } catch {
+  } catch (e) {
+    console.warn("[lib/ai-gateway] operation failed:", e);
     // If mkdir fails, we'll just skip file logging
   }
 }
@@ -40,11 +41,12 @@ async function persistLog(entry: Record<string, unknown>) {
     const line = JSON.stringify(entry) + "\n";
     await appendFile(LOG_FILE, line, "utf-8");
     // Simple rotation: truncate when over ~1MB
-    const s = await stat(LOG_FILE).catch(() => null);
+    const s = await stat(LOG_FILE).catch((e) => { console.warn("[lib/ai-gateway] optional operation failed:", e); return null; });
     if (s && s.size > MAX_LOG_SIZE) {
       await writeFile(LOG_FILE, line, "utf-8");
     }
-  } catch {
+  } catch (e) {
+    console.warn("[lib/ai-gateway] operation failed:", e);
     // Non-blocking — don't let logging failures break requests
   }
 }

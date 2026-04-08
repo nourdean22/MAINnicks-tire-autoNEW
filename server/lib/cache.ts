@@ -90,8 +90,9 @@ export async function cacheSet(key: string, value: unknown, ttlSeconds: number =
       }
     }
     memCache.set(key, { value: serialized, expiresAt: Date.now() + ttlSeconds * 1000 });
-  } catch {
-    // Silent failure — caching is best-effort
+  } catch (e) {
+    // Caching is best-effort
+    console.warn("[lib/cache] cache write failed:", e);
   }
 }
 

@@ -359,7 +359,7 @@ export async function getTopPosts(opts?: { limit?: number }): Promise<PostAnalys
     dayOfWeek: r.dayOfWeek || 0,
     hourOfDay: r.hourOfDay || 0,
     contentScore: r.contentScore || 0,
-    themes: r.themesJson ? (() => { try { return JSON.parse(r.themesJson); } catch { return []; } })() : [],
+    themes: r.themesJson ? (() => { try { return JSON.parse(r.themesJson); } catch (e) { console.warn("[pipelines/instagram-data] operation failed:", e); return []; } })() : [],
   }));
 }
 

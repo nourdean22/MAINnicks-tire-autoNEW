@@ -28,21 +28,21 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
         getShopPulse(),
       ]);
       intelligence = { pipeline, revenue, pulse };
-    } catch {}
+    } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); }
 
     // Gather Nick AI memories
     let memories: any[] = [];
     try {
       const { recall } = await import("../../services/nickMemory");
       memories = await recall({ limit: 20 });
-    } catch {}
+    } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); }
 
     // Gather bridge analytics
     let bridgeAnalytics: any = {};
     try {
       const { getEventAnalytics } = await import("../../nour-os-bridge");
       bridgeAnalytics = getEventAnalytics();
-    } catch {}
+    } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); }
 
     const payload = {
       source: "nickstire",
@@ -146,7 +146,8 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             pacing: Math.round(Number(month.rev || 0) / 100) >= MONTHLY_TARGET ? "on_track" : "behind",
             walkRate: intelligence.pulse?.thisWeek?.walkRate ?? 0,
           };
-        } catch {
+        } catch (e) {
+          console.warn("[jobs/statenourSync] operation failed:", e);
           // Fallback to intelligence if DB query fails
           return {
             todayEstimate: intelligence.pulse?.today?.revenue ?? 0,
@@ -193,7 +194,7 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             peakHours: ci.peakHours,
             actionPlan: plan,
           };
-        } catch { return null; }
+        } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); return null; }
       })(),
       // ═══ Feedback Loop Data ═══
       feedbackLoop: await (async () => {
@@ -205,14 +206,14 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             anomalies: anomalies.map(a => ({ type: a.type, current: a.current, average: a.average, deviation: a.deviation })),
             briefEngagement: engagement,
           };
-        } catch { return null; }
+        } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); return null; }
       })(),
       // ═══ Event Lifecycle Journeys ═══
       customerJourneys: (() => {
         try {
           const { getActiveJourneys } = require("../../services/eventBus");
           return getActiveJourneys();
-        } catch { return []; }
+        } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); return []; }
       })(),
       // ═══ Declined Work (revenue on the table) ═══
       declinedWork: await (async () => {
@@ -231,7 +232,7 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
               hasSafety: e.hasSafetyItems,
             })),
           };
-        } catch { return null; }
+        } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); return null; }
       })(),
       // ═══ Work Order Status ═══
       workOrders: await (async () => {
@@ -246,14 +247,14 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             d.select({ count: sql<number>`count(*)` }).from(woTable).where(sql`${woTable.status} = 'blocked'`),
           ]);
           return { open: open[0]?.count ?? 0, blocked: blocked[0]?.count ?? 0 };
-        } catch { return null; }
+        } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); return null; }
       })(),
       // ═══ Question Patterns (what Nour asks about) ═══
       operatorPatterns: (() => {
         try {
           const { getTopQuestions } = require("../../services/nickMemory");
           return getTopQuestions(5);
-        } catch { return []; }
+        } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); return []; }
       })(),
       // ═══ ALG Source-of-Truth Health ═══
       algHealth: await (async () => {
@@ -264,7 +265,7 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             status: health.recordsProcessed > 0 ? "ok" : "degraded",
             details: health.details,
           };
-        } catch { return { status: "unknown", details: "health check failed" }; }
+        } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); return { status: "unknown", details: "health check failed" }; }
       })(),
       // ═══ Shop Floor (ALG-sourced) ═══
       shopFloor: stats.shopFloor || null,
@@ -312,7 +313,7 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             urgentAlerts.map((a: any) => a.message || a.title || String(a)).join("\n")
           );
         }
-      } catch {}
+      } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); }
     }
 
     return {

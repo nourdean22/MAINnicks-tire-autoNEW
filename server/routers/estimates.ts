@@ -47,7 +47,7 @@ export const estimatesRouter = router({
               estimateLow: laborResult.grandTotalLow,
               estimateHigh: laborResult.grandTotalHigh,
             })
-          ).catch(() => {});
+          ).catch((e) => { console.warn("[routers/estimates] fire-and-forget failed:", e); });
 
           // Return unified shape — rich format with backward-compat fields
           return {
@@ -82,7 +82,7 @@ export const estimatesRouter = router({
           issueCount: result.possibleIssues?.length || 0,
           source: "ai_estimate_static",
         })
-      ).catch(() => {});
+      ).catch((e) => { console.warn("[routers/estimates] fire-and-forget failed:", e); });
 
       return { ...result, _source: "static" as const };
     }),
@@ -166,7 +166,7 @@ export const estimatesRouter = router({
           service: input.repairDescription.slice(0, 100),
           source: "estimate_conversion",
         })
-      ).catch(() => {});
+      ).catch((e) => { console.warn("[routers/estimates] fire-and-forget failed:", e); });
 
       return { workOrderId: wo.id, orderNumber: wo.orderNumber, vehicle, status: "approved" };
     }),

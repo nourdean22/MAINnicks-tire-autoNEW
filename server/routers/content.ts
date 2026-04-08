@@ -108,7 +108,7 @@ export const contentAdminRouter = router({
             category: "content",
             subject: "New AI Content Generated",
             body: `Article: ${result.article.title}\nNotifications: ${result.notifications.length} generated\nErrors: ${result.errors.length > 0 ? result.errors.join(", ") : "None"}\n\nReview and publish at /admin/content`,
-          }).catch(() => {});
+          }).catch((e) => { console.warn("[routers/content] fire-and-forget failed:", e); });
         }
         return result;
       } catch (err) {

@@ -60,7 +60,8 @@ export async function checkExistingEnrollment(phone: string, campaignId: string)
       LIMIT 1
     `);
     return ((rows as any[])?.length || 0) > 0;
-  } catch {
+  } catch (e) {
+    console.warn("[services/dripProcessor] operation failed:", e);
     return false;
   }
 }

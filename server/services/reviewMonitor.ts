@@ -63,7 +63,7 @@ export async function processNewReview(review: Review): Promise<{
     });
     alertSent = true;
     // Push to Telegram
-    alertLowReview({ rating: review.rating, author: review.authorName, text: review.text, platform: review.platform }).catch(() => {});
+    alertLowReview({ rating: review.rating, author: review.authorName, text: review.text, platform: review.platform }).catch((e) => { console.warn("[services/reviewMonitor] fire-and-forget failed:", e); });
     log.warn("Low rating review received", { rating: review.rating, author: review.authorName });
   }
 

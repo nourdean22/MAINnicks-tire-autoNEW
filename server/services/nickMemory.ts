@@ -128,9 +128,10 @@ export async function recall(params?: {
           uses: data.uses || 1,
           createdAt: data.createdAt || "",
         };
-      } catch { return null; }
+      } catch (e) { console.warn("[services/nickMemory] operation failed:", e); return null; }
     }).filter(Boolean) as NickMemory[];
-  } catch {
+  } catch (e) {
+    console.warn("[services/nickMemory] operation failed:", e);
     return [];
   }
 }
@@ -228,9 +229,9 @@ Respond with JSON:
             });
           }
         }
-      } catch {}
+      } catch (e) { console.warn("[services/nickMemory] operation failed:", e); }
     }
-  } catch {}
+  } catch (e) { console.warn("[services/nickMemory] operation failed:", e); }
 }
 
 /**
@@ -376,7 +377,7 @@ export async function learnFromEvent(eventType: string, data: Record<string, any
         break;
       }
     }
-  } catch {}
+  } catch (e) { console.warn("[services/nickMemory] operation failed:", e); }
 }
 
 /**
@@ -408,7 +409,7 @@ export async function syncMemoriesToStatenour(): Promise<number> {
       signal: AbortSignal.timeout(5000),
     });
     return memories.length;
-  } catch { return 0; }
+  } catch (e) { console.warn("[services/nickMemory] operation failed:", e); return 0; }
 }
 
 /**
@@ -591,10 +592,10 @@ export async function decayMemories(): Promise<number> {
           await d.delete(shopSettings).where(sql`${shopSettings.id} = ${row.id}`);
           decayed++;
         }
-      } catch {}
+      } catch (e) { console.warn("[services/nickMemory] operation failed:", e); }
     }
     return decayed;
-  } catch { return 0; }
+  } catch (e) { console.warn("[services/nickMemory] operation failed:", e); return 0; }
 }
 
 /**

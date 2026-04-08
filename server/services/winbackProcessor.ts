@@ -21,7 +21,8 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
     try {
       await db.execute(sql`SELECT 1 FROM winback_sends LIMIT 0`);
       hasTable = true;
-    } catch {
+    } catch (e) {
+      console.warn("[services/winbackProcessor] operation failed:", e);
       return { recordsProcessed: 0, details: "winback tables not set up" };
     }
 

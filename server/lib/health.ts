@@ -194,7 +194,8 @@ export async function recoverHandler(req: Request, res: Response): Promise<void>
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-  } catch {
+  } catch (e) {
+    console.warn("[lib/health] operation failed:", e);
     res.status(401).json({ error: "Auth verification failed" });
     return;
   }

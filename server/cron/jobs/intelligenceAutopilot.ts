@@ -60,7 +60,7 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
           const { processWinbackPending } = await import("../../services/winbackProcessor");
           await processWinbackPending();
           alerts.push(`🚨 AUTO-RECOVERY: Triggered winback batch (revenue ${pacePercent}% of pace)`);
-        } catch {}
+        } catch (e) { console.warn("[jobs/intelligenceAutopilot] operation failed:", e); }
       }
       if (revCorrectionOn && pacePercent < 60 && dayOfMonth >= 15) {
         // 15+ days in and behind 60% → generate emergency recommendations
@@ -74,7 +74,7 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
             `3. Activate referral bonus double-up ($50 instead of $25)\n` +
             `4. Push tire sale on social media`
           );
-        } catch {}
+        } catch (e) { console.warn("[jobs/intelligenceAutopilot] operation failed:", e); }
       }
 
       // Today's revenue check
@@ -277,7 +277,7 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
           source: "intelligence_autopilot",
           confidence: 0.85,
         });
-      } catch {}
+      } catch (e) { console.warn("[jobs/intelligenceAutopilot] operation failed:", e); }
     }
 
     const details = `${alerts.length} alerts, ${actionsPerformed} records analyzed`;
@@ -311,7 +311,7 @@ export async function runAlgAutoDiscovery(): Promise<{ recordsProcessed: number;
           live.slice(0, 5).map(([endpoint, r]) => `${endpoint}: HTTP ${r.status} ${r.isJson ? "(JSON)" : "(other)"} ${r.sampleSize}b`).join("\n") +
           (withData.length > 0 ? `\n\n${withData.length} endpoints returning usable JSON data` : "")
         );
-      } catch {}
+      } catch (e) { console.warn("[jobs/intelligenceAutopilot] operation failed:", e); }
     }
 
     // Store discovery results
@@ -323,7 +323,7 @@ export async function runAlgAutoDiscovery(): Promise<{ recordsProcessed: number;
         source: "alg_discovery",
         confidence: 0.9,
       });
-    } catch {}
+    } catch (e) { console.warn("[jobs/intelligenceAutopilot] operation failed:", e); }
 
     return { recordsProcessed: total, details: `${live.length} live, ${withData.length} with data` };
   } catch (err: any) {

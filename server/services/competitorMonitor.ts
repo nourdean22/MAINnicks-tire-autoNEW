@@ -204,7 +204,7 @@ export function detectChanges(
     const summary = changes
       .map((c) => `${c.name}: ${c.change}`)
       .join("\n");
-    alertSystem("Competitor Changes Detected", summary).catch(() => {});
+    alertSystem("Competitor Changes Detected", summary).catch((e) => { console.warn("[services/competitorMonitor] fire-and-forget failed:", e); });
   }
 
   return changes;

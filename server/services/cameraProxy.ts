@@ -72,7 +72,7 @@ export async function getAllCameras(): Promise<CameraConfig[]> {
         tunnelUrl: data.tunnelUrl,
         snapshotUrl: data.snapshotUrl,
       };
-    } catch { return null; }
+    } catch (e) { console.warn("[services/cameraProxy] operation failed:", e); return null; }
   }).filter(Boolean) as CameraConfig[];
 }
 
@@ -182,7 +182,7 @@ export async function pullCloudCameraSnapshots(): Promise<{ recordsProcessed?: n
         const devData = await devRes.json();
         devices = Array.isArray(devData) ? devData : (devData.devices || []);
       }
-    } catch {}
+    } catch (e) { console.warn("[services/cameraProxy] operation failed:", e); }
 
     const d = await db();
     if (!d || devices.length === 0) return { details: `Fetched ${devices.length} devices, no updates` };
