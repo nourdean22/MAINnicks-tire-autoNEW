@@ -93,6 +93,32 @@ function queueForLater(to: string, body: string, opts?: SendSmsOptions): void {
     to: to.slice(-4),
     scheduledFor: scheduledFor.toISOString(),
   });
+
+  // Persist to DB so delayed messages survive restarts
+  (async () => {
+    try {
+      const { getDb } = await import("./db");
+      const { smsMessages, smsConversations } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) return;
+      // Find or create conversation for this phone
+      let [conv] = await db.select({ id: smsConversations.id })
+        .from(smsConversations).where(eq(smsConversations.phone, to)).limit(1);
+      if (!conv) {
+        const [inserted] = await db.insert(smsConversations).values({ phone: to }).$returningId();
+        conv = { id: inserted.id };
+      }
+      await db.insert(smsMessages).values({
+        conversationId: conv.id,
+        direction: "outbound",
+        body,
+        status: "queued",
+      });
+    } catch (err) {
+      log.warn("Failed to persist delayed SMS to DB", { error: err instanceof Error ? err.message : String(err) });
+    }
+  })();
 }
 
 async function processDelayedQueue(): Promise<void> {
@@ -121,6 +147,42 @@ async function processDelayedQueue(): Promise<void> {
 
 export function startDelayedQueueProcessor(): void {
   if (delayedTimer) return;
+
+  // Rehydrate pending messages from DB that survived a restart
+  (async () => {
+    try {
+      const { getDb } = await import("./db");
+      const { smsMessages, smsConversations } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (!db) return;
+      const pending = await db.select({
+        id: smsMessages.id,
+        body: smsMessages.body,
+        phone: smsConversations.phone,
+      })
+        .from(smsMessages)
+        .innerJoin(smsConversations, eq(smsMessages.conversationId, smsConversations.id))
+        .where(eq(smsMessages.status, "queued"))
+        .limit(100);
+
+      if (pending.length > 0) {
+        for (const msg of pending) {
+          // Only add if not already in the in-memory queue
+          const alreadyQueued = delayedQueue.some(q => q.to === msg.phone && q.body === msg.body);
+          if (!alreadyQueued) {
+            delayedQueue.push({ to: msg.phone, body: msg.body, scheduledFor: getNextSendWindow() });
+          }
+          // Mark DB row as sent so it won't be rehydrated again
+          await db.update(smsMessages).set({ status: "sent" }).where(eq(smsMessages.id, msg.id));
+        }
+        log.info(`Rehydrated ${pending.length} pending SMS from DB`);
+      }
+    } catch (err) {
+      log.warn("Failed to rehydrate SMS queue from DB", { error: err instanceof Error ? err.message : String(err) });
+    }
+  })();
+
   delayedTimer = setInterval(() => {
     processDelayedQueue().catch((err) => {
       log.warn("Delayed SMS queue processing failed", {

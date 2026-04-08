@@ -211,6 +211,28 @@ async function startServer() {
   app.get("/api/ready", readyHandler);
   app.post("/api/health/recover", recoverHandler);
 
+  // ─── Abandoned Form Tracking ──────────────────────────
+  // Receives navigator.sendBeacon from BookingWizard on page unload
+  app.post("/api/track-abandoned", express.json(), async (req, res) => {
+    try {
+      const { name, phone, service, vehicle, step: formStep } = req.body || {};
+      if (!name && !phone) return res.sendStatus(204);
+      const { savePartialForm } = await import("../services/abandonedForms");
+      const sessionId = `beacon-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      savePartialForm({
+        sessionId,
+        formType: "booking",
+        name: typeof name === "string" ? name.slice(0, 200) : undefined,
+        phone: typeof phone === "string" ? phone.slice(0, 20) : undefined,
+        service: typeof service === "string" ? service.slice(0, 200) : undefined,
+        pageUrl: `/book (step ${formStep || "?"})`,
+      });
+      res.sendStatus(204);
+    } catch {
+      res.sendStatus(204);
+    }
+  });
+
   // ─── Self-Healing Monitor ─────────────────────────────
   startSelfHealing();
 
