@@ -187,13 +187,18 @@ export const weeklyReportRouter = router({
     const weekNotifs = await d.select().from(customerNotifications)
       .where(gte(customerNotifications.createdAt, weekAgo));
 
+    type Booking = typeof weekBookings[number];
+    type Lead = typeof weekLeads[number];
+    type Callback = typeof weekCallbacks[number];
+    type Notif = typeof weekNotifs[number];
+
     const serviceBreakdown: Record<string, number> = {};
-    weekBookings.forEach((b: any) => {
+    weekBookings.forEach((b: Booking) => {
       serviceBreakdown[b.service] = (serviceBreakdown[b.service] || 0) + 1;
     });
 
     const urgencyBreakdown: Record<string, number> = {};
-    weekBookings.forEach((b: any) => {
+    weekBookings.forEach((b: Booking) => {
       const u = b.urgency || "whenever";
       urgencyBreakdown[u] = (urgencyBreakdown[u] || 0) + 1;
     });
@@ -202,26 +207,26 @@ export const weeklyReportRouter = router({
       period: { start: weekAgo.toISOString(), end: now.toISOString() },
       bookings: {
         total: weekBookings.length,
-        completed: weekBookings.filter((b: any) => b.status === "completed").length,
-        cancelled: weekBookings.filter((b: any) => b.status === "cancelled").length,
-        emergency: weekBookings.filter((b: any) => b.urgency === "emergency").length,
+        completed: weekBookings.filter((b: Booking) => b.status === "completed").length,
+        cancelled: weekBookings.filter((b: Booking) => b.status === "cancelled").length,
+        emergency: weekBookings.filter((b: Booking) => b.urgency === "emergency").length,
         serviceBreakdown,
         urgencyBreakdown,
       },
       leads: {
         total: weekLeads.length,
-        highUrgency: weekLeads.filter((l: any) => l.urgencyScore >= 4).length,
-        converted: weekLeads.filter((l: any) => l.status === "booked").length,
-        sources: weekLeads.reduce((acc: any, l: any) => { acc[l.source] = (acc[l.source] || 0) + 1; return acc; }, {} as Record<string, number>),
+        highUrgency: weekLeads.filter((l: Lead) => l.urgencyScore >= 4).length,
+        converted: weekLeads.filter((l: Lead) => l.status === "booked").length,
+        sources: weekLeads.reduce((acc: Record<string, number>, l: Lead) => { acc[l.source] = (acc[l.source] || 0) + 1; return acc; }, {} as Record<string, number>),
       },
       callbacks: {
         total: weekCallbacks.length,
-        completed: weekCallbacks.filter((c: any) => c.status === "completed").length,
-        pending: weekCallbacks.filter((c: any) => c.status === "new").length,
+        completed: weekCallbacks.filter((c: Callback) => c.status === "completed").length,
+        pending: weekCallbacks.filter((c: Callback) => c.status === "new").length,
       },
       notifications: {
-        sent: weekNotifs.filter((n: any) => n.status === "sent").length,
-        pending: weekNotifs.filter((n: any) => n.status === "pending").length,
+        sent: weekNotifs.filter((n: Notif) => n.status === "sent").length,
+        pending: weekNotifs.filter((n: Notif) => n.status === "pending").length,
       },
     };
 
@@ -347,7 +352,7 @@ export const exportRouter = router({
     if (!d) return { csv: "", count: 0 };
     const rows = await d.select().from(bookings).orderBy(desc(bookings.createdAt)).limit(10000);
     const headers = ["ID", "Name", "Phone", "Email", "Service", "Vehicle", "Status", "Urgency", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
-    const csvRows = rows.map((r: any) => [
+    const csvRows = rows.map((r: typeof rows[number]) => [
       r.id, csvSafe(r.name), csvSafe(r.phone), csvSafe(r.email), csvSafe(r.service), csvSafe(r.vehicle), r.status, r.urgency || "",
       csvSafe(r.utmSource), csvSafe(r.utmMedium), csvSafe(r.utmCampaign), csvSafe(r.landingPage), csvSafe(r.referrer),
       new Date(r.createdAt).toISOString(),
@@ -360,7 +365,7 @@ export const exportRouter = router({
     if (!d) return { csv: "", count: 0 };
     const rows = await d.select().from(leads).orderBy(desc(leads.createdAt)).limit(10000);
     const headers = ["ID", "Name", "Phone", "Email", "Source", "Problem", "Urgency Score", "Status", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
-    const csvRows = rows.map((r: any) => [
+    const csvRows = rows.map((r: typeof rows[number]) => [
       r.id, csvSafe(r.name), csvSafe(r.phone), csvSafe(r.email), r.source, csvSafe(r.problem), r.urgencyScore ?? "", r.status,
       csvSafe(r.utmSource), csvSafe(r.utmMedium), csvSafe(r.utmCampaign), csvSafe(r.landingPage), csvSafe(r.referrer),
       new Date(r.createdAt).toISOString(),
@@ -373,7 +378,7 @@ export const exportRouter = router({
     if (!d) return { csv: "", count: 0 };
     const rows = await d.select().from(callEvents).orderBy(desc(callEvents.createdAt)).limit(10000);
     const headers = ["ID", "Phone Number", "Source Page", "Click Element", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
-    const csvRows = rows.map((r: any) => [
+    const csvRows = rows.map((r: typeof rows[number]) => [
       r.id, csvSafe(r.phoneNumber), csvSafe(r.sourcePage), csvSafe(r.clickElement),
       csvSafe(r.utmSource), csvSafe(r.utmMedium), csvSafe(r.utmCampaign), csvSafe(r.landingPage), csvSafe(r.referrer),
       new Date(r.createdAt).toISOString(),
@@ -386,7 +391,7 @@ export const exportRouter = router({
     if (!d) return { csv: "", count: 0 };
     const rows = await d.select().from(callbackRequests).orderBy(desc(callbackRequests.createdAt)).limit(10000);
     const headers = ["ID", "Name", "Phone", "Context", "Source Page", "Status", "UTM Source", "UTM Medium", "UTM Campaign", "Landing Page", "Referrer", "Created"];
-    const csvRows = rows.map((r: any) => [
+    const csvRows = rows.map((r: typeof rows[number]) => [
       r.id, csvSafe(r.name), csvSafe(r.phone), csvSafe(r.context), csvSafe(r.sourcePage), r.status,
       csvSafe(r.utmSource), csvSafe(r.utmMedium), csvSafe(r.utmCampaign), csvSafe(r.landingPage), csvSafe(r.referrer),
       new Date(r.createdAt).toISOString(),

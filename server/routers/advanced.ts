@@ -123,12 +123,12 @@ export const jobAssignmentsRouter = router({
         .where(eq(jobAssignments.bookingId, input.bookingId))
         .orderBy(desc(jobAssignments.createdAt));
       // Enrich with technician names
-      const techIds = Array.from(new Set(assignments.map((a: any) => a.technicianId)));
+      const techIds = Array.from(new Set(assignments.map((a: typeof assignments[number]) => a.technicianId)));
       const techs = techIds.length > 0
         ? await d.select().from(technicians).where(sql`${technicians.id} IN (${sql.join(techIds.map(id => sql`${id}`), sql`, `)})`)
         : [];
-      const techMap = new Map(techs.map((t: any) => [t.id, t]));
-      return assignments.map((a: any) => ({
+      const techMap = new Map(techs.map((t: typeof techs[number]) => [t.id, t]));
+      return assignments.map((a: typeof assignments[number]) => ({
         ...a,
         technician: techMap.get(a.technicianId) || null,
       }));
@@ -151,13 +151,13 @@ export const jobAssignmentsRouter = router({
     const techs = await d.select().from(technicians).where(eq(technicians.isActive, 1));
     const activeJobs = await d.select().from(jobAssignments)
       .where(sql`${jobAssignments.completedAt} IS NULL`);
-    return techs.map((t: any) => ({
+    return techs.map((t: typeof techs[number]) => ({
       id: t.id,
       name: t.name,
       title: t.title,
       photoUrl: t.photoUrl,
-      activeJobs: activeJobs.filter((j: any) => j.technicianId === t.id).length,
-      assignments: activeJobs.filter((j: any) => j.technicianId === t.id),
+      activeJobs: activeJobs.filter((j: typeof activeJobs[number]) => j.technicianId === t.id).length,
+      assignments: activeJobs.filter((j: typeof activeJobs[number]) => j.technicianId === t.id),
     }));
   }),
 });
@@ -337,19 +337,20 @@ export const invoicesRouter = router({
       const prevInvoices = await d.select().from(invoices)
         .where(and(gte(invoices.invoiceDate, prevCutoff), lte(invoices.invoiceDate, cutoff), eq(invoices.paymentStatus, "paid")));
 
-      const totalRevenue = Math.round(currentInvoices.reduce((sum: any, inv: any) => sum + inv.totalAmount, 0) / 100);
-      const prevRevenue = Math.round(prevInvoices.reduce((sum: any, inv: any) => sum + inv.totalAmount, 0) / 100);
+      type Inv = typeof currentInvoices[number];
+      const totalRevenue = Math.round(currentInvoices.reduce((sum: number, inv: Inv) => sum + inv.totalAmount, 0) / 100);
+      const prevRevenue = Math.round(prevInvoices.reduce((sum: number, inv: Inv) => sum + inv.totalAmount, 0) / 100);
 
       // Revenue by day
       const byDay: Record<string, number> = {};
-      currentInvoices.forEach((inv: any) => {
+      currentInvoices.forEach((inv: Inv) => {
         const day = new Date(inv.invoiceDate).toISOString().split("T")[0];
         byDay[day] = (byDay[day] || 0) + Math.round(inv.totalAmount / 100);
       });
 
       // Revenue by payment method
       const byPayment: Record<string, number> = {};
-      currentInvoices.forEach((inv: any) => {
+      currentInvoices.forEach((inv: Inv) => {
         byPayment[inv.paymentMethod] = (byPayment[inv.paymentMethod] || 0) + Math.round(inv.totalAmount / 100);
       });
 
@@ -377,7 +378,7 @@ export const invoicesRouter = router({
         .where(eq(invoices.paymentStatus, "paid"));
       // Aggregate by customer name
       const byCustomer: Record<string, { name: string; phone: string | null; total: number; count: number; lastVisit: Date }> = {};
-      all.forEach((inv: any) => {
+      all.forEach((inv: typeof all[number]) => {
         const key = inv.customerPhone || inv.customerName;
         if (!byCustomer[key]) {
           byCustomer[key] = { name: inv.customerName, phone: inv.customerPhone, total: 0, count: 0, lastVisit: new Date(inv.invoiceDate) };
@@ -505,20 +506,22 @@ export const invoicesRouter = router({
         `),
       ]);
 
-      const overview = (overviewRows as any[])?.[0]?.[0] || {};
-      const lp = (laborPartsRows as any[])?.[0]?.[0] || {};
-      const monthly = ((monthlyRows as any[])?.[0] || []).reverse();
-      const payments = (paymentRows as any[])?.[0] || [];
-      const services = (serviceRows as any[])?.[0] || [];
-      const topDays = (topDaysRows as any[])?.[0] || [];
-      const byDayOfWeek = (hourRows as any[])?.[0] || [];
-      const weekly = ((weeklyRows as any[])?.[0] || []).reverse();
-      const dailyVelocity = (velocityRows as any[])?.[0] || [];
+      type RawRow = Record<string, unknown>;
+      type RawResult = [RawRow[], unknown];
+      const overview = ((overviewRows as RawResult)?.[0]?.[0] || {}) as RawRow;
+      const lp = ((laborPartsRows as RawResult)?.[0]?.[0] || {}) as RawRow;
+      const monthly = (((monthlyRows as RawResult)?.[0] || []) as RawRow[]).reverse();
+      const payments = ((paymentRows as RawResult)?.[0] || []) as RawRow[];
+      const services = ((serviceRows as RawResult)?.[0] || []) as RawRow[];
+      const topDays = ((topDaysRows as RawResult)?.[0] || []) as RawRow[];
+      const byDayOfWeek = ((hourRows as RawResult)?.[0] || []) as RawRow[];
+      const weekly = (((weeklyRows as RawResult)?.[0] || []) as RawRow[]).reverse();
+      const dailyVelocity = ((velocityRows as RawResult)?.[0] || []) as RawRow[];
 
       // Projections
       const recentMonths = monthly.slice(-3);
       const recentAvg = recentMonths.length > 0
-        ? recentMonths.reduce((s: number, m: any) => s + Number(m.rev || 0), 0) / recentMonths.length
+        ? recentMonths.reduce((s: number, m: RawRow) => s + Number(m.rev || 0), 0) / recentMonths.length
         : 0;
 
       return {
@@ -542,7 +545,7 @@ export const invoicesRouter = router({
           partsOnlyJobs: Number(lp.partsOnly || 0),
           bothJobs: Number(lp.both || 0),
         },
-        monthlyTrend: monthly.map((m: any) => ({
+        monthlyTrend: monthly.map((m: RawRow) => ({
           month: m.month,
           invoices: Number(m.cnt),
           revenue: Math.round(Number(m.rev || 0) / 100),
@@ -550,29 +553,29 @@ export const invoicesRouter = router({
           parts: Math.round(Number(m.parts || 0) / 100),
           avgTicket: Math.round(Number(m.avgTicket || 0) / 100),
         })),
-        paymentMix: payments.map((p: any) => ({
+        paymentMix: payments.map((p: RawRow) => ({
           method: p.paymentMethod || "unknown",
           count: Number(p.cnt),
           revenue: Math.round(Number(p.rev || 0) / 100),
         })),
-        serviceBreakdown: services.map((s: any) => ({
+        serviceBreakdown: services.map((s: RawRow) => ({
           category: s.category,
           count: Number(s.cnt),
           revenue: Math.round(Number(s.rev || 0) / 100),
           avgTicket: Math.round(Number(s.avgTicket || 0) / 100),
         })),
-        topDays: topDays.map((d: any) => ({
+        topDays: topDays.map((d: RawRow) => ({
           day: d.day,
           jobs: Number(d.jobs),
           revenue: Math.round(Number(d.rev || 0) / 100),
         })),
-        dayOfWeek: byDayOfWeek.map((d: any) => ({
+        dayOfWeek: byDayOfWeek.map((d: RawRow) => ({
           day: d.dayName,
           count: Number(d.cnt),
           revenue: Math.round(Number(d.rev || 0) / 100),
           avgTicket: Math.round(Number(d.avgTicket || 0) / 100),
         })),
-        weeklyTrend: weekly.map((w: any) => ({
+        weeklyTrend: weekly.map((w: RawRow) => ({
           week: w.weekStart,
           invoices: Number(w.cnt),
           revenue: Math.round(Number(w.rev || 0) / 100),
@@ -580,7 +583,7 @@ export const invoicesRouter = router({
           parts: Math.round(Number(w.parts || 0) / 100),
           avgTicket: Math.round(Number(w.avgTicket || 0) / 100),
         })),
-        dailyVelocity: dailyVelocity.map((d: any) => ({
+        dailyVelocity: dailyVelocity.map((d: RawRow) => ({
           day: d.day,
           jobs: Number(d.jobs),
           revenue: Math.round(Number(d.rev || 0) / 100),
@@ -614,17 +617,18 @@ export const invoicesRouter = router({
               FROM invoices WHERE paymentStatus = 'pending'
               AND invoiceDate < DATE_SUB(NOW(), INTERVAL 3 DAY)
             `);
-            const se = (staleEst as any[])?.[0];
+            const se = (staleEst as RawRow[])?.[0];
             if (Number(se?.cnt) > 0) {
-              recs.push({ text: `Follow up on ${se.cnt} stale estimates — ~$${Math.round(Number(se.potential)/100)} potential revenue`, type: "revenue", priority: "high" });
+              recs.push({ text: `Follow up on ${se?.cnt} stale estimates — ~$${Math.round(Number(se?.potential ?? 0)/100)} potential revenue`, type: "revenue", priority: "high" });
             }
             // Check dormant high-value customers
             const [dormant] = await d.execute(rawSql`
               SELECT COUNT(*) as cnt FROM customers
               WHERE lastVisitDate < DATE_SUB(NOW(), INTERVAL 90 DAY) AND totalSpent > ${MONTHLY_TARGET}
             `);
-            if (Number((dormant as any[])?.[0]?.cnt) > 5) {
-              recs.push({ text: `${(dormant as any[])?.[0]?.cnt} high-value customers haven't visited in 90+ days — win-back campaign opportunity`, type: "growth", priority: "high" });
+            const dormantRow = (dormant as RawRow[])?.[0];
+            if (Number(dormantRow?.cnt) > 5) {
+              recs.push({ text: `${dormantRow?.cnt} high-value customers haven't visited in 90+ days — win-back campaign opportunity`, type: "growth", priority: "high" });
             }
             // Revenue pacing
             const avg = Math.round(recentAvg / 100);
@@ -632,9 +636,9 @@ export const invoicesRouter = router({
               recs.push({ text: `Revenue trending $${(MONTHLY_TARGET - avg).toLocaleString()} below ${BUSINESS.revenueTarget.display} target — need ${Math.round((MONTHLY_TARGET - avg) / 26)}/day more`, type: "risk", priority: "high" });
             }
             // Slow days
-            const slowDays = byDayOfWeek.filter((d: any) => Number(d.cnt) < 2);
+            const slowDays = byDayOfWeek.filter((d: RawRow) => Number(d.cnt) < 2);
             if (slowDays.length > 0) {
-              recs.push({ text: `${slowDays.map((d: any) => d.dayName).join(', ')} are slow days — consider promotions or appointments-only`, type: "growth", priority: "medium" });
+              recs.push({ text: `${slowDays.map((d: RawRow) => d.dayName).join(', ')} are slow days — consider promotions or appointments-only`, type: "growth", priority: "medium" });
             }
           } catch {}
           return recs;
@@ -682,7 +686,7 @@ export const invoicesRouter = router({
       const recoveryRate = totalEstimates > 0 ? Math.round((recovered / totalEstimates) * 100) : 0;
 
       const total = pending.length;
-      const recoverable = pending.reduce((sum: number, inv: any) => sum + (inv.totalAmount || 0), 0);
+      const recoverable = pending.reduce((sum: number, inv: typeof pending[number]) => sum + (inv.totalAmount || 0), 0);
 
       return {
         estimates: pending,
@@ -726,16 +730,16 @@ export const kpiRouter = router({
     // Revenue this month
     const monthInvoices = await d.select().from(invoices)
       .where(and(gte(invoices.invoiceDate, monthAgo), eq(invoices.paymentStatus, "paid")));
-    const monthRevenue = Math.round(monthInvoices.reduce((sum: any, inv: any) => sum + inv.totalAmount, 0) / 100);
+    const monthRevenue = Math.round(monthInvoices.reduce((sum: number, inv: typeof monthInvoices[number]) => sum + inv.totalAmount, 0) / 100);
 
     // Review stats
     const monthReviews = await d.select().from(reviewRequests).where(gte(reviewRequests.createdAt, monthAgo));
-    const reviewsSent = monthReviews.filter((r: any) => r.status === "sent" || r.status === "clicked").length;
-    const reviewsClicked = monthReviews.filter((r: any) => r.status === "clicked").length;
+    const reviewsSent = monthReviews.filter((r: typeof monthReviews[number]) => r.status === "sent" || r.status === "clicked").length;
+    const reviewsClicked = monthReviews.filter((r: typeof monthReviews[number]) => r.status === "clicked").length;
 
     // Conversion rate
     const totalLeads = monthLeads.length;
-    const convertedLeads = monthLeads.filter((l: any) => l.status === "booked").length;
+    const convertedLeads = monthLeads.filter((l: typeof monthLeads[number]) => l.status === "booked").length;
     const conversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0;
 
     // Customer counts
@@ -748,8 +752,9 @@ export const kpiRouter = router({
       sql`SELECT DAYOFWEEK(createdAt) as dow, count(*) as cnt FROM bookings GROUP BY dow`
     );
 
+    type RawRow2 = Record<string, unknown>;
     const dayOfWeekCounts = [0, 0, 0, 0, 0, 0, 0]; // Sun-Sat
-    for (const r of dayOfWeekRaw as any[]) {
+    for (const r of (dayOfWeekRaw as [RawRow2[], unknown])[0]) {
       const idx = Number(r.dow) - 1;
       if (idx >= 0 && idx < 7) dayOfWeekCounts[idx] = Number(r.cnt);
     }
@@ -760,7 +765,7 @@ export const kpiRouter = router({
     );
 
     const hourCounts = new Array(24).fill(0);
-    for (const r of hourRaw as any[]) {
+    for (const r of (hourRaw as [RawRow2[], unknown])[0]) {
       if (Number(r.hr) >= 0 && Number(r.hr) < 24) hourCounts[Number(r.hr)] = Number(r.cnt);
     }
 
@@ -778,9 +783,9 @@ export const kpiRouter = router({
       newCustomersThisMonth: newCustomerCount?.count ?? 0,
       dayOfWeekCounts,
       hourCounts,
-      completedThisWeek: weekBookings.filter((b: any) => b.status === "completed").length,
-      completedThisMonth: monthBookings.filter((b: any) => b.status === "completed").length,
-      emergencyThisWeek: weekBookings.filter((b: any) => b.urgency === "emergency").length,
+      completedThisWeek: weekBookings.filter((b: typeof weekBookings[number]) => b.status === "completed").length,
+      completedThisMonth: monthBookings.filter((b: typeof monthBookings[number]) => b.status === "completed").length,
+      emergencyThisWeek: weekBookings.filter((b: typeof weekBookings[number]) => b.urgency === "emergency").length,
     };
   }),
 
@@ -942,13 +947,12 @@ export const portalRouter = router({
         .limit(20);
 
       // Get service history if customer exists
-      let history: any[] = [];
-      if (session.customerId) {
-        history = await d.select().from(serviceHistory)
-          .where(eq(serviceHistory.userId, session.customerId))
-          .orderBy(desc(serviceHistory.completedAt))
-          .limit(20);
-      }
+      const history = session.customerId
+        ? await d.select().from(serviceHistory)
+            .where(eq(serviceHistory.userId, session.customerId))
+            .orderBy(desc(serviceHistory.completedAt))
+            .limit(20)
+        : [];
 
       return {
         customer,
