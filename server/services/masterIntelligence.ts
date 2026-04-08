@@ -36,14 +36,36 @@ async function batchedSettled<T>(fns: (() => Promise<T>)[], batchSize = 5): Prom
 
 // ── Types ────────────────────────────────────────────────
 
+/** Loose engine result — each engine returns a different shape */
+type EngineResult = Record<string, unknown> | null;
+
+/** Safe property access from engine results */
+function num(obj: EngineResult, ...keys: string[]): number {
+  if (!obj) return 0;
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === "number") return v;
+  }
+  return 0;
+}
+
+function arr(obj: EngineResult, ...keys: string[]): unknown[] {
+  if (!obj) return [];
+  for (const k of keys) {
+    const v = obj[k];
+    if (Array.isArray(v)) return v;
+  }
+  return [];
+}
+
 export interface MasterIntelligenceReport {
   timestamp: string;
-  revenue: { pacing: any; anomalies: any; cashFlow: any; margins: any; ticketTrend: any };
-  customers: { churnRisk: any; riskScores: any; valueTrend: any; repeatPrediction: any; velocity: any; concentration: any };
-  operations: { techEfficiency: any; turnaround: any; bayUtilization: any; capacity: any; partsCost: any };
-  marketing: { channelROI: any; reviewVelocity: any; smsEngagement: any; leadResponse: any; contentPerformance: any };
-  growth: { newCustomerVelocity: any; referralNetwork: any; portfolioLTV: any; marketShare: any; seasonalDemand: any };
-  competitive: { competitorGap: any; chatFunnel: any; reviewSentiment: any };
+  revenue: { pacing: EngineResult; anomalies: EngineResult; cashFlow: EngineResult; margins: EngineResult; ticketTrend: EngineResult };
+  customers: { churnRisk: EngineResult; riskScores: EngineResult; valueTrend: EngineResult; repeatPrediction: EngineResult; velocity: EngineResult; concentration: EngineResult };
+  operations: { techEfficiency: EngineResult; turnaround: EngineResult; bayUtilization: EngineResult; capacity: EngineResult; partsCost: EngineResult };
+  marketing: { channelROI: EngineResult; reviewVelocity: EngineResult; smsEngagement: EngineResult; leadResponse: EngineResult; contentPerformance: EngineResult };
+  growth: { newCustomerVelocity: EngineResult; referralNetwork: EngineResult; portfolioLTV: EngineResult; marketShare: EngineResult; seasonalDemand: EngineResult };
+  competitive: { competitorGap: EngineResult; chatFunnel: EngineResult; reviewSentiment: EngineResult };
   summary: {
     topAlert: string;
     topOpportunity: string;
@@ -121,36 +143,35 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
     /* 27 */ () => forecastPortfolioLTV(),
   ]);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- heterogeneous engine results
-  const r = results as PromiseSettledResult<any>[];
-  const pacing        = settled(r[0]);
-  const churnRisk     = settled(r[1]);
-  const anomalies     = settled(r[2]);
-  const cashFlow      = settled(r[3]);
-  const margins       = settled(r[4]);
-  const ticketTrend   = settled(r[5]);
-  const riskScores    = settled(r[6]);
-  const valueTrend    = settled(r[7]);
-  const repeatPred    = settled(r[8]);
-  const custVelocity  = settled(r[9]);
-  const concentration = settled(r[10]);
-  const techEff       = settled(r[11]);
-  const turnaround    = settled(r[12]);
-  const bayUtil       = settled(r[13]);
-  const capacity      = settled(r[14]);
-  const partsCost     = settled(r[15]);
-  const channelROI    = settled(r[16]);
-  const reviewVel     = settled(r[17]);
-  const smsEng        = settled(r[18]);
-  const leadResp      = settled(r[19]);
-  const contentPerf   = settled(r[20]);
-  const compGap       = settled(r[21]);
-  const chatFunnel    = settled(r[22]);
-  const reviewSent    = settled(r[23]);
-  const seasonal      = settled(r[24]);
-  const marketShare   = settled(r[25]);
-  const referralNet   = settled(r[26]);
-  const portfolioLTV  = settled(r[27]);
+  const r = results;
+  const pacing        = settled(r[0]) as EngineResult;
+  const churnRisk     = settled(r[1]) as EngineResult;
+  const anomalies     = settled(r[2]) as EngineResult;
+  const cashFlow      = settled(r[3]) as EngineResult;
+  const margins       = settled(r[4]) as EngineResult;
+  const ticketTrend   = settled(r[5]) as EngineResult;
+  const riskScores    = settled(r[6]) as EngineResult;
+  const valueTrend    = settled(r[7]) as EngineResult;
+  const repeatPred    = settled(r[8]) as EngineResult;
+  const custVelocity  = settled(r[9]) as EngineResult;
+  const concentration = settled(r[10]) as EngineResult;
+  const techEff       = settled(r[11]) as EngineResult;
+  const turnaround    = settled(r[12]) as EngineResult;
+  const bayUtil       = settled(r[13]) as EngineResult;
+  const capacity      = settled(r[14]) as EngineResult;
+  const partsCost     = settled(r[15]) as EngineResult;
+  const channelROI    = settled(r[16]) as EngineResult;
+  const reviewVel     = settled(r[17]) as EngineResult;
+  const smsEng        = settled(r[18]) as EngineResult;
+  const leadResp      = settled(r[19]) as EngineResult;
+  const contentPerf   = settled(r[20]) as EngineResult;
+  const compGap       = settled(r[21]) as EngineResult;
+  const chatFunnel    = settled(r[22]) as EngineResult;
+  const reviewSent    = settled(r[23]) as EngineResult;
+  const seasonal      = settled(r[24]) as EngineResult;
+  const marketShare   = settled(r[25]) as EngineResult;
+  const referralNet   = settled(r[26]) as EngineResult;
+  const portfolioLTV  = settled(r[27]) as EngineResult;
 
   // ── Compute Business Health Score (0-100) ──────────────
   // Weighted composite: revenue pacing (30%), churn (20%), reviews (15%), customer growth (15%), margins (20%)
@@ -163,7 +184,8 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
     const dayOfMonth = new Date().getDate();
     const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
     const expectedPace = (dayOfMonth / daysInMonth) * monthTarget;
-    const monthSoFar = pacing.month?.soFar || 0;
+    const monthObj = pacing.month as Record<string, unknown> | undefined;
+    const monthSoFar = typeof monthObj?.soFar === "number" ? monthObj.soFar : 0;
     const pacePct = expectedPace > 0 ? monthSoFar / expectedPace : 1;
     // 100% pace = 30pts, 80% = 24pts, 120% = 36pts (capped at 30)
     score += clamp(Math.round(pacePct * 30) - 30, -15, 15);
@@ -171,28 +193,28 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
 
   // Churn risk component (20 pts) — fewer high-risk = better
   if (churnRisk) {
-    const highRiskCount = churnRisk.highRisk?.length || 0;
+    const highRiskCount = arr(churnRisk, "highRisk").length;
     // 0 high-risk = +10, 5+ = -10
     score += clamp(10 - highRiskCount * 2, -10, 10);
   }
 
   // Review velocity component (15 pts) — velocity is % change month-over-month
   if (reviewVel) {
-    const velocity = (reviewVel as any)?.velocity ?? 0;
+    const velocity = num(reviewVel, "velocity");
     // Positive velocity = growing reviews = good; negative = losing momentum
     score += velocity > 0 ? 15 : velocity > -10 ? 10 : 5;
   }
 
   // Customer growth component (15 pts)
   if (custVelocity) {
-    const monthlyNew = (custVelocity as any).thisMonth || (custVelocity as any).newThisMonth || 0;
+    const monthlyNew = num(custVelocity, "thisMonth", "newThisMonth");
     // 10+ new customers/month = +8, 0 = -5
     score += clamp(Math.round(monthlyNew * 0.8) - 5, -8, 8);
   }
 
   // Margin health component (20 pts)
   if (margins) {
-    const avgMargin = (margins as any).averageMargin || (margins as any).overallMargin || 50;
+    const avgMargin = num(margins, "averageMargin", "overallMargin") || 50;
     // 50%+ margin = +10, 30% = 0, <20% = -10
     score += clamp(Math.round((avgMargin - 30) * 0.5), -10, 10);
   }
@@ -211,7 +233,8 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
     const dayOfMonth = new Date().getDate();
     const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
     const expectedPace = (dayOfMonth / daysInMonth) * monthTarget;
-    const monthSoFar = pacing.month?.soFar || 0;
+    const mObj = pacing.month as Record<string, unknown> | undefined;
+    const monthSoFar = typeof mObj?.soFar === "number" ? mObj.soFar : 0;
     const pacePct = expectedPace > 0 ? Math.round((monthSoFar / expectedPace) * 100) : 100;
     if (pacePct < 80) {
       alertCandidates.push({ priority: 100 - pacePct, text: `Revenue at ${pacePct}% of pace — $${Math.round(monthSoFar)} of $${Math.round(expectedPace)} expected by day ${dayOfMonth}` });
@@ -223,16 +246,17 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
 
   // Churn risk
   if (churnRisk) {
-    const highCount = churnRisk.highRisk?.length || 0;
+    const highRiskArr = arr(churnRisk, "highRisk") as Array<Record<string, unknown>>;
+    const highCount = highRiskArr.length;
     if (highCount > 0) {
-      const topName = churnRisk.highRisk[0]?.name || "Unknown";
-      riskCandidates.push({ priority: highCount * 10, text: `${highCount} high-value customers at churn risk — ${topName} most urgent (${churnRisk.highRisk[0]?.daysSinceVisit || "?"}d since last visit)` });
+      const topName = String(highRiskArr[0]?.name || "Unknown");
+      riskCandidates.push({ priority: highCount * 10, text: `${highCount} high-value customers at churn risk — ${topName} most urgent (${highRiskArr[0]?.daysSinceVisit || "?"}d since last visit)` });
     }
   }
 
   // Anomalies
   if (anomalies) {
-    const spikes = (anomalies as any).spikes || (anomalies as any).anomalies || [];
+    const spikes = arr(anomalies, "spikes", "anomalies");
     if (Array.isArray(spikes) && spikes.length > 0) {
       alertCandidates.push({ priority: 30, text: `${spikes.length} revenue anomalies detected — investigate unusual patterns` });
     }
@@ -240,8 +264,8 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
 
   // Customer velocity opportunity
   if (custVelocity) {
-    const monthlyNew = (custVelocity as any).thisMonth || (custVelocity as any).newThisMonth || 0;
-    const lastMonth = (custVelocity as any).lastMonth || (custVelocity as any).newLastMonth || 0;
+    const monthlyNew = num(custVelocity, "thisMonth", "newThisMonth");
+    const lastMonth = num(custVelocity, "lastMonth", "newLastMonth");
     if (monthlyNew > lastMonth && lastMonth > 0) {
       opportunityCandidates.push({ priority: 20, text: `New customer velocity up: ${monthlyNew} this month vs ${lastMonth} last month` });
     }
@@ -252,7 +276,7 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
 
   // Review velocity
   if (reviewVel) {
-    const rate = (reviewVel as any).weeklyRate || 0;
+    const rate = num(reviewVel, "weeklyRate");
     if (rate === 0) {
       riskCandidates.push({ priority: 15, text: "Zero new reviews this week — reputation stalling" });
     }
@@ -263,7 +287,7 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
 
   // Lead response time
   if (leadResp) {
-    const avgMins = (leadResp as any).averageMinutes || (leadResp as any).avgResponseMinutes || 0;
+    const avgMins = num(leadResp, "averageMinutes", "avgResponseMinutes");
     if (avgMins > 60) {
       alertCandidates.push({ priority: 40, text: `Lead response averaging ${Math.round(avgMins)} minutes — competitors respond in <15` });
     }
@@ -271,7 +295,7 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
 
   // Capacity
   if (capacity) {
-    const util = (capacity as any).currentUtilization || (capacity as any).utilization || 0;
+    const util = num(capacity, "currentUtilization", "utilization");
     if (util > 90) {
       alertCandidates.push({ priority: 35, text: `Bay capacity at ${util}% — consider extending hours or adding capacity` });
     }
@@ -282,7 +306,7 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
 
   // Referral network
   if (referralNet) {
-    const totalRefs = (referralNet as any).totalReferrals || (referralNet as any).count || 0;
+    const totalRefs = num(referralNet, "totalReferrals", "count");
     if (totalRefs > 5) {
       opportunityCandidates.push({ priority: 10, text: `Referral network active: ${totalRefs} referrals tracked — amplify with a bonus offer` });
     }

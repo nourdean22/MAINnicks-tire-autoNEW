@@ -183,8 +183,10 @@ ${conversionRate < 40 ? `- 📉 Conversion rate ${conversionRate}% is below 40% 
       const { generateMasterIntelligenceReport } = await import("../../services/masterIntelligence");
       const master = await generateMasterIntelligenceReport();
       const s = master.summary;
-      const churnCount = master.customers.churnRisk?.highRisk?.length || 0;
-      const reviewRate = (master.marketing.reviewVelocity as any)?.weeklyRate || (master.marketing.reviewVelocity as any)?.monthlyRate || 0;
+      const hrArr = master.customers.churnRisk?.highRisk;
+      const churnCount = Array.isArray(hrArr) ? hrArr.length : 0;
+      const rv = master.marketing.reviewVelocity;
+      const reviewRate = (typeof rv?.weeklyRate === "number" ? rv.weeklyRate : 0) || (typeof rv?.monthlyRate === "number" ? rv.monthlyRate : 0);
       masterBlock = `\nBUSINESS HEALTH: ${s.score}/100`;
       masterBlock += `\n🔔 Alert: ${s.topAlert}`;
       masterBlock += `\n💡 Opportunity: ${s.topOpportunity}`;
