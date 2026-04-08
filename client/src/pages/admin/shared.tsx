@@ -59,66 +59,60 @@ export type NavGroup = { label: string; items: { id: AdminSection; label: string
  */
 export const NAV_GROUPS: NavGroup[] = [
   {
-    label: "NOUR OS",
+    label: "COMMAND",
     items: [
       { id: "commandCenter", label: "NOUR OS Bridge", icon: <Zap className="w-4 h-4" /> },
+      { id: "overview", label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
+      { id: "intelligence", label: "Intelligence", icon: <Brain className="w-4 h-4" /> },
     ],
   },
   {
-    label: "Shop",
+    label: "SHOP FLOOR",
     items: [
-      { id: "overview", label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
       { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
       { id: "workOrders", label: "Work Orders", icon: <Wrench className="w-4 h-4" /> },
       { id: "dispatch", label: "Dispatch & QC", icon: <ClipboardList className="w-4 h-4" /> },
       { id: "tireOrders", label: "Tire Orders", icon: <ShoppingCart className="w-4 h-4" /> },
-      { id: "warranty", label: "Warranties", icon: <Shield className="w-4 h-4" /> },
       { id: "inventory", label: "Inventory", icon: <Package className="w-4 h-4" /> },
-      { id: "inspections", label: "Inspections", icon: <Gauge className="w-4 h-4" /> },
-    ],
-  },
-  {
-    label: "Pipeline",
-    items: [
-      { id: "leads", label: "Website Leads", icon: <Users className="w-4 h-4" />, badge: "leads" },
-      { id: "bookings", label: "Online Bookings", icon: <CalendarClock className="w-4 h-4" />, badge: "bookings" },
-      { id: "estimates", label: "Walk-In Estimates", icon: <DollarSign className="w-4 h-4" /> },
       { id: "waitlist", label: "Waitlist", icon: <ListOrdered className="w-4 h-4" /> },
-      { id: "chats", label: "Chat Sessions", icon: <MessageSquare className="w-4 h-4" /> },
     ],
   },
   {
-    label: "Revenue",
+    label: "PIPELINE",
     items: [
-      { id: "revenue", label: "Revenue", icon: <TrendingUp className="w-4 h-4" /> },
-      { id: "intelligence", label: "Intelligence", icon: <Brain className="w-4 h-4" /> },
-      { id: "financing", label: "Financing", icon: <CreditCard className="w-4 h-4" /> },
+      { id: "leads", label: "Leads", icon: <Users className="w-4 h-4" />, badge: "leads" },
+      { id: "bookings", label: "Bookings", icon: <CalendarClock className="w-4 h-4" />, badge: "bookings" },
+      { id: "estimates", label: "Estimates", icon: <DollarSign className="w-4 h-4" /> },
+      { id: "chats", label: "Chat Sessions", icon: <MessageSquare className="w-4 h-4" /> },
       { id: "callTrackingView", label: "Calls", icon: <PhoneCall className="w-4 h-4" /> },
     ],
   },
   {
-    label: "Outreach",
+    label: "REVENUE",
+    items: [
+      { id: "revenue", label: "Revenue", icon: <TrendingUp className="w-4 h-4" /> },
+      { id: "financing", label: "Financing", icon: <CreditCard className="w-4 h-4" /> },
+      { id: "warranty", label: "Warranties", icon: <Shield className="w-4 h-4" /> },
+      { id: "specials", label: "Specials", icon: <Tag className="w-4 h-4" /> },
+    ],
+  },
+  {
+    label: "OUTREACH",
     items: [
       { id: "campaigns", label: "Outreach Hub", icon: <Send className="w-4 h-4" /> },
       { id: "loyalty", label: "Loyalty", icon: <Trophy className="w-4 h-4" /> },
       { id: "referrals", label: "Referrals", icon: <Gift className="w-4 h-4" /> },
       { id: "coupons", label: "Coupons", icon: <Star className="w-4 h-4" /> },
-      { id: "specials", label: "Specials", icon: <Tag className="w-4 h-4" /> },
       { id: "qa", label: "Q&A", icon: <Mail className="w-4 h-4" /> },
     ],
   },
   {
-    label: "System",
+    label: "SYSTEM",
     items: [
       { id: "settings", label: "ShopDriver HQ", icon: <Settings className="w-4 h-4" /> },
       { id: "content", label: "Content", icon: <FileText className="w-4 h-4" /> },
-      { id: "analyticsView", label: "Analytics", icon: <BarChart3 className="w-4 h-4" /> },
-      { id: "exportView", label: "Export", icon: <Download className="w-4 h-4" /> },
-      { id: "seoEngine", label: "SEO Engine", icon: <Search className="w-4 h-4" /> },
       { id: "health", label: "Site Health", icon: <Globe className="w-4 h-4" /> },
       { id: "activity", label: "Activity", icon: <Activity className="w-4 h-4" /> },
-      { id: "integrations", label: "Integrations", icon: <Plug className="w-4 h-4" /> },
-      { id: "jobs", label: "Job Board", icon: <Timer className="w-4 h-4" /> },
     ],
   },
 ];

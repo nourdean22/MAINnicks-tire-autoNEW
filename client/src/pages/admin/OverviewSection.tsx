@@ -1,6 +1,7 @@
 /**
- * OverviewSection — Operator "Today Board" with priority queue, SLA timers,
- * quick actions, and today's timeline. CEO-level polish.
+ * OverviewSection — CEO command center. Everything at a glance.
+ * Top row: 6 stat cards (Cars, Revenue, Jobs, Leads, Health Score, ALG Status)
+ * Then: Shop pulse, priority queue, timeline, charts, activity.
  */
 import React, { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
@@ -15,6 +16,7 @@ import {
   ChevronRight, Clock, ExternalLink, FileSpreadsheet, FileText, Globe, Hash,
   Loader2, MessageSquare, Newspaper, PieChart, Phone, Send, Sparkles, Star,
   TrendingUp, Users, Wrench, XCircle, Zap, Timer, ArrowRight, PhoneCall, RotateCcw,
+  Brain, Plug, Shield,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
@@ -109,6 +111,12 @@ export default function OverviewSection() {
   const { data: custIntel } = trpc.customers.intelligence.useQuery(undefined, { refetchInterval: 300000 });
   // Revenue intelligence
   const { data: revIntel } = trpc.invoices.intelligence.useQuery({ period: "30d" }, { refetchInterval: 120000 });
+
+  // ALG connection status
+  const { data: algStatus } = trpc.autoLabor.status.useQuery(undefined, { staleTime: 60_000 });
+
+  // Business health score from master report — expensive, cache 5min
+  const { data: masterReport } = trpc.intelligence.masterReport.useQuery(undefined, { staleTime: 300_000, refetchInterval: 300_000 });
 
   const [actionFilter, setActionFilter] = useState<"all" | "booking" | "lead" | "callback" | "workOrder">("all");
 
@@ -262,6 +270,16 @@ export default function OverviewSection() {
     );
   }
 
+  // ─── DERIVED DATA ────────────────────────────────────
+  const shopFloor = (stats as any).shopFloor;
+  const todayRevenue = shopFloor?.revenueToday ?? shopPulse?.today?.revenue ?? 0;
+  const jobsClosed = shopFloor?.invoicesToday ?? shopPulse?.today?.jobsClosed ?? 0;
+  const activeLeads = stats.leads.new + stats.leads.contacted;
+  const urgentLeads = stats.leads.urgent ?? 0;
+  const healthScore = masterReport?.summary?.score ?? null;
+  const algConnected = algStatus?.connected ?? null;
+  const carsInShop = shopLoad?.activeWOs ?? workOrderStats?.active ?? 0;
+
   const serviceChartData = stats.bookings.byService.slice(0, 6).map((s, i) => ({
     name: s.service.length > 15 ? s.service.substring(0, 15) + "\u2026" : s.service,
     count: s.count,
@@ -305,6 +323,71 @@ export default function OverviewSection() {
 
   return (
     <div className="space-y-6">
+      {/* ─── TOP ROW: 6 COMMAND STAT CARDS ─── */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <StatCard
+          label="Cars in Shop"
+          value={carsInShop}
+          icon={<Wrench className="w-4 h-4" />}
+          color={carsInShop > 0 ? "text-primary" : "text-muted-foreground"}
+          trend={carsInShop > 5 ? "up" : "neutral"}
+          trendLabel={shopLoad ? `~${Math.round(shopLoad.estimatedWait / 60)}h wait` : undefined}
+        />
+        <StatCard
+          label="Today's Revenue"
+          value={`$${Math.round(todayRevenue).toLocaleString()}`}
+          icon={<TrendingUp className="w-4 h-4" />}
+          color="text-emerald-400"
+          trend={todayRevenue > 0 ? "up" : "neutral"}
+          trendLabel={shopFloor ? `$${Math.round(shopFloor.revenueThisWeek).toLocaleString()} this week` : undefined}
+        />
+        <StatCard
+          label="Jobs Closed Today"
+          value={jobsClosed}
+          icon={<CheckCircle2 className="w-4 h-4" />}
+          color={jobsClosed > 0 ? "text-emerald-400" : "text-muted-foreground"}
+          trend={jobsClosed > 0 ? "up" : "neutral"}
+          trendLabel={shopFloor ? `${shopFloor.invoicesThisWeek} this week` : undefined}
+        />
+        <StatCard
+          label="Website Leads"
+          value={activeLeads}
+          icon={<Users className="w-4 h-4" />}
+          color="text-blue-400"
+          trend={urgentLeads > 0 ? "up" : "neutral"}
+          trendLabel={urgentLeads > 0 ? `${urgentLeads} urgent` : `${stats.leads.thisWeek} this week`}
+        />
+        <StatCard
+          label="Health Score"
+          value={healthScore !== null ? `${healthScore}/100` : "--"}
+          icon={<Brain className="w-4 h-4" />}
+          color={
+            healthScore === null ? "text-muted-foreground" :
+            healthScore >= 70 ? "text-emerald-400" :
+            healthScore >= 40 ? "text-amber-400" : "text-red-400"
+          }
+          trend={
+            healthScore === null ? "neutral" :
+            healthScore >= 70 ? "up" : healthScore >= 40 ? "neutral" : "down"
+          }
+          trendLabel={
+            healthScore === null ? "Loading..." :
+            healthScore >= 70 ? "Healthy" : healthScore >= 40 ? "Needs work" : "Critical"
+          }
+        />
+        <StatCard
+          label="ALG Status"
+          value={algConnected === null ? "--" : algConnected ? "Connected" : "Offline"}
+          icon={<Plug className="w-4 h-4" />}
+          color={
+            algConnected === null ? "text-muted-foreground" :
+            algConnected ? "text-emerald-400" : "text-red-400"
+          }
+          trend={algConnected ? "up" : algConnected === false ? "down" : "neutral"}
+          trendLabel={algStatus?.usingFallback ? "Using fallback" : algStatus?.totalLookups ? `${algStatus.totalLookups} lookups` : undefined}
+        />
+      </div>
+
       {/* ─── SHOP LOAD INDICATOR ─── */}
       {shopLoad && (
         <div className="flex flex-wrap items-center gap-3">
@@ -327,43 +410,6 @@ export default function OverviewSection() {
           </span>
         </div>
       )}
-
-      {/* ─── PRIMARY METRICS ─── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard
-          label="Action Queue" value={priorityQueue.length}
-          icon={<AlertTriangle className="w-4 h-4" />}
-          color={priorityQueue.length > 0 ? "text-red-400" : "text-emerald-400"}
-          trend={priorityQueue.length > 0 ? "up" : "neutral"}
-          trendLabel={priorityQueue.length > 0 ? "Needs attention" : "All clear"}
-        />
-        <StatCard
-          label="Active Work Orders" value={workOrderStats?.active ?? 0}
-          icon={<Wrench className="w-4 h-4" />}
-          color={(workOrderStats?.active ?? 0) > 0 ? "text-primary" : "text-muted-foreground"}
-          trend={(workOrderStats?.blocked ?? 0) > 0 ? "down" : "neutral"}
-          trendLabel={(workOrderStats?.blocked ?? 0) > 0 ? `${workOrderStats!.blocked} blocked` : `${workOrderStats?.inProgress ?? 0} in progress`}
-        />
-        <StatCard
-          label="Today's Bookings" value={todaysBookings.length}
-          icon={<CalendarClock className="w-4 h-4" />} color="text-foreground"
-          trend={todaysBookings.length > 0 ? "up" : "neutral"}
-          trendLabel={`${stats.bookings.thisWeek} this week`}
-        />
-        <StatCard
-          label="Active Leads" value={stats.leads.new + stats.leads.contacted}
-          icon={<Users className="w-4 h-4" />} color="text-blue-400"
-          trend={stats.leads.thisWeek > 0 ? "up" : "neutral"}
-          trendLabel={`${stats.leads.thisWeek} this week`}
-        />
-        <StatCard
-          label="Callbacks Pending" value={stats.callbacks?.new ?? 0}
-          icon={<PhoneCall className="w-4 h-4" />}
-          color={(stats.callbacks?.new ?? 0) > 0 ? "text-amber-400" : "text-muted-foreground"}
-          trend={(stats.callbacks?.new ?? 0) > 0 ? "up" : "neutral"}
-          trendLabel={`${stats.callbacks?.total ?? 0} total`}
-        />
-      </div>
 
       {/* ─── NICK AI LIVE PULSE ─── */}
       {shopPulse && (
@@ -409,43 +455,43 @@ export default function OverviewSection() {
       )}
 
       {/* ─── ALG SHOP FLOOR DATA — The Real Numbers ─── */}
-      {(stats as any).shopFloor && (
+      {shopFloor && (
         <div className="bg-card border border-emerald-500/20 rounded-lg p-4">
           <div className="flex items-center gap-3 mb-3">
             <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
             <span className="text-[10px] font-bold tracking-wider text-muted-foreground">AUTO LABOR GUIDE — SHOP FLOOR</span>
             <span className="ml-auto text-[9px] font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400">
-              {(stats as any).shopFloor.totalCustomers} CUSTOMERS · {(stats as any).shopFloor.vipCustomers} VIP
+              {shopFloor.totalCustomers} CUSTOMERS · {shopFloor.vipCustomers} VIP
             </span>
           </div>
           <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
             <div className="text-center">
-              <div className="text-lg font-bold text-primary">${Math.round((stats as any).shopFloor.revenueToday).toLocaleString()}</div>
+              <div className="text-lg font-bold text-primary">${Math.round(shopFloor.revenueToday).toLocaleString()}</div>
               <div className="text-[9px] text-muted-foreground tracking-wider">TODAY REV</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-emerald-400">{(stats as any).shopFloor.invoicesToday}</div>
+              <div className="text-lg font-bold text-emerald-400">{shopFloor.invoicesToday}</div>
               <div className="text-[9px] text-muted-foreground tracking-wider">INVOICES</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-amber-400">{(stats as any).shopFloor.estimatesToday}</div>
+              <div className="text-lg font-bold text-amber-400">{shopFloor.estimatesToday}</div>
               <div className="text-[9px] text-muted-foreground tracking-wider">WALK-INS</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-blue-400">${(stats as any).shopFloor.avgTicket}</div>
+              <div className="text-lg font-bold text-blue-400">${shopFloor.avgTicket}</div>
               <div className="text-[9px] text-muted-foreground tracking-wider">AVG TICKET</div>
             </div>
             <div className="text-center">
-              <div className={`text-lg font-bold ${(stats as any).shopFloor.conversionRate >= 50 ? "text-emerald-400" : (stats as any).shopFloor.conversionRate >= 30 ? "text-amber-400" : "text-red-400"}`}>{(stats as any).shopFloor.conversionRate}%</div>
+              <div className={`text-lg font-bold ${shopFloor.conversionRate >= 50 ? "text-emerald-400" : shopFloor.conversionRate >= 30 ? "text-amber-400" : "text-red-400"}`}>{shopFloor.conversionRate}%</div>
               <div className="text-[9px] text-muted-foreground tracking-wider">CONVERSION</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-purple-400">${Math.round((stats as any).shopFloor.revenueThisMonth).toLocaleString()}</div>
+              <div className="text-lg font-bold text-purple-400">${Math.round(shopFloor.revenueThisMonth).toLocaleString()}</div>
               <div className="text-[9px] text-muted-foreground tracking-wider">MONTH REV</div>
             </div>
           </div>
           <div className="mt-2 text-[10px] text-muted-foreground">
-            Week: {(stats as any).shopFloor.invoicesThisWeek} invoices · ${Math.round((stats as any).shopFloor.revenueThisWeek).toLocaleString()} revenue · {(stats as any).shopFloor.estimatesThisWeek} walk-in estimates
+            Week: {shopFloor.invoicesThisWeek} invoices · ${Math.round(shopFloor.revenueThisWeek).toLocaleString()} revenue · {shopFloor.estimatesThisWeek} walk-in estimates
           </div>
         </div>
       )}
@@ -494,14 +540,36 @@ export default function OverviewSection() {
         </div>
       )}
 
-      {/* ─── PIPELINE: Website vs Walk-In Split ─── */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-        <StatCard label="Online Bookings" value={stats.bookings.new} icon={<Hash className="w-3.5 h-3.5" />} color="text-blue-400" />
-        <StatCard label="Confirmed" value={stats.bookings.confirmed} icon={<CheckCircle2 className="w-3.5 h-3.5" />} color="text-primary" />
-        <StatCard label="Website Leads" value={stats.leads.new + stats.leads.contacted} icon={<Users className="w-3.5 h-3.5" />} color="text-cyan-400" />
-        <StatCard label="Urgent Leads" value={stats.leads.urgent} icon={<AlertTriangle className="w-3.5 h-3.5" />} color={stats.leads.urgent > 0 ? "text-red-400" : "text-muted-foreground"} />
-        <StatCard label="Chat Sessions" value={stats.chat.totalSessions} icon={<MessageSquare className="w-3.5 h-3.5" />} color="text-purple-400" />
-        <StatCard label="Calls from Site" value={stats.callTracking?.totalCalls ?? 0} icon={<Phone className="w-3.5 h-3.5" />} color="text-cyan-400" />
+      {/* ─── SECONDARY METRICS ─── */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <StatCard
+          label="Action Queue" value={priorityQueue.length}
+          icon={<AlertTriangle className="w-4 h-4" />}
+          color={priorityQueue.length > 0 ? "text-red-400" : "text-emerald-400"}
+          trend={priorityQueue.length > 0 ? "up" : "neutral"}
+          trendLabel={priorityQueue.length > 0 ? "Needs attention" : "All clear"}
+        />
+        <StatCard
+          label="Today's Bookings" value={todaysBookings.length}
+          icon={<CalendarClock className="w-4 h-4" />} color="text-foreground"
+          trend={todaysBookings.length > 0 ? "up" : "neutral"}
+          trendLabel={`${stats.bookings.thisWeek} this week`}
+        />
+        <StatCard
+          label="Chat Sessions" value={stats.chat.totalSessions}
+          icon={<MessageSquare className="w-4 h-4" />} color="text-purple-400"
+        />
+        <StatCard
+          label="Callbacks Pending" value={stats.callbacks?.new ?? 0}
+          icon={<PhoneCall className="w-4 h-4" />}
+          color={(stats.callbacks?.new ?? 0) > 0 ? "text-amber-400" : "text-muted-foreground"}
+          trend={(stats.callbacks?.new ?? 0) > 0 ? "up" : "neutral"}
+          trendLabel={`${stats.callbacks?.total ?? 0} total`}
+        />
+        <StatCard
+          label="Calls from Site" value={stats.callTracking?.totalCalls ?? 0}
+          icon={<Phone className="w-4 h-4" />} color="text-cyan-400"
+        />
       </div>
 
       {/* ─── SMART RECOMMENDATIONS ─── */}
@@ -521,6 +589,52 @@ export default function OverviewSection() {
                 <span className="text-foreground/70 flex-1">{r.text}</span>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── MASTER INTELLIGENCE SUMMARY ─── */}
+      {masterReport?.summary && (
+        <div className="bg-card border border-violet-500/20 rounded-lg p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <Brain className="w-4 h-4 text-violet-400" />
+            <span className="text-[10px] font-bold tracking-wider text-muted-foreground">INTELLIGENCE SUMMARY</span>
+            <div className={`ml-auto px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wider ${
+              masterReport.summary.score >= 70 ? "bg-emerald-500/15 text-emerald-400" :
+              masterReport.summary.score >= 40 ? "bg-amber-500/15 text-amber-400" :
+              "bg-red-500/15 text-red-400"
+            }`}>
+              {masterReport.summary.score}/100
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {masterReport.summary.topAlert && (
+              <div className="flex items-start gap-2 p-2.5 rounded bg-red-500/5 border border-red-500/15 text-xs">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[8px] font-bold text-red-400 uppercase mb-0.5">Alert</p>
+                  <p className="text-foreground/70">{masterReport.summary.topAlert}</p>
+                </div>
+              </div>
+            )}
+            {masterReport.summary.topOpportunity && (
+              <div className="flex items-start gap-2 p-2.5 rounded bg-emerald-500/5 border border-emerald-500/15 text-xs">
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[8px] font-bold text-emerald-400 uppercase mb-0.5">Opportunity</p>
+                  <p className="text-foreground/70">{masterReport.summary.topOpportunity}</p>
+                </div>
+              </div>
+            )}
+            {masterReport.summary.topRisk && (
+              <div className="flex items-start gap-2 p-2.5 rounded bg-amber-500/5 border border-amber-500/15 text-xs">
+                <Shield className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[8px] font-bold text-amber-400 uppercase mb-0.5">Risk</p>
+                  <p className="text-foreground/70">{masterReport.summary.topRisk}</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -676,7 +790,7 @@ export default function OverviewSection() {
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
           {[
             { href: "/admin/content", icon: <Sparkles className="w-4 h-4 text-primary" />, label: "AI Content" },
-            { onClick: () => toast.info('Navigate to Customers → Send Next 50'), icon: <Send className="w-4 h-4 text-emerald-400" />, label: "Resume SMS" },
+            { onClick: () => toast.info('Navigate to Customers \u2192 Send Next 50'), icon: <Send className="w-4 h-4 text-emerald-400" />, label: "Resume SMS" },
             { href: sheetInfo?.url || '#', external: true, icon: <ExternalLink className="w-4 h-4 text-amber-400" />, label: "CRM Sheet" },
             { href: "/estimate", icon: <TrendingUp className="w-4 h-4 text-cyan-400" />, label: "Estimator" },
             { href: "/booking", icon: <CalendarClock className="w-4 h-4 text-blue-400" />, label: "Book Appt" },
@@ -876,31 +990,6 @@ export default function OverviewSection() {
         </div>
       )}
 
-      {/* ─── CUSTOMER & SMS STATS ─── */}
-      {(customerStats || campaignStats) && (
-        <div className="stat-card !p-5">
-          <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-4 flex items-center gap-2">
-            <Send className="w-3.5 h-3.5 text-primary" />
-            Customer Database & SMS
-          </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {[
-              { value: customerStats?.total ?? 0, label: "Total Customers", color: "text-foreground" },
-              { value: customerStats?.recent ?? 0, label: "Recent", color: "text-emerald-400" },
-              { value: customerStats?.lapsed ?? 0, label: "Lapsed", color: "text-amber-400" },
-              { value: campaignStats?.sent ?? 0, label: "Texts Sent", color: "text-primary" },
-              { value: campaignStats?.remaining ?? 0, label: "Remaining", color: "text-muted-foreground" },
-              { value: campaignStats && campaignStats.total > 0 ? `${Math.round((campaignStats.sent / campaignStats.total) * 100)}%` : "\u2014", label: "Progress", color: "text-primary" },
-            ].map((item, i) => (
-              <div key={i} className="text-center p-3 rounded-md border border-border/30">
-                <p className={`text-xl font-bold tracking-tight ${item.color}`}>{item.value}</p>
-                <p className="text-[10px] text-muted-foreground mt-1">{item.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* ─── CHARTS ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Service Breakdown */}
@@ -967,7 +1056,7 @@ export default function OverviewSection() {
         </div>
       </div>
 
-      {/* ─── BOTTOM ROW: Actions + Sources + Activity ─── */}
+      {/* ─── BOTTOM ROW: Links + Sources + Activity ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Quick Links */}
         <div className="stat-card !p-5">
