@@ -135,69 +135,48 @@ export async function generateArticle(topic?: string): Promise<GeneratedArticle>
 
   const response = await invokeLLM({
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: SYSTEM_PROMPT + "\n\nRespond with valid JSON only. No markdown, no code blocks, just raw JSON." },
       {
         role: "user",
         content: `Write a complete blog article about: "${selectedTopic}"
 
 The article should be helpful, educational, and position Nick's Tire & Auto as the trusted expert.
 
-Return your response as JSON matching this exact schema.`,
+Return your response as a JSON object with these exact fields:
+- slug (string): URL-friendly slug, lowercase with hyphens, e.g. winter-tire-safety-guide
+- title (string): Article title, clear and descriptive, under 80 chars
+- metaTitle (string): SEO meta title ending with | Nick's Tire & Auto Cleveland, under 70 chars
+- metaDescription (string): SEO meta description, under 155 chars, includes Cleveland keyword
+- category (string): One of: Brake Repair, Diagnostics, Emissions, Tires, Seasonal Tips, Oil Change, General Repair
+- readTime (string): Estimated read time, e.g. 4 min read
+- excerpt (string): 1-2 sentence summary for the blog listing card, under 200 chars
+- sections (array): 4-6 sections, each with "heading" (string) and "content" (string, 80-200 words)
+- relatedServices (array of strings): 2-4 related service routes like /tires, /brakes, /brake-repair-cleveland, etc.
+- tags (array of strings): 4-8 SEO tags
+
+Respond with valid JSON only. No markdown, no code blocks, just raw JSON.`,
       },
     ],
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "blog_article",
-        strict: true,
-        schema: {
-          type: "object",
-          properties: {
-            slug: { type: "string", description: "URL-friendly slug, lowercase with hyphens, e.g. winter-tire-safety-guide" },
-            title: { type: "string", description: "Article title, clear and descriptive, under 80 chars" },
-            metaTitle: { type: "string", description: "SEO meta title ending with | Nick's Tire & Auto Cleveland, under 70 chars" },
-            metaDescription: { type: "string", description: "SEO meta description, under 155 chars, includes Cleveland keyword" },
-            category: { type: "string", description: "One of: Brake Repair, Diagnostics, Emissions, Tires, Seasonal Tips, Oil Change, General Repair" },
-            readTime: { type: "string", description: "Estimated read time, e.g. 4 min read" },
-            excerpt: { type: "string", description: "1-2 sentence summary for the blog listing card, under 200 chars" },
-            sections: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  heading: { type: "string", description: "Section heading" },
-                  content: { type: "string", description: "Section content, 80-200 words, educational and helpful" },
-                },
-                required: ["heading", "content"],
-                additionalProperties: false,
-              },
-              description: "4-6 article sections following the Problem→Explanation→Authority→Solution→Trust→CTA structure",
-            },
-            relatedServices: {
-              type: "array",
-              items: { type: "string" },
-              description: "Array of related service routes. Include both main service pages (/tires, /brakes, /diagnostics, /emissions, /oil-change, /general-repair) AND relevant SEO pages (/brake-repair-cleveland, /check-engine-light-cleveland, /tire-repair-cleveland, /suspension-repair-cleveland, /ac-repair-cleveland, /diagnostics-cleveland, /toyota-repair-cleveland, /honda-repair-cleveland, /ford-repair-cleveland, /chevy-repair-cleveland, /car-shaking-while-driving, /brakes-grinding, /check-engine-light-flashing, /car-overheating). Pick 2-4 most relevant.",
-            },
-            tags: {
-              type: "array",
-              items: { type: "string" },
-              description: "4-8 SEO tags relevant to the article",
-            },
-          },
-          required: ["slug", "title", "metaTitle", "metaDescription", "category", "readTime", "excerpt", "sections", "relatedServices", "tags"],
-          additionalProperties: false,
-        },
-      },
-    },
   });
 
-  const content = response.choices[0]?.message?.content;
-  if (!content || typeof content !== "string") {
+  const rawContent = response.choices[0]?.message?.content;
+  if (!rawContent || typeof rawContent !== "string") {
     throw new Error("LLM returned empty or non-string content");
   }
 
   let article: GeneratedArticle;
-  try { article = JSON.parse(content); } catch { throw new Error("LLM returned invalid JSON for article"); }
+  try {
+    article = JSON.parse(rawContent);
+  } catch {
+    // Try to extract JSON from the response (LLM may wrap in markdown code blocks)
+    const jsonMatch = rawContent.match(/\{[\s\S]*\}/)?.[0];
+    if (!jsonMatch) throw new Error("LLM returned invalid JSON for article");
+    try {
+      article = JSON.parse(jsonMatch);
+    } catch {
+      throw new Error("LLM returned invalid JSON for article");
+    }
+  }
 
   // Validate and sanitize
   if (!article.slug || !article.title || !article.sections?.length) {
@@ -227,7 +206,7 @@ export async function generateNotifications(count: number = 3): Promise<Generate
 
   const response = await invokeLLM({
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: SYSTEM_PROMPT + "\n\nRespond with valid JSON only. No markdown, no code blocks, just raw JSON." },
       {
         role: "user",
         content: `Generate ${count} notification bar messages for the website. These appear at the top of the page as a rotating banner.
@@ -245,47 +224,35 @@ Examples of good messages:
 - "Winter tires save lives on Cleveland roads. Book your tire swap today"
 - "Failed your Ohio E-Check? We diagnose and fix emissions problems every day"
 
-Return as JSON array.`,
+Return a JSON object with a "notifications" array. Each notification has:
+- message (string): under 80 chars
+- ctaText (string): e.g. Call Now, Book Online, Learn More
+- ctaHref (string): e.g. tel:2168620005, /brakes, /blog/article-slug
+- icon (string): one of wrench, alert_triangle, snowflake, thermometer, shield, gauge, phone
+- season (string): spring, summer, fall, winter, or all
+
+Respond with valid JSON only. No markdown, no code blocks, just raw JSON.`,
       },
     ],
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "notifications",
-        strict: true,
-        schema: {
-          type: "object",
-          properties: {
-            notifications: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  message: { type: "string", description: "The notification text, under 80 chars" },
-                  ctaText: { type: "string", description: "CTA button text, e.g. Call Now, Book Online, Learn More" },
-                  ctaHref: { type: "string", description: "CTA link, e.g. tel:2168620005, /brakes, /blog/article-slug" },
-                  icon: { type: "string", description: "Icon name: wrench, alert_triangle, snowflake, thermometer, shield, gauge, phone" },
-                  season: { type: "string", description: "Target season: spring, summer, fall, winter, or all" },
-                },
-                required: ["message", "ctaText", "ctaHref", "icon", "season"],
-                additionalProperties: false,
-              },
-            },
-          },
-          required: ["notifications"],
-          additionalProperties: false,
-        },
-      },
-    },
   });
 
-  const content = response.choices[0]?.message?.content;
-  if (!content || typeof content !== "string") {
+  const rawContent = response.choices[0]?.message?.content;
+  if (!rawContent || typeof rawContent !== "string") {
     throw new Error("LLM returned empty content for notifications");
   }
 
   let parsed: any;
-  try { parsed = JSON.parse(content); } catch { throw new Error("LLM returned invalid JSON for notifications"); }
+  try {
+    parsed = JSON.parse(rawContent);
+  } catch {
+    const jsonMatch = rawContent.match(/\{[\s\S]*\}/)?.[0];
+    if (!jsonMatch) throw new Error("LLM returned invalid JSON for notifications");
+    try {
+      parsed = JSON.parse(jsonMatch);
+    } catch {
+      throw new Error("LLM returned invalid JSON for notifications");
+    }
+  }
   return parsed.notifications;
 }
 

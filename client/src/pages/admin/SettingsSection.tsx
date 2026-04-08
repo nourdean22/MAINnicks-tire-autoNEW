@@ -145,7 +145,7 @@ export default function SettingsSection() {
         />
         <StatCard
           label="AVG TICKET"
-          value={`$${Math.round((invoiceStats?.shopFloor?.avgTicket ?? 0) / 100)}`}
+          value={`$${Math.round(invoiceStats?.shopFloor?.avgTicket ?? 0)}`}
           icon={<DollarSign className="w-4 h-4" />}
           sub="From ALG invoices"
         />

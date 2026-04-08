@@ -47,7 +47,7 @@ export const FINANCING_PROVIDERS: FinancingProvider[] = [
       "Quick digital lease agreement",
       "Use at any participating retailer",
     ],
-    applyUrl: "https://www.acima.com/apply",
+    applyUrl: "https://apply.acima.com/?app_id=lo&location_guid=loca-436877bd-bae3-482b-8d6c-21430690117f&utm_medium=merchant&utm_source=web",
     merchantPortalUrl: "https://merchant.acima.com/",
     customerPortalUrl: "https://my.acima.com/",
     description: "Acima offers lease-to-own financing with no traditional credit check. Get approved using your bank account history and enjoy a 90-day same-as-cash option.",

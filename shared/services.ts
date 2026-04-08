@@ -173,7 +173,7 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "30-60 min",
     startingPrice: "See tire prices",
-    priceRange: "Starting at $20/tire (mounting)",
+    priceRange: "",
     whyChooseUs: "Nick's carries all major tire brands plus quality used tires at prices that make sense. Every tire install includes mounting, balancing, TPMS reset, and a 36-month warranty backed by 4.9 stars and 1,700+ reviews. Walk in any day of the week -- no appointment needed.",
     commonSymptoms: [
       "Car shaking at highway speed",
@@ -189,10 +189,10 @@ export const SERVICES: ServiceData[] = [
     num: "02",
     title: "BRAKES",
     shortDesc: "Brake pads, rotors, calipers, brake lines, and ABS diagnostics. We show you the problem before we fix it. Every time.",
-    metaTitle: "Brake Repair Cleveland OH | Starting at $129/Axle | Nick's Tire",
-    metaDescription: "Expert brake repair in Cleveland starting at $129/axle. Pads, rotors, calipers, ABS. 36-month warranty, same-day service. Call (216) 862-0005.",
+    metaTitle: "Brake Repair Cleveland OH | Same-Day Service | Nick's Tire",
+    metaDescription: "Expert brake repair in Cleveland. Pads, rotors, calipers, ABS. Free inspection, 36-month warranty, same-day service. Call (216) 862-0005.",
     heroHeadline: "BRAKE REPAIR CLEVELAND",
-    heroSubline: "Cleveland's trusted brake shop. Squealing, grinding, or soft pedal? We diagnose the exact problem, show you the worn parts, and fix it starting at $129/axle. No guesswork, no surprises.",
+    heroSubline: "Cleveland's trusted brake shop. Squealing, grinding, or soft pedal? We diagnose the exact problem, show you the worn parts, and fix it right. No guesswork, no surprises.",
     heroCTA: "SCHEDULE BRAKE INSPECTION",
     turnaround: "Most brake jobs completed same day. Drop off in the morning, drive home by afternoon.",
     pricingNote: "Free brake inspection · We show you the problem before quoting · No surprise charges",
@@ -278,7 +278,7 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "1-3 hours",
     startingPrice: "FREE inspection",
-    priceRange: "Starting at $129/axle",
+    priceRange: "",
     whyChooseUs: "Every brake job at Nick's starts with a free inspection -- we show you the worn parts before quoting a penny. Our 36-month warranty on parts and labor, same-day turnaround, and transparent pricing are why Cleveland drivers give us 4.9 stars across 1,700+ reviews.",
     commonSymptoms: [
       "Car making grinding noise when braking",
@@ -381,7 +381,7 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "30-60 min",
     startingPrice: "$59.99 (credited toward repair)",
-    priceRange: "Free scan with repair",
+    priceRange: "",
     whyChooseUs: "We test before we replace -- no parts guessing. Our advanced OBD-II scanners and live data analysis pinpoint the exact failed component so you only pay for what you need. Diagnostic fee is credited toward your repair, and everything is backed by our 36-month warranty.",
     commonSymptoms: [
       "Check engine light on and off",
@@ -482,7 +482,7 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "20-40 min (test) / 1-2 days (repair)",
     startingPrice: "From $24.99",
-    priceRange: "Starting at $49",
+    priceRange: "",
     whyChooseUs: "We specialize in Ohio E-Check failures and know the exact drive cycles to get your monitors to complete fast. We fix the root cause -- not just clear codes -- so you pass the first time back. Walk-ins 7 days, same-day diagnosis, and a 36-month warranty on repairs.",
     commonSymptoms: [
       "Failed Ohio E-Check inspection",
@@ -498,10 +498,10 @@ export const SERVICES: ServiceData[] = [
     num: "05",
     title: "OIL CHANGE",
     shortDesc: "Conventional and synthetic oil changes with filter replacement. Quick, affordable, done right.",
-    metaTitle: "Oil Change Cleveland OH | $29.99 Conventional | Nick's Tire & Auto",
-    metaDescription: "Oil change in Cleveland starting at $29.99. Conventional and synthetic. Free inspection included. Walk-ins 7 days. Call (216) 862-0005.",
+    metaTitle: "Oil Change Cleveland OH | Quick & Affordable | Nick's Tire & Auto",
+    metaDescription: "Affordable oil change in Cleveland. Conventional and synthetic. Free inspection included. Walk-ins 7 days. Call (216) 862-0005.",
     heroHeadline: "OIL CHANGE\nCLEVELAND OH",
-    heroSubline: "Looking for an oil change in Cleveland? $29.99 conventional oil changes with filter replacement and a free multi-point inspection. Synthetic options from $69.99. Quick service, walk-ins welcome, no appointment needed.",
+    heroSubline: "Looking for an oil change in Cleveland? Affordable conventional and synthetic oil changes with filter replacement and a free multi-point inspection. Quick service, walk-ins welcome, no appointment needed.",
     heroCTA: "SCHEDULE OIL CHANGE",
     turnaround: "Most oil changes done in under 30 minutes. No appointment needed.",
     pricingNote: "Free multi-point inspection with every oil change · Correct oil weight per manufacturer spec",
@@ -585,7 +585,7 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "15-30 min",
     startingPrice: "From $39.99",
-    priceRange: "Starting at $29.99",
+    priceRange: "",
     whyChooseUs: "Every oil change at Nick's uses the correct oil weight per your manufacturer spec -- not the cheapest option. We include a free multi-point inspection with every service so small problems get caught early. Walk in any day, no appointment needed, and most are done in under 30 minutes.",
     commonSymptoms: [
       "Oil change light on dashboard",
@@ -691,7 +691,7 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "Varies — we'll call with estimate",
     startingPrice: "FREE estimates",
-    priceRange: "Starting at $89",
+    priceRange: "",
     whyChooseUs: "From suspension and steering to exhaust and cooling, Nick's diagnoses the root cause and explains every repair in plain language. Written estimates before any work, no surprise charges, and a 36-month warranty. Open 7 days with same-day service for most repairs.",
     commonSymptoms: [
       "Car making clunking noise over bumps",
@@ -786,7 +786,7 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "Recharge: 30-60 min. Component repair: 2-4 hours. Evaporator: 4-8 hours.",
     startingPrice: "From $149",
-    priceRange: "Starting at $49.99",
+    priceRange: "",
     whyChooseUs: "We diagnose before we recharge -- too many shops just dump refrigerant in and call it fixed. Nick's finds the actual leak, gives you a written estimate, and backs every repair with a 36-month warranty. Same-day service for most AC jobs, walk-ins welcome 7 days a week.",
     commonSymptoms: [
       "Car AC blowing warm air",
@@ -927,7 +927,7 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "Fluid service: 1 hour. Repairs: 1-3 days.",
     startingPrice: "From $150",
-    priceRange: "Starting at $149",
+    priceRange: "",
     whyChooseUs: "Transmission work requires precision -- Nick's diagnoses shifting problems with proper scan tools and road testing, not guesswork. You get an honest assessment, a written estimate before any work, and a 36-month warranty. We tell you if a fluid service will fix it before recommending a rebuild.",
     commonSymptoms: [
       "Car jerking when shifting gears",
@@ -990,7 +990,7 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "Battery/alternator: 1-2 hours. Wiring: varies.",
     startingPrice: "FREE battery test",
-    priceRange: "Starting at $120",
+    priceRange: "",
     whyChooseUs: "Electrical problems stump most shops. Nick's uses wiring diagrams, multimeters, and systematic circuit testing to find the actual fault -- no parts-swapping guesswork. Free battery and charging system test, same-day service, and a 36-month warranty on all repairs.",
     commonSymptoms: [
       "Car won't start clicking sound",
@@ -1047,7 +1047,7 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "15–30 minutes",
     startingPrice: "FREE test",
-    priceRange: "Starting at $129 installed",
+    priceRange: "",
     whyChooseUs: "Nick's tests your battery and charging system for free before recommending anything. If you need a replacement, we install quality batteries at fair prices with a 36-month warranty -- most replacements done in 30 minutes. Walk in any day, no appointment needed.",
     commonSymptoms: [
       "Car won't start in cold weather",
@@ -1115,7 +1115,7 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "1–4 hours depending on repair",
     startingPrice: "From $100",
-    priceRange: "Starting at $149",
+    priceRange: "",
     whyChooseUs: "Nick's inspects your entire exhaust system from manifold to tailpipe before quoting anything. We handle mufflers, catalytic converters, and emissions-related exhaust work with same-day service, written estimates, and a 36-month warranty on parts and labor.",
     commonSymptoms: [
       "Exhaust louder than normal suddenly",
@@ -1175,8 +1175,9 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "1–4 hours depending on repair",
     startingPrice: "From $100",
-    priceRange: "Starting at $89",
+    priceRange: "",
     whyChooseUs: "Overheating damage is preventable. Nick's pressure-tests your cooling system, diagnoses the root cause, and uses the correct coolant for your vehicle. Same-day service for most cooling repairs, written estimates before work begins, and a 36-month warranty.",
+
     commonSymptoms: [
       "Car temperature gauge in the red",
       "Sweet smell from engine bay",
@@ -1231,7 +1232,7 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "1–2 hours",
     startingPrice: "From $100",
-    priceRange: "Starting at $100",
+    priceRange: "",
     whyChooseUs: "A $100 inspection at Nick's can save you thousands on a bad used car purchase. Our 150+ point bumper-to-bumper inspection covers engine, transmission, brakes, suspension, electrical, body, and frame -- with a written report and photos. Same-day results, honest assessment.",
     commonSymptoms: [
       "Buying a used car from private seller",
@@ -1289,7 +1290,7 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "Belt: 30 min–1 hr. Timing belt: 4–8 hrs.",
     startingPrice: "From $80",
-    priceRange: "Starting at $80",
+    priceRange: "",
     whyChooseUs: "Belts and hoses fail without warning -- a $50 belt replacement prevents a $500 tow. Nick's inspects belts and hoses during every service visit and recommends replacement before they leave you stranded. Same-day service, fair prices, and a 36-month warranty.",
     commonSymptoms: [
       "Squealing noise from engine on startup",
@@ -1347,7 +1348,7 @@ export const SERVICES: ServiceData[] = [
     ],
     duration: "1–3 hours",
     startingPrice: "FREE test",
-    priceRange: "Starting at $250",
+    priceRange: "",
     whyChooseUs: "When your car won't start, Nick's tests the battery, starter, and alternator to find the actual cause -- no parts-swapping guesswork. Free charging system test, same-day replacement for most vehicles, and a 36-month warranty on parts and labor.",
     commonSymptoms: [
       "Car won't start just clicks",

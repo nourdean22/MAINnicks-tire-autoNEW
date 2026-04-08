@@ -177,6 +177,47 @@ function TrustNumbers() {
   );
 }
 
+// ─── USED TIRES CALLOUT — "Too good to be true" hook ────
+function UsedTiresCallout() {
+  return (
+    <section className="bg-[#FDB913] py-12 lg:py-16">
+      <div className="container">
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+          <div className="text-center lg:text-left">
+            <FadeIn>
+              <h2 className="font-heading text-4xl lg:text-5xl font-extrabold text-black uppercase tracking-tight">
+                USED TIRES FROM $60
+              </h2>
+              <p className="mt-2 text-black/70 text-lg lg:text-xl font-medium max-w-lg">
+                In and out in under 20 minutes. Drive away like nothing happened.
+              </p>
+            </FadeIn>
+          </div>
+          <FadeIn delay={0.15}>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <a
+                href={BUSINESS.phone.href}
+                onClick={() => trackPhoneClick("used-tires-callout")}
+                className="inline-flex items-center justify-center gap-2 bg-black text-[#FDB913] px-8 py-3.5 rounded-lg font-bold text-base hover:bg-black/90 transition-colors"
+              >
+                <Phone className="w-5 h-5" />
+                Call Now
+              </a>
+              <Link
+                href="/tires"
+                className="inline-flex items-center justify-center gap-2 border-2 border-black text-black px-8 py-3.5 rounded-lg font-bold text-base hover:bg-black/10 transition-colors"
+              >
+                See Tire Options
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+            </div>
+          </FadeIn>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ─── SERVICES — Full-viewport image tiles ────────────────
 const services = [
   {
@@ -184,27 +225,27 @@ const services = [
     slug: "/tires",
     desc: "New and used tires. Mounting, balancing, rotation, TPMS sensors, and flat repair.",
     img: TIRES_IMG,
-    price: "From $89/tire installed",
+    price: "Quality tires at fair prices",
   },
   {
     title: "Brakes",
     slug: "/brakes",
     desc: "Pads, rotors, calipers, brake lines, and ABS diagnostics. We show you the problem first.",
     img: BRAKES_IMG,
-    price: "From $149/axle",
+    price: "Free inspection",
   },
   {
     title: "Diagnostics",
     slug: "/diagnostics",
     desc: "Check engine light, OBD-II code reading, advanced computer diagnostics.",
     img: DIAG_IMG,
-    price: "From $49.99",
+    price: "Free scan with repair",
   },
 ];
 
 const moreServices = [
-  { title: "Emissions & E-Check", slug: "/emissions", desc: "Failed Ohio E-Check? We diagnose and repair emissions problems.", price: "From $29.99" },
-  { title: "Oil Change", slug: "/oil-change", desc: "Conventional and synthetic oil changes. Quick, affordable, done right.", price: "From $39.99" },
+  { title: "Emissions & E-Check", slug: "/emissions", desc: "Failed Ohio E-Check? We diagnose and repair emissions problems.", price: "Walk-ins welcome" },
+  { title: "Oil Change", slug: "/oil-change", desc: "Conventional and synthetic oil changes. Quick, affordable, done right.", price: "Quick service" },
   { title: "General Repair", slug: "/general-repair", desc: "Suspension, steering, exhaust, cooling systems, belts, hoses, and more.", price: "Free estimate" },
 ];
 
@@ -225,7 +266,7 @@ function Services() {
               <p className="mt-3 text-lg text-foreground/60 max-w-md font-light">{s.desc}</p>
               <div className="mt-6 flex gap-3">
                 <Link href={s.slug} className="inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/90 transition-colors">
-                  See Pricing
+                  Learn More
                 </Link>
                 <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`service-${s.slug}`)} className="inline-flex items-center gap-2 border border-foreground/30 text-foreground px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/5 transition-colors">
                   Call Now
@@ -250,7 +291,7 @@ function Services() {
                   <p className="mt-1 text-[#FDB913] font-semibold text-sm">{s.price}</p>
                   <p className="mt-3 text-foreground/50 text-sm leading-relaxed">{s.desc}</p>
                   <span className="inline-flex items-center gap-1 mt-5 text-sm text-foreground/40 group-hover:text-primary transition-colors">
-                    See pricing <ArrowRight className="w-3.5 h-3.5" />
+                    Learn more <ArrowRight className="w-3.5 h-3.5" />
                   </span>
                 </Link>
               </FadeIn>
@@ -477,6 +518,7 @@ export default function Home() {
       <TrustStrip />
       <TrustBadges />
       <FastPaths />
+      <UsedTiresCallout />
       <TrustNumbers />
       <Services />
       <WhyUs />
