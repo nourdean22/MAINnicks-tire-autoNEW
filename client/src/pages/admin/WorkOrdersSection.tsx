@@ -7,7 +7,7 @@ import { trpc } from "@/lib/trpc";
 import {
   Wrench, Clock, AlertTriangle, User, ChevronRight, Plus, RefreshCw,
   Package, Truck, CheckCircle2, XCircle, Timer, Phone, MapPin,
-  ArrowRight, Filter, BarChart3, Loader2, Search,
+  ArrowRight, Filter, BarChart3, Loader2, Search, TrendingUp,
 } from "lucide-react";
 
 // ─── Status columns for kanban ───────────────────────────
@@ -655,6 +655,90 @@ function PickupQueueView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
   );
 }
 
+// ─── Shop Pulse Mood Indicator ────────────────────────────
+function ShopPulseMood() {
+  const { data: stats } = trpc.adminDashboard.stats.useQuery(undefined, { refetchInterval: 30000 });
+  const shopFloor = (stats as any)?.shopFloor;
+
+  if (!shopFloor) return null;
+
+  const revenueToday = Math.round(Number(shopFloor.revenueToday || 0));
+  const jobsClosed = Number(shopFloor.invoicesToday || 0);
+  // Monthly target $20K / ~22 working days = ~$909/day
+  const dailyTarget = 909;
+  const pacePercent = dailyTarget > 0 ? Math.round((revenueToday / dailyTarget) * 100) : 0;
+
+  let mood: "busy" | "normal" | "slow";
+  let emoji: string;
+  let moodLabel: string;
+  let moodLine: string;
+  let borderColor: string;
+  let bgColor: string;
+  let textColor: string;
+
+  if (pacePercent >= 110) {
+    mood = "busy";
+    emoji = "\uD83D\uDFE2";
+    moodLabel = "BUSY DAY";
+    moodLine = "Keep this energy. Every car counts.";
+    borderColor = "border-emerald-500/40";
+    bgColor = "bg-emerald-500/5";
+    textColor = "text-emerald-400";
+  } else if (pacePercent >= 70) {
+    mood = "normal";
+    emoji = "\uD83D\uDFE1";
+    moodLabel = "NORMAL DAY";
+    moodLine = "Solid pace. Stay sharp on callbacks and follow-ups.";
+    borderColor = "border-amber-500/40";
+    bgColor = "bg-amber-500/5";
+    textColor = "text-amber-400";
+  } else {
+    mood = "slow";
+    emoji = "\uD83D\uDD34";
+    moodLabel = "SLOW DAY";
+    moodLine = "Push harder. Call lapsed customers. Chase pending estimates.";
+    borderColor = "border-red-500/40";
+    bgColor = "bg-red-500/5";
+    textColor = "text-red-400";
+  }
+
+  return (
+    <div className={`${bgColor} border-2 ${borderColor} rounded-lg p-4`}>
+      <div className="flex items-center gap-4 flex-wrap">
+        {/* Mood emoji + label */}
+        <div className="flex items-center gap-2.5">
+          <span className="text-2xl">{emoji}</span>
+          <span className={`text-sm font-black tracking-widest uppercase ${textColor}`}>
+            {moodLabel}
+          </span>
+        </div>
+
+        {/* Metrics */}
+        <div className="flex items-center gap-4 ml-auto">
+          <div className="text-center">
+            <div className="text-lg font-bold text-foreground">{jobsClosed}</div>
+            <div className="text-[8px] text-muted-foreground tracking-widest">JOBS</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-bold text-foreground">${revenueToday.toLocaleString()}</div>
+            <div className="text-[8px] text-muted-foreground tracking-widest">REVENUE</div>
+          </div>
+          <div className="text-center">
+            <div className={`text-lg font-bold ${textColor}`}>{pacePercent}%</div>
+            <div className="text-[8px] text-muted-foreground tracking-widest">PACE</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Motivational line */}
+      <div className="mt-2 text-[11px] text-foreground/50 flex items-center gap-1.5">
+        <TrendingUp className="w-3 h-3 shrink-0" />
+        {moodLine}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Section ────────────────────────────────────────
 export default function WorkOrdersSection() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -752,6 +836,9 @@ export default function WorkOrdersSection() {
           </button>
         </div>
       </div>
+
+      {/* Shop Pulse Mood */}
+      <ShopPulseMood />
 
       {/* Stats bar */}
       <StatsBar />
