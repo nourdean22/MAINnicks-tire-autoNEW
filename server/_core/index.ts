@@ -337,6 +337,19 @@ async function startServer() {
     }).catch(() => res.json({ jobs: [], error: "Failed to load cron status" }));
   });
 
+  // ─── Feature Flag REST API (admin key auth) ────────
+  app.get("/api/admin/flags", requireAdminApiKey, async (_req, res) => {
+    const { getAllFlags } = await import("../services/featureFlags");
+    res.json(await getAllFlags());
+  });
+  app.post("/api/admin/flags/toggle", requireAdminApiKey, express.json(), async (req, res) => {
+    const { key, value } = req.body;
+    if (!key || typeof value !== "boolean") { res.status(400).json({ error: "key and value required" }); return; }
+    const { setFlag } = await import("../services/featureFlags");
+    await setFlag(key, value);
+    res.json({ key, value, toggled: true });
+  });
+
   // ─── Error Telemetry Report (admin) ────────────────
   app.get("/api/admin/error-report", requireAdminApiKey, (_req, res) => {
     res.json({ ...errorTelemetry.getReport(), timestamp: new Date().toISOString() });
