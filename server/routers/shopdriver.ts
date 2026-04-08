@@ -608,6 +608,40 @@ export const shopdriverRouter = router({
       return { success: true };
     }),
 
+  /** Upsert a shop setting (create if not exists, update if exists) */
+  upsertSetting: adminProcedure
+    .input(z.object({
+      key: z.string(),
+      value: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) return { success: false };
+      const existing = await d.select().from(shopSettings).where(eq(shopSettings.key, input.key)).limit(1);
+      if (existing.length > 0) {
+        await d.update(shopSettings)
+          .set({ value: input.value, updatedBy: "admin" })
+          .where(eq(shopSettings.key, input.key));
+      } else {
+        await d.insert(shopSettings).values({
+          key: input.key,
+          value: input.value,
+          updatedBy: "admin",
+        });
+      }
+      return { success: true };
+    }),
+
+  /** Get a single shop setting by key */
+  getSetting: adminProcedure
+    .input(z.object({ key: z.string() }))
+    .query(async ({ input }) => {
+      const d = await db();
+      if (!d) return null;
+      const result = await d.select().from(shopSettings).where(eq(shopSettings.key, input.key)).limit(1);
+      return result.length > 0 ? result[0] : null;
+    }),
+
   /** Get the current labor rate */
   getLaborRate: adminProcedure.query(async () => {
     const d = await db();

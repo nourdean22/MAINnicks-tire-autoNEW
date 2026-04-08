@@ -1,11 +1,96 @@
 /**
- * Bay Dispatch Board — bay grid, ready queue, tech assignment, QC review.
+ * Shop Status — wait status toggle + bay grid, ready queue, tech assignment, QC review.
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Loader2, User, MapPin, Play, CheckCircle2, XCircle, Clock, Wrench, AlertTriangle, Shield, ChevronRight, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
 
 type Tab = "bays" | "queue" | "qc" | "techs";
+
+function WaitStatusToggle() {
+  const { data: setting, isLoading } = trpc.shopdriver.getSetting.useQuery(
+    { key: "shop_wait_status" },
+    { refetchInterval: 15000 }
+  );
+  const { data: waitTimeSetting } = trpc.shopdriver.getSetting.useQuery(
+    { key: "shop_wait_minutes" },
+    { refetchInterval: 15000 }
+  );
+
+  const utils = trpc.useUtils();
+  const upsert = trpc.shopdriver.upsertSetting.useMutation({
+    onSuccess: () => {
+      utils.shopdriver.getSetting.invalidate();
+      toast.success("Wait status updated");
+    },
+    onError: () => toast.error("Failed to update"),
+  });
+
+  const isWaiting = setting?.value === "true";
+  const waitMinutes = waitTimeSetting?.value || "30";
+
+  if (isLoading) {
+    return (
+      <div className="bg-card border border-border/40 p-6 flex items-center justify-center">
+        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className={`border-2 p-6 transition-colors ${
+      isWaiting
+        ? "border-amber-500/50 bg-amber-500/5"
+        : "border-emerald-500/50 bg-emerald-500/5"
+    }`}>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex-1">
+          <h3 className="font-bold text-lg tracking-wide text-foreground">WAIT STATUS</h3>
+          <p className={`text-sm mt-1 ${isWaiting ? "text-amber-400" : "text-emerald-400"}`}>
+            {isWaiting
+              ? `There's currently a wait (~${waitMinutes} min)`
+              : "No wait \u2014 walk right in"
+            }
+          </p>
+        </div>
+
+        {/* Big toggle switch */}
+        <button
+          onClick={() => upsert.mutate({ key: "shop_wait_status", value: isWaiting ? "false" : "true" })}
+          disabled={upsert.isPending}
+          className={`relative w-20 h-10 rounded-full transition-colors ${
+            isWaiting ? "bg-amber-500" : "bg-emerald-500"
+          } ${upsert.isPending ? "opacity-50" : ""}`}
+        >
+          <span className={`absolute top-1 w-8 h-8 bg-white rounded-full shadow-md transition-transform ${
+            isWaiting ? "left-11" : "left-1"
+          }`} />
+        </button>
+      </div>
+
+      {/* Wait time selector (only when wait is ON) */}
+      {isWaiting && (
+        <div className="mt-4 flex items-center gap-3">
+          <span className="text-[11px] text-foreground/50 tracking-wider font-bold">EST. WAIT:</span>
+          {["15", "30", "45", "60", "90", "120"].map(mins => (
+            <button
+              key={mins}
+              onClick={() => upsert.mutate({ key: "shop_wait_minutes", value: mins })}
+              className={`px-3 py-1.5 text-[12px] font-bold tracking-wide transition-colors ${
+                waitMinutes === mins
+                  ? "bg-amber-500 text-white"
+                  : "bg-card border border-border/30 text-foreground/50 hover:text-foreground"
+              }`}
+            >
+              {Number(mins) >= 60 ? `${Number(mins) / 60}hr` : `${mins}m`}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function DispatchSection() {
   const [tab, setTab] = useState<Tab>("bays");
@@ -19,6 +104,9 @@ export default function DispatchSection() {
 
   return (
     <div className="space-y-4">
+      {/* WAIT STATUS — primary control */}
+      <WaitStatusToggle />
+
       {/* Metrics Strip */}
       <MetricsStrip />
 

@@ -4,7 +4,7 @@
  * Now with: VIP badges, churn risk indicators, lifetime value sorting,
  * call buttons, total spent, days since last visit.
  */
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { trpc } from "@/lib/trpc";
 import { StatCard } from "./shared";
 import {
@@ -15,6 +15,11 @@ import {
   ShieldAlert, Clock
 } from "lucide-react";
 import { toast } from "sonner";
+
+const LoyaltyAdminSection = lazy(() => import("./LoyaltyAdminSection"));
+const CouponsSection = lazy(() => import("./CouponsSection"));
+
+type CustomerTab = "customers" | "loyalty" | "coupons";
 
 type Segment = "all" | "recent" | "lapsed" | "unknown";
 type SortBy = "name" | "visits" | "lastVisit" | "totalSpent";
@@ -392,6 +397,47 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
 type SortByExt = "name" | "visits" | "lastVisit" | "totalSpent" | "firstVisit" | "created";
 
 export default function CustomersSection() {
+  const [activeTab, setActiveTab] = useState<CustomerTab>("customers");
+
+  return (
+    <div className="space-y-6">
+      {/* Sub-tabs: Customers | Loyalty | Coupons */}
+      <div className="flex items-center gap-1 border-b border-border/40">
+        {([
+          { id: "customers" as CustomerTab, label: "Customers" },
+          { id: "loyalty" as CustomerTab, label: "Loyalty" },
+          { id: "coupons" as CustomerTab, label: "Coupons" },
+        ]).map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2.5 text-[12px] font-bold tracking-wide border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? "border-primary text-primary"
+                : "border-transparent text-foreground/50 hover:text-foreground"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "loyalty" && (
+        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+          <LoyaltyAdminSection />
+        </Suspense>
+      )}
+      {activeTab === "coupons" && (
+        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+          <CouponsSection />
+        </Suspense>
+      )}
+      {activeTab === "customers" && <CustomersList />}
+    </div>
+  );
+}
+
+function CustomersList() {
   const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const [segment, setSegment] = useState<Segment>("all");
