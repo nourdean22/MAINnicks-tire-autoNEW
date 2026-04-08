@@ -159,6 +159,27 @@
     {
       "idx": 22,
       "version": "5",
+      "when": 1774910000000,
+      "tag": "0022_conversation_memory",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1774920000000,
+      "tag": "0023_customer_enrichment_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1775779100000,
+      "tag": "0024_retention_tracking_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
       "when": 1775779200000,
       "tag": "0025_booking_confirmation_tracking",
       "breakpoints": true
