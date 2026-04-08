@@ -81,7 +81,7 @@ export default function LocalBusinessSchema({
       name: area,
     })),
     description:
-      `Cleveland's #1 new and used tire specialist and full-service auto repair. Buy tires online with free premium installation package ($289+ value). Flat tire repair from $15. Expert brake, diagnostic, emissions, and general repair. ${BUSINESS.reviews.rating} stars, ${BUSINESS.reviews.countDisplay} reviews. Walk-ins welcome 7 days. $10 down financing available.`,
+      `Cleveland's #1 new and used tire specialist and full-service auto repair. Buy tires online with free premium installation package included. Expert brake, diagnostic, emissions, and general repair. ${BUSINESS.reviews.rating} stars, ${BUSINESS.reviews.countDisplay} reviews. Walk-ins welcome 7 days. $10 down financing available.`,
     knowsAbout: [
       "New tire sales and installation",
       "Used tire sales and installation",
@@ -110,8 +110,8 @@ export default function LocalBusinessSchema({
       itemListElement: [
         {
           "@type": "Offer",
-          itemOffered: { "@type": "Service", name: "New Tire Sales & Installation", description: "Free premium installation package ($289+ value) with every tire purchase." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", price: "0", description: "Installation FREE with tire purchase" },
+          itemOffered: { "@type": "Service", name: "New Tire Sales & Installation", description: "Free premium installation package with every tire purchase." },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", description: "Installation FREE with tire purchase" },
         },
         {
           "@type": "Offer",
@@ -121,27 +121,27 @@ export default function LocalBusinessSchema({
         {
           "@type": "Offer",
           itemOffered: { "@type": "Service", name: "Flat Tire Repair", description: "Professional plug-and-patch repair in 15 minutes." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "15", maxPrice: "25" },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD" },
         },
         {
           "@type": "Offer",
           itemOffered: { "@type": "Service", name: "Brake Repair", description: "Pads, rotors, calipers, ABS. Free brake inspection." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "89", description: "$89/axle for pads" },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD" },
         },
         {
           "@type": "Offer",
           itemOffered: { "@type": "Service", name: "Oil Change — Conventional", description: "With filter, multi-point inspection, and tire pressure check." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "39.99" },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD" },
         },
         {
           "@type": "Offer",
           itemOffered: { "@type": "Service", name: "Oil Change — Full Synthetic", description: "Mobil 1, Pennzoil Platinum, or equivalent." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "69.99" },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD" },
         },
         {
           "@type": "Offer",
           itemOffered: { "@type": "Service", name: "Engine Diagnostics", description: "OBD-II code reading, diagnostic fee credited toward repair." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "49.99" },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD" },
         },
         {
           "@type": "Offer",
@@ -150,12 +150,12 @@ export default function LocalBusinessSchema({
         {
           "@type": "Offer",
           itemOffered: { "@type": "Service", name: "Wheel Alignment", description: "4-wheel computerized alignment." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "79" },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD" },
         },
         {
           "@type": "Offer",
           itemOffered: { "@type": "Service", name: "AC & Heating Repair", description: "AC recharge, compressor, heater core, blower motor." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "49" },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD" },
         },
         {
           "@type": "Offer",

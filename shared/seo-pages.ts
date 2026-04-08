@@ -28,10 +28,10 @@ export interface SEOServicePage {
 export const SEO_SERVICE_PAGES: SEOServicePage[] = [
   {
     slug: "brake-repair-cleveland",
-    metaTitle: "Brake Repair Cleveland OH | Starting at $129/Axle | Nick's Tire",
-    metaDescription: "Cleveland's top brake shop. Brake repair starting at $129/axle. Pads, rotors, calipers, ABS. 36-month warranty, same-day service. Call (216) 862-0005.",
+    metaTitle: "Brake Repair Cleveland OH | Same Day Service | Nick's Tire",
+    metaDescription: "Cleveland's top brake shop. Pads, rotors, calipers, ABS. 36-month warranty, same-day service, free estimate. Walk-ins welcome. Call (216) 862-0005.",
     heroHeadline: "BRAKE REPAIR\nCLEVELAND OH",
-    heroSubline: "Looking for brake repair in Cleveland? Our Cleveland brake shop has been the trusted choice for brakes Cleveland drivers depend on. Starting at $129/axle, we inspect the entire braking system, show you the worn parts, and explain your options before any work begins.",
+    heroSubline: "Looking for brake repair in Cleveland? Our Cleveland brake shop has been the trusted choice for brakes Cleveland drivers depend on. We inspect the entire braking system, show you the worn parts, and explain your options before any work begins. Free estimate, no surprises.",
     category: "service",
     parentService: "brakes",
     sections: [
@@ -81,7 +81,7 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
       },
       {
         question: "Where is the best brake shop in Cleveland?",
-        answer: "Nick's Tire & Auto at 21300 Euclid Ave is Cleveland's top-rated brake shop with 4.9 stars from 1,700+ reviews. We offer brake repair starting at $129/axle with a 36-month warranty on parts and labor. Walk-ins welcome 7 days a week. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at 21300 Euclid Ave is Cleveland's top-rated brake shop with 4.9 stars from 1,700+ reviews. We offer competitive brake repair pricing with a 36-month warranty on parts and labor. Walk-ins welcome 7 days a week. Call (216) 862-0005."
       }
     ],
     relatedPages: ["brakes", "diagnostics-cleveland", "car-shaking-while-driving", "brakes-grinding"]

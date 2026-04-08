@@ -35,10 +35,10 @@ const MAKES = [
 
 // Upsell mapping based on selected service
 const UPSELL_MAP: Record<string, { suggestion: string; price: string; note: string }[]> = {
-  "Oil Change": [{ suggestion: "Tire Rotation", price: "$29.99", note: "Usually $49.99 with oil change" }],
-  "Brake Repair": [{ suggestion: "Alignment Check", price: "$39.99", note: "Recommended after brake work" }],
-  "Tires — New, Used, Repair": [{ suggestion: "Wheel Alignment", price: "$79.99", note: "Required for even tire wear" }],
-  "Ohio E-Check / Emissions Repair": [{ suggestion: "Oil Change", price: "$39.99", note: "Keep your engine clean" }],
+  "Oil Change": [{ suggestion: "Tire Rotation", price: "Add-on available", note: "Recommended with oil change" }],
+  "Brake Repair": [{ suggestion: "Alignment Check", price: "Add-on available", note: "Recommended after brake work" }],
+  "Tires — New, Used, Repair": [{ suggestion: "Wheel Alignment", price: "Add-on available", note: "Required for even tire wear" }],
+  "Ohio E-Check / Emissions Repair": [{ suggestion: "Oil Change", price: "Add-on available", note: "Keep your engine clean" }],
   "Check Engine Light / Diagnostics": [{ suggestion: "Code Scan Report", price: "FREE", note: "We'll email you the full report" }],
 };
 

@@ -20,7 +20,7 @@ interface ServiceInfo {
 const SERVICE_MAP: Record<string, ServiceInfo> = {
   tires: { slug: "tires", title: "Tires", desc: "New & used tires, mounting, balancing, TPMS, flat repair. All major brands at fair prices.", icon: <Gauge className="w-5 h-5" /> },
   brakes: { slug: "brakes", title: "Brake Repair", desc: "Pads, rotors, calipers, brake lines, ABS diagnostics. We show you the problem first.", icon: <Shield className="w-5 h-5" /> },
-  diagnostics: { slug: "diagnostics", title: "Engine Diagnostics", desc: "Check engine light, OBD-II scanning, advanced computer diagnostics from $49.99.", icon: <Zap className="w-5 h-5" /> },
+  diagnostics: { slug: "diagnostics", title: "Engine Diagnostics", desc: "Check engine light, OBD-II scanning, advanced computer diagnostics.", icon: <Zap className="w-5 h-5" /> },
   emissions: { slug: "emissions", title: "Emissions & E-Check", desc: "Ohio E-Check repair and testing. We fix the root cause so you pass the first time.", icon: <ThermometerSun className="w-5 h-5" /> },
   "oil-change": { slug: "oil-change", title: "Oil Change", desc: "Conventional and synthetic oil changes with filter and multi-point inspection.", icon: <Droplets className="w-5 h-5" /> },
   "general-repair": { slug: "general-repair", title: "General Repair", desc: "Suspension, steering, exhaust, cooling systems, belts, hoses, and more.", icon: <Wrench className="w-5 h-5" /> },
