@@ -255,7 +255,7 @@ export function registerBridgeRoutes(app: Express): void {
             source: "report_ingestion",
             confidence: 0.95,
           });
-        } catch {}
+        } catch (e) { console.warn("[bridge] operation failed:", e); }
       }
 
       // Ingest invoices
@@ -436,7 +436,7 @@ export function registerBridgeRoutes(app: Express): void {
       try {
         const { sendTelegram } = await import("../services/telegram");
         await sendTelegram(`📱 SMS Campaign Sent\n\n${sent} messages sent, ${failed} failed\nCampaign: Thank You + Referral + Review`);
-      } catch {}
+      } catch (e) { console.warn("[bridge] operation failed:", e); }
 
       res.json({ sent, failed, total: messages.length, timestamp: new Date().toISOString() });
     } catch (err: unknown) {
@@ -769,7 +769,7 @@ export function registerBridgeRoutes(app: Express): void {
             dailyRev.map((d) => ({ date: d.date, amount: d.revenue, orderCount: d.jobs }))
           );
         }
-      } catch {}
+      } catch (e) { console.warn("[bridge] operation failed:", e); }
 
       // 8. Shop pulse (current state)
       try {

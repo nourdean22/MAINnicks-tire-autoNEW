@@ -232,7 +232,7 @@ export const invoicesRouter = router({
           totalAmount: (input.totalAmount || 0) / 100,
           source: input.source,
         })
-      ).catch(() => {});
+      ).catch((e) => { console.warn("[advanced] fire-and-forget failed:", e); });
 
       // Push to Auto Labor Guide (tries API first, falls back to Telegram)
       if (input.source !== "shopdriver") {
@@ -250,7 +250,7 @@ export const invoicesRouter = router({
             paymentStatus: input.paymentStatus,
             paymentMethod: input.paymentMethod,
           })
-        ).catch(() => {});
+        ).catch((e) => { console.warn("[advanced] fire-and-forget failed:", e); });
       }
 
       return { success: true, id: invoiceId };
@@ -286,7 +286,7 @@ export const invoicesRouter = router({
         try {
           const [current] = await d.select({ ps: invoices.paymentStatus }).from(invoices).where(eq(invoices.id, id)).limit(1);
           wasPaid = current?.ps === "paid";
-        } catch {}
+        } catch (e) { console.warn("[advanced:invoice] payment status check failed:", e); }
       }
 
       await d.update(invoices).set(cleanUpdates).where(eq(invoices.id, id));
@@ -300,7 +300,7 @@ export const invoicesRouter = router({
             totalAmount: (input.totalAmount || 0) / 100,
             method: input.paymentMethod || "unknown",
           })
-        ).catch(() => {});
+        ).catch((e) => { console.warn("[advanced] fire-and-forget failed:", e); });
       }
 
       return { success: true };
@@ -640,7 +640,7 @@ export const invoicesRouter = router({
             if (slowDays.length > 0) {
               recs.push({ text: `${slowDays.map((d: RawRow) => d.dayName).join(', ')} are slow days — consider promotions or appointments-only`, type: "growth", priority: "medium" });
             }
-          } catch {}
+          } catch (e) { console.warn("[advanced:recommendations] analysis failed:", e); }
           return recs;
         })(),
       };
