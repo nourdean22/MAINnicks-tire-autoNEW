@@ -31,8 +31,6 @@ Allow: /api/trpc/
 Disallow: /api/
 Disallow: /status/
 Disallow: /inspection/
-Disallow: /loyalty
-Disallow: /referral
 
 # Allow static assets
 Allow: /favicon.ico
