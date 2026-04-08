@@ -6,7 +6,7 @@ import { getUtmData } from "@/lib/utm";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, Calendar, Clock, Car, Wrench, CheckCircle, AlertCircle,
-  Loader2, ChevronRight, ChevronLeft, User, Mail,
+  Loader2, ChevronRight, ChevronLeft, User, Mail, Users,
   AlertTriangle, Zap, Check,
   CircleDot, Thermometer, Gauge, Droplets, Settings,
 } from "lucide-react";
@@ -103,6 +103,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
     message: "",
     urgency: "whenever" as "emergency" | "this-week" | "whenever",
     textUpdates: true,
+    referredBy: "",
   });
 
   const mutation = trpc.booking.create.useMutation({
@@ -147,6 +148,12 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
       ? (formData.preferredTime === "midday" ? "morning" : "afternoon")
       : formData.preferredTime || "no-preference";
 
+    // Prepend referral info to message if provided
+    const referralPrefix = formData.referredBy.trim()
+      ? `[Referral: ${formData.referredBy.trim()}] `
+      : "";
+    const fullMessage = referralPrefix + (formData.message || "");
+
     mutation.mutate({
       name: formData.name,
       phone: formData.phone,
@@ -157,7 +164,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
       vehicleModel: formData.vehicleModel,
       preferredDate: formData.preferredDate,
       preferredTime: mappedTime as "morning" | "afternoon" | "no-preference",
-      message: formData.message,
+      message: fullMessage,
       urgency: formData.urgency,
       photoUrls: [],
       pixelEventIds: { leadEventId, scheduleEventId },
@@ -622,6 +629,23 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                     onChange={(e) => update("email", e.target.value)}
                     className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                     placeholder="you@email.com"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-1.5">
+                  Who referred you? (optional)
+                </label>
+                <div className="relative">
+                  <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-nick-teal/40" />
+                  <input
+                    type="text"
+                    value={formData.referredBy}
+                    onChange={(e) => update("referredBy", e.target.value)}
+                    className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
+                    placeholder="Friend's name, social media, etc."
+                    maxLength={100}
                   />
                 </div>
               </div>

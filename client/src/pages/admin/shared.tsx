@@ -67,9 +67,19 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "PIPELINE",
+    items: [
+      { id: "leads", label: "Leads", icon: <Users className="w-4 h-4" />, badge: "leads" },
+      { id: "bookings", label: "Bookings", icon: <CalendarClock className="w-4 h-4" />, badge: "bookings" },
+      { id: "estimates", label: "Estimates", icon: <DollarSign className="w-4 h-4" /> },
+      { id: "declinedEstimates", label: "Declined Work", icon: <AlertTriangle className="w-4 h-4" /> },
+      { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
+      { id: "revenue", label: "Revenue", icon: <TrendingUp className="w-4 h-4" /> },
+    ],
+  },
+  {
     label: "SHOP FLOOR",
     items: [
-      { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
       { id: "workOrders", label: "Work Orders", icon: <Wrench className="w-4 h-4" /> },
       { id: "dispatch", label: "Dispatch & QC", icon: <ClipboardList className="w-4 h-4" /> },
       { id: "tireOrders", label: "Tire Orders", icon: <ShoppingCart className="w-4 h-4" /> },
@@ -77,42 +87,19 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: "PIPELINE",
-    items: [
-      { id: "leads", label: "Leads", icon: <Users className="w-4 h-4" />, badge: "leads" },
-      { id: "bookings", label: "Bookings", icon: <CalendarClock className="w-4 h-4" />, badge: "bookings" },
-      { id: "estimates", label: "Estimates", icon: <DollarSign className="w-4 h-4" /> },
-      { id: "declinedEstimates", label: "Declined Work", icon: <AlertTriangle className="w-4 h-4" /> },
-      { id: "chats", label: "Chat Sessions", icon: <MessageSquare className="w-4 h-4" /> },
-      { id: "callTrackingView", label: "Calls", icon: <PhoneCall className="w-4 h-4" /> },
-    ],
-  },
-  {
-    label: "REVENUE",
-    items: [
-      { id: "revenue", label: "Revenue", icon: <TrendingUp className="w-4 h-4" /> },
-      { id: "financing", label: "Financing", icon: <CreditCard className="w-4 h-4" /> },
-      { id: "warranty", label: "Warranties", icon: <Shield className="w-4 h-4" /> },
-      { id: "specials", label: "Specials", icon: <Tag className="w-4 h-4" /> },
-    ],
-  },
-  {
     label: "OUTREACH",
     items: [
       { id: "campaigns", label: "Outreach Hub", icon: <Send className="w-4 h-4" /> },
       { id: "loyalty", label: "Loyalty", icon: <Trophy className="w-4 h-4" /> },
-      { id: "referrals", label: "Referrals", icon: <Gift className="w-4 h-4" /> },
       { id: "coupons", label: "Coupons", icon: <Star className="w-4 h-4" /> },
-      { id: "qa", label: "Q&A", icon: <Mail className="w-4 h-4" /> },
+      { id: "content", label: "Content & AI", icon: <FileText className="w-4 h-4" /> },
     ],
   },
   {
     label: "SYSTEM",
     items: [
       { id: "settings", label: "ShopDriver HQ", icon: <Settings className="w-4 h-4" /> },
-      { id: "content", label: "Content", icon: <FileText className="w-4 h-4" /> },
-      { id: "health", label: "Site Health", icon: <Globe className="w-4 h-4" /> },
-      { id: "activity", label: "Activity", icon: <Activity className="w-4 h-4" /> },
+      { id: "health", label: "System & Activity", icon: <Activity className="w-4 h-4" /> },
     ],
   },
 ];
@@ -125,9 +112,9 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   overview: "Shop Dashboard",
   bookings: "Online Bookings",
   leads: "Website Leads",
-  content: "Content",
+  content: "Content & AI",
   chats: "Chat Sessions",
-  health: "Site Health",
+  health: "System & Activity",
   coupons: "Coupons",
   qa: "Q&A",
   referrals: "Referrals",
