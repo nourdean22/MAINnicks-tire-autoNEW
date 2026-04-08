@@ -4,6 +4,9 @@
  */
 import { adminProcedure, publicProcedure, router } from "../_core/trpc";
 import { z } from "zod";
+import { BUSINESS } from "../../shared/business";
+
+const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
 import { eq, desc, gte, lte, and, sql, asc } from "drizzle-orm";
 import {
   jobAssignments, invoices, customerMetrics, kpiSnapshots, portalSessions,
@@ -598,8 +601,8 @@ export const invoicesRouter = router({
         projections: {
           monthlyAvg: Math.round(recentAvg / 100),
           annualProjection: Math.round(recentAvg * 12 / 100),
-          dailyTarget: Math.round(20000 / 26), // $20K / 26 working days
-          monthlyTarget: 20000,
+          dailyTarget: Math.round(MONTHLY_TARGET / 26), // target / 26 working days
+          monthlyTarget: MONTHLY_TARGET,
         },
         // Smart recommendations based on data
         recommendations: await (async () => {
@@ -618,16 +621,15 @@ export const invoicesRouter = router({
             // Check dormant high-value customers
             const [dormant] = await d.execute(rawSql`
               SELECT COUNT(*) as cnt FROM customers
-              WHERE lastVisitDate < DATE_SUB(NOW(), INTERVAL 90 DAY) AND totalSpent > 20000
+              WHERE lastVisitDate < DATE_SUB(NOW(), INTERVAL 90 DAY) AND totalSpent > ${MONTHLY_TARGET}
             `);
             if (Number((dormant as any[])?.[0]?.cnt) > 5) {
               recs.push({ text: `${(dormant as any[])?.[0]?.cnt} high-value customers haven't visited in 90+ days — win-back campaign opportunity`, type: "growth", priority: "high" });
             }
             // Revenue pacing
-            const monthlyTarget = 20000;
             const avg = Math.round(recentAvg / 100);
-            if (avg < monthlyTarget * 0.8) {
-              recs.push({ text: `Revenue trending $${(monthlyTarget - avg).toLocaleString()} below $20K target — need ${Math.round((monthlyTarget - avg) / 26)}/day more`, type: "risk", priority: "high" });
+            if (avg < MONTHLY_TARGET * 0.8) {
+              recs.push({ text: `Revenue trending $${(MONTHLY_TARGET - avg).toLocaleString()} below ${BUSINESS.revenueTarget.display} target — need ${Math.round((MONTHLY_TARGET - avg) / 26)}/day more`, type: "risk", priority: "high" });
             }
             // Slow days
             const slowDays = byDayOfWeek.filter((d: any) => Number(d.cnt) < 2);
@@ -842,8 +844,8 @@ export const portalRouter = router({
         }
       } catch (err) {
         if (process.env.NODE_ENV !== "production") {
-          // Only log codes in dev — never leak OTPs in production logs
-          console.log(`[Portal] Verification code for ${normalized}: ${code}`);
+          // Only log last 4 digits of phone in dev — never leak OTPs
+          console.warn(`[Portal] Verification code sent to ...${normalized.slice(-4)}`);
         }
       }
 

@@ -1,16 +1,9 @@
 /**
  * CouponsSection — extracted from Admin.tsx for maintainability.
  */
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Link } from "wouter";
-import { BUSINESS } from "@shared/business";
-import {
-  StatCard, UrgencyBadge, ActivityIcon, StatusDot,
-  BOOKING_STATUS_CONFIG, LEAD_STATUS_CONFIG, TIME_LABELS, CHART_COLORS,
-  type BookingStatus, type LeadStatus,
-} from "./shared";
 import {
   Calendar, CheckCircle2, Loader2, Power, Star, XCircle, Zap
 } from "lucide-react";

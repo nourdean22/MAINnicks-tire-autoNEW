@@ -4,6 +4,9 @@
  * AUDIT-FIXED: Added create invoice, hour heatmap, invoice table with edit/delete.
  */
 import React, { useState, useMemo, lazy, Suspense } from "react";
+import { BUSINESS } from "@shared/business";
+
+const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -149,7 +152,7 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
 
   // Monthly pace computation
   const monthRevenue = intel?.projections?.monthlyAvg ?? stats?.totalRevenue ?? 0;
-  const monthTarget = 20000;
+  const monthTarget = MONTHLY_TARGET;
   const pacePercent = monthTarget > 0 ? Math.round((monthRevenue / monthTarget) * 100) : 0;
 
   return (
@@ -746,10 +749,10 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
                 <p className="text-[9px] text-foreground/40 mt-1">Daily Target (26 days)</p>
               </div>
               <div className="text-center p-3 rounded border border-border/20">
-                <p className={`text-2xl font-bold ${intel.projections.monthlyAvg >= 20000 ? "text-emerald-400" : "text-red-400"}`}>
-                  {intel.projections.monthlyAvg >= 20000 ? "ON TRACK" : `$${(20000 - intel.projections.monthlyAvg).toLocaleString()} GAP`}
+                <p className={`text-2xl font-bold ${intel.projections.monthlyAvg >= MONTHLY_TARGET ? "text-emerald-400" : "text-red-400"}`}>
+                  {intel.projections.monthlyAvg >= MONTHLY_TARGET ? "ON TRACK" : `$${(MONTHLY_TARGET - intel.projections.monthlyAvg).toLocaleString()} GAP`}
                 </p>
-                <p className="text-[9px] text-foreground/40 mt-1">vs $20K Target</p>
+                <p className="text-[9px] text-foreground/40 mt-1">vs {BUSINESS.revenueTarget.display} Target</p>
               </div>
             </div>
           </div>
