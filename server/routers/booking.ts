@@ -138,6 +138,25 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
     })
   ).catch(() => {});
 
+  // Link invoice to matching work order (WO created from same booking)
+  try {
+    const { workOrders } = await import("../../drizzle/schema");
+    const { eq: woEq, sql: woSql } = await import("drizzle-orm");
+    const [matchingWo] = await d.select({ id: workOrders.id, internalNotes: workOrders.internalNotes })
+      .from(workOrders)
+      .where(woEq(workOrders.bookingId, booking.id))
+      .limit(1);
+    if (matchingWo) {
+      const existingNotes = matchingWo.internalNotes || "";
+      const linkNote = `[Invoice ${invoiceNumber} — $${(totalAmount / 100).toFixed(2)}]`;
+      await d.update(workOrders).set({
+        internalNotes: existingNotes ? `${existingNotes}\n${linkNote}` : linkNote,
+      }).where(woEq(workOrders.id, matchingWo.id));
+    }
+  } catch (err) {
+    console.error("[Invoice] WO linkage failed:", err instanceof Error ? err.message : err);
+  }
+
   console.log(`[Invoice] Auto-created ${invoiceNumber} for booking #${booking.id} — $${(totalAmount / 100).toFixed(2)}`);
 }
 
@@ -167,7 +186,10 @@ export const bookingRouter = router({
         vehicleYear: z.string().max(4).optional(),
         vehicleMake: z.string().max(50).optional(),
         vehicleModel: z.string().max(50).optional(),
-        preferredDate: z.string().max(30).optional(),
+        preferredDate: z.string().max(30).optional().refine(
+          (val) => !val || /^\d{4}-\d{2}-\d{2}$/.test(val),
+          { message: "preferredDate must be YYYY-MM-DD format" }
+        ),
         preferredTime: z.enum(["morning", "afternoon", "no-preference"]).default("no-preference"),
         message: z.string().max(2000, "Message too long").optional(),
         photoUrls: z.array(z.string().max(2048)).max(10).optional(),

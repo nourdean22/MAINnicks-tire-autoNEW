@@ -24,6 +24,10 @@ function bridgeAuth(req: Request, res: Response, next: NextFunction): void {
     return;
   }
 
+  if (key.length < 32) {
+    console.warn("[Bridge] WARNING: BRIDGE_API_KEY is short (" + key.length + " chars). Recommend 64+ chars for security.");
+  }
+
   const provided = req.headers["x-bridge-key"];
   if (typeof provided !== "string" || !safeCompare(provided, key)) {
     res.status(401).json({ error: "Invalid bridge key" });

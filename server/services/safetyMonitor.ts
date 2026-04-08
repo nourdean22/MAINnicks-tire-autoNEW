@@ -294,6 +294,20 @@ export async function checkOperationalSafety(): Promise<CheckResult<OperationalM
   };
 
   try {
+    // Check critical API keys
+    if (!process.env.GOOGLE_PLACES_API_KEY) {
+      alerts.push({ severity: "warning", message: "GOOGLE_PLACES_API_KEY not set — review monitoring is disabled" });
+    }
+    if (!process.env.TWILIO_ACCOUNT_SID) {
+      alerts.push({ severity: "warning", message: "Twilio not configured — all SMS features disabled" });
+    }
+
+    // Check bridge key security
+    const bridgeKey = process.env.BRIDGE_API_KEY;
+    if (bridgeKey && bridgeKey.length < 32) {
+      alerts.push({ severity: "warning", message: `Bridge API key is only ${bridgeKey.length} chars — recommend 64+ for security` });
+    }
+
     const { getDb } = await import("../db");
     const db = await getDb();
     if (!db) return { alerts, metrics };
