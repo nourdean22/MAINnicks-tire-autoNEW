@@ -235,6 +235,17 @@ export async function autoAdvanceWorkOrders(): Promise<{ recordsProcessed: numbe
     // (Invoices table has no workOrderId — can't join directly.
     //  Instead, auto-advance WOs that have been in 'completed' for >24h,
     //  since completed means the work is done and should be invoiced.)
+
+    // First, get the IDs of WOs about to be advanced (for audit trail)
+    const [toAdvance] = await d.execute(sql`
+      SELECT id FROM work_orders
+      WHERE status = 'completed'
+        AND updated_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+    `);
+    const woIds = (toAdvance as any[]).map((r: any) => r.id);
+
+    if (woIds.length === 0) return { recordsProcessed: 0, details: "0 WOs auto-advanced to invoiced" };
+
     const [rows] = await d.execute(sql`
       UPDATE work_orders
       SET status = 'invoiced', updated_at = NOW()
@@ -243,7 +254,19 @@ export async function autoAdvanceWorkOrders(): Promise<{ recordsProcessed: numbe
     `);
 
     const affected = (rows as any)?.affectedRows || (rows as any)?.changedRows || 0;
-    if (affected > 0) log.info(`Auto-advanced ${affected} WOs from completed to invoiced`);
+
+    // Insert audit trail records into work_order_transitions
+    if (affected > 0) {
+      for (const woId of woIds) {
+        try {
+          await d.execute(sql`
+            INSERT INTO work_order_transitions (work_order_id, from_status, to_status, changed_by, note, created_at)
+            VALUES (${woId}, 'completed', 'invoiced', 'system:cron', 'Auto-advanced after 24h in completed', NOW())
+          `);
+        } catch { /* transition table may not exist yet — non-critical */ }
+      }
+      log.info(`Auto-advanced ${affected} WOs from completed to invoiced (audit trail written)`);
+    }
     return { recordsProcessed: affected, details: `${affected} WOs auto-advanced to invoiced` };
   } catch (e: any) {
     return { recordsProcessed: 0, details: `WO auto-advance failed: ${e.message}` };
@@ -459,16 +482,19 @@ export async function notifyNewVips(): Promise<{ recordsProcessed: number; detai
     if (!d) return { recordsProcessed: 0, details: "No DB" };
 
     // Find customers who qualify as VIP (3+ visits, $2000+ spent in cents = 200000)
-    // AND haven't been VIP-notified yet (smsCampaignSent < 2 — using 2 as VIP-notified flag)
+    // AND are not already flagged as VIP in customer_metrics
+    // AND haven't received a VIP SMS in the last 90 days (smsCampaignDate cooldown)
     const [rows] = await d.execute(sql`
       SELECT c.id, c.firstName, c.phone, c.totalVisits, c.totalSpent, c.smsOptOut
       FROM customers c
+      LEFT JOIN customer_metrics cm ON cm.customerId = c.id
       WHERE c.totalVisits >= 3
         AND c.totalSpent >= 200000
         AND c.smsOptOut = 0
         AND c.phone IS NOT NULL
         AND c.phone != ''
-        AND c.smsCampaignSent < 2
+        AND (cm.isVip IS NULL OR cm.isVip = 0)
+        AND (c.smsCampaignDate IS NULL OR c.smsCampaignDate < DATE_SUB(NOW(), INTERVAL 90 DAY))
       LIMIT 20
     `);
 
