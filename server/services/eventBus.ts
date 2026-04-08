@@ -294,7 +294,23 @@ async function ensureInitialized(): Promise<void> {
     },
   });
 
-  // 4. Telegram (critical alerts + media)
+  // 4. Google Ads Offline Conversions
+  registerDestination({
+    name: "google-ads-conversions",
+    enabled: true,
+    handles: ["invoice_paid"],
+    softFail: true,
+    handler: async (event) => {
+      const { trackInvoiceConversion } = await import("./googleAdsConversion");
+      await trackInvoiceConversion({
+        totalAmount: event.data.totalAmount || 0,
+        customerPhone: event.data.phone || event.data.customerPhone,
+        invoiceNumber: event.data.invoiceNumber,
+      });
+    },
+  });
+
+  // 5. Telegram (critical alerts + media)
   registerDestination({
     name: "telegram",
     enabled: true,
