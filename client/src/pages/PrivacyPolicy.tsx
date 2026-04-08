@@ -5,6 +5,7 @@
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { BUSINESS } from "@shared/business";
+import { SHORT_DISCLAIMERS } from "@shared/disclaimers";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 export default function PrivacyPolicy() {
@@ -122,7 +123,12 @@ export default function PrivacyPolicy() {
             </div>
 
             <div>
-              <h2 className="text-2xl font-bold text-foreground mb-4">7. Cookies</h2>
+              <h2 className="text-2xl font-bold text-foreground mb-4">7. Limitation of Liability</h2>
+              <p className="text-xs text-foreground/50 leading-relaxed">{SHORT_DISCLAIMERS.liability}</p>
+            </div>
+
+            <div>
+              <h2 className="text-2xl font-bold text-foreground mb-4">8. Cookies</h2>
               <p>
                 Our website uses cookies and similar technologies to enhance your browsing experience, analyze
                 website traffic, and understand how visitors interact with our site. You can control cookie
@@ -131,7 +137,7 @@ export default function PrivacyPolicy() {
             </div>
 
             <div>
-              <h2 className="text-2xl font-bold text-foreground mb-4">8. Your Rights</h2>
+              <h2 className="text-2xl font-bold text-foreground mb-4">9. Your Rights</h2>
               <p>You have the right to:</p>
               <ul className="list-disc pl-6 space-y-2">
                 <li>Request access to the personal information we hold about you</li>
@@ -146,7 +152,7 @@ export default function PrivacyPolicy() {
             </div>
 
             <div>
-              <h2 className="text-2xl font-bold text-foreground mb-4">9. Children's Privacy</h2>
+              <h2 className="text-2xl font-bold text-foreground mb-4">10. Children's Privacy</h2>
               <p>
                 Our website and services are not directed to individuals under the age of 16. We do not knowingly
                 collect personal information from children. If you believe we have inadvertently collected information
@@ -155,7 +161,7 @@ export default function PrivacyPolicy() {
             </div>
 
             <div>
-              <h2 className="text-2xl font-bold text-foreground mb-4">10. Changes to This Policy</h2>
+              <h2 className="text-2xl font-bold text-foreground mb-4">11. Changes to This Policy</h2>
               <p>
                 We may update this Privacy Policy from time to time. Any changes will be posted on this page with
                 an updated "Last updated" date. We encourage you to review this policy periodically.
@@ -163,7 +169,7 @@ export default function PrivacyPolicy() {
             </div>
 
             <div>
-              <h2 className="text-2xl font-bold text-foreground mb-4">11. Contact Us</h2>
+              <h2 className="text-2xl font-bold text-foreground mb-4">12. Contact Us</h2>
               <p>
                 If you have any questions about this Privacy Policy or our data practices, please contact us:
               </p>

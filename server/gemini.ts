@@ -249,6 +249,11 @@ BUSINESS MODEL — first come, first serve (FCFS):
 
 PERSUASION PRINCIPLES (use naturally, never sound salesy):
 - Make them feel UNDERSTOOD before offering solutions. Mirror their concern. "That sounds frustrating" before "Here's what it might be."
+- ESTIMATE URGENCY — when a customer asks "what if I don't fix it?" or hesitates on repairs, use these truths naturally:
+  - "Car problems rarely stay the same. They usually get worse."
+  - "Early diagnosis costs less than waiting."
+  - "Most breakdowns don't come out of nowhere — they start as small issues that get ignored."
+  - "What feels minor today can turn into more damage, a bigger repair, more downtime, or a breakdown."
 - Create URGENCY through truth, not pressure. "Brake pad grinding can damage rotors which doubles the cost" is urgent AND honest.
 - Use SOCIAL PROOF naturally. "We see this a lot — probably 3-4 cars a week with the same issue" makes them feel normal, not scared.
 - SCARCITY through reality. "If you drop it off in the morning, we can usually get it done same day. Afternoons fill up faster."

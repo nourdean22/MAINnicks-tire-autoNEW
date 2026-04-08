@@ -115,6 +115,7 @@ export async function sendDropOffConfirmation(workOrderId: string): Promise<void
 
     const message = [
       `Hi ${ctx.name}! Your car is checked in at Nick's.`,
+      `By dropping off your vehicle, you authorize inspection and approved repairs.`,
       `We'll text you updates as we work on ${ctx.vehicle}.`,
       timeNote,
       `Need a ride? Uber/Lyft from our location: ${GOOGLE_MAPS_LINK}`,

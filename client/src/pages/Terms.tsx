@@ -7,6 +7,7 @@
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { BUSINESS } from "@shared/business";
+import { INVOICE_DISCLAIMERS } from "@shared/disclaimers";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 export default function Terms() {
@@ -187,7 +188,30 @@ export default function Terms() {
             </div>
 
             <div>
-              <h2 className="text-2xl font-bold text-foreground mb-4">12. Contact Us</h2>
+              <h2 className="text-2xl font-bold text-foreground mb-4">12. Service Agreement & Policies</h2>
+              <p className="mb-4">
+                The following terms apply to all repair services, diagnostics, and parts provided by Nick's Tire & Auto.
+                By authorizing repairs or accepting an invoice, you agree to these terms.
+              </p>
+
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground mb-2">Authorization & Payment Terms</h3>
+                  <p className="text-xs text-foreground/50 leading-relaxed whitespace-pre-line">{INVOICE_DISCLAIMERS.center}</p>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground mb-2">Refund Policy</h3>
+                  <p className="text-xs text-foreground/50 leading-relaxed">{INVOICE_DISCLAIMERS.left}</p>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground mb-2">Limitation of Liability</h3>
+                  <p className="text-xs text-foreground/50 leading-relaxed">{INVOICE_DISCLAIMERS.right}</p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h2 className="text-2xl font-bold text-foreground mb-4">13. Contact Us</h2>
               <p>
                 If you have questions about these Terms and Conditions, please contact us:
               </p>
