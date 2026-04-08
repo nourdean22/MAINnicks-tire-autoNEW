@@ -11,6 +11,7 @@ import {
   Loader2, Calendar, ArrowUpRight, ArrowDownRight, Minus, PieChart,
   Zap, Star, Clock, Activity, Plus, X, Trash2, Edit2, FileText, Search,
   ArrowRight, AlertTriangle, CheckCircle2, Wrench, CreditCard, Tag,
+  MessageSquare, ArrowUp, ArrowDown, ChevronUp, ChevronDown,
 } from "lucide-react";
 
 const SpecialsSection = lazy(() => import("./SpecialsSection"));
@@ -146,8 +147,58 @@ function RevenueContent() {
 function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, setPeriod, intel, intelPeriod, setIntelPeriod, custIntel }: any) {
   const revenueChange = stats?.periodComparison?.change ?? 0;
 
+  // Monthly pace computation
+  const monthRevenue = intel?.projections?.monthlyAvg ?? stats?.totalRevenue ?? 0;
+  const monthTarget = 20000;
+  const pacePercent = monthTarget > 0 ? Math.round((monthRevenue / monthTarget) * 100) : 0;
+
   return (
     <div className="space-y-6">
+      {/* ═══ TODAY AT A GLANCE ═══ */}
+      <div className="bg-gradient-to-r from-primary/10 to-emerald-500/10 border border-primary/20 p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-bold text-lg text-foreground tracking-wider">TODAY</h2>
+          <span className="text-foreground/30 text-xs font-mono">{new Date().toLocaleDateString()}</span>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div>
+            <p className="text-3xl font-bold text-primary">{formatDollars(period === 1 ? (stats?.totalRevenue ?? 0) : (intel?.weekOverWeek?.thisWeek ?? stats?.totalRevenue ?? 0))}</p>
+            <p className="text-[11px] text-foreground/50 mt-0.5">{period === 1 ? "Today's Revenue" : "This Week Revenue"}</p>
+          </div>
+          <div>
+            <p className="text-3xl font-bold text-emerald-400">{kpi?.completedThisWeek ?? stats?.invoiceCount ?? 0}</p>
+            <p className="text-[11px] text-foreground/50 mt-0.5">Jobs Closed (Week)</p>
+          </div>
+          <div>
+            <p className="text-3xl font-bold text-blue-400">{kpi?.weekBookings ?? 0}</p>
+            <p className="text-[11px] text-foreground/50 mt-0.5">New Bookings</p>
+          </div>
+          <div>
+            <p className="text-3xl font-bold text-amber-400">{shopFloor?.active ?? 0}</p>
+            <p className="text-[11px] text-foreground/50 mt-0.5">In Shop Now</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ MONTHLY PACE ═══ */}
+      <div className="bg-card border border-border/30 p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[11px] font-bold text-foreground/50 tracking-wider">MONTHLY PACE</span>
+          <span className="font-mono text-xs text-foreground/40">{formatDollars(monthRevenue)} / {formatDollars(monthTarget)}</span>
+        </div>
+        <div className="h-3 bg-foreground/5 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-700 ${pacePercent >= 100 ? "bg-emerald-500" : pacePercent >= 60 ? "bg-primary" : "bg-amber-500"}`}
+            style={{ width: `${Math.min(100, Math.max(2, pacePercent))}%` }}
+          />
+        </div>
+        <p className="text-[10px] text-foreground/40 mt-1">
+          {pacePercent >= 100
+            ? "Target hit — keep pushing"
+            : `${pacePercent}% of monthly target — ${formatDollars(monthTarget - monthRevenue)} to go`}
+        </p>
+      </div>
+
       {/* Period selector — expanded */}
       <div className="flex items-center gap-2 flex-wrap">
         {[1, 7, 30, 90].map((d: number) => (
@@ -169,6 +220,17 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
         <KPICard label="Conversion Rate" value={`${kpi?.conversionRate ?? 0}%`} icon={<Zap className="w-5 h-5" />} trendLabel="Leads → Bookings" color="text-purple-400" />
       </div>
 
+      {/* Empty state hint when no revenue */}
+      {(stats?.totalRevenue ?? 0) === 0 && (
+        <div className="bg-primary/5 border border-primary/20 p-4 flex items-center gap-3">
+          <Zap className="w-5 h-5 text-primary shrink-0" />
+          <div>
+            <p className="font-bold text-sm text-foreground">Revenue data syncs from Auto Labor Guide</p>
+            <p className="text-foreground/50 text-xs">Invoices from ALG mirror every 15 minutes. Create invoices in ALG and they'll appear here automatically.</p>
+          </div>
+        </div>
+      )}
+
       {/* Live Operations KPIs */}
       {kpi && (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -181,6 +243,15 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
       )}
 
       {/* Work Order Revenue Pipeline */}
+      {(!shopFloor || (shopFloor.active === 0 && shopFloor.totalValueInProgress === 0)) && (
+        <div className="bg-card border border-border/30 p-5">
+          <h3 className="font-bold text-sm text-foreground tracking-wider mb-3 flex items-center gap-2">
+            <Activity className="w-4 h-4 text-foreground/30" />
+            REVENUE PIPELINE
+          </h3>
+          <p className="text-xs text-foreground/40">No active work orders. The shop floor syncs from ALG every 15 minutes.</p>
+        </div>
+      )}
       {shopFloor && (shopFloor.active > 0 || shopFloor.totalValueInProgress > 0) && (
         <div className="bg-card border border-primary/20 rounded-lg p-5">
           <h3 className="font-bold text-sm text-foreground tracking-wider mb-4 flex items-center gap-2">
@@ -322,9 +393,9 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
       )}
 
       {/* Revenue Chart */}
-      {stats?.revenueByDay && stats.revenueByDay.length > 0 && (
-        <div className="bg-card border border-border/30 p-5">
-          <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">REVENUE TREND</h3>
+      <div className="bg-card border border-border/30 p-5">
+        <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">REVENUE TREND</h3>
+        {stats?.revenueByDay && stats.revenueByDay.length > 0 ? (
           <div style={{ height: 280 }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={stats.revenueByDay}>
@@ -336,14 +407,19 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <BarChart3 className="w-8 h-8 text-foreground/10 mb-2" />
+            <p className="text-xs text-foreground/30">Revenue trend appears after the first invoice is recorded.</p>
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {/* Payment Method Breakdown */}
-        {stats?.revenueByPayment && stats.revenueByPayment.length > 0 && (
-          <div className="bg-card border border-border/30 p-5">
-            <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">PAYMENT METHODS</h3>
+        <div className="bg-card border border-border/30 p-5">
+          <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">PAYMENT METHODS</h3>
+          {stats?.revenueByPayment && stats.revenueByPayment.length > 0 ? (
             <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <RPieChart>
@@ -354,13 +430,18 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
                 </RPieChart>
               </ResponsiveContainer>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <CreditCard className="w-7 h-7 text-foreground/10 mb-2" />
+              <p className="text-xs text-foreground/30">Payment mix shows after invoices are created.</p>
+            </div>
+          )}
+        </div>
 
         {/* Booking Heatmap (Day of Week) */}
-        {kpi?.dayOfWeekCounts && (
-          <div className="bg-card border border-border/30 p-5">
-            <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">BOOKING HEATMAP — DAY OF WEEK</h3>
+        <div className="bg-card border border-border/30 p-5">
+          <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">BOOKING HEATMAP — DAY OF WEEK</h3>
+          {kpi?.dayOfWeekCounts && kpi.dayOfWeekCounts.some((c: number) => c > 0) ? (
             <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, i) => ({ day, count: kpi.dayOfWeekCounts[i] }))}>
@@ -371,8 +452,13 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <Calendar className="w-7 h-7 text-foreground/10 mb-2" />
+              <p className="text-xs text-foreground/30">Booking patterns appear after customers start scheduling.</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Hour-of-Day Heatmap */}
@@ -783,6 +869,8 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
 // ─── INVOICE LIST VIEW ──────────────────────────────────
 function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
   const [search, setSearch] = useState("");
+  const [sortField, setSortField] = useState<"date" | "amount">("date");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const { data, isLoading } = trpc.invoices.list.useQuery({ search: search || undefined, limit: 50 });
   const utils = trpc.useUtils();
 
@@ -790,6 +878,34 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
     onSuccess: () => { utils.invoices.list.invalidate(); utils.invoices.stats.invalidate(); toast.success("Invoice deleted"); },
     onError: (err: any) => toast.error(err.message),
   });
+
+  const toggleSort = (field: "date" | "amount") => {
+    if (sortField === field) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("desc");
+    }
+  };
+
+  const sortedItems = useMemo(() => {
+    if (!data?.items) return [];
+    return [...data.items].sort((a: any, b: any) => {
+      if (sortField === "date") {
+        const diff = new Date(a.invoiceDate).getTime() - new Date(b.invoiceDate).getTime();
+        return sortDir === "asc" ? diff : -diff;
+      }
+      const diff = (a.totalAmount ?? 0) - (b.totalAmount ?? 0);
+      return sortDir === "asc" ? diff : -diff;
+    });
+  }, [data?.items, sortField, sortDir]);
+
+  const SortIcon = ({ field }: { field: "date" | "amount" }) => {
+    if (sortField !== field) return <ChevronDown className="w-2.5 h-2.5 text-foreground/15 inline ml-0.5" />;
+    return sortDir === "asc"
+      ? <ChevronUp className="w-2.5 h-2.5 text-primary inline ml-0.5" />
+      : <ChevronDown className="w-2.5 h-2.5 text-primary inline ml-0.5" />;
+  };
 
   return (
     <div className="space-y-4">
@@ -820,25 +936,29 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
         </div>
       ) : (
         <div className="space-y-1">
-          {/* Table header */}
+          {/* Table header — sortable columns */}
           <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[9px] text-foreground/30 tracking-wide">
             <div className="col-span-1">#</div>
             <div className="col-span-3">Customer</div>
-            <div className="col-span-3">Service</div>
+            <div className="col-span-2">Service</div>
             <div className="col-span-1">Method</div>
             <div className="col-span-1">Status</div>
-            <div className="col-span-1">Amount</div>
-            <div className="col-span-1">Date</div>
-            <div className="col-span-1"></div>
+            <div className="col-span-1 cursor-pointer select-none hover:text-foreground/60" onClick={() => toggleSort("amount")}>
+              Amount <SortIcon field="amount" />
+            </div>
+            <div className="col-span-1 cursor-pointer select-none hover:text-foreground/60" onClick={() => toggleSort("date")}>
+              Date <SortIcon field="date" />
+            </div>
+            <div className="col-span-2"></div>
           </div>
-          {data?.items?.map((inv: any, _iIdx: number) => (
+          {sortedItems.map((inv: any, _iIdx: number) => (
             <div key={inv.id} className="stagger-in grid grid-cols-12 gap-2 items-center px-4 py-3 bg-card border border-border/20 hover:border-border/40 transition-colors" style={{ animationDelay: `${_iIdx * 40}ms` }}>
               <div className="col-span-1 text-[10px] text-foreground/30">{inv.invoiceNumber || inv.id}</div>
               <div className="col-span-3">
                 <span className="font-bold text-xs text-foreground block truncate">{inv.customerName}</span>
                 {inv.customerPhone && <span className="font-mono text-[9px] text-foreground/30">{inv.customerPhone}</span>}
               </div>
-              <div className="col-span-3 text-[10px] text-foreground/50 truncate">{inv.serviceDescription || "—"}</div>
+              <div className="col-span-2 text-[10px] text-foreground/50 truncate">{inv.serviceDescription || "—"}</div>
               <div className="col-span-1">
                 <span className="font-mono text-[9px] text-foreground/40 uppercase">{inv.paymentMethod}</span>
               </div>
@@ -846,6 +966,7 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
                 <span className={`font-mono text-[9px] px-1.5 py-0.5 ${
                   inv.paymentStatus === "paid" ? "bg-emerald-500/20 text-emerald-400" :
                   inv.paymentStatus === "pending" ? "bg-amber-500/20 text-amber-400" :
+                  inv.paymentStatus === "partial" ? "bg-red-500/20 text-red-400" :
                   inv.paymentStatus === "refunded" ? "bg-red-500/20 text-red-400" :
                   "bg-blue-500/20 text-blue-400"
                 }`}>
@@ -856,7 +977,16 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
               <div className="col-span-1 text-[9px] text-foreground/30">
                 {new Date(inv.invoiceDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               </div>
-              <div className="col-span-1 flex items-center gap-1 justify-end">
+              <div className="col-span-2 flex items-center gap-1 justify-end">
+                {(inv.paymentStatus === "pending" || inv.paymentStatus === "partial") && inv.customerPhone && (
+                  <a
+                    href={`sms:${inv.customerPhone}?body=Hi ${inv.customerName?.split(" ")[0] || ""}, this is Nick's Tire %26 Auto. Your invoice of ${formatCents(inv.totalAmount)} is still outstanding. Reply or call us to settle. Thanks!`}
+                    className="p-1 text-foreground/20 hover:text-blue-400 transition-colors"
+                    title="SMS follow-up"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                  </a>
+                )}
                 <button
                   onClick={() => {
                     if (confirm("Delete this invoice?")) deleteInvoice.mutate({ id: inv.id });
