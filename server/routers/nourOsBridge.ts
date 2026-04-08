@@ -1,6 +1,7 @@
 /**
  * NOUR OS Bridge Router — Admin endpoints for viewing sync status and events
  */
+import { TRPCError } from "@trpc/server";
 import { adminProcedure, router } from "../_core/trpc";
 import { getSyncStatus, getRecentEvents } from "../nour-os-bridge";
 import { z } from "zod";
@@ -26,8 +27,12 @@ export const nourOsBridgeRouter = router({
 
   /** Force push shop floor snapshot to NOUR OS */
   pushShopFloor: adminProcedure.mutation(async () => {
-    const { dispatchShopFloorSnapshot } = await import("../nour-os-bridge");
-    await dispatchShopFloorSnapshot();
-    return { success: true };
+    try {
+      const { dispatchShopFloorSnapshot } = await import("../nour-os-bridge");
+      await dispatchShopFloorSnapshot();
+      return { success: true };
+    } catch (err) {
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
+    }
   }),
 });

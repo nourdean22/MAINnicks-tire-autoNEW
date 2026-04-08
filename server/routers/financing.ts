@@ -2,6 +2,7 @@
  * Financing router — tracks financing applications, provides admin dashboard data,
  * and syncs to Google Sheets CRM.
  */
+import { TRPCError } from "@trpc/server";
 import { publicProcedure, adminProcedure, router } from "../_core/trpc";
 import { syncFinancingToSheet } from "../sheets-sync";
 import { FINANCING_PROVIDERS, PROVIDER_MAP } from "../../shared/financing";
@@ -25,50 +26,54 @@ export const financingRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const { sanitizeName, sanitizePhone } = await import("../sanitize");
-      const providerInfo = PROVIDER_MAP[input.provider];
-      if (!providerInfo) {
-        return { success: false, error: "Unknown provider" };
+      try {
+        const { sanitizeName, sanitizePhone } = await import("../sanitize");
+        const providerInfo = PROVIDER_MAP[input.provider];
+        if (!providerInfo) {
+          return { success: false, error: "Unknown provider" };
+        }
+
+        const safeName = input.customerName ? sanitizeName(input.customerName) : undefined;
+        const safePhone = input.customerPhone ? sanitizePhone(input.customerPhone) : undefined;
+
+        // Sync to Google Sheets
+        const synced = await syncFinancingToSheet({
+          provider: providerInfo.name,
+          providerType: providerInfo.typeLabel,
+          customerName: safeName,
+          customerPhone: safePhone,
+          customerEmail: input.customerEmail,
+          sourcePage: input.sourcePage,
+          estimatedAmount: input.estimatedAmount,
+          status: "Clicked Apply",
+          notes: `Applied via ${input.sourcePage}`,
+        });
+
+        console.info(
+          `[Financing] ${providerInfo.name} application tracked from ${input.sourcePage}`,
+          synced ? "(synced to sheets)" : "(sheets sync failed)"
+        );
+
+        // Financing application = high-intent lead signal — notify the whole system
+        import("../services/eventBus").then(({ emit }) =>
+          emit.leadCaptured({
+            id: 0,
+            name: safeName || "Financing Applicant",
+            phone: safePhone || "",
+            source: `financing_${input.provider}`,
+            urgencyScore: 5, // Max score — high intent, they're applying for money
+          })
+        ).catch(() => {});
+
+        return {
+          success: true,
+          provider: providerInfo.name,
+          applyUrl: providerInfo.applyUrl,
+          synced,
+        };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
       }
-
-      const safeName = input.customerName ? sanitizeName(input.customerName) : undefined;
-      const safePhone = input.customerPhone ? sanitizePhone(input.customerPhone) : undefined;
-
-      // Sync to Google Sheets
-      const synced = await syncFinancingToSheet({
-        provider: providerInfo.name,
-        providerType: providerInfo.typeLabel,
-        customerName: safeName,
-        customerPhone: safePhone,
-        customerEmail: input.customerEmail,
-        sourcePage: input.sourcePage,
-        estimatedAmount: input.estimatedAmount,
-        status: "Clicked Apply",
-        notes: `Applied via ${input.sourcePage}`,
-      });
-
-      console.info(
-        `[Financing] ${providerInfo.name} application tracked from ${input.sourcePage}`,
-        synced ? "(synced to sheets)" : "(sheets sync failed)"
-      );
-
-      // Financing application = high-intent lead signal — notify the whole system
-      import("../services/eventBus").then(({ emit }) =>
-        emit.leadCaptured({
-          id: 0,
-          name: safeName || "Financing Applicant",
-          phone: safePhone || "",
-          source: `financing_${input.provider}`,
-          urgencyScore: 5, // Max score — high intent, they're applying for money
-        })
-      ).catch(() => {});
-
-      return {
-        success: true,
-        provider: providerInfo.name,
-        applyUrl: providerInfo.applyUrl,
-        synced,
-      };
     }),
 
   /**
@@ -106,23 +111,27 @@ export const financingRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const providerInfo = PROVIDER_MAP[input.provider];
-      if (!providerInfo) {
-        return { success: false, error: "Unknown provider" };
+      try {
+        const providerInfo = PROVIDER_MAP[input.provider];
+        if (!providerInfo) {
+          return { success: false, error: "Unknown provider" };
+        }
+
+        const synced = await syncFinancingToSheet({
+          provider: providerInfo.name,
+          providerType: providerInfo.typeLabel,
+          customerName: input.customerName,
+          customerPhone: input.customerPhone,
+          customerEmail: input.customerEmail,
+          sourcePage: "Admin Portal",
+          estimatedAmount: input.estimatedAmount,
+          status: input.status,
+          notes: input.notes,
+        });
+
+        return { success: true, synced };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
       }
-
-      const synced = await syncFinancingToSheet({
-        provider: providerInfo.name,
-        providerType: providerInfo.typeLabel,
-        customerName: input.customerName,
-        customerPhone: input.customerPhone,
-        customerEmail: input.customerEmail,
-        sourcePage: "Admin Portal",
-        estimatedAmount: input.estimatedAmount,
-        status: input.status,
-        notes: input.notes,
-      });
-
-      return { success: true, synced };
     }),
 });

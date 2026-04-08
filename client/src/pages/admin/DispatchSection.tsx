@@ -3,7 +3,7 @@
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { Loader2, User, MapPin, Play, CheckCircle2, XCircle, Clock, Wrench, AlertTriangle, Shield, ChevronRight, RotateCcw } from "lucide-react";
+import { Loader2, User, MapPin, Play, CheckCircle2, XCircle, Clock, Wrench, Shield, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 type Tab = "bays" | "queue" | "qc" | "techs";

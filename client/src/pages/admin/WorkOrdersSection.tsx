@@ -228,7 +228,7 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
               {prio.label}
             </span>
           </div>
-          <button onClick={onClose} className="text-foreground/40 hover:text-foreground"><XCircle className="w-5 h-5" /></button>
+          <button onClick={onClose} aria-label="Close" className="text-foreground/40 hover:text-foreground"><XCircle className="w-5 h-5" /></button>
         </div>
 
         <div className="p-5 space-y-5">

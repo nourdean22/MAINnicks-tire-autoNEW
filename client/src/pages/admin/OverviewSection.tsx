@@ -150,6 +150,7 @@ function NextBestActions() {
                     href={`tel:${action.phone}`}
                     className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded transition-all"
                     title="Call"
+                    aria-label="Call customer"
                   >
                     <Phone className="w-3.5 h-3.5" />
                   </a>
@@ -159,6 +160,7 @@ function NextBestActions() {
                     href={`sms:${action.phone}`}
                     className="p-1.5 text-blue-400 hover:bg-blue-500/10 rounded transition-all"
                     title="SMS"
+                    aria-label="Send text message"
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
                   </a>
@@ -167,6 +169,7 @@ function NextBestActions() {
                   href={action.actionUrl}
                   className="p-1.5 text-foreground/30 hover:text-primary hover:bg-primary/10 rounded transition-all"
                   title="View"
+                  aria-label="View details"
                 >
                   <ChevronRight className="w-3.5 h-3.5" />
                 </Link>

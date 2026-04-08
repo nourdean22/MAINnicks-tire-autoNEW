@@ -4,6 +4,7 @@
  * Fetches real labor data + tire inventory from statenour-os,
  * creates quotes via the statenour-os API for instant customer quotes.
  */
+import { TRPCError } from "@trpc/server";
 import { publicProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 
@@ -97,21 +98,25 @@ export const nourOsQuoteRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const { sanitizeName, sanitizePhone, sanitizeText } = await import("../sanitize");
-      const sanitized = {
-        ...input,
-        customerName: input.customerName ? sanitizeName(input.customerName) : undefined,
-        customerPhone: input.customerPhone ? sanitizePhone(input.customerPhone) : undefined,
-        vehicleMake: sanitizeText(input.vehicleMake),
-        vehicleModel: sanitizeText(input.vehicleModel),
-        vehicleEngine: input.vehicleEngine ? sanitizeText(input.vehicleEngine) : undefined,
-        source: "website",
-      };
-      const result = await fetchNourOS("/api/quotes", {
-        method: "POST",
-        body: JSON.stringify(sanitized),
-      });
-      return result;
+      try {
+        const { sanitizeName, sanitizePhone, sanitizeText } = await import("../sanitize");
+        const sanitized = {
+          ...input,
+          customerName: input.customerName ? sanitizeName(input.customerName) : undefined,
+          customerPhone: input.customerPhone ? sanitizePhone(input.customerPhone) : undefined,
+          vehicleMake: sanitizeText(input.vehicleMake),
+          vehicleModel: sanitizeText(input.vehicleModel),
+          vehicleEngine: input.vehicleEngine ? sanitizeText(input.vehicleEngine) : undefined,
+          source: "website",
+        };
+        const result = await fetchNourOS("/api/quotes", {
+          method: "POST",
+          body: JSON.stringify(sanitized),
+        });
+        return result;
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
+      }
     }),
 
   /**

@@ -34,32 +34,37 @@ export const shareCardsRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const { shareCards } = await import("../../drizzle/schema");
-      const database = await db();
-      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      try {
+        const { shareCards } = await import("../../drizzle/schema");
+        const database = await db();
+        if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
-      const token = generateToken();
+        const token = generateToken();
 
-      const result = await database.insert(shareCards).values({
-        token,
-        customerName: input.customerName || undefined,
-        vehicleInfo: input.vehicleInfo || undefined,
-        serviceType: input.serviceType || undefined,
-        healthScore: input.healthScore || undefined,
-        healthDetails: input.healthDetails || undefined,
-        completedDate: input.completedDate || undefined,
-        inspectionId: input.inspectionId || undefined,
-        views: 0,
-        shares: 0,
-      });
+        const result = await database.insert(shareCards).values({
+          token,
+          customerName: input.customerName || undefined,
+          vehicleInfo: input.vehicleInfo || undefined,
+          serviceType: input.serviceType || undefined,
+          healthScore: input.healthScore || undefined,
+          healthDetails: input.healthDetails || undefined,
+          completedDate: input.completedDate || undefined,
+          inspectionId: input.inspectionId || undefined,
+          views: 0,
+          shares: 0,
+        });
 
-      const shareUrl = `${SITE_URL}/share/${token}`;
+        const shareUrl = `${SITE_URL}/share/${token}`;
 
-      return {
-        token,
-        shareUrl,
-        id: (result as any).insertId,
-      };
+        return {
+          token,
+          shareUrl,
+          id: (result as any).insertId,
+        };
+      } catch (err) {
+        if (err instanceof TRPCError) throw err;
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
+      }
     }),
 
   /** Get a share card by token (public) */
@@ -98,26 +103,31 @@ export const shareCardsRouter = router({
   trackShare: publicProcedure
     .input(z.object({ token: z.string().length(64) }))
     .mutation(async ({ input }) => {
-      const { shareCards } = await import("../../drizzle/schema");
-      const database = await db();
-      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      try {
+        const { shareCards } = await import("../../drizzle/schema");
+        const database = await db();
+        if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
-      const card = await database
-        .select()
-        .from(shareCards)
-        .where(eq(shareCards.token, input.token))
-        .limit(1);
+        const card = await database
+          .select()
+          .from(shareCards)
+          .where(eq(shareCards.token, input.token))
+          .limit(1);
 
-      if (!card.length) {
-        throw new Error("Share card not found");
+        if (!card.length) {
+          throw new Error("Share card not found");
+        }
+
+        await database
+          .update(shareCards)
+          .set({ shares: (card[0].shares || 0) + 1 })
+          .where(eq(shareCards.token, input.token));
+
+        return { success: true };
+      } catch (err) {
+        if (err instanceof TRPCError) throw err;
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
       }
-
-      await database
-        .update(shareCards)
-        .set({ shares: (card[0].shares || 0) + 1 })
-        .where(eq(shareCards.token, input.token));
-
-      return { success: true };
     }),
 
   /** List all share cards (admin) */
@@ -139,12 +149,17 @@ export const shareCardsRouter = router({
   delete: adminProcedure
     .input(z.object({ id: z.number().int() }))
     .mutation(async ({ input }) => {
-      const { shareCards } = await import("../../drizzle/schema");
-      const database = await db();
-      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      try {
+        const { shareCards } = await import("../../drizzle/schema");
+        const database = await db();
+        if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
-      await database.delete(shareCards).where(eq(shareCards.id, input.id));
+        await database.delete(shareCards).where(eq(shareCards.id, input.id));
 
-      return { success: true };
+        return { success: true };
+      } catch (err) {
+        if (err instanceof TRPCError) throw err;
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
+      }
     }),
 });

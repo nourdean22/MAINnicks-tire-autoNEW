@@ -187,6 +187,7 @@ export default function DeclinedEstimatesSection() {
                   {est.customerPhone && (
                     <a
                       href={`tel:${est.customerPhone}`}
+                      aria-label="Call customer"
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 text-emerald-400 text-[11px] font-bold tracking-wide border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
                     >
                       <Phone className="w-3 h-3" />
@@ -196,6 +197,7 @@ export default function DeclinedEstimatesSection() {
                   {est.customerPhone && (
                     <a
                       href={`sms:${est.customerPhone}?body=Hi ${est.customerName?.split(" ")[0] || ""}, this is Nick's Tire %26 Auto following up on your recent estimate. Car problems usually get worse over time - ready to take care of it? Call us at (216) 862-0005 or just stop by.`}
+                      aria-label="Send text message"
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-400 text-[11px] font-bold tracking-wide border border-blue-500/20 hover:bg-blue-500/20 transition-colors"
                     >
                       <MessageSquare className="w-3 h-3" />
@@ -206,6 +208,7 @@ export default function DeclinedEstimatesSection() {
                     <button
                       onClick={() => markFollowUp.mutate({ id: est.id })}
                       disabled={markFollowUp.isPending}
+                      aria-label="Mark follow-up"
                       className="px-3 py-1.5 bg-primary/10 text-primary text-[11px] font-bold tracking-wide border border-primary/20 hover:bg-primary/20 transition-colors disabled:opacity-50"
                     >
                       MARK FOLLOW-UP
