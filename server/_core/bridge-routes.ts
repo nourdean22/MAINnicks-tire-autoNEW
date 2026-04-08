@@ -65,7 +65,7 @@ export function registerBridgeRoutes(app: Express): void {
         database: dbHealthy,
         timestamp: new Date().toISOString(),
       });
-    } catch (err: any) {
+    } catch {
       res.status(500).json({
         status: "error",
         error: "Internal error",
@@ -105,13 +105,13 @@ export function registerBridgeRoutes(app: Express): void {
       let dispatch: Record<string, unknown> = {};
       try {
         const { getDispatchLoad } = await import("../services/dispatch");
-        const load = await getDispatchLoad();
-        const clockedIn = (load.techs as any[]).filter((t: any) => t.clockedIn).length;
-        const freeBays = (load.bays as any[]).filter((b: any) => !b.occupied).length;
+        const load: { techs: Array<{ clockedIn: boolean }>; bays: Array<{ occupied: boolean }> } = await getDispatchLoad();
+        const clockedIn = load.techs.filter((t) => t.clockedIn).length;
+        const freeBays = load.bays.filter((b) => !b.occupied).length;
         dispatch = {
           techsClockedIn: clockedIn,
           freeBays,
-          totalBays: (load.bays as any[]).length,
+          totalBays: load.bays.length,
         };
       } catch (err) {
         console.error("[Bridge] Dispatch load failed:", err instanceof Error ? err.message : err);
@@ -184,7 +184,7 @@ export function registerBridgeRoutes(app: Express): void {
         leads,
         callbacks,
       });
-    } catch (err: any) {
+    } catch {
       res.status(500).json({
         shop: "nickstire",
         error: "Internal error",
@@ -207,7 +207,7 @@ export function registerBridgeRoutes(app: Express): void {
       if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
       await db.update(leads).set({ status: "contacted" }).where(eq(leads.id, leadId));
       res.json({ success: true, leadId });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[Bridge] Action error:", err);
       res.status(500).json({ error: "Internal error" });
     }
@@ -220,7 +220,7 @@ export function registerBridgeRoutes(app: Express): void {
       if (!note) { res.status(400).json({ error: "note required" }); return; }
       console.info(`[bridge:note] ${context || "general"}: ${note}`);
       res.json({ success: true, logged: true });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[Bridge] Action error:", err);
       res.status(500).json({ error: "Internal error" });
     }
@@ -272,17 +272,17 @@ export function registerBridgeRoutes(app: Express): void {
           analyticsStored: !!analytics,
           timestamp: new Date().toISOString(),
         });
-      } catch (enrichErr: any) {
+      } catch (enrichErr: unknown) {
         res.json({
           ingestion: result,
-          enrichment: `failed: ${enrichErr.message}`,
+          enrichment: `failed: ${(enrichErr as Error).message}`,
           analyticsStored: !!analytics,
           timestamp: new Date().toISOString(),
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[Bridge] Ingest error:", err);
-      res.status(500).json({ error: err.message || "Ingestion failed" });
+      res.status(500).json({ error: (err as Error).message || "Ingestion failed" });
     }
   });
 
@@ -341,14 +341,14 @@ export function registerBridgeRoutes(app: Express): void {
       `);
 
       res.json({
-        invoiceStats: (stats as any[])?.[0],
+        invoiceStats: (stats as Record<string, unknown>[])?.[0],
         monthlyTrend: monthly,
         paymentBreakdown: payments,
-        customerStats: (custStats as any[])?.[0],
+        customerStats: (custStats as Record<string, unknown>[])?.[0],
         timestamp: new Date().toISOString(),
       });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+      res.status(500).json({ error: (err as Error).message });
     }
   });
 
@@ -379,7 +379,19 @@ export function registerBridgeRoutes(app: Express): void {
         LIMIT ${limit}
       `);
 
-      const customers = targets as any[];
+      interface SmsCampaignCustomer {
+        id: number;
+        firstName: string | null;
+        lastName: string | null;
+        phone: string;
+        totalSpent: number | null;
+        totalVisits: number | null;
+        lastVisitDate: string | null;
+        vehicleMake: string | null;
+        vehicleModel: string | null;
+        vehicleYear: string | null;
+      }
+      const customers = targets as SmsCampaignCustomer[];
       const messages: { phone: string; name: string; message: string }[] = [];
 
       for (const c of customers) {
@@ -427,9 +439,9 @@ export function registerBridgeRoutes(app: Express): void {
       } catch {}
 
       res.json({ sent, failed, total: messages.length, timestamp: new Date().toISOString() });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[Bridge] SMS campaign error:", err);
-      res.status(500).json({ error: err.message || "Campaign failed" });
+      res.status(500).json({ error: (err as Error).message || "Campaign failed" });
     }
   });
 
@@ -439,9 +451,9 @@ export function registerBridgeRoutes(app: Express): void {
       const { runHistoricalBackfill } = await import("../services/shopDriverMirror");
       const result = await runHistoricalBackfill();
       res.json({ ...result, timestamp: new Date().toISOString() });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[Bridge] Backfill error:", err);
-      res.status(500).json({ error: err.message || "Backfill failed" });
+      res.status(500).json({ error: (err as Error).message || "Backfill failed" });
     }
   });
 
@@ -451,9 +463,9 @@ export function registerBridgeRoutes(app: Express): void {
       const { runFullMirror, debugLastFetch } = await import("../services/shopDriverMirror");
       const result = await runFullMirror();
       res.json({ success: true, ...result, debug: debugLastFetch(), timestamp: new Date().toISOString() });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[Bridge] Mirror trigger error:", err);
-      res.status(500).json({ error: err.message || "Mirror sync failed" });
+      res.status(500).json({ error: (err as Error).message || "Mirror sync failed" });
     }
   });
 
@@ -463,45 +475,46 @@ export function registerBridgeRoutes(app: Express): void {
       const { probeAlgEndpoints } = await import("../services/shopDriverMirror");
       const results = await probeAlgEndpoints();
       res.json({ results, timestamp: new Date().toISOString() });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[Bridge] ALG probe error:", err);
-      res.status(500).json({ error: err.message || "Probe failed" });
+      res.status(500).json({ error: (err as Error).message || "Probe failed" });
     }
   });
 
   // Full data cascade: mirror → sheets → statenour → brain (run all syncs)
   app.post("/api/bridge/full-sync", bridgeAuth, async (_req, res) => {
-    const results: Record<string, any> = { timestamp: new Date().toISOString() };
+    const results: Record<string, unknown> = { timestamp: new Date().toISOString() };
     const start = Date.now();
 
     // 1. Mirror sync (ALG → DB)
     try {
       const { runFullMirror } = await import("../services/shopDriverMirror");
       results.mirror = await runFullMirror();
-    } catch (e: any) {
-      results.mirror = { error: e.message };
+    } catch (e: unknown) {
+      results.mirror = { error: (e as Error).message };
     }
 
     // 2. Dashboard Sheets sync (DB → Google Sheets)
     try {
       const { processDashboardSync } = await import("../cron/jobs/dashboardSync");
       results.sheets = await processDashboardSync();
-    } catch (e: any) {
-      results.sheets = { error: e.message };
+    } catch (e: unknown) {
+      results.sheets = { error: (e as Error).message };
     }
 
     // 3. Statenour sync (DB → NOUR OS brain)
     try {
       const { syncToStatenour } = await import("../cron/jobs/statenourSync");
       results.statenour = await syncToStatenour();
-    } catch (e: any) {
-      results.statenour = { error: e.message };
+    } catch (e: unknown) {
+      results.statenour = { error: (e as Error).message };
     }
 
     // 4. Nick AI memory — learn from backlog
     try {
       const { remember } = await import("../services/nickMemory");
-      const mirrorDetails = results.mirror?.details || "";
+      const mirrorResult = results.mirror as Record<string, unknown> | undefined;
+      const mirrorDetails = (mirrorResult?.details as string) || "";
       if (mirrorDetails.includes("updated") || mirrorDetails.includes("new")) {
         await remember({
           type: "pattern",
@@ -511,8 +524,8 @@ export function registerBridgeRoutes(app: Express): void {
         });
       }
       results.brain = { learned: true };
-    } catch (e: any) {
-      results.brain = { error: e.message };
+    } catch (e: unknown) {
+      results.brain = { error: (e as Error).message };
     }
 
     results.totalDuration = `${Date.now() - start}ms`;
@@ -532,9 +545,9 @@ export function registerBridgeRoutes(app: Express): void {
         result = await runTierJobByName(jobName);
       }
       res.json({ ...result, timestamp: new Date().toISOString() });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[Bridge] Run job error:", err);
-      res.status(500).json({ error: err.message || "Job failed" });
+      res.status(500).json({ error: (err as Error).message || "Job failed" });
     }
   });
 
@@ -551,8 +564,8 @@ export function registerBridgeRoutes(app: Express): void {
       if (!query.trim().toUpperCase().startsWith("SELECT")) { res.status(400).json({ error: "SELECT only" }); return; }
       const [rows] = await db.execute(sql.raw(query));
       res.json({ rows, timestamp: new Date().toISOString() });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+      res.status(500).json({ error: (err as Error).message });
     }
   });
 
@@ -561,7 +574,7 @@ export function registerBridgeRoutes(app: Express): void {
     try {
       const { getJobStatuses } = await import("../cron/index");
       res.json({ jobs: getJobStatuses(), timestamp: new Date().toISOString() });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[Bridge] Cron status error:", err);
       res.json({ jobs: [], error: "Internal error" });
     }
@@ -570,22 +583,22 @@ export function registerBridgeRoutes(app: Express): void {
   // ─── BUSINESS INTELLIGENCE — Full analytics + forecasting ────
   app.get("/api/bridge/intelligence", bridgeAuth, async (_req, res) => {
     try {
-      const results: Record<string, any> = { timestamp: new Date().toISOString() };
+      const results: Record<string, unknown> = { timestamp: new Date().toISOString() };
 
       // 1. Conversion pipeline (estimate→job, lead→booking rates)
       try {
         const { analyzeConversionPipeline } = await import("../services/nickIntelligence");
         results.pipeline = await analyzeConversionPipeline();
-      } catch (e: any) {
-        results.pipeline = { error: e.message };
+      } catch (e: unknown) {
+        results.pipeline = { error: (e as Error).message };
       }
 
       // 2. Revenue projections (weekly, monthly, trends)
       try {
         const { projectRevenue } = await import("../services/nickIntelligence");
         results.revenue = await projectRevenue();
-      } catch (e: any) {
-        results.revenue = { error: e.message };
+      } catch (e: unknown) {
+        results.revenue = { error: (e as Error).message };
       }
 
       // 3. Customer intelligence (CLV, retention, at-risk, top spenders)
@@ -608,24 +621,24 @@ export function registerBridgeRoutes(app: Express): void {
           dayOfWeekPattern: ci.dayOfWeekPattern,
           peakHours: ci.peakHours,
         };
-      } catch (e: any) {
-        results.customers = { error: e.message };
+      } catch (e: unknown) {
+        results.customers = { error: (e as Error).message };
       }
 
       // 4. Proactive alerts (what needs attention right now)
       try {
         const { generateProactiveAlerts } = await import("../services/nickIntelligence");
         results.alerts = await generateProactiveAlerts();
-      } catch (e: any) {
-        results.alerts = { error: e.message };
+      } catch (e: unknown) {
+        results.alerts = { error: (e as Error).message };
       }
 
       // 5. AI weekly insight
       try {
         const { generateWeeklyInsight } = await import("../services/nickIntelligence");
         results.aiInsight = await generateWeeklyInsight();
-      } catch (e: any) {
-        results.aiInsight = e.message;
+      } catch (e: unknown) {
+        results.aiInsight = (e as Error).message;
       }
 
       // 6. Historical revenue snapshots (last 30 days)
@@ -646,8 +659,9 @@ export function registerBridgeRoutes(app: Express): void {
             GROUP BY DATE(invoiceDate)
             ORDER BY day DESC
           `);
-          results.dailyRevenue = (dailyRevenue as any[]).map((r: any) => ({
-            date: r.day,
+          type DbRow = Record<string, unknown>;
+          results.dailyRevenue = (dailyRevenue as DbRow[]).map((r) => ({
+            date: r.day as string,
             jobs: Number(r.jobs),
             revenue: Math.round(Number(r.revenue) / 100),
           }));
@@ -665,22 +679,23 @@ export function registerBridgeRoutes(app: Express): void {
             GROUP BY DATE_FORMAT(invoiceDate, '%Y-%m')
             ORDER BY month DESC
           `);
-          results.monthlyRevenue = (monthlyRevenue as any[]).map((r: any) => ({
-            month: r.month,
+          results.monthlyRevenue = (monthlyRevenue as DbRow[]).map((r) => ({
+            month: r.month as string,
             jobs: Number(r.jobs),
             revenue: Math.round(Number(r.revenue) / 100),
             avgTicket: Math.round(Number(r.avgTicket) / 100),
           }));
 
           // Total historical stats
-          const [allTimeStats] = await d.execute(sql`
+          const [allTimeRows] = await d.execute(sql`
             SELECT COUNT(*) as totalInvoices,
                    COALESCE(SUM(totalAmount), 0) as totalRevenue,
                    ROUND(AVG(totalAmount)) as avgTicket,
                    MIN(invoiceDate) as firstInvoice,
                    MAX(invoiceDate) as lastInvoice
             FROM invoices WHERE paymentStatus = 'paid'
-          `) as any[];
+          `);
+          const allTimeStats = (allTimeRows as DbRow[])?.[0] as DbRow | undefined;
           results.allTime = {
             totalInvoices: Number(allTimeStats?.totalInvoices || 0),
             totalRevenue: Math.round(Number(allTimeStats?.totalRevenue || 0) / 100),
@@ -702,8 +717,8 @@ export function registerBridgeRoutes(app: Express): void {
             ORDER BY revenue DESC
             LIMIT 15
           `);
-          results.topServices = (serviceBreakdown as any[]).map((r: any) => ({
-            service: r.serviceDescription,
+          results.topServices = (serviceBreakdown as DbRow[]).map((r) => ({
+            service: r.serviceDescription as string,
             count: Number(r.count),
             revenue: Math.round(Number(r.revenue) / 100),
           }));
@@ -717,8 +732,8 @@ export function registerBridgeRoutes(app: Express): void {
             GROUP BY paymentMethod
             ORDER BY revenue DESC
           `);
-          results.paymentMethods = (paymentBreakdown as any[]).map((r: any) => ({
-            method: r.paymentMethod,
+          results.paymentMethods = (paymentBreakdown as DbRow[]).map((r) => ({
+            method: r.paymentMethod as string,
             count: Number(r.count),
             revenue: Math.round(Number(r.revenue) / 100),
           }));
@@ -735,22 +750,23 @@ export function registerBridgeRoutes(app: Express): void {
             ORDER BY dow
           `);
           const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-          results.dayOfWeekPerformance = (dayOfWeekPerf as any[]).map((r: any) => ({
+          results.dayOfWeekPerformance = (dayOfWeekPerf as DbRow[]).map((r) => ({
             day: dayNames[Number(r.dow) - 1] || "?",
             jobs: Number(r.jobs),
             revenue: Math.round(Number(r.revenue) / 100),
           }));
         }
-      } catch (e: any) {
-        results.historicalError = e.message;
+      } catch (e: unknown) {
+        results.historicalError = (e as Error).message;
       }
 
       // 7. Revenue anomaly detection
       try {
         const { detectRevenueAnomalies } = await import("../services/revenuePrediction");
-        if (results.dailyRevenue?.length >= 14) {
+        const dailyRev = results.dailyRevenue as Array<{ date: string; jobs: number; revenue: number }> | undefined;
+        if (dailyRev && dailyRev.length >= 14) {
           results.anomalies = detectRevenueAnomalies(
-            results.dailyRevenue.map((d: any) => ({ date: d.date, amount: d.revenue, orderCount: d.jobs }))
+            dailyRev.map((d) => ({ date: d.date, amount: d.revenue, orderCount: d.jobs }))
           );
         }
       } catch {}
@@ -759,12 +775,12 @@ export function registerBridgeRoutes(app: Express): void {
       try {
         const { getShopPulse } = await import("../services/nickIntelligence");
         results.shopPulse = await getShopPulse();
-      } catch (e: any) {
-        results.shopPulse = { error: e.message };
+      } catch (e: unknown) {
+        results.shopPulse = { error: (e as Error).message };
       }
 
       res.json(results);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[Bridge] Intelligence error:", err);
       res.status(500).json({ error: "Internal error", timestamp: new Date().toISOString() });
     }

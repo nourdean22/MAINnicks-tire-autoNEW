@@ -12,8 +12,129 @@ import { chatSessions, leads, workOrders, bookings, serviceHistory, workOrderIte
 import { invokeLLM } from "../_core/llm";
 import { createLogger } from "../lib/logger";
 import { randomUUID } from "crypto";
+import type { ShopSetting, Invoice } from "../../drizzle/schema";
 
 const log = createLogger("nick-actions");
+
+// ─── Local type aliases for AI-parsed JSON and DB results ──
+/** AI-parsed quote service item */
+interface QuoteService {
+  name: string;
+  description: string;
+  laborHours: number;
+  partsCostEstimate: number;
+  laborRate: number;
+  category: string;
+}
+
+/** Computed service with derived costs */
+interface ComputedService extends QuoteService {
+  laborCost: number;
+  subtotal: number;
+}
+
+/** AI-parsed part item */
+interface QuotePart {
+  partName: string;
+  partKey: string;
+  quantity: number;
+}
+
+/** AI-parsed work order extraction */
+interface WorkOrderExtraction {
+  customerComplaint: string;
+  diagnosis: string;
+  vehicleYear: number;
+  vehicleMake: string;
+  vehicleModel: string;
+  vehicleMileage: number;
+  recommendedServices: string[];
+  estimatedHours: number;
+  urgencyNote: string;
+  urgencyScore: number;
+  serviceCategories: string[];
+  partsToOrder: Array<{ partName: string; partKey: string; quantity: number; urgency: string }>;
+}
+
+/** AI-parsed follow-up chain step */
+interface FollowUpStep {
+  step: number;
+  delayHours: number;
+  channel: string;
+  subject: string;
+  message: string;
+  toneLabel: string;
+}
+
+/** AI-parsed follow-up chain data */
+interface FollowUpChainData {
+  chain: FollowUpStep[];
+  optimalSendWindow: { startHour: number; endHour: number; avoidWeekends: boolean };
+}
+
+/** AI-parsed pricing data */
+interface PricingData {
+  service: string;
+  ourPrice: { low: number; high: number };
+  marketAverage: { low: number; high: number };
+  dealerPrice: { low: number; high: number };
+  chainShopPrice: { low: number; high: number };
+  competitivePosition: string;
+  recommendation: string;
+  confidenceNote: string;
+}
+
+/** AI-parsed action dispatch analysis */
+interface DispatchAnalysis {
+  urgencyLevel: string;
+  customerIntent: string;
+  conversionReadiness: number;
+  hasContactInfo: boolean;
+  hasVehicleInfo: boolean;
+  recommendedActions: Array<{ action: string; confidence: number; reason: string; priority: number }>;
+  summary: string;
+  suggestedUrgencyResponse: string;
+}
+
+/** Verified action item */
+interface VerifiedAction {
+  action: string;
+  confidence: number;
+  reason: string;
+  priority: number;
+}
+
+/** Execution result for auto-dispatched actions */
+interface ExecutionResult {
+  action: string;
+  success: boolean;
+  result?: Record<string, unknown>;
+  error?: string;
+}
+
+/** Camera parsed from shop settings */
+interface CameraEntry {
+  id: string;
+  name: string;
+  url: string;
+  type: string;
+}
+
+/** Price range with label for verification */
+interface PriceRange {
+  low: number;
+  high: number;
+}
+
+/** Work order row from DB (subset used in this file) */
+interface WorkOrderRow {
+  id: string;
+  total: string | null;
+  serviceDescription: string | null;
+  diagnosis: string | null;
+  createdAt: Date;
+  [key: string]: unknown;
+}
 
 async function db() {
   const { getDb } = await import("../db");
@@ -234,7 +355,7 @@ async function fetchSessionWithMessages(sessionId: number) {
 
 // ─── Helper: find returning customer ────────────────────
 
-async function findReturningCustomer(d: any, messages: Array<{ role: string; content: string }>) {
+async function findReturningCustomer(d: NonNullable<Awaited<ReturnType<typeof db>>>, messages: Array<{ role: string; content: string }>) {
   const userMessages = messages.filter(m => m.role === "user").map(m => m.content).join("\n");
   const phoneMatch = userMessages.match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
   const phone = phoneMatch?.[0]?.replace(/\D/g, "") || null;
@@ -248,7 +369,7 @@ async function findReturningCustomer(d: any, messages: Array<{ role: string; con
     .limit(5);
 
   // Check past work orders (customerId is a UUID, not a phone — look up customer first)
-  let pastOrders: any[] = [];
+  let pastOrders: WorkOrderRow[] = [];
   try {
     const phoneNorm = phone.slice(-10);
     const [cust] = await d.select({ id: customers.id }).from(customers)
@@ -512,9 +633,9 @@ export const nickActionsRouter = router({
         throw new Error("Failed to generate quote — AI returned empty response");
       }
 
-      let quote: any;
+      let quote: Record<string, unknown>;
       try {
-        quote = JSON.parse(rawContent);
+        quote = JSON.parse(rawContent) as Record<string, unknown>;
       } catch (e) {
         console.warn("[routers/nickActions] operation failed:", e);
         log.error("AI returned invalid JSON for quote", { preview: rawContent.slice(0, 200) });
@@ -522,7 +643,7 @@ export const nickActionsRouter = router({
       }
 
       // Validate every field
-      const verifiedServices = Array.isArray(quote.services) ? quote.services.map((s: any) => ({
+      const verifiedServices = Array.isArray(quote.services) ? (quote.services as Record<string, unknown>[]).map((s) => ({
         name: validateString(s.name, 100, "Service"),
         description: validateString(s.description, 500, "Repair service"),
         laborHours: validateCurrency(s.laborHours),
@@ -532,7 +653,7 @@ export const nickActionsRouter = router({
       })) : [];
 
       // Cross-reference parts with knowledge base
-      const verifiedParts = Array.isArray(quote.partsNeeded) ? quote.partsNeeded.map((p: any) => {
+      const verifiedParts = Array.isArray(quote.partsNeeded) ? (quote.partsNeeded as Record<string, unknown>[]).map((p) => {
         const partKey = validateString(p.partKey, 50, "unknown");
         const kbMatch = PARTS_KB[partKey];
         return {
@@ -544,12 +665,15 @@ export const nickActionsRouter = router({
         };
       }) : [];
 
+      const vehicleInfo = quote.vehicleInfo as Record<string, unknown> | undefined;
+      const totalEstimateRaw = quote.totalEstimate as Record<string, unknown> | undefined;
+
       const verifiedQuote = {
         services: verifiedServices,
         vehicleInfo: {
-          year: typeof quote.vehicleInfo?.year === "number" ? quote.vehicleInfo.year : null,
-          make: validateString(quote.vehicleInfo?.make, 50, "Unknown"),
-          model: validateString(quote.vehicleInfo?.model, 50, "Unknown"),
+          year: typeof vehicleInfo?.year === "number" ? vehicleInfo.year : null,
+          make: validateString(vehicleInfo?.make, 50, "Unknown"),
+          model: validateString(vehicleInfo?.model, 50, "Unknown"),
         },
         urgency: validateScore(quote.urgency, 1, 5),
         confidence: Math.min(1, Math.max(0, Number(quote.confidence) || 0.5)),
@@ -561,7 +685,7 @@ export const nickActionsRouter = router({
 
       // ── MATH VERIFICATION ─────────────────────────────
       // Compute totals from services: labor = hours x rate, total = parts + labor
-      const computedServices = verifiedServices.map((s: any) => {
+      const computedServices: ComputedService[] = verifiedServices.map((s) => {
         const laborCost = s.laborHours * s.laborRate;
         return {
           ...s,
@@ -571,8 +695,8 @@ export const nickActionsRouter = router({
       });
 
       const taxRate = 0.08; // Ohio sales tax on parts
-      const totalParts = computedServices.reduce((sum: number, s: any) => sum + s.partsCostEstimate, 0);
-      const totalLabor = computedServices.reduce((sum: number, s: any) => sum + s.laborCost, 0);
+      const totalParts = computedServices.reduce((sum: number, s) => sum + s.partsCostEstimate, 0);
+      const totalLabor = computedServices.reduce((sum: number, s) => sum + s.laborCost, 0);
       const partsTax = Math.round(totalParts * taxRate * 100) / 100;
       const subtotal = totalParts + totalLabor;
       const totalWithTax = subtotal + partsTax;
@@ -590,8 +714,8 @@ export const nickActionsRouter = router({
       };
 
       // If AI estimate was zero or wildly off, use computed
-      const aiLow = validateCurrency(quote.totalEstimate?.low);
-      const aiHigh = validateCurrency(quote.totalEstimate?.high);
+      const aiLow = validateCurrency(totalEstimateRaw?.low);
+      const aiHigh = validateCurrency(totalEstimateRaw?.high);
       const usedEstimate = (aiLow > 0 && aiHigh > 0 && aiLow <= aiHigh)
         ? { low: aiLow, high: aiHigh, source: "ai" as const }
         : { ...mathVerified.totalEstimate, source: "computed" as const };
@@ -603,20 +727,20 @@ export const nickActionsRouter = router({
           good: {
             label: "Essential Repair",
             description: "Addresses the primary safety/functionality concern. Most economical option.",
-            services: computedServices.slice(0, 1).map((s: any) => s.name),
+            services: computedServices.slice(0, 1).map((s) => s.name),
             estimate: { low: Math.round(computedServices[0].subtotal * 0.9), high: Math.round(computedServices[0].subtotal * 1.1) },
           },
           better: {
             label: "Recommended Repair",
             description: "Complete fix with all recommended services. Best value for long-term reliability.",
-            services: computedServices.map((s: any) => s.name),
+            services: computedServices.map((s) => s.name),
             estimate: usedEstimate,
           },
           best: {
             label: "Premium Service",
             description: "Full repair plus preventive maintenance. Maximum protection and peace of mind.",
             services: [
-              ...computedServices.map((s: any) => s.name),
+              ...computedServices.map((s) => s.name),
               "Complimentary multi-point inspection",
               "Fluid top-off (all systems)",
             ],
@@ -631,7 +755,7 @@ export const nickActionsRouter = router({
       // ── WARRANTY INFO ─────────────────────────────────
       let warranty = null;
       if (input.includeWarranty) {
-        const categories = [...new Set(verifiedServices.map((s: any) => s.category))] as string[];
+        const categories = [...new Set(verifiedServices.map((s) => s.category))];
         warranty = categories.map((cat: string) => {
           const match = WARRANTY_SCHEDULE[cat] || WARRANTY_SCHEDULE["general_repair"];
           return { category: cat, ...match };
@@ -649,8 +773,8 @@ export const nickActionsRouter = router({
       let historyComparison = null;
       if (customerData?.history && customerData.history.isReturning) {
         const pastWOs = customerData.history.workOrders || [];
-        const relevantPast = pastWOs.filter((wo: any) =>
-          verifiedServices.some((s: any) =>
+        const relevantPast = pastWOs.filter((wo: WorkOrderRow) =>
+          verifiedServices.some((s) =>
             wo.serviceDescription?.toLowerCase().includes(s.category) ||
             wo.diagnosis?.toLowerCase().includes(s.category)
           )
@@ -661,8 +785,8 @@ export const nickActionsRouter = router({
             totalPastVisits: customerData.history.totalVisits,
             similarPastJobs: relevantPast.length,
             pastPriceRange: relevantPast.length > 0 ? {
-              low: Math.min(...relevantPast.map((wo: any) => parseFloat(wo.total || "0")).filter((v: number) => v > 0)),
-              high: Math.max(...relevantPast.map((wo: any) => parseFloat(wo.total || "0")).filter((v: number) => v > 0)),
+              low: Math.min(...relevantPast.map((wo: WorkOrderRow) => parseFloat(wo.total || "0")).filter((v: number) => v > 0)),
+              high: Math.max(...relevantPast.map((wo: WorkOrderRow) => parseFloat(wo.total || "0")).filter((v: number) => v > 0)),
             } : null,
             note: `Returning customer with ${customerData.history.totalVisits} past visits. ${relevantPast.length} similar jobs on record.`,
           };
@@ -766,9 +890,9 @@ export const nickActionsRouter = router({
         throw new Error("AI failed to extract work order details");
       }
 
-      let extracted: any;
+      let extracted: WorkOrderExtraction;
       try {
-        extracted = JSON.parse(rawContent);
+        extracted = JSON.parse(rawContent) as WorkOrderExtraction;
       } catch (e) {
         throw new Error("AI returned invalid work order data");
       }
@@ -797,7 +921,7 @@ export const nickActionsRouter = router({
       );
 
       // Parts pre-population with KB prices
-      const partsPrePopulated = Array.isArray(extracted.partsToOrder) ? extracted.partsToOrder.map((p: any) => {
+      const partsPrePopulated = Array.isArray(extracted.partsToOrder) ? extracted.partsToOrder.map((p) => {
         const partKey = validateString(p.partKey, 50, "unknown");
         const kbMatch = PARTS_KB[partKey];
         return {
@@ -1012,9 +1136,9 @@ Return JSON:
       });
 
       const chainRaw = chainResponse.choices?.[0]?.message?.content;
-      let chainData: any;
+      let chainData: FollowUpChainData | null;
       try {
-        chainData = JSON.parse(typeof chainRaw === "string" ? chainRaw : "{}");
+        chainData = JSON.parse(typeof chainRaw === "string" ? chainRaw : "{}") as FollowUpChainData;
       } catch (e) {
         console.warn("[routers/nickActions] operation failed:", e);
         log.warn("Failed to parse follow-up chain, building fallback");
@@ -1049,8 +1173,9 @@ Return JSON:
 
       const defaultMessage = `Hi! Following up from your chat about your ${vehicleInfo}. We'd love to get you in. Call us at (216) 862-0005 or book online at nickstire.org.`;
 
-      const verifiedChain = Array.isArray(chainData?.chain) ? chainData.chain.map((step: any, i: number) => {
-        const channelForStep = channelChain.includes(step.channel) ? step.channel : channelChain[0];
+      const verifiedChain = Array.isArray(chainData?.chain) ? chainData.chain.map((step: FollowUpStep, i: number) => {
+        const stepChannel = step.channel as "sms" | "call" | "email";
+        const channelForStep = channelChain.includes(stepChannel) ? stepChannel : channelChain[0];
         const delayHours = i === 0 ? input.delayHours : validateScore(step.delayHours, input.delayHours, 720);
         return {
           step: i + 1,
@@ -1287,14 +1412,14 @@ Use realistic Cleveland-area pricing. Our labor rate is $85/hour.`,
         throw new Error("Failed to get competitor pricing data");
       }
 
-      let pricing: any;
+      let pricing: PricingData;
       try {
-        pricing = JSON.parse(rawContent);
+        pricing = JSON.parse(rawContent) as PricingData;
       } catch (e) {
         throw new Error("Invalid pricing data from AI");
       }
 
-      const verifyRange = (range: any, label: string) => ({
+      const verifyRange = (range: PriceRange | undefined, label: string) => ({
         low: validateCurrency(range?.low),
         high: Math.max(validateCurrency(range?.high), validateCurrency(range?.low)),
         verified: validateCurrency(range?.low) > 0 && validateCurrency(range?.high) > 0,
@@ -1425,9 +1550,9 @@ Return JSON:
         throw new Error("Failed to analyze chat session for action dispatch");
       }
 
-      let analysis: any;
+      let analysis: DispatchAnalysis;
       try {
-        analysis = JSON.parse(analysisRaw);
+        analysis = JSON.parse(analysisRaw) as DispatchAnalysis;
       } catch (e) {
         throw new Error("Invalid analysis data from AI");
       }
@@ -1445,20 +1570,20 @@ Return JSON:
 
       // Validate and sort recommended actions
       const validActions = ["generate_quote", "create_work_order", "schedule_followup", "competitor_check", "schedule_callback", "send_coupon", "flag_for_owner"];
-      const verifiedActions = (Array.isArray(analysis.recommendedActions) ? analysis.recommendedActions : [])
-        .filter((a: any) => validActions.includes(a.action))
-        .map((a: any) => ({
+      const verifiedActions: VerifiedAction[] = (Array.isArray(analysis.recommendedActions) ? analysis.recommendedActions : [])
+        .filter((a) => validActions.includes(a.action))
+        .map((a) => ({
           action: a.action,
           confidence: Math.min(1, Math.max(0, Number(a.confidence) || 0)),
           reason: validateString(a.reason, 300, "Recommended based on chat analysis"),
           priority: validateScore(a.priority, 1, 5),
         }))
-        .sort((a: any, b: any) => a.priority - b.priority);
+        .sort((a, b) => a.priority - b.priority);
 
       // Apply decision logic overrides based on patterns
       // High urgency + wants appointment = create work order + schedule callback
       if (verifiedAnalysis.urgencyLevel === "critical" || verifiedAnalysis.urgencyLevel === "high") {
-        const hasWO = verifiedActions.some((a: any) => a.action === "create_work_order");
+        const hasWO = verifiedActions.some((a) => a.action === "create_work_order");
         if (!hasWO && verifiedAnalysis.hasContactInfo) {
           verifiedActions.unshift({
             action: "create_work_order",
@@ -1467,7 +1592,7 @@ Return JSON:
             priority: 1,
           });
         }
-        const hasCB = verifiedActions.some((a: any) => a.action === "schedule_callback");
+        const hasCB = verifiedActions.some((a) => a.action === "schedule_callback");
         if (!hasCB && verifiedAnalysis.hasContactInfo) {
           verifiedActions.push({
             action: "schedule_callback",
@@ -1480,7 +1605,7 @@ Return JSON:
 
       // Medium urgency + price shopping = generate quote + competitive analysis
       if (verifiedAnalysis.customerIntent === "get_price" || verifiedAnalysis.customerIntent === "compare_prices") {
-        const hasQuote = verifiedActions.some((a: any) => a.action === "generate_quote");
+        const hasQuote = verifiedActions.some((a) => a.action === "generate_quote");
         if (!hasQuote) {
           verifiedActions.unshift({
             action: "generate_quote",
@@ -1489,7 +1614,7 @@ Return JSON:
             priority: 1,
           });
         }
-        const hasComp = verifiedActions.some((a: any) => a.action === "competitor_check");
+        const hasComp = verifiedActions.some((a) => a.action === "competitor_check");
         if (!hasComp) {
           verifiedActions.push({
             action: "competitor_check",
@@ -1502,7 +1627,7 @@ Return JSON:
 
       // Low urgency + just info = schedule follow-up in 48h
       if (verifiedAnalysis.urgencyLevel === "low" && verifiedAnalysis.conversionReadiness < 0.4) {
-        const hasFU = verifiedActions.some((a: any) => a.action === "schedule_followup");
+        const hasFU = verifiedActions.some((a) => a.action === "schedule_followup");
         if (!hasFU && verifiedAnalysis.hasContactInfo) {
           verifiedActions.push({
             action: "schedule_followup",
@@ -1514,11 +1639,11 @@ Return JSON:
       }
 
       // Step 2: Auto-execute if requested
-      const executedResults: Array<{ action: string; success: boolean; result?: any; error?: string }> = [];
+      const executedResults: ExecutionResult[] = [];
 
       if (input.autoExecute && verifiedActions.length > 0) {
         // Only auto-execute high-confidence actions (>0.7)
-        const autoActions = verifiedActions.filter((a: any) => a.confidence >= 0.7);
+        const autoActions = verifiedActions.filter((a) => a.confidence >= 0.7);
 
         for (const action of autoActions.slice(0, 3)) { // max 3 auto-actions
           try {
@@ -1577,12 +1702,13 @@ Return JSON:
                 });
               }
             }
-          } catch (err: any) {
-            log.error(`Auto-execute failed for ${action.action}:`, err);
+          } catch (err: unknown) {
+            const errMsg = err instanceof Error ? err.message : String(err);
+            log.error(`Auto-execute failed for ${action.action}:`, { error: errMsg });
             executedResults.push({
               action: action.action,
               success: false,
-              error: err.message || "Unknown error",
+              error: errMsg || "Unknown error",
             });
           }
         }
@@ -1595,7 +1721,7 @@ Return JSON:
         analysis: verifiedAnalysis,
         recommendedActions: verifiedActions,
         autoExecuted: executedResults,
-        actionEndpoints: verifiedActions.map((a: any) => ({
+        actionEndpoints: verifiedActions.map((a) => ({
           action: a.action,
           endpoint: a.action === "generate_quote" ? "nickActions.generateQuote"
             : a.action === "create_work_order" ? "nickActions.createWorkOrder"
@@ -1650,7 +1776,7 @@ Return JSON:
             d.select({ count: sql<number>`count(*)` }).from(leads).where(gte(leads.createdAt, weekAgo)),
           ]);
 
-          const monthRevenueCents = monthInvoicesPaid.reduce((s: any, inv: any) => s + inv.totalAmount, 0);
+          const monthRevenueCents = monthInvoicesPaid.reduce((s: number, inv: Invoice) => s + inv.totalAmount, 0);
           const monthRevenue = Math.round(monthRevenueCents / 100);
           const avgTicket = monthInvoicesPaid.length > 0 ? Math.round(monthRevenue / monthInvoicesPaid.length) : 0;
 
@@ -2071,20 +2197,20 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
       const result = await d.select().from(shopSettings)
         .where(sql`${shopSettings.key} LIKE 'camera_%'`);
 
-      const cameras = result.map((r: any) => {
+      const cameras: CameraEntry[] = result.map((r: ShopSetting) => {
         try {
-          const data = JSON.parse(r.value);
+          const data = JSON.parse(r.value) as Record<string, string>;
           return { id: r.key.replace("camera_", ""), name: data.name, url: data.url, type: data.type || "http" };
         } catch (e) { console.warn("[routers/nickActions] operation failed:", e); return null; }
-      }).filter(Boolean);
+      }).filter((c: CameraEntry | null): c is CameraEntry => c !== null);
 
-      const target = cameras.find((c: any) => c.id === input.cameraId);
+      const target = cameras.find((c) => c.id === input.cameraId);
       if (!target) return { error: "Camera not found", feeds: cameras };
 
       return {
         camera: target,
         feeds: cameras,
-        streamUrl: (target as any).url,
+        streamUrl: target.url,
         note: "For RTSP cameras, use the stream URL in a video player. For HTTP cameras, embed as img src.",
       };
     }),
@@ -2098,12 +2224,12 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
     const result = await d.select().from(shopSettings)
       .where(sql`${shopSettings.key} LIKE 'camera_%'`);
 
-    return result.map((r: any) => {
+    return result.map((r: ShopSetting) => {
       try {
-        const data = JSON.parse(r.value);
+        const data = JSON.parse(r.value) as Record<string, unknown>;
         return { id: r.key.replace("camera_", ""), ...data };
       } catch (e) { console.warn("[routers/nickActions] operation failed:", e); return null; }
-    }).filter(Boolean);
+    }).filter((c: Record<string, unknown> | null): c is Record<string, unknown> & { id: string } => c !== null);
   }),
 
   /** Add/update a camera */
@@ -2264,7 +2390,7 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
 
       // Get all existing phones in one query (fast dedup)
       const allExisting = await d.select({ phone: customers.phone }).from(customers);
-      const existingPhones = new Set(allExisting.map((c: any) => c.phone.replace(/\D/g, "").slice(-10)));
+      const existingPhones = new Set(allExisting.map((c: { phone: string }) => c.phone.replace(/\D/g, "").slice(-10)));
 
       // Parse all rows into batch
       const toInsert: Array<{
@@ -2341,8 +2467,8 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
           const { sql: sqlTag } = await import("drizzle-orm");
           await d.execute(sqlTag.raw(rawSql));
           applied++;
-        } catch (err: any) {
-          const msg = err?.message || String(err);
+        } catch (err: unknown) {
+          const msg = (err as Error)?.message || String(err);
           if (msg.includes("already exists") || msg.includes("Duplicate")) {
             skipped++;
           } else {

@@ -13,6 +13,27 @@ import { getDb } from "../db";
 import { invoices, customers, bookings, leads, chatSessions, callEvents, workOrders, workOrderItems, smsMessages, smsConversations, reviewReplies, reviewRequests, technicians, jobAssignments, smsCampaigns, smsCampaignSends } from "../../drizzle/schema";
 import { sql, eq, gte, and, desc } from "drizzle-orm";
 
+/** Generic row returned from raw SQL execute() calls */
+type RawRow = Record<string, unknown>;
+
+/** Normalize Drizzle execute() results — handles both [rows, fields] tuple and plain array */
+function extractRows(result: unknown): RawRow[] {
+  if (Array.isArray(result)) {
+    // Drizzle mysql2 returns [rows, fields] — rows is index 0
+    const first = result[0];
+    if (Array.isArray(first)) return first as RawRow[];
+    // Already a flat array of rows
+    return result as RawRow[];
+  }
+  return [];
+}
+
+/** Extract a single aggregate row from execute() results */
+function extractOne(result: unknown): RawRow {
+  const rows = extractRows(result);
+  return (rows[0] as RawRow) || {};
+}
+
 async function db() {
   const d = await getDb();
   if (!d) throw new Error("Database not available");
@@ -57,11 +78,11 @@ export async function predictRepeatVisits(): Promise<{
       LIMIT 500
     `);
 
-    const results = (rows as any[])[0] || rows;
+    const results = extractRows(rows);
     const dueSoon: Array<{ name: string; phone: string; predictedDate: string; avgGapDays: number; confidence: number }> = [];
     let overdueCount = 0;
 
-    for (const r of (Array.isArray(results) ? results : [])) {
+    for (const r of results) {
       const visits = Number(r.totalVisits || 2);
       const spanDays = Number(r.totalSpanDays || 0);
       const daysSince = Number(r.daysSinceLast || 0);
@@ -75,8 +96,8 @@ export async function predictRepeatVisits(): Promise<{
       if (daysUntilDue < 0) overdueCount++;
       if (daysUntilDue <= 14) {
         dueSoon.push({
-          name: `${r.firstName || ""} ${r.lastName || ""}`.trim(),
-          phone: r.phone || "",
+          name: `${String(r.firstName || "")} ${String(r.lastName || "")}`.trim(),
+          phone: String(r.phone || ""),
           predictedDate: predicted.toISOString().split("T")[0],
           avgGapDays: avgGap,
           confidence,
@@ -109,13 +130,13 @@ export async function analyzeCustomerValueTrend(): Promise<{
       ORDER BY i.customerId, i.invoiceDate DESC
     `);
 
-    const results = (rows as any[])[0] || rows;
+    const results = extractRows(rows);
     const byCustomer: Record<number, { name: string; amounts: number[] }> = {};
-    for (const r of (Array.isArray(results) ? results : [])) {
+    for (const r of results) {
       const cid = Number(r.customerId);
       const rn = Number(r.rn);
       if (rn > 5) continue;
-      if (!byCustomer[cid]) byCustomer[cid] = { name: `${r.firstName || ""} ${r.lastName || ""}`.trim(), amounts: [] };
+      if (!byCustomer[cid]) byCustomer[cid] = { name: `${String(r.firstName || "")} ${String(r.lastName || "")}`.trim(), amounts: [] };
       byCustomer[cid].amounts.push(Number(r.totalAmount || 0) / 100);
     }
 
@@ -216,27 +237,27 @@ export async function analyzeFirstVisitConversion(): Promise<{
       GROUP BY c.id
     `);
 
-    const results = (rows as any[])[0] || rows;
-    const data = Array.isArray(results) ? results : [];
+    const results = extractRows(rows);
+    const data = results;
     const sourceStats: Record<string, { first: number; repeated: number; totalDays: number }> = {};
     let totalRepeatDays = 0;
     let totalRepeaters = 0;
 
     for (const r of data) {
-      const src = r.leadSource || "walk-in";
+      const src = String(r.leadSource || "walk-in");
       if (!sourceStats[src]) sourceStats[src] = { first: 0, repeated: 0, totalDays: 0 };
       sourceStats[src].first++;
       if (Number(r.totalVisits) >= 2) {
         sourceStats[src].repeated++;
         if (r.firstVisitDate && r.lastVisitDate) {
-          const days = Math.floor((new Date(r.lastVisitDate).getTime() - new Date(r.firstVisitDate).getTime()) / 86400000);
+          const days = Math.floor((new Date(String(r.lastVisitDate)).getTime() - new Date(String(r.firstVisitDate)).getTime()) / 86400000);
           if (days > 0) { sourceStats[src].totalDays += days; totalRepeatDays += days; totalRepeaters++; }
         }
       }
     }
 
     const totalFirst = data.length;
-    const totalRepeated = data.filter((r: any) => Number(r.totalVisits) >= 2).length;
+    const totalRepeated = data.filter((r: RawRow) => Number(r.totalVisits) >= 2).length;
     const overallRate = totalFirst > 0 ? Math.round((totalRepeated / totalFirst) * 100) : 0;
     const avgDaysToRepeat = totalRepeaters > 0 ? Math.round(totalRepeatDays / totalRepeaters) : 0;
 
@@ -331,10 +352,10 @@ export async function analyzeTechEfficiency(): Promise<{
       ORDER BY totalRev DESC
     `);
 
-    const results = (rows as any[])[0] || rows;
+    const results = extractRows(rows);
     const rankings: Array<{ name: string; revenuePerHour: number; jobsPerDay: number; comebackRate: number; score: number }> = [];
 
-    for (const r of (Array.isArray(results) ? results : [])) {
+    for (const r of results) {
       const totalRev = Number(r.totalRev || 0);
       const totalHours = Math.max(1, Number(r.totalHours || 1));
       const jobCount = Number(r.jobCount || 0);
@@ -345,7 +366,7 @@ export async function analyzeTechEfficiency(): Promise<{
       const jobsPerDay = Math.round((jobCount / spanDays) * 100) / 100;
       const score = Math.round(revenuePerHour * 0.4 + jobsPerDay * 20 - comeback * 50);
 
-      rankings.push({ name: r.name, revenuePerHour, jobsPerDay, comebackRate: comeback, score });
+      rankings.push({ name: String(r.name || ""), revenuePerHour, jobsPerDay, comebackRate: comeback, score });
     }
 
     rankings.sort((a, b) => b.score - a.score);
@@ -378,10 +399,10 @@ export async function analyzeBayUtilization(): Promise<{
       ORDER BY startHour
     `);
 
-    const results = (rows as any[])[0] || rows;
+    const results = extractRows(rows);
     const hourCounts: Record<number, number> = {};
     for (let h = OPERATING_HOURS.start; h < OPERATING_HOURS.end; h++) hourCounts[h] = 0;
-    for (const r of (Array.isArray(results) ? results : [])) {
+    for (const r of results) {
       const h = Number(r.startHour);
       if (h >= OPERATING_HOURS.start && h < OPERATING_HOURS.end) hourCounts[h] = Number(r.jobCount || 0);
     }
@@ -424,15 +445,15 @@ export async function analyzeTurnaroundTime(): Promise<{
       GROUP BY wo.service_description
     `);
 
-    const results = (rows as any[])[0] || rows;
+    const results = extractRows(rows);
     const catTotals: Record<string, { totalHours: number; count: number }> = {};
     let overallTotal = 0;
     let overallCount = 0;
 
-    for (const r of (Array.isArray(results) ? results : [])) {
+    for (const r of results) {
       const hours = Number(r.avgHours || 0);
       if (hours <= 0) continue;
-      const cats = categorizeService(r.service_description || "");
+      const cats = categorizeService(String(r.service_description || ""));
       for (const cat of cats) {
         if (!catTotals[cat]) catTotals[cat] = { totalHours: 0, count: 0 };
         catTotals[cat].totalHours += hours;
@@ -527,9 +548,9 @@ export async function forecastCapacity(): Promise<{
       GROUP BY DAYOFWEEK(invoiceDate)
     `);
 
-    const results = (rows as any[])[0] || rows;
+    const results = extractRows(rows);
     const dowStats: Record<number, { avgJobs: number; avgDailyRev: number }> = {};
-    for (const r of (Array.isArray(results) ? results : [])) {
+    for (const r of results) {
       const dow = Number(r.dow);
       dowStats[dow] = { avgJobs: Math.round(Number(r.avgJobs || 0)), avgDailyRev: Math.round(Number(r.avgDailyRev || 0) / 100) };
     }
@@ -586,16 +607,16 @@ export async function analyzeChannelROI(): Promise<{
       ORDER BY totalRev DESC
     `);
 
-    const results = (rows as any[])[0] || rows;
+    const results = extractRows(rows);
     const channels: Array<{ channel: string; leads: number; conversions: number; revenue: number; costPerLead: number; roi: string }> = [];
 
-    for (const r of (Array.isArray(results) ? results : [])) {
+    for (const r of results) {
       const leads = Number(r.leadCount || 0);
       const conversions = Number(r.conversions || 0);
       const revenue = Math.round(Number(r.totalRev || 0) / 100);
       const costPerLead = 0; // No ad spend data in DB — placeholder
       const roi = leads > 0 ? `${Math.round((conversions / leads) * 100)}% conversion` : "N/A";
-      channels.push({ channel: r.channel || "unknown", leads, conversions, revenue, costPerLead, roi });
+      channels.push({ channel: String(r.channel || "unknown"), leads, conversions, revenue, costPerLead, roi });
     }
 
     const best = channels.length > 0 ? channels[0].channel : "N/A";
@@ -629,7 +650,7 @@ export async function analyzeReviewVelocity(): Promise<{
       WHERE review_date >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
     `);
 
-    const r = (rows as any)?.[0]?.[0] || (rows as any)?.[0] || {};
+    const r = extractOne(rows);
     const thisMonth = Number(r.thisMonth || 0);
     const lastMonth = Number(r.lastMonth || 0);
     const totalReviews = Number(r.totalReviews || 0);
@@ -675,7 +696,7 @@ export async function analyzeSmsEngagement(): Promise<{
           AND createdAt >= (SELECT MIN(createdAt) FROM sms_campaign_sends WHERE campaignId = ${camp.id})
           AND createdAt <= DATE_ADD((SELECT MAX(createdAt) FROM sms_campaign_sends WHERE campaignId = ${camp.id}), INTERVAL 48 HOUR)
       `);
-      const replies = Number((replyRows as any)?.[0]?.[0]?.cnt || (replyRows as any)?.[0]?.cnt || 0);
+      const replies = Number(extractOne(replyRows).cnt || 0);
 
       // Opt-outs approximation
       const optRows = await (await db()).execute(sql`
@@ -683,7 +704,7 @@ export async function analyzeSmsEngagement(): Promise<{
         WHERE direction = 'inbound' AND LOWER(body) IN ('stop', 'unsubscribe', 'opt out', 'cancel')
           AND createdAt >= (SELECT MIN(createdAt) FROM sms_campaign_sends WHERE campaignId = ${camp.id})
       `);
-      const optOuts = Number((optRows as any)?.[0]?.[0]?.cnt || (optRows as any)?.[0]?.cnt || 0);
+      const optOuts = Number(extractOne(optRows).cnt || 0);
       totalOptOuts += optOuts;
 
       byCampaign.push({
@@ -723,8 +744,8 @@ export async function analyzeLeadResponseTime(): Promise<{
         AND l.contactedAt IS NOT NULL
     `);
 
-    const results = (rows as any[])[0] || rows;
-    const data = Array.isArray(results) ? results : [];
+    const results = extractRows(rows);
+    const data = results;
 
     let totalMinutes = 0;
     let under5 = 0;
@@ -739,7 +760,7 @@ export async function analyzeLeadResponseTime(): Promise<{
 
     for (const r of data) {
       const mins = Number(r.responseMinutes || 0);
-      const converted = ["booked", "completed"].includes(r.status);
+      const converted = ["booked", "completed"].includes(String(r.status || ""));
       totalMinutes += mins;
 
       if (mins < 5) { under5++; buckets["Under 5 min"].leads++; if (converted) buckets["Under 5 min"].converted++; }
@@ -785,9 +806,9 @@ export async function analyzeContentPerformance(): Promise<{
       LIMIT 15
     `);
 
-    const pageResults = (pageRows as any[])[0] || pageRows;
-    const topPages = (Array.isArray(pageResults) ? pageResults : []).map((r: any) => ({
-      page: r.page || "",
+    const pageResults = extractRows(pageRows);
+    const topPages = pageResults.map((r: RawRow) => ({
+      page: String(r.page || ""),
       leads: Number(r.leadCount || 0),
       bookings: Number(r.bookingCount || 0),
       conversionRate: Number(r.leadCount) > 0 ? Math.round((Number(r.bookingCount) / Number(r.leadCount)) * 100) : 0,
@@ -806,9 +827,9 @@ export async function analyzeContentPerformance(): Promise<{
       LIMIT 10
     `);
 
-    const refResults = (refRows as any[])[0] || refRows;
-    const topReferrers = (Array.isArray(refResults) ? refResults : []).map((r: any) => ({
-      source: r.source || "",
+    const refResults = extractRows(refRows);
+    const topReferrers = refResults.map((r: RawRow) => ({
+      source: String(r.source || ""),
       visits: Number(r.visits || 0),
       leads: Number(r.leadCount || 0),
     }));
@@ -839,7 +860,7 @@ export async function analyzeCompetitorGap(): Promise<{
       WHERE review_date >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
     `);
 
-    const our = (ourRows as any)?.[0]?.[0] || (ourRows as any)?.[0] || {};
+    const our = extractOne(ourRows);
     const rating = Number(our.avgRating || 4.5);
     const reviewCount = Number(our.totalReviews || 0);
     const repliedCount = Number(our.repliedCount || 0);
@@ -893,8 +914,8 @@ export async function detectRevenueAnomalies(): Promise<{
       ORDER BY day
     `);
 
-    const results = (rows as any[])[0] || rows;
-    const data = (Array.isArray(results) ? results : []).map((r: any) => ({
+    const results = extractRows(rows);
+    const data = results.map((r: RawRow) => ({
       day: String(r.day).split("T")[0],
       rev: Number(r.dailyRev || 0) / 100,
     }));
@@ -949,7 +970,7 @@ export async function predictNoShows(): Promise<{
       FROM bookings
       WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
     `);
-    const hist = (histRows as any)?.[0]?.[0] || (histRows as any)?.[0] || {};
+    const hist = extractOne(histRows);
     const totalBookings = Number(hist.total || 0);
     const noShows = Number(hist.noShows || 0);
     const historicalNoShowRate = totalBookings > 0 ? Math.round((noShows / totalBookings) * 100) : 0;
@@ -966,10 +987,10 @@ export async function predictNoShows(): Promise<{
       LIMIT 100
     `);
 
-    const results = (rows as any[])[0] || rows;
+    const results = extractRows(rows);
     const atRisk: Array<{ bookingId: number; name: string; phone: string; probability: number; reason: string }> = [];
 
-    for (const r of (Array.isArray(results) ? results : [])) {
+    for (const r of results) {
       let prob = 10; // base probability
       const reasons: string[] = [];
       const priorVisits = Number(r.priorVisits || 0);
@@ -989,8 +1010,8 @@ export async function predictNoShows(): Promise<{
       if (prob >= 30) {
         atRisk.push({
           bookingId: Number(r.id),
-          name: r.name || "",
-          phone: r.phone || "",
+          name: String(r.name || ""),
+          phone: String(r.phone || ""),
           probability: prob,
           reason: reasons.join("; "),
         });
@@ -1027,11 +1048,11 @@ export async function analyzePeakDemandWindows(): Promise<{
       ORDER BY dow, hr
     `);
 
-    const results = (rows as any[])[0] || rows;
+    const results = extractRows(rows);
     const weekday: Array<{ day: string; hour: number; avgJobs: number; avgRevenue: number }> = [];
     const scored: Array<{ day: string; hour: number; score: number }> = [];
 
-    for (const r of (Array.isArray(results) ? results : [])) {
+    for (const r of results) {
       const dow = Number(r.dow);
       const hr = Number(r.hr);
       const avgJobs = Math.round(Number(r.avgJobs || 0) * 100) / 100;
@@ -1070,7 +1091,7 @@ export async function forecastCashFlow(): Promise<{
       WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL 56 DAY)
         AND paymentStatus = 'paid'
     `);
-    const avgDaily = Number(((avgRows as any)?.[0]?.[0] || (avgRows as any)?.[0] || {}).avgDailyRev || 0) / 100;
+    const avgDaily = Number(extractOne(avgRows).avgDailyRev || 0) / 100;
 
     // Outstanding AR (pending/partial invoices)
     const arRows = await (await db()).execute(sql`
@@ -1078,7 +1099,7 @@ export async function forecastCashFlow(): Promise<{
       FROM invoices
       WHERE paymentStatus IN ('pending', 'partial')
     `);
-    const outstandingAR = Math.round(Number(((arRows as any)?.[0]?.[0] || (arRows as any)?.[0] || {}).outstanding || 0) / 100);
+    const outstandingAR = Math.round(Number(extractOne(arRows).outstanding || 0) / 100);
 
     // Booked jobs coming up (confirmed bookings)
     const bookedRows = await (await db()).execute(sql`
@@ -1087,14 +1108,14 @@ export async function forecastCashFlow(): Promise<{
         AND preferredDate >= CURDATE()
         AND preferredDate <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)
     `);
-    const upcomingBookings = Number(((bookedRows as any)?.[0]?.[0] || (bookedRows as any)?.[0] || {}).cnt || 0);
+    const upcomingBookings = Number(extractOne(bookedRows).cnt || 0);
 
     // Estimated avg ticket from recent data
     const ticketRows = await (await db()).execute(sql`
       SELECT AVG(totalAmount) as avgTicket FROM invoices
       WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL 30 DAY) AND totalAmount > 0
     `);
-    const avgTicket = Number(((ticketRows as any)?.[0]?.[0] || (ticketRows as any)?.[0] || {}).avgTicket || 0) / 100;
+    const avgTicket = Number(extractOne(ticketRows).avgTicket || 0) / 100;
 
     const next7Rev = Math.round(avgDaily * 7);
     const next30Rev = Math.round(avgDaily * 30);
@@ -1131,7 +1152,7 @@ export async function estimateMarketShare(): Promise<{
       SELECT COUNT(*) as cnt FROM review_replies
       WHERE review_date >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
     `);
-    const ourReviews = Number(((ourRows as any)?.[0]?.[0] || (ourRows as any)?.[0] || {}).cnt || 0);
+    const ourReviews = Number(extractOne(ourRows).cnt || 0);
 
     // Our review growth (this quarter vs last quarter)
     const growthRows = await (await db()).execute(sql`
@@ -1141,7 +1162,7 @@ export async function estimateMarketShare(): Promise<{
                    AND review_date < DATE_SUB(NOW(), INTERVAL 3 MONTH) THEN 1 ELSE 0 END) as lastQ
       FROM review_replies
     `);
-    const g = (growthRows as any)?.[0]?.[0] || (growthRows as any)?.[0] || {};
+    const g = extractOne(growthRows);
     const thisQ = Number(g.thisQ || 0);
     const lastQ = Number(g.lastQ || 0);
 
@@ -1247,24 +1268,24 @@ export async function analyzePaymentTrends(): Promise<{
       GROUP BY paymentMethod
     `);
 
-    const currentResults = (currentRows as any[])[0] || currentRows;
-    const prevResults = (prevRows as any[])[0] || prevRows;
+    const currentResults = extractRows(currentRows);
+    const prevResults = extractRows(prevRows);
 
     const prevMap: Record<string, number> = {};
-    for (const r of (Array.isArray(prevResults) ? prevResults : [])) {
-      prevMap[r.paymentMethod || "other"] = Number(r.cnt || 0);
+    for (const r of prevResults) {
+      prevMap[String(r.paymentMethod || "other")] = Number(r.cnt || 0);
     }
 
     let totalCount = 0;
     let totalRev = 0;
     const methods: Array<{ method: string; count: number; revenue: number; percentOfTotal: number; trend: string }> = [];
 
-    for (const r of (Array.isArray(currentResults) ? currentResults : [])) {
+    for (const r of currentResults) {
       const count = Number(r.cnt || 0);
       const revenue = Math.round(Number(r.totalRev || 0) / 100);
       totalCount += count;
       totalRev += revenue;
-      methods.push({ method: r.paymentMethod || "other", count, revenue, percentOfTotal: 0, trend: "" });
+      methods.push({ method: String(r.paymentMethod || "other"), count, revenue, percentOfTotal: 0, trend: "" });
     }
 
     for (const m of methods) {
@@ -1310,9 +1331,9 @@ export async function analyzeTicketTrend(): Promise<{
       ORDER BY month
     `);
 
-    const results = (rows as any[])[0] || rows;
-    const monthly = (Array.isArray(results) ? results : []).map((r: any) => ({
-      month: r.month || "",
+    const results = extractRows(rows);
+    const monthly = results.map((r: RawRow) => ({
+      month: String(r.month || ""),
       avgTicket: Math.round(Number(r.avgTicket || 0) / 100),
       jobCount: Number(r.jobCount || 0),
     }));
@@ -1354,8 +1375,8 @@ export async function analyzeRevenueConcentration(): Promise<{
       ORDER BY custRev DESC
     `);
 
-    const results = (rows as any[])[0] || rows;
-    const data = (Array.isArray(results) ? results : []).map((r: any) => Number(r.custRev || 0) / 100);
+    const results = extractRows(rows);
+    const data = results.map((r: RawRow) => Number(r.custRev || 0) / 100);
 
     if (data.length === 0) {
       return { top10PercentRevenue: 0, top10PercentCount: 0, totalRevenue: 0, concentrationRatio: 0, risk: "low" };
@@ -1394,8 +1415,8 @@ export async function analyzeChatFunnel(): Promise<{
       WHERE cs.createdAt >= DATE_SUB(NOW(), INTERVAL 90 DAY)
     `);
 
-    const results = (rows as any[])[0] || rows;
-    const sessions = Array.isArray(results) ? results : [];
+    const results = extractRows(rows);
+    const sessions = results;
 
     let opened = sessions.length;
     let engaged = 0;
@@ -1405,12 +1426,12 @@ export async function analyzeChatFunnel(): Promise<{
 
     for (const s of sessions) {
       try {
-        const messages = JSON.parse(s.messagesJson || "[]");
-        const userMessages = messages.filter((m: any) => m.role === "user");
+        const messages: Array<{ role?: string; content?: string }> = JSON.parse(String(s.messagesJson || "[]"));
+        const userMessages = messages.filter((m) => m.role === "user");
         if (userMessages.length >= 3) engaged++;
 
         // Shared info: user provided phone or name in messages
-        const hasContactInfo = userMessages.some((m: any) => {
+        const hasContactInfo = userMessages.some((m) => {
           const content = String(m.content || "");
           return /\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/.test(content) || content.length > 20;
         });
@@ -1473,8 +1494,8 @@ export async function analyzeReviewSentiment(): Promise<{
         AND review_date >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
     `);
 
-    const results = (rows as any[])[0] || rows;
-    const reviews = Array.isArray(results) ? results : [];
+    const results = extractRows(rows);
+    const reviews = results;
 
     const topicStats: Record<string, { positive: number; negative: number; neutral: number }> = {};
     for (const topic of Object.keys(TOPIC_PATTERNS)) {
@@ -1535,9 +1556,9 @@ export async function analyzeWebsiteJourneys(): Promise<{
       LIMIT 15
     `);
 
-    const pageResults = (pageRows as any[])[0] || pageRows;
-    const topLandingPages = (Array.isArray(pageResults) ? pageResults : []).map((r: any) => ({
-      page: r.page || "",
+    const pageResults = extractRows(pageRows);
+    const topLandingPages = pageResults.map((r: RawRow) => ({
+      page: String(r.page || ""),
       leads: Number(r.total || 0),
       conversionRate: Number(r.total) > 0 ? Math.round((Number(r.converted) / Number(r.total)) * 100) : 0,
     }));
@@ -1553,9 +1574,9 @@ export async function analyzeWebsiteJourneys(): Promise<{
       LIMIT 10
     `);
 
-    const pathResults = (pathRows as any[])[0] || pathRows;
-    const topConversionPaths = (Array.isArray(pathResults) ? pathResults : []).map((r: any) => ({
-      path: r.path || "",
+    const pathResults = extractRows(pathRows);
+    const topConversionPaths = pathResults.map((r: RawRow) => ({
+      path: String(r.path || ""),
       count: Number(r.cnt || 0),
     }));
 
@@ -1585,12 +1606,12 @@ export async function analyzeCallPatterns(): Promise<{
       ORDER BY hr
     `);
 
-    const hourResults = (hourRows as any[])[0] || hourRows;
+    const hourResults = extractRows(hourRows);
     const hourlyVolume: Array<{ hour: number; calls: number }> = [];
     let peakCallHour = 0;
     let peakCount = 0;
 
-    for (const r of (Array.isArray(hourResults) ? hourResults : [])) {
+    for (const r of hourResults) {
       const hr = Number(r.hr);
       const calls = Number(r.cnt || 0);
       hourlyVolume.push({ hour: hr, calls });
@@ -1608,9 +1629,9 @@ export async function analyzeCallPatterns(): Promise<{
       LIMIT 10
     `);
 
-    const srcResults = (srcRows as any[])[0] || srcRows;
-    const topSourcePages = (Array.isArray(srcResults) ? srcResults : []).map((r: any) => ({
-      page: r.page || "",
+    const srcResults = extractRows(srcRows);
+    const topSourcePages = srcResults.map((r: RawRow) => ({
+      page: String(r.page || ""),
       calls: Number(r.cnt || 0),
     }));
 
@@ -1626,7 +1647,7 @@ export async function analyzeCallPatterns(): Promise<{
       WHERE ce.createdAt >= DATE_SUB(NOW(), INTERVAL 90 DAY)
     `);
 
-    const conv = (convRows as any)?.[0]?.[0] || (convRows as any)?.[0] || {};
+    const conv = extractOne(convRows);
     const totalCalls = Number(conv.totalCalls || 0);
     const matchedBookings = Number(conv.matchedBookings || 0);
     const callToBookingRate = totalCalls > 0 ? Math.round((matchedBookings / totalCalls) * 100) : 0;
@@ -1659,7 +1680,7 @@ export async function analyzeNewCustomerVelocity(): Promise<{
       WHERE firstVisitDate IS NOT NULL
     `);
 
-    const r = (rows as any)?.[0]?.[0] || (rows as any)?.[0] || {};
+    const r = extractOne(rows);
     const thisMonth = Number(r.thisMonth || 0);
     const lastMonth = Number(r.lastMonth || 0);
     const lastYear = Number(r.lastYear || 0);
@@ -1701,13 +1722,13 @@ export async function analyzeReferralNetwork(): Promise<{
       LIMIT 30
     `);
 
-    const results = (rows as any[])[0] || rows;
+    const results = extractRows(rows);
     const topReferrers: Array<{ name: string; phone: string; referralCount: number; convertedCount: number; totalRevenue: number }> = [];
 
-    for (const r of (Array.isArray(results) ? results : [])) {
+    for (const r of results) {
       topReferrers.push({
-        name: r.name || "",
-        phone: r.phone || "",
+        name: String(r.name || ""),
+        phone: String(r.phone || ""),
         referralCount: Number(r.referralCount || 0),
         convertedCount: Number(r.convertedCount || 0),
         totalRevenue: Math.round(Number(r.totalRev || 0) / 100),
@@ -1743,8 +1764,8 @@ export async function forecastPortfolioLTV(): Promise<{
       WHERE c.totalVisits >= 1 AND c.firstVisitDate IS NOT NULL
     `);
 
-    const results = (rows as any[])[0] || rows;
-    const customers_data = Array.isArray(results) ? results : [];
+    const results = extractRows(rows);
+    const customers_data = results;
 
     const segments: Record<string, { count: number; totalLTV: number }> = {
       "VIP (10+ visits)": { count: 0, totalLTV: 0 },
@@ -1761,8 +1782,8 @@ export async function forecastPortfolioLTV(): Promise<{
     for (const c of customers_data) {
       const spent = Number(c.totalSpent || 0) / 100;
       const visits = Number(c.totalVisits || 1);
-      const firstDate = c.firstVisitDate ? new Date(c.firstVisitDate) : new Date();
-      const lastDate = c.lastVisitDate ? new Date(c.lastVisitDate) : new Date();
+      const firstDate = c.firstVisitDate ? new Date(String(c.firstVisitDate)) : new Date();
+      const lastDate = c.lastVisitDate ? new Date(String(c.lastVisitDate)) : new Date();
       const tenureDays = Math.max(1, (Date.now() - firstDate.getTime()) / 86400000);
       const daysSinceLast = (Date.now() - lastDate.getTime()) / 86400000;
 
