@@ -83,6 +83,7 @@ export default function ChatWidget() {
             exit={{ scale: 0 }}
             onClick={() => setOpen(true)}
             className="fixed bottom-20 lg:bottom-6 right-4 z-[90] w-13 h-13 bg-primary text-primary-foreground rounded-full shadow-lg shadow-primary/20 flex items-center justify-center hover:opacity-90 transition-opacity"
+            aria-label="Chat with Nick's AI mechanic"
           >
             <MessageCircle className="w-5 h-5" />
           </motion.button>
@@ -108,10 +109,10 @@ export default function ChatWidget() {
                 </div>
                 <div>
                   <span className="font-semibold text-foreground text-[13px] tracking-[-0.01em] block">
-                    Auto Assistant
+                    Nick's AI Mechanic
                   </span>
                   <span className="text-foreground/40 text-[11px]">
-                    Describe your car problem
+                    What's going on with your car?
                   </span>
                 </div>
               </div>
@@ -129,7 +130,7 @@ export default function ChatWidget() {
                     <div className="w-12 h-12 rounded-full bg-foreground/[0.04] flex items-center justify-center mx-auto mb-3">
                       <Wrench className="w-5 h-5 text-foreground/15" />
                     </div>
-                    <p className="text-foreground/70 text-[13px] font-medium">Hi! I'm Nick's AI assistant.</p>
+                    <p className="text-foreground/70 text-[13px] font-medium">Hey — I'm Nick's AI mechanic.</p>
                     <p className="text-foreground/50 text-[12px] leading-relaxed max-w-[280px] mx-auto mt-1">
                       I can help with:
                     </p>
@@ -172,7 +173,7 @@ export default function ChatWidget() {
                     </button>
                     <button
                       onClick={() => {
-                        const inputEl = document.querySelector("[placeholder='Describe your problem...']") as HTMLInputElement;
+                        const inputEl = document.querySelector("[placeholder='What\\'s your car doing?']") as HTMLInputElement;
                         inputEl?.focus();
                       }}
                       className="w-full text-left text-[12px] text-foreground/60 hover:text-foreground border border-[oklch(0.17_0.004_260)] rounded-lg px-3 py-2.5 hover:border-foreground/15 hover:bg-foreground/[0.03] transition-all"
@@ -258,13 +259,14 @@ export default function ChatWidget() {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleSend()}
-                placeholder="Describe your problem..."
+                placeholder="What's your car doing?"
                 className="flex-1 bg-foreground/[0.04] border border-[oklch(0.17_0.004_260)] rounded-lg text-foreground px-3 py-2 text-[13px] placeholder:text-foreground/25 focus:border-foreground/15 focus:outline-none transition-all"
               />
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || sendMessage.isPending}
                 className="bg-primary text-primary-foreground w-9 h-9 rounded-lg flex items-center justify-center hover:opacity-90 transition-opacity disabled:opacity-30"
+                aria-label="Send message"
               >
                 <Send className="w-4 h-4" />
               </button>

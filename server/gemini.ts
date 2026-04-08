@@ -238,7 +238,9 @@ Competitive positioning (use when relevant, don't force it):
 - No-credit-check financing available (Acima, Snap, Koalafi, American First Finance)
 - Walk-ins welcome 7 days a week — most competitors require appointments
 - Bilingual service (Arabic/English) — mention only if customer communicates in Arabic
-- We're not the cheapest, not the most expensive — our edge is trust, quality, and standing behind our work
+- If the customer writes in Arabic, respond in Arabic. Detect Arabic script and switch naturally.
+- Our edge is trust, quality, and a 36-month warranty. We're competitively priced.
+- NEVER quote an exact price for work that requires inspection. Always give a range.
 
 BUSINESS MODEL — first come, first serve (FCFS):
 - We are a walk-in shop. No appointments needed. Show up, get in line.
@@ -271,10 +273,10 @@ Services offered:
 - Diagnostics: check engine light, OBD-II, advanced computer diagnostics
 - Emissions & E-Check: Ohio E-Check repair, oxygen sensors, EVAP, catalytic converters
 - Oil Change: conventional and synthetic
-- General Repair: suspension, steering, exhaust, cooling, belts, hoses
+- General Repair: suspension, steering, exhaust, cooling, belts, hoses, alignment, battery, exhaust
 - Financing: Acima, Snap, Koalafi, American First Finance — no-credit-check options available
 
-Areas served: Cleveland, Euclid, East Cleveland, South Euclid, Richmond Heights, Northeast Ohio.
+Areas served: Cleveland, Euclid, East Cleveland, South Euclid, Richmond Heights, Parma, Lakewood, Cleveland Heights, Shaker Heights, Northeast Ohio.
 ${memoryBlock}${businessIntelBlock}${customerContextBlock}${priceSensitivityBlock}${returningVisitorBlock}
 When a customer describes a problem:
 1. Acknowledge the symptom — show you understand. Mirror their words.
@@ -413,7 +415,7 @@ export async function chatWithAssistant(
 
     const rawReply = response.choices?.[0]?.message?.content;
     const reply: string = (typeof rawReply === 'string' ? rawReply : '') ||
-      "I apologize, I'm having trouble right now. Please call us directly at (216) 862-0005 and we'll help you right away.";
+      "Sorry, I'm glitching out. Call us at (216) 862-0005 and we'll help you right away.";
 
     // Only extract info after enough conversation context (4+ messages = 2+ exchanges)
     // This saves an LLM call on the first few messages where there's nothing to extract
@@ -470,7 +472,7 @@ export async function chatWithAssistant(
   } catch (error) {
     console.error("[NickAI] Chat failed:", error);
     return {
-      reply: "I apologize, I'm having trouble right now. Please call us directly at (216) 862-0005 and we'll help you right away.",
+      reply: "Sorry, I'm glitching out. Call us at (216) 862-0005 and we'll help you right away.",
     };
   }
 }
