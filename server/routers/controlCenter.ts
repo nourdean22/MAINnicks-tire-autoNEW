@@ -697,8 +697,8 @@ export const controlCenterRouter = router({
   getOperationalTwin: adminProcedure.query(async () => {
     const d = await db();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- gateway health shape varies between providers
-    let health: Record<string, any> = { ollamaHealthy: false, circuitBreaker: { open: false } };
-    try { health = getGatewayHealth(); } catch (err) {
+    let health: Record<string, unknown> = { veniceHealthy: false, circuitBreaker: { open: false } };
+    try { health = getGatewayHealth() as Record<string, unknown>; } catch (err) {
       console.warn("[ControlCenter] Gateway health unavailable for twin:", err instanceof Error ? err.message : err);
     }
 
@@ -709,11 +709,11 @@ export const controlCenterRouter = router({
         server: { status: "live", risk: "low" },
         database: { status: d ? "connected" : "disconnected", risk: d ? "low" : "critical" },
         aiGateway: {
-          status: health.ollamaHealthy ? "local" : "cloud-fallback",
-          circuitBreaker: health.circuitBreaker?.open ? "open" : "closed",
-          risk: health.ollamaHealthy ? "low" : "medium",
+          status: health.veniceHealthy ? "venice-primary" : "openai-fallback",
+          circuitBreaker: (health.circuitBreaker as Record<string, unknown>)?.open ? "open" : "closed",
+          risk: health.veniceHealthy ? "low" : "medium",
         },
-        cron: { status: "running", jobCount: 11, risk: "low" },
+        cron: { status: "running", jobCount: 55, risk: "low" },
         auth: { status: "active", method: "google-oauth", risk: "low" },
         controlCenter: { status: "active", endpoints: 10, risk: "low" },
         tunnel: { status: process.env.TUNNEL_URL ? "configured" : "local-only", risk: "low" },
@@ -724,7 +724,7 @@ export const controlCenterRouter = router({
       ],
       truthSources: {
         database: "TiDB Cloud via Drizzle ORM",
-        ai: "Ollama local-first, OpenAI fallback via ai-gateway.ts",
+        ai: "Venice primary, OpenAI fallback via ai-gateway.ts",
         auth: "Google OAuth via GOOGLE_OAUTH_CLIENT_ID",
         config: ".env + Railway env vars",
         schema: "drizzle/schema.ts (68 tables, 22 migrations)",

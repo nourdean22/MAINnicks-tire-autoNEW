@@ -54,7 +54,8 @@ async function persistLog(entry: Record<string, unknown>) {
 // ─── Configuration ───────────────────────────────────
 const VENICE_BASE = process.env.VENICE_BASE_URL?.replace(/\/$/, "") || "https://api.venice.ai/api/v1";
 const OPENAI_BASE = process.env.OPENAI_BASE_URL?.replace(/\/$/, "") || "https://api.openai.com";
-const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+// Ollama constant retained for potential local dev use — not used in production routing
+const _OLLAMA_BASE = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 
 export type AIProvider = "venice" | "openai" | "ollama";
 
