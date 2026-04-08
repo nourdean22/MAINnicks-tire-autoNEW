@@ -168,17 +168,17 @@ export function startTieredScheduler(): void {
 
             // Check for orphaned invoices (no matching customer phone)
             const [orphanedInvoices] = await d.execute(sql`SELECT COUNT(*) as cnt FROM invoices WHERE customerPhone IS NULL OR customerPhone = ''`);
-            const orphanCount = (orphanedInvoices as any)?.[0]?.cnt || (orphanedInvoices as any)?.cnt || 0;
+            const orphanCount = (orphanedInvoices as Record<string, unknown>[])?.[0]?.cnt || (orphanedInvoices as Record<string, unknown>)?.cnt || 0;
             if (Number(orphanCount) > 0) issues.push(`${orphanCount} invoices missing customer phone`);
 
             // Check for stale leads (new status > 7 days old)
             const [staleLeads] = await d.execute(sql`SELECT COUNT(*) as cnt FROM leads WHERE status = 'new' AND createdAt < DATE_SUB(NOW(), INTERVAL 7 DAY)`);
-            const staleCount = (staleLeads as any)?.[0]?.cnt || (staleLeads as any)?.cnt || 0;
+            const staleCount = (staleLeads as Record<string, unknown>[])?.[0]?.cnt || (staleLeads as Record<string, unknown>)?.cnt || 0;
             if (Number(staleCount) > 3) issues.push(`${staleCount} stale leads (>7d untouched)`);
 
             // Check for callbacks stuck in "new" > 24h
             const [staleCallbacks] = await d.execute(sql`SELECT COUNT(*) as cnt FROM callback_requests WHERE status = 'new' AND createdAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)`);
-            const cbCount = (staleCallbacks as any)?.[0]?.cnt || (staleCallbacks as any)?.cnt || 0;
+            const cbCount = (staleCallbacks as Record<string, unknown>[])?.[0]?.cnt || (staleCallbacks as Record<string, unknown>)?.cnt || 0;
             if (Number(cbCount) > 0) issues.push(`${cbCount} callbacks unanswered >24h`);
 
             if (issues.length > 0) {
@@ -210,7 +210,7 @@ export function startTieredScheduler(): void {
         handler: async () => {
           const { getVendorHealthReport } = await import("../services/vendorHealth");
           const report = await getVendorHealthReport();
-          const unhealthy = report.results.filter((s: any) => s.status === "down").length;
+          const unhealthy = report.results.filter((s) => s.status === "down").length;
           return { recordsProcessed: report.results.length, details: `${unhealthy} unhealthy` };
         },
       },
@@ -368,16 +368,16 @@ export function startTieredScheduler(): void {
             }
 
             // Handle drift alerts — urgent ones trigger immediate Telegram
-            const driftAlerts = (brain.driftAlerts || brain.alerts || []).filter((a: any) => a.severity === "critical" || a.urgent);
+            const driftAlerts = (brain.driftAlerts || brain.alerts || []).filter((a: Record<string, unknown>) => a.severity === "critical" || a.urgent);
             if (driftAlerts.length > 0) {
               try {
                 const { sendUrgentBrief } = await import("./jobs/morningBrief");
-                await sendUrgentBrief("NOUR OS Drift Alert", driftAlerts.map((a: any) => a.message || a.title || String(a)).join("\n"));
+                await sendUrgentBrief("NOUR OS Drift Alert", driftAlerts.map((a: Record<string, unknown>) => a.message || a.title || String(a)).join("\n"));
               } catch (e) { console.warn("[cron/scheduler] operation failed:", e); }
             }
 
             // Non-urgent alerts still stored as memories
-            for (const alert of (brain.driftAlerts || []).filter((a: any) => !a.urgent).slice(0, 3)) {
+            for (const alert of (brain.driftAlerts || []).filter((a: Record<string, unknown>) => !a.urgent).slice(0, 3)) {
               await remember({ type: "lesson", content: `[statenour-alert] ${alert.message || alert.ruleName || ""}`.slice(0, 500), source: "statenour_alerts", confidence: 0.7 });
               imported++;
             }
@@ -421,7 +421,7 @@ export function startTieredScheduler(): void {
               const { remember } = await import("../services/nickMemory");
               await remember({
                 type: "insight",
-                content: `ALG sync: ${tickets.length} recent tickets pulled. Latest: ${tickets.slice(0, 3).map((t: any) => `${t.customerName || "?"} ($${t.totalAmount || 0})`).join(", ")}`,
+                content: `ALG sync: ${tickets.length} recent tickets pulled. Latest: ${tickets.slice(0, 3).map((t: Record<string, unknown>) => `${t.customerName || "?"} ($${t.totalAmount || 0})`).join(", ")}`,
                 source: "alg_sync",
                 confidence: 0.8,
               });
@@ -451,7 +451,7 @@ export function startTieredScheduler(): void {
             trackCampaignAttribution().catch(() => ({})),
             analyzeDeclinedWork().catch(() => ({ totalDeclinedValue: 0 })),
           ]);
-          return { recordsProcessed: (leads as any[]).length, details: `Scored ${(leads as any[]).length} leads, LTV+attribution+declined updated` };
+          return { recordsProcessed: (leads as unknown[]).length, details: `Scored ${(leads as unknown[]).length} leads, LTV+attribution+declined updated` };
         },
       },
       {
@@ -485,12 +485,12 @@ export function startTieredScheduler(): void {
           try {
             const { getPromiseRiskSummary } = await import("../services/promiseRisk");
             const risk = await getPromiseRiskSummary();
-            const atRiskJobs = (risk.jobs || []).filter((r: any) => r.risk === "at_risk" || r.risk === "likely_late" || r.risk === "overdue");
+            const atRiskJobs = (risk.jobs || []).filter((r) => r.risk === "at_risk" || r.risk === "likely_late" || r.risk === "overdue");
             if (atRiskJobs.length > 0) {
               const { sendTelegram } = await import("../services/telegram");
               await sendTelegram(
                 `⏰ PROMISE RISK: ${atRiskJobs.length} work orders at risk!\n\n` +
-                atRiskJobs.slice(0, 3).map((r: any) => `WO#${r.orderNumber || r.id}: ${r.customerName || "?"} — ${r.risk}`).join("\n")
+                atRiskJobs.slice(0, 3).map((r) => `WO#${r.orderNumber || r.workOrderId}: ${r.customerName || "?"} — ${r.risk}`).join("\n")
               );
             }
             return { recordsProcessed: atRiskJobs.length, details: `${atRiskJobs.length} at-risk WOs` };
@@ -512,13 +512,13 @@ export function startTieredScheduler(): void {
               AND invoiceDate < DATE_SUB(NOW(), INTERVAL 3 DAY)
               ORDER BY totalAmount DESC LIMIT 5
             `);
-            const stale = rows as any[];
+            const stale = rows as Record<string, unknown>[];
             if (stale.length > 0) {
               const { sendTelegram } = await import("../services/telegram");
-              const totalPotential = stale.reduce((s: number, e: any) => s + Number(e.totalAmount || 0), 0);
+              const totalPotential = stale.reduce((s: number, e) => s + Number(e.totalAmount || 0), 0);
               await sendTelegram(
                 `💰 STALE ESTIMATES — ${stale.length} pending 3+ days ($${Math.round(totalPotential/100)})\n\n` +
-                stale.map((e: any) => `${e.customerName} — $${Math.round(Number(e.totalAmount)/100)} (${e.daysOld}d old)`).join("\n") +
+                stale.map((e) => `${e.customerName} — $${Math.round(Number(e.totalAmount)/100)} (${e.daysOld}d old)`).join("\n") +
                 `\n\nFollow up NOW — every day = lost conversion probability.`
               );
             }
@@ -687,7 +687,7 @@ export function startTieredScheduler(): void {
           const r365 = await processRetention365Day();
           return {
             recordsProcessed: (r45.recordsProcessed || 0) + (r90.recordsProcessed || 0) + (r180.recordsProcessed || 0) + (r365.recordsProcessed || 0),
-            details: `45d: ${(r45 as any).details || "done"}, 90d: ${(r90 as any).details || "done"}, 180d: ${(r180 as any).details || "done"}, 365d: ${(r365 as any).details || "done"}`,
+            details: `45d: ${(r45 as Record<string, unknown>).details || "done"}, 90d: ${(r90 as Record<string, unknown>).details || "done"}, 180d: ${(r180 as Record<string, unknown>).details || "done"}, 365d: ${(r365 as Record<string, unknown>).details || "done"}`,
           };
         },
       },
@@ -756,7 +756,7 @@ export function startTieredScheduler(): void {
                       phone: entry.phone,
                       name: entry.customerName || "there",
                       vehicle: entry.vehicle || undefined,
-                      service: entry.declinedItems.map((i: any) => i.description || "service").join(", ").slice(0, 100),
+                      service: entry.declinedItems.map((i) => i.description || "service").join(", ").slice(0, 100),
                     });
                     enrolled++;
                   } catch (e) { console.warn("[cron/scheduler] operation failed:", e); }
@@ -1026,7 +1026,7 @@ export function startTieredScheduler(): void {
               const { sendTelegram } = await import("../services/telegram");
               await sendTelegram(
                 `⭐ URGENT REVIEWS: ${urgent.length} need response!\n\n` +
-                urgent.slice(0, 3).map((r: any) => `${r.rating}★ ${r.authorName || "Anonymous"}: "${(r.text || "").slice(0, 80)}..."`).join("\n") +
+                urgent.slice(0, 3).map((r: Record<string, unknown>) => `${r.rating}★ ${r.authorName || "Anonymous"}: "${(String(r.text || "")).slice(0, 80)}..."`).join("\n") +
                 `\n\nRespond ASAP — negative reviews compound damage every hour.`
               );
             }
@@ -1042,12 +1042,12 @@ export function startTieredScheduler(): void {
             const { runGscPipeline, detectRankingChanges } = await import("../pipelines/gsc-data");
             const result = await runGscPipeline();
             const changes = await detectRankingChanges();
-            const drops = changes.filter((c: any) => c.direction === "down" && Math.abs(c.positionChange || 0) >= 5);
+            const drops = changes.filter((c) => c.direction === "dropped" && Math.abs(c.delta) >= 5);
             if (drops.length > 0) {
               const { sendTelegram } = await import("../services/telegram");
               await sendTelegram(
                 `📉 SEO RANKING DROPS: ${drops.length} queries lost 5+ positions!\n\n` +
-                drops.slice(0, 5).map((d: any) => `"${d.query}" dropped ${Math.abs(d.positionChange)} spots (now #${d.currentPosition})`).join("\n") +
+                drops.slice(0, 5).map((d) => `"${d.query}" dropped ${Math.abs(d.delta)} spots (now #${d.currentPosition})`).join("\n") +
                 `\n\nInvestigate content or technical issues.`
               );
             }
@@ -1066,27 +1066,28 @@ export function startTieredScheduler(): void {
 
             // Build digest from report
             const parts: string[] = [`📊 DAILY INTELLIGENCE DIGEST`];
-            const f = report.forecast as any;
+            const f = report.forecast as Record<string, unknown> | null;
             if (f && !f.error) {
-              parts.push(`Revenue: $${Math.round(f.month?.soFar || 0)} MTD (${f.month?.onPace ? "ON PACE" : "BEHIND"} for $${f.month?.target || BUSINESS.revenueTarget.monthly})`);
+              const fMonth = f.month as Record<string, unknown> | undefined;
+              parts.push(`Revenue: $${Math.round(Number(fMonth?.soFar || 0))} MTD (${fMonth?.onPace ? "ON PACE" : "BEHIND"} for $${fMonth?.target || BUSINESS.revenueTarget.monthly})`);
             }
-            const ls = report.leadScores as any[];
-            if (ls?.length > 0) {
-              parts.push(`Leads: ${ls.length} scored, top: ${ls.slice(0, 2).map((l: any) => `${l.name} (${l.score})`).join(", ")}`);
+            const ls = report.leadScores as Array<Record<string, unknown>> | null;
+            if (ls?.length && ls.length > 0) {
+              parts.push(`Leads: ${ls.length} scored, top: ${ls.slice(0, 2).map((l) => `${l.name} (${l.score})`).join(", ")}`);
             }
-            const cs = report.crossSell as any;
-            if (cs?.recommendations?.length > 0) {
-              parts.push(`Cross-sell: ${cs.recommendations.length} opportunities`);
+            const cs = report.crossSell as Record<string, unknown> | null;
+            if (cs?.recommendations && (cs.recommendations as unknown[])?.length > 0) {
+              parts.push(`Cross-sell: ${(cs.recommendations as unknown[]).length} opportunities`);
             }
-            const dec = report.declined as any;
-            if (dec?.totalDeclinedValue > 0) {
-              parts.push(`Declined work: $${Math.round(dec.totalDeclinedValue)} recoverable`);
+            const dec = report.declined as Record<string, unknown> | null;
+            if (dec?.totalDeclinedValue && Number(dec.totalDeclinedValue) > 0) {
+              parts.push(`Declined work: $${Math.round(Number(dec.totalDeclinedValue))} recoverable`);
             }
 
             await sendTelegram(parts.join("\n\n"));
             await remember({ type: "insight", content: parts.join(". ").slice(0, 1500), source: "daily_digest", confidence: 0.9 });
             return { recordsProcessed: 1, details: "Full digest sent" };
-          } catch (e: any) { return { details: `Digest failed: ${e.message}` }; }
+          } catch (e: unknown) { return { details: `Digest failed: ${(e as Error).message}` }; }
         },
       },
       {

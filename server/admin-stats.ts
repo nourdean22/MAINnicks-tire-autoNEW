@@ -7,6 +7,17 @@ import { getDb } from "./db";
 import { bookings, leads, chatSessions, dynamicArticles, notificationMessages, contentGenerationLog, users, callbackRequests, callEvents, invoices, customers, workOrders } from "../drizzle/schema";
 import { eq, desc, gte, sql, and } from "drizzle-orm";
 
+type Booking = typeof bookings.$inferSelect;
+type Lead = typeof leads.$inferSelect;
+type Article = typeof dynamicArticles.$inferSelect;
+type Notification = typeof notificationMessages.$inferSelect;
+type GenLog = typeof contentGenerationLog.$inferSelect;
+type Chat = typeof chatSessions.$inferSelect;
+type User = typeof users.$inferSelect;
+type CallEvent = typeof callEvents.$inferSelect;
+type Callback = typeof callbackRequests.$inferSelect;
+type WorkOrder = typeof workOrders.$inferSelect;
+
 export interface DashboardStats {
   bookings: {
     total: number;
@@ -124,19 +135,19 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   try {
     // ─── BOOKINGS ─────────────────────────────────────
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-    const allBookings = await d.select().from(bookings)
+    const allBookings: Booking[] = await d.select().from(bookings)
       .where(gte(bookings.createdAt, ninetyDaysAgo))
       .orderBy(desc(bookings.createdAt))
       .limit(1000);
     const bookingStats = {
       total: allBookings.length,
-      new: allBookings.filter((b: any) => b.status === "new").length,
-      confirmed: allBookings.filter((b: any) => b.status === "confirmed").length,
-      completed: allBookings.filter((b: any) => b.status === "completed").length,
-      cancelled: allBookings.filter((b: any) => b.status === "cancelled").length,
-      thisWeek: allBookings.filter((b: any) => new Date(b.createdAt) >= weekAgo).length,
+      new: allBookings.filter((b) => b.status === "new").length,
+      confirmed: allBookings.filter((b) => b.status === "confirmed").length,
+      completed: allBookings.filter((b) => b.status === "completed").length,
+      cancelled: allBookings.filter((b) => b.status === "cancelled").length,
+      thisWeek: allBookings.filter((b) => new Date(b.createdAt) >= weekAgo).length,
       byService: Object.entries(
-        allBookings.reduce((acc: any, b: any) => {
+        allBookings.reduce((acc: Record<string, number>, b) => {
           const svc = b.service || "Other";
           acc[svc] = (acc[svc] || 0) + 1;
           return acc;
@@ -145,68 +156,68 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     };
 
     // ─── LEADS ────────────────────────────────────────
-    const allLeads = await d.select().from(leads)
+    const allLeads: Lead[] = await d.select().from(leads)
       .where(gte(leads.createdAt, ninetyDaysAgo))
       .orderBy(desc(leads.createdAt))
       .limit(1000);
     const leadStats = {
       total: allLeads.length,
-      new: allLeads.filter((l: any) => l.status === "new").length,
-      contacted: allLeads.filter((l: any) => l.status === "contacted").length,
-      booked: allLeads.filter((l: any) => l.status === "booked").length,
-      closed: allLeads.filter((l: any) => l.status === "closed").length,
-      lost: allLeads.filter((l: any) => l.status === "lost").length,
-      urgent: allLeads.filter((l: any) => (l.urgencyScore ?? 0) >= 4).length,
-      thisWeek: allLeads.filter((l: any) => new Date(l.createdAt) >= weekAgo).length,
+      new: allLeads.filter((l) => l.status === "new").length,
+      contacted: allLeads.filter((l) => l.status === "contacted").length,
+      booked: allLeads.filter((l) => l.status === "booked").length,
+      closed: allLeads.filter((l) => l.status === "closed").length,
+      lost: allLeads.filter((l) => l.status === "lost").length,
+      urgent: allLeads.filter((l) => (l.urgencyScore ?? 0) >= 4).length,
+      thisWeek: allLeads.filter((l) => new Date(l.createdAt) >= weekAgo).length,
       bySource: Object.entries(
-        allLeads.reduce((acc: any, l: any) => {
+        allLeads.reduce((acc: Record<string, number>, l) => {
           const src = l.source || "unknown";
           acc[src] = (acc[src] || 0) + 1;
           return acc;
         }, {} as Record<string, number>)
       ).map(([source, count]) => ({ source, count: count as number })).sort((a, b) => b.count - a.count),
       avgUrgency: allLeads.length > 0
-        ? Math.round((allLeads.reduce((sum: any, l: any) => sum + (l.urgencyScore ?? 3), 0) / allLeads.length) * 10) / 10
+        ? Math.round((allLeads.reduce((sum: number, l) => sum + (l.urgencyScore ?? 3), 0) / allLeads.length) * 10) / 10
         : 0,
     };
 
     // ─── CONTENT ──────────────────────────────────────
-    const allArticles = await d.select().from(dynamicArticles).limit(500);
-    const allNotifs = await d.select().from(notificationMessages).limit(500);
-    const allLogs = await d.select().from(contentGenerationLog).orderBy(desc(contentGenerationLog.createdAt)).limit(500);
+    const allArticles: Article[] = await d.select().from(dynamicArticles).limit(500);
+    const allNotifs: Notification[] = await d.select().from(notificationMessages).limit(500);
+    const allLogs: GenLog[] = await d.select().from(contentGenerationLog).orderBy(desc(contentGenerationLog.createdAt)).limit(500);
     const contentStats = {
       totalArticles: allArticles.length,
-      published: allArticles.filter((a: any) => a.status === "published").length,
-      drafts: allArticles.filter((a: any) => a.status === "draft").length,
-      rejected: allArticles.filter((a: any) => a.status === "rejected").length,
+      published: allArticles.filter((a) => a.status === "published").length,
+      drafts: allArticles.filter((a) => a.status === "draft").length,
+      rejected: allArticles.filter((a) => a.status === "rejected").length,
       totalNotifications: allNotifs.length,
-      activeNotifications: allNotifs.filter((n: any) => n.isActive === 1).length,
+      activeNotifications: allNotifs.filter((n) => n.isActive === 1).length,
       generationLogs: allLogs.length,
-      recentGenerations: allLogs.filter((l: any) => new Date(l.createdAt) >= weekAgo).length,
+      recentGenerations: allLogs.filter((l) => new Date(l.createdAt) >= weekAgo).length,
     };
 
     // ─── CHAT ─────────────────────────────────────────
-    const allChats = await d.select().from(chatSessions)
+    const allChats: Chat[] = await d.select().from(chatSessions)
       .where(gte(chatSessions.createdAt, ninetyDaysAgo))
       .limit(500);
     const chatStats = {
       totalSessions: allChats.length,
-      converted: allChats.filter((c: any) => c.converted === 1).length,
-      thisWeek: allChats.filter((c: any) => new Date(c.createdAt) >= weekAgo).length,
+      converted: allChats.filter((c) => c.converted === 1).length,
+      thisWeek: allChats.filter((c) => new Date(c.createdAt) >= weekAgo).length,
     };
 
     // ─── USERS ────────────────────────────────────────
-    const allUsers = await d.select().from(users);
+    const allUsers: User[] = await d.select().from(users);
     const userStats = {
       total: allUsers.length,
-      admins: allUsers.filter((u: any) => u.role === "admin").length,
+      admins: allUsers.filter((u) => u.role === "admin").length,
     };
 
     // ─── RECENT ACTIVITY ──────────────────────────────
     const recentActivity: ActivityItem[] = [];
 
     // Recent bookings
-    allBookings.slice(0, 5).forEach((b: any) => {
+    allBookings.slice(0, 5).forEach((b) => {
       recentActivity.push({
         type: "booking",
         title: `${b.name} — ${b.service}`,
@@ -217,7 +228,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     });
 
     // Recent leads
-    allLeads.slice(0, 5).forEach((l: any) => {
+    allLeads.slice(0, 5).forEach((l) => {
       recentActivity.push({
         type: "lead",
         title: `${l.name} — ${l.recommendedService || "General"}`,
@@ -229,7 +240,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     });
 
     // Recent articles
-    allArticles.slice(0, 3).forEach((a: any) => {
+    allArticles.slice(0, 3).forEach((a) => {
       recentActivity.push({
         type: "article",
         title: a.title,
@@ -240,7 +251,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     });
 
     // Recent chats
-    allChats.slice(0, 3).forEach((c: any) => {
+    allChats.slice(0, 3).forEach((c) => {
       recentActivity.push({
         type: "chat",
         title: c.vehicleInfo || "Vehicle Diagnosis Chat",
@@ -251,8 +262,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
     // Recent work orders
     try {
-      const recentWOs = await d.select().from(workOrders).orderBy(desc(workOrders.updatedAt)).limit(5);
-      recentWOs.forEach((wo: any) => {
+      const recentWOs: WorkOrder[] = await d.select().from(workOrders).orderBy(desc(workOrders.updatedAt)).limit(5);
+      recentWOs.forEach((wo) => {
         const vehicle = [wo.vehicleYear, wo.vehicleMake, wo.vehicleModel].filter(Boolean).join(" ");
         const amount = wo.total ? `$${(Number(wo.total)).toLocaleString()}` : "";
         recentActivity.push({
@@ -269,13 +280,13 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
     // ─── SOURCE ATTRIBUTION ─────────────────────────
     const bookingsBySource: Record<string, number> = {};
-    allBookings.forEach((b: any) => {
+    allBookings.forEach((b) => {
       const src = b.utmSource || (b.referrer ? "referral" : "direct");
       bookingsBySource[src] = (bookingsBySource[src] || 0) + 1;
     });
 
     const leadsByUtmSource: Record<string, number> = {};
-    allLeads.forEach((l: any) => {
+    allLeads.forEach((l) => {
       const src = l.utmSource || (l.referrer ? "referral" : "direct");
       leadsByUtmSource[src] = (leadsByUtmSource[src] || 0) + 1;
     });
@@ -284,12 +295,12 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     let callTrackingStats = { totalCalls: 0, thisWeek: 0, byPage: [] as { page: string; count: number }[] };
     let callsBySource: Record<string, number> = {};
     try {
-      const allCalls = await d.select().from(callEvents)
+      const allCalls: CallEvent[] = await d.select().from(callEvents)
         .where(gte(callEvents.createdAt, ninetyDaysAgo))
         .orderBy(desc(callEvents.createdAt))
         .limit(1000);
       const callsByPage: Record<string, number> = {};
-      allCalls.forEach((c: any) => {
+      allCalls.forEach((c) => {
         const page = c.sourcePage || "unknown";
         callsByPage[page] = (callsByPage[page] || 0) + 1;
         const src = c.utmSource || (c.referrer ? "referral" : "direct");
@@ -297,7 +308,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       });
       callTrackingStats = {
         totalCalls: allCalls.length,
-        thisWeek: allCalls.filter((c: any) => new Date(c.createdAt) >= weekAgo).length,
+        thisWeek: allCalls.filter((c) => new Date(c.createdAt) >= weekAgo).length,
         byPage: Object.entries(callsByPage).map(([page, count]) => ({ page, count })).sort((a, b) => b.count - a.count),
       };
     } catch (err) {
@@ -307,15 +318,15 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     // ─── CALLBACKS ─────────────────────────────────────
     let callbackStats = { total: 0, new: 0, completed: 0, thisWeek: 0 };
     try {
-      const allCallbacks = await d.select().from(callbackRequests)
+      const allCallbacks: Callback[] = await d.select().from(callbackRequests)
         .where(gte(callbackRequests.createdAt, ninetyDaysAgo))
         .orderBy(desc(callbackRequests.createdAt))
         .limit(500);
       callbackStats = {
         total: allCallbacks.length,
-        new: allCallbacks.filter((c: any) => c.status === "new").length,
-        completed: allCallbacks.filter((c: any) => c.status === "completed").length,
-        thisWeek: allCallbacks.filter((c: any) => new Date(c.createdAt) >= weekAgo).length,
+        new: allCallbacks.filter((c) => c.status === "new").length,
+        completed: allCallbacks.filter((c) => c.status === "completed").length,
+        thisWeek: allCallbacks.filter((c) => new Date(c.createdAt) >= weekAgo).length,
       };
     } catch (err) {
       console.error("[AdminStats] Callback stats failed:", err instanceof Error ? err.message : err);
@@ -349,14 +360,14 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, weekAgo), sql`${leads.recommendedService} IS NOT NULL`)),
         d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, monthStart), sql`${leads.recommendedService} IS NOT NULL`)),
         d.select({ count: sql<number>`count(*)` }).from(invoices).where(gte(invoices.invoiceDate, monthStart)),
-        d.execute(sql`SELECT paymentMethod, COUNT(*) as cnt, SUM(totalAmount) as total FROM invoices WHERE invoiceDate >= ${monthStart.toISOString().slice(0, 10)} GROUP BY paymentMethod ORDER BY cnt DESC`).then(([rows]: any) => rows),
+        d.execute(sql`SELECT paymentMethod, COUNT(*) as cnt, SUM(totalAmount) as total FROM invoices WHERE invoiceDate >= ${monthStart.toISOString().slice(0, 10)} GROUP BY paymentMethod ORDER BY cnt DESC`).then(([rows]: [Record<string, unknown>[]]) => rows),
         d.select({ count: sql<number>`count(*)` }).from(customers),
         d.select({ count: sql<number>`count(*)` }).from(customers).where(gte(customers.totalVisits, 3)),
       ]);
 
       const invoiceCountMonth = invoicesMonthRes[0]?.count ?? 0;
       const revenueMonth = (revMonthRes[0]?.total ?? 0) / 100; // cents to dollars
-      const estCountMonth = (totalEstimatesMonth as any)[0]?.count ?? 0;
+      const estCountMonth = totalEstimatesMonth[0]?.count ?? 0;
 
       shopFloorStats = {
         invoicesToday: invoicesTodayRes[0]?.count ?? 0,
@@ -369,7 +380,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         estimatesToday: estimatesTodayRes[0]?.count ?? 0,
         estimatesThisWeek: estimatesWeekRes[0]?.count ?? 0,
         conversionRate: estCountMonth > 0 ? Math.round((invoiceCountMonth / (invoiceCountMonth + estCountMonth)) * 100) : 0,
-        paymentMethods: (paymentMethodsRes as any[]).map((r: any) => ({ method: r.paymentMethod || "unknown", count: r.cnt ?? 0, total: (r.total ?? 0) / 100 })),
+        paymentMethods: (paymentMethodsRes as Record<string, unknown>[]).map((r) => ({ method: (r.paymentMethod as string) || "unknown", count: (r.cnt as number) ?? 0, total: ((r.total as number) ?? 0) / 100 })),
         totalCustomers: totalCustRes[0]?.count ?? 0,
         vipCustomers: vipCustRes[0]?.count ?? 0,
       };

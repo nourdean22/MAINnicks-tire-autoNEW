@@ -19,14 +19,17 @@ import { createLogger } from "../../lib/logger";
 
 const log = createLogger("cron:crud-automation");
 
+/** Shape for raw SQL result rows from d.execute() */
+type RawRow = Record<string, unknown>;
+
 /** 1. Process maintenance reminder SMS queue */
 export async function processReminders(): Promise<{ recordsProcessed: number; details?: string }> {
   try {
     const { processReminderQueue } = await import("../../routers/reminders");
     const result = await processReminderQueue();
-    return { recordsProcessed: (result as any)?.sent || 0, details: `${(result as any)?.sent || 0} reminders sent` };
-  } catch (e: any) {
-    return { recordsProcessed: 0, details: `Reminders failed: ${e.message}` };
+    return { recordsProcessed: result?.sent || 0, details: `${result?.sent || 0} reminders sent` };
+  } catch (e: unknown) {
+    return { recordsProcessed: 0, details: `Reminders failed: ${(e as Error).message}` };
   }
 }
 
@@ -49,7 +52,7 @@ export async function detectNoShows(): Promise<{ recordsProcessed: number; detai
       LIMIT 20
     `);
 
-    const noShows = rows as any[];
+    const noShows = rows as RawRow[];
     if (noShows.length === 0) return { recordsProcessed: 0, details: "No no-shows" };
 
     // Mark as cancelled (no "no-show" enum value — use cancelled + adminNotes)
@@ -62,10 +65,10 @@ export async function detectNoShows(): Promise<{ recordsProcessed: number; detai
     const { isEnabled } = await import("../../services/featureFlags");
     let smsSent = 0;
     if (await isEnabled("sms_retention_sequences")) {
-      for (const b of noShows.filter((n: any) => n.phone)) {
+      for (const b of noShows.filter((n) => n.phone)) {
         try {
-          const firstName = (b.name || "there").split(" ")[0];
-          await sendSms(b.phone, `Hi ${firstName}, we noticed you may have missed your appointment at Nick's Tire & Auto. We'd love to reschedule — call us at (216) 862-0005 or book online at nickstire.org. We're here when you're ready!`);
+          const firstName = (String(b.name || "there")).split(" ")[0];
+          await sendSms(String(b.phone), `Hi ${firstName}, we noticed you may have missed your appointment at Nick's Tire & Auto. We'd love to reschedule — call us at (216) 862-0005 or book online at nickstire.org. We're here when you're ready!`);
           smsSent++;
         } catch (err) { log.warn("detectNoShows: SMS send failed", { error: err instanceof Error ? err.message : String(err) }); }
         if (smsSent >= 5) break; // Rate limit
@@ -81,8 +84,8 @@ export async function detectNoShows(): Promise<{ recordsProcessed: number; detai
     }
 
     return { recordsProcessed: noShows.length, details: `${noShows.length} no-shows flagged, ${smsSent} SMS sent` };
-  } catch (e: any) {
-    return { recordsProcessed: 0, details: `No-show detection failed: ${e.message}` };
+  } catch (e: unknown) {
+    return { recordsProcessed: 0, details: `No-show detection failed: ${(e as Error).message}` };
   }
 }
 
@@ -102,7 +105,7 @@ export async function autoCleanStaleBookings(): Promise<{ recordsProcessed: numb
       LIMIT 50
     `);
 
-    const stale = rows as any[];
+    const stale = rows as RawRow[];
     if (stale.length === 0) return { recordsProcessed: 0, details: "No stale bookings" };
 
     // Auto-cancel
@@ -117,10 +120,10 @@ export async function autoCleanStaleBookings(): Promise<{ recordsProcessed: numb
     const { isEnabled: isEnabledStale } = await import("../../services/featureFlags");
     let smsSent = 0;
     if (await isEnabledStale("sms_retention_sequences")) {
-      for (const b of stale.filter((s: any) => s.phone && !(s.adminNotes && String(s.adminNotes).includes("[AUTO] No-show")))) {
+      for (const b of stale.filter((s) => s.phone && !(s.adminNotes && String(s.adminNotes).includes("[AUTO] No-show")))) {
         try {
-          const firstName = (b.name || "there").split(" ")[0];
-          await sendSms(b.phone, `Hi ${firstName}! Your booking at Nick's Tire & Auto has expired. Need to reschedule? Call (216) 862-0005 or visit nickstire.org — drop-offs welcome!`);
+          const firstName = (String(b.name || "there")).split(" ")[0];
+          await sendSms(String(b.phone), `Hi ${firstName}! Your booking at Nick's Tire & Auto has expired. Need to reschedule? Call (216) 862-0005 or visit nickstire.org — drop-offs welcome!`);
           smsSent++;
         } catch (err) { log.warn("autoCleanStaleBookings: rebook SMS failed", { error: err instanceof Error ? err.message : String(err) }); }
         if (smsSent >= 10) break;
@@ -128,8 +131,8 @@ export async function autoCleanStaleBookings(): Promise<{ recordsProcessed: numb
     }
 
     return { recordsProcessed: stale.length, details: `${stale.length} stale bookings cancelled, ${smsSent} rebook SMS sent` };
-  } catch (e: any) {
-    return { recordsProcessed: 0, details: `Stale booking cleanup failed: ${e.message}` };
+  } catch (e: unknown) {
+    return { recordsProcessed: 0, details: `Stale booking cleanup failed: ${(e as Error).message}` };
   }
 }
 
@@ -149,7 +152,7 @@ export async function escalateStaleCallbacks(): Promise<{ recordsProcessed: numb
       LIMIT 10
     `);
 
-    const stale = rows as any[];
+    const stale = rows as RawRow[];
     if (stale.length === 0) return { recordsProcessed: 0, details: "No stale callbacks" };
 
     // Send customer a "we'll call you back" SMS (gated by feature flag)
@@ -157,10 +160,10 @@ export async function escalateStaleCallbacks(): Promise<{ recordsProcessed: numb
     const { isEnabled: isEnabledCallback } = await import("../../services/featureFlags");
     let smsSent = 0;
     if (await isEnabledCallback("sms_appointment_reminders")) {
-      for (const cb of stale.filter((c: any) => c.phone)) {
+      for (const cb of stale.filter((c) => c.phone)) {
         try {
-          const firstName = (cb.name || "there").split(" ")[0];
-          await sendSms(cb.phone, `Hi ${firstName}, we haven't forgotten about you! We'll be calling you back shortly regarding your request. — Nick's Tire & Auto (216) 862-0005`);
+          const firstName = (String(cb.name || "there")).split(" ")[0];
+          await sendSms(String(cb.phone), `Hi ${firstName}, we haven't forgotten about you! We'll be calling you back shortly regarding your request. — Nick's Tire & Auto (216) 862-0005`);
           smsSent++;
           // Mark as "no-answer" — SMS sent but no actual call made yet
           await d.execute(sql`UPDATE callback_requests SET status = 'no-answer', notes = CONCAT(COALESCE(notes, ''), '\nAuto-SMS: we will call you back'), calledAt = NOW() WHERE id = ${cb.id}`);
@@ -174,15 +177,15 @@ export async function escalateStaleCallbacks(): Promise<{ recordsProcessed: numb
         const { sendTelegram } = await import("../../services/telegram");
         await sendTelegram(
           `📞 CALLBACK ALERT: ${stale.length} callbacks unanswered >4h!\n\n` +
-          stale.slice(0, 5).map((c: any) => `${c.name || "?"} — ${c.phone || "no phone"}: ${(c.context || "general").slice(0, 50)}`).join("\n") +
+          stale.slice(0, 5).map((c) => `${c.name || "?"} — ${c.phone || "no phone"}: ${(String(c.context || "general")).slice(0, 50)}`).join("\n") +
           `\n\nCall them back NOW.`
         );
       } catch (err) { log.warn("escalateStaleCallbacks: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
     }
 
     return { recordsProcessed: stale.length, details: `${stale.length} escalated, ${smsSent} SMS sent` };
-  } catch (e: any) {
-    return { recordsProcessed: 0, details: `Callback escalation failed: ${e.message}` };
+  } catch (e: unknown) {
+    return { recordsProcessed: 0, details: `Callback escalation failed: ${(e as Error).message}` };
   }
 }
 
@@ -204,22 +207,23 @@ export async function alertLowStock(): Promise<{ recordsProcessed: number; detai
       LIMIT 20
     `);
 
-    const lowItems = rows as any[];
+    const lowItems = rows as RawRow[];
     if (lowItems.length === 0) return { recordsProcessed: 0, details: "Stock levels OK" };
 
     const { sendTelegram } = await import("../../services/telegram");
     await sendTelegram(
       `📦 LOW STOCK ALERT: ${lowItems.length} items need reorder\n\n` +
-      lowItems.slice(0, 10).map((i: any) => `${i.name || i.sku}: ${i.quantity} left (reorder at ${i.reorderPoint || 2})`).join("\n")
+      lowItems.slice(0, 10).map((i) => `${i.name || i.sku}: ${i.quantity} left (reorder at ${i.reorderPoint || 2})`).join("\n")
     );
 
     return { recordsProcessed: lowItems.length, details: `${lowItems.length} low-stock items alerted` };
-  } catch (e: any) {
+  } catch (e: unknown) {
     // Table might not exist yet — that's fine
-    if (e.message?.includes("doesn't exist") || e.message?.includes("no such table")) {
+    const msg = (e as Error).message;
+    if (msg?.includes("doesn't exist") || msg?.includes("no such table")) {
       return { recordsProcessed: 0, details: "No inventory table" };
     }
-    return { recordsProcessed: 0, details: `Low-stock check failed: ${e.message}` };
+    return { recordsProcessed: 0, details: `Low-stock check failed: ${msg}` };
   }
 }
 
@@ -242,7 +246,7 @@ export async function autoAdvanceWorkOrders(): Promise<{ recordsProcessed: numbe
       WHERE status = 'completed'
         AND updated_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
     `);
-    const woIds = (toAdvance as any[]).map((r: any) => r.id);
+    const woIds = (toAdvance as RawRow[]).map((r) => r.id);
 
     if (woIds.length === 0) return { recordsProcessed: 0, details: "0 WOs auto-advanced to invoiced" };
 
@@ -253,7 +257,8 @@ export async function autoAdvanceWorkOrders(): Promise<{ recordsProcessed: numbe
         AND updated_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
     `);
 
-    const affected = (rows as any)?.affectedRows || (rows as any)?.changedRows || 0;
+    const resultHeader = rows as RawRow;
+    const affected = Number(resultHeader?.affectedRows || resultHeader?.changedRows || 0);
 
     // Insert audit trail records into work_order_transitions
     if (affected > 0) {
@@ -268,8 +273,8 @@ export async function autoAdvanceWorkOrders(): Promise<{ recordsProcessed: numbe
       log.info(`Auto-advanced ${affected} WOs from completed to invoiced (audit trail written)`);
     }
     return { recordsProcessed: affected, details: `${affected} WOs auto-advanced to invoiced` };
-  } catch (e: any) {
-    return { recordsProcessed: 0, details: `WO auto-advance failed: ${e.message}` };
+  } catch (e: unknown) {
+    return { recordsProcessed: 0, details: `WO auto-advance failed: ${(e as Error).message}` };
   }
 }
 
@@ -292,7 +297,8 @@ export async function autoEscalateBookingPriority(): Promise<{ recordsProcessed:
         AND createdAt > DATE_SUB(NOW(), INTERVAL 30 DAY)
     `);
 
-    const affected = (result as any)?.affectedRows || (result as any)?.changedRows || 0;
+    const resultHeader = result as RawRow;
+    const affected = Number(resultHeader?.affectedRows || resultHeader?.changedRows || 0);
     if (affected > 0) {
       try {
         const { sendTelegram } = await import("../../services/telegram");
@@ -300,8 +306,8 @@ export async function autoEscalateBookingPriority(): Promise<{ recordsProcessed:
       } catch (err) { log.warn("autoEscalateBookingPriority: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
     }
     return { recordsProcessed: affected, details: `${affected} bookings escalated` };
-  } catch (e: any) {
-    return { recordsProcessed: 0, details: `Booking escalation failed: ${e.message}` };
+  } catch (e: unknown) {
+    return { recordsProcessed: 0, details: `Booking escalation failed: ${(e as Error).message}` };
   }
 }
 
@@ -328,15 +334,15 @@ export async function autoFetchAndDraftReviews(): Promise<{ recordsProcessed: nu
       LIMIT 10
     `);
 
-    const needDrafts = rows as any[];
+    const needDrafts = rows as RawRow[];
     if (needDrafts.length === 0) return { recordsProcessed: 0, details: "All reviews have drafts" };
 
     let drafted = 0;
     for (const review of needDrafts) {
       try {
-        const rating = review.review_rating || 5;
-        const name = review.reviewer_name || "Valued Customer";
-        const text = review.review_text || "";
+        const rating = Number(review.review_rating || 5);
+        const name = String(review.reviewer_name || "Valued Customer");
+        const text = String(review.review_text || "");
 
         let draft: string;
         if (rating >= 4) {
@@ -357,23 +363,24 @@ export async function autoFetchAndDraftReviews(): Promise<{ recordsProcessed: nu
     }
 
     // Alert on negative reviews
-    const negative = needDrafts.filter((r: any) => (r.review_rating || 5) <= 3);
+    const negative = needDrafts.filter((r) => Number(r.review_rating || 5) <= 3);
     if (negative.length > 0) {
       try {
         const { sendTelegram } = await import("../../services/telegram");
         await sendTelegram(
           `⭐ ${negative.length} NEGATIVE REVIEW${negative.length > 1 ? "S" : ""} need reply:\n\n` +
-          negative.map((r: any) => `${r.review_rating}★ ${r.reviewer_name || "Anon"}: "${(r.review_text || "").slice(0, 80)}"`).join("\n") +
+          negative.map((r) => `${r.review_rating}★ ${r.reviewer_name || "Anon"}: "${String(r.review_text || "").slice(0, 80)}"`).join("\n") +
           `\n\nDrafts ready in admin → Review Replies.`
         );
       } catch (err) { log.warn("autoFetchAndDraftReviews: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
     }
 
     return { recordsProcessed: drafted, details: `${drafted} reply drafts generated, ${negative.length} negative` };
-  } catch (e: any) {
+  } catch (e: unknown) {
     // Table might not exist
-    if (e.message?.includes("doesn't exist")) return { recordsProcessed: 0, details: "No review_replies table" };
-    return { recordsProcessed: 0, details: `Review drafting failed: ${e.message}` };
+    const msg = (e as Error).message;
+    if (msg?.includes("doesn't exist")) return { recordsProcessed: 0, details: "No review_replies table" };
+    return { recordsProcessed: 0, details: `Review drafting failed: ${msg}` };
   }
 }
 
@@ -392,15 +399,15 @@ export async function autoGenerateContent(): Promise<{ recordsProcessed: number;
         const { sendTelegram } = await import("../../services/telegram");
         await sendTelegram(
           `📝 AUTO-CONTENT: New article drafted!\n\n` +
-          `"${(article as any).title || "Untitled"}"\n\n` +
+          `"${article.title || "Untitled"}"\n\n` +
           `Review in admin → Content → Drafts`
         );
       } catch (err) { log.warn("autoGenerateContent: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
     }
 
-    return { recordsProcessed: 1, details: `Article draft: "${(article as any)?.title || "generated"}"` };
-  } catch (e: any) {
-    return { recordsProcessed: 0, details: `Content gen failed: ${e.message}` };
+    return { recordsProcessed: 1, details: `Article draft: "${article?.title || "generated"}"` };
+  } catch (e: unknown) {
+    return { recordsProcessed: 0, details: `Content gen failed: ${(e as Error).message}` };
   }
 }
 
@@ -427,7 +434,7 @@ export async function closeReferralLoop(): Promise<{ recordsProcessed: number; d
       LIMIT 20
     `);
 
-    const matched = rows as any[];
+    const matched = rows as RawRow[];
     if (matched.length === 0) return { recordsProcessed: 0, details: "No referral matches" };
 
     const { sendSms } = await import("../../sms");
@@ -435,17 +442,17 @@ export async function closeReferralLoop(): Promise<{ recordsProcessed: number; d
 
     for (const ref of matched) {
       try {
-        const referrerFirst = (ref.referrerName || "there").split(" ")[0];
-        const refereeFirst = (ref.refereeName || "there").split(" ")[0];
+        const referrerFirst = (String(ref.referrerName || "there")).split(" ")[0];
+        const refereeFirst = (String(ref.refereeName || "there")).split(" ")[0];
 
         // SMS the referrer
         if (ref.referrerPhone) {
-          await sendSms(ref.referrerPhone, `Great news, ${referrerFirst}! ${refereeFirst} just visited Nick's. Your $25 credit is active — mention it on your next visit! (216) 862-0005`);
+          await sendSms(String(ref.referrerPhone), `Great news, ${referrerFirst}! ${refereeFirst} just visited Nick's. Your $25 credit is active — mention it on your next visit! (216) 862-0005`);
         }
 
         // SMS the referred customer
         if (ref.refereePhone) {
-          await sendSms(ref.refereePhone, `Welcome to Nick's! ${referrerFirst} sent you — you both have $25 off. Drop off anytime! (216) 862-0005`);
+          await sendSms(String(ref.refereePhone), `Welcome to Nick's! ${referrerFirst} sent you — you both have $25 off. Drop off anytime! (216) 862-0005`);
         }
 
         // Update referral status to "visited"
@@ -464,9 +471,10 @@ export async function closeReferralLoop(): Promise<{ recordsProcessed: number; d
     }
 
     return { recordsProcessed: closed, details: `${closed} referrals matched and notified` };
-  } catch (e: any) {
-    if (e.message?.includes("doesn't exist")) return { recordsProcessed: 0, details: "No referrals table" };
-    return { recordsProcessed: 0, details: `Referral loop failed: ${e.message}` };
+  } catch (e: unknown) {
+    const msg = (e as Error).message;
+    if (msg?.includes("doesn't exist")) return { recordsProcessed: 0, details: "No referrals table" };
+    return { recordsProcessed: 0, details: `Referral loop failed: ${msg}` };
   }
 }
 
@@ -498,7 +506,7 @@ export async function notifyNewVips(): Promise<{ recordsProcessed: number; detai
       LIMIT 20
     `);
 
-    const vips = rows as any[];
+    const vips = rows as RawRow[];
     if (vips.length === 0) return { recordsProcessed: 0, details: "No new VIPs to notify" };
 
     const { sendSms } = await import("../../sms");
@@ -507,7 +515,7 @@ export async function notifyNewVips(): Promise<{ recordsProcessed: number; detai
     for (const vip of vips) {
       try {
         const result = await sendSms(
-          vip.phone,
+          String(vip.phone),
           `You're a Nick's VIP! As a thank you, you get 10% off every visit. Just mention 'VIP' when you drop off. — Nick's Tire & Auto (216) 862-0005`
         );
         if (result.success) {
@@ -538,7 +546,7 @@ export async function notifyNewVips(): Promise<{ recordsProcessed: number; detai
     }
 
     return { recordsProcessed: notified, details: `${notified} new VIPs notified` };
-  } catch (e: any) {
-    return { recordsProcessed: 0, details: `VIP notification failed: ${e.message}` };
+  } catch (e: unknown) {
+    return { recordsProcessed: 0, details: `VIP notification failed: ${(e as Error).message}` };
   }
 }
