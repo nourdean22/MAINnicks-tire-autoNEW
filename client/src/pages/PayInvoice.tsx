@@ -15,6 +15,7 @@ import {
   Shield, Lock, Zap, ArrowRight, PhoneCall,
 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
+import { SHORT_DISCLAIMERS } from "@shared/disclaimers";
 
 export default function PayInvoice() {
   const [invoiceNum, setInvoiceNum] = useState("");
@@ -225,6 +226,12 @@ export default function PayInvoice() {
               </button>
             </div>
           )}
+
+          {/* Disclaimers */}
+          <div className="mt-8 pt-4 border-t border-border/20 space-y-1 text-center">
+            <p className="text-[10px] text-muted-foreground/60">{SHORT_DISCLAIMERS.paymentTerms}</p>
+            <p className="text-[10px] text-muted-foreground/60">{SHORT_DISCLAIMERS.noRefunds}</p>
+          </div>
         </div>
       </section>
     </PageLayout>
