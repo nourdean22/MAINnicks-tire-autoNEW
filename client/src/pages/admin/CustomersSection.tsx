@@ -394,6 +394,76 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
   );
 }
 
+// ─── Inline SMS Sender for customer rows ──────────────────
+function InlineSms({ customerId, firstName }: { customerId: number; firstName: string }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [sent, setSent] = useState(false);
+
+  const quickSms = trpc.customers.quickSms.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        setSent(true);
+        setText("");
+        setTimeout(() => { setSent(false); setOpen(false); }, 1500);
+      } else {
+        toast.error(result.error || "Failed to send");
+      }
+    },
+    onError: () => toast.error("Failed to send SMS"),
+  });
+
+  if (sent) {
+    return (
+      <span className="text-emerald-400" title="Sent!">
+        <CheckCircle2 className="w-4 h-4" />
+      </span>
+    );
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen(true); setText(`Hi ${firstName || "there"}! Nick's Tire & Auto here. `); }}
+        className="text-foreground/30 hover:text-blue-400 transition-colors"
+        title="Quick SMS"
+      >
+        <MessageSquare className="w-4 h-4" />
+      </button>
+    );
+  }
+
+  return (
+    <div className="absolute right-0 top-0 z-20 bg-card border border-primary/30 shadow-lg p-3 w-72" onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[10px] font-bold text-foreground/50 tracking-wider">SMS TO {(firstName || "").toUpperCase()}</span>
+        <button onClick={() => setOpen(false)} className="text-foreground/30 hover:text-foreground">
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+      <textarea
+        value={text}
+        onChange={e => setText(e.target.value)}
+        className="w-full bg-background border border-border/30 p-2 text-xs text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 resize-none"
+        rows={2}
+        maxLength={500}
+        autoFocus
+      />
+      <div className="flex items-center justify-between mt-1.5">
+        <span className="text-[9px] text-foreground/30">{text.length}/500</span>
+        <button
+          onClick={() => quickSms.mutate({ customerId, message: text })}
+          disabled={!text.trim() || quickSms.isPending}
+          className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground text-[10px] tracking-wider hover:bg-primary/90 disabled:opacity-50"
+        >
+          {quickSms.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+          {quickSms.isPending ? "..." : "SEND"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 type SortByExt = "name" | "visits" | "lastVisit" | "totalSpent" | "firstVisit" | "created";
 
 export default function CustomersSection() {
@@ -704,7 +774,7 @@ function CustomersList() {
                   Last Service <ArrowUpDown className="w-3 h-3" />
                 </button>
               </th>
-              <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide w-10"></th>
+              <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide w-20">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -796,15 +866,20 @@ function CustomersList() {
                       </div>
                     </td>
 
-                    {/* View */}
+                    {/* Actions: SMS + View */}
                     <td className="p-3">
-                      <button
-                        onClick={() => setSelectedId(c.id)}
-                        className="text-foreground/30 hover:text-primary transition-colors"
-                        title="View details"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1.5 relative">
+                        {c.phone && (
+                          <InlineSms customerId={c.id} firstName={c.firstName || ""} />
+                        )}
+                        <button
+                          onClick={() => setSelectedId(c.id)}
+                          className="text-foreground/30 hover:text-primary transition-colors"
+                          title="View details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

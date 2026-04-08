@@ -245,6 +245,95 @@ export const intelligenceRouter = router({
     return runFullSafetyCheck();
   }),
 
+  // ── Next Best Actions — prioritized operator queue ──
+  nextBestActions: adminProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const { sql: rawSql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return { actions: [] };
+
+    type Action = {
+      type: "hot_lead" | "pending_invoice" | "callback" | "vip_winback";
+      message: string;
+      urgency: number;
+      actionUrl: string;
+      phone: string | null;
+    };
+
+    const actions: Action[] = [];
+
+    // 1. Hot leads — new leads with urgency >= 3
+    try {
+      const [hotLeads] = await d.execute(
+        rawSql`SELECT id, name, phone, urgencyScore, source FROM leads WHERE status = 'new' AND urgencyScore >= 3 ORDER BY urgencyScore DESC, createdAt ASC LIMIT 10`
+      );
+      for (const l of hotLeads as any[]) {
+        actions.push({
+          type: "hot_lead",
+          message: `Call ${l.name || "Unknown"} \u2014 hot lead (${l.urgencyScore}/5 urgency, ${l.source || "direct"})`,
+          urgency: Math.min(5, l.urgencyScore + 1),
+          actionUrl: "/admin?tab=leads",
+          phone: l.phone || null,
+        });
+      }
+    } catch {}
+
+    // 2. Pending invoices > 7 days old
+    try {
+      const [pendingInvoices] = await d.execute(
+        rawSql`SELECT id, customerName, customerPhone, totalAmount, invoiceDate FROM invoices WHERE paymentStatus = 'pending' AND invoiceDate < DATE_SUB(NOW(), INTERVAL 7 DAY) ORDER BY totalAmount DESC LIMIT 8`
+      );
+      for (const inv of pendingInvoices as any[]) {
+        const amt = Math.round(Number(inv.totalAmount || 0) / 100);
+        actions.push({
+          type: "pending_invoice",
+          message: `Follow up on $${amt.toLocaleString()} invoice for ${inv.customerName || "Unknown"}`,
+          urgency: amt > 500 ? 4 : 3,
+          actionUrl: "/admin?tab=invoices",
+          phone: inv.customerPhone || null,
+        });
+      }
+    } catch {}
+
+    // 3. Callbacks unanswered > 2 hours
+    try {
+      const [callbacks] = await d.execute(
+        rawSql`SELECT id, name, phone, context, createdAt FROM callback_requests WHERE status = 'new' AND createdAt < DATE_SUB(NOW(), INTERVAL 2 HOUR) ORDER BY createdAt ASC LIMIT 8`
+      );
+      for (const cb of callbacks as any[]) {
+        const hoursAgo = Math.round((Date.now() - new Date(cb.createdAt).getTime()) / 3600000);
+        actions.push({
+          type: "callback",
+          message: `Call back ${cb.name || "Unknown"} \u2014 waiting ${hoursAgo}h`,
+          urgency: hoursAgo > 8 ? 5 : hoursAgo > 4 ? 4 : 3,
+          actionUrl: "/admin?tab=callbacks",
+          phone: cb.phone || null,
+        });
+      }
+    } catch {}
+
+    // 4. VIP customers going cold (3+ visits, 60+ days since last visit)
+    try {
+      const [vipCold] = await d.execute(
+        rawSql`SELECT id, firstName, lastName, phone, totalVisits, lastVisitDate, DATEDIFF(NOW(), lastVisitDate) as daysSince FROM customers WHERE totalVisits >= 3 AND lastVisitDate < DATE_SUB(NOW(), INTERVAL 60 DAY) AND lastVisitDate IS NOT NULL ORDER BY totalVisits DESC, lastVisitDate ASC LIMIT 8`
+      );
+      for (const c of vipCold as any[]) {
+        const name = [c.firstName, c.lastName].filter(Boolean).join(" ") || "Unknown";
+        actions.push({
+          type: "vip_winback",
+          message: `Re-engage ${name} \u2014 VIP (${c.totalVisits} visits), ${c.daysSince}d since last visit`,
+          urgency: c.daysSince > 180 ? 4 : 3,
+          actionUrl: "/admin?tab=customers",
+          phone: c.phone || null,
+        });
+      }
+    } catch {}
+
+    // Sort by urgency desc, take top 8
+    actions.sort((a, b) => b.urgency - a.urgency);
+    return { actions: actions.slice(0, 8) };
+  }),
+
   // ── Shop Load (real-time) ──
   shopLoad: adminProcedure.query(async () => {
     const { getDb } = await import("../db");
