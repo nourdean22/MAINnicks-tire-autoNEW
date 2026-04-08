@@ -128,7 +128,7 @@ export async function runPipeline(pipelineName: string): Promise<{
       })
       .where(eq(pipelineRuns.id, runId));
 
-    console.log(`[Orchestrator] ${config.displayName} completed in ${durationMs}ms`);
+    console.info(`[orchestrator:done] ${config.displayName} completed in ${durationMs}ms`);
     return { status: "success", durationMs, result };
   } catch (error) {
     const durationMs = Date.now() - startTime;

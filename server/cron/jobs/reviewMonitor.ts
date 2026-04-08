@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from "../../lib/logger";
+import { buildPlaceDetailsUrl } from "@shared/const";
 
 const log = createLogger("review-monitor");
 
@@ -13,11 +14,9 @@ export async function processReviewMonitor(): Promise<{ recordsProcessed: number
     return { recordsProcessed: 0, details: "GOOGLE_PLACES_API_KEY not configured — skipping" };
   }
 
-  const PLACE_ID = "ChIJSWRRLdr_MIgRxdlMIMPcqww";
-
   try {
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${PLACE_ID}&key=${apiKey}&fields=reviews,rating,user_ratings_total`,
+      buildPlaceDetailsUrl(apiKey, "reviews,rating,user_ratings_total"),
       { signal: AbortSignal.timeout(10000) }
     );
 

@@ -12,7 +12,7 @@
  */
 
 import { createLogger } from "../lib/logger";
-import { sql, eq, desc, gte, asc } from "drizzle-orm";
+import { sql, eq, desc, gte, asc, and } from "drizzle-orm";
 
 const log = createLogger("customer-intelligence");
 
@@ -63,8 +63,10 @@ export async function analyzeCustomers(): Promise<CustomerInsight> {
       d.select({ count: sql<number>`count(*)` }).from(customers).where(sql`${customers.createdAt} >= ${monthAgo}`),
     ]);
 
-    // Revenue analysis from invoices
-    const paidInvoices = await d.select().from(invoices).where(eq(invoices.paymentStatus, "paid"));
+    // Revenue analysis from invoices (last 12 months)
+    const paidInvoices = await d.select().from(invoices)
+      .where(and(eq(invoices.paymentStatus, "paid"), gte(invoices.invoiceDate, yearAgo)))
+      .limit(5000);
     const totalRevenue = paidInvoices.reduce((s: any, i: any) => s + i.totalAmount, 0) / 100;
     const avgTicket = paidInvoices.length > 0 ? Math.round(totalRevenue / paidInvoices.length) : 0;
 

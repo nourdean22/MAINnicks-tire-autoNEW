@@ -218,7 +218,7 @@ export function registerBridgeRoutes(app: Express): void {
     try {
       const { note, context } = req.body;
       if (!note) { res.status(400).json({ error: "note required" }); return; }
-      console.log(`[Bridge Note] ${context || "general"}: ${note}`);
+      console.info(`[bridge:note] ${context || "general"}: ${note}`);
       res.json({ success: true, logged: true });
     } catch (err: any) {
       console.error("[Bridge] Action error:", err);

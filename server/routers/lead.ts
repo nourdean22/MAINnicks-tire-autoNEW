@@ -266,7 +266,7 @@ export const leadRouter = router({
   list: adminProcedure.query(async () => {
     const d = await db();
     if (!d) return [];
-    return d.select().from(leads).orderBy(desc(leads.createdAt));
+    return d.select().from(leads).orderBy(desc(leads.createdAt)).limit(1000);
   }),
 
   update: adminProcedure

@@ -41,7 +41,7 @@ export const fleetRouter = router({
     const { eq } = await import("drizzle-orm");
     const db = await getDb();
     if (!db) return [];
-    return db.select().from(leads).where(eq(leads.source, "fleet"));
+    return db.select().from(leads).where(eq(leads.source, "fleet")).limit(500);
   }),
 
   /** Fleet intelligence — vehicle make distribution + geographic hot zones */

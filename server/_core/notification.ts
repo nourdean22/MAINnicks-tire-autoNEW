@@ -62,7 +62,7 @@ export async function notifyOwner(
   }
 
   // Log the notification (always works, even without email service)
-  console.log(`[Notification] Owner alert: ${title}`);
+  console.info(`[notification:alert] ${title}`);
 
   // If a webhook URL is configured (e.g., Slack/Discord), send there
   const webhookUrl = process.env.NOTIFICATION_WEBHOOK_URL;

@@ -297,7 +297,7 @@ export async function processScheduledSms() {
   }
 
   if (sent > 0 || failed > 0) {
-    console.log(`[SMS Scheduler] Processed: ${sent} sent, ${failed} failed`);
+    console.info(`[sms-scheduler:processed] ${sent} sent, ${failed} failed`);
   }
 
   return { sent, failed };
@@ -321,7 +321,7 @@ export function startSmsScheduler() {
     console.error("[SMS Scheduler] Initial run error:", err);
   });
 
-  console.log("[SMS Scheduler] Started (5-minute interval)");
+  console.info("[sms-scheduler:start] Started (5-minute interval)");
 }
 
 export function stopSmsScheduler() {

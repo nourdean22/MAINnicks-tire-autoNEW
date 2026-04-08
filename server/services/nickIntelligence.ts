@@ -194,7 +194,7 @@ export async function generateProactiveAlerts(): Promise<string[]> {
     if (agingCount > 0) {
       alerts.push(`💸 ${agingCount} estimate${agingCount > 1 ? "s" : ""} aging without follow-up — conversion drops 50% after 2 hours`);
     }
-  } catch {}
+  } catch (e) { console.warn("[intelligence:proactiveAlerts] aging estimates check failed:", e); }
 
   // Check pending payments (invoices sent but not paid)
   try {
@@ -206,7 +206,7 @@ export async function generateProactiveAlerts(): Promise<string[]> {
     if (pendingCount > 3 && pendingTotal > 500) {
       alerts.push(`💳 $${pendingTotal} in ${pendingCount} unpaid invoices — follow up on outstanding payments`);
     }
-  } catch {}
+  } catch (e) { console.warn("[intelligence:proactiveAlerts] pending payments check failed:", e); }
 
   // Check if review requests are being sent
   try {
@@ -217,7 +217,7 @@ export async function generateProactiveAlerts(): Promise<string[]> {
     if ((recentReviews?.count ?? 0) === 0 && dayOfWeek >= 1 && dayOfWeek <= 5) {
       alerts.push(`⭐ Zero review requests sent this week — reviews are the #1 growth lever, send 3-5 today`);
     }
-  } catch {}
+  } catch (e) { console.warn("[intelligence:proactiveAlerts] review requests check failed:", e); }
 
   // Monday morning special: weekly planning prompt
   if (dayOfWeek === 1 && etHour >= 8 && etHour <= 10) {
@@ -240,7 +240,7 @@ export async function generateProactiveAlerts(): Promise<string[]> {
     if (ci.lapsedCustomers > ci.activeCustomers && ci.totalCustomers > 20) {
       alerts.push(`📉 More lapsed (${ci.lapsedCustomers}) than active (${ci.activeCustomers}) customers — retention needs attention`);
     }
-  } catch {}
+  } catch (e) { console.warn("[intelligence:proactiveAlerts] at-risk customer check failed:", e); }
 
   return alerts;
 }
@@ -317,7 +317,7 @@ export async function runProactiveCheck(): Promise<{ recordsProcessed?: number; 
           // For now mark as unknown — a follow-up check in the feedback cycle will verify
           await trackAlertOutcome(alertType, "unknown");
         }
-      } catch {}
+      } catch (e) { console.warn("[intelligence:proactiveCheck] alert outcome tracking failed:", e); }
 
       log.info(`Proactive check: ${allAlerts.length} alerts sent`);
     } catch (err) {
@@ -345,7 +345,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
     const { recall } = await import("./nickMemory");
     const memories = await recall({ type: "pattern", limit: 5 });
     memoryInsights = memories.map(m => m.content);
-  } catch {}
+  } catch (e) { console.warn("[intelligence:autoActions] memory recall for patterns failed:", e); }
 
   // AUTO-ACTION 1: High walk rate alert + suggestion
   if (pulse.thisWeek.walkRate > 40 && pulse.thisWeek.jobsClosed > 5) {
@@ -360,7 +360,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
         `• Are techs explaining value clearly during inspections?`
       );
       actions++;
-    } catch {}
+    } catch (e) { console.warn("[intelligence:autoAction1] high walk rate alert failed:", e); }
   }
 
   // AUTO-ACTION 2: Great day celebration
@@ -373,7 +373,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
         `${pulse.today.jobsClosed} jobs closed. Avg ticket: $${pulse.today.avgTicket}. Keep it going!`
       );
       actions++;
-    } catch {}
+    } catch (e) { console.warn("[intelligence:autoAction2] great day celebration alert failed:", e); }
   }
 
   // AUTO-ACTION 3: Slow day by noon — push marketing + measure revenue impact
@@ -393,9 +393,9 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
     try {
       const { measureRevenueImpact, trackAlertOutcome } = await import("./feedbackLoop");
       // Schedule revenue comparison (will run on next feedback cycle)
-      measureRevenueImpact("slow_day_push", beforeRevenue).catch(() => {});
+      measureRevenueImpact("slow_day_push", beforeRevenue).catch(e => console.warn("[intelligence:autoAction3] revenue impact measurement failed:", e));
       await trackAlertOutcome("slow_day_push", "unknown");
-    } catch {}
+    } catch (e) { console.warn("[intelligence:autoAction3] slow day feedback tracking failed:", e); }
 
     actions++;
   }
@@ -425,7 +425,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
       );
       actions++;
     }
-  } catch {}
+  } catch (e) { console.warn("[intelligence:autoAction4] hot estimate follow-up failed:", e); }
 
   // AUTO-ACTION 5: Detect revenue anomaly (today vs same day last week)
   try {
@@ -442,7 +442,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
       );
       actions++;
     }
-  } catch {}
+  } catch (e) { console.warn("[intelligence:autoAction5] revenue anomaly detection failed:", e); }
 
   // AUTO-ACTION 6: Detect callback backlog (>3 unanswered)
   if (pulse.today.callbacksWaiting > 3) {
@@ -453,7 +453,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
         `⚡ Clear the callback queue NOW.`
       );
       actions++;
-    } catch {}
+    } catch (e) { console.warn("[intelligence:autoAction6] callback backlog alert failed:", e); }
   }
 
   // AUTO-ACTION 7: Evening debrief (auto-generated at 5-6pm with AI analysis)
@@ -512,7 +512,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
 
       actions++;
     }
-  } catch {}
+  } catch (e) { console.warn("[intelligence:autoAction7] evening debrief generation failed:", e); }
 
   // AUTO-ACTION 8: Learn day-of-week patterns
   try {
@@ -540,7 +540,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
         confidence: 0.85,
       });
     }
-  } catch {}
+  } catch (e) { console.warn("[intelligence:autoAction8] day-of-week pattern learning failed:", e); }
 
   // ═══ VERSION 2.1 AUTO-ACTIONS ═══
 
@@ -571,7 +571,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
       );
       actions++;
     }
-  } catch {}
+  } catch (e) { console.warn("[intelligence:autoAction9] invoice aging escalation failed:", e); }
 
   // AUTO-ACTION 10: Cross-sell intelligence (service pattern → recommendation)
   try {
@@ -610,7 +610,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
       });
       actions++;
     }
-  } catch {}
+  } catch (e) { console.warn("[intelligence:autoAction10] cross-sell analysis failed:", e); }
 
   // AUTO-ACTION 11: Capacity utilization check
   try {
@@ -638,7 +638,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
       source: "capacity_analysis",
       confidence: 0.7,
     });
-  } catch {}
+  } catch (e) { console.warn("[intelligence:autoAction11] capacity utilization check failed:", e); }
 
   // AUTO-ACTION 12: Repeat customer detection + VIP treatment
   try {
@@ -671,7 +671,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
       });
       actions++;
     }
-  } catch {}
+  } catch (e) { console.warn("[intelligence:autoAction12] VIP customer detection failed:", e); }
 
   // AUTO-ACTION 13: Service mix analysis (what's selling, what's not)
   try {
@@ -701,7 +701,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
       });
       actions++;
     }
-  } catch {}
+  } catch (e) { console.warn("[intelligence:autoAction13] service mix analysis failed:", e); }
 
   return { recordsProcessed: actions, details: `${actions} auto-actions taken` };
 }

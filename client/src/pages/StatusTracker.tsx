@@ -115,7 +115,7 @@ export default function StatusTracker() {
                   type={searchType === "phone" ? "tel" : "text"}
                   value={query}
                   onChange={(e) => { setQuery(e.target.value); setSearched(false); }}
-                  placeholder={searchType === "phone" ? "(216) 555-0000" : "NT-XXXXXX"}
+                  placeholder={searchType === "phone" ? BUSINESS.phone.placeholder : "NT-XXXXXX"}
                   className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-11 pr-4 py-3.5 text-base focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                 />
               </div>

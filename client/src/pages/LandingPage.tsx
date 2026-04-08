@@ -388,7 +388,7 @@ export default function LandingPage() {
                 value={formData.phone}
                 onChange={(e) => handleFormChange("phone", e.target.value)}
                 className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/10 text-white placeholder-white/50 hover:bg-white/15 hover:border-white/20 transition-all focus:outline-none focus:border-yellow-400"
-                placeholder="(216) 555-1234"
+                placeholder={BUSINESS.phone.placeholder}
               />
             </div>
 

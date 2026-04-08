@@ -40,7 +40,7 @@ export const waitlistRouter = router({
     const { waitlist } = await import("../../drizzle/schema");
     const db = await getDb();
     if (!db) return [];
-    return db.select().from(waitlist).where(eq(waitlist.status, "waiting")).orderBy(desc(waitlist.createdAt));
+    return db.select().from(waitlist).where(eq(waitlist.status, "waiting")).orderBy(desc(waitlist.createdAt)).limit(200);
   }),
 
   notify: adminProcedure

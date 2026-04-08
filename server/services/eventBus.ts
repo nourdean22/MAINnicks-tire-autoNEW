@@ -211,7 +211,7 @@ async function ensureInitialized(): Promise<void> {
               WHERE RIGHT(phone, 10) = ${phone} OR RIGHT(phone2, 10) = ${phone}
             `);
           }
-        } catch {}
+        } catch (e) { console.warn("[eventBus:automation] customer totalSpent/totalVisits update failed:", e); }
       }
     },
   });
@@ -295,7 +295,7 @@ async function ensureInitialized(): Promise<void> {
               .where(like(leadsTable.phone, `%${phone10}%`)).limit(2);
             if (prior.length > 1) returnNote = "\n🔄 RETURNING CUSTOMER — they've contacted before";
           }
-        } catch {}
+        } catch (e) { console.warn("[eventBus:telegram] returning customer check failed:", e); }
         await sendTelegram(
           `🔴 HIGH-URGENCY LEAD: ${event.data.name} (${event.data.phone})\n` +
           `Source: ${event.data.source} | Urgency: ${event.data.urgencyScore}/5${returnNote}\n` +
@@ -344,7 +344,7 @@ async function ensureInitialized(): Promise<void> {
       try {
         const { learnFromEvent } = await import("./nickMemory");
         await learnFromEvent(event.type, event.data);
-      } catch {}
+      } catch (e) { console.warn("[eventBus:nickLearning] learnFromEvent failed:", e); }
     },
   });
 
@@ -358,7 +358,7 @@ async function ensureInitialized(): Promise<void> {
       try {
         const { recordEventOccurrence } = await import("./feedbackLoop");
         recordEventOccurrence(event.type);
-      } catch {}
+      } catch (e) { console.warn("[eventBus:feedbackLoop] event occurrence recording failed:", e); }
     },
   });
 
@@ -402,7 +402,7 @@ async function ensureInitialized(): Promise<void> {
           }),
           signal: AbortSignal.timeout(5000),
         });
-      } catch {}
+      } catch (e) { console.warn("[eventBus:statenour] sync push failed:", e); }
     },
   });
 
@@ -590,7 +590,7 @@ function trackLifecycle(type: BusinessEvent, data: Record<string, any>): void {
         source: "lifecycle_tracker",
         confidence: 0.95,
       })
-    ).catch(() => {});
+    ).catch(e => console.warn("[eventBus:lifecycle] full conversion memory save failed:", e));
     lifecycleTracker.delete(key);
   }
 }

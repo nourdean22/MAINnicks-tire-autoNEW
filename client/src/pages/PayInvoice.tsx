@@ -103,7 +103,7 @@ export default function PayInvoice() {
                       type="tel"
                       value={phone}
                       onChange={(e) => { setPhone(e.target.value); setLooked(false); }}
-                      placeholder="(216) 555-0123"
+                      placeholder={BUSINESS.phone.placeholder}
                       className="w-full bg-background border border-border/50 rounded-lg pl-10 pr-4 py-3 text-sm focus:outline-none focus:border-primary/50"
                     />
                   </div>

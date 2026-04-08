@@ -708,7 +708,7 @@ export async function dispatchVendorHealthSnapshot(results: Array<{
         // Telegram alert is best-effort
       }
 
-      console.log(`[RECOVERY] Vendor ${result.vendor} recovered: ${prev} -> ${result.status}`);
+      console.info(`[bridge:recovery] Vendor ${result.vendor} recovered: ${prev} -> ${result.status}`);
     }
 
     previousVendorStates.set(result.vendor, result.status);

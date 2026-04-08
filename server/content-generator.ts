@@ -341,14 +341,16 @@ export async function getPublishedArticles() {
   if (!db) return [];
   return db.select().from(dynamicArticles)
     .where(eq(dynamicArticles.status, "published"))
-    .orderBy(desc(dynamicArticles.createdAt));
+    .orderBy(desc(dynamicArticles.createdAt))
+    .limit(200);
 }
 
 export async function getAllDynamicArticles() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(dynamicArticles)
-    .orderBy(desc(dynamicArticles.createdAt));
+    .orderBy(desc(dynamicArticles.createdAt))
+    .limit(500);
 }
 
 export async function getDynamicArticleBySlug(slug: string) {
@@ -404,7 +406,8 @@ export async function getAllNotifications() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(notificationMessages)
-    .orderBy(desc(notificationMessages.createdAt));
+    .orderBy(desc(notificationMessages.createdAt))
+    .limit(500);
 }
 
 export async function updateNotificationStatus(id: number, isActive: number) {

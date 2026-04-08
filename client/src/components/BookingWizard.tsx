@@ -630,7 +630,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                     value={formData.phone}
                     onChange={(e) => update("phone", formatPhone(e.target.value))}
                     className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
-                    placeholder="(216) 555-0000"
+                    placeholder={BUSINESS.phone.placeholder}
                   />
                 </div>
               </div>

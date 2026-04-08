@@ -8,6 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Link } from "wouter";
 import { SEOHead } from "@/components/SEO";
+import { BUSINESS } from "@shared/business";
 import NotificationBar from "@/components/NotificationBar";
 import {
   Phone, Shield, Car, FileText, Clock, ChevronRight, Loader2,
@@ -155,7 +156,7 @@ function PhoneStep({ phone, setPhone, onSubmit, loading }: {
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="(216) 555-0123"
+              placeholder={BUSINESS.phone.placeholder}
               className="w-full bg-background border border-border/30 pl-10 pr-4 py-3 text-[13px] text-foreground placeholder:text-foreground/20 focus:border-primary/50 focus:outline-none"
               onKeyDown={(e) => e.key === "Enter" && onSubmit()}
             />

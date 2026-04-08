@@ -9,6 +9,7 @@ import { eq, sql } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 import { sanitizeText } from "../sanitize";
 import { TRPCError } from "@trpc/server";
+import { buildPlaceDetailsUrl } from "@shared/const";
 
 async function db() {
   const { getDb } = await import("../db");
@@ -16,7 +17,6 @@ async function db() {
 }
 
 async function fetchNewReviewsFromGoogle(): Promise<any[]> {
-  const PLACE_ID = "ChIJSWRRLdr_MIgRxdlMIMPcqww";
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
 
   if (!apiKey) {
@@ -24,9 +24,7 @@ async function fetchNewReviewsFromGoogle(): Promise<any[]> {
   }
 
   try {
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${PLACE_ID}&key=${apiKey}&fields=reviews`
-    );
+    const response = await fetch(buildPlaceDetailsUrl(apiKey, "reviews"));
 
     if (!response.ok) {
       throw new Error(`Google Places API error: ${response.status}`);

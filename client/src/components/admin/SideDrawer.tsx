@@ -57,6 +57,7 @@ export function SideDrawer({ isOpen, onClose, title, children, width = "md" }: S
           <button
             onClick={onClose}
             className="text-foreground/30 hover:text-foreground/60 transition-colors p-1 -mr-1"
+            aria-label="Close drawer"
           >
             <X className="w-4 h-4" />
           </button>

@@ -281,7 +281,7 @@ async function scheduleCallReviewRequest(phoneNumber: string): Promise<void> {
     trackingToken,
   });
 
-  console.log(`[CallTracking] Review request scheduled for ${normalizedPhone} at ${scheduledAt.toISOString()}`);
+  console.info(`[calltracking:review] Scheduled for ${normalizedPhone} at ${scheduledAt.toISOString()}`);
 }
 
 // ─── CALL TRACKING ─────────────────────────────────────

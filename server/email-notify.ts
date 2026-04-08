@@ -318,7 +318,7 @@ async function sendGmailMCP(
 
       const { data, error } = await resend.emails.send({
         from: fromEmail,
-        replyTo: process.env.SHOP_EMAIL || "Moeseuclid@gmail.com",
+        replyTo: process.env.SHOP_EMAIL || undefined,
         to,
         cc: cc && cc.length > 0 ? cc : undefined,
         subject,
@@ -390,17 +390,22 @@ export async function sendNotification(input: NotifyInput): Promise<{
 }> {
   const route = ROUTING_TABLE[input.category];
   const recipients: string[] = [];
-  const shopEmail = ENV.shopEmail || "Moeseuclid@gmail.com";
-  const ceoEmail = ENV.ceoEmail || "nourdean22@gmail.com";
+  const shopEmail = ENV.shopEmail;
+  const ceoEmail = ENV.ceoEmail;
+
+  if (!shopEmail && !ceoEmail && (!input.overrideTo || input.overrideTo.length === 0)) {
+    log.warn("SHOP_EMAIL and CEO_EMAIL not configured — skipping notification", { category: input.category });
+    return { emailSent: false, pushSent: false, recipients: [], throttled: false };
+  }
 
   // Build recipient list
   if (input.overrideTo && input.overrideTo.length > 0) {
     recipients.push(...input.overrideTo);
   } else {
-    if (route.shopEmail) {
+    if (route.shopEmail && shopEmail) {
       recipients.push(shopEmail);
     }
-    if (route.ceoEmail) {
+    if (route.ceoEmail && ceoEmail) {
       recipients.push(ceoEmail);
     }
   }

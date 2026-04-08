@@ -222,7 +222,8 @@ async function startServer() {
         pageUrl: `/book (step ${formStep || "?"})`,
       });
       res.sendStatus(204);
-    } catch {
+    } catch (e) {
+      console.warn("[server:abandonedForm] tracking failed:", e);
       res.sendStatus(204);
     }
   });
@@ -250,10 +251,10 @@ async function startServer() {
     ];
     let applied = 0;
     for (const stmt of alters) {
-      try { await db.execute(sql.raw(stmt)); applied++; } catch {}
+      try { await db.execute(sql.raw(stmt)); applied++; } catch (e) { console.warn("[server:migration] schema ALTER failed:", stmt.slice(0, 60), e); }
     }
     if (applied > 0) serverLog.info(`Schema migrations: ${applied} column checks passed`);
-  }).catch(() => {});
+  }).catch(e => console.warn("[server:migration] schema migration runner failed:", e));
 
   // ─── Feature Flag Seeding (idempotent) ─────────────────
   import("../services/featureFlags").then(({ seedFlags }) => {
@@ -274,21 +275,21 @@ async function startServer() {
   import("../sms").then(({ startDelayedQueueProcessor }) => {
     startDelayedQueueProcessor();
     serverLog.info("SMS delayed queue processor started");
-  }).catch(() => {});
+  }).catch(e => console.warn("[server:init] SMS queue processor startup failed:", e));
   import("../services/telegram").then(({ startBatchTimer }) => {
     startBatchTimer();
     serverLog.info("Telegram batch timer started");
-  }).catch(() => {});
+  }).catch(e => console.warn("[server:init] Telegram batch timer startup failed:", e));
   import("../nour-os-bridge").then(({ startRetryProcessor }) => {
     startRetryProcessor();
     serverLog.info("NOUR OS bridge retry processor started");
-  }).catch(() => {});
+  }).catch(e => console.warn("[server:init] NOUR OS bridge retry processor startup failed:", e));
 
   // ─── Real-time SSE for admin dashboards ─────────────────
   import("../services/realtimePush").then(({ sseHandler }) => {
     app.get("/api/admin/events", sseHandler);
     serverLog.info("SSE endpoint registered: /api/admin/events");
-  }).catch(() => {});
+  }).catch(e => console.warn("[server:init] SSE endpoint registration failed:", e));
 
   // ─── Admin API Key middleware (shared by all admin REST endpoints) ───
   function requireAdminApiKey(req: any, res: any, next: any) {
@@ -542,7 +543,7 @@ Sitemap: ${SITE_URL}/sitemap-locations.xml
                 totalAmount: (intent.amount_received || 0) / 100,
                 method: "card",
               })
-            ).catch(() => {});
+            ).catch(e => console.warn("[server:stripeWebhook] event bus invoice paid dispatch failed:", e));
 
             serverLog.info(`[Stripe Webhook] Invoice ${invoiceNumber} marked paid — $${((intent.amount_received || 0) / 100).toFixed(2)}`);
           }
@@ -660,14 +661,14 @@ Sitemap: ${SITE_URL}/sitemap-locations.xml
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+    console.info(`[server:init] Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
   server.listen(port, () => {
     const mem = process.memoryUsage();
     const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
     const rssMB = Math.round(mem.rss / 1024 / 1024);
-    console.log(`Server running on http://localhost:${port}/ | Memory: heap=${heapMB}MB rss=${rssMB}MB`);
+    console.info(`[server:ready] http://localhost:${port}/ | Memory: heap=${heapMB}MB rss=${rssMB}MB`);
   });
 }
 
@@ -694,10 +695,10 @@ process.on("SIGTERM", () => {
   _httpServer?.close(() => serverLog.info("HTTP server closed"));
 
   // 2. Stop all timers (cron, SMS queue, Telegram batch, NOUR OS retry)
-  try { require("../cron/scheduler").stopTieredScheduler(); } catch {}
-  try { require("../sms").stopDelayedQueueProcessor(); } catch {}
-  try { require("../services/telegram").stopBatchTimer?.(); } catch {}
-  try { require("../nour-os-bridge").stopRetryProcessor?.(); } catch {}
+  try { require("../cron/scheduler").stopTieredScheduler(); } catch (e) { console.warn("[server:shutdown] scheduler stop failed:", e); }
+  try { require("../sms").stopDelayedQueueProcessor(); } catch (e) { console.warn("[server:shutdown] SMS queue stop failed:", e); }
+  try { require("../services/telegram").stopBatchTimer?.(); } catch (e) { console.warn("[server:shutdown] Telegram timer stop failed:", e); }
+  try { require("../nour-os-bridge").stopRetryProcessor?.(); } catch (e) { console.warn("[server:shutdown] NOUR OS bridge stop failed:", e); }
 
   // 3. Give in-flight requests 10s to finish, then force exit
   setTimeout(() => {

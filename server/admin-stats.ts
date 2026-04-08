@@ -123,7 +123,11 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
   try {
     // ─── BOOKINGS ─────────────────────────────────────
-    const allBookings = await d.select().from(bookings).orderBy(desc(bookings.createdAt));
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const allBookings = await d.select().from(bookings)
+      .where(gte(bookings.createdAt, ninetyDaysAgo))
+      .orderBy(desc(bookings.createdAt))
+      .limit(1000);
     const bookingStats = {
       total: allBookings.length,
       new: allBookings.filter((b: any) => b.status === "new").length,
@@ -141,7 +145,10 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     };
 
     // ─── LEADS ────────────────────────────────────────
-    const allLeads = await d.select().from(leads).orderBy(desc(leads.createdAt));
+    const allLeads = await d.select().from(leads)
+      .where(gte(leads.createdAt, ninetyDaysAgo))
+      .orderBy(desc(leads.createdAt))
+      .limit(1000);
     const leadStats = {
       total: allLeads.length,
       new: allLeads.filter((l: any) => l.status === "new").length,
@@ -164,9 +171,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     };
 
     // ─── CONTENT ──────────────────────────────────────
-    const allArticles = await d.select().from(dynamicArticles);
-    const allNotifs = await d.select().from(notificationMessages);
-    const allLogs = await d.select().from(contentGenerationLog).orderBy(desc(contentGenerationLog.createdAt));
+    const allArticles = await d.select().from(dynamicArticles).limit(500);
+    const allNotifs = await d.select().from(notificationMessages).limit(500);
+    const allLogs = await d.select().from(contentGenerationLog).orderBy(desc(contentGenerationLog.createdAt)).limit(500);
     const contentStats = {
       totalArticles: allArticles.length,
       published: allArticles.filter((a: any) => a.status === "published").length,
@@ -179,7 +186,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     };
 
     // ─── CHAT ─────────────────────────────────────────
-    const allChats = await d.select().from(chatSessions);
+    const allChats = await d.select().from(chatSessions)
+      .where(gte(chatSessions.createdAt, ninetyDaysAgo))
+      .limit(500);
     const chatStats = {
       totalSessions: allChats.length,
       converted: allChats.filter((c: any) => c.converted === 1).length,
@@ -275,7 +284,10 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     let callTrackingStats = { totalCalls: 0, thisWeek: 0, byPage: [] as { page: string; count: number }[] };
     let callsBySource: Record<string, number> = {};
     try {
-      const allCalls = await d.select().from(callEvents).orderBy(desc(callEvents.createdAt));
+      const allCalls = await d.select().from(callEvents)
+        .where(gte(callEvents.createdAt, ninetyDaysAgo))
+        .orderBy(desc(callEvents.createdAt))
+        .limit(1000);
       const callsByPage: Record<string, number> = {};
       allCalls.forEach((c: any) => {
         const page = c.sourcePage || "unknown";
@@ -295,7 +307,10 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     // ─── CALLBACKS ─────────────────────────────────────
     let callbackStats = { total: 0, new: 0, completed: 0, thisWeek: 0 };
     try {
-      const allCallbacks = await d.select().from(callbackRequests).orderBy(desc(callbackRequests.createdAt));
+      const allCallbacks = await d.select().from(callbackRequests)
+        .where(gte(callbackRequests.createdAt, ninetyDaysAgo))
+        .orderBy(desc(callbackRequests.createdAt))
+        .limit(500);
       callbackStats = {
         total: allCallbacks.length,
         new: allCallbacks.filter((c: any) => c.status === "new").length,

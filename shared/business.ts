@@ -26,6 +26,7 @@ export const BUSINESS = {
     href: "tel:2168620005",       // For tel: links
     raw: "2168620005",            // For data attributes / tracking
     dashed: "216-862-0005",       // Alternative display format
+    placeholder: "(216) 555-0000", // For form input placeholders
   },
 
   // ─── LOCATION ────────────────────────────────────────

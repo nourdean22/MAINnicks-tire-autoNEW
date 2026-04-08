@@ -56,12 +56,12 @@ function isBot(userAgent: string): boolean {
 export function createPrerenderMiddleware(prerenderedDir: string) {
   // Check if prerendered directory exists
   if (!fs.existsSync(prerenderedDir)) {
-    console.log("[prerender] No prerendered directory found — middleware disabled.");
+    console.info("[prerender:init] No prerendered directory found — middleware disabled.");
     return (_req: Request, _res: Response, next: NextFunction) => next();
   }
 
   const fileCount = countHtmlFiles(prerenderedDir);
-  console.log(`[prerender] Serving ${fileCount} prerendered pages to bots from ${prerenderedDir}`);
+  console.info(`[prerender:init] Serving ${fileCount} prerendered pages to bots from ${prerenderedDir}`);
 
   return (req: Request, res: Response, next: NextFunction) => {
     // Only intercept GET requests
@@ -91,7 +91,7 @@ export function createPrerenderMiddleware(prerenderedDir: string) {
     }
 
     if (fs.existsSync(htmlPath)) {
-      console.log(`[prerender] Serving prerendered: ${urlPath} to ${userAgent.slice(0, 50)}`);
+      console.info(`[prerender:serve] ${urlPath} to ${userAgent.slice(0, 50)}`);
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.setHeader("X-Prerendered", "true");
       // Cache prerendered pages for bots (1 hour)
