@@ -614,7 +614,7 @@ export const chatRouter = router({
           const found = await d
             .select()
             .from(customers)
-            .where(sql`REPLACE(REPLACE(REPLACE(REPLACE(${customers.phone}, '-', ''), '(', ''), ')', ''), ' ', '') LIKE ${'%' + phoneDigits}`)
+            .where(sql`(REPLACE(REPLACE(REPLACE(REPLACE(${customers.phone}, '-', ''), '(', ''), ')', ''), ' ', '') LIKE ${'%' + phoneDigits} OR REPLACE(REPLACE(REPLACE(REPLACE(${customers.phone2}, '-', ''), '(', ''), ')', ''), ' ', '') LIKE ${'%' + phoneDigits})`)
             .limit(1);
 
           if (found.length > 0) {

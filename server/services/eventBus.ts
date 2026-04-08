@@ -208,7 +208,7 @@ async function ensureInitialized(): Promise<void> {
               SET totalSpent = totalSpent + ${event.data.totalAmount || 0},
                   totalVisits = totalVisits + 1,
                   lastVisitDate = NOW()
-              WHERE RIGHT(phone, 10) = ${phone}
+              WHERE RIGHT(phone, 10) = ${phone} OR RIGHT(phone2, 10) = ${phone}
             `);
           }
         } catch {}
