@@ -12,7 +12,7 @@ import {
   type BookingStatus, type LeadStatus,
 } from "./shared";
 import {
-  AlertTriangle, ArrowDownRight, ArrowUpRight, Calendar, CalendarClock, Camera, Car, CheckCircle2, ChevronRight, Clock, Eye, FileText, Filter, Hash, Loader2, Mail, MessageSquare, Phone, RefreshCw, Search, Trash2, Wrench, X, XCircle
+  AlertTriangle, ArrowDownRight, ArrowUpRight, Calendar, CalendarClock, Camera, Car, CheckCircle2, ChevronRight, Clock, Eye, FileText, Filter, Hash, Loader2, Mail, MessageSquare, Phone, RefreshCw, Search, ShieldCheck, ShieldAlert, Trash2, Wrench, X, XCircle
 } from "lucide-react";
 
 function BookingNotesEditor({ bookingId, initialNotes }: { bookingId: number; initialNotes: string | null }) {
@@ -303,6 +303,25 @@ export default function BookingsSection() {
                           <AlertTriangle className="w-3 h-3" />
                           {priorityLevel >= 2 ? "URGENT" : "HIGH"}
                         </span>
+                      )}
+                      {/* Confirmation status indicator */}
+                      {booking.status !== "cancelled" && booking.status !== "completed" && (
+                        (booking as any).confirmedAt ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 border text-[10px] tracking-wider text-emerald-400 bg-emerald-500/10 border-emerald-500/30">
+                            <ShieldCheck className="w-3 h-3" />
+                            CONFIRMED {(booking as any).confirmationMethod === "sms_reply" ? "via SMS" : (booking as any).confirmationMethod === "admin" ? "by Admin" : (booking as any).confirmationMethod === "phone" ? "by Phone" : ""}
+                          </span>
+                        ) : (booking as any).confirmationSentAt ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 border text-[10px] tracking-wider text-amber-400 bg-amber-500/10 border-amber-500/30">
+                            <ShieldAlert className="w-3 h-3" />
+                            AWAITING CONFIRM
+                          </span>
+                        ) : booking.status === "new" ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 border text-[10px] tracking-wider text-foreground/30 bg-foreground/5 border-foreground/10">
+                            <ShieldAlert className="w-3 h-3" />
+                            UNCONFIRMED
+                          </span>
+                        ) : null
                       )}
                     </div>
 

@@ -45,12 +45,6 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { createPrerenderMiddleware } from "../prerender-middleware";
-import { SITEMAP_ROUTES, BLOG_SLUGS } from "@shared/routes";
-import { getPublishedArticles } from "../content-generator";
-import { markReviewRequestClicked } from "../db";
-import { processReviewRequestQueue } from "../routers/reviewRequests";
-import { processReminderQueue } from "../routers/reminders";
-import { processPostInvoiceFollowUps } from "../postInvoiceFollowUp";
 import { SITE_URL } from "@shared/business";
 
 const serverLog = createLogger("server");
@@ -362,6 +356,8 @@ async function startServer() {
   );
   // Sitemap.xml — powered by shared/routes.ts route registry + dynamic blog articles from DB
   app.get("/sitemap.xml", async (_req, res) => {
+    const { SITEMAP_ROUTES, BLOG_SLUGS } = await import("@shared/routes");
+    const { getPublishedArticles } = await import("../content-generator");
     const baseUrl = SITE_URL;
     const now = new Date().toISOString().split("T")[0];
 
@@ -424,7 +420,8 @@ Sitemap: ${SITE_URL}/sitemap-locations.xml
   });
 
   // Sub-sitemaps for services and locations
-  app.get("/sitemap-services.xml", (_req, res) => {
+  app.get("/sitemap-services.xml", async (_req, res) => {
+    const { SITEMAP_ROUTES } = await import("@shared/routes");
     const baseUrl = SITE_URL;
     const now = new Date().toISOString().split("T")[0];
     const serviceRoutes = SITEMAP_ROUTES.filter(r =>
@@ -439,7 +436,8 @@ Sitemap: ${SITE_URL}/sitemap-locations.xml
     res.send(xml);
   });
 
-  app.get("/sitemap-locations.xml", (_req, res) => {
+  app.get("/sitemap-locations.xml", async (_req, res) => {
+    const { SITEMAP_ROUTES } = await import("@shared/routes");
     const baseUrl = SITE_URL;
     const now = new Date().toISOString().split("T")[0];
     const locationRoutes = SITEMAP_ROUTES.filter(r =>
@@ -567,6 +565,7 @@ Sitemap: ${SITE_URL}/sitemap-locations.xml
     try {
       const { token } = req.params;
       if (token && token.length <= 64) {
+        const { markReviewRequestClicked } = await import("../db");
         await markReviewRequestClicked(token);
       }
     } catch (err) {
@@ -576,45 +575,9 @@ Sitemap: ${SITE_URL}/sitemap-locations.xml
     res.redirect(302, GOOGLE_REVIEW_URL);
   });
 
-  // ─── Periodic review request queue processor ──────────
-  // Checks every 5 minutes for pending review requests that are past their scheduled time
-  setInterval(async () => {
-    try {
-      const result = await processReviewRequestQueue();
-      if (result.processed > 0) {
-        console.log(`[ReviewRequest] Queue processed: ${result.sent} sent, ${result.failed} failed`);
-      }
-    } catch (err) {
-      console.error("[ReviewRequest] Queue processing error:", err);
-    }
-  }, 5 * 60 * 1000); // Every 5 minutes
-
-  // Periodic maintenance reminder queue processor
-  // Checks every 15 minutes for reminders that are past their nextDueDate
-  setInterval(async () => {
-    try {
-      const result = await processReminderQueue();
-      if (result.processed > 0) {
-        console.log(`[Reminders] Queue processed: ${result.sent} sent, ${result.failed} failed`);
-      }
-    } catch (err) {
-      console.error("[Reminders] Queue processing error:", err);
-    }
-  }, 15 * 60 * 1000); // Every 15 minutes
-
-  // ─── Automated 7-day post-invoice follow-up ──────────
-  // Checks every hour for customers whose last visit was 7 days ago
-  // Sends thank you + review request + referral text (same as campaign)
-  setInterval(async () => {
-    try {
-      const result = await processPostInvoiceFollowUps();
-      if (result.processed > 0) {
-        console.log(`[PostInvoiceFollowUp] Processed: ${result.sent} sent, ${result.failed} failed out of ${result.processed}`);
-      }
-    } catch (err) {
-      console.error("[PostInvoiceFollowUp] Processing error:", err);
-    }
-  }, 60 * 60 * 1000); // Every 1 hour
+  // NOTE: Review request queue, reminder queue, and post-invoice follow-ups
+  // are handled by the tiered scheduler (cron/scheduler.ts) — no duplicate
+  // setInterval timers needed here. Removed to save ~3 timer + import overhead.
 
   // ─── Facebook Messenger Webhook ──────────────────────
   // Webhook verification for Facebook Messenger
@@ -701,7 +664,10 @@ Sitemap: ${SITE_URL}/sitemap-locations.xml
   }
 
   server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+    const mem = process.memoryUsage();
+    const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
+    const rssMB = Math.round(mem.rss / 1024 / 1024);
+    console.log(`Server running on http://localhost:${port}/ | Memory: heap=${heapMB}MB rss=${rssMB}MB`);
   });
 }
 

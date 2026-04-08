@@ -113,9 +113,13 @@ export async function executeAutoAction(parsed: ParsedResponse, phone: string, c
         if (context?.bookingId && db) {
           const { bookings } = await import("../../drizzle/schema");
           await db.update(bookings)
-            .set({ status: "confirmed" })
+            .set({
+              status: "confirmed",
+              confirmedAt: new Date(),
+              confirmationMethod: "sms_reply",
+            })
             .where(eq(bookings.id, context.bookingId));
-          log.info("Auto-confirmed appointment", { bookingId: context.bookingId, phone: phone.slice(-4) });
+          log.info("Auto-confirmed appointment via SMS reply", { bookingId: context.bookingId, phone: phone.slice(-4) });
         }
         return { executed: true, action: "confirm-appointment" };
 

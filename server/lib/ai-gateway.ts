@@ -1,14 +1,14 @@
 /**
- * AI Gateway — Unified routing layer for local (Ollama) and remote (OpenAI) models
+ * AI Gateway — Unified routing layer for Venice (primary), OpenAI (fallback), and Ollama (local dev)
  *
  * Routes AI requests to the best available provider based on:
  * - Task type (classification, generation, embeddings, SQL, code)
- * - Model availability (local health check)
- * - Fallback policy (local-first with cloud fallback)
+ * - Provider availability (Venice health check + circuit breaker)
+ * - Fallback policy (Venice-first with OpenAI fallback)
  * - Timeout handling
  *
- * Ollama runs locally at http://localhost:11434 with OpenAI-compatible API.
- * Available local models: dolphin-nour, dolphin-nour-deep, phi4-mini, gemma3:4b, sqlcoder:7b
+ * Venice is OpenAI-compatible at https://api.venice.ai/api/v1.
+ * OpenAI is the fallback for all tasks. Embeddings use OpenAI as primary (text-embedding-3-small).
  */
 
 import { createLogger } from "./logger";
@@ -50,10 +50,11 @@ async function persistLog(entry: Record<string, unknown>) {
 }
 
 // ─── Configuration ───────────────────────────────────
-const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+const VENICE_BASE = process.env.VENICE_BASE_URL?.replace(/\/$/, "") || "https://api.venice.ai/api/v1";
 const OPENAI_BASE = process.env.OPENAI_BASE_URL?.replace(/\/$/, "") || "https://api.openai.com";
+const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 
-export type AIProvider = "ollama" | "openai";
+export type AIProvider = "venice" | "openai" | "ollama";
 
 export type TaskType =
   | "chat"           // General conversation / operator chat
@@ -79,73 +80,80 @@ type ModelConfig = {
 };
 
 // ─── Model routing table ─────────────────────────────
-// Defines which model handles each task type, with fallbacks
+// Venice is primary for all LLM tasks. OpenAI is fallback.
+// Embeddings use OpenAI primary (Venice doesn't support embeddings).
 const ROUTING_TABLE: Record<TaskType, ModelConfig> = {
   chat: {
-    provider: "ollama",
-    model: "dolphin-nour:latest",
+    provider: "venice",
+    model: process.env.VENICE_MODEL || "llama-3.3-70b",
     fallbackProvider: "openai",
     fallbackModel: process.env.LLM_MODEL || "gpt-4o-mini",
     timeoutMs: 30_000,
   },
   classify: {
-    provider: "ollama",
-    model: "phi4-mini:latest",
+    provider: "venice",
+    model: process.env.VENICE_MODEL || "llama-3.3-70b",
     fallbackProvider: "openai",
     fallbackModel: "gpt-4o-mini",
     timeoutMs: 10_000,
   },
   generate: {
-    provider: "openai",
-    model: process.env.LLM_MODEL || "gpt-4o-mini",
+    provider: "venice",
+    model: process.env.VENICE_MODEL || "llama-3.3-70b",
+    fallbackProvider: "openai",
+    fallbackModel: process.env.LLM_MODEL || "gpt-4o-mini",
     timeoutMs: 60_000,
   },
   summarize: {
-    provider: "ollama",
-    model: "dolphin-nour:latest",
+    provider: "venice",
+    model: process.env.VENICE_MODEL || "llama-3.3-70b",
     fallbackProvider: "openai",
     fallbackModel: "gpt-4o-mini",
     timeoutMs: 30_000,
   },
   extract: {
-    provider: "ollama",
-    model: "phi4-mini:latest",
+    provider: "venice",
+    model: process.env.VENICE_MODEL || "llama-3.3-70b",
     fallbackProvider: "openai",
     fallbackModel: "gpt-4o-mini",
     timeoutMs: 15_000,
   },
   sql: {
-    provider: "ollama",
-    model: "sqlcoder:7b",
+    provider: "venice",
+    model: process.env.VENICE_MODEL || "llama-3.3-70b",
     fallbackProvider: "openai",
     fallbackModel: "gpt-4o-mini",
     timeoutMs: 20_000,
   },
   code: {
-    provider: "ollama",
-    model: "dolphin-nour-deep:latest",
+    provider: "venice",
+    model: process.env.VENICE_MODEL || "llama-3.3-70b",
     fallbackProvider: "openai",
     fallbackModel: process.env.LLM_MODEL || "gpt-4o-mini",
     timeoutMs: 30_000,
   },
   embed: {
-    provider: "ollama",
-    model: "nomic-embed-text:latest",
+    provider: "openai",
+    model: "text-embedding-3-small",
     timeoutMs: 10_000,
   },
   receptionist: {
-    provider: "openai",
-    model: process.env.LLM_MODEL || "gpt-4o-mini",
+    provider: "venice",
+    model: process.env.VENICE_MODEL || "llama-3.3-70b",
+    fallbackProvider: "openai",
+    fallbackModel: process.env.LLM_MODEL || "gpt-4o-mini",
     timeoutMs: 15_000,
   },
   estimate: {
-    provider: "openai",
-    model: process.env.LLM_MODEL || "gpt-4o-mini",
+    provider: "venice",
+    model: process.env.VENICE_MODEL || "llama-3.3-70b",
+    fallbackProvider: "openai",
+    fallbackModel: process.env.LLM_MODEL || "gpt-4o-mini",
     timeoutMs: 30_000,
   },
   "sms-response": {
-    provider: "ollama",
-    model: "dolphin-nour:latest",
+    provider: "venice",
+    model: process.env.VENICE_MODEL || "llama-3.3-70b",
     fallbackProvider: "openai",
     fallbackModel: "gpt-4o-mini",
     timeoutMs: 10_000,
@@ -153,12 +161,12 @@ const ROUTING_TABLE: Record<TaskType, ModelConfig> = {
 };
 
 // ─── Health tracking + Circuit Breaker ──────────────
-let ollamaHealthy = true;
+let veniceHealthy = true;
 let lastHealthCheck = 0;
 const HEALTH_CHECK_INTERVAL = 60_000; // 1 minute
 
-// Circuit breaker: after N consecutive failures, skip Ollama for COOLDOWN period
-let consecutiveOllamaFailures = 0;
+// Circuit breaker: after N consecutive failures, skip Venice for COOLDOWN period → OpenAI takeover
+let consecutiveVeniceFailures = 0;
 let circuitOpenUntil = 0;
 const CIRCUIT_FAILURE_THRESHOLD = 3;
 const CIRCUIT_COOLDOWN_MS = 120_000; // 2 minutes
@@ -166,67 +174,83 @@ const CIRCUIT_COOLDOWN_MS = 120_000; // 2 minutes
 function isCircuitOpen(): boolean {
   if (Date.now() < circuitOpenUntil) return true;
   // Reset if cooldown expired
-  if (consecutiveOllamaFailures >= CIRCUIT_FAILURE_THRESHOLD) {
-    consecutiveOllamaFailures = 0;
-    log.info("Circuit breaker reset — retrying Ollama");
+  if (consecutiveVeniceFailures >= CIRCUIT_FAILURE_THRESHOLD) {
+    consecutiveVeniceFailures = 0;
+    log.info("Circuit breaker reset — retrying Venice");
   }
   return false;
 }
 
-function recordOllamaSuccess() {
-  consecutiveOllamaFailures = 0;
-  ollamaHealthy = true;
+function recordVeniceSuccess() {
+  consecutiveVeniceFailures = 0;
+  veniceHealthy = true;
 }
 
-function recordOllamaFailure() {
-  consecutiveOllamaFailures++;
-  if (consecutiveOllamaFailures >= CIRCUIT_FAILURE_THRESHOLD) {
+function recordVeniceFailure() {
+  consecutiveVeniceFailures++;
+  if (consecutiveVeniceFailures >= CIRCUIT_FAILURE_THRESHOLD) {
     circuitOpenUntil = Date.now() + CIRCUIT_COOLDOWN_MS;
-    ollamaHealthy = false;
-    log.warn(`Circuit breaker OPEN — skipping Ollama for ${CIRCUIT_COOLDOWN_MS / 1000}s after ${consecutiveOllamaFailures} failures`);
+    veniceHealthy = false;
+    log.warn(`Circuit breaker OPEN — skipping Venice for ${CIRCUIT_COOLDOWN_MS / 1000}s after ${consecutiveVeniceFailures} failures`);
   }
 }
 
-async function checkOllamaHealth(): Promise<boolean> {
+async function checkVeniceHealth(): Promise<boolean> {
   if (isCircuitOpen()) return false;
 
   const now = Date.now();
-  if (now - lastHealthCheck < HEALTH_CHECK_INTERVAL) return ollamaHealthy;
+  if (now - lastHealthCheck < HEALTH_CHECK_INTERVAL) return veniceHealthy;
+
+  const apiKey = process.env.VENICE_API_KEY;
+  if (!apiKey) {
+    veniceHealthy = false;
+    lastHealthCheck = now;
+    return false;
+  }
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3_000);
-    const res = await fetch(`${OLLAMA_BASE}/api/tags`, { signal: controller.signal });
+    const timeout = setTimeout(() => controller.abort(), 5_000);
+    const res = await fetch(`${VENICE_BASE}/models`, {
+      headers: { "Authorization": `Bearer ${apiKey}` },
+      signal: controller.signal,
+    });
     clearTimeout(timeout);
-    ollamaHealthy = res.ok;
-    if (res.ok) consecutiveOllamaFailures = 0;
+    veniceHealthy = res.ok;
+    if (res.ok) consecutiveVeniceFailures = 0;
   } catch (err) {
-    ollamaHealthy = false;
-    log.debug("Ollama health check failed", { error: err instanceof Error ? err.message : String(err) });
+    veniceHealthy = false;
+    log.debug("Venice health check failed", { error: err instanceof Error ? err.message : String(err) });
   }
   lastHealthCheck = now;
-  return ollamaHealthy;
+  return veniceHealthy;
 }
 
 // ─── Provider request functions ──────────────────────
 
-async function callOllama(model: string, messages: OllamaMessage[], timeoutMs: number): Promise<GatewayResponse> {
+async function callVenice(model: string, messages: ChatMessage[], timeoutMs: number): Promise<GatewayResponse> {
+  const apiKey = process.env.VENICE_API_KEY;
+  if (!apiKey) throw new Error("VENICE_API_KEY not configured");
+
   const start = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const res = await fetch(`${OLLAMA_BASE}/v1/chat/completions`, {
+    const res = await fetch(`${VENICE_BASE}/chat/completions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages, stream: false }),
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({ model, messages, max_tokens: 4096 }),
       signal: controller.signal,
     });
     clearTimeout(timeout);
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      throw new Error(`Ollama ${res.status}: ${body}`);
+      throw new Error(`Venice ${res.status}: ${body}`);
     }
 
     const data = await res.json();
@@ -235,7 +259,7 @@ async function callOllama(model: string, messages: OllamaMessage[], timeoutMs: n
     return {
       content: data.choices?.[0]?.message?.content || "",
       model: data.model || model,
-      provider: "ollama",
+      provider: "venice",
       latencyMs: latency,
       tokensUsed: data.usage?.total_tokens,
       wasFallback: false,
@@ -246,7 +270,7 @@ async function callOllama(model: string, messages: OllamaMessage[], timeoutMs: n
   }
 }
 
-async function callOpenAI(model: string, messages: OllamaMessage[], timeoutMs: number): Promise<GatewayResponse> {
+async function callOpenAI(model: string, messages: ChatMessage[], timeoutMs: number): Promise<GatewayResponse> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
 
@@ -290,11 +314,11 @@ async function callOpenAI(model: string, messages: OllamaMessage[], timeoutMs: n
 
 // ─── Types ───────────────────────────────────────────
 
-type OllamaMessage = { role: string; content: string };
+type ChatMessage = { role: string; content: string };
 
 export type GatewayRequest = {
   task: TaskType;
-  messages: OllamaMessage[];
+  messages: ChatMessage[];
   overrideProvider?: AIProvider;
   overrideModel?: string;
 };
@@ -331,7 +355,7 @@ let lastRequestAt: number | null = null;
 type DailyStats = {
   date: string; // YYYY-MM-DD in ET
   total: number;
-  ollama: number;
+  venice: number;
   openai: number;
   failures: number;
   fallbacks: number;
@@ -344,8 +368,9 @@ type LatencyTracker = {
 
 let dailyStats: DailyStats = makeDailyStats();
 const providerLatency: Record<AIProvider, LatencyTracker> = {
-  ollama: { totalMs: 0, count: 0 },
+  venice: { totalMs: 0, count: 0 },
   openai: { totalMs: 0, count: 0 },
+  ollama: { totalMs: 0, count: 0 },
 };
 
 function getTodayET(): string {
@@ -353,15 +378,16 @@ function getTodayET(): string {
 }
 
 function makeDailyStats(): DailyStats {
-  return { date: getTodayET(), total: 0, ollama: 0, openai: 0, failures: 0, fallbacks: 0 };
+  return { date: getTodayET(), total: 0, venice: 0, openai: 0, failures: 0, fallbacks: 0 };
 }
 
 function ensureDailyReset() {
   const today = getTodayET();
   if (dailyStats.date !== today) {
     dailyStats = makeDailyStats();
-    providerLatency.ollama = { totalMs: 0, count: 0 };
+    providerLatency.venice = { totalMs: 0, count: 0 };
     providerLatency.openai = { totalMs: 0, count: 0 };
+    providerLatency.ollama = { totalMs: 0, count: 0 };
   }
 }
 
@@ -374,7 +400,8 @@ function logRequest(entry: RequestLogEntry) {
   // Update daily stats
   ensureDailyReset();
   dailyStats.total++;
-  dailyStats[entry.provider]++;
+  if (entry.provider === "venice") dailyStats.venice++;
+  else if (entry.provider === "openai") dailyStats.openai++;
   if (!entry.success) dailyStats.failures++;
   if (entry.fallbackUsed) dailyStats.fallbacks++;
 
@@ -419,49 +446,50 @@ export async function aiGateway(request: GatewayRequest): Promise<GatewayRespons
   const provider = request.overrideProvider || config.provider;
   const model = request.overrideModel || config.model;
 
-  // Check if Ollama is available for local-first routing
-  const ollamaAvailable = provider === "ollama" ? await checkOllamaHealth() : false;
+  // Venice primary attempt
+  if (provider === "venice") {
+    const veniceAvailable = await checkVeniceHealth();
 
-  // Primary attempt
-  if (provider === "ollama" && ollamaAvailable) {
-    try {
-      const result = await callOllama(model, request.messages, config.timeoutMs);
-      recordOllamaSuccess();
-      logRequest({ timestamp: Date.now(), task: request.task, provider: "ollama", model, latencyMs: result.latencyMs, success: true, fallbackUsed: false });
-      log.info(`[${request.task}] Ollama ${model} → ${result.latencyMs}ms`);
-      return { ...result, wasFallback: false };
-    } catch (err: any) {
-      recordOllamaFailure();
-      const failureReason = classifyError(err);
-      log.warn(`[${request.task}] Ollama failed (${failureReason}): ${err.message}`);
-      logRequest({ timestamp: Date.now(), task: request.task, provider: "ollama", model, latencyMs: 0, success: false, fallbackUsed: false, error: err.message });
+    if (veniceAvailable) {
+      try {
+        const result = await callVenice(model, request.messages, config.timeoutMs);
+        recordVeniceSuccess();
+        logRequest({ timestamp: Date.now(), task: request.task, provider: "venice", model, latencyMs: result.latencyMs, success: true, fallbackUsed: false });
+        log.info(`[${request.task}] Venice ${model} → ${result.latencyMs}ms`);
+        return { ...result, wasFallback: false };
+      } catch (err: any) {
+        recordVeniceFailure();
+        const failureReason = classifyError(err);
+        log.warn(`[${request.task}] Venice failed (${failureReason}): ${err.message}`);
+        logRequest({ timestamp: Date.now(), task: request.task, provider: "venice", model, latencyMs: 0, success: false, fallbackUsed: false, error: err.message });
 
-      // Fallback to cloud
-      if (config.fallbackProvider && config.fallbackModel) {
-        log.info(`[${request.task}] Triggering fallback: ollama/${model} → openai/${config.fallbackModel} (reason: ${failureReason})`);
-        try {
-          const fallbackResult = await callOpenAI(config.fallbackModel, request.messages, config.timeoutMs);
-          logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: fallbackResult.latencyMs, success: true, fallbackUsed: true, originalError: `${failureReason}: ${err.message}` });
-          log.info(`[${request.task}] Fallback OpenAI ${config.fallbackModel} → ${fallbackResult.latencyMs}ms`);
-          return { ...fallbackResult, fallbackUsed: true, wasFallback: true };
-        } catch (fallbackErr: any) {
-          logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: 0, success: false, fallbackUsed: true, error: fallbackErr.message, originalError: `${failureReason}: ${err.message}` });
-          throw new Error(`Both Ollama and OpenAI failed. Primary (${failureReason}): ${err.message}. Fallback: ${fallbackErr.message}`);
+        // Fallback to OpenAI
+        if (config.fallbackProvider === "openai" && config.fallbackModel) {
+          log.info(`[${request.task}] Triggering fallback: venice/${model} → openai/${config.fallbackModel} (reason: ${failureReason})`);
+          try {
+            const fallbackResult = await callOpenAI(config.fallbackModel, request.messages, config.timeoutMs);
+            logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: fallbackResult.latencyMs, success: true, fallbackUsed: true, originalError: `${failureReason}: ${err.message}` });
+            log.info(`[${request.task}] Fallback OpenAI ${config.fallbackModel} → ${fallbackResult.latencyMs}ms`);
+            return { ...fallbackResult, fallbackUsed: true, wasFallback: true };
+          } catch (fallbackErr: any) {
+            logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: 0, success: false, fallbackUsed: true, error: fallbackErr.message, originalError: `${failureReason}: ${err.message}` });
+            throw new Error(`Both Venice and OpenAI failed. Primary (${failureReason}): ${err.message}. Fallback: ${fallbackErr.message}`);
+          }
         }
+        throw err;
       }
-      throw err;
+    }
+
+    // Venice unavailable (circuit open or health check failed) — use OpenAI fallback
+    if (config.fallbackProvider === "openai" && config.fallbackModel) {
+      log.info(`[${request.task}] Venice unavailable (circuit open or health check failed), using OpenAI fallback → ${config.fallbackModel}`);
+      const result = await callOpenAI(config.fallbackModel, request.messages, config.timeoutMs);
+      logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: result.latencyMs, success: true, fallbackUsed: true, originalError: "venice_unavailable: health check failed" });
+      return { ...result, fallbackUsed: true, wasFallback: true };
     }
   }
 
-  // Ollama requested but not available — use fallback
-  if (provider === "ollama" && !ollamaAvailable && config.fallbackProvider === "openai" && config.fallbackModel) {
-    log.info(`[${request.task}] Ollama unavailable (health check failed), using OpenAI fallback → ${config.fallbackModel}`);
-    const result = await callOpenAI(config.fallbackModel, request.messages, config.timeoutMs);
-    logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: result.latencyMs, success: true, fallbackUsed: true, originalError: "ollama_unavailable: health check failed" });
-    return { ...result, fallbackUsed: true, wasFallback: true };
-  }
-
-  // Direct OpenAI
+  // Direct OpenAI (used for embeds and any openai-primary tasks)
   if (provider === "openai") {
     const result = await callOpenAI(model, request.messages, config.timeoutMs);
     logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model, latencyMs: result.latencyMs, success: true, fallbackUsed: false });
@@ -476,29 +504,29 @@ export async function aiGateway(request: GatewayRequest): Promise<GatewayRespons
 
 export function getGatewayHealth() {
   const recent = requestLog.filter(r => r.timestamp > Date.now() - 300_000); // last 5 min
-  const ollamaRequests = recent.filter(r => r.provider === "ollama");
+  const veniceRequests = recent.filter(r => r.provider === "venice");
   const openaiRequests = recent.filter(r => r.provider === "openai");
   const failures = recent.filter(r => !r.success);
   const fallbacks = recent.filter(r => r.fallbackUsed);
 
   ensureDailyReset();
 
-  const ollamaLatency = providerLatency.ollama;
+  const veniceLatency = providerLatency.venice;
   const openaiLatency = providerLatency.openai;
 
   return {
-    ollamaHealthy,
-    ollamaBase: OLLAMA_BASE,
+    veniceHealthy,
+    veniceBase: VENICE_BASE,
     circuitBreaker: {
       open: isCircuitOpen(),
-      consecutiveFailures: consecutiveOllamaFailures,
+      consecutiveFailures: consecutiveVeniceFailures,
       cooldownUntil: circuitOpenUntil > Date.now() ? new Date(circuitOpenUntil).toISOString() : null,
     },
     lastRequestAt: lastRequestAt ? new Date(lastRequestAt).toISOString() : null,
     stats: {
       last5min: {
         total: recent.length,
-        ollama: ollamaRequests.length,
+        venice: veniceRequests.length,
         openai: openaiRequests.length,
         failures: failures.length,
         fallbacks: fallbacks.length,
@@ -507,7 +535,7 @@ export function getGatewayHealth() {
     },
     todayStats: { ...dailyStats },
     providerLatency: {
-      ollama: ollamaLatency.count > 0 ? Math.round(ollamaLatency.totalMs / ollamaLatency.count) : 0,
+      venice: veniceLatency.count > 0 ? Math.round(veniceLatency.totalMs / veniceLatency.count) : 0,
       openai: openaiLatency.count > 0 ? Math.round(openaiLatency.totalMs / openaiLatency.count) : 0,
     },
     recentRequests: requestLog.slice(-10).reverse(),
@@ -527,21 +555,29 @@ export function getGatewayHealth() {
 export async function getAvailableModels(): Promise<{ provider: AIProvider; models: string[] }[]> {
   const result: { provider: AIProvider; models: string[] }[] = [];
 
-  // Ollama models
-  try {
-    const res = await fetch(`${OLLAMA_BASE}/api/tags`, { signal: AbortSignal.timeout(3_000) });
-    if (res.ok) {
-      const data = await res.json();
-      result.push({ provider: "ollama", models: data.models?.map((m: any) => m.name) || [] });
+  // Venice models
+  const veniceKey = process.env.VENICE_API_KEY;
+  if (veniceKey) {
+    try {
+      const res = await fetch(`${VENICE_BASE}/models`, {
+        headers: { "Authorization": `Bearer ${veniceKey}` },
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        result.push({ provider: "venice", models: data.data?.map((m: any) => m.id) || [process.env.VENICE_MODEL || "llama-3.3-70b"] });
+      } else {
+        result.push({ provider: "venice", models: [process.env.VENICE_MODEL || "llama-3.3-70b"] });
+      }
+    } catch (err) {
+      log.debug("Venice model discovery failed", { error: err instanceof Error ? err.message : String(err) });
+      result.push({ provider: "venice", models: [process.env.VENICE_MODEL || "llama-3.3-70b"] });
     }
-  } catch (err) {
-    log.debug("Ollama model discovery failed", { error: err instanceof Error ? err.message : String(err) });
-    result.push({ provider: "ollama", models: [] });
   }
 
   // OpenAI is always available if key exists
   if (process.env.OPENAI_API_KEY) {
-    result.push({ provider: "openai", models: [process.env.LLM_MODEL || "gpt-4o-mini"] });
+    result.push({ provider: "openai", models: [process.env.LLM_MODEL || "gpt-4o-mini", "text-embedding-3-small"] });
   }
 
   return result;
@@ -550,7 +586,7 @@ export async function getAvailableModels(): Promise<{ provider: AIProvider; mode
 // ─── Quick convenience functions ─────────────────────
 
 export async function aiChat(userMessage: string, systemPrompt?: string): Promise<string> {
-  const messages: OllamaMessage[] = [];
+  const messages: ChatMessage[] = [];
   if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
   messages.push({ role: "user", content: userMessage });
   const result = await aiGateway({ task: "chat", messages });

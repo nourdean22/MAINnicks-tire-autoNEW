@@ -29,7 +29,8 @@ export async function getDb() {
     try {
       _pool = mysql.createPool({
         uri: process.env.DATABASE_URL,
-        connectionLimit: 10,
+        connectionLimit: 5,
+        maxIdle: 2,
         waitForConnections: true,
         queueLimit: 0,
         idleTimeout: 60000,

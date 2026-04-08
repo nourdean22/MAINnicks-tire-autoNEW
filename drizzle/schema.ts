@@ -67,6 +67,10 @@ export const bookings = mysqlTable("bookings", {
   landingPage: varchar("landingPage", { length: 500 }),
   /** Referrer URL */
   referrer: varchar("referrer", { length: 500 }),
+  /** Confirmation tracking — Booking→Confirm pipeline stage */
+  confirmedAt: timestamp("confirmedAt"),
+  confirmationMethod: varchar("confirmationMethod", { length: 20 }),
+  confirmationSentAt: timestamp("confirmationSentAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
@@ -875,6 +879,10 @@ export const customers = mysqlTable("customers", {
   notes: text("notes"),
   /** Whether customer has opted out of marketing SMS (transactional SMS still allowed) */
   smsOptOut: int("smsOptOut").default(0).notNull(),
+  /** Last retention SMS tier sent (45, 90, 180, 365) — prevents double-sending same tier */
+  lastRetentionTier: int("lastRetentionTier"),
+  /** When the last retention SMS was sent */
+  lastRetentionDate: timestamp("lastRetentionDate"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
