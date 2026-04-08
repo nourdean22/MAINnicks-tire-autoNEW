@@ -44,7 +44,7 @@ export default function FinancingCTA({ variant = "banner", className = "" }: Fin
               <CreditCard className="w-5 h-5" />
             </div>
             <div className="flex-1">
-              <h3 className="font-bold text-foreground text-sm mb-1">Cannot Afford the Repair?</h3>
+              <h3 className="font-bold text-foreground text-sm mb-1">Need to Spread Out the Cost?</h3>
               <p className="text-foreground/60 text-xs leading-relaxed mb-3">
                 We offer 4 financing options with no credit needed. Get approved in seconds and pay over time.
               </p>
@@ -84,7 +84,7 @@ export default function FinancingCTA({ variant = "banner", className = "" }: Fin
               <DollarSign className="w-5 h-5" />
             </div>
             <div>
-              <p className="font-bold text-foreground text-sm">Flexible Financing Available</p>
+              <p className="font-bold text-foreground text-sm">Fix It Now, Pay Over Time</p>
               <p className="text-foreground/50 text-xs">
                 4 options · No credit needed · Approved in seconds · Up to $7,500
               </p>
@@ -95,7 +95,7 @@ export default function FinancingCTA({ variant = "banner", className = "" }: Fin
               href="/financing"
               className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-md font-bold text-xs tracking-wide hover:opacity-90 transition-colors whitespace-nowrap"
             >
-              APPLY NOW
+              SEE YOUR OPTIONS
               <ArrowRight className="w-3.5 h-3.5" />
             </a>
             <button

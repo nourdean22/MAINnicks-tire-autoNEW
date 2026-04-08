@@ -16,7 +16,7 @@ export default function SiteFooter() {
       <div className="bg-[#FDB913] py-3.5">
         <div className="container text-center">
           <p className="text-black text-sm sm:text-base font-semibold">
-            Ready to get your car fixed?{" "}
+            Car acting up? We can usually fix it same day.{" "}
             <a href={BUSINESS.phone.href} className="underline hover:no-underline">
               Call {BUSINESS.phone.display}
             </a>{" "}

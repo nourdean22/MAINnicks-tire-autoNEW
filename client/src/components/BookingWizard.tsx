@@ -27,7 +27,7 @@ const SERVICE_CARDS = [
 const URGENCY_OPTIONS = [
   { value: "emergency" as const, label: "Emergency", desc: "Unsafe to drive", dot: "bg-red-500" },
   { value: "this-week" as const, label: "This Week", desc: "Need it soon", dot: "bg-yellow-500" },
-  { value: "whenever" as const, label: "Whenever", desc: "Not urgent", dot: "bg-green-500" },
+  { value: "whenever" as const, label: "No Rush", desc: "Just need it done", dot: "bg-green-500" },
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -306,10 +306,10 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
       className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-8 lg:p-10"
     >
       <h3 className="font-bold text-[22px] text-foreground tracking-[-0.02em] mb-1">
-        Book an Appointment
+        Schedule Your Drop-Off
       </h3>
       <p className="text-foreground/40 text-[13px] mb-5">
-        Walk-ins welcome! Same-day appointments available.
+        Walk-ins and drop-offs welcome. Most jobs done same day.
       </p>
 
       <ProgressBar />
@@ -483,7 +483,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                   onChange={(e) => update("message", e.target.value)}
                   rows={3}
                   className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all resize-none"
-                  placeholder="Describe what you're experiencing..."
+                  placeholder="Noise when braking, engine light on, pulling to one side..."
                 />
               </div>
 
@@ -677,7 +677,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                 />
                 <div>
                   <span className="text-[13px] text-foreground/70 group-hover:text-foreground/90 transition-colors">
-                    Text me updates about my appointment
+                    Text me when my car is ready
                   </span>
                   <p className="text-[10px] text-foreground/25 mt-1 leading-relaxed">
                     By checking this box, you agree to receive text messages from Nick's Tire & Auto.
@@ -702,12 +702,12 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                   {mutation.isPending ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Submitting...
+                      Reserving your spot...
                     </>
                   ) : (
                     <>
                       <CheckCircle className="w-5 h-5" />
-                      Confirm My Appointment
+                      Lock In My Spot
                     </>
                   )}
                 </button>

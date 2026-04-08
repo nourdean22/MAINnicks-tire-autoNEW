@@ -70,8 +70,8 @@ export const CAMPAIGNS: DripCampaign[] = [
     isActive: true,
     steps: [
       { stepNumber: 1, delayDays: 0, channel: "sms", messageTemplate: "Hi {{firstName}}, it's been a while! Your {{vehicle}} may need some attention. $10 off your next visit — just mention this text. (216) 862-0005" },
-      { stepNumber: 2, delayDays: 14, channel: "sms", messageTemplate: "{{firstName}}, we've reserved a slot for your {{vehicle}} this week. No appointment needed — walk in Mon-Sat 8-6 or Sun 9-4. — Nick's Tire & Auto" },
-      { stepNumber: 3, delayDays: 30, channel: "sms", messageTemplate: "Last chance, {{firstName}}! Free vehicle inspection ($49 value) when you visit this month. We want to make sure your {{vehicle}} is safe. (216) 862-0005", condition: "only if no visit since enrollment" },
+      { stepNumber: 2, delayDays: 14, channel: "sms", messageTemplate: "{{firstName}}, your {{vehicle}} is overdue for a checkup. Walk in Mon-Sat 8-6 or Sun 9-4 -- no appointment needed. (216) 862-0005" },
+      { stepNumber: 3, delayDays: 30, channel: "sms", messageTemplate: "{{firstName}}, it's been a while. Bring your {{vehicle}} in for a free safety check this month -- on us. We just want to make sure you're safe. (216) 862-0005", condition: "only if no visit since enrollment" },
     ],
   },
   {

@@ -105,7 +105,7 @@ function Hero() {
               href="#booking"
               className="inline-flex items-center justify-center gap-2 border-2 border-[#FDB913] text-[#FDB913] px-8 py-3.5 rounded-lg font-semibold text-lg hover:bg-[#FDB913]/10 transition-colors btn-premium"
             >
-              Book Appointment
+              Drop Off Your Car
             </a>
           </motion.div>
 
@@ -225,7 +225,7 @@ function Services() {
               <p className="mt-3 text-lg text-foreground/60 max-w-md font-light">{s.desc}</p>
               <div className="mt-6 flex gap-3">
                 <Link href={s.slug} className="inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/90 transition-colors">
-                  Learn More
+                  See Pricing
                 </Link>
                 <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`service-${s.slug}`)} className="inline-flex items-center gap-2 border border-foreground/30 text-foreground px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/5 transition-colors">
                   Call Now
@@ -250,7 +250,7 @@ function Services() {
                   <p className="mt-1 text-[#FDB913] font-semibold text-sm">{s.price}</p>
                   <p className="mt-3 text-foreground/50 text-sm leading-relaxed">{s.desc}</p>
                   <span className="inline-flex items-center gap-1 mt-5 text-sm text-foreground/40 group-hover:text-primary transition-colors">
-                    Learn more <ArrowRight className="w-3.5 h-3.5" />
+                    See pricing <ArrowRight className="w-3.5 h-3.5" />
                   </span>
                 </Link>
               </FadeIn>
@@ -370,7 +370,7 @@ function Reviews() {
         <FadeIn delay={0.4}>
           <div className="mt-12 text-center">
             <Link href="/reviews" className="inline-flex items-center gap-2 text-sm font-medium text-foreground/50 hover:text-foreground transition-colors">
-              See all reviews <ArrowRight className="w-3.5 h-3.5" />
+              Read all 1,700+ reviews <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
         </FadeIn>
@@ -388,9 +388,9 @@ function Contact() {
           <FadeIn>
             <div>
               <h2 className="font-heading text-4xl lg:text-5xl font-bold text-foreground tracking-tight uppercase">
-                Come see us.
+                Pull up anytime.
               </h2>
-              <p className="mt-4 text-foreground/40 text-lg">Walk-ins welcome. No appointment needed for most services.</p>
+              <p className="mt-4 text-foreground/40 text-lg">No appointment needed. Drop off your car and go — we'll call when it's done.</p>
 
               <div className="mt-10 space-y-8">
                 <div>
