@@ -49,7 +49,7 @@ function AlignmentHero() {
 
         <FadeIn delay={0.2}>
           <p className="mt-6 text-lg sm:text-xl text-foreground/80 max-w-2xl font-light leading-relaxed">
-            Searching for wheel alignment near me in Cleveland? Nick's Tire & Auto provides professional wheel alignment starting at $89. Proper alignment extends tire life, improves fuel economy, and ensures safer handling on Cleveland's pothole-heavy roads. Walk-ins welcome 7 days a week.
+            Searching for wheel alignment near me in Cleveland? Nick's Tire & Auto provides professional wheel alignment at competitive prices. Proper alignment extends tire life, improves fuel economy, and ensures safer handling on Cleveland's pothole-heavy roads. Walk-ins welcome 7 days a week.
           </p>
         </FadeIn>
 
@@ -80,7 +80,7 @@ function AlignmentHero() {
             </div>
             <div className="flex items-center gap-2 stagger-in bg-primary/10 border border-primary/20 rounded-md px-4 py-2">
               <CheckCircle className="w-4 h-4 text-primary shrink-0" />
-              <span className="text-foreground/80 text-[12px]">Alignment typically $80–$120 per vehicle</span>
+              <span className="text-foreground/80 text-[12px]">Affordable alignment — free estimate before work</span>
             </div>
           </div>
           <div className="flex items-center gap-2 stagger-in bg-emerald-500/5 border border-emerald-500/20 rounded-md px-4 py-2">
@@ -204,7 +204,7 @@ function FAQSection() {
   const faqs = [
     {
       question: "How much does a wheel alignment cost?",
-      answer: "A standard two-wheel alignment typically costs $80–$100, while a four-wheel alignment runs $100–$120 depending on your vehicle. We provide a free alignment inspection so you know exactly what your vehicle needs.",
+      answer: "Alignment pricing depends on your vehicle and whether you need a two-wheel or four-wheel alignment. We provide a free alignment inspection so you know exactly what your vehicle needs before any work begins.",
     },
     {
       question: "How long does an alignment take?",
@@ -224,11 +224,11 @@ function FAQSection() {
     },
     {
       question: "Where can I get wheel alignment near me in Cleveland?",
-      answer: "Nick's Tire & Auto at 21300 Euclid Ave, Cleveland offers professional wheel alignment starting at $89. We use computerized alignment equipment and adjust all wheels to manufacturer specifications. Walk-ins welcome 7 days a week, same-day service on most alignments. Call (216) 862-0005.",
+      answer: "Nick's Tire & Auto at 21300 Euclid Ave, Cleveland offers professional wheel alignment at competitive prices. We use computerized alignment equipment and adjust all wheels to manufacturer specifications. Walk-ins welcome 7 days a week, same-day service on most alignments. Call (216) 862-0005.",
     },
     {
       question: "How much does wheel alignment cost in Cleveland?",
-      answer: "A two-wheel alignment typically costs $80-$100, while a four-wheel alignment runs $100-$120 at Nick's Tire & Auto in Cleveland. We also offer free alignment checks so you know if your vehicle actually needs adjustment before paying anything.",
+      answer: "Alignment pricing depends on your vehicle type and whether you need two-wheel or four-wheel service. We offer free alignment checks at Nick's Tire & Auto in Cleveland so you know if your vehicle actually needs adjustment before paying anything.",
     },
   ];
 
@@ -328,8 +328,8 @@ export default function AlignmentPage() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title="Wheel Alignment Cleveland OH | Near Me | $89 | Nick's Tire"
-        description="Wheel alignment in Cleveland starting at $89. Fix pulling, uneven tire wear, crooked steering. Same-day service. Walk-ins 7 days. Call (216) 862-0005"
+        title="Wheel Alignment Cleveland OH | Same Day | Walk-Ins | Nick's Tire"
+        description="Wheel alignment in Cleveland — fix pulling, uneven tire wear, crooked steering. Same-day service. Walk-ins 7 days. Free estimate. Call (216) 862-0005"
         canonicalPath="/alignment"
       />
       <LocalBusinessSchema additionalSchema={{ "hasOfferCatalog": { "@type": "OfferCatalog", "name": "Wheel Alignment", "itemListElement": [{ "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Wheel Alignment", "serviceType": "Wheel Alignment" } }] } }} />

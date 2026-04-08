@@ -118,7 +118,7 @@ function PackageBanner({ packageData }: { packageData: any }) {
               { icon: <Wrench className="w-4 h-4" />, label: "Professional Mounting", sub: "Expert installation" },
               { icon: <Gauge className="w-4 h-4" />, label: "Computer Balancing", sub: "Vibration-free ride" },
               { icon: <ShieldCheck className="w-4 h-4" />, label: "Free Flat Repair", sub: "First 12 months" },
-              { icon: <BadgeCheck className="w-4 h-4" />, label: "20-Point Inspection", sub: "$49 value — free" },
+              { icon: <BadgeCheck className="w-4 h-4" />, label: "20-Point Inspection", sub: "Included free" },
             ].map((item) => (
               <div key={item.label} className="flex items-start gap-2.5 bg-background/50 rounded-lg p-3">
                 <div className="text-primary mt-0.5">{item.icon}</div>

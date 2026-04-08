@@ -44,7 +44,7 @@ const VARIANTS: Record<string, LandingVariant> = {
     headline: "BRAKE REPAIR — SAME DAY SERVICE",
     subline: "Safe, reliable braking for Cleveland drivers",
     offer: "FREE Brake Inspection",
-    price: "from $149/axle",
+    price: "Competitive Pricing",
     offerBadgeColor: "bg-red-500",
     trustBullets: [
       "Free brake inspection with every visit",
@@ -75,7 +75,7 @@ const VARIANTS: Record<string, LandingVariant> = {
     headline: "NEW TIRES — INSTALLED TODAY",
     subline: "Quality tires for Cleveland roads and weather",
     offer: "FREE Tire Price Match",
-    price: "from $89/each installed",
+    price: "Great Prices on Tires",
     offerBadgeColor: "bg-blue-500",
     trustBullets: [
       "Free tire price match on competitor quotes",
@@ -105,14 +105,14 @@ const VARIANTS: Record<string, LandingVariant> = {
   diagnostics: {
     headline: "CHECK ENGINE LIGHT ON?",
     subline: "Fast, accurate diagnostics to fix the real problem",
-    offer: "Full Diagnostic Scan — $49",
-    price: "from $49",
+    offer: "Full Diagnostic Scan",
+    price: "Free with Repair",
     offerBadgeColor: "bg-yellow-500",
     trustBullets: [
       "Computer diagnostic scan identifies the exact code",
       "Expert explanation of what it means",
       "Honest recommendation for repair",
-      "$49 credit toward service if you book with us",
+      "Diagnostic fee credited toward service if you book with us",
     ],
     reviews: [
       {
