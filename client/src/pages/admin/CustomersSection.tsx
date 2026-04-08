@@ -4,7 +4,7 @@
  * Now with: VIP badges, churn risk indicators, lifetime value sorting,
  * call buttons, total spent, days since last visit.
  */
-import { useState, lazy, Suspense } from "react";
+import React, { useState, lazy, Suspense } from "react";
 import { trpc } from "@/lib/trpc";
 import { StatCard } from "./shared";
 import {
@@ -12,7 +12,8 @@ import {
   MapPin, Calendar, UserCheck, AlertTriangle, Building2,
   ArrowUpDown, Filter, Eye, X, Download, Send, CheckCircle2,
   MessageSquare, StickyNote, RefreshCw, Loader2, Crown,
-  ShieldAlert, Clock
+  ShieldAlert, Clock, ChevronDown, ChevronUp, DollarSign,
+  Car, ExternalLink, Hash
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -464,6 +465,266 @@ function InlineSms({ customerId, firstName }: { customerId: number; firstName: s
   );
 }
 
+/** Customer 360 expandable detail panel — lazy-loaded service history */
+function Customer360Panel({ customer, onSmsClick }: {
+  customer: any;
+  onSmsClick: (id: number) => void;
+}) {
+  const { data: historyData, isLoading: historyLoading } = trpc.customers.history.useQuery(
+    { phone: customer.phone },
+    { enabled: !!customer.phone }
+  );
+
+  const daysAgo = customer.daysSinceLastVisit ?? (customer.lastVisitDate
+    ? Math.floor((Date.now() - new Date(customer.lastVisitDate).getTime()) / 86400000)
+    : null);
+  const avgTicket = customer.totalVisits > 0 ? Math.round(customer.totalSpent / customer.totalVisits / 100) : 0;
+  const memberSince = customer.firstVisitDate
+    ? new Date(customer.firstVisitDate).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+    : customer.createdAt
+      ? new Date(customer.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+      : "Unknown";
+
+  // Risk assessment
+  const getRiskAssessment = () => {
+    if (customer.totalVisits >= 3 && customer.totalSpent > 200000) {
+      return { label: "VIP CUSTOMER", color: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20" };
+    }
+    if (daysAgo && daysAgo > 60) {
+      return { label: `AT RISK -- ${daysAgo} days since last visit`, color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20" };
+    }
+    if (customer.totalVisits === 1) {
+      return { label: "NEW -- first visit", color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20" };
+    }
+    if (customer.totalVisits >= 2) {
+      return { label: "LOYAL CUSTOMER", color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" };
+    }
+    return null;
+  };
+  const risk = getRiskAssessment();
+
+  // Segment badge for header
+  const getSegmentLabel = () => {
+    if (customer.totalVisits >= 3 && customer.totalSpent > 200000) return { label: "VIP", color: "text-amber-400", bg: "bg-amber-500/10" };
+    if (customer.totalVisits >= 3) return { label: "LOYAL", color: "text-emerald-400", bg: "bg-emerald-500/10" };
+    if (daysAgo && daysAgo > 60) return { label: "AT-RISK", color: "text-red-400", bg: "bg-red-500/10" };
+    if (customer.totalVisits === 1) return { label: "NEW", color: "text-blue-400", bg: "bg-blue-500/10" };
+    if (daysAgo && daysAgo > 365) return { label: "LAPSED", color: "text-amber-400", bg: "bg-amber-500/10" };
+    return { label: customer.segment?.toUpperCase() || "UNKNOWN", color: "text-foreground/50", bg: "bg-foreground/5" };
+  };
+  const seg = getSegmentLabel();
+
+  return (
+    <tr>
+      <td colSpan={8} className="p-0">
+        <div className="bg-background/50 border-t border-b border-primary/10 px-4 py-4 space-y-4">
+          {/* Header */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold text-foreground tracking-tight">
+                    {customer.firstName} {customer.lastName || ""}
+                  </span>
+                  <span className={`inline-flex items-center px-2 py-0.5 text-[9px] tracking-wider font-bold ${seg.color} ${seg.bg}`}>
+                    {seg.label}
+                  </span>
+                </div>
+                <span className="text-[10px] text-foreground/40 tracking-wider">
+                  Member since {memberSince}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {customer.phone && (
+                <>
+                  <a
+                    href={`tel:${customer.phone}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-wider bg-card border border-border/30 text-foreground/60 hover:text-primary hover:border-primary/30 transition-colors"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <Phone className="w-3 h-3" /> CALL
+                  </a>
+                  <a
+                    href={`sms:${customer.phone}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-wider bg-card border border-border/30 text-foreground/60 hover:text-blue-400 hover:border-blue-400/30 transition-colors"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <MessageSquare className="w-3 h-3" /> SMS
+                  </a>
+                </>
+              )}
+              {customer.email && (
+                <a
+                  href={`mailto:${customer.email}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-wider bg-card border border-border/30 text-foreground/60 hover:text-primary hover:border-primary/30 transition-colors"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <Mail className="w-3 h-3" /> EMAIL
+                </a>
+              )}
+              {customer.alsCustomerId && (
+                <a
+                  href={`https://shopdriver.algauto.com/customers/${customer.alsCustomerId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-wider bg-card border border-border/30 text-foreground/60 hover:text-purple-400 hover:border-purple-400/30 transition-colors"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <ExternalLink className="w-3 h-3" /> ALG
+                </a>
+              )}
+            </div>
+          </div>
+
+          {/* Contact Info */}
+          <div className="flex items-center gap-4 text-[11px] text-foreground/50 flex-wrap">
+            {customer.phone && (
+              <a href={`tel:${customer.phone}`} className="flex items-center gap-1 hover:text-primary" onClick={e => e.stopPropagation()}>
+                <Phone className="w-3 h-3" /> {customer.phone}
+              </a>
+            )}
+            {customer.phone2 && (
+              <a href={`tel:${customer.phone2}`} className="flex items-center gap-1 hover:text-primary" onClick={e => e.stopPropagation()}>
+                <Phone className="w-3 h-3" /> {customer.phone2}
+              </a>
+            )}
+            {customer.email && (
+              <a href={`mailto:${customer.email}`} className="flex items-center gap-1 hover:text-primary" onClick={e => e.stopPropagation()}>
+                <Mail className="w-3 h-3" /> {customer.email}
+              </a>
+            )}
+            {(customer.city || customer.address) && (
+              <span className="flex items-center gap-1">
+                <MapPin className="w-3 h-3" /> {[customer.address, customer.city, customer.state, customer.zip].filter(Boolean).join(", ")}
+              </span>
+            )}
+          </div>
+
+          {/* Stats Row — 4 cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-card border border-border/20 p-3">
+              <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1">TOTAL SPENT</span>
+              <span className={`font-bold text-xl ${customer.totalSpent > 0 ? "text-emerald-400" : "text-foreground/30"}`}>
+                {customer.totalSpent > 0 ? `$${Math.round(customer.totalSpent / 100).toLocaleString()}` : "--"}
+              </span>
+            </div>
+            <div className="bg-card border border-border/20 p-3">
+              <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1">TOTAL VISITS</span>
+              <span className="font-bold text-xl text-foreground">
+                {customer.totalVisits || 0}
+              </span>
+            </div>
+            <div className="bg-card border border-border/20 p-3">
+              <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1">AVG TICKET</span>
+              <span className={`font-bold text-xl ${avgTicket > 0 ? "text-blue-400" : "text-foreground/30"}`}>
+                {avgTicket > 0 ? `$${avgTicket.toLocaleString()}` : "--"}
+              </span>
+            </div>
+            <div className="bg-card border border-border/20 p-3">
+              <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1">DAYS SINCE VISIT</span>
+              <span className={`font-bold text-xl ${
+                daysAgo == null ? "text-foreground/30" :
+                daysAgo > 180 ? "text-red-400" :
+                daysAgo > 90 ? "text-amber-400" : "text-foreground"
+              }`}>
+                {daysAgo != null ? daysAgo : "--"}
+              </span>
+            </div>
+          </div>
+
+          {/* Vehicle + Risk in a 2-col layout */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Vehicle Info */}
+            <div className="bg-card border border-border/20 p-3">
+              <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1.5">
+                <Car className="w-3 h-3 inline mr-1" />VEHICLE
+              </span>
+              {customer.vehicleMake ? (
+                <span className="text-sm text-foreground">
+                  {[customer.vehicleYear, customer.vehicleMake, customer.vehicleModel].filter(Boolean).join(" ")}
+                </span>
+              ) : (
+                <span className="text-xs text-foreground/30 italic">No vehicle on file</span>
+              )}
+            </div>
+
+            {/* Risk Assessment */}
+            {risk && (
+              <div className={`${risk.bg} border ${risk.border} p-3`}>
+                <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1.5">RISK ASSESSMENT</span>
+                <span className={`text-sm font-bold ${risk.color}`}>
+                  {risk.label}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Service History */}
+          <div className="bg-card border border-border/20 p-3">
+            <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-2">
+              <Hash className="w-3 h-3 inline mr-1" />SERVICE HISTORY (LAST 10)
+            </span>
+            {historyLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              </div>
+            ) : !historyData?.invoices?.length ? (
+              <p className="text-xs text-foreground/30 italic py-2">No invoices found</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border/20">
+                      <th className="text-left py-1.5 pr-3 text-[9px] text-foreground/40 tracking-wider">DATE</th>
+                      <th className="text-left py-1.5 pr-3 text-[9px] text-foreground/40 tracking-wider">INV #</th>
+                      <th className="text-left py-1.5 pr-3 text-[9px] text-foreground/40 tracking-wider">SERVICE</th>
+                      <th className="text-left py-1.5 pr-3 text-[9px] text-foreground/40 tracking-wider">VEHICLE</th>
+                      <th className="text-right py-1.5 pr-3 text-[9px] text-foreground/40 tracking-wider">AMOUNT</th>
+                      <th className="text-left py-1.5 text-[9px] text-foreground/40 tracking-wider">STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyData.invoices.map((inv: any) => (
+                      <tr key={inv.id} className="border-b border-border/10">
+                        <td className="py-1.5 pr-3 text-foreground/50 whitespace-nowrap">
+                          {new Date(inv.invoiceDate).toLocaleDateString()}
+                        </td>
+                        <td className="py-1.5 pr-3 text-foreground/60 font-mono">
+                          {inv.invoiceNumber || `#${inv.id}`}
+                        </td>
+                        <td className="py-1.5 pr-3 text-foreground/70 max-w-[200px] truncate">
+                          {inv.serviceDescription || "--"}
+                        </td>
+                        <td className="py-1.5 pr-3 text-foreground/50 max-w-[120px] truncate">
+                          {inv.vehicleInfo || "--"}
+                        </td>
+                        <td className="py-1.5 pr-3 text-right font-mono text-emerald-400 whitespace-nowrap">
+                          ${Math.round(inv.totalAmount / 100).toLocaleString()}
+                        </td>
+                        <td className="py-1.5">
+                          <span className={`text-[9px] tracking-wider font-bold px-1.5 py-0.5 ${
+                            inv.paymentStatus === "paid" ? "text-emerald-400 bg-emerald-500/10" :
+                            inv.paymentStatus === "pending" ? "text-amber-400 bg-amber-500/10" :
+                            inv.paymentStatus === "partial" ? "text-blue-400 bg-blue-500/10" :
+                            "text-red-400 bg-red-500/10"
+                          }`}>
+                            {(inv.paymentStatus || "unknown").toUpperCase()}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 type SortByExt = "name" | "visits" | "lastVisit" | "totalSpent" | "firstVisit" | "created";
 
 export default function CustomersSection() {
@@ -515,6 +776,7 @@ function CustomersList() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const pageSize = 25;
   const [exporting, setExporting] = useState(false);
   const [minVisits, setMinVisits] = useState<number | undefined>();
@@ -793,16 +1055,25 @@ function CustomersList() {
             ) : (
               listData?.customers.map((c: any) => {
                 const daysAgo = c.daysSinceLastVisit ?? (c.lastVisitDate ? Math.floor((Date.now() - new Date(c.lastVisitDate).getTime()) / 86400000) : null);
+                const isExpanded = expandedId === c.id;
                 return (
-                  <tr key={c.id} className="border-b border-border/10 hover:bg-foreground/[0.02] transition-colors">
+                  <React.Fragment key={c.id}>
+                  <tr
+                    className={`border-b border-border/10 hover:bg-foreground/[0.02] transition-colors cursor-pointer ${isExpanded ? "bg-foreground/[0.03]" : ""}`}
+                    onClick={() => setExpandedId(isExpanded ? null : c.id)}
+                  >
                     {/* Name + badges */}
                     <td className="p-3">
                       <div className="flex items-center gap-1.5 flex-wrap">
+                        {isExpanded
+                          ? <ChevronUp className="w-3.5 h-3.5 text-primary shrink-0" />
+                          : <ChevronDown className="w-3.5 h-3.5 text-foreground/30 shrink-0" />
+                        }
                         <span className="text-foreground font-medium">{c.firstName} {c.lastName || ""}</span>
                         {c.customerType === "commercial" && <Building2 className="w-3 h-3 text-purple-400" />}
                         {c.notes && <span title="Has notes"><StickyNote className="w-3 h-3 text-amber-400/60" /></span>}
                       </div>
-                      <div className="flex items-center gap-1.5 mt-0.5">
+                      <div className="flex items-center gap-1.5 mt-0.5 ml-5">
                         <SegmentBadge segment={c.segment} />
                         <StatusBadge isVip={c.isVip} churnRisk={c.churnRisk} daysSinceLastVisit={daysAgo} totalVisits={c.totalVisits} />
                       </div>
@@ -814,6 +1085,7 @@ function CustomersList() {
                         href={`tel:${c.phone}`}
                         className="inline-flex items-center gap-1.5 text-foreground/60 hover:text-primary transition-colors text-[12px] group"
                         title="Tap to call"
+                        onClick={e => e.stopPropagation()}
                       >
                         <Phone className="w-3 h-3 text-primary group-hover:text-primary" />
                         {c.phone}
@@ -834,14 +1106,14 @@ function CustomersList() {
                     {/* Total Spent */}
                     <td className="p-3">
                       <span className={`font-mono text-[12px] ${c.totalSpent > 0 ? "text-emerald-400" : "text-foreground/30"}`}>
-                        {c.totalSpent > 0 ? `$${Math.round(c.totalSpent / 100).toLocaleString()}` : "—"}
+                        {c.totalSpent > 0 ? `$${Math.round(c.totalSpent / 100).toLocaleString()}` : "\u2014"}
                       </span>
                     </td>
 
                     {/* Visits */}
                     <td className="p-3">
                       <span className={c.totalVisits > 0 ? "text-foreground" : "text-foreground/30"}>
-                        {c.totalVisits || "—"}
+                        {c.totalVisits || "\u2014"}
                       </span>
                     </td>
 
@@ -852,7 +1124,7 @@ function CustomersList() {
                           {[c.vehicleYear, c.vehicleMake, c.vehicleModel].filter(Boolean).join(" ")}
                         </span>
                       ) : (
-                        <span className="text-foreground/20 text-[11px]">—</span>
+                        <span className="text-foreground/20 text-[11px]">{"\u2014"}</span>
                       )}
                     </td>
 
@@ -868,20 +1140,24 @@ function CustomersList() {
 
                     {/* Actions: SMS + View */}
                     <td className="p-3">
-                      <div className="flex items-center gap-1.5 relative">
+                      <div className="flex items-center gap-1.5 relative" onClick={e => e.stopPropagation()}>
                         {c.phone && (
                           <InlineSms customerId={c.id} firstName={c.firstName || ""} />
                         )}
                         <button
                           onClick={() => setSelectedId(c.id)}
                           className="text-foreground/30 hover:text-primary transition-colors"
-                          title="View details"
+                          title="View full details"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
                       </div>
                     </td>
                   </tr>
+                  {isExpanded && (
+                    <Customer360Panel customer={c} onSmsClick={(id) => setSelectedId(id)} />
+                  )}
+                  </React.Fragment>
                 );
               })
             )}

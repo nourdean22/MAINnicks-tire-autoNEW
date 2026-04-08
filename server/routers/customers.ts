@@ -789,4 +789,32 @@ export const customersRouter = router({
       return { today: null, month: null, trend: "flat", weeklyTrend: [] };
     }
   }),
+
+  /** Customer 360 — service history from invoices by phone (lazy loaded on expand) */
+  history: adminProcedure
+    .input(z.object({ phone: z.string().max(20) }))
+    .query(async ({ input }) => {
+      const d = await db();
+      if (!d) return { invoices: [] };
+
+      const results = await d
+        .select({
+          id: invoices.id,
+          invoiceNumber: invoices.invoiceNumber,
+          serviceDescription: invoices.serviceDescription,
+          vehicleInfo: invoices.vehicleInfo,
+          totalAmount: invoices.totalAmount,
+          partsCost: invoices.partsCost,
+          laborCost: invoices.laborCost,
+          paymentStatus: invoices.paymentStatus,
+          paymentMethod: invoices.paymentMethod,
+          invoiceDate: invoices.invoiceDate,
+        })
+        .from(invoices)
+        .where(eq(invoices.customerPhone, input.phone))
+        .orderBy(desc(invoices.invoiceDate))
+        .limit(10);
+
+      return { invoices: results };
+    }),
 });
