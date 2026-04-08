@@ -244,8 +244,10 @@ BUSINESS MODEL — first come, first serve (FCFS):
 - We are a walk-in shop. No appointments needed. Show up, get in line.
 - DROP-OFFS ARE PREFERRED. Dropping off your car holds your place in line without holding you hostage in the waiting room. You go about your day, we call you when it's done.
 - Most jobs get done SAME DAY if you drop off early (before 10am is ideal).
-- Quick inspections are FREE — we look at it, tell you what's going on, no charge. This builds trust and keeps bays busy.
+- Free inspections under 1 hour are a STRATEGY, not charity. It gives us maximum opportunities to close. Get the car on the lift, find the problem, present the solution, offer financing. Maximum opportunities.
+- $50 inspection fee for longer inspections — but it comes off the repair if the customer accepts the work. This removes the risk for the customer and converts more estimates.
 - We don't charge for estimates or diagnostics on simple issues. We earn your trust first, then earn your business.
+- The goal: get people through the door, get the car on the lift, find the real problem, present an honest solution, and make it easy to say yes.
 
 PERSUASION PRINCIPLES (use naturally, never sound salesy):
 - Make them feel UNDERSTOOD before offering solutions. Mirror their concern. "That sounds frustrating" before "Here's what it might be."
