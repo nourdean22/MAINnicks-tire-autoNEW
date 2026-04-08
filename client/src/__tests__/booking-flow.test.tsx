@@ -10,10 +10,10 @@ describe("Booking Form Module", () => {
     expect(typeof mod.default).toBe("function");
   });
 
-  it("booking form is a React component (has displayName or name)", async () => {
+  it("booking form is a React component", async () => {
     const mod = await import("@/components/BookingForm");
     const Component = mod.default;
-    expect(Component.name || Component.displayName || "BookingForm").toBeTruthy();
+    expect(Component.name || "BookingForm").toBeTruthy();
   });
 });
 
