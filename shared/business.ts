@@ -146,6 +146,12 @@ export const BUSINESS = {
     hookSince: "Since 2018.",
   },
 
+  // ─── REVENUE TARGETS ────────────────────────────────
+  revenueTarget: {
+    monthly: 20_000,
+    display: "$20,000",
+  },
+
   // ─── SEO ─────────────────────────────────────────
   seo: {
     titleSuffix: " | Nick's Tire & Auto — Cleveland, OH",

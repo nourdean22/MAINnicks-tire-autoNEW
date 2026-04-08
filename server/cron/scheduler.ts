@@ -17,6 +17,7 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { BUSINESS } from "@shared/business";
 
 const log = createLogger("scheduler");
 
@@ -276,7 +277,7 @@ export function startTieredScheduler(): void {
             const forecast = await forecastRevenue();
             const todayRevenue = forecast.today?.soFar || 0;
             const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-            const dailyTarget = 20000 / daysInMonth;
+            const dailyTarget = BUSINESS.revenueTarget.monthly / daysInMonth;
 
             // Alert if a single big job came in (>$1000)
             if (todayRevenue > 1000 && todayRevenue > dailyTarget * 2) {
@@ -440,15 +441,7 @@ export function startTieredScheduler(): void {
         },
       },
       {
-        name: "intelligence-autopilot", // Autonomous intelligence — alerts, scoring, pacing
-        businessHoursOnly: true,
-        handler: async () => {
-          const { runIntelligenceAutopilot } = await import("./jobs/intelligenceAutopilot");
-          return runIntelligenceAutopilot();
-        },
-      },
-      {
-        name: "intelligence-engines-live", // Cross-sell, LTV, lead scoring, attribution — every 2h not daily
+        name: "intelligence-engines-live", // Cross-sell, LTV, lead scoring, attribution — runs BEFORE autopilot so it has fresh data
         businessHoursOnly: true,
         handler: async () => {
           const { scoreLeads, predictCustomerLTV, trackCampaignAttribution, analyzeDeclinedWork } = await import("../services/intelligenceEngines");
@@ -459,6 +452,14 @@ export function startTieredScheduler(): void {
             analyzeDeclinedWork().catch(() => ({ totalDeclinedValue: 0 })),
           ]);
           return { recordsProcessed: (leads as any[]).length, details: `Scored ${(leads as any[]).length} leads, LTV+attribution+declined updated` };
+        },
+      },
+      {
+        name: "intelligence-autopilot", // Autonomous intelligence — alerts, scoring, pacing (runs after engines-live)
+        businessHoursOnly: true,
+        handler: async () => {
+          const { runIntelligenceAutopilot } = await import("./jobs/intelligenceAutopilot");
+          return runIntelligenceAutopilot();
         },
       },
       {
@@ -1058,7 +1059,7 @@ export function startTieredScheduler(): void {
             const parts: string[] = [`📊 DAILY INTELLIGENCE DIGEST`];
             const f = report.forecast as any;
             if (f && !f.error) {
-              parts.push(`Revenue: $${Math.round(f.month?.soFar || 0)} MTD (${f.month?.onPace ? "ON PACE" : "BEHIND"} for $${f.month?.target || 20000})`);
+              parts.push(`Revenue: $${Math.round(f.month?.soFar || 0)} MTD (${f.month?.onPace ? "ON PACE" : "BEHIND"} for $${f.month?.target || BUSINESS.revenueTarget.monthly})`);
             }
             const ls = report.leadScores as any[];
             if (ls?.length > 0) {

@@ -15,10 +15,11 @@
  * without anyone clicking a button.
  */
 import { createLogger } from "../../lib/logger";
+import { BUSINESS } from "@shared/business";
 
 const log = createLogger("cron:intelligence-autopilot");
 
-const MONTHLY_TARGET = 20_000; // $20K monthly revenue target
+const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
 
 export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: number; details?: string }> {
   const alerts: string[] = [];

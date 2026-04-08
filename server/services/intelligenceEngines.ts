@@ -19,6 +19,7 @@
 import { getDb } from "../db";
 import { invoices, customers, customerMetrics, leads, bookings, chatSessions, callEvents, workOrders, reviewRequests } from "../../drizzle/schema";
 import { sql, eq, gte, lte, and, asc } from "drizzle-orm";
+import { BUSINESS } from "@shared/business";
 
 async function db() {
   const d = await getDb();
@@ -35,14 +36,14 @@ export async function forecastRevenue() {
   const etNow = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
   const dayOfWeek = etNow.getDay(); // 0=Sun
 
-  // Pull daily revenue for last 90 days
+  // Pull daily revenue for last 90 days (paid invoices only)
   const dailyRevenue = await (await db()).select({
     day: sql<string>`DATE(${invoices.invoiceDate})`.as("day"),
     dow: sql<number>`DAYOFWEEK(${invoices.invoiceDate})`.as("dow"),
     total: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)`.as("total"),
     count: sql<number>`COUNT(*)`.as("cnt"),
   }).from(invoices)
-    .where(gte(invoices.invoiceDate, sql`DATE_SUB(NOW(), INTERVAL 90 DAY)`))
+    .where(and(gte(invoices.invoiceDate, sql`DATE_SUB(NOW(), INTERVAL 90 DAY)`), eq(invoices.paymentStatus, "paid")))
     .groupBy(sql`DATE(${invoices.invoiceDate})`);
 
   // Day-of-week averages
@@ -55,21 +56,21 @@ export async function forecastRevenue() {
   }
   for (const d in dowAvg) dowAvg[d].avg = Math.round(dowAvg[d].avg / dowAvg[d].count);
 
-  // Today's revenue so far
+  // Today's revenue so far (paid invoices only)
   const todayRev = await (await db()).select({
     total: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)`.as("total"),
     count: sql<number>`COUNT(*)`.as("cnt"),
   }).from(invoices)
-    .where(gte(invoices.invoiceDate, sql`CURDATE()`));
+    .where(and(gte(invoices.invoiceDate, sql`CURDATE()`), eq(invoices.paymentStatus, "paid")));
 
   const todaySoFar = (todayRev[0]?.total || 0) / 100; // cents → dollars
   const todayExpected = (dowAvg[dayOfWeek + 1]?.avg || 0) / 100; // MySQL DAYOFWEEK is 1-indexed
 
-  // This week so far
+  // This week so far (paid invoices only)
   const weekRev = await (await db()).select({
     total: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)`.as("total"),
   }).from(invoices)
-    .where(gte(invoices.invoiceDate, sql`DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)`));
+    .where(and(gte(invoices.invoiceDate, sql`DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)`), eq(invoices.paymentStatus, "paid")));
 
   const weekSoFar = (weekRev[0]?.total || 0) / 100;
 
@@ -79,23 +80,23 @@ export async function forecastRevenue() {
     weekProjection += (dowAvg[d + 1]?.avg || 0) / 100;
   }
 
-  // Monthly revenue + projection
+  // Monthly revenue + projection (paid invoices only)
   const monthRev = await (await db()).select({
     total: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)`.as("total"),
   }).from(invoices)
-    .where(gte(invoices.invoiceDate, sql`DATE_FORMAT(CURDATE(), '%Y-%m-01')`));
+    .where(and(gte(invoices.invoiceDate, sql`DATE_FORMAT(CURDATE(), '%Y-%m-01')`), eq(invoices.paymentStatus, "paid")));
 
   const monthSoFar = (monthRev[0]?.total || 0) / 100;
   const dayOfMonth = etNow.getDate();
   const daysInMonth = new Date(etNow.getFullYear(), etNow.getMonth() + 1, 0).getDate();
   const monthProjection = dayOfMonth > 0 ? Math.round(monthSoFar * (daysInMonth / dayOfMonth)) : 0;
 
-  // Last 4 weeks trend
+  // Last 4 weeks trend (paid invoices only)
   const weeklyTrend = await (await db()).select({
     week: sql<string>`DATE_FORMAT(${invoices.invoiceDate}, '%Y-%u')`.as("week"),
     total: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)`.as("total"),
   }).from(invoices)
-    .where(gte(invoices.invoiceDate, sql`DATE_SUB(NOW(), INTERVAL 28 DAY)`))
+    .where(and(gte(invoices.invoiceDate, sql`DATE_SUB(NOW(), INTERVAL 28 DAY)`), eq(invoices.paymentStatus, "paid")))
     .groupBy(sql`DATE_FORMAT(${invoices.invoiceDate}, '%Y-%u')`)
     .orderBy(sql`week`);
 
@@ -104,7 +105,7 @@ export async function forecastRevenue() {
     ? weeks[weeks.length - 1] > weeks[weeks.length - 2] ? "up" : weeks[weeks.length - 1] < weeks[weeks.length - 2] ? "down" : "flat"
     : "flat";
 
-  const TARGET = 20000; // $20K monthly target
+  const TARGET = BUSINESS.revenueTarget.monthly;
   const onPace = monthProjection >= TARGET;
   const gap = TARGET - monthProjection;
 
