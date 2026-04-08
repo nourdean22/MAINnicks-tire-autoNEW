@@ -243,7 +243,7 @@ async function ensureInitialized(): Promise<void> {
   registerDestination({
     name: "telegram",
     enabled: true,
-    handles: ["emergency_request", "payment_received", "tire_order_placed", "lead_captured", "callback_requested", "booking_completed", "invoice_paid"],
+    handles: ["emergency_request", "payment_received", "tire_order_placed", "lead_captured", "callback_requested", "booking_completed"],
     softFail: true,
     handler: async (event) => {
       const { sendTelegram } = await import("./telegram");
@@ -299,13 +299,7 @@ async function ensureInitialized(): Promise<void> {
           `💡 Send review request before they leave`
         );
       }
-      // Invoice paid = money in
-      if (event.type === "invoice_paid") {
-        await sendTelegram(
-          `💰 INVOICE PAID: $${event.data.totalAmount} from ${event.data.customerName}\n` +
-          `Method: ${event.data.method || "card"}`
-        );
-      }
+      // invoice_paid handled by live-feed destination (notifyClosedJob) — no duplicate here
     },
   });
 

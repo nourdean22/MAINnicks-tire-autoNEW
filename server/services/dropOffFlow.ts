@@ -36,15 +36,18 @@ async function getWorkOrderContext(workOrderId: string) {
 
   let customer: { firstName: string; phone: string } | null = null;
   if (wo.customerId) {
-    const [cust] = await db
-      .select({
-        firstName: customers.firstName,
-        phone: customers.phone,
-      })
-      .from(customers)
-      .where(eq(customers.id, parseInt(wo.customerId, 10)))
-      .limit(1);
-    customer = cust || null;
+    const parsed = parseInt(wo.customerId, 10);
+    if (!isNaN(parsed)) {
+      const [cust] = await db
+        .select({
+          firstName: customers.firstName,
+          phone: customers.phone,
+        })
+        .from(customers)
+        .where(eq(customers.id, parsed))
+        .limit(1);
+      customer = cust || null;
+    }
   }
 
   if (!customer?.phone) {

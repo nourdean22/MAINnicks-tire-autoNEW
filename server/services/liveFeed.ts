@@ -115,7 +115,7 @@ export async function notifyClosedJob(invoice: {
 }): Promise<void> {
   ensureDayReset();
 
-  const amount = Number(invoice.totalAmount) || 0;
+  const amount = (Number(invoice.totalAmount) || 0) / 100;
   daily.revenue += amount;
   daily.jobCount++;
 

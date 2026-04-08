@@ -22,6 +22,17 @@ function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
 
+/** Run promises in batches to avoid DB connection pool exhaustion */
+async function batchedSettled<T>(fns: (() => Promise<T>)[], batchSize = 5): Promise<PromiseSettledResult<T>[]> {
+  const results: PromiseSettledResult<T>[] = [];
+  for (let i = 0; i < fns.length; i += batchSize) {
+    const batch = fns.slice(i, i + batchSize);
+    const batchResults = await Promise.allSettled(batch.map(fn => fn()));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
 // ── Types ────────────────────────────────────────────────
 
 export interface MasterIntelligenceReport {
@@ -77,65 +88,67 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
     forecastPortfolioLTV,
   } = await import("./advancedEngines");
 
-  // ── Fire all 25 engines in parallel ────────────────────
-  const results = await Promise.allSettled([
-    /* 0  */ forecastRevenue(),
-    /* 1  */ predictChurn(),
-    /* 2  */ detectRevenueAnomalies(),
-    /* 3  */ forecastCashFlow(),
-    /* 4  */ analyzeProfitMargins(),
-    /* 5  */ analyzeTicketTrend(),
-    /* 6  */ computeCustomerRiskScores(),
-    /* 7  */ analyzeCustomerValueTrend(),
-    /* 8  */ predictRepeatVisits(),
-    /* 9  */ analyzeNewCustomerVelocity(),
-    /* 10 */ analyzeRevenueConcentration(),
-    /* 11 */ analyzeTechEfficiency(),
-    /* 12 */ analyzeTurnaroundTime(),
-    /* 13 */ analyzeBayUtilization(),
-    /* 14 */ forecastCapacity(),
-    /* 15 */ analyzePartsCostRatio(),
-    /* 16 */ analyzeChannelROI(),
-    /* 17 */ analyzeReviewVelocity(),
-    /* 18 */ analyzeSmsEngagement(),
-    /* 19 */ analyzeLeadResponseTime(),
-    /* 20 */ analyzeContentPerformance(),
-    /* 21 */ analyzeCompetitorGap(),
-    /* 22 */ analyzeChatFunnel(),
-    /* 23 */ analyzeReviewSentiment(),
-    /* 24 */ forecastSeasonalDemand(),
-    /* 25 */ estimateMarketShare(),
-    /* 26 */ analyzeReferralNetwork(),
-    /* 27 */ forecastPortfolioLTV(),
+  // ── Fire engines in batches of 5 to avoid DB connection pool exhaustion ──
+  const results = await batchedSettled<unknown>([
+    /* 0  */ () => forecastRevenue(),
+    /* 1  */ () => predictChurn(),
+    /* 2  */ () => detectRevenueAnomalies(),
+    /* 3  */ () => forecastCashFlow(),
+    /* 4  */ () => analyzeProfitMargins(),
+    /* 5  */ () => analyzeTicketTrend(),
+    /* 6  */ () => computeCustomerRiskScores(),
+    /* 7  */ () => analyzeCustomerValueTrend(),
+    /* 8  */ () => predictRepeatVisits(),
+    /* 9  */ () => analyzeNewCustomerVelocity(),
+    /* 10 */ () => analyzeRevenueConcentration(),
+    /* 11 */ () => analyzeTechEfficiency(),
+    /* 12 */ () => analyzeTurnaroundTime(),
+    /* 13 */ () => analyzeBayUtilization(),
+    /* 14 */ () => forecastCapacity(),
+    /* 15 */ () => analyzePartsCostRatio(),
+    /* 16 */ () => analyzeChannelROI(),
+    /* 17 */ () => analyzeReviewVelocity(),
+    /* 18 */ () => analyzeSmsEngagement(),
+    /* 19 */ () => analyzeLeadResponseTime(),
+    /* 20 */ () => analyzeContentPerformance(),
+    /* 21 */ () => analyzeCompetitorGap(),
+    /* 22 */ () => analyzeChatFunnel(),
+    /* 23 */ () => analyzeReviewSentiment(),
+    /* 24 */ () => forecastSeasonalDemand(),
+    /* 25 */ () => estimateMarketShare(),
+    /* 26 */ () => analyzeReferralNetwork(),
+    /* 27 */ () => forecastPortfolioLTV(),
   ]);
 
-  const pacing        = settled(results[0]);
-  const churnRisk     = settled(results[1]);
-  const anomalies     = settled(results[2]);
-  const cashFlow      = settled(results[3]);
-  const margins       = settled(results[4]);
-  const ticketTrend   = settled(results[5]);
-  const riskScores    = settled(results[6]);
-  const valueTrend    = settled(results[7]);
-  const repeatPred    = settled(results[8]);
-  const custVelocity  = settled(results[9]);
-  const concentration = settled(results[10]);
-  const techEff       = settled(results[11]);
-  const turnaround    = settled(results[12]);
-  const bayUtil       = settled(results[13]);
-  const capacity      = settled(results[14]);
-  const partsCost     = settled(results[15]);
-  const channelROI    = settled(results[16]);
-  const reviewVel     = settled(results[17]);
-  const smsEng        = settled(results[18]);
-  const leadResp      = settled(results[19]);
-  const contentPerf   = settled(results[20]);
-  const compGap       = settled(results[21]);
-  const chatFunnel    = settled(results[22]);
-  const reviewSent    = settled(results[23]);
-  const seasonal      = settled(results[24]);
-  const marketShare   = settled(results[25]);
-  const referralNet   = settled(results[26]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- heterogeneous engine results
+  const r = results as PromiseSettledResult<any>[];
+  const pacing        = settled(r[0]);
+  const churnRisk     = settled(r[1]);
+  const anomalies     = settled(r[2]);
+  const cashFlow      = settled(r[3]);
+  const margins       = settled(r[4]);
+  const ticketTrend   = settled(r[5]);
+  const riskScores    = settled(r[6]);
+  const valueTrend    = settled(r[7]);
+  const repeatPred    = settled(r[8]);
+  const custVelocity  = settled(r[9]);
+  const concentration = settled(r[10]);
+  const techEff       = settled(r[11]);
+  const turnaround    = settled(r[12]);
+  const bayUtil       = settled(r[13]);
+  const capacity      = settled(r[14]);
+  const partsCost     = settled(r[15]);
+  const channelROI    = settled(r[16]);
+  const reviewVel     = settled(r[17]);
+  const smsEng        = settled(r[18]);
+  const leadResp      = settled(r[19]);
+  const contentPerf   = settled(r[20]);
+  const compGap       = settled(r[21]);
+  const chatFunnel    = settled(r[22]);
+  const reviewSent    = settled(r[23]);
+  const seasonal      = settled(r[24]);
+  const marketShare   = settled(r[25]);
+  const referralNet   = settled(r[26]);
   const portfolioLTV  = settled(results[27]);
 
   // ── Compute Business Health Score (0-100) ──────────────
