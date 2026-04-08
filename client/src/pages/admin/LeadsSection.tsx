@@ -103,11 +103,24 @@ function KanbanLeadCard({ lead, onUpdate }: {
           </div>
         )}
 
-        {/* Age + SLA Timer */}
+        {/* Value + Age + Money Aging */}
         <div className="flex items-center justify-between text-[11px]">
-          <span className="text-foreground/40">{new Date(lead.createdAt).toLocaleDateString()}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-foreground/40">{new Date(lead.createdAt).toLocaleDateString()}</span>
+            {lead.estimatedValueCents ? (
+              <span className="text-emerald-400 font-bold">${Math.round(lead.estimatedValueCents / 100)}</span>
+            ) : null}
+          </div>
           <LeadAge dateStr={lead.createdAt} />
         </div>
+        {/* Money aging — time since last follow-up */}
+        {lead.lastFollowUpAt ? (
+          <div className="text-[10px] text-foreground/30 mt-1">
+            Last touch: {Math.round((Date.now() - new Date(lead.lastFollowUpAt).getTime()) / 86400000)}d ago
+          </div>
+        ) : lead.status !== "new" ? (
+          <div className="text-[10px] text-amber-400 mt-1">No follow-up recorded</div>
+        ) : null}
       </div>
 
       {/* Status dropdown */}

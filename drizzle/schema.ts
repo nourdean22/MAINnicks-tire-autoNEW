@@ -67,6 +67,8 @@ export const bookings = mysqlTable("bookings", {
   landingPage: varchar("landingPage", { length: 500 }),
   /** Referrer URL */
   referrer: varchar("referrer", { length: 500 }),
+  /** Google Ads click ID for offline conversion tracking */
+  gclid: varchar("gclid", { length: 255 }),
   /** Confirmation tracking — Booking→Confirm pipeline stage */
   confirmedAt: timestamp("confirmedAt"),
   confirmationMethod: varchar("confirmationMethod", { length: 20 }),
@@ -115,6 +117,12 @@ export const leads = mysqlTable("leads", {
   fleetSize: int("fleetSize"),
   vehicleTypes: text("vehicleTypes"),
   status: mysqlEnum("status", ["new", "contacted", "booked", "completed", "closed", "lost"]).default("new").notNull(),
+  /** Estimated dollar value of the lead (cents) — set when quote given */
+  estimatedValueCents: int("estimatedValueCents"),
+  /** When the last follow-up was done (call, text, or admin action) */
+  lastFollowUpAt: timestamp("lastFollowUpAt"),
+  /** Google Ads click ID for offline conversion tracking */
+  gclid: varchar("gclid", { length: 255 }),
   /** UTM source attribution */
   utmSource: varchar("utmSource", { length: 100 }),
   utmMedium: varchar("utmMedium", { length: 100 }),

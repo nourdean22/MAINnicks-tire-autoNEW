@@ -278,6 +278,7 @@ export const leadRouter = router({
         contactedBy: z.string().max(200).optional(),
         contactNotes: z.string().max(5000).optional(),
         lostReason: z.string().max(500).optional(),
+        estimatedValueCents: z.number().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -288,10 +289,17 @@ export const leadRouter = router({
       if (updates.status !== undefined) setObj.status = updates.status;
       if (updates.contacted !== undefined) {
         setObj.contacted = updates.contacted;
-        if (updates.contacted === 1) setObj.contactedAt = new Date();
+        if (updates.contacted === 1) {
+          setObj.contactedAt = new Date();
+          setObj.lastFollowUpAt = new Date();
+        }
       }
       if (updates.contactedBy !== undefined) setObj.contactedBy = updates.contactedBy;
-      if (updates.contactNotes !== undefined) setObj.contactNotes = updates.contactNotes;
+      if (updates.contactNotes !== undefined) {
+        setObj.contactNotes = updates.contactNotes;
+        setObj.lastFollowUpAt = new Date(); // Any note = a follow-up
+      }
+      if (updates.estimatedValueCents !== undefined) setObj.estimatedValueCents = updates.estimatedValueCents;
       // Store lost reason: prepend to contact notes so it's visible + searchable
       if (lostReason && updates.status === "lost") {
         const existing = updates.contactNotes || "";
