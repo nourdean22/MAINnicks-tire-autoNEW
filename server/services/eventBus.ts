@@ -258,7 +258,43 @@ async function ensureInitialized(): Promise<void> {
     },
   });
 
-  // 3. Telegram (critical alerts + media)
+  // 3. PWA Push Notifications (admin alerts)
+  registerDestination({
+    name: "push-notifications",
+    enabled: true,
+    handles: ["booking_created", "lead_captured", "invoice_paid"],
+    softFail: true,
+    handler: async (event) => {
+      const { pushToAdmins } = await import("./pushNotifications");
+      const name = event.data.name || event.data.customerName || "Customer";
+
+      if (event.type === "booking_created") {
+        await pushToAdmins({
+          title: "New Booking",
+          body: `${name} booked ${event.data.service || "a service"}`,
+          url: "/admin?tab=bookings",
+          tag: "booking",
+        });
+      } else if (event.type === "lead_captured") {
+        await pushToAdmins({
+          title: "New Lead",
+          body: `${name} — ${event.data.problem || event.data.service || "inquiry"}`,
+          url: "/admin?tab=leads",
+          tag: "lead",
+        });
+      } else if (event.type === "invoice_paid") {
+        const amount = event.data.totalAmount ? `$${Math.round(event.data.totalAmount / 100)}` : "";
+        await pushToAdmins({
+          title: `Payment Received ${amount}`,
+          body: `${name} paid their invoice`,
+          url: "/admin?tab=revenue",
+          tag: "payment",
+        });
+      }
+    },
+  });
+
+  // 4. Telegram (critical alerts + media)
   registerDestination({
     name: "telegram",
     enabled: true,

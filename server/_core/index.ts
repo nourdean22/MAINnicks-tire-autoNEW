@@ -261,6 +261,18 @@ async function startServer() {
       // Google Ads offline conversion tracking (gclid)
       `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS gclid varchar(255) DEFAULT NULL`,
       `ALTER TABLE leads ADD COLUMN IF NOT EXISTS gclid varchar(255) DEFAULT NULL`,
+      // PWA push subscriptions table
+      `CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id varchar(36) NOT NULL PRIMARY KEY,
+        customer_id varchar(36) DEFAULT NULL,
+        endpoint text NOT NULL,
+        p256dh varchar(255) NOT NULL,
+        auth_key varchar(255) NOT NULL,
+        is_admin tinyint(1) NOT NULL DEFAULT 0,
+        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_push_customer (customer_id),
+        INDEX idx_push_admin (is_admin)
+      )`,
     ];
     let applied = 0;
     for (const stmt of alters) {
@@ -339,6 +351,42 @@ async function startServer() {
   app.post("/api/admin/circuit-breakers/reset", requireAdminApiKey, (_req, res) => {
     resetAllBreakers();
     res.json({ success: true, breakers: getAllBreakerHealth(), timestamp: new Date().toISOString() });
+  });
+
+  // ─── PWA Push Notification Subscription ──────────────────
+  app.post("/api/push/subscribe", express.json(), async (req, res) => {
+    try {
+      const { endpoint, keys, isAdmin, customerId } = req.body;
+      if (!endpoint || !keys?.p256dh || !keys?.auth) {
+        res.status(400).json({ error: "Missing subscription data" });
+        return;
+      }
+      const { getDb } = await import("../db");
+      const { pushSubscriptions } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const { nanoid } = await import("nanoid");
+      const db = await getDb();
+      if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
+
+      // Upsert — don't duplicate endpoints
+      const existing = await db.select({ id: pushSubscriptions.id }).from(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint)).limit(1);
+      if (existing.length > 0) {
+        await db.update(pushSubscriptions).set({ p256dh: keys.p256dh, auth: keys.auth }).where(eq(pushSubscriptions.id, existing[0].id));
+        res.json({ success: true, action: "updated" });
+      } else {
+        await db.insert(pushSubscriptions).values({ id: nanoid(), endpoint, p256dh: keys.p256dh, auth: keys.auth, isAdmin: !!isAdmin, customerId: customerId || null });
+        res.json({ success: true, action: "created" });
+      }
+    } catch (err) {
+      console.warn("[push:subscribe] failed:", err);
+      res.status(500).json({ error: "Subscription failed" });
+    }
+  });
+
+  app.get("/api/push/vapid-key", (_req, res) => {
+    const key = process.env.VAPID_PUBLIC_KEY;
+    if (!key) { res.status(503).json({ error: "Push not configured" }); return; }
+    res.json({ publicKey: key });
   });
 
   // OAuth callback under /api/oauth/callback
