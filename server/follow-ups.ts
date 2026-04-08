@@ -61,7 +61,7 @@ export async function process24hFollowUps() {
       if (await isEnabled("sms_review_requests")) {
         const smsResult = await sendSms(booking.phone, thankYouSms(booking.name, booking.service)).catch(() => ({ success: false }));
         if (smsResult.success && notification.id) {
-          await markNotificationSent(notification.id).catch(() => {});
+          await markNotificationSent(notification.id).catch((e) => { console.warn("[follow-ups] fire-and-forget failed:", e); });
         }
       }
     }
@@ -112,7 +112,7 @@ export async function process7dReviewRequests() {
       if (await isEnabled("sms_review_requests")) {
         const smsResult = await sendSms(booking.phone, reviewRequestSms(booking.name)).catch(() => ({ success: false }));
         if (smsResult.success && notification.id) {
-          await markNotificationSent(notification.id).catch(() => {});
+          await markNotificationSent(notification.id).catch((e) => { console.warn("[follow-ups] fire-and-forget failed:", e); });
         }
       }
     }
@@ -137,7 +137,7 @@ export async function runFollowUps() {
       await notifyOwner({
         title: `Follow-Up Report: ${total} messages queued`,
         content: `24h Thank-You: ${thankYou.processed} queued\n7-Day Review Request: ${reviews.processed} queued\n\nView pending messages in the admin dashboard under Customer Notifications.`,
-      }).catch(() => {});
+      }).catch((e) => { console.warn("[follow-ups] fire-and-forget failed:", e); });
     }
 
     return { thankYou, reviews, total };

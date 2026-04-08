@@ -241,7 +241,8 @@ async function checkCloudHealth(): Promise<boolean> {
     });
     cloudHealthy = res.ok || res.status === 404; // 404 is ok, endpoint might not exist
     return cloudHealthy;
-  } catch {
+  } catch (e) {
+    console.warn("[nour-os-bridge] operation failed:", e);
     cloudHealthy = false;
     return false;
   }
@@ -686,7 +687,8 @@ export async function dispatchVendorHealthSnapshot(results: Array<{
         const { alertVendorDown } = await import("./services/telegram");
         const firstError = result.checks.find(c => !c.passed)?.error;
         alertVendorDown(result.vendor, firstError);
-      } catch {
+      } catch (e) {
+        console.warn("[nour-os-bridge] operation failed:", e);
         // Telegram alert is best-effort
       }
 
@@ -704,7 +706,8 @@ export async function dispatchVendorHealthSnapshot(results: Array<{
       try {
         const { alertVendorRecovered } = await import("./services/telegram");
         alertVendorRecovered(result.vendor);
-      } catch {
+      } catch (e) {
+        console.warn("[nour-os-bridge] operation failed:", e);
         // Telegram alert is best-effort
       }
 

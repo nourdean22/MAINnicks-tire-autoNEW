@@ -347,7 +347,7 @@ async function processCampaignSends(campaignId: number, batchSize: number = 50):
       failed: totalFailed,
       campaignType: campaign?.template || "unknown",
     })
-  ).catch(() => {});
+  ).catch((e) => { console.warn("[routers/campaigns] fire-and-forget failed:", e); });
 
   console.info(`[campaigns:done] Campaign ${campaignId} completed: ${totalSent} sent, ${totalFailed} failed`);
 }

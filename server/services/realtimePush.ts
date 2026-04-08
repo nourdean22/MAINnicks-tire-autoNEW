@@ -34,7 +34,8 @@ export function pushToAdminDashboards(event: {
     try {
       client.res.write(payload);
       client.lastEventId = eventCounter;
-    } catch {
+    } catch (e) {
+      console.warn("[services/realtimePush] operation failed:", e);
       dead.push(client as any);
     }
   }
@@ -86,7 +87,8 @@ export function sseHandler(req: any, res: any): void {
   const heartbeat = setInterval(() => {
     try {
       res.write(`: heartbeat\n\n`);
-    } catch {
+    } catch (e) {
+      console.warn("[services/realtimePush] operation failed:", e);
       clearInterval(heartbeat);
       clients.delete(client);
     }

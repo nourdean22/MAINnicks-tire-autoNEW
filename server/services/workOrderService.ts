@@ -163,7 +163,7 @@ export async function createWorkOrder(params: {
       const custRow = await db2.select({ firstName: custTable.firstName, lastName: custTable.lastName })
         .from(custTable).where(eq(custTable.id, parseInt(params.customerId, 10))).limit(1);
       if (custRow[0]) customerName = [custRow[0].firstName, custRow[0].lastName].filter(Boolean).join(" ") || params.customerId;
-    } catch {}
+    } catch (e) { console.warn("[services/workOrderService] operation failed:", e); }
     const { syncWorkOrderToSheet } = await import("../sheets-sync");
     syncWorkOrderToSheet({
       orderNumber,
@@ -176,8 +176,8 @@ export async function createWorkOrder(params: {
       priority: params.priority,
       source: params.source,
       estimatedTotal: params.quotedTotal,
-    }).catch(() => {});
-  } catch {}
+    }).catch((e) => { console.warn("[services/workOrderService] fire-and-forget failed:", e); });
+  } catch (e) { console.warn("[services/workOrderService] operation failed:", e); }
 
   return { id, orderNumber };
 }
@@ -308,12 +308,12 @@ async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus)
   if (newStatus === "approved") {
     import("./dropOffFlow").then(({ sendDropOffConfirmation }) =>
       sendDropOffConfirmation(workOrderId)
-    ).catch(() => {});
+    ).catch((e) => { console.warn("[services/workOrderService] fire-and-forget failed:", e); });
   }
   if (newStatus === "in_progress") {
     import("./dropOffFlow").then(({ sendInProgressUpdate }) =>
       sendInProgressUpdate(workOrderId)
-    ).catch(() => {});
+    ).catch((e) => { console.warn("[services/workOrderService] fire-and-forget failed:", e); });
   }
 
   // ready_for_pickup → auto-send SMS (drop-off flow supersedes when enabled)
@@ -321,7 +321,7 @@ async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus)
     // Fire the richer drop-off flow version (no-op when flag disabled)
     import("./dropOffFlow").then(({ sendReadyForPickup }) =>
       sendReadyForPickup(workOrderId)
-    ).catch(() => {});
+    ).catch((e) => { console.warn("[services/workOrderService] fire-and-forget failed:", e); });
 
     try {
       const { isEnabled } = await import("./featureFlags");
@@ -392,7 +392,7 @@ async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus)
       });
     }
     // Refresh shop floor snapshot on significant transitions
-    dispatchShopFloorSnapshot().catch(() => {});
+    dispatchShopFloorSnapshot().catch((e) => { console.warn("[services/workOrderService] fire-and-forget failed:", e); });
   } catch (err) {
     console.error("[WO] NOUR OS bridge dispatch failed:", err instanceof Error ? err.message : err);
   }

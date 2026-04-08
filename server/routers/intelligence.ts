@@ -276,7 +276,7 @@ export const intelligenceRouter = router({
           phone: l.phone || null,
         });
       }
-    } catch {}
+    } catch (e) { console.warn("[routers/intelligence] operation failed:", e); }
 
     // 2. Pending invoices > 7 days old
     try {
@@ -293,7 +293,7 @@ export const intelligenceRouter = router({
           phone: inv.customerPhone || null,
         });
       }
-    } catch {}
+    } catch (e) { console.warn("[routers/intelligence] operation failed:", e); }
 
     // 3. Callbacks unanswered > 2 hours
     try {
@@ -310,7 +310,7 @@ export const intelligenceRouter = router({
           phone: cb.phone || null,
         });
       }
-    } catch {}
+    } catch (e) { console.warn("[routers/intelligence] operation failed:", e); }
 
     // 4. VIP customers going cold (3+ visits, 60+ days since last visit)
     try {
@@ -327,7 +327,7 @@ export const intelligenceRouter = router({
           phone: c.phone || null,
         });
       }
-    } catch {}
+    } catch (e) { console.warn("[routers/intelligence] operation failed:", e); }
 
     // Sort by urgency desc, take top 8
     actions.sort((a, b) => b.urgency - a.urgency);

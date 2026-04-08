@@ -145,7 +145,7 @@ export async function executeAutoAction(parsed: ParsedResponse, phone: string, c
             category: "booking",
             subject: `Estimate Approved by Customer (***${phone.slice(-4)})`,
             body: `Customer approved estimate #${context.estimateId} via SMS reply. Please proceed with the repair.`,
-          }).catch(() => {});
+          }).catch((e) => { console.warn("[services/smsResponseParser] fire-and-forget failed:", e); });
         }
         return { executed: true, action: "approve-estimate" };
 

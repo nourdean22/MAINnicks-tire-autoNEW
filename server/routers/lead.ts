@@ -114,7 +114,7 @@ export const leadRouter = router({
             source: input.source,
             urgencyScore: scoring.score,
           })
-        ).catch(() => {});
+        ).catch((e) => { console.warn("[routers/lead] fire-and-forget failed:", e); });
       }
 
       withRetry(
@@ -214,7 +214,7 @@ export const leadRouter = router({
           });
         });
       } else if (isAfterHours()) {
-        handleAfterHoursCapture({ name, phone, type: "lead" }).catch(() => {});
+        handleAfterHoursCapture({ name, phone, type: "lead" }).catch((e) => { console.warn("[routers/lead] fire-and-forget failed:", e); });
       } else {
         withRetry(
           () => sendSms(input.phone, leadConfirmationSms(input.name)),
@@ -247,9 +247,9 @@ export const leadRouter = router({
             `\u23F0 ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`,
           ];
           sendTelegramMessage(lines.filter(Boolean).join("\n"), "critical");
-        }).catch(() => {});
+        }).catch((e) => { console.warn("[routers/lead] fire-and-forget failed:", e); });
       } else {
-        alertNewLead({ name, phone, service: scoring.recommendedService, source: input.source }).catch(() => {});
+        alertNewLead({ name, phone, service: scoring.recommendedService, source: input.source }).catch((e) => { console.warn("[routers/lead] fire-and-forget failed:", e); });
       }
 
       return {
@@ -310,7 +310,7 @@ export const leadRouter = router({
           details: `Status changed to ${updates.status}`,
           newValue: updates.status,
           metadata: lostReason ? { lostReason } : undefined,
-        }).catch(() => {});
+        }).catch((e) => { console.warn("[routers/lead] fire-and-forget failed:", e); });
       }
       if (updates.contactNotes !== undefined) {
         logAdminAction({
@@ -319,7 +319,7 @@ export const leadRouter = router({
           entityId: id,
           details: "Contact notes updated",
           newValue: updates.contactNotes,
-        }).catch(() => {});
+        }).catch((e) => { console.warn("[routers/lead] fire-and-forget failed:", e); });
       }
 
       return { success: true };
@@ -340,7 +340,7 @@ export const leadRouter = router({
         entityType: "lead",
         entityId: input.id,
         details: `Lead #${input.id} deleted`,
-      }).catch(() => {});
+      }).catch((e) => { console.warn("[routers/lead] fire-and-forget failed:", e); });
       return { success: true };
     }),
 });

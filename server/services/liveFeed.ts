@@ -296,7 +296,7 @@ export function registerLiveFeedListeners(): void {
     // Since the event bus is already initialized, we use a different approach:
     // We export handlers that get called from the event bus destination.
     log.info("Live feed listeners registered");
-  }).catch(() => {});
+  }).catch((e) => { console.warn("[services/liveFeed] fire-and-forget failed:", e); });
 }
 
 /**

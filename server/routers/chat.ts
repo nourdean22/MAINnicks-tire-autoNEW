@@ -94,7 +94,7 @@ async function createChatLead(
         source: "chat",
         urgencyScore: scoring.score,
       })
-    ).catch(() => {});
+    ).catch((e) => { console.warn("[routers/chat] fire-and-forget failed:", e); });
   }
 
   // Telegram alert
@@ -103,7 +103,7 @@ async function createChatLead(
     phone: phone || undefined,
     service: scoring.recommendedService,
     source: "ai-chat",
-  }).catch(() => {});
+  }).catch((e) => { console.warn("[routers/chat] fire-and-forget failed:", e); });
 }
 
 /**
@@ -193,10 +193,10 @@ async function lookupMemories(
       memoriesToDelete.map(id =>
         d.delete(conversationMemory).where(eq(conversationMemory.id, id))
       )
-    ).catch(() => {});
+    ).catch((e) => { console.warn("[routers/chat] fire-and-forget failed:", e); });
   }
   if (decayUpdates.length > 0) {
-    Promise.all(decayUpdates).catch(() => {});
+    Promise.all(decayUpdates).catch((e) => { console.warn("[routers/chat] fire-and-forget failed:", e); });
   }
 
   // Filter out dead memories from the working set
@@ -217,7 +217,7 @@ async function lookupMemories(
         .set({ lastAccessed: new Date() })
         .where(eq(conversationMemory.id, id))
     )
-  ).catch(() => {});
+  ).catch((e) => { console.warn("[routers/chat] fire-and-forget failed:", e); });
 
   const formatted = scored
     .map((m: any) => `- [${m.category}] ${m.content}`)
@@ -593,7 +593,7 @@ export const chatRouter = router({
 
           businessIntel = { todayBookings: todayBookings + activeWOs, estimatedWaitMinutes, availableSlots };
         }
-      } catch {}
+      } catch (e) { console.warn("[routers/chat] operation failed:", e); }
 
       // --- CUSTOMER INTELLIGENCE: look up known customer by phone ---
       let customerContext: {

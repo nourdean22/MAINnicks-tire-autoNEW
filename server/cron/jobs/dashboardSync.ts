@@ -53,7 +53,7 @@ export async function processDashboardSync(): Promise<{ recordsProcessed: number
         invoiceCount = Number(inv.cnt) || 0;
         todayRevenue = Math.round((Number(inv.rev) || 0) / 100); // cents → dollars
       }
-    } catch {}
+    } catch (e) { console.warn("[jobs/dashboardSync] operation failed:", e); }
 
     const metrics = {
       date: new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" }),
@@ -71,7 +71,8 @@ export async function processDashboardSync(): Promise<{ recordsProcessed: number
       if (typeof sheetsSync.syncDashboardToSheet === "function") {
         await sheetsSync.syncDashboardToSheet(metrics);
       }
-    } catch {
+    } catch (e) {
+      console.warn("[jobs/dashboardSync] operation failed:", e);
       // Sheets sync is optional — don't fail the cron job
       log.warn("Dashboard sheets sync skipped — function not available");
     }

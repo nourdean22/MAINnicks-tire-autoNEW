@@ -42,7 +42,7 @@ export const workOrdersRouter = router({
           vehicle: [input.vehicleMake, input.vehicleModel].filter(Boolean).join(" "),
           source: input.source,
         }, { priority: "high", source: "work_order" })
-      ).catch(() => {});
+      ).catch((e) => { console.warn("[routers/workOrders] fire-and-forget failed:", e); });
 
       return result;
     }),
@@ -114,7 +114,7 @@ export const workOrdersRouter = router({
           changedBy: input.changedBy,
           note: input.note,
         }, { priority: "normal", source: "work_order" })
-      ).catch(() => {});
+      ).catch((e) => { console.warn("[routers/workOrders] fire-and-forget failed:", e); });
 
       // Completed work orders = revenue realized
       if (["completed", "invoiced", "picked_up"].includes(input.status)) {
@@ -124,7 +124,7 @@ export const workOrdersRouter = router({
             name: input.changedBy,
             service: input.note || "Work Order Completed",
           }, { priority: "high", source: "work_order" })
-        ).catch(() => {});
+        ).catch((e) => { console.warn("[routers/workOrders] fire-and-forget failed:", e); });
       }
 
       return { success: true };

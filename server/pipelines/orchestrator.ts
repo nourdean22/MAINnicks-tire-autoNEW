@@ -291,7 +291,7 @@ export async function getPipelineStatuses(): Promise<PipelineStatus[]> {
     // Parse result JSON safely
     let resultParsed: Record<string, unknown> | null = null;
     if (lastRun?.resultJson) {
-      try { resultParsed = JSON.parse(lastRun.resultJson); } catch { /* skip */ }
+      try { resultParsed = JSON.parse(lastRun.resultJson); } catch (e) { /* skip */ console.warn("[pipelines/orchestrator] operation failed:", e); }
     }
 
     statuses.push({

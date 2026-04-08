@@ -42,7 +42,7 @@ export async function runSelfHealingChecks(): Promise<{
         if (resetJobRunningFlag(job.name)) {
           actions.push(`AUTO-FIX: Reset ${job.name} running flag — will run on next tick`);
         }
-      } catch {}
+      } catch (e) { console.warn("[services/selfHealing] operation failed:", e); }
     }
   }
 
@@ -67,7 +67,7 @@ export async function runSelfHealingChecks(): Promise<{
             const { resetDbConnection } = await import("../db");
             resetDbConnection();
             actions.push("AUTO-FIX: Reset DB connection — will reconnect on next query");
-          } catch {}
+          } catch (e) { console.warn("[services/selfHealing] operation failed:", e); }
         }
       }
     }
@@ -94,7 +94,7 @@ export async function runSelfHealingChecks(): Promise<{
     if (!busStatus.initialized) {
       issues.push("EVENT BUS: Not initialized — events are being silently dropped");
     }
-  } catch {}
+  } catch (e) { console.warn("[services/selfHealing] operation failed:", e); }
 
   // 5. Check uptime (restart detection)
   const uptimeMin = Math.round(process.uptime() / 60);
@@ -112,7 +112,7 @@ export async function runSelfHealingChecks(): Promise<{
     } else if (!veniceKey) {
       issues.push("AI PROVIDER: VENICE_API_KEY missing — primary AI provider (Venice) is down, running on OpenAI fallback only");
     }
-  } catch {}
+  } catch (e) { console.warn("[services/selfHealing] operation failed:", e); }
 
   // Report + learn + act
   if (issues.length > 0 || actions.length > 0) {
@@ -129,7 +129,7 @@ export async function runSelfHealingChecks(): Promise<{
           confidence: 0.85,
         });
       }
-    } catch {}
+    } catch (e) { console.warn("[services/selfHealing] operation failed:", e); }
 
     // Alert on critical issues
     const critical = issues.filter(
@@ -139,7 +139,7 @@ export async function runSelfHealingChecks(): Promise<{
       alertSystem(
         "Self-Healing Alert",
         [...critical, ...actions].join("\n")
-      ).catch(() => {});
+      ).catch((e) => { console.warn("[services/selfHealing] fire-and-forget failed:", e); });
     }
   }
 

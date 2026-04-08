@@ -90,11 +90,11 @@ export function registerSSERoutes(router: Router): void {
 const heartbeatInterval = setInterval(() => {
   const heartbeat = `:heartbeat ${Date.now()}\n\n`;
   adminClients.forEach((client) => {
-    try { client.write(heartbeat); } catch { adminClients.delete(client); }
+    try { client.write(heartbeat); } catch (e) { console.warn("[services/realtime] admin heartbeat write failed:", e); adminClients.delete(client); }
   });
   for (const [orderId, clients] of orderClients) {
     clients.forEach((client: Response) => {
-      try { client.write(heartbeat); } catch { clients.delete(client); }
+      try { client.write(heartbeat); } catch (e) { console.warn("[services/realtime] order heartbeat write failed:", e); clients.delete(client); }
     });
     if (clients.size === 0) orderClients.delete(orderId);
   }
@@ -111,7 +111,7 @@ const heartbeatInterval = setInterval(() => {
 export function emitToAdmin(event: string, data: unknown): void {
   const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   adminClients.forEach((client) => {
-    try { client.write(message); } catch { adminClients.delete(client); }
+    try { client.write(message); } catch (e) { console.warn("[services/realtime] admin message write failed:", e); adminClients.delete(client); }
   });
 }
 
@@ -144,7 +144,7 @@ export function emitOrderStatusUpdate(orderId: string, status: string, details?:
   if (clients && clients.size > 0) {
     const message = `event: status-update\ndata: ${JSON.stringify({ status, ...details, timestamp: Date.now() })}\n\n`;
     clients.forEach((client) => {
-      try { client.write(message); } catch { clients.delete(client); }
+      try { client.write(message); } catch (e) { console.warn("[services/realtime] order message write failed:", e); clients.delete(client); }
     });
   }
 }

@@ -157,7 +157,7 @@ export async function checkRepeatCustomer(phone: string): Promise<{ isRepeat: bo
 
       return { isRepeat: true, priorInvoiceCount: priorInvoices.length, daysSinceLastVisit: daysSince };
     }
-  } catch {}
+  } catch (e) { console.warn("[services/journeyTracker] operation failed:", e); }
 
   return { isRepeat: false, priorInvoiceCount: 0 };
 }

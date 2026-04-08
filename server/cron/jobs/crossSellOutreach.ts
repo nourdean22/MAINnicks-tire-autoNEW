@@ -123,7 +123,7 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
           service: rec.service,
           reason: rec.reason,
           urgency: rec.urgency,
-        }, { priority: "low", source: "cron:cross-sell-outreach" }).catch(() => {});
+        }, { priority: "low", source: "cron:cross-sell-outreach" }).catch((e) => { console.warn("[jobs/crossSellOutreach] fire-and-forget failed:", e); });
       } else {
         log.warn(`Cross-sell SMS failed for ${firstName}: ${result.error || "unknown"}`);
       }

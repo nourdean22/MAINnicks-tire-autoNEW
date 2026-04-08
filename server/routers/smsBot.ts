@@ -219,7 +219,7 @@ async function saveBooking(phone: string, conv: ConversationState) {
         service: conv.problemDescription?.split(" ")[0] || "general-repair",
         vehicle: conv.vehicleInfo || "",
       })
-    ).catch(() => {});
+    ).catch((e) => { console.warn("[routers/smsBot] fire-and-forget failed:", e); });
 
     // Sync to sheets (async, fire-and-forget)
     try {

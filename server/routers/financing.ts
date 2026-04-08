@@ -63,7 +63,7 @@ export const financingRouter = router({
             source: `financing_${input.provider}`,
             urgencyScore: 5, // Max score — high intent, they're applying for money
           })
-        ).catch(() => {});
+        ).catch((e) => { console.warn("[routers/financing] fire-and-forget failed:", e); });
 
         return {
           success: true,

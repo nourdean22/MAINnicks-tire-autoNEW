@@ -152,7 +152,7 @@ export const controlCenterRouter = router({
     let tunnelUrl: string | null = null;
     let tunnelMode = "none";
     try {
-      const tunnel = await import("../lib/tunnel-status").catch(() => null);
+      const tunnel = await import("../lib/tunnel-status").catch((e) => { console.warn("[routers/controlCenter] optional operation failed:", e); return null; });
       if (tunnel && typeof tunnel.getTunnelStatus === "function") {
         const status = await tunnel.getTunnelStatus();
         tunnelUrl = status?.url ?? null;

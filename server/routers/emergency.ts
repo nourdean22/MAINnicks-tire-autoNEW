@@ -202,7 +202,7 @@ export const emergencyRouter = router({
             `Urgency: ${input.urgency}\n\n` +
             `⚡ CALL THEM BACK ASAP`
           )
-        ).catch(() => {});
+        ).catch((e) => { console.warn("[routers/emergency] fire-and-forget failed:", e); });
 
         // IMMEDIATE SMS to owner about the emergency request
         withRetry(

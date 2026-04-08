@@ -32,7 +32,8 @@ function extractUserQuestions(messagesJson: string): string[] {
           m.content.trim().endsWith("?")
       )
       .map((m: { content: string }) => m.content.trim());
-  } catch {
+  } catch (e) {
+    console.warn("[jobs/chatFaqPipeline] operation failed:", e);
     return [];
   }
 }
@@ -163,7 +164,7 @@ export async function runChatFaqPipeline(): Promise<{
           confidence: Math.min(0.5 + cluster.count * 0.1, 0.95),
         });
       }
-    } catch {}
+    } catch (e) { console.warn("[jobs/chatFaqPipeline] operation failed:", e); }
 
     // 5. Send Telegram digest
     try {
@@ -178,7 +179,7 @@ export async function runChatFaqPipeline(): Promise<{
         digest +
         `\n\nUse this to improve FAQ page and train Nick AI.`
       );
-    } catch {}
+    } catch (e) { console.warn("[jobs/chatFaqPipeline] operation failed:", e); }
 
     const details = `${sessions.length} sessions, ${allQuestions.length} questions, ${top10.length} clusters`;
     log.info(`Chat FAQ pipeline: ${details}`);

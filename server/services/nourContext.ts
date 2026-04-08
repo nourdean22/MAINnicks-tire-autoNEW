@@ -66,26 +66,26 @@ export function getNourPersonalContext(): string {
     // Extract what he's building
     const buildMatch = master.match(/## What He's Building[\s\S]*?(?=\n---|\n## )/);
     if (buildMatch) sections.push("BUILDING: " + buildMatch[0].slice(0, 300).replace(/\n/g, " ").trim());
-  } catch {}
+  } catch (e) { console.warn("[services/nourContext] operation failed:", e); }
 
   // Conversation portrait — key thesis
   try {
     const portrait = fs.readFileSync(path.join(dir, "conversation-portrait.md"), "utf-8");
     const thesisMatch = portrait.match(/## Thesis\n([\s\S]*?)(?=\n## )/);
     if (thesisMatch) sections.push("PATTERN: " + thesisMatch[1].trim().slice(0, 300));
-  } catch {}
+  } catch (e) { console.warn("[services/nourContext] operation failed:", e); }
 
   // People map
   try {
     const people = fs.readFileSync(path.join(dir, "people-map.md"), "utf-8");
     sections.push("PEOPLE: " + people.slice(0, 400).replace(/\n/g, " ").trim());
-  } catch {}
+  } catch (e) { console.warn("[services/nourContext] operation failed:", e); }
 
   // Open loops
   try {
     const loops = fs.readFileSync(path.join(dir, "open-loops.md"), "utf-8");
     sections.push("OPEN LOOPS: " + loops.slice(0, 300).replace(/\n/g, " ").trim());
-  } catch {}
+  } catch (e) { console.warn("[services/nourContext] operation failed:", e); }
 
   const context = sections.length > 0
     ? "\n\nNOUR'S PERSONAL CONTEXT (from 463 conversations analyzed):\n" + sections.join("\n")

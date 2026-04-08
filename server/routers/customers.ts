@@ -519,7 +519,7 @@ export const customersRouter = router({
           details: `SMS sent to ${customer.firstName || ""} ${customer.lastName || ""}`.trim(),
           newValue: input.message,
           metadata: { phone: customer.phone },
-        }).catch(() => {});
+        }).catch((e) => { console.warn("[routers/customers] fire-and-forget failed:", e); });
       }
 
       return result;
@@ -543,7 +543,7 @@ export const customersRouter = router({
         entityId: input.id,
         details: "Customer notes updated",
         newValue: input.notes,
-      }).catch(() => {});
+      }).catch((e) => { console.warn("[routers/customers] fire-and-forget failed:", e); });
 
       return { success: true };
     }),

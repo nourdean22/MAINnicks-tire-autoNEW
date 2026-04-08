@@ -163,7 +163,7 @@ export async function checkWeatherTriggers(): Promise<{ triggered: string[]; det
         alertSystem(
           `Weather: ${trigger.name}`,
           `${trigger.gbpDraft.slice(0, 200)}\n\nTemp: ${data.tempMin}-${data.tempMax}°F`
-        ).catch(() => {});
+        ).catch((e) => { console.warn("[services/weatherIntelligence] fire-and-forget failed:", e); });
 
         // Send weather-triggered SMS to lapsed customers
         const smsSent = await sendWeatherSms(trigger.id);
@@ -171,7 +171,7 @@ export async function checkWeatherTriggers(): Promise<{ triggered: string[]; det
           alertSystem(
             `Weather SMS: ${trigger.name}`,
             `Sent ${smsSent} weather-triggered SMS for "${trigger.id}"`
-          ).catch(() => {});
+          ).catch((e) => { console.warn("[services/weatherIntelligence] fire-and-forget failed:", e); });
         }
       }
     }

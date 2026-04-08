@@ -167,13 +167,14 @@ Respond with valid JSON only. No markdown, no code blocks, just raw JSON.`,
   let article: GeneratedArticle;
   try {
     article = JSON.parse(rawContent);
-  } catch {
+  } catch (e) {
+    console.warn("[content-generator] operation failed:", e);
     // Try to extract JSON from the response (LLM may wrap in markdown code blocks)
     const jsonMatch = rawContent.match(/\{[\s\S]*\}/)?.[0];
     if (!jsonMatch) throw new Error("LLM returned invalid JSON for article");
     try {
       article = JSON.parse(jsonMatch);
-    } catch {
+    } catch (e) {
       throw new Error("LLM returned invalid JSON for article");
     }
   }
@@ -244,12 +245,13 @@ Respond with valid JSON only. No markdown, no code blocks, just raw JSON.`,
   let parsed: any;
   try {
     parsed = JSON.parse(rawContent);
-  } catch {
+  } catch (e) {
+    console.warn("[content-generator] operation failed:", e);
     const jsonMatch = rawContent.match(/\{[\s\S]*\}/)?.[0];
     if (!jsonMatch) throw new Error("LLM returned invalid JSON for notifications");
     try {
       parsed = JSON.parse(jsonMatch);
-    } catch {
+    } catch (e) {
       throw new Error("LLM returned invalid JSON for notifications");
     }
   }
@@ -296,7 +298,7 @@ export async function saveGeneratedArticle(article: GeneratedArticle): Promise<n
       contentType: "article",
       status: "failed",
       errorMessage: error.message,
-    }).catch(() => {});
+    }).catch((e: unknown) => { console.warn("[content-generator] fire-and-forget failed:", e); });
 
     throw error;
   }
@@ -329,7 +331,7 @@ export async function saveGeneratedNotifications(notifications: GeneratedNotific
         contentType: "notification",
         status: "failed",
         errorMessage: error.message,
-      }).catch(() => {});
+      }).catch((e: unknown) => { console.warn("[content-generator] fire-and-forget failed:", e); });
     }
   }
 }

@@ -87,7 +87,8 @@ export async function getTunnelStatus(): Promise<TunnelStatus> {
       url,
       mode,
     };
-  } catch { /* Tunnel status file doesn't exist or can't be read — expected */
+  } catch (e) { /* Tunnel status file doesn't exist or can't be read — expected */
+    console.warn("[lib/tunnel-status] tunnel status read failed:", e);
     return inactive;
   }
 }

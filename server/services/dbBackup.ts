@@ -95,7 +95,7 @@ export async function runDailyBackup(): Promise<{ recordsProcessed?: number; det
         `• ${snapshot.recent24h.invoices} new invoices\n\n` +
         `✅ Backup archived to cloud`
       );
-    } catch {}
+    } catch (e) { console.warn("[services/dbBackup] operation failed:", e); }
 
     const totalRecent = snapshot.recent24h.leads + snapshot.recent24h.bookings + snapshot.recent24h.invoices;
     return { recordsProcessed: totalRecent, details: `Backup: ${totalRecent} recent records, ${Object.values(snapshot.counts).reduce((a, b) => a + b, 0)} total` };

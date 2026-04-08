@@ -645,7 +645,7 @@ export async function analyzeDeclinedWork() {
           }
         }
       }
-    } catch {}
+    } catch (e) { console.warn("[services/intelligenceEngines] operation failed:", e); }
   }
 
   return {
@@ -1020,7 +1020,7 @@ export async function predictChurn(): Promise<{
     for (const m of metrics) {
       vipMap.set(m.customerId, m.isVip === 1);
     }
-  } catch {}
+  } catch (e) { console.warn("[services/intelligenceEngines] operation failed:", e); }
 
   // Get customers who had estimates but no paid invoice (declined work signal)
   const declinedSet = new Set<number>();
@@ -1035,7 +1035,7 @@ export async function predictChurn(): Promise<{
     for (const w of withDeclined) {
       if (w.customerId) declinedSet.add(w.customerId);
     }
-  } catch {}
+  } catch (e) { console.warn("[services/intelligenceEngines] operation failed:", e); }
 
   // Get customers who left reviews (review signal)
   const reviewedSet = new Set<string>();
@@ -1047,7 +1047,7 @@ export async function predictChurn(): Promise<{
     for (const r of reviewed) {
       if (r.phone) reviewedSet.add(r.phone.replace(/\D/g, "").slice(-10));
     }
-  } catch {}
+  } catch (e) { console.warn("[services/intelligenceEngines] operation failed:", e); }
 
   // Get ticket size trends per customer (last 3 invoices)
   const ticketTrends = new Map<number, number[]>();
@@ -1068,7 +1068,7 @@ export async function predictChurn(): Promise<{
       if (!ticketTrends.has(inv.customerId)) ticketTrends.set(inv.customerId, []);
       ticketTrends.get(inv.customerId)!.push(inv.totalAmount || 0);
     }
-  } catch {}
+  } catch (e) { console.warn("[services/intelligenceEngines] operation failed:", e); }
 
   const highRisk: ChurnCustomer[] = [];
   const mediumRisk: ChurnCustomer[] = [];

@@ -142,11 +142,12 @@ export async function autoSendEmailCampaigns(): Promise<{ recordsProcessed: numb
             // Mark as emailed
             try {
               await db.execute(sql`UPDATE customers SET lastEmailCampaignAt = NOW() WHERE id = ${cust.id}`);
-            } catch {} // Column might not exist yet
+            } catch (e) { console.warn("[services/emailCampaigns] operation failed:", e); } // Column might not exist yet
           }
 
           await new Promise(r => setTimeout(r, 500)); // Rate limit
-        } catch {
+        } catch (e) {
+          console.warn("[services/emailCampaigns] email send failed:", e);
           log.warn(`Email send failed for ${cust.firstName}`);
         }
       }

@@ -282,7 +282,8 @@ INSIGHTS: ${pipeline.insights.join("; ") || "None"}`;
     });
     const content = response.choices?.[0]?.message?.content;
     return (typeof content === "string" ? content : null) || "No insight generated";
-  } catch {
+  } catch (e) {
+    console.warn("[services/nickIntelligence] operation failed:", e);
     return pipeline.insights[0] || "Data analysis pending";
   }
 }
