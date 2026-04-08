@@ -449,16 +449,16 @@ export async function runContentGeneration(): Promise<{
   try {
     article = await generateArticle();
     await saveGeneratedArticle(article);
-  } catch (err: any) {
-    errors.push(`Article generation failed: ${err.message}`);
+  } catch (err: unknown) {
+    errors.push(`Article generation failed: ${(err as Error).message}`);
   }
 
   // Generate 3 notification messages
   try {
     notifications = await generateNotifications(3);
     await saveGeneratedNotifications(notifications);
-  } catch (err: any) {
-    errors.push(`Notification generation failed: ${err.message}`);
+  } catch (err: unknown) {
+    errors.push(`Notification generation failed: ${(err as Error).message}`);
   }
 
   return { article, notifications, errors };

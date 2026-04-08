@@ -38,7 +38,7 @@ async function autoCreateInvoiceFromTireOrder(d: any, orderId: number): Promise<
     const [setting] = await d.select().from(shopSettings).where(eq(shopSettings.key, "laborRate")).limit(1);
     if (setting) laborRate = parseFloat(setting.value);
   } catch (err) {
-    console.error("[GatewayTire] Failed to fetch labor rate, using default:", err instanceof Error ? err.message : err);
+    console.error("[GatewayTire] Failed to fetch labor rate, using default:", err instanceof Error ? (err as Error).message : err);
   }
 
   // Tire installation labor: 0.7 hours for mount + balance (from Auto Labor Guide)
@@ -579,7 +579,7 @@ export const gatewayTireRouter = router({
             return liveResult;
           }
         } catch (err) {
-          console.error("[GatewayTire] Live tire search failed, falling through to catalog:", err instanceof Error ? err.message : err);
+          console.error("[GatewayTire] Live tire search failed, falling through to catalog:", err instanceof Error ? (err as Error).message : err);
         }
       }
 
@@ -779,7 +779,7 @@ export const gatewayTireRouter = router({
 
         console.info(`[invoice:created] ${invoiceNumber} for tire order ${orderNumber} — $${(grandTotalCents / 100).toFixed(2)} (pending payment)`);
       } catch (err) {
-        console.error("[TireOrder] Invoice creation failed:", err instanceof Error ? err.message : err);
+        console.error("[TireOrder] Invoice creation failed:", err instanceof Error ? (err as Error).message : err);
       }
 
       // Sync to Google Sheets (async, don't block)
@@ -1203,7 +1203,7 @@ export const gatewayTireRouter = router({
             return { tires, source: "live" as const, markup };
           }
         } catch (err) {
-          console.error("[GatewayTire] Admin tire search failed:", err instanceof Error ? err.message : err);
+          console.error("[GatewayTire] Admin tire search failed:", err instanceof Error ? (err as Error).message : err);
         }
       }
 

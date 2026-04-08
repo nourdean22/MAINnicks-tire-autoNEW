@@ -34,9 +34,9 @@ async function ensureTable(db: any): Promise<boolean> {
       )
     `);
     return true;
-  } catch (err: any) {
-    if (err.message?.includes("already exists")) return true;
-    log.error("Failed to create drip_enrollments table:", { error: err.message });
+  } catch (err: unknown) {
+    if ((err as Error).message?.includes("already exists")) return true;
+    log.error("Failed to create drip_enrollments table:", { error: (err as Error).message });
     return false;
   }
 }
@@ -113,8 +113,8 @@ export async function persistDripEnrollment(params: {
     `);
 
     log.info(`Drip enrolled: ${params.customerName} → ${params.campaignId} (step 2 at ${nextStepAt.toISOString().slice(0, 10)})`);
-  } catch (err: any) {
-    log.warn(`Drip enrollment persist failed: ${err.message}`);
+  } catch (err: unknown) {
+    log.warn(`Drip enrollment persist failed: ${(err as Error).message}`);
   }
 }
 
@@ -192,16 +192,16 @@ export async function processDripSteps(): Promise<{ recordsProcessed: number; de
 
         sent++;
         await new Promise(r => setTimeout(r, 1500)); // Rate limit
-      } catch (err: any) {
-        log.warn(`Drip step failed for ${enrollment.customerName}: ${err.message}`);
+      } catch (err: unknown) {
+        log.warn(`Drip step failed for ${enrollment.customerName}: ${(err as Error).message}`);
       }
     }
 
     return { recordsProcessed: sent, details: `${sent}/${due.length} drip steps sent` };
-  } catch (err: any) {
-    if (err.message?.includes("drip_enrollments") && err.message?.includes("doesn't exist")) {
+  } catch (err: unknown) {
+    if ((err as Error).message?.includes("drip_enrollments") && (err as Error).message?.includes("doesn't exist")) {
       return { recordsProcessed: 0, details: "drip_enrollments table not ready" };
     }
-    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }
