@@ -17,6 +17,17 @@ export const ACIMA_COMPACT_DISCLOSURE =
 /** Social proof — use on CTAs and hero sections. Individual results vary. */
 export const ACIMA_SOCIAL_PROOF = "Trusted by hundreds of Nick's customers";
 
+/** Acima direct apply URL */
+export const ACIMA_APPLY_URL =
+  "https://apply.acima.com/?app_id=lo&location_guid=loca-436877bd-bae3-482b-8d6c-21430690117f&utm_medium=merchant&utm_source=web";
+
+/** Acima web banner */
+export const ACIMA_BANNER = {
+  href: "https://ams.acima.com/discover/new?location_guid=loca-436877bd-bae3-482b-8d6c-21430690117f&utm_source=web-banner&utm_medium=merchant&utm_campaign=mktg-lp&utm_content=rven1300X250",
+  imgSrc: "https://s3.us-west-2.amazonaws.com/marketing.acimacredit.com/Acima-Web-Banners/RV-EN1/RVEN1300X250.png",
+  alt: "Acima Leasing - No Credit Needed",
+};
+
 /** States where Acima is not available */
 export const ACIMA_STATES_EXCLUDED = "MN, NJ, WI, WY";
 
@@ -29,7 +40,7 @@ export const ACIMA_FULL_DISCLAIMER =
  * Every external Acima link should use this to ensure consistent attribution.
  */
 export function buildAcimaUrl(source: string): string {
-  return `https://www.acima.com/apply?utm_source=nickstire&utm_medium=website&utm_campaign=acima_leasetoown&utm_content=${source}`;
+  return `https://apply.acima.com/?app_id=lo&location_guid=loca-436877bd-bae3-482b-8d6c-21430690117f&utm_medium=merchant&utm_source=web&utm_content=${source}`;
 }
 
 /**

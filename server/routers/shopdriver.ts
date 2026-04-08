@@ -325,7 +325,22 @@ export const shopdriverRouter = router({
     }
 
     try {
-      const data = await res.json();
+      const bodyText = await res.text();
+
+      // Check if response is HTML instead of JSON (expired session / login page)
+      if (bodyText.trimStart().startsWith("<") || bodyText.includes("<html")) {
+        console.error("[ShopDriver] Invoice sync got HTML response:", bodyText.substring(0, 200));
+        return { success: false, error: "ShopDriver returned HTML instead of JSON — the API session may have expired", synced: 0 };
+      }
+
+      let data: any;
+      try {
+        data = JSON.parse(bodyText);
+      } catch {
+        console.error("[ShopDriver] Invoice sync non-JSON response:", bodyText.substring(0, 200));
+        return { success: false, error: "ShopDriver returned non-JSON response — check API credentials", synced: 0 };
+      }
+
       const tickets = Array.isArray(data) ? data : data.tickets || data.data || [];
       let synced = 0;
       let updated = 0;
@@ -386,8 +401,8 @@ export const shopdriverRouter = router({
 
       return { success: true, synced, updated, total: tickets.length };
     } catch (err) {
-      console.error("[ShopDriver] Invoice sync parse failed:", err instanceof Error ? err.message : err);
-      return { success: false, error: "Failed to parse ShopDriver response", synced: 0 };
+      console.error("[ShopDriver] Invoice sync failed:", err instanceof Error ? err.message : err);
+      return { success: false, error: `Failed to sync invoices: ${err instanceof Error ? err.message : "Unknown error"}`, synced: 0 };
     }
   }),
 
@@ -407,7 +422,22 @@ export const shopdriverRouter = router({
     }
 
     try {
-      const data = await res.json();
+      const bodyText = await res.text();
+
+      // Check if response is HTML instead of JSON (expired session / login page)
+      if (bodyText.trimStart().startsWith("<") || bodyText.includes("<html")) {
+        console.error("[ShopDriver] Customer sync got HTML response:", bodyText.substring(0, 200));
+        return { success: false, error: "ShopDriver returned HTML instead of JSON — the API session may have expired", synced: 0 };
+      }
+
+      let data: any;
+      try {
+        data = JSON.parse(bodyText);
+      } catch {
+        console.error("[ShopDriver] Customer sync non-JSON response:", bodyText.substring(0, 200));
+        return { success: false, error: "ShopDriver returned non-JSON response — check API credentials", synced: 0 };
+      }
+
       const customerList = Array.isArray(data) ? data : data.customers || data.data || [];
       let newCount = 0;
       let updatedCount = 0;
@@ -464,8 +494,8 @@ export const shopdriverRouter = router({
 
       return { success: true, newCustomers: newCount, updatedCustomers: updatedCount };
     } catch (err) {
-      console.error("[ShopDriver] Customer sync parse failed:", err instanceof Error ? err.message : err);
-      return { success: false, error: "Failed to parse customer data", synced: 0 };
+      console.error("[ShopDriver] Customer sync failed:", err instanceof Error ? err.message : err);
+      return { success: false, error: `Failed to sync customers: ${err instanceof Error ? err.message : "Unknown error"}`, synced: 0 };
     }
   }),
 

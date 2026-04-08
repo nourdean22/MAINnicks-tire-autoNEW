@@ -125,16 +125,23 @@ export const BUSINESS = {
     downPayment: "$10 down",
   },
 
-  // ─── STARTING PRICES (for SEO price anchoring) ─────
+  // ─── STARTING PRICES (internal reference only — not displayed publicly) ─────
   prices: {
-    oilChange: "$29.99",
-    brakes: "$129/axle",
-    alignment: "$89",
+    oilChange: "",
+    brakes: "",
+    alignment: "",
     diagnostic: "Free with repair",
-    tireMount: "$20/tire",
-    tireRotation: "$19.99",
-    acService: "$49.99",
-    emissions: "$49",
+    tireMount: "",
+    tireRotation: "",
+    acService: "",
+    emissions: "",
+  },
+
+  // ─── USED TIRES (the "too good to be true" hook) ────
+  usedTires: {
+    priceDisplay: "from $60",
+    turnaround: "Under 20 minutes",
+    dailyVolume: "50+ per day",
   },
 
   // ─── BRAND TAGLINES ─────────────────────────────────

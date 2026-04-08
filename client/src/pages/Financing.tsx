@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { FINANCING_PROVIDERS, PAYMENT_METHODS, FINANCING_FAQ, type FinancingProvider } from "@shared/financing";
+import { ACIMA_BANNER } from "@/lib/acima";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
 import FinancingPreApprovalModal from "@/components/FinancingPreApprovalModal";
@@ -251,6 +252,28 @@ export default function Financing() {
               Up to $7,500
             </span>
           </div>
+        </div>
+      </section>
+
+      {/* ─── Acima Web Banner ────────────────────────────── */}
+      <section className="bg-[#111111] pt-12 pb-0">
+        <div className="container max-w-5xl">
+          <FadeIn>
+            <a
+              href={ACIMA_BANNER.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block rounded-2xl overflow-hidden border border-[#2A2A2A] hover:border-[#FDB913]/30 transition-colors"
+            >
+              <img
+                alt={ACIMA_BANNER.alt}
+                src={ACIMA_BANNER.imgSrc}
+                style={{ width: "100%", maxWidth: "1300px" }}
+                className="mx-auto"
+                loading="lazy"
+              />
+            </a>
+          </FadeIn>
         </div>
       </section>
 
