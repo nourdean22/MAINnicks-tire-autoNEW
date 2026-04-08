@@ -5,8 +5,6 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Link } from "wouter";
-import { BUSINESS } from "@shared/business";
 import {
   StatCard, UrgencyBadge, ActivityIcon, StatusDot,
   BOOKING_STATUS_CONFIG, LEAD_STATUS_CONFIG, TIME_LABELS, CHART_COLORS,
@@ -362,7 +360,7 @@ export default function LeadsSection() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button onClick={() => refetch()} className="p-2 text-foreground/50 hover:text-primary transition-colors">
+          <button onClick={() => refetch()} aria-label="Refresh data" className="p-2 text-foreground/50 hover:text-primary transition-colors">
             <RefreshCw className="w-4 h-4" />
           </button>
         </div>

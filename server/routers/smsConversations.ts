@@ -3,6 +3,7 @@
  * Handles 2-way SMS messaging with customers via Twilio.
  */
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, adminProcedure } from "../_core/trpc";
 import {
   getOrCreateConversation, addSmsMessage, getConversations,
@@ -33,8 +34,12 @@ export const smsConversationsRouter = router({
   markRead: adminProcedure
     .input(z.object({ conversationId: z.number().int() }))
     .mutation(async ({ input }) => {
-      await markConversationRead(input.conversationId);
-      return { success: true };
+      try {
+        await markConversationRead(input.conversationId);
+        return { success: true };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
+      }
     }),
 
   /** Get unread conversation count (admin) */
@@ -50,27 +55,31 @@ export const smsConversationsRouter = router({
       customerName: z.string().max(255).optional(),
     }))
     .mutation(async ({ input }) => {
-      const cleanPhone = sanitizePhone(input.phone);
-      const cleanMessage = sanitizeText(input.message);
-      const cleanName = input.customerName ? sanitizeText(input.customerName) : undefined;
-      const normalized = cleanPhone.replace(/\D/g, "").slice(-10);
+      try {
+        const cleanPhone = sanitizePhone(input.phone);
+        const cleanMessage = sanitizeText(input.message);
+        const cleanName = input.customerName ? sanitizeText(input.customerName) : undefined;
+        const normalized = cleanPhone.replace(/\D/g, "").slice(-10);
 
-      // Get or create conversation
-      const conversation = await getOrCreateConversation(normalized, cleanName);
+        // Get or create conversation
+        const conversation = await getOrCreateConversation(normalized, cleanName);
 
-      // Send via Twilio
-      const result = await sendSms(normalized, cleanMessage);
+        // Send via Twilio
+        const result = await sendSms(normalized, cleanMessage);
 
-      // Record the outbound message
-      await addSmsMessage({
-        conversationId: conversation.id,
-        direction: "outbound",
-        body: input.message,
-        twilioSid: result.sid || undefined,
-        status: result.success ? "sent" : "failed",
-      });
+        // Record the outbound message
+        await addSmsMessage({
+          conversationId: conversation.id,
+          direction: "outbound",
+          body: input.message,
+          twilioSid: result.sid || undefined,
+          status: result.success ? "sent" : "failed",
+        });
 
-      return { success: result.success, conversationId: conversation.id };
+        return { success: result.success, conversationId: conversation.id };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
+      }
     }),
 });
 

@@ -204,7 +204,7 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
               <SegmentBadge segment={customer.segment} />
             </div>
           </div>
-          <button onClick={onClose} className="text-foreground/30 hover:text-foreground/60 transition-colors">
+          <button onClick={onClose} aria-label="Close" className="text-foreground/30 hover:text-foreground/60 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -359,7 +359,7 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
           {/* Quick SMS */}
           <div className="pt-2 border-t border-border/20">
             {!smsOpen ? (
-              <button onClick={() => setSmsOpen(true)} className="flex items-center gap-2 text-xs text-primary hover:text-primary/80 tracking-wider">
+              <button onClick={() => setSmsOpen(true)} aria-label="Send text message" className="flex items-center gap-2 text-xs text-primary hover:text-primary/80 tracking-wider">
                 <MessageSquare className="w-3.5 h-3.5" /> QUICK TEXT
               </button>
             ) : (
@@ -438,7 +438,7 @@ function InlineSms({ customerId, firstName }: { customerId: number; firstName: s
     <div className="absolute right-0 top-0 z-20 bg-card border border-primary/30 shadow-lg p-3 w-72" onClick={e => e.stopPropagation()}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] font-bold text-foreground/50 tracking-wider">SMS TO {(firstName || "").toUpperCase()}</span>
-        <button onClick={() => setOpen(false)} className="text-foreground/30 hover:text-foreground">
+        <button onClick={() => setOpen(false)} aria-label="Close" className="text-foreground/30 hover:text-foreground">
           <X className="w-3 h-3" />
         </button>
       </div>

@@ -2,7 +2,7 @@
  * Activity Feed — real-time view of all shop activity (bookings, leads, SMS, reviews, etc.)
  */
 import { trpc } from "@/lib/trpc";
-import { Loader2, RefreshCw, CalendarClock, Users, Phone, MessageSquare, Star, Car, Send, Clock } from "lucide-react";
+import { Loader2, RefreshCw, CalendarClock, Users, Phone, Star, Car, Send, Clock } from "lucide-react";
 
 type ActivityItem = {
   id: string;

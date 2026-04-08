@@ -3,6 +3,7 @@
  * Handles before/after repair photo gallery for public display and admin management.
  */
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, publicProcedure, adminProcedure } from "../_core/trpc";
 import {
   getPublicGalleryItems, getAllGalleryItems, createGalleryItem,
@@ -34,13 +35,17 @@ export const galleryRouter = router({
       sortOrder: z.number().int().min(0).default(0),
     }))
     .mutation(async ({ input }) => {
-      return createGalleryItem({
-        ...input,
-        title: sanitizeText(input.title),
-        description: input.description ? sanitizeText(input.description) : undefined,
-        serviceType: sanitizeText(input.serviceType),
-        vehicleInfo: input.vehicleInfo ? sanitizeText(input.vehicleInfo) : undefined,
-      });
+      try {
+        return createGalleryItem({
+          ...input,
+          title: sanitizeText(input.title),
+          description: input.description ? sanitizeText(input.description) : undefined,
+          serviceType: sanitizeText(input.serviceType),
+          vehicleInfo: input.vehicleInfo ? sanitizeText(input.vehicleInfo) : undefined,
+        });
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
+      }
     }),
 
   /** Update a gallery item (admin) */
@@ -57,19 +62,27 @@ export const galleryRouter = router({
       sortOrder: z.number().int().min(0).optional(),
     }))
     .mutation(async ({ input }) => {
-      const { id, ...data } = input;
-      const sanitized: Record<string, any> = { ...data };
-      if (data.title) sanitized.title = sanitizeText(data.title);
-      if (data.description) sanitized.description = sanitizeText(data.description);
-      if (data.serviceType) sanitized.serviceType = sanitizeText(data.serviceType);
-      if (data.vehicleInfo) sanitized.vehicleInfo = sanitizeText(data.vehicleInfo);
-      return updateGalleryItem(id, sanitized);
+      try {
+        const { id, ...data } = input;
+        const sanitized: Record<string, any> = { ...data };
+        if (data.title) sanitized.title = sanitizeText(data.title);
+        if (data.description) sanitized.description = sanitizeText(data.description);
+        if (data.serviceType) sanitized.serviceType = sanitizeText(data.serviceType);
+        if (data.vehicleInfo) sanitized.vehicleInfo = sanitizeText(data.vehicleInfo);
+        return updateGalleryItem(id, sanitized);
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
+      }
     }),
 
   /** Delete a gallery item (admin) */
   delete: adminProcedure
     .input(z.object({ id: z.number().int() }))
     .mutation(async ({ input }) => {
-      return deleteGalleryItem(input.id);
+      try {
+        return deleteGalleryItem(input.id);
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
+      }
     }),
 });

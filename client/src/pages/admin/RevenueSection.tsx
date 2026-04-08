@@ -946,10 +946,10 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
             <div className="col-span-2">Service</div>
             <div className="col-span-1">Method</div>
             <div className="col-span-1">Status</div>
-            <div className="col-span-1 cursor-pointer select-none hover:text-foreground/60" onClick={() => toggleSort("amount")}>
+            <div className="col-span-1 cursor-pointer select-none hover:text-foreground/60" role="button" aria-label="Sort by amount" onClick={() => toggleSort("amount")}>
               Amount <SortIcon field="amount" />
             </div>
-            <div className="col-span-1 cursor-pointer select-none hover:text-foreground/60" onClick={() => toggleSort("date")}>
+            <div className="col-span-1 cursor-pointer select-none hover:text-foreground/60" role="button" aria-label="Sort by date" onClick={() => toggleSort("date")}>
               Date <SortIcon field="date" />
             </div>
             <div className="col-span-2"></div>
@@ -1060,7 +1060,7 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
     <div className="max-w-2xl">
       <div className="flex items-center justify-between mb-6">
         <h3 className="font-bold text-lg text-foreground tracking-wider">CREATE INVOICE</h3>
-        <button onClick={onDone} className="text-foreground/40 hover:text-foreground">
+        <button onClick={onDone} aria-label="Close" className="text-foreground/40 hover:text-foreground">
           <X className="w-5 h-5" />
         </button>
       </div>

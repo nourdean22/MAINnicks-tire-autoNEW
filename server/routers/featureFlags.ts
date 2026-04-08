@@ -2,6 +2,7 @@
  * Feature Flags Router — Admin-only endpoints to list and toggle feature flags.
  */
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { adminProcedure, router } from "../_core/trpc";
 
 export const featureFlagsRouter = router({
@@ -13,8 +14,12 @@ export const featureFlagsRouter = router({
   toggle: adminProcedure
     .input(z.object({ key: z.string(), value: z.boolean() }))
     .mutation(async ({ input }) => {
-      const { setFlag } = await import("../services/featureFlags");
-      await setFlag(input.key as any, input.value);
-      return { key: input.key, value: input.value };
+      try {
+        const { setFlag } = await import("../services/featureFlags");
+        await setFlag(input.key as any, input.value);
+        return { key: input.key, value: input.value };
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
+      }
     }),
 });

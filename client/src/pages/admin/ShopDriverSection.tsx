@@ -3,7 +3,7 @@
  */
 import { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
-import { Upload, CheckCircle2, XCircle, Loader2, FileText, Clock, Users, RefreshCw } from "lucide-react";
+import { Upload, CheckCircle2, XCircle, Loader2, FileText, Clock, RefreshCw } from "lucide-react";
 
 export default function ShopDriverSection() {
   const [csvContent, setCsvContent] = useState<string | null>(null);
