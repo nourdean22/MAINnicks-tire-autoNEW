@@ -212,6 +212,7 @@ export const bookingRouter = router({
         utmContent: z.string().max(255).optional(),
         landingPage: z.string().max(500).optional(),
         referrer: z.string().max(500).optional(),
+        gclid: z.string().max(255).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -254,6 +255,7 @@ export const bookingRouter = router({
             utmContent: input.utmContent || null,
             landingPage: input.landingPage || null,
             referrer: input.referrer || null,
+            gclid: input.gclid || null,
           });
           break; // Success — exit retry loop
         } catch (err: any) {

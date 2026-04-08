@@ -10,6 +10,7 @@ const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_c
 const STORAGE_KEY = "nta_utm";
 const LANDING_KEY = "nta_landing";
 const REFERRER_KEY = "nta_referrer";
+const GCLID_KEY = "nta_gclid";
 
 export interface UtmData {
   utmSource?: string;
@@ -19,6 +20,7 @@ export interface UtmData {
   utmContent?: string;
   landingPage?: string;
   referrer?: string;
+  gclid?: string;
 }
 
 /**
@@ -37,6 +39,12 @@ export function captureUtmParams(): void {
     }
     if (!sessionStorage.getItem(REFERRER_KEY) && document.referrer) {
       sessionStorage.setItem(REFERRER_KEY, document.referrer);
+    }
+
+    // Capture Google Ads click ID (gclid) — persists for offline conversion tracking
+    const gclid = params.get("gclid");
+    if (gclid) {
+      sessionStorage.setItem(GCLID_KEY, gclid);
     }
 
     // Only update UTM data if URL has UTM params (new campaign click)
@@ -64,6 +72,7 @@ export function getUtmData(): UtmData {
     const referrer = sessionStorage.getItem(REFERRER_KEY);
 
     const parsed = raw ? JSON.parse(raw) : {};
+    const gclid = sessionStorage.getItem(GCLID_KEY);
 
     return {
       utmSource: parsed.utm_source,
@@ -73,6 +82,7 @@ export function getUtmData(): UtmData {
       utmContent: parsed.utm_content,
       landingPage: landing || undefined,
       referrer: referrer || undefined,
+      gclid: gclid || undefined,
     };
   } catch {
     return {};

@@ -255,6 +255,12 @@ async function startServer() {
       `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS confirmedAt timestamp NULL`,
       `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS confirmationMethod varchar(20) NULL`,
       `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS confirmationSentAt timestamp NULL`,
+      // Revenue pipeline: quote $ tracking + money aging on leads
+      `ALTER TABLE leads ADD COLUMN IF NOT EXISTS estimatedValueCents int DEFAULT NULL`,
+      `ALTER TABLE leads ADD COLUMN IF NOT EXISTS lastFollowUpAt timestamp DEFAULT NULL`,
+      // Google Ads offline conversion tracking (gclid)
+      `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS gclid varchar(255) DEFAULT NULL`,
+      `ALTER TABLE leads ADD COLUMN IF NOT EXISTS gclid varchar(255) DEFAULT NULL`,
     ];
     let applied = 0;
     for (const stmt of alters) {
