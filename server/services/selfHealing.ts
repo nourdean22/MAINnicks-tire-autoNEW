@@ -103,11 +103,14 @@ export async function runSelfHealingChecks(): Promise<{
     actions.push("INFO: Server recently restarted — warming up");
   }
 
-  // 6. Check vendor API health
+  // 6. Check Venice AI provider health
   try {
-    const veniceKey = process.env.VENICE_API_KEY || process.env.AI_API_KEY;
-    if (!veniceKey) {
-      issues.push("AI API: No API key configured — Nick AI is non-functional");
+    const veniceKey = process.env.VENICE_API_KEY;
+    const openaiKey = process.env.OPENAI_API_KEY;
+    if (!veniceKey && !openaiKey) {
+      issues.push("AI PROVIDERS: Neither VENICE_API_KEY nor OPENAI_API_KEY configured — Nick AI is non-functional");
+    } else if (!veniceKey) {
+      issues.push("AI PROVIDER: VENICE_API_KEY missing — primary AI provider (Venice) is down, running on OpenAI fallback only");
     }
   } catch {}
 

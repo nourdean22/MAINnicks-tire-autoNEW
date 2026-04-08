@@ -212,9 +212,19 @@ const resolveApiUrl = () => {
   return `${base}/v1/chat/completions`;
 };
 
+/** Returns the correct API key — VENICE_API_KEY when base URL points to Venice, otherwise OPENAI_API_KEY */
+const resolveApiKey = (): string => {
+  const baseUrl = process.env.OPENAI_BASE_URL || "";
+  if (baseUrl.includes("venice.ai") && process.env.VENICE_API_KEY) {
+    return process.env.VENICE_API_KEY;
+  }
+  return process.env.OPENAI_API_KEY || "";
+};
+
 const assertApiKey = () => {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is not configured");
+  const key = resolveApiKey();
+  if (!key) {
+    throw new Error("No API key configured (checked VENICE_API_KEY and OPENAI_API_KEY)");
   }
 };
 
@@ -311,7 +321,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      authorization: `Bearer ${resolveApiKey()}`,
     },
     body: JSON.stringify(payload),
     signal: AbortSignal.timeout(30000), // 30s timeout — don't hang forever

@@ -112,7 +112,7 @@ export const controlCenterRouter = router({
 
     // ─── AI Gateway ──────────────────────────────────
     let aiGateway = {
-      ollamaHealthy: false,
+      veniceHealthy: false,
       recentRequests: 0,
       fallbackRate: 0,
       topModels: [] as string[],
@@ -121,15 +121,15 @@ export const controlCenterRouter = router({
     try {
       const health = getGatewayHealth();
       const models = await getAvailableModels();
-      const ollamaModels = models.find(m => m.provider === "ollama")?.models ?? [];
+      const veniceModels = models.find(m => m.provider === "venice")?.models ?? [];
 
       aiGateway = {
-        ollamaHealthy: health.ollamaHealthy,
+        veniceHealthy: health.veniceHealthy,
         recentRequests: health.stats.last5min.total,
         fallbackRate: health.stats.last5min.total > 0
           ? Math.round((health.stats.last5min.fallbacks / health.stats.last5min.total) * 100)
           : 0,
-        topModels: ollamaModels.slice(0, 5),
+        topModels: veniceModels.slice(0, 5),
       };
     } catch (err) {
       // AI gateway unavailable — defaults are fine
@@ -237,11 +237,11 @@ export const controlCenterRouter = router({
       }
     }
 
-    // Ollama down is always urgent
-    if (!aiGateway.ollamaHealthy) {
+    // Venice down is urgent — means all AI is on OpenAI fallback
+    if (!aiGateway.veniceHealthy) {
       urgentItems.push({
         type: "system",
-        message: "Ollama is offline — AI running on cloud fallback",
+        message: "Venice AI is offline — running on OpenAI fallback",
         action: "/admin#health",
         priority: "low",
       });

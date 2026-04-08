@@ -155,6 +155,13 @@
       "when": 1774900000000,
       "tag": "0021_daily_execution",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1775779200000,
+      "tag": "0025_booking_confirmation_tracking",
+      "breakpoints": true
     }
   ]
 }

@@ -613,6 +613,15 @@ export function startTieredScheduler(): void {
           return runSafetyCheckJob();
         },
       },
+      {
+        name: "post-invoice-followup", // 7-day thank you + review + referral SMS (was standalone setInterval)
+        businessHoursOnly: true,
+        handler: async () => {
+          const { processPostInvoiceFollowUps } = await import("../postInvoiceFollowUp");
+          const result = await processPostInvoiceFollowUps();
+          return { recordsProcessed: result.processed, details: `${result.sent} sent, ${result.failed} failed` };
+        },
+      },
     ],
     running: false,
     lastRun: null,

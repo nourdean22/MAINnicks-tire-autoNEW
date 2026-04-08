@@ -18,6 +18,7 @@ import {
   thankYouSms,
   reviewRequestSms,
   maintenanceReminderSms,
+  bookingConfirmationRequestSms,
 } from "../sms";
 
 /**
@@ -50,6 +51,22 @@ export async function scheduleBookingReminders(
   if (!db) return;
 
   const reminders: { type: string; scheduledFor: Date }[] = [];
+
+  // Schedule confirmation request SMS: 2 hours after booking creation
+  // Only if the appointment is >4 hours away (otherwise too late to confirm)
+  const confirmationTime = new Date();
+  confirmationTime.setHours(confirmationTime.getHours() + 2);
+
+  if (preferredDate) {
+    const apptDate = new Date(preferredDate);
+    const hoursUntilAppt = (apptDate.getTime() - Date.now()) / (1000 * 60 * 60);
+    if (hoursUntilAppt > 4) {
+      reminders.push({ type: "confirmation-request", scheduledFor: confirmationTime });
+    }
+  } else {
+    // No preferred date — always send confirmation request (drop-off shop model)
+    reminders.push({ type: "confirmation-request", scheduledFor: confirmationTime });
+  }
 
   // Parse preferred date/time to schedule reminders
   if (preferredDate) {
@@ -213,7 +230,7 @@ export async function processScheduledSms() {
 
     // Check feature flags for each reminder type — mark as skipped so they don't stay "processing" forever
     const { isEnabled } = await import("./featureFlags");
-    if ((reminder.type === "24h-before" || reminder.type === "1h-before") && !(await isEnabled("sms_appointment_reminders"))) {
+    if ((reminder.type === "24h-before" || reminder.type === "1h-before" || reminder.type === "confirmation-request") && !(await isEnabled("sms_appointment_reminders"))) {
       await db.update(appointmentReminders).set({ status: "skipped" }).where(eq(appointmentReminders.id, reminder.id));
       continue;
     }
@@ -226,9 +243,18 @@ export async function processScheduledSms() {
       continue;
     }
 
+    // Skip confirmation request if booking is already confirmed
+    if (reminder.type === "confirmation-request" && booking.status === "confirmed") {
+      await db.update(appointmentReminders).set({ status: "skipped" }).where(eq(appointmentReminders.id, reminder.id));
+      continue;
+    }
+
     // Generate message based on type
     let message: string;
     switch (reminder.type) {
+      case "confirmation-request":
+        message = bookingConfirmationRequestSms(booking.name, booking.preferredTime || undefined);
+        break;
       case "24h-before":
         message = appointmentReminder24hSms(booking.name, booking.service, vehicle || undefined, booking.preferredTime || undefined);
         break;
@@ -255,6 +281,13 @@ export async function processScheduledSms() {
         .set({ status: "sent", sentAt: now, smsSid: result.sid || null })
         .where(eq(appointmentReminders.id, reminder.id));
       sent++;
+
+      // Track when confirmation request was sent on the booking itself
+      if (reminder.type === "confirmation-request") {
+        await db.update(bookings)
+          .set({ confirmationSentAt: now })
+          .where(eq(bookings.id, reminder.bookingId));
+      }
     } else {
       await db.update(appointmentReminders)
         .set({ status: "failed" })

@@ -649,6 +649,13 @@ export function leadConfirmationSms(name: string): string {
   return `Thanks for contacting ${STORE_NAME}! We received your request and will call you shortly. Questions? Call us at ${STORE_PHONE}`;
 }
 
+/** Booking confirmation request SMS — asks customer to reply YES */
+export function bookingConfirmationRequestSms(name: string, preferredTime?: string): string {
+  const firstName = name.split(" ")[0];
+  const timeNote = preferredTime && preferredTime !== "no-preference" ? ` (${preferredTime})` : "";
+  return `Hi ${firstName}, confirming your visit to ${STORE_NAME}${timeNote}. Reply YES to confirm or call ${STORE_PHONE} to reschedule.`;
+}
+
 /** Appointment reminder — 24 hours before */
 export function appointmentReminder24hSms(name: string, service: string, vehicle?: string, preferredTime?: string): string {
   const firstName = name.split(" ")[0];

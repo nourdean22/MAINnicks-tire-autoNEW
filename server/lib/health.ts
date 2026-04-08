@@ -91,7 +91,7 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
 
     checks.aiGateway = {
       status: aiHealth.circuitBreaker.open ? "degraded" : "up",
-      ollamaHealthy: aiHealth.ollamaHealthy,
+      veniceHealthy: aiHealth.veniceHealthy,
       circuitBreakerOpen: aiHealth.circuitBreaker.open,
       recentRequests: aiHealth.stats.last5min.total,
       recentFailures: aiHealth.stats.last5min.failures,

@@ -295,10 +295,10 @@ export default function CommandCenterSection() {
             </h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[12px] text-muted-foreground">Ollama</span>
+                <span className="text-[12px] text-muted-foreground">Venice</span>
                 <span className={`text-[11px] font-semibold ${
-                  systemOverview.aiGateway.ollamaHealthy ? "text-emerald-400" : "text-red-400"
-                }`}>{systemOverview.aiGateway.ollamaHealthy ? "HEALTHY" : "DOWN"}</span>
+                  systemOverview.aiGateway.veniceHealthy ? "text-emerald-400" : "text-red-400"
+                }`}>{systemOverview.aiGateway.veniceHealthy ? "HEALTHY" : "DOWN"}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-[12px] text-muted-foreground">Recent Requests (5m)</span>

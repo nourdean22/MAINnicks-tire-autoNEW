@@ -342,6 +342,22 @@ export async function checkOperationalSafety(): Promise<CheckResult<OperationalM
       });
     }
 
+    // Unconfirmed bookings >24h — revenue pipeline leak
+    const [unconfirmedRows] = await db.execute(sql`
+      SELECT COUNT(*) as cnt
+      FROM bookings
+      WHERE status = 'new'
+        AND confirmedAt IS NULL
+        AND createdAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+    `);
+    const unconfirmedCount = Number((unconfirmedRows as any)?.[0]?.cnt || 0);
+    if (unconfirmedCount > 0) {
+      alerts.push({
+        severity: "warning",
+        message: `${unconfirmedCount} bookings unconfirmed >24h — leads going cold`,
+      });
+    }
+
     // Overdue follow-ups (pending invoices >7 days)
     const [overdueRows] = await db.execute(sql`
       SELECT COUNT(*) as cnt
