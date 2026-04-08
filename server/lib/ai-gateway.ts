@@ -223,7 +223,7 @@ async function checkVeniceHealth(): Promise<boolean> {
     if (res.ok) consecutiveVeniceFailures = 0;
   } catch (err) {
     veniceHealthy = false;
-    log.debug("Venice health check failed", { error: err instanceof Error ? err.message : String(err) });
+    log.debug("Venice health check failed", { error: err instanceof Error ? (err as Error).message : String(err) });
   }
   lastHealthCheck = now;
   return veniceHealthy;
@@ -430,13 +430,13 @@ function logRequest(entry: RequestLogEntry) {
 
 // ─── Error classification ───────────────────────────
 function classifyError(err: any): string {
-  if (err.name === "AbortError" || err.message?.includes("aborted")) return "timeout";
-  if (err.message?.includes("ECONNREFUSED")) return "connection_refused";
-  if (err.message?.includes("ECONNRESET")) return "connection_reset";
-  if (err.message?.includes("ETIMEDOUT")) return "network_timeout";
-  if (err.message?.includes("404") || err.message?.includes("model")) return "model_not_found";
-  if (err.message?.includes("429")) return "rate_limited";
-  if (/\b5\d{2}\b/.test(err.message || "")) return "server_error";
+  if (err.name === "AbortError" || (err as Error).message?.includes("aborted")) return "timeout";
+  if ((err as Error).message?.includes("ECONNREFUSED")) return "connection_refused";
+  if ((err as Error).message?.includes("ECONNRESET")) return "connection_reset";
+  if ((err as Error).message?.includes("ETIMEDOUT")) return "network_timeout";
+  if ((err as Error).message?.includes("404") || (err as Error).message?.includes("model")) return "model_not_found";
+  if ((err as Error).message?.includes("429")) return "rate_limited";
+  if (/\b5\d{2}\b/.test((err as Error).message || "")) return "server_error";
   return "unknown";
 }
 
@@ -460,23 +460,23 @@ export async function aiGateway(request: GatewayRequest): Promise<GatewayRespons
         logRequest({ timestamp: Date.now(), task: request.task, provider: "venice", model, latencyMs: result.latencyMs, success: true, fallbackUsed: false });
         log.info(`[${request.task}] Venice ${model} → ${result.latencyMs}ms`);
         return { ...result, wasFallback: false };
-      } catch (err: any) {
+      } catch (err: unknown) {
         recordVeniceFailure();
         const failureReason = classifyError(err);
-        log.warn(`[${request.task}] Venice failed (${failureReason}): ${err.message}`);
-        logRequest({ timestamp: Date.now(), task: request.task, provider: "venice", model, latencyMs: 0, success: false, fallbackUsed: false, error: err.message });
+        log.warn(`[${request.task}] Venice failed (${failureReason}): ${(err as Error).message}`);
+        logRequest({ timestamp: Date.now(), task: request.task, provider: "venice", model, latencyMs: 0, success: false, fallbackUsed: false, error: (err as Error).message });
 
         // Fallback to OpenAI
         if (config.fallbackProvider === "openai" && config.fallbackModel) {
           log.info(`[${request.task}] Triggering fallback: venice/${model} → openai/${config.fallbackModel} (reason: ${failureReason})`);
           try {
             const fallbackResult = await callOpenAI(config.fallbackModel, request.messages, config.timeoutMs);
-            logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: fallbackResult.latencyMs, success: true, fallbackUsed: true, originalError: `${failureReason}: ${err.message}` });
+            logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: fallbackResult.latencyMs, success: true, fallbackUsed: true, originalError: `${failureReason}: ${(err as Error).message}` });
             log.info(`[${request.task}] Fallback OpenAI ${config.fallbackModel} → ${fallbackResult.latencyMs}ms`);
             return { ...fallbackResult, fallbackUsed: true, wasFallback: true };
           } catch (fallbackErr: any) {
-            logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: 0, success: false, fallbackUsed: true, error: fallbackErr.message, originalError: `${failureReason}: ${err.message}` });
-            throw new Error(`Both Venice and OpenAI failed. Primary (${failureReason}): ${err.message}. Fallback: ${fallbackErr.message}`);
+            logRequest({ timestamp: Date.now(), task: request.task, provider: "openai", model: config.fallbackModel, latencyMs: 0, success: false, fallbackUsed: true, error: fallbackErr.message, originalError: `${failureReason}: ${(err as Error).message}` });
+            throw new Error(`Both Venice and OpenAI failed. Primary (${failureReason}): ${(err as Error).message}. Fallback: ${fallbackErr.message}`);
           }
         }
         throw err;
@@ -573,7 +573,7 @@ export async function getAvailableModels(): Promise<{ provider: AIProvider; mode
         result.push({ provider: "venice", models: [process.env.VENICE_MODEL || "llama-3.3-70b"] });
       }
     } catch (err) {
-      log.debug("Venice model discovery failed", { error: err instanceof Error ? err.message : String(err) });
+      log.debug("Venice model discovery failed", { error: err instanceof Error ? (err as Error).message : String(err) });
       result.push({ provider: "venice", models: [process.env.VENICE_MODEL || "llama-3.3-70b"] });
     }
   }

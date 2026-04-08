@@ -111,8 +111,8 @@ export async function generateAndNotifyGBPPost(): Promise<{ recordsProcessed: nu
     );
 
     return { recordsProcessed: 1, details: "GBP post sent to Telegram" };
-  } catch (err: any) {
-    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+  } catch (err: unknown) {
+    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }
 

@@ -184,8 +184,8 @@ export async function runChatFaqPipeline(): Promise<{
     const details = `${sessions.length} sessions, ${allQuestions.length} questions, ${top10.length} clusters`;
     log.info(`Chat FAQ pipeline: ${details}`);
     return { recordsProcessed: allQuestions.length, details };
-  } catch (err: any) {
-    log.error("Chat FAQ pipeline failed:", { error: err.message });
-    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+  } catch (err: unknown) {
+    log.error("Chat FAQ pipeline failed:", { error: (err as Error).message });
+    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }

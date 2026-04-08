@@ -258,8 +258,8 @@ export const bookingRouter = router({
             gclid: input.gclid || null,
           });
           break; // Success — exit retry loop
-        } catch (err: any) {
-          const isDuplicate = err?.message?.includes("Duplicate") || err?.code === "ER_DUP_ENTRY";
+        } catch (err: unknown) {
+          const isDuplicate = (err as any)?.message?.includes("Duplicate") || (err as any)?.code === "ER_DUP_ENTRY";
           if (isDuplicate && attempt < 2) { refCode = generateRefCode(); continue; }
           throw err;
         }

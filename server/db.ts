@@ -1313,8 +1313,9 @@ export async function createInvoice(data: InsertInvoice): Promise<{ success: boo
     try {
       const result = await db.insert(invoices).values(data);
       return { success: true, id: Number(result[0].insertId) };
-    } catch (err: any) {
-      const isDuplicate = err?.code === "ER_DUP_ENTRY" || err?.message?.includes("Duplicate entry");
+    } catch (err: unknown) {
+      const errObj = err as Record<string, unknown>;
+      const isDuplicate = errObj?.code === "ER_DUP_ENTRY" || String(errObj?.message || "").includes("Duplicate entry");
       if (isDuplicate && data.invoiceNumber && attempt < 2) {
         // Regenerate invoice number and retry
         data.invoiceNumber = await getNextInvoiceNumber();
