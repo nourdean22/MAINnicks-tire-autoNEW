@@ -69,9 +69,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "PIPELINE",
     items: [
-      { id: "leads", label: "Leads", icon: <Users className="w-4 h-4" />, badge: "leads" },
-      { id: "bookings", label: "Bookings", icon: <CalendarClock className="w-4 h-4" />, badge: "bookings" },
-      { id: "estimates", label: "Estimates", icon: <DollarSign className="w-4 h-4" /> },
+      { id: "leads", label: "Leads & Estimates", icon: <Users className="w-4 h-4" />, badge: "leads" },
       { id: "declinedEstimates", label: "Declined Work", icon: <AlertTriangle className="w-4 h-4" /> },
       { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
       { id: "revenue", label: "Revenue", icon: <TrendingUp className="w-4 h-4" /> },
@@ -80,18 +78,14 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "SHOP FLOOR",
     items: [
-      { id: "workOrders", label: "Work Orders", icon: <Wrench className="w-4 h-4" /> },
-      { id: "dispatch", label: "Dispatch & QC", icon: <ClipboardList className="w-4 h-4" /> },
-      { id: "tireOrders", label: "Tire Orders", icon: <ShoppingCart className="w-4 h-4" /> },
-      { id: "waitlist", label: "Waitlist", icon: <ListOrdered className="w-4 h-4" /> },
+      { id: "workOrders", label: "Shop Pulse", icon: <Wrench className="w-4 h-4" /> },
+      { id: "dispatch", label: "Shop Status", icon: <ClipboardList className="w-4 h-4" /> },
     ],
   },
   {
     label: "OUTREACH",
     items: [
       { id: "campaigns", label: "Outreach Hub", icon: <Send className="w-4 h-4" /> },
-      { id: "loyalty", label: "Loyalty", icon: <Trophy className="w-4 h-4" /> },
-      { id: "coupons", label: "Coupons", icon: <Star className="w-4 h-4" /> },
       { id: "content", label: "Content & AI", icon: <FileText className="w-4 h-4" /> },
     ],
   },
@@ -99,7 +93,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "SYSTEM",
     items: [
       { id: "settings", label: "ShopDriver HQ", icon: <Settings className="w-4 h-4" /> },
-      { id: "health", label: "System & Activity", icon: <Activity className="w-4 h-4" /> },
+      { id: "health", label: "System", icon: <Activity className="w-4 h-4" /> },
     ],
   },
 ];
@@ -111,10 +105,10 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   commandCenter: "NOUR OS Bridge",
   overview: "Shop Dashboard",
   bookings: "Online Bookings",
-  leads: "Website Leads",
+  leads: "Leads & Estimates",
   content: "Content & AI",
   chats: "Chat Sessions",
-  health: "System & Activity",
+  health: "System",
   coupons: "Coupons",
   qa: "Q&A",
   referrals: "Referrals",
@@ -139,8 +133,8 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   callTrackingView: "Call Tracking",
   exportView: "Export",
   financing: "Financing",
-  workOrders: "Work Orders",
-  dispatch: "Dispatch",
+  workOrders: "Shop Pulse",
+  dispatch: "Shop Status",
   intelligence: "Intelligence",
   specials: "Specials",
   warranty: "Warranties",

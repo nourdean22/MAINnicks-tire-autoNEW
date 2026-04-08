@@ -211,11 +211,14 @@ function KanbanBoard({ leadsData, onUpdate, isLoading }: {
   );
 }
 
+type LeadCategory = "all" | "estimates" | "chat" | "callbacks";
+
 export default function LeadsSection() {
   const [leadFilter, setLeadFilter] = useState<LeadStatus | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
+  const [category, setCategory] = useState<LeadCategory>("all");
 
   const { data: leadsData, isLoading, refetch } = trpc.lead.list.useQuery(undefined, {
     refetchInterval: 30000,
@@ -253,9 +256,26 @@ export default function LeadsSection() {
     }
   };
 
+  // Category filter helper
+  const applyCategory = (list: any[]) => {
+    switch (category) {
+      case "estimates":
+        return list.filter(l =>
+          l.problem && (l.problem.startsWith("Cost estimate:") || l.problem.startsWith("Diagnosis:"))
+        );
+      case "chat":
+        return list.filter(l => l.source === "chat");
+      case "callbacks":
+        return list.filter(l => l.source === "callback");
+      default:
+        return list;
+    }
+  };
+
   const filteredLeads = useMemo(() => {
     if (!leadsData) return [];
     let list = [...leadsData];
+    list = applyCategory(list);
     if (leadFilter !== "all") list = list.filter(l => l.status === leadFilter);
     if (sourceFilter !== "all") list = list.filter(l => l.source === sourceFilter);
     if (searchQuery.trim()) {
@@ -268,7 +288,13 @@ export default function LeadsSection() {
       );
     }
     return list;
-  }, [leadsData, leadFilter, sourceFilter, searchQuery]);
+  }, [leadsData, leadFilter, sourceFilter, searchQuery, category]);
+
+  // Category-filtered data for Kanban view
+  const categoryFilteredLeads = useMemo(() => {
+    if (!leadsData) return undefined;
+    return applyCategory([...leadsData]);
+  }, [leadsData, category]);
 
   const leadStats = useMemo(() => {
     if (!leadsData) return { new: 0, contacted: 0, urgent: 0, total: 0, booked: 0 };
@@ -290,6 +316,28 @@ export default function LeadsSection() {
         <StatCard label="Contacted" value={leadStats.contacted} icon={<PhoneCall className="w-4 h-4" />} color="text-primary" />
         <StatCard label="Booked" value={leadStats.booked} icon={<CheckCircle2 className="w-4 h-4" />} color="text-emerald-400" />
         <StatCard label="Urgent (4-5)" value={leadStats.urgent} icon={<AlertTriangle className="w-4 h-4" />} color="text-red-400" />
+      </div>
+
+      {/* Category Tabs */}
+      <div className="flex items-center gap-1 border-b border-border/40 overflow-x-auto">
+        {([
+          { id: "all" as LeadCategory, label: "All Leads" },
+          { id: "estimates" as LeadCategory, label: "Website Estimates" },
+          { id: "chat" as LeadCategory, label: "Chat Leads" },
+          { id: "callbacks" as LeadCategory, label: "Callbacks" },
+        ]).map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setCategory(tab.id)}
+            className={`px-4 py-2.5 text-[12px] font-bold tracking-wide border-b-2 transition-colors whitespace-nowrap ${
+              category === tab.id
+                ? "border-primary text-primary"
+                : "border-transparent text-foreground/50 hover:text-foreground"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Toolbar */}
@@ -322,7 +370,7 @@ export default function LeadsSection() {
 
       {/* Kanban View */}
       {viewMode === "kanban" ? (
-        <KanbanBoard leadsData={leadsData} onUpdate={handleStatusChange} isLoading={isLoading} />
+        <KanbanBoard leadsData={categoryFilteredLeads} onUpdate={handleStatusChange} isLoading={isLoading} />
       ) : (
         <>
           {/* List View Filters */}
