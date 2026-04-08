@@ -89,6 +89,8 @@ Allow: /
 Sitemap: https://nickstire.org/sitemap.xml
 Sitemap: https://nickstire.org/sitemap-services.xml
 Sitemap: https://nickstire.org/sitemap-locations.xml
+Sitemap: https://nickstire.org/sitemap-tires.xml
+Sitemap: https://nickstire.org/sitemap-vehicle-services.xml
 
 # AI content files
 # LLMs summary: https://nickstire.org/llms.txt

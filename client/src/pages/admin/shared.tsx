@@ -9,11 +9,11 @@ import {
   ClipboardList, Trophy, Gift, Send, Star, UserCheck, RotateCcw, Timer,
   Settings, Upload, DollarSign, Activity, TrendingUp, Plug, ShoppingCart,
   BarChart3, PhoneCall, Download, CreditCard, Zap, Brain, Tag,
-  Shield, Package, ListOrdered,
+  Shield, Package, ListOrdered, Search,
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch" | "intelligence" | "specials" | "warranty" | "inventory" | "waitlist";
+export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch" | "intelligence" | "specials" | "warranty" | "inventory" | "waitlist" | "seoEngine";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -114,6 +114,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "content", label: "Content", icon: <FileText className="w-4 h-4" /> },
       { id: "analyticsView", label: "Analytics", icon: <BarChart3 className="w-4 h-4" /> },
       { id: "exportView", label: "Export", icon: <Download className="w-4 h-4" /> },
+      { id: "seoEngine", label: "SEO Engine", icon: <Search className="w-4 h-4" /> },
       { id: "health", label: "Site Health", icon: <Globe className="w-4 h-4" /> },
       { id: "activity", label: "Activity", icon: <Activity className="w-4 h-4" /> },
       { id: "integrations", label: "Integrations", icon: <Plug className="w-4 h-4" /> },
@@ -164,6 +165,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   warranty: "Warranties",
   inventory: "Inventory",
   waitlist: "Waitlist",
+  seoEngine: "SEO Engine",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────

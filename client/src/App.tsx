@@ -8,6 +8,8 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { captureUtmParams } from "@/lib/utm";
 import { NEIGHBORHOODS } from "@shared/neighborhoods";
+import { TIRE_SIZE_PAGES } from "@shared/tireSizes";
+import { VEHICLE_SERVICE_PAGES } from "@shared/vehicleServicePages";
 
 // ─── LOADING FALLBACK ─────────────────────────────────
 function PageLoader() {
@@ -75,6 +77,8 @@ const GuidesIndex = lazy(() => import("./pages/GuidesIndex"));
 const GuidePage = lazy(() => import("./pages/GuidePage"));
 const AreasServed = lazy(() => import("./pages/AreasServed"));
 const PayInvoice = lazy(() => import("./pages/PayInvoice"));
+const TireSizePage = lazy(() => import("./pages/TireSizePage"));
+const VehicleServicePage = lazy(() => import("./pages/VehicleServicePage"));
 
 function Router() {
   const [location] = useLocation();
@@ -206,6 +210,8 @@ function Router() {
         <Route path={"/portal"} component={CustomerPortal} />
         {/* Tire Info (service page) */}
         <Route path={"/tires/info"} component={ServicePage} />
+        {/* Tire size pages (30 pages — programmatic SEO) */}
+        <Route path={"/tires/:size"} component={TireSizePage} />
         {/* FAQ page */}
         <Route path={"/faq"} component={FAQ} />
         {/* Blog / Tips */}
@@ -226,6 +232,10 @@ function Router() {
         {/* Areas Served hub — links to all city/neighborhood/intersection pages */}
         <Route path={"/areas-served"} component={AreasServed} />
         <Route path={"/pay"} component={PayInvoice} />
+        {/* Vehicle + Service combo pages (50 pages — programmatic SEO) */}
+        {VEHICLE_SERVICE_PAGES.map((p) => (
+          <Route key={p.slug} path={`/${p.slug}`} component={VehicleServicePage} />
+        ))}
         {/* Neighborhood micro-pages — dynamic from NEIGHBORHOODS data (61 pages) */}
         {NEIGHBORHOODS.map((n) => (
           <Route key={n.slug} path={`/${n.slug}`} component={NeighborhoodPage} />
