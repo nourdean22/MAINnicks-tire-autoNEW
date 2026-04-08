@@ -9,6 +9,7 @@ import { createLogger } from "./logger";
 
 const log = createLogger("health");
 const startTime = Date.now();
+let lastMemoryAlertAt: number | null = null;
 
 // ─── AI fallback message for when AI is completely down ─────
 const AI_DOWN_FALLBACK_MESSAGE =
@@ -147,6 +148,17 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
   // Memory pressure = degraded (only when truly approaching the ceiling)
   if (memPercent >= 90 && overallStatus === "healthy") {
     overallStatus = "degraded";
+  }
+
+  // Telegram alert at 80% memory — fire once per hour max
+  if (memPercent >= 80) {
+    const now = Date.now();
+    if (!lastMemoryAlertAt || now - lastMemoryAlertAt > 3600_000) {
+      lastMemoryAlertAt = now;
+      import("../services/telegram").then(({ sendTelegram }) => {
+        sendTelegram(`⚠️ MEMORY ${memPercent}% — ${memUsedMB}MB/${heapCeilingMB}MB heap. RSS: ${Math.round(mem.rss / 1024 / 1024)}MB. Consider restart.`);
+      }).catch(() => {});
+    }
   }
 
   // Degrade if critical services not configured
