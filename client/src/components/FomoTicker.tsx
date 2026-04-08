@@ -22,16 +22,16 @@ interface FomoEntry {
 
 // Hardcoded fallback entries used when real data is not available
 const FALLBACK_ENTRIES: FomoEntry[] = [
-  { type: "booking", message: "Someone in Euclid just booked Brake Inspection", minutesAgo: 8 },
-  { type: "booking", message: "Someone in Lakewood just booked Oil Change", minutesAgo: 12 },
-  { type: "booking", message: "Someone in Parma just booked Tire Rotation", minutesAgo: 4 },
-  { type: "booking", message: "Someone in Cleveland Heights just booked Engine Diagnostic", minutesAgo: 18 },
-  { type: "booking", message: "Someone in Shaker Heights just booked Alignment", minutesAgo: 6 },
-  { type: "review", message: "\u2605\u2605\u2605\u2605\u2605 New 5-star review: \"Best tire shop in Cleveland. Fair prices, honest work.\"", minutesAgo: 30 },
-  { type: "review", message: "\u2605\u2605\u2605\u2605\u2605 New 5-star review: \"Got me in same day for brakes. Lifesaver!\"", minutesAgo: 45 },
-  { type: "review", message: "\u2605\u2605\u2605\u2605\u2605 New 5-star review: \"Nick and his team are the real deal.\"", minutesAgo: 60 },
-  { type: "completed", message: "A 2019 Honda Civic just got new tires installed", minutesAgo: 15 },
-  { type: "completed", message: "A 2021 Toyota Camry just got brakes completed", minutesAgo: 22 },
+  { type: "completed", message: "A 2020 Honda CR-V just got used tires — in and out in 18 minutes", minutesAgo: 5 },
+  { type: "booking", message: "Someone in Euclid just booked a drop-off for brake repair", minutesAgo: 8 },
+  { type: "completed", message: "A 2018 Chevy Equinox owner never left the car — tire swap done", minutesAgo: 11 },
+  { type: "booking", message: "Someone in Parma just scheduled a drop-off for diagnostics", minutesAgo: 4 },
+  { type: "review", message: "\u2605\u2605\u2605\u2605\u2605 \"Didn't even get out of my car. They came out, fixed it, brought the receipt. Amazing.\"", minutesAgo: 25 },
+  { type: "completed", message: "A 2021 Toyota Camry just got brakes done — dropped off this morning", minutesAgo: 15 },
+  { type: "review", message: "\u2605\u2605\u2605\u2605\u2605 \"Best tire shop in Cleveland. Used tire for $60, in and out in 15 min.\"", minutesAgo: 40 },
+  { type: "booking", message: "Someone in Cleveland Heights just booked online — skipped the line", minutesAgo: 18 },
+  { type: "review", message: "\u2605\u2605\u2605\u2605\u2605 \"Nick and his team are the real deal. Fair prices, honest work.\"", minutesAgo: 55 },
+  { type: "completed", message: "A 2022 Ford Escape just got an oil change — same day drop-off", minutesAgo: 22 },
 ];
 
 const STORAGE_KEY = "fomo-dismissed";
