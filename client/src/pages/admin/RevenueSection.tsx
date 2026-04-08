@@ -3,15 +3,18 @@
  * invoice management, create invoice form, and hour-of-day heatmap.
  * AUDIT-FIXED: Added create invoice, hour heatmap, invoice table with edit/delete.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, lazy, Suspense } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   DollarSign, TrendingUp, TrendingDown, BarChart3, Users, Target,
   Loader2, Calendar, ArrowUpRight, ArrowDownRight, Minus, PieChart,
   Zap, Star, Clock, Activity, Plus, X, Trash2, Edit2, FileText, Search,
-  ArrowRight, AlertTriangle, CheckCircle2, Wrench,
+  ArrowRight, AlertTriangle, CheckCircle2, Wrench, CreditCard, Tag,
 } from "lucide-react";
+
+const SpecialsSection = lazy(() => import("./SpecialsSection"));
+const FinancingSection = lazy(() => import("./FinancingSection"));
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
   ResponsiveContainer, LineChart, Line, PieChart as RPieChart, Pie, Cell, Legend,
@@ -28,7 +31,51 @@ function formatDollars(dollars: number): string {
   return "$" + dollars.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
+type SectionTab = "revenue" | "specials" | "financing";
+
 export default function RevenueSection() {
+  const [section, setSection] = useState<SectionTab>("revenue");
+
+  return (
+    <div className="space-y-6">
+      {/* Section-level tabs */}
+      <div className="flex items-center gap-1 border-b border-border/20 pb-0">
+        {([
+          { id: "revenue" as const, label: "Revenue", icon: <DollarSign className="w-3.5 h-3.5" /> },
+          { id: "specials" as const, label: "Specials", icon: <Tag className="w-3.5 h-3.5" /> },
+          { id: "financing" as const, label: "Financing", icon: <CreditCard className="w-3.5 h-3.5" /> },
+        ]).map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setSection(t.id)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-[12px] font-bold tracking-wider border-b-2 transition-colors ${
+              section === t.id
+                ? "border-primary text-primary"
+                : "border-transparent text-foreground/40 hover:text-foreground/60"
+            }`}
+          >
+            {t.icon} {t.label}
+          </button>
+        ))}
+      </div>
+
+      {section === "revenue" && <RevenueContent />}
+      {section === "specials" && (
+        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+          <SpecialsSection />
+        </Suspense>
+      )}
+      {section === "financing" && (
+        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+          <FinancingSection />
+        </Suspense>
+      )}
+    </div>
+  );
+}
+
+// ─── REVENUE CONTENT (previously the entire RevenueSection) ───
+function RevenueContent() {
   const [period, setPeriod] = useState(30);
   const [intelPeriod, setIntelPeriod] = useState<"7d" | "30d" | "90d" | "6mo" | "1yr" | "all">("30d");
   const [tab, setTab] = useState<"dashboard" | "invoices" | "create">("dashboard");

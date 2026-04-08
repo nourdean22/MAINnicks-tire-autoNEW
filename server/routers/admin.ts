@@ -241,6 +241,49 @@ export const weeklyReportRouter = router({
   }),
 });
 
+// ─── CALL REVIEW REQUEST (auto-SMS after call CTA) ────
+/**
+ * Schedule a review request SMS 2 hours after someone clicks a Call CTA.
+ * Uses the existing review request infrastructure (createReviewRequest + processQueue cron).
+ * Gated behind the `sms_review_requests` feature flag.
+ */
+async function scheduleCallReviewRequest(phoneNumber: string): Promise<void> {
+  const { isEnabled } = await import("../services/featureFlags");
+  if (!(await isEnabled("sms_review_requests"))) return;
+
+  const { isPhoneOnReviewCooldown, createReviewRequest, getReviewSettings } = await import("../db");
+  const crypto = await import("crypto");
+
+  const digits = phoneNumber.replace(/\D/g, "");
+  const normalizedPhone = digits.slice(-10);
+  if (normalizedPhone.length !== 10) return;
+
+  const settings = await getReviewSettings();
+  if (!settings.enabled) return;
+
+  // Check cooldown — don't spam people who already got a review request
+  const onCooldown = await isPhoneOnReviewCooldown(normalizedPhone, settings.cooldownDays);
+  if (onCooldown) return;
+
+  // Schedule 2 hours from now
+  const scheduledAt = new Date();
+  scheduledAt.setMinutes(scheduledAt.getMinutes() + 120);
+
+  const trackingToken = crypto.randomBytes(24).toString("hex");
+
+  await createReviewRequest({
+    bookingId: 0, // no booking — triggered by call CTA
+    customerName: "Caller",
+    phone: normalizedPhone,
+    service: "Phone Inquiry",
+    status: "pending",
+    scheduledAt,
+    trackingToken,
+  });
+
+  console.log(`[CallTracking] Review request scheduled for ${normalizedPhone} at ${scheduledAt.toISOString()}`);
+}
+
 // ─── CALL TRACKING ─────────────────────────────────────
 export const callTrackingRouter = router({
   /** Log a phone click event from the frontend */
@@ -271,6 +314,13 @@ export const callTrackingRouter = router({
           referrer: input.referrer || null,
           userAgent: input.userAgent || null,
         });
+
+        // Schedule review request SMS 2 hours after call CTA click
+        // Gated behind sms_review_requests feature flag
+        scheduleCallReviewRequest(input.phoneNumber).catch((err) => {
+          console.error("[CallTracking] Review request scheduling failed:", err);
+        });
+
         return { success: true };
       } catch (err) {
         console.error("[CallTracking] Error logging call:", err);
