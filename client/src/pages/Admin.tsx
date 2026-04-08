@@ -58,6 +58,7 @@ const WarrantySection = lazy(() => import("./admin/WarrantySection"));
 const InventorySection = lazy(() => import("./admin/InventorySection"));
 const WaitlistSection = lazy(() => import("./admin/WaitlistSection"));
 const SEOEngineSection = lazy(() => import("./admin/SEOEngineSection"));
+const DeclinedEstimatesSection = lazy(() => import("./admin/DeclinedEstimatesSection"));
 
 function SectionSpinner() {
   return (
@@ -112,6 +113,7 @@ function SectionContent({ section }: { section: AdminSection }) {
       {section === "inventory" && <InventorySection />}
       {section === "waitlist" && <WaitlistSection />}
       {section === "seoEngine" && <SEOEngineSection />}
+      {section === "declinedEstimates" && <DeclinedEstimatesSection />}
     </Suspense>
   );
 }

@@ -639,6 +639,70 @@ export const invoicesRouter = router({
         })(),
       };
     }),
+
+  /** Declined estimates — pending invoices that never converted (recovery pipeline) */
+  declined: adminProcedure
+    .input(z.object({
+      days: z.number().default(30),
+    }).optional())
+    .query(async ({ input }) => {
+      const d = await db();
+      if (!d) return { estimates: [], total: 0, recoverable: 0, recovered: 0, recoveryRate: 0 };
+
+      const days = input?.days ?? 30;
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+
+      // Pending invoices = estimates that didn't convert
+      const pending = await d.select().from(invoices)
+        .where(and(
+          eq(invoices.paymentStatus, "pending"),
+          gte(invoices.invoiceDate, cutoff),
+        ))
+        .orderBy(desc(invoices.invoiceDate))
+        .limit(200);
+
+      // Count how many previously-pending invoices eventually got paid (recovery rate)
+      const allTimeCutoff = new Date();
+      allTimeCutoff.setDate(allTimeCutoff.getDate() - 90);
+      const [recoveredResult] = await d.select({
+        count: sql<number>`count(*)`,
+      }).from(invoices).where(and(
+        eq(invoices.paymentStatus, "paid"),
+        gte(invoices.invoiceDate, allTimeCutoff),
+      ));
+      const [totalEstimatesResult] = await d.select({
+        count: sql<number>`count(*)`,
+      }).from(invoices).where(gte(invoices.invoiceDate, allTimeCutoff));
+
+      const recovered = recoveredResult?.count ?? 0;
+      const totalEstimates = totalEstimatesResult?.count ?? 0;
+      const recoveryRate = totalEstimates > 0 ? Math.round((recovered / totalEstimates) * 100) : 0;
+
+      const total = pending.length;
+      const recoverable = pending.reduce((sum: number, inv: any) => sum + (inv.totalAmount || 0), 0);
+
+      return {
+        estimates: pending,
+        total,
+        recoverable: Math.round(recoverable / 100),
+        recovered,
+        recoveryRate,
+      };
+    }),
+
+  /** Mark a declined estimate for follow-up */
+  markFollowUp: adminProcedure
+    .input(z.object({
+      id: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) throw new Error("Database not available");
+      // Update to partial status to indicate follow-up scheduled
+      await d.update(invoices).set({ paymentStatus: "partial" }).where(eq(invoices.id, input.id));
+      return { success: true };
+    }),
 });
 
 // ─── KPI COMMAND CENTER ─────────────────────────────────

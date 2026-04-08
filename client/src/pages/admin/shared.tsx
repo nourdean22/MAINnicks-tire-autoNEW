@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch" | "intelligence" | "specials" | "warranty" | "inventory" | "waitlist" | "seoEngine";
+export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch" | "intelligence" | "specials" | "warranty" | "inventory" | "waitlist" | "seoEngine" | "declinedEstimates";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -73,7 +73,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "workOrders", label: "Work Orders", icon: <Wrench className="w-4 h-4" /> },
       { id: "dispatch", label: "Dispatch & QC", icon: <ClipboardList className="w-4 h-4" /> },
       { id: "tireOrders", label: "Tire Orders", icon: <ShoppingCart className="w-4 h-4" /> },
-      { id: "inventory", label: "Inventory", icon: <Package className="w-4 h-4" /> },
       { id: "waitlist", label: "Waitlist", icon: <ListOrdered className="w-4 h-4" /> },
     ],
   },
@@ -83,6 +82,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "leads", label: "Leads", icon: <Users className="w-4 h-4" />, badge: "leads" },
       { id: "bookings", label: "Bookings", icon: <CalendarClock className="w-4 h-4" />, badge: "bookings" },
       { id: "estimates", label: "Estimates", icon: <DollarSign className="w-4 h-4" /> },
+      { id: "declinedEstimates", label: "Declined Work", icon: <AlertTriangle className="w-4 h-4" /> },
       { id: "chats", label: "Chat Sessions", icon: <MessageSquare className="w-4 h-4" /> },
       { id: "callTrackingView", label: "Calls", icon: <PhoneCall className="w-4 h-4" /> },
     ],
@@ -160,6 +160,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   inventory: "Inventory",
   waitlist: "Waitlist",
   seoEngine: "SEO Engine",
+  declinedEstimates: "Declined Work",
 };
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────
