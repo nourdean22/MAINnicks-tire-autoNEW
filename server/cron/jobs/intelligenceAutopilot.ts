@@ -250,24 +250,8 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
       log.warn("Walk-in classification failed:", { error: e.message });
     }
 
-    // ── Enrich with Master Intelligence ─────────────────────
-    let healthScore = 0;
-    try {
-      const { generateMasterIntelligenceReport } = await import("../../services/masterIntelligence");
-      const master = await generateMasterIntelligenceReport();
-      healthScore = master.summary.score;
-
-      // Add top risk/opportunity if not already covered by existing alerts
-      const alertText = alerts.join(" ");
-      if (master.summary.topRisk !== "No elevated risks detected" && !alertText.includes(master.summary.topRisk.slice(0, 30))) {
-        alerts.push(`🎯 TOP RISK: ${master.summary.topRisk}`);
-      }
-      if (master.summary.topOpportunity !== "No standout opportunities detected this cycle" && !alertText.includes(master.summary.topOpportunity.slice(0, 30))) {
-        alerts.push(`💡 TOP OPPORTUNITY: ${master.summary.topOpportunity}`);
-      }
-    } catch (e: any) {
-      log.warn("Master intelligence for autopilot failed:", { error: e.message });
-    }
+    // ── Compute health score inline (avoids re-running all 28 engines via master report) ──
+    const healthScore = Math.max(0, 100 - alerts.length * 10);
 
     // ── Send Alerts ────────────────────────────────────────
     if (alerts.length > 0) {

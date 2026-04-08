@@ -69,7 +69,7 @@ export async function predictRepeatVisits(): Promise<{
       const avgGap = Math.round(spanDays / (visits - 1));
       if (avgGap <= 0) continue;
       const daysUntilDue = avgGap - daysSince;
-      const confidence = Math.min(0.95, 0.5 + (visits - 2) * 0.1);
+      const confidence = Math.min(95, Math.round((0.5 + (visits - 2) * 0.1) * 100));
       const predicted = new Date(Date.now() + daysUntilDue * 86400000);
 
       if (daysUntilDue < 0) overdueCount++;
@@ -79,7 +79,7 @@ export async function predictRepeatVisits(): Promise<{
           phone: r.phone || "",
           predictedDate: predicted.toISOString().split("T")[0],
           avgGapDays: avgGap,
-          confidence: Math.round(confidence * 100) / 100,
+          confidence,
         });
       }
     }
@@ -167,15 +167,24 @@ export async function buildServiceAffinityMap(): Promise<{
     const nameMap: Record<number, string> = {};
     for (const c of custNames) nameMap[c.id] = `${c.firstName || ""} ${c.lastName || ""}`.trim();
 
+    // Compute global service frequency to predict next service by popularity, not alphabetical order
+    const globalServiceFreq: Record<string, number> = {};
+    for (const svcMap of Object.values(custServices)) {
+      for (const [svc, count] of Object.entries(svcMap)) {
+        globalServiceFreq[svc] = (globalServiceFreq[svc] || 0) + count;
+      }
+    }
+    const servicesByPopularity = Object.entries(globalServiceFreq)
+      .sort((a, b) => b[1] - a[1])
+      .map(([svc]) => svc);
+
     const affinities: Array<{ customerId: number; name: string; topServices: string[]; predictedNext: string }> = [];
     for (const [cidStr, svcMap] of Object.entries(custServices)) {
       const cid = Number(cidStr);
       const sorted = Object.entries(svcMap).sort((a, b) => b[1] - a[1]);
       if (sorted.length === 0) continue;
       const topServices = sorted.slice(0, 3).map(s => s[0]);
-      const allServiceKeys = SERVICE_CATEGORIES.map(c => c.key);
-      const unused = allServiceKeys.filter(k => !svcMap[k]);
-      const predictedNext = unused.length > 0 ? unused[0] : topServices[0];
+      const predictedNext = servicesByPopularity.find(svc => !svcMap[svc]) || topServices[0];
       affinities.push({ customerId: cid, name: nameMap[cid] || `Customer #${cid}`, topServices, predictedNext });
     }
 
@@ -358,7 +367,7 @@ export async function analyzeBayUtilization(): Promise<{
 }> {
   try {
     const TOTAL_BAYS = 6; // Nick's shop bay count
-    const OPERATING_HOURS = { start: 8, end: 17 }; // 8 AM - 5 PM
+    const OPERATING_HOURS = { start: 8, end: 18 }; // 8 AM - 6 PM
 
     const rows = await (await db()).execute(sql`
       SELECT HOUR(wo.started_at) as startHour, COUNT(*) as jobCount
@@ -626,8 +635,8 @@ export async function analyzeReviewVelocity(): Promise<{
     const totalReviews = Number(r.totalReviews || 0);
     const velocity = lastMonth > 0 ? Math.round(((thisMonth - lastMonth) / lastMonth) * 100) : 0;
     const trend = velocity > 10 ? "accelerating" : velocity < -10 ? "decelerating" : "steady";
-    const avgPerMonth = totalReviews / 12;
-    const projectedAnnual = Math.round(avgPerMonth * 12);
+    const recentMonthlyRate = thisMonth > 0 ? thisMonth : lastMonth;
+    const projectedAnnual = Math.round(recentMonthlyRate * 12);
 
     return { thisMonth, lastMonth, velocity, trend, projectedAnnual };
   } catch {
