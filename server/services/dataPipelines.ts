@@ -81,7 +81,8 @@ export async function refreshGatewayPrices(): Promise<{ recordsProcessed: number
       if (!Array.isArray(data) || data.length === 0) continue;
 
       const oldPrices = priceCache.get(sizeClean) || [];
-      const newPrices: CachedPrice[] = data.slice(0, 15).map((item: any) => ({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- external API response shape
+      const newPrices: CachedPrice[] = data.slice(0, 15).map((item: Record<string, any>) => ({
         size,
         brand: (item.brand || "").toUpperCase(),
         model: item.model || item.name || "",
@@ -167,7 +168,8 @@ export async function pollGatewayOrderStatuses(): Promise<{ recordsProcessed: nu
     if (pendingOrders.length === 0) return { recordsProcessed: 0, details: "No pending orders" };
 
     // Check for stale orders (received > 2 days with no status change)
-    const staleOrders = pendingOrders.filter((o: any) => {
+    type TireOrder = typeof pendingOrders[number];
+    const staleOrders = pendingOrders.filter((o: TireOrder) => {
       if (o.status !== "received") return false;
       const age = Date.now() - new Date(o.createdAt).getTime();
       return age > 2 * 24 * 60 * 60 * 1000; // >2 days
@@ -177,7 +179,7 @@ export async function pollGatewayOrderStatuses(): Promise<{ recordsProcessed: nu
       const { sendTelegram } = await import("./telegram");
       await sendTelegram(
         `⚠️ STALE TIRE ORDERS — ${staleOrders.length} orders still "received" after 2+ days:\n\n` +
-        staleOrders.map((o: any) => {
+        staleOrders.map((o: TireOrder) => {
           const days = Math.round((Date.now() - new Date(o.createdAt).getTime()) / 86400000);
           return `${o.orderNumber}: ${o.quantity}x ${o.tireBrand} ${o.tireModel} (${o.tireSize}) — ${days}d old — ${o.customerName}`;
         }).join("\n") +
@@ -186,7 +188,7 @@ export async function pollGatewayOrderStatuses(): Promise<{ recordsProcessed: nu
     }
 
     // Check for orders that might have been delivered (ordered > 3 days)
-    const possiblyDelivered = pendingOrders.filter((o: any) => {
+    const possiblyDelivered = pendingOrders.filter((o: TireOrder) => {
       if (o.status !== "ordered") return false;
       const age = Date.now() - new Date(o.createdAt).getTime();
       return age > 3 * 24 * 60 * 60 * 1000;
@@ -196,7 +198,7 @@ export async function pollGatewayOrderStatuses(): Promise<{ recordsProcessed: nu
       const { sendTelegram } = await import("./telegram");
       await sendTelegram(
         `📦 TIRE DELIVERY CHECK — ${possiblyDelivered.length} orders "ordered" 3+ days ago:\n\n` +
-        possiblyDelivered.map((o: any) => `${o.orderNumber}: ${o.tireBrand} ${o.tireModel} — ${o.customerName}`).join("\n") +
+        possiblyDelivered.map((o: TireOrder) => `${o.orderNumber}: ${o.tireBrand} ${o.tireModel} — ${o.customerName}`).join("\n") +
         `\n\n✅ If tires arrived, update status to "delivered". If not, check tracking.`
       );
     }
@@ -205,8 +207,8 @@ export async function pollGatewayOrderStatuses(): Promise<{ recordsProcessed: nu
       recordsProcessed: pendingOrders.length,
       details: `${pendingOrders.length} pending, ${staleOrders.length} stale, ${possiblyDelivered.length} check delivery`,
     };
-  } catch (err: any) {
-    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+  } catch (err: unknown) {
+    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }
 
@@ -236,7 +238,7 @@ export async function syncVisitDatesFromInvoices(): Promise<{ recordsProcessed: 
         AND LENGTH(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', '')) >= 10
     `);
 
-    const affected = (result as any)?.affectedRows || 0;
+    const affected = (result as Record<string, unknown>)?.affectedRows as number || 0;
 
     // Also update from work orders (completedAt)
     const [woResult] = await db.execute(sql`
@@ -251,7 +253,7 @@ export async function syncVisitDatesFromInvoices(): Promise<{ recordsProcessed: 
       WHERE c.lastVisitDate IS NULL OR c.lastVisitDate < wo.latestCompleted
     `);
 
-    const woAffected = (woResult as any)?.affectedRows || 0;
+    const woAffected = (woResult as Record<string, unknown>)?.affectedRows as number || 0;
     const total = affected + woAffected;
 
     if (total > 0) {
@@ -259,8 +261,8 @@ export async function syncVisitDatesFromInvoices(): Promise<{ recordsProcessed: 
     }
 
     return { recordsProcessed: total, details: `${affected} from invoices, ${woAffected} from WOs` };
-  } catch (err: any) {
-    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+  } catch (err: unknown) {
+    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }
 
@@ -282,13 +284,14 @@ export async function crossReconcileInvoices(): Promise<{ recordsProcessed: numb
       ORDER BY invoiceDate DESC
     `);
 
-    const invoices = localInvoices as any[];
+    type RawRow = Record<string, unknown>;
+    const invoices = localInvoices as RawRow[];
     if (!invoices || invoices.length === 0) return { recordsProcessed: 0, details: "No recent invoices" };
 
     // Calculate daily totals
     const dailyTotals = new Map<string, { count: number; total: number; paid: number; pending: number }>();
     for (const inv of invoices) {
-      const day = new Date(inv.invoiceDate).toISOString().slice(0, 10);
+      const day = new Date(inv.invoiceDate as string).toISOString().slice(0, 10);
       const existing = dailyTotals.get(day) || { count: 0, total: 0, paid: 0, pending: 0 };
       const amount = Number(inv.totalAmount) / 100; // cents to dollars
       existing.count++;
@@ -302,18 +305,18 @@ export async function crossReconcileInvoices(): Promise<{ recordsProcessed: numb
     const anomalies: string[] = [];
 
     // Check for unpaid invoices > 3 days old
-    const unpaidOld = invoices.filter((inv: any) => {
+    const unpaidOld = invoices.filter((inv: RawRow) => {
       if (inv.paymentStatus === "paid") return false;
-      const age = Date.now() - new Date(inv.invoiceDate).getTime();
+      const age = Date.now() - new Date(inv.invoiceDate as string).getTime();
       return age > 3 * 24 * 60 * 60 * 1000;
     });
     if (unpaidOld.length > 0) {
-      const totalUnpaid = unpaidOld.reduce((s: number, i: any) => s + Number(i.totalAmount) / 100, 0);
+      const totalUnpaid = unpaidOld.reduce((s: number, i: RawRow) => s + Number(i.totalAmount) / 100, 0);
       anomalies.push(`💸 ${unpaidOld.length} unpaid invoices >3 days old ($${totalUnpaid.toFixed(0)} outstanding)`);
     }
 
     // Check for zero-amount invoices
-    const zeroInvoices = invoices.filter((inv: any) => Number(inv.totalAmount) === 0);
+    const zeroInvoices = invoices.filter((inv: RawRow) => Number(inv.totalAmount) === 0);
     if (zeroInvoices.length > 0) {
       anomalies.push(`⚠️ ${zeroInvoices.length} $0 invoices detected`);
     }
@@ -350,8 +353,8 @@ export async function crossReconcileInvoices(): Promise<{ recordsProcessed: numb
       recordsProcessed: invoices.length,
       details: `${invoices.length} invoices checked, ${anomalies.length} anomalies, ${dailyTotals.size} days analyzed`,
     };
-  } catch (err: any) {
-    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+  } catch (err: unknown) {
+    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }
 
@@ -372,10 +375,10 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
   async function step(name: string, query: ReturnType<typeof sql>) {
     try {
       const [result] = await db.execute(query);
-      counts[name] = (result as any)?.affectedRows || 0;
-    } catch (err: any) {
+      counts[name] = (result as Record<string, unknown>)?.affectedRows as number || 0;
+    } catch (err: unknown) {
       counts[name] = 0;
-      errors.push(`${name}: ${err.message?.slice(0, 80)}`);
+      errors.push(`${name}: ${((err as Error).message ?? String(err)).slice(0, 80)}`);
     }
   }
 
@@ -527,11 +530,12 @@ export async function analyzeTireInventory(): Promise<{ recordsProcessed: number
       LIMIT 15
     `);
 
-    const patterns = orderPatterns as any[];
+    type RawRow2 = Record<string, unknown>;
+    const patterns = orderPatterns as RawRow2[];
     if (!patterns || patterns.length === 0) return { recordsProcessed: 0, details: "No tire order data" };
 
     // Check Gateway stock for top ordered sizes
-    const topSizes = [...new Set(patterns.map((p: any) => p.tireSize))].slice(0, 5);
+    const topSizes = [...new Set(patterns.map((p: RawRow2) => p.tireSize as string))].slice(0, 5);
     const lowStockSizes: string[] = [];
 
     // Cross-reference with price cache for stock levels
@@ -552,7 +556,7 @@ export async function analyzeTireInventory(): Promise<{ recordsProcessed: number
     await remember({
       type: "insight",
       content: `Tire demand (90d): Top size ${topSize.tireSize} (${topSize.orderCount} orders, ${topSize.totalQty} tires). ` +
-        `Top 5 sizes: ${patterns.slice(0, 5).map((p: any) => `${p.tireSize} (${p.orderCount})`).join(", ")}. ` +
+        `Top 5 sizes: ${patterns.slice(0, 5).map((p: RawRow2) => `${p.tireSize} (${p.orderCount})`).join(", ")}. ` +
         (lowStockSizes.length > 0 ? `⚠️ Low stock at Gateway: ${lowStockSizes.join(", ")}` : "Stock looks good."),
       source: "tire_intelligence",
       confidence: 0.85,
@@ -572,8 +576,8 @@ export async function analyzeTireInventory(): Promise<{ recordsProcessed: number
       recordsProcessed: patterns.length,
       details: `${patterns.length} size/brand combos analyzed, ${lowStockSizes.length} low stock alerts`,
     };
-  } catch (err: any) {
-    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+  } catch (err: unknown) {
+    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }
 
@@ -629,11 +633,12 @@ export async function processRevenueAnalytics(): Promise<{ recordsProcessed: num
       LIMIT 5
     `);
 
-    const tw = (thisWeek as any)?.[0] || { jobs: 0, revenue: 0 };
-    const lw = (lastWeek as any)?.[0] || { jobs: 0, revenue: 0 };
-    const tm = (thisMonth as any)?.[0] || { jobs: 0, revenue: 0 };
-    const at = (avgTicket as any)?.[0] || { avg: 0 };
-    const top = (topServices as any[]) || [];
+    type RawRow3 = Record<string, unknown>;
+    const tw = ((thisWeek as RawRow3[])?.[0] || { jobs: 0, revenue: 0 }) as RawRow3;
+    const lw = ((lastWeek as RawRow3[])?.[0] || { jobs: 0, revenue: 0 }) as RawRow3;
+    const tm = ((thisMonth as RawRow3[])?.[0] || { jobs: 0, revenue: 0 }) as RawRow3;
+    const at = ((avgTicket as RawRow3[])?.[0] || { avg: 0 }) as RawRow3;
+    const top = (topServices as RawRow3[]) || [];
 
     const weekRevenue = Number(tw.revenue) / 100;
     const lastWeekRevenue = Number(lw.revenue) / 100;
@@ -645,7 +650,7 @@ export async function processRevenueAnalytics(): Promise<{ recordsProcessed: num
     const { remember } = await import("./nickMemory");
     await remember({
       type: "insight",
-      content: `Revenue analytics: This week $${weekRevenue.toFixed(0)} (${tw.jobs} jobs) vs last week $${lastWeekRevenue.toFixed(0)} (${weekDelta}% change). Month: $${monthRevenue.toFixed(0)} (${tm.jobs} jobs). Avg ticket: $${avgTicketVal.toFixed(0)}. Top services: ${top.slice(0, 3).map((s: any) => `${(s.serviceDescription || "Other").slice(0, 30)} (${s.cnt})`).join(", ")}.`,
+      content: `Revenue analytics: This week $${weekRevenue.toFixed(0)} (${tw.jobs} jobs) vs last week $${lastWeekRevenue.toFixed(0)} (${weekDelta}% change). Month: $${monthRevenue.toFixed(0)} (${tm.jobs} jobs). Avg ticket: $${avgTicketVal.toFixed(0)}. Top services: ${top.slice(0, 3).map((s: RawRow3) => `${(String(s.serviceDescription || "Other")).slice(0, 30)} (${s.cnt})`).join(", ")}.`,
       source: "revenue_analytics",
       confidence: 0.95,
     });
@@ -654,7 +659,7 @@ export async function processRevenueAnalytics(): Promise<{ recordsProcessed: num
       recordsProcessed: 1,
       details: `Week: $${weekRevenue.toFixed(0)} (${weekDelta}%), Month: $${monthRevenue.toFixed(0)}, Avg: $${avgTicketVal.toFixed(0)}`,
     };
-  } catch (err: any) {
-    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+  } catch (err: unknown) {
+    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }

@@ -83,8 +83,8 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
       if (todayRevenue > dailyTarget * 1.5) {
         alerts.push(`💰 Big day: $${Math.round(todayRevenue).toLocaleString()} today (${Math.round((todayRevenue / dailyTarget) * 100)}% of daily target)`);
       }
-    } catch (e: any) {
-      log.warn("Revenue forecast failed:", { error: e.message });
+    } catch (e: unknown) {
+      log.warn("Revenue forecast failed:", { error: (e as Error).message });
     }
 
     // ── 2. Auto Lead Scoring ───────────────────────────────
@@ -93,38 +93,40 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
       actionsPerformed += scored.length;
 
       // Alert on hot leads (score >= 70)
-      const hotLeads = scored.filter((l: any) => l.score >= 70);
+      type ScoredLead = typeof scored[number];
+      const hotLeads = scored.filter((l: ScoredLead) => l.score >= 70);
       if (hotLeads.length > 0) {
         const topLeads = hotLeads.slice(0, 3);
         alerts.push(
           `🎯 ${hotLeads.length} HOT LEAD${hotLeads.length > 1 ? "S" : ""}: ` +
-          topLeads.map((l: any) => `${l.name || "Unknown"} (score: ${l.score}, ${l.service || "general"})`).join(" | ")
+          topLeads.map((l: ScoredLead) => `${l.name || "Unknown"} (score: ${l.score}, ${l.service || "general"})`).join(" | ")
         );
       }
-    } catch (e: any) {
-      log.warn("Lead scoring failed:", { error: e.message });
+    } catch (e: unknown) {
+      log.warn("Lead scoring failed:", { error: (e as Error).message });
     }
 
     // ── 3. Cross-Sell Opportunities ────────────────────────
     try {
       const { recommendations, patterns } = await generateCrossSellRecommendations();
-      const overdue = recommendations.filter((r: any) => r.urgency === "overdue");
-      const totalValue = overdue.reduce((sum: number, r: any) => sum + (r.estimatedValue || 0), 0);
+      type CrossSellRec = typeof recommendations[number];
+      const overdue = recommendations.filter((r: CrossSellRec) => r.urgency === "overdue");
+      const totalValue = overdue.reduce((sum: number, r: CrossSellRec) => sum + ((r as Record<string, unknown>).estimatedValue as number || 0), 0);
 
       if (overdue.length >= 3 && totalValue > 200) {
         alerts.push(
           `🔗 ${overdue.length} CROSS-SELL OVERDUE (~$${Math.round(totalValue)}): ` +
-          overdue.slice(0, 3).map((r: any) => `${(r.name || "Customer").split(" ")[0]} needs ${r.service}`).join(", ")
+          overdue.slice(0, 3).map((r: CrossSellRec) => `${(r.name || "Customer").split(" ")[0]} needs ${r.service}`).join(", ")
         );
       }
 
       // Pattern insights
-      const strongPatterns = (patterns || []).filter((p: any) => p.confidence >= 0.6);
+      const strongPatterns = (patterns || []).filter((p: typeof patterns[number]) => (p as Record<string, unknown>).confidence as number >= 0.6);
       if (strongPatterns.length > 0) {
         actionsPerformed += strongPatterns.length;
       }
-    } catch (e: any) {
-      log.warn("Cross-sell analysis failed:", { error: e.message });
+    } catch (e: unknown) {
+      log.warn("Cross-sell analysis failed:", { error: (e as Error).message });
     }
 
     // ── 4. LTV & Churn Risk ────────────────────────────────
@@ -135,12 +137,12 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
       if (atRisk.length > 0) {
         alerts.push(
           `⚠️ ${atRisk.length} HIGH-VALUE CUSTOMER${atRisk.length > 1 ? "S" : ""} AT RISK: ` +
-          atRisk.slice(0, 3).map((c: any) => `${c.name || "?"} (LTV score: ${c.ltvScore || 0}, ${c.daysSinceLastVisit || "?"}d since visit)`).join(", ") +
+          atRisk.slice(0, 3).map((c: typeof atRisk[number]) => `${c.name || "?"} (LTV score: ${c.ltvScore || 0}, ${c.daysSinceLastVisit || "?"}d since visit)`).join(", ") +
           `. Reach out NOW.`
         );
       }
-    } catch (e: any) {
-      log.warn("LTV prediction failed:", { error: e.message });
+    } catch (e: unknown) {
+      log.warn("LTV prediction failed:", { error: (e as Error).message });
     }
 
     // ── 4b. Churn Prediction ─────────────────────────────────
@@ -157,8 +159,8 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
           `. Reach out NOW before they go to a competitor.`
         );
       }
-    } catch (e: any) {
-      log.warn("Churn prediction failed:", { error: e.message });
+    } catch (e: unknown) {
+      log.warn("Churn prediction failed:", { error: (e as Error).message });
     }
 
     // ── 5. Bottleneck Detection ────────────────────────────
@@ -170,8 +172,8 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
           `Completion rate: ${bottlenecks.completionRate}% across ${bottlenecks.totalBookings} recent bookings.`
         );
       }
-    } catch (e: any) {
-      log.warn("Bottleneck analysis failed:", { error: e.message });
+    } catch (e: unknown) {
+      log.warn("Bottleneck analysis failed:", { error: (e as Error).message });
     }
 
     // ── 6. Declined Work Recovery ──────────────────────────
@@ -182,11 +184,11 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
       if (recoverable > 500) {
         alerts.push(
           `💸 $${Math.round(recoverable)} DECLINED WORK recoverable from ${declined.totalWithDeclined || "?"} customers. ` +
-          `Top services: ${(declined.topDeclinedServices || []).slice(0, 2).map((s: any) => `${s[0]} ($${Math.round(s[1].totalValue)})`).join(", ")}`
+          `Top services: ${(declined.topDeclinedServices || []).slice(0, 2).map((s: [string, { count: number; totalValue: number }]) => `${s[0]} ($${Math.round(s[1].totalValue)})`).join(", ")}`
         );
       }
-    } catch (e: any) {
-      log.warn("Declined work analysis failed:", { error: e.message });
+    } catch (e: unknown) {
+      log.warn("Declined work analysis failed:", { error: (e as Error).message });
     }
 
     // ── 7. Walk-in vs Website Classification ────────────────
@@ -200,14 +202,15 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
           SELECT COUNT(*) as total FROM invoices
           WHERE invoiceDate >= CURDATE() AND paymentStatus = 'paid'
         `);
-        const todayInvoices = Number((invoiceRows as any)?.[0]?.total || 0);
+        type RawRow = Record<string, unknown>;
+        const todayInvoices = Number((invoiceRows as RawRow[])?.[0]?.total || 0);
 
         // Count today's website bookings
         const [bookingRows] = await d.execute(rawSql`
           SELECT COUNT(*) as total FROM bookings
           WHERE createdAt >= CURDATE() AND status IN ('confirmed', 'completed')
         `);
-        const todayBookings = Number((bookingRows as any)?.[0]?.total || 0);
+        const todayBookings = Number((bookingRows as RawRow[])?.[0]?.total || 0);
 
         const walkIns = Math.max(0, todayInvoices - todayBookings);
         if (todayInvoices > 0) {
@@ -224,7 +227,7 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
             AND totalAmount <= 500
             AND paymentStatus = 'paid'
         `);
-        const freeInspections = Number((freeRows as any)?.[0]?.total || 0);
+        const freeInspections = Number((freeRows as RawRow[])?.[0]?.total || 0);
         if (freeInspections > 0) {
           // Don't alert — these are intentional. Just track.
           actionsPerformed += freeInspections;
@@ -237,8 +240,8 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
             COUNT(CASE WHEN paymentStatus = 'paid' AND invoiceDate >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) THEN 1 END) as closed
           FROM invoices
         `);
-        const estimates = Number((estRows as any)?.[0]?.estimates || 0);
-        const closed = Number((estRows as any)?.[0]?.closed || 0);
+        const estimates = Number((estRows as RawRow[])?.[0]?.estimates || 0);
+        const closed = Number((estRows as RawRow[])?.[0]?.closed || 0);
         if (estimates > 3) {
           const conversionRate = closed > 0 ? Math.round((closed / (closed + estimates)) * 100) : 0;
           alerts.push(
@@ -246,8 +249,8 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
           );
         }
       }
-    } catch (e: any) {
-      log.warn("Walk-in classification failed:", { error: e.message });
+    } catch (e: unknown) {
+      log.warn("Walk-in classification failed:", { error: (e as Error).message });
     }
 
     // ── Compute health score inline (avoids re-running all 28 engines via master report) ──
@@ -264,8 +267,8 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
           alerts.join("\n\n") +
           `\n\n📊 ${actionsPerformed} records analyzed`
         );
-      } catch (e: any) {
-        log.warn("Telegram alert failed:", { error: e.message });
+      } catch (e: unknown) {
+        log.warn("Telegram alert failed:", { error: (e as Error).message });
       }
 
       // Store to Nick's memory
@@ -283,9 +286,9 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
     const details = `${alerts.length} alerts, ${actionsPerformed} records analyzed`;
     if (alerts.length > 0) log.info(`Autopilot: ${details}`);
     return { recordsProcessed: actionsPerformed, details };
-  } catch (err: any) {
-    log.error("Intelligence autopilot failed:", { error: err.message });
-    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+  } catch (err: unknown) {
+    log.error("Intelligence autopilot failed:", { error: (err as Error).message });
+    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }
 
@@ -326,8 +329,8 @@ export async function runAlgAutoDiscovery(): Promise<{ recordsProcessed: number;
     } catch (e) { console.warn("[jobs/intelligenceAutopilot] operation failed:", e); }
 
     return { recordsProcessed: total, details: `${live.length} live, ${withData.length} with data` };
-  } catch (err: any) {
-    log.error("ALG discovery failed:", { error: err.message });
-    return { recordsProcessed: 0, details: `Failed: ${err.message}` };
+  } catch (err: unknown) {
+    log.error("ALG discovery failed:", { error: (err as Error).message });
+    return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
 }

@@ -100,7 +100,7 @@ export async function forecastRevenue() {
     .groupBy(sql`DATE_FORMAT(${invoices.invoiceDate}, '%Y-%u')`)
     .orderBy(sql`week`);
 
-  const weeks = weeklyTrend.map((w: any) => w.total / 100);
+  const weeks = weeklyTrend.map((w: typeof weeklyTrend[number]) => w.total / 100);
   const trend = weeks.length >= 2
     ? weeks[weeks.length - 1] > weeks[weeks.length - 2] ? "up" : weeks[weeks.length - 1] < weeks[weeks.length - 2] ? "down" : "flat"
     : "flat";
@@ -243,7 +243,7 @@ export async function scoreLeads() {
   const openLeads = await (await db()).select().from(leads)
     .where(sql`${leads.status} IN ('new', 'contacted')`);
 
-  const scored = await Promise.all(openLeads.map(async (lead: any) => {
+  const scored = await Promise.all(openLeads.map(async (lead: typeof openLeads[number]) => {
     let score = 0;
     const factors: string[] = [];
 
@@ -312,7 +312,7 @@ export async function trackCampaignAttribution() {
 
   const reviewAttribution: { sent: number; clicked: number; bookedAfter: number; revenueGenerated: number } = {
     sent: sentReviews.length,
-    clicked: sentReviews.filter((r: any) => r.clickedAt).length,
+    clicked: sentReviews.filter((r: typeof sentReviews[number]) => r.clickedAt).length,
     bookedAfter: 0,
     revenueGenerated: 0,
   };
@@ -352,7 +352,7 @@ export async function trackCampaignAttribution() {
       ));
     if (followInvoice.length > 0) {
       smsAttribution.bookedAfter++;
-      smsAttribution.revenueAfter += followInvoice.reduce((s: number, i: any) => s + (i.total || 0), 0) / 100;
+      smsAttribution.revenueAfter += followInvoice.reduce((s: number, i: typeof followInvoice[number]) => s + (i.total || 0), 0) / 100;
     }
   }
 
@@ -380,7 +380,7 @@ export async function predictCustomerLTV() {
     }).from(customers)
       .where(gte(customers.totalVisits, 1));
 
-    const scored = allCustomers.map((c: any) => {
+    const scored = allCustomers.map((c: typeof allCustomers[number]) => {
       let ltvScore = 0;
 
       // 1. Historical spend (0-30)
@@ -429,7 +429,7 @@ export async function predictCustomerLTV() {
       try {
         for (const s of scored.slice(0, 200)) {
           await dbRef.update(customerMetrics)
-            .set({ churnRisk: s.churnRisk as any, isVip: s.ltvScore >= 70 ? 1 : 0 })
+            .set({ churnRisk: s.churnRisk as "low" | "medium" | "high", isVip: s.ltvScore >= 70 ? 1 : 0 })
             .where(eq(customerMetrics.customerId, s.id));
         }
       } catch (e) {
@@ -437,17 +437,18 @@ export async function predictCustomerLTV() {
       }
     });
 
-    const sorted = scored.sort((a: any, b: any) => b.ltvScore - a.ltvScore);
-    const atRiskHighValue = sorted.filter((c: any) => c.ltvScore >= 50 && c.daysSinceLastVisit > 60).slice(0, 15);
+    type ScoredCustomer = typeof scored[number];
+    const sorted = scored.sort((a: ScoredCustomer, b: ScoredCustomer) => b.ltvScore - a.ltvScore);
+    const atRiskHighValue = sorted.filter((c: ScoredCustomer) => c.ltvScore >= 50 && c.daysSinceLastVisit > 60).slice(0, 15);
 
     return {
       topCustomers: sorted.slice(0, 20),
       atRiskHighValue,
       segments: {
-        whales: sorted.filter((c: any) => c.ltvScore >= 70).length,
-        regulars: sorted.filter((c: any) => c.ltvScore >= 40 && c.ltvScore < 70).length,
-        occasional: sorted.filter((c: any) => c.ltvScore >= 15 && c.ltvScore < 40).length,
-        oneTimers: sorted.filter((c: any) => c.ltvScore < 15).length,
+        whales: sorted.filter((c: ScoredCustomer) => c.ltvScore >= 70).length,
+        regulars: sorted.filter((c: ScoredCustomer) => c.ltvScore >= 40 && c.ltvScore < 70).length,
+        occasional: sorted.filter((c: ScoredCustomer) => c.ltvScore >= 15 && c.ltvScore < 40).length,
+        oneTimers: sorted.filter((c: ScoredCustomer) => c.ltvScore < 15).length,
       },
     };
   } catch (e) {
@@ -485,8 +486,8 @@ export async function analyzeChatDemand() {
 
   return {
     totalSessions: sessions.length,
-    converted: sessions.filter((s: any) => s.converted).length,
-    conversionRate: sessions.length > 0 ? Math.round((sessions.filter((s: any) => s.converted).length / sessions.length) * 100) : 0,
+    converted: sessions.filter((s: typeof sessions[number]) => s.converted).length,
+    conversionRate: sessions.length > 0 ? Math.round((sessions.filter((s: typeof sessions[number]) => s.converted).length / sessions.length) * 100) : 0,
     demandByService: Object.entries(demandSignals).sort((a, b) => b[1].mentions - a[1].mentions),
   };
 }
@@ -524,7 +525,7 @@ export async function analyzeCallAttribution() {
     attributedToBookings: attributed,
     conversionRate: calls.length > 0 ? Math.round((attributed / calls.length) * 100) : 0,
     topPages: Object.entries(pagePerformance).sort((a, b) => b[1].calls - a[1].calls).slice(0, 10),
-    peakHours: calls.reduce((acc: Record<number, number>, c: any) => {
+    peakHours: calls.reduce((acc: Record<number, number>, c: typeof calls[number]) => {
       const h = c.createdAt ? new Date(c.createdAt).getHours() : 0;
       acc[h] = (acc[h] || 0) + 1;
       return acc;
@@ -573,8 +574,8 @@ export async function analyzeGeography() {
     .limit(30);
 
   return {
-    totalWithZip: geoData.reduce((s: number, g: any) => s + g.cnt, 0),
-    hotZones: geoData.map((g: any) => ({
+    totalWithZip: geoData.reduce((s: number, g: typeof geoData[number]) => s + g.cnt, 0),
+    hotZones: geoData.map((g: typeof geoData[number]) => ({
       zip: g.zip,
       city: g.city,
       customers: g.cnt,
@@ -613,7 +614,7 @@ export async function analyzeBottlenecks() {
     stageMetrics,
     bottleneck: bottleneck ? { stage: bottleneck[0], avgHours: bottleneck[1].avgHours } : null,
     completionRate: recentBookings.length > 0
-      ? Math.round((recentBookings.filter((b: any) => b.status === "completed").length / recentBookings.length) * 100) : 0,
+      ? Math.round((recentBookings.filter((b: typeof recentBookings[number]) => b.status === "completed").length / recentBookings.length) * 100) : 0,
   };
 }
 
@@ -781,7 +782,7 @@ export async function analyzeGeographicRevenue(): Promise<{
     .orderBy(sql`totalRevenue DESC`)
     .limit(10);
 
-  const topZipCodes = zipRevenue.map((z: any) => ({
+  const topZipCodes = zipRevenue.map((z: typeof zipRevenue[number]) => ({
     zip: z.zip || "",
     customerCount: z.customerCount,
     totalRevenue: Math.round(z.totalRevenue / 100), // cents to dollars
@@ -801,7 +802,7 @@ export async function analyzeGeographicRevenue(): Promise<{
     .orderBy(sql`newCustomers DESC`)
     .limit(10);
 
-  const growthAreas = growthData.map((g: any) => ({
+  const growthAreas = growthData.map((g: typeof growthData[number]) => ({
     zip: g.zip || "",
     newCustomersLast90d: g.newCustomers,
   }));
@@ -822,8 +823,8 @@ export async function analyzeGeographicRevenue(): Promise<{
     .limit(10);
 
   const underservedAreas = underservedData
-    .filter((u: any) => u.totalCustomers > u.activeCustomers)
-    .map((u: any) => {
+    .filter((u: typeof underservedData[number]) => u.totalCustomers > u.activeCustomers)
+    .map((u: typeof underservedData[number]) => {
       const conversionRate = u.totalCustomers > 0 ? Math.round((u.activeCustomers / u.totalCustomers) * 100) : 0;
       return {
         zip: u.zip || "",

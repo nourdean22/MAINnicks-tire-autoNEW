@@ -118,9 +118,10 @@ export async function projectRevenue(): Promise<{
     d.select().from(invoices).where(and(gte(invoices.invoiceDate, monthAgo), eq(invoices.paymentStatus, "paid"))),
   ]);
 
-  const thisWeekRev = thisWeekInvoices.reduce((s: any, i: any) => s + i.totalAmount, 0) / 100;
-  const lastWeekRev = lastWeekInvoices.reduce((s: any, i: any) => s + i.totalAmount, 0) / 100;
-  const monthRev = monthInvoices.reduce((s: any, i: any) => s + i.totalAmount, 0) / 100;
+  type Inv = typeof thisWeekInvoices[number];
+  const thisWeekRev = thisWeekInvoices.reduce((s: number, i: Inv) => s + i.totalAmount, 0) / 100;
+  const lastWeekRev = lastWeekInvoices.reduce((s: number, i: Inv) => s + i.totalAmount, 0) / 100;
+  const monthRev = monthInvoices.reduce((s: number, i: Inv) => s + i.totalAmount, 0) / 100;
 
   const dayOfWeek = now.getDay(); // 0=Sun
   const daysIntoWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
@@ -419,7 +420,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
     if (hotEstimates.length > 0) {
       await sendTelegram(
         `🔥 NICK AUTO-ACTION: ${hotEstimates.length} estimate leads need follow-up!\n\n` +
-        hotEstimates.slice(0, 3).map((l: any) =>
+        hotEstimates.slice(0, 3).map((l: typeof hotEstimates[number]) =>
           `${l.name || "?"} (${l.phone || "no phone"}) — ${l.recommendedService || "estimate"} — ${Math.round((Date.now() - new Date(l.createdAt).getTime()) / 3600000)}h ago`
         ).join("\n") +
         `\n\n⚡ Call them NOW — estimates convert 3x better within 4 hours.`
@@ -529,8 +530,10 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
 
     if (Array.isArray(dayRevenue) && dayRevenue.length > 0) {
       const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      const best = dayRevenue[0] as any;
-      const worst = dayRevenue[dayRevenue.length - 1] as any;
+      type RawRow = Record<string, unknown>;
+      const dayRevenueRows = (dayRevenue as [RawRow[], unknown])[0];
+      const best = dayRevenueRows[0] as RawRow;
+      const worst = dayRevenueRows[dayRevenueRows.length - 1] as RawRow;
       const bestDay = days[Number(best.dow) - 1] || "?";
       const worstDay = days[Number(worst.dow) - 1] || "?";
 
@@ -557,14 +560,14 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
       .limit(10);
 
     if (agingInvoices.length > 0) {
-      const critical = agingInvoices.filter((inv: any) => new Date(inv.invoiceDate) < fourteenDaysAgo);
-      const totalOwed = Math.round(agingInvoices.reduce((s: number, inv: any) => s + inv.totalAmount, 0) / 100);
+      const critical = agingInvoices.filter((inv: typeof agingInvoices[number]) => new Date(inv.invoiceDate) < fourteenDaysAgo);
+      const totalOwed = Math.round(agingInvoices.reduce((s: number, inv: typeof agingInvoices[number]) => s + inv.totalAmount, 0) / 100);
 
       await sendTelegram(
         `💰 INVOICE AGING ALERT\n\n` +
         `${agingInvoices.length} unpaid invoices >7 days ($${totalOwed} total)\n` +
         (critical.length > 0 ? `🔴 ${critical.length} are >14 days old — ESCALATE\n\n` : "\n") +
-        agingInvoices.slice(0, 5).map((inv: any) => {
+        agingInvoices.slice(0, 5).map((inv: typeof agingInvoices[number]) => {
           const days = Math.round((Date.now() - new Date(inv.invoiceDate).getTime()) / (24 * 60 * 60 * 1000));
           return `${inv.customerName || "?"}: $${Math.round(inv.totalAmount / 100)} — ${days}d overdue`;
         }).join("\n") +
@@ -587,9 +590,9 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
 
     const customerServices: Record<string, Set<string>> = {};
     for (const inv of recentInvoices) {
-      const name = (inv as any).customerName || "unknown";
+      const name = inv.customerName || "unknown";
       if (!customerServices[name]) customerServices[name] = new Set();
-      const desc = ((inv as any).serviceDescription || "").toLowerCase();
+      const desc = (inv.serviceDescription || "").toLowerCase();
       if (desc.includes("brake")) customerServices[name].add("brakes");
       if (desc.includes("tire")) customerServices[name].add("tires");
       if (desc.includes("oil")) customerServices[name].add("oil");
@@ -617,9 +620,9 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
   try {
     const { getDispatchLoad } = await import("./dispatch");
     const load = await getDispatchLoad();
-    const clockedIn = (load.techs as any[]).filter((t: any) => t.clockedIn).length;
-    const freeBays = (load.bays as any[]).filter((b: any) => !b.occupied).length;
-    const totalBays = (load.bays as any[]).length;
+    const clockedIn = (load.techs as Array<Record<string, unknown>>).filter((t) => t.clockedIn).length;
+    const freeBays = (load.bays as Array<Record<string, unknown>>).filter((b) => !b.occupied).length;
+    const totalBays = (load.bays as Array<Record<string, unknown>>).length;
     const utilizationPct = totalBays > 0 ? Math.round(((totalBays - freeBays) / totalBays) * 100) : 0;
 
     if (clockedIn > 0 && freeBays === totalBays && etHour >= 10 && etHour <= 15) {
@@ -652,10 +655,10 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
 
     const visitCounts: Record<string, { count: number; total: number; phone: string }> = {};
     for (const inv of recentPaid) {
-      const name = (inv as any).customerName || "unknown";
-      if (!visitCounts[name]) visitCounts[name] = { count: 0, total: 0, phone: (inv as any).customerPhone || "" };
+      const name = inv.customerName || "unknown";
+      if (!visitCounts[name]) visitCounts[name] = { count: 0, total: 0, phone: inv.customerPhone || "" };
       visitCounts[name].count++;
-      visitCounts[name].total += (inv as any).totalAmount;
+      visitCounts[name].total += inv.totalAmount;
     }
 
     const vips = Object.entries(visitCounts)
@@ -686,10 +689,10 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
 
     const serviceMix: Record<string, { count: number; revenue: number }> = {};
     for (const inv of monthInvoices) {
-      const desc = ((inv as any).serviceDescription || "General").split("\n")[0].slice(0, 40);
+      const desc = (inv.serviceDescription || "General").split("\n")[0].slice(0, 40);
       if (!serviceMix[desc]) serviceMix[desc] = { count: 0, revenue: 0 };
       serviceMix[desc].count++;
-      serviceMix[desc].revenue += (inv as any).totalAmount;
+      serviceMix[desc].revenue += inv.totalAmount;
     }
 
     const sorted = Object.entries(serviceMix).sort((a, b) => b[1].revenue - a[1].revenue);
@@ -784,13 +787,13 @@ export async function getShopPulse(): Promise<{
   ]);
 
   // Calculate today
-  const todayRevenue = todayInvoicesPaid.reduce((s: any, i: any) => s + i.totalAmount, 0) / 100;
+  const todayRevenue = todayInvoicesPaid.reduce((s: number, i: typeof todayInvoicesPaid[number]) => s + i.totalAmount, 0) / 100;
   const todayJobsClosed = todayInvoicesPaid.length;
   const todayAvgTicket = todayJobsClosed > 0 ? Math.round(todayRevenue / todayJobsClosed) : 0;
   const todayEstimates = todayEstimateLeads[0]?.count ?? 0;
 
   // Calculate week
-  const weekRevenue = weekInvoicesPaid.reduce((s: any, i: any) => s + i.totalAmount, 0) / 100;
+  const weekRevenue = weekInvoicesPaid.reduce((s: number, i: typeof weekInvoicesPaid[number]) => s + i.totalAmount, 0) / 100;
   const weekJobsClosed = weekInvoicesPaid.length;
   const weekAvgTicket = weekJobsClosed > 0 ? Math.round(weekRevenue / weekJobsClosed) : 0;
   const weekEstimates = weekEstimateLeads[0]?.count ?? 0;

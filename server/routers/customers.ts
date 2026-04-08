@@ -49,7 +49,7 @@ export const customersRouter = router({
       // Build conditions
       const conditions = [];
       if (segment !== "all") {
-        conditions.push(eq(customers.segment, segment as any));
+        conditions.push(eq(customers.segment, segment as "recent" | "lapsed" | "new" | "unknown"));
       }
       if (input?.lastVisitDays) {
         conditions.push(sql`${customers.lastVisitDate} >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(input.lastVisitDays))} DAY)`);
@@ -271,7 +271,8 @@ export const customersRouter = router({
         ORDER BY total DESC
       `);
 
-      const summary = (revenueSummary as any[])?.[0] || {};
+      type RawRow = Record<string, unknown>;
+      const summary = ((revenueSummary as RawRow[])?.[0] || {}) as RawRow;
       return {
         period,
         invoiceCount: Number(summary.invoiceCount) || 0,
@@ -280,10 +281,10 @@ export const customersRouter = router({
         totalLabor: Number(summary.totalLabor) || 0,
         totalParts: Number(summary.totalParts) || 0,
         uniqueCustomers: Number(summary.uniqueCustomers) || 0,
-        topSpenders: (topSpenders as any[]) || [],
-        monthlyTrend: (monthlyTrend as any[]) || [],
-        serviceBreakdown: (serviceBreakdown as any[]) || [],
-        paymentBreakdown: (paymentBreakdown as any[]) || [],
+        topSpenders: (topSpenders as RawRow[]) || [],
+        monthlyTrend: (monthlyTrend as RawRow[]) || [],
+        serviceBreakdown: (serviceBreakdown as RawRow[]) || [],
+        paymentBreakdown: (paymentBreakdown as RawRow[]) || [],
       };
     }),
 
@@ -343,9 +344,10 @@ export const customersRouter = router({
       WHERE createdAt >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
     `);
 
-    const tiers = (tierRows as any[])?.[0] || {};
-    const churn = (churnRows as any[])?.[0] || {};
-    const winback = (winbackRows as any[])?.[0] || {};
+    type RawRow = Record<string, unknown>;
+    const tiers = ((tierRows as RawRow[])?.[0] || {}) as RawRow;
+    const churn = ((churnRows as RawRow[])?.[0] || {}) as RawRow;
+    const winback = ((winbackRows as RawRow[])?.[0] || {}) as RawRow;
 
     // Generate recommendations
     const recommendations: string[] = [];
@@ -353,8 +355,8 @@ export const customersRouter = router({
       recommendations.push(`${winback.targets} customers haven't visited in 90+ days — send win-back SMS campaign (~$${Math.round(Number(winback.avgValue) / 100)} avg value each)`);
     if (Number(churn.atRisk) > 5)
       recommendations.push(`${churn.atRisk} customers at churn risk (60-180 days quiet) — proactive outreach before they leave`);
-    if ((atRiskWhales as any[])?.length > 0)
-      recommendations.push(`${(atRiskWhales as any[]).length} high-value customers going quiet — personal call recommended: ${(atRiskWhales as any[]).map((w: any) => `${w.firstName} ${w.lastName} ($${Math.round(w.totalSpent/100)})`).join(', ')}`);
+    if ((atRiskWhales as RawRow[])?.length > 0)
+      recommendations.push(`${(atRiskWhales as RawRow[]).length} high-value customers going quiet — personal call recommended: ${(atRiskWhales as RawRow[]).map((w: RawRow) => `${w.firstName} ${w.lastName} ($${Math.round(Number(w.totalSpent)/100)})`).join(', ')}`);
     if (Number(tiers.neverPaid) > 500)
       recommendations.push(`${tiers.neverPaid} customers have $0 spend — likely imported contacts without invoice history`);
 
@@ -370,19 +372,19 @@ export const customersRouter = router({
         winbackTargets: Number(winback.targets) || 0,
         winbackPotential: Math.round(Number(winback.potentialRevenue || 0) / 100),
       },
-      atRiskWhales: (atRiskWhales as any[])?.map((w: any) => ({
+      atRiskWhales: (atRiskWhales as RawRow[])?.map((w: RawRow) => ({
         name: `${w.firstName} ${w.lastName}`,
         phone: w.phone,
-        totalSpent: Math.round(w.totalSpent / 100),
+        totalSpent: Math.round(Number(w.totalSpent) / 100),
         visits: w.totalVisits,
         daysSince: w.daysSince,
       })) || [],
-      segments: (segRows as any[])?.map((s: any) => ({
+      segments: (segRows as RawRow[])?.map((s: RawRow) => ({
         segment: s.segment,
         count: Number(s.cnt),
         revenue: Math.round(Number(s.rev || 0) / 100),
       })) || [],
-      newThisMonth: Number((newThisMonth as any[])?.[0]?.cnt) || 0,
+      newThisMonth: Number((newThisMonth as RawRow[])?.[0]?.cnt) || 0,
       avgCustomerValue: Math.round(Number(tiers.avgSpend || 0) / 100),
       totalRevenue: Math.round(Number(tiers.totalRevenue || 0) / 100),
       recommendations,
@@ -477,7 +479,7 @@ export const customersRouter = router({
 
       // Build CSV
       const headers = ["First Name", "Last Name", "Phone", "Email", "City", "State", "Segment", "Total Visits", "Last Visit", "Customer Type"];
-      const rows = results.map((c: any) => [
+      const rows = results.map((c: typeof results[number]) => [
         csvSafe(c.firstName || ""),
         csvSafe(c.lastName || ""),
         csvSafe(c.phone || ""),
@@ -490,7 +492,7 @@ export const customersRouter = router({
         c.customerType || "",
       ]);
 
-      const csv = [headers.join(","), ...rows.map((r: any) => r.map((v: any) => `"${v.replace(/"/g, '""')}"`).join(","))].join("\n");
+      const csv = [headers.join(","), ...rows.map((r: string[]) => r.map((v: string) => `"${v.replace(/"/g, '""')}"`).join(","))].join("\n");
       return { csv, count: results.length };
     }),
 
@@ -637,7 +639,7 @@ export const customersRouter = router({
       try {
         // Bookings
         const bks = await d.select().from(bookings).where(eq(bookings.phone, phone)).orderBy(desc(bookings.createdAt)).limit(100);
-        bks.forEach((b: any) => events.push({
+        bks.forEach((b: typeof bks[number]) => events.push({
           type: "booking",
           title: `Booking: ${b.service || "General"}`,
           detail: b.vehicle || "",
@@ -647,7 +649,7 @@ export const customersRouter = router({
 
         // Leads
         const lds = await d.select().from(leads).where(eq(leads.phone, phone)).orderBy(desc(leads.createdAt)).limit(100);
-        lds.forEach((l: any) => events.push({
+        lds.forEach((l: typeof lds[number]) => events.push({
           type: "lead",
           title: `Lead: ${l.source || "Direct"}`,
           detail: l.problem || l.vehicle || "",
@@ -657,17 +659,17 @@ export const customersRouter = router({
 
         // Callbacks
         const cbs = await d.select().from(callbackRequests).where(eq(callbackRequests.phone, phone)).orderBy(desc(callbackRequests.createdAt)).limit(50);
-        cbs.forEach((c: any) => events.push({
+        cbs.forEach((c: typeof cbs[number]) => events.push({
           type: "callback",
           title: "Callback Request",
-          detail: (c as any).context || (c as any).reason || "",
-          status: (c as any).status || "new",
+          detail: c.context || "",
+          status: c.status || "new",
           date: new Date(c.createdAt),
         }));
 
         // Call events
         const cls = await d.select().from(callEvents).where(eq(callEvents.phoneNumber, phone)).orderBy(desc(callEvents.createdAt)).limit(50);
-        cls.forEach((c: any) => events.push({
+        cls.forEach((c: typeof cls[number]) => events.push({
           type: "call",
           title: "Phone Call",
           detail: c.sourcePage || "",
@@ -677,7 +679,7 @@ export const customersRouter = router({
 
         // Invoices by phone
         const invs = await d.select().from(invoices).where(eq(invoices.customerPhone, phone)).orderBy(desc(invoices.invoiceDate)).limit(100);
-        invs.forEach((inv: any) => events.push({
+        invs.forEach((inv: typeof invs[number]) => events.push({
           type: "invoice",
           title: `Invoice ${inv.invoiceNumber || `#${inv.id}`}`,
           detail: `${inv.serviceDescription || "Service"} · ${inv.vehicleInfo || ""}`.trim(),
@@ -696,7 +698,7 @@ export const customersRouter = router({
           )`)
           .orderBy(desc(workOrders.createdAt))
           .limit(20);
-        woResults.forEach((wo: any) => events.push({
+        woResults.forEach((wo: typeof woResults[number]) => events.push({
           type: "workOrder",
           title: `WO ${wo.orderNumber}`,
           detail: `${wo.serviceDescription || wo.status?.replace(/_/g, " ") || "Service"}${wo.vehicleMake ? ` · ${wo.vehicleMake} ${wo.vehicleModel || ""}` : ""}`.trim(),

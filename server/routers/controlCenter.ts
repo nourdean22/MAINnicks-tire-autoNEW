@@ -393,7 +393,7 @@ export const controlCenterRouter = router({
           execution.mission = todayExec.mission;
         }
 
-        const habitMap = new Map(todayHabits.map((h: any) => [h.habit_key ?? h.habitKey, h.completed]));
+        const habitMap = new Map(todayHabits.map((h: typeof todayHabits[number]) => [h.habitKey, h.completed]));
 
         execution.nonNegotiables = NON_NEGOTIABLES.map((h) => ({
           key: h.key,
@@ -414,7 +414,8 @@ export const controlCenterRouter = router({
 
         // Streak from parallel query above
         let streak = 0;
-        for (const row of (streakRows as any[] ?? [])) {
+        type RawRow = Record<string, unknown>;
+        for (const row of ((streakRows as [RawRow[], unknown])[0] ?? [])) {
           const pct = (Number(row.done) / Number(row.total)) * 100;
           if (pct >= 80) streak++;
           else break;
@@ -600,7 +601,7 @@ export const controlCenterRouter = router({
 
       // Calculate final score for today
       const habits = await d.select().from(dailyHabits).where(sql`${dailyHabits.date} = ${today}`);
-      const completed = habits.filter((h: any) => h.completed || h.completed_at).length;
+      const completed = habits.filter((h: typeof habits[number]) => h.completed).length;
       const total = habits.length || 1;
       const score = Math.round((completed / total) * 100);
 
@@ -626,7 +627,7 @@ export const controlCenterRouter = router({
     if (!row) return null;
 
     const habits = await d.select().from(dailyHabits).where(sql`${dailyHabits.date} = ${yesterday}`);
-    const completed = habits.filter((h: any) => h.completed || h.completed_at).length;
+    const completed = habits.filter((h: typeof habits[number]) => h.completed || h.completedAt).length;
 
     return {
       date: yesterday,
@@ -695,7 +696,8 @@ export const controlCenterRouter = router({
   // ─── OPERATIONAL TWIN (machine-readable system model) ────
   getOperationalTwin: adminProcedure.query(async () => {
     const d = await db();
-    let health: any = { ollamaHealthy: false, circuitBreaker: { open: false } };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- gateway health shape varies between providers
+    let health: Record<string, any> = { ollamaHealthy: false, circuitBreaker: { open: false } };
     try { health = getGatewayHealth(); } catch (err) {
       console.warn("[ControlCenter] Gateway health unavailable for twin:", err instanceof Error ? err.message : err);
     }
