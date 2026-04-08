@@ -1172,8 +1172,10 @@ export function startTieredScheduler(): void {
   // Start all tiers (staggered to avoid memory spike on boot)
   for (const tier of tiers) {
     const idx = tiers.indexOf(tier);
-    // Only run heartbeat + pulse on startup. Daily/briefings wait for their interval.
-    const runOnStartup = idx <= 1; // heartbeat + pulse only
+    // Run heartbeat, pulse, and daily on startup. Daily must run on boot because
+    // Railway restarts can prevent the 24h interval from ever firing (Bug: 999h no backup).
+    // Hourly (idx=2) and briefings (idx=4) can wait for their interval.
+    const runOnStartup = idx <= 1 || tier.name === "daily"; // heartbeat + pulse + daily
     const stagger = idx * 30_000; // 30s between tiers (was 10s)
 
     if (runOnStartup) {

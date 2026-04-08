@@ -10,7 +10,7 @@
  */
 
 import { createLogger } from "../lib/logger";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 const log = createLogger("shopdriver-mirror");
 
@@ -639,6 +639,36 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
             .where(eq(customers.phone, phone))
             .limit(1);
           if (match.length > 0) customerId = match[0].id;
+        }
+      }
+
+      // Fallback: match by customer name when phone is missing or didn't match
+      if (!customerId && ri.customerName && ri.customerName !== "Unknown") {
+        try {
+          // Handle "LASTNAME, FIRSTNAME" format from ShopDriver
+          const nameParts = ri.customerName.includes(",")
+            ? ri.customerName.split(",").map((s: string) => s.trim())
+            : [ri.customerName];
+          const lastName = nameParts[0] || "";
+          const firstName = nameParts[1] || "";
+
+          if (lastName) {
+            const nameMatch = firstName
+              ? await d.select({ id: customers.id })
+                  .from(customers)
+                  .where(and(
+                    eq(customers.lastName, lastName),
+                    eq(customers.firstName, firstName),
+                  ))
+                  .limit(1)
+              : await d.select({ id: customers.id })
+                  .from(customers)
+                  .where(eq(customers.lastName, lastName))
+                  .limit(1);
+            if (nameMatch.length === 1) customerId = nameMatch[0].id;
+          }
+        } catch {
+          // Name matching is best-effort, don't fail the import
         }
       }
 

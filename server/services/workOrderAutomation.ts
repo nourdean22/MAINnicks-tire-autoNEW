@@ -3,7 +3,7 @@
  *
  * Auto-close: Stale WOs in picked_up/invoiced > 7 days → closed
  * Overdue detection: WOs past promisedAt without completion → Telegram alert
- * Booking → WO: Auto-create draft WOs from confirmed bookings
+ * Booking → Lead: Online bookings create leads (WOs created manually from admin when customer shows up)
  * Estimate follow-up: Auto-SMS customers with unconverted estimates
  * Campaign auto-retry: Auto-send SMS campaign to eligible customers
  */
@@ -165,6 +165,77 @@ export async function autoCreateWorkOrderFromBooking(data: {
   } catch (err: any) {
     // Don't throw — this is fire-and-forget from event bus
     log.warn(`Auto WO creation failed for booking #${data.id}: ${err.message}`);
+  }
+}
+
+// ─── AUTO-CREATE LEAD FROM BOOKING ────────────────────
+// Called from event bus when booking_created fires.
+// Online bookings = leads, NOT work orders. WOs are created manually from admin when customer shows up.
+export async function autoCreateLeadFromBooking(data: {
+  id: number;
+  name: string;
+  phone: string;
+  service: string;
+  vehicle?: string;
+  urgency?: string;
+  refCode?: string;
+}): Promise<void> {
+  try {
+    const { getDb } = await import("../db");
+    const { leads } = await import("../../drizzle/schema");
+    const { and, eq, gte } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return;
+
+    // Dedup: skip if a lead with this phone was already created in the last 5 minutes
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const [recent] = await db.select({ id: leads.id }).from(leads)
+      .where(and(eq(leads.phone, data.phone), gte(leads.createdAt, fiveMinAgo)))
+      .limit(1);
+    if (recent) {
+      log.info(`Lead already exists for phone ${data.phone} (lead #${recent.id}), skipping auto-create from booking #${data.id}`);
+      return;
+    }
+
+    // AI scoring — use Gemini to score urgency from service description
+    let scoring = { score: 3, reason: "Online booking — manual review recommended", recommendedService: data.service };
+    try {
+      const { scoreLead } = await import("../gemini");
+      scoring = await scoreLead(data.service, data.vehicle);
+    } catch {
+      // Non-critical — use defaults
+    }
+
+    // Override scoring for emergency urgency
+    if (data.urgency === "emergency") {
+      scoring.score = 5;
+      scoring.reason = "Emergency urgency selected on booking form";
+    }
+
+    await db.insert(leads).values({
+      name: data.name,
+      phone: data.phone,
+      vehicle: data.vehicle || null,
+      problem: data.service,
+      source: "booking",
+      urgencyScore: scoring.score,
+      urgencyReason: scoring.reason,
+      recommendedService: scoring.recommendedService,
+      status: "new",
+    });
+
+    log.info(`Auto-created lead from booking #${data.id} for ${data.name}`);
+
+    // Telegram alert for visibility
+    try {
+      const { alertNewLead } = await import("./telegram");
+      await alertNewLead({ name: data.name, phone: data.phone, service: data.service, source: "booking" });
+    } catch {
+      // Non-critical
+    }
+  } catch (err: any) {
+    // Don't throw — this is fire-and-forget from event bus
+    log.warn(`Auto lead creation failed for booking #${data.id}: ${err.message}`);
   }
 }
 
