@@ -74,19 +74,24 @@ export async function handleAfterHoursCapture(params: {
 
   const nextOpen = getNextOpenTime();
 
-  // Send auto-SMS to customer
+  // Send auto-SMS to customer (gated by feature flag)
   try {
-    await sendSms(
-      params.phone,
-      `Hi ${params.name}! Thanks for reaching out to Nick's Tire & Auto. ` +
-        `We're currently closed but we got your message! ` +
-        `We'll call you back first thing when we open at ${nextOpen}. ` +
-        `For emergencies, call ${STORE_PHONE}. — Nour`
-    );
-    log.info("After-hours auto-SMS sent", {
-      name: params.name,
-      type: params.type,
-    });
+    const { isEnabled } = await import("./featureFlags");
+    if (!(await isEnabled("smart_sms_auto_reply"))) {
+      log.info("After-hours auto-SMS skipped — smart_sms_auto_reply disabled");
+    } else {
+      await sendSms(
+        params.phone,
+        `Hi ${params.name}! Thanks for reaching out to Nick's Tire & Auto. ` +
+          `We're currently closed but we got your message! ` +
+          `We'll call you back first thing when we open at ${nextOpen}. ` +
+          `For emergencies, call ${STORE_PHONE}. — Nour`
+      );
+      log.info("After-hours auto-SMS sent", {
+        name: params.name,
+        type: params.type,
+      });
+    }
   } catch (err) {
     log.warn("After-hours SMS failed", { err });
   }

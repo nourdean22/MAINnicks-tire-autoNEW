@@ -171,7 +171,6 @@ export const leadRouter = router({
 
       // Meta Conversions API: Send server-side Lead event
       if (input.pixelEventId) {
-        const nameParts = (input.name || "").split(" ");
         withRetry(
           () => sendLeadEvent({
             eventId: input.pixelEventId,
