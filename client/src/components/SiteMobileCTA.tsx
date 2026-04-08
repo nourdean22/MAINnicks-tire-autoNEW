@@ -61,7 +61,7 @@ export default function SiteMobileCTA() {
 
             {/* Book Online */}
             <a
-              href="/#booking"
+              href="/booking"
               aria-label="Book an appointment online"
               className="flex items-center justify-center font-bold"
               style={{

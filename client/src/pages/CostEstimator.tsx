@@ -494,7 +494,7 @@ export default function CostEstimator() {
                           className="w-full bg-white/5 border border-white/10 rounded px-3 py-2.5 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-primary/50"
                         />
                         <button
-                          disabled={!leadName || !leadPhone || leadPhone.replace(/\D/g, "").length < 7 || leadSaving}
+                          disabled={!leadName || !leadPhone || leadPhone.replace(/\D/g, "").length < 10 || leadSaving}
                           onClick={async () => {
                             setLeadSaving(true);
                             try {

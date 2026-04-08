@@ -32,6 +32,12 @@ export default function ChatWidget() {
         setShowLeadCapture(true);
       }
     },
+    onError: () => {
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: "Sorry, I'm having trouble right now. Please call us at (216) 862-0005 for immediate help."
+      }]);
+    },
   });
 
   const submitLead = trpc.lead.submit.useMutation({

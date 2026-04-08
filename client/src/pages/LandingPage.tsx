@@ -280,7 +280,7 @@ export default function LandingPage() {
             <Phone className="w-5 h-5" />
             CALL NOW: {BUSINESS.phone.display}
           </a>
-          <button className="flex-1 bg-yellow-400 hover:bg-yellow-300 text-black font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
+          <button onClick={() => location[1]("/booking")} className="flex-1 bg-yellow-400 hover:bg-yellow-300 text-black font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
             BOOK ONLINE
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -488,7 +488,7 @@ export default function LandingPage() {
             >
               Call Now: {BUSINESS.phone.display}
             </a>
-            <button className="w-full bg-yellow-400 hover:bg-yellow-300 text-black font-bold py-4 rounded-lg transition-colors">
+            <button onClick={() => location[1]("/booking")} className="w-full bg-yellow-400 hover:bg-yellow-300 text-black font-bold py-4 rounded-lg transition-colors">
               Book Online Appointment
             </button>
           </div>

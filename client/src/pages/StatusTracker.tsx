@@ -262,7 +262,7 @@ export default function StatusTracker() {
         <div className="container max-w-3xl">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             {[
-              { icon: <Phone className="w-6 h-6" />, title: "Questions?", desc: "Call us at ${BUSINESS.phone.display} for any questions about your repair." },
+              { icon: <Phone className="w-6 h-6" />, title: "Questions?", desc: `Call us at ${BUSINESS.phone.display} for any questions about your repair.` },
               { icon: <Clock className="w-6 h-6" />, title: "Hours", desc: `${BUSINESS.hours.display}. Updates posted during business hours.` },
               { icon: <Wrench className="w-6 h-6" />, title: "Walk-Ins Welcome", desc: "No appointment needed. First come, first served." },
             ].map((item) => (

@@ -461,8 +461,9 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
 
         <button
           onClick={() => {
-            if (!name.trim() || !phone.trim()) {
-              toast.error("Name and phone number are required.");
+            const phoneDigits = phone.replace(/\D/g, "");
+            if (!name.trim() || phoneDigits.length < 10) {
+              toast.error(!name.trim() ? "Name is required." : "Please enter a valid 10-digit phone number");
               return;
             }
             if (deliveryMethod === "ship" && !shippingAddress.trim()) {
