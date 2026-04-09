@@ -790,13 +790,8 @@ export default function TireFinder() {
             </div>
           </motion.div>
 
-          {/* Search bar */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.15 }}
-            className="mt-10"
-          >
+          {/* Search bar — NO animation, must always be visible */}
+          <div className="mt-10">
             <div className="flex items-center bg-card border border-border/50 rounded-lg overflow-hidden focus-within:border-primary/50 transition-colors">
               <Search className="w-5 h-5 text-muted-foreground ml-4 shrink-0" />
               <input
@@ -843,7 +838,7 @@ export default function TireFinder() {
               <Package className="w-3.5 h-3.5" />
               {showTracker ? "Hide order tracker" : "Already ordered? Track your order"}
             </button>
-          </motion.div>
+          </div>
 
           {/* Order tracker */}
           <AnimatePresence>
