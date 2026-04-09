@@ -663,6 +663,107 @@ img[loading="lazy"] {
   box-shadow: inset 0 0 0 1px rgba(253, 185, 19, 0.15), 0 0 12px rgba(253, 185, 19, 0.05);
 }
 
+/* ─── DYNAMIC UI ENHANCEMENTS ─── */
+
+/* Live pulse dot — use on real-time indicators */
+.live-pulse {
+  position: relative;
+}
+.live-pulse::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  animation: livePulse 2s ease-in-out infinite;
+}
+@keyframes livePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.5); }
+}
+
+/* Revenue breathing glow — subtle pulse on money values */
+.revenue-glow {
+  animation: revenueBreath 3s ease-in-out infinite;
+}
+@keyframes revenueBreath {
+  0%, 100% { text-shadow: 0 0 4px rgba(16, 185, 129, 0.2); }
+  50% { text-shadow: 0 0 12px rgba(16, 185, 129, 0.4), 0 0 24px rgba(16, 185, 129, 0.1); }
+}
+
+/* Stat card scale on hover */
+.stat-card-interactive {
+  transition: transform 0.2s ease, border-color 0.3s, box-shadow 0.3s !important;
+  cursor: pointer;
+}
+.stat-card-interactive:hover {
+  transform: translateY(-2px);
+}
+.stat-card-interactive:active {
+  transform: translateY(0px) scale(0.99);
+}
+
+/* Progress bar shimmer effect */
+.shimmer-bar {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+  animation: shimmerSlide 2.5s ease-in-out infinite;
+}
+@keyframes shimmerSlide {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* Card entrance stagger animation */
+.card-enter {
+  animation: cardSlideIn 0.4s ease-out both;
+}
+.card-enter:nth-child(1) { animation-delay: 0ms; }
+.card-enter:nth-child(2) { animation-delay: 50ms; }
+.card-enter:nth-child(3) { animation-delay: 100ms; }
+.card-enter:nth-child(4) { animation-delay: 150ms; }
+.card-enter:nth-child(5) { animation-delay: 200ms; }
+.card-enter:nth-child(6) { animation-delay: 250ms; }
+@keyframes cardSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Action item urgency pulse */
+.urgent-pulse {
+  animation: urgentGlow 1.5s ease-in-out infinite;
+}
+@keyframes urgentGlow {
+  0%, 100% { border-color: rgba(239, 68, 68, 0.2); }
+  50% { border-color: rgba(239, 68, 68, 0.5); box-shadow: 0 0 8px rgba(239, 68, 68, 0.15); }
+}
+
+/* Number counter animation helper */
+.number-animate {
+  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Hover lift for table rows */
+.row-hover-lift {
+  transition: background-color 0.15s, transform 0.15s;
+}
+.row-hover-lift:hover {
+  background-color: rgba(245, 166, 35, 0.03);
+  transform: translateX(2px);
+}
+
 /* Number counter animation (used in stats) */
 @keyframes countUp {
   from { opacity: 0; transform: translateY(4px); }

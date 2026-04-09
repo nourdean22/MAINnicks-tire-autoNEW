@@ -146,12 +146,12 @@ export function StatCard({ label, value, icon, color = "text-foreground", trend,
   trendLabel?: string;
 }) {
   return (
-    <div className="stat-card group glow-on-hover">
+    <div className="stat-card stat-card-interactive group glow-on-hover card-enter">
       <div className="flex items-start justify-between mb-2.5">
         <span className="text-[11px] font-medium text-muted-foreground tracking-wide">{label}</span>
         <div className="text-muted-foreground/30 group-hover:text-primary/50 transition-colors">{icon}</div>
       </div>
-      <div className={`font-bold text-2xl tracking-tight ${color}`}>{value}</div>
+      <div className={`font-bold text-2xl tracking-tight number-animate ${color} ${String(value).startsWith('$') ? 'revenue-glow' : ''}`}>{value}</div>
       {trendLabel && (
         <div className={`mt-2 text-[10px] font-medium tracking-wide flex items-center gap-1 ${
           trend === "up" ? "text-emerald-400" : trend === "down" ? "text-red-400" : "text-muted-foreground"
