@@ -21,11 +21,11 @@ export default function InspectionsSection() {
 
   const createInspection = trpc.inspection.create.useMutation({
     onSuccess: () => { utils.inspection.list.invalidate(); setShowForm(false); setForm({ customerName: "", customerPhone: "", vehicleInfo: "", mileage: "", technicianName: "" }); toast.success("Inspection created"); },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: { message: string }) => toast.error(err.message),
   });
   const publishInspection = trpc.inspection.publish.useMutation({
     onSuccess: () => { utils.inspection.list.invalidate(); toast.success("Inspection published — share link is ready"); },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: { message: string }) => toast.error(err.message),
   });
 
   return (

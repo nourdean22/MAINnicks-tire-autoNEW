@@ -66,6 +66,98 @@ function SlaTimer({ dateStr }: { dateStr: string | Date }) {
   );
 }
 
+// ─── QUERY RESULT TYPES ───────────────────────────────
+interface BookingItem {
+  id: number;
+  name: string;
+  phone?: string | null;
+  status: string;
+  service?: string;
+  vehicle?: string;
+  createdAt: string | Date;
+  preferredTime?: string;
+  preferredDate?: string;
+  priority?: string;
+  urgency?: string;
+  referenceCode?: string;
+  adminNotes?: string;
+  stage?: string;
+  stageUpdatedAt?: string | Date;
+}
+
+interface LeadItem {
+  id: number;
+  name?: string;
+  email?: string;
+  phone?: string | null;
+  status: string;
+  source?: string;
+  urgencyScore?: number;
+  createdAt: string | Date;
+}
+
+interface CallbackItem {
+  id: number;
+  name?: string;
+  phone?: string | null;
+  status: string;
+  reason?: string;
+  createdAt: string | Date;
+}
+
+interface WorkOrderItem {
+  id: number;
+  status?: string;
+  customerName?: string;
+  customerId?: string | number;
+  customerPhone?: string | null;
+  serviceDescription?: string;
+  vehicleMake?: string;
+  vehicleModel?: string;
+  total?: string | number;
+  createdAt: string | Date;
+  promisedAt?: string | Date | null;
+  blockerType?: string | null;
+  assignedTech?: string;
+  priority?: string;
+}
+
+interface NBAAction {
+  type: string;
+  urgency: number;
+  message: string;
+  phone?: string | null;
+  actionUrl: string;
+}
+
+interface RevenueRecommendation {
+  priority: string;
+  type: string;
+  text: string;
+}
+
+interface AtRiskWhale {
+  name: string;
+  phone?: unknown;
+  totalSpent: number;
+  visits?: unknown;
+  daysSince: unknown;
+}
+
+interface ShopFloorData {
+  revenueToday: number;
+  invoicesToday: number;
+  estimatesToday: number;
+  avgTicket: number;
+  conversionRate: number;
+  revenueThisWeek: number;
+  revenueThisMonth: number;
+  invoicesThisWeek: number;
+  estimatesThisWeek: number;
+  totalCustomers: number;
+  vipCustomers: number;
+}
+
 // ─── PRIORITY ACTION ITEM TYPE ─────────────────────────
 interface ActionItem {
   id: string;
@@ -120,7 +212,7 @@ function NextBestActions() {
       </div>
 
       <div className="space-y-1.5">
-        {data.actions.map((action: any, i: number) => {
+        {data.actions.map((action: NBAAction, i: number) => {
           const cfg = NBA_TYPE_CONFIG[action.type] || NBA_TYPE_CONFIG.hot_lead;
           return (
             <div
@@ -224,9 +316,9 @@ export default function OverviewSection() {
   // Collect phones from queue items for VIP lookup
   const queuePhones = useMemo(() => {
     const phones: string[] = [];
-    if (allBookings) allBookings.filter((b: any) => b.status === "new" && b.phone).forEach((b: any) => phones.push(b.phone));
-    if (allLeads) allLeads.filter((l: any) => (l.status === "new" || (l.urgencyScore && l.urgencyScore >= 4)) && l.phone).forEach((l: any) => phones.push(l.phone));
-    if (callbacks) (callbacks as any[]).filter((c: any) => (c.status === "new" || c.status === "pending") && c.phone).forEach((c: any) => phones.push(c.phone));
+    if (allBookings) allBookings.filter((b: BookingItem) => b.status === "new" && b.phone).forEach((b: BookingItem) => phones.push(b.phone!));
+    if (allLeads) allLeads.filter((l: LeadItem) => (l.status === "new" || (l.urgencyScore && l.urgencyScore >= 4)) && l.phone).forEach((l: LeadItem) => phones.push(l.phone!));
+    if (callbacks) (callbacks as CallbackItem[]).filter((c: CallbackItem) => (c.status === "new" || c.status === "pending") && c.phone).forEach((c: CallbackItem) => phones.push(c.phone!));
     return [...new Set(phones)].slice(0, 50);
   }, [allBookings, allLeads, callbacks]);
 
@@ -243,8 +335,8 @@ export default function OverviewSection() {
     // New/unconfirmed bookings
     if (allBookings) {
       allBookings
-        .filter((b: any) => b.status === "new")
-        .forEach((b: any) => {
+        .filter((b: BookingItem) => b.status === "new")
+        .forEach((b: BookingItem) => {
           items.push({
             id: `booking-${b.id}`,
             type: "booking",
@@ -261,8 +353,8 @@ export default function OverviewSection() {
     // New/urgent leads
     if (allLeads) {
       allLeads
-        .filter((l: any) => l.status === "new" || (l.urgencyScore && l.urgencyScore >= 4))
-        .forEach((l: any) => {
+        .filter((l: LeadItem) => l.status === "new" || (l.urgencyScore && l.urgencyScore >= 4))
+        .forEach((l: LeadItem) => {
           items.push({
             id: `lead-${l.id}`,
             type: "lead",
@@ -278,9 +370,9 @@ export default function OverviewSection() {
 
     // Pending callbacks
     if (callbacks) {
-      (callbacks as any[])
-        .filter((c: any) => c.status === "new" || c.status === "pending")
-        .forEach((c: any) => {
+      (callbacks as CallbackItem[])
+        .filter((c: CallbackItem) => c.status === "new" || c.status === "pending")
+        .forEach((c: CallbackItem) => {
           items.push({
             id: `callback-${c.id}`,
             type: "callback",
@@ -296,7 +388,7 @@ export default function OverviewSection() {
 
     // Active work orders that need attention (blocked, overdue, or high priority)
     if (activeWorkOrders) {
-      (activeWorkOrders as any[]).forEach((wo: any) => {
+      (activeWorkOrders as WorkOrderItem[]).forEach((wo: WorkOrderItem) => {
         const isBlocked = !!wo.blockerType;
         const isOverdue = wo.promisedAt && new Date(wo.promisedAt) < new Date();
         const isHighPriority = wo.priority === "urgent" || wo.priority === "high";
@@ -314,12 +406,12 @@ export default function OverviewSection() {
         items.push({
           id: `wo-${wo.id}`,
           type: "workOrder",
-          name: wo.customerName || wo.customerId || "Work Order",
+          name: wo.customerName || String(wo.customerId ?? "") || "Work Order",
           detail: `${wo.serviceDescription || wo.status?.replace(/_/g, " ") || "Service"}${flags ? ` · ${flags}` : ""}`,
           phone: wo.customerPhone,
           urgency,
           createdAt: wo.createdAt,
-          status: wo.status,
+          status: wo.status || "unknown",
           totalRevenue: wo.total ? Number(wo.total) : undefined,
         });
       });
@@ -353,13 +445,13 @@ export default function OverviewSection() {
     if (!allBookings) return [];
     const today = new Date().toISOString().split("T")[0];
     return allBookings
-      .filter((b: any) => {
+      .filter((b: BookingItem) => {
         const d = typeof b.createdAt === "string" ? b.createdAt : new Date(b.createdAt).toISOString();
         return b.preferredDate === today || d.startsWith(today);
       })
-      .sort((a: any, b: any) => {
+      .sort((a: BookingItem, b: BookingItem) => {
         const timeOrder: Record<string, number> = { morning: 0, afternoon: 1, "no-preference": 2 };
-        return (timeOrder[a.preferredTime] ?? 2) - (timeOrder[b.preferredTime] ?? 2);
+        return (timeOrder[a.preferredTime || ""] ?? 2) - (timeOrder[b.preferredTime || ""] ?? 2);
       });
   }, [allBookings]);
 
@@ -372,7 +464,7 @@ export default function OverviewSection() {
   }
 
   // ─── DERIVED DATA ────────────────────────────────────
-  const shopFloor = (stats as any).shopFloor;
+  const shopFloor = (stats as typeof stats & { shopFloor?: ShopFloorData }).shopFloor;
   const todayRevenue = shopFloor?.revenueToday ?? shopPulse?.today?.revenue ?? 0;
   const jobsClosed = shopFloor?.invoicesToday ?? shopPulse?.today?.jobsClosed ?? 0;
   const activeLeads = stats.leads.new + stats.leads.contacted;
@@ -683,7 +775,7 @@ export default function OverviewSection() {
             <Sparkles className="w-3.5 h-3.5" /> What To Do Now
           </h3>
           <div className="space-y-2">
-            {revIntel.recommendations.map((r: any, i: number) => (
+            {revIntel.recommendations.map((r: RevenueRecommendation, i: number) => (
               <div key={i} className={`flex items-start gap-2 p-2 rounded text-xs ${
                 r.priority === "high" ? "bg-red-500/5 border border-red-500/15" : "bg-amber-500/5 border border-amber-500/10"
               }`}>
@@ -779,11 +871,11 @@ export default function OverviewSection() {
           {custIntel.atRiskWhales.length > 0 && (
             <div className="mt-2 space-y-1">
               <p className="text-[8px] text-red-400 font-bold uppercase">High-Value Going Quiet</p>
-              {custIntel.atRiskWhales.slice(0, 3).map((w: any, i: number) => (
+              {custIntel.atRiskWhales.slice(0, 3).map((w: AtRiskWhale, i: number) => (
                 <div key={i} className="flex items-center gap-2 py-1 text-[11px]">
                   <span className="text-foreground/80 flex-1">{w.name}</span>
                   <span className="font-bold text-primary">${w.totalSpent.toLocaleString()}</span>
-                  <span className="text-red-400 text-[9px] font-mono">{w.daysSince}d</span>
+                  <span className="text-red-400 text-[9px] font-mono">{String(w.daysSince)}d</span>
                 </div>
               ))}
             </div>
@@ -938,7 +1030,7 @@ export default function OverviewSection() {
           </h3>
           {todaysBookings.length > 0 && (
             <span className="text-[10px] text-muted-foreground font-mono">
-              {todaysBookings.filter((b: any) => b.status === "completed").length}/{todaysBookings.length} done
+              {todaysBookings.filter((b: BookingItem) => b.status === "completed").length}/{todaysBookings.length} done
             </span>
           )}
         </div>
@@ -946,7 +1038,7 @@ export default function OverviewSection() {
           <p className="text-sm text-foreground/40 py-4">No bookings scheduled for today.</p>
         ) : (
           <div className="space-y-2">
-            {todaysBookings.map((b: any) => {
+            {todaysBookings.map((b: BookingItem) => {
               const cfg = BOOKING_STATUS_CONFIG[b.status as BookingStatus] || BOOKING_STATUS_CONFIG.new;
               const isCompleted = b.status === "completed";
               return (
@@ -985,7 +1077,7 @@ export default function OverviewSection() {
       </div>
 
       {/* ─── ACTIVE WORK ORDERS ─── */}
-      {activeWorkOrders && (activeWorkOrders as any[]).length > 0 && (
+      {activeWorkOrders && (activeWorkOrders as WorkOrderItem[]).length > 0 && (
         <div className="stat-card !p-5 !border-primary/15">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase flex items-center gap-2">
@@ -993,11 +1085,11 @@ export default function OverviewSection() {
               Active Work Orders
             </h3>
             <span className="text-[10px] text-muted-foreground font-mono">
-              {(activeWorkOrders as any[]).filter((wo: any) => wo.status === "completed" || wo.status === "invoiced").length}/{(activeWorkOrders as any[]).length} done
+              {(activeWorkOrders as WorkOrderItem[]).filter((wo: WorkOrderItem) => wo.status === "completed" || wo.status === "invoiced").length}/{(activeWorkOrders as WorkOrderItem[]).length} done
             </span>
           </div>
           <div className="space-y-1.5 max-h-[350px] overflow-y-auto">
-            {(activeWorkOrders as any[]).slice(0, 12).map((wo: any) => {
+            {(activeWorkOrders as WorkOrderItem[]).slice(0, 12).map((wo: WorkOrderItem) => {
               const isBlocked = !!wo.blockerType;
               const isOverdue = wo.promisedAt && new Date(wo.promisedAt) < new Date();
               const isDone = wo.status === "completed" || wo.status === "invoiced" || wo.status === "picked_up";

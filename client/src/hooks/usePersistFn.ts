@@ -1,5 +1,6 @@
 import { useRef } from "react";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic function type requires any for proper inference
 type noop = (...args: any[]) => any;
 
 /**

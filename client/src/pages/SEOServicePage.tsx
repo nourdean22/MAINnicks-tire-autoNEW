@@ -14,8 +14,8 @@ import FinancingCTA from "@/components/FinancingCTA";
 
 
 function trackPhoneClick(location: string) {
-  if (typeof window !== "undefined" && (window as any).gtag) {
-    (window as any).gtag("event", "phone_call_click", { event_category: "conversion", event_label: location });
+  if (typeof window !== "undefined" && window.gtag) {
+    window.gtag("event", "phone_call_click", { event_category: "conversion", event_label: location });
   }
 }
 

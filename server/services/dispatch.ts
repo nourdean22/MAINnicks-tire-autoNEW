@@ -131,7 +131,7 @@ export async function recommendTech(workOrderId: string): Promise<Array<{
   }).sort((a: any, b: any) => b.score - a.score);
 }
 
-function extractServiceKeywords(desc: string, items: any[]): string[] {
+function extractServiceKeywords(desc: string, items: { description: string; type?: string }[]): string[] {
   const keywords: string[] = [];
   const text = (desc + " " + items.map(i => i.description).join(" ")).toLowerCase();
 

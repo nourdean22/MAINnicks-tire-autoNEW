@@ -107,7 +107,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
           reader.readAsDataURL(photo.file);
         });
         const allowedMimes = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const;
-        const mime = allowedMimes.includes(photo.file.type as any)
+        const mime = (allowedMimes as readonly string[]).includes(photo.file.type)
           ? (photo.file.type as (typeof allowedMimes)[number])
           : "image/jpeg";
         const { url } = await uploadPhoto.mutateAsync({

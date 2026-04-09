@@ -88,6 +88,7 @@ async function ensureInitialized(): Promise<void> {
     softFail: true,
     handler: async (event) => {
       const bridge = await import("../nour-os-bridge");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- event bus handlers have varied signatures
       const typeMap: Record<string, (data: any) => void> = {
         lead_captured: bridge.onLeadCaptured,
         callback_requested: bridge.onCallbackRequested,

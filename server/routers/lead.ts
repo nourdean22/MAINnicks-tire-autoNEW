@@ -33,7 +33,7 @@ export const leadRouter = router({
         email: z.string().email().max(254).optional().or(z.literal("")),
         vehicle: z.string().max(200).optional(),
         problem: z.string().max(2000).optional(),
-        source: z.enum(["popup", "chat", "booking", "manual", "callback", "fleet", "financing_preapproval"]).default("popup"),
+        source: z.enum(["popup", "chat", "booking", "manual", "callback", "fleet", "financing_preapproval", "careers"]).default("popup"),
         companyName: z.string().max(200).optional(),
         fleetSize: z.number().optional(),
         vehicleTypes: z.string().max(500).optional(),

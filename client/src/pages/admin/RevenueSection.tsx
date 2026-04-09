@@ -146,8 +146,34 @@ function RevenueContent() {
   );
 }
 
+// ─── DASHBOARD TYPES ────────────────────────────────────
+interface FunnelStage { label: string; name?: string; count: number; revenue?: number }
+interface PaymentBreakdown { method: string; amount: number }
+interface TopCustomer { name: string; phone: string | null; total: number; count: number; lastVisit: Date }
+interface ServiceItem { category: string; revenue: number; count: number; avgTicket: number }
+interface TopDay { day: string; revenue: number; jobs: number }
+interface IntelRecommendation { priority: string; type: string; text: string }
+interface AtRiskWhaleRev { name: string; totalSpent: number; daysSince: number; visits?: number; phone?: string }
+interface InvoiceItem {
+  id: number;
+  invoiceNumber?: string;
+  invoiceDate: string;
+  customerName?: string;
+  customerPhone?: string;
+  serviceDescription?: string;
+  total: number;
+  totalAmount?: number;
+  paymentMethod?: string;
+  paymentStatus?: string;
+  source?: string;
+}
+
+// DashboardView receives complex tRPC query results — typed at call sites instead
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DashboardViewProps = Record<string, any>;
+
 // ─── DASHBOARD VIEW ─────────────────────────────────────
-function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, setPeriod, intel, intelPeriod, setIntelPeriod, custIntel }: any) {
+function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, setPeriod, intel, intelPeriod, setIntelPeriod, custIntel }: DashboardViewProps) {
   const revenueChange = stats?.periodComparison?.change ?? 0;
 
   // Monthly pace computation
@@ -305,7 +331,7 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
 
           {/* Funnel stages */}
           <div className="flex items-center gap-1 mb-5">
-            {funnel.stages.map((stage: any, i: number) => {
+            {funnel.stages.map((stage: FunnelStage, i: number) => {
               const maxCount = funnel.stages[0]?.count || 1;
               const pct = maxCount > 0 ? (stage.count / maxCount) * 100 : 0;
               const dropoff = i > 0 && funnel.stages[i - 1].count > 0
@@ -426,8 +452,8 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
             <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <RPieChart>
-                  <Pie data={stats.revenueByPayment.map((d: any) => ({ ...d, name: d.method.toUpperCase() }))} dataKey="amount" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                    {stats.revenueByPayment.map((_: any, i: number) => (<Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />))}
+                  <Pie data={stats.revenueByPayment.map((d: PaymentBreakdown) => ({ ...d, name: d.method.toUpperCase() }))} dataKey="amount" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                    {stats.revenueByPayment.map((_: PaymentBreakdown, i: number) => (<Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />))}
                   </Pie>
                   <RechartsTooltip contentStyle={{ background: "#1a1a1a", border: "1px solid #333", fontSize: 12 }} formatter={(value: number) => [`$${value.toLocaleString()}`, "Revenue"]} />
                 </RPieChart>
@@ -502,7 +528,7 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
             <span className="font-mono text-[10px] text-foreground/30">Lifetime value</span>
           </div>
           <div className="space-y-2">
-            {topCustomers.map((c: any, i: number) => (
+            {topCustomers.map((c: TopCustomer, i: number) => (
               <div key={i} className="flex items-center gap-4 py-2 border-b border-border/10 last:border-0">
                 <span className="font-bold text-lg text-foreground/20 w-8">{i + 1}</span>
                 <div className="flex-1 min-w-0">
@@ -589,7 +615,7 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
             <div className="bg-card border border-border/30 p-5">
               <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">SERVICE BREAKDOWN</h3>
               <div className="space-y-2 max-h-[280px] overflow-y-auto">
-                {intel.serviceBreakdown.map((s: any, i: number) => {
+                {intel.serviceBreakdown.map((s: ServiceItem, i: number) => {
                   const maxRev = intel.serviceBreakdown[0]?.revenue || 1;
                   return (
                     <div key={s.category} className="flex items-center gap-3">
@@ -652,7 +678,7 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
                 <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">AVG TICKET BY SERVICE</h3>
                 <div style={{ height: 200 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={intel.serviceBreakdown.filter((s: any) => s.category !== "Other").slice(0, 8)} layout="vertical">
+                    <BarChart data={intel.serviceBreakdown.filter((s: ServiceItem) => s.category !== "Other").slice(0, 8)} layout="vertical">
                       <XAxis type="number" tick={{ fontSize: 10, fill: "#666" }} tickFormatter={(v: number) => `$${v}`} />
                       <YAxis type="category" dataKey="category" tick={{ fontSize: 10, fill: "#888" }} width={80} />
                       <RechartsTooltip contentStyle={{ background: "#1a1a1a", border: "1px solid #333", fontSize: 12 }}
@@ -764,7 +790,7 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
                 <Star className="w-4 h-4 text-primary" /> TOP REVENUE DAYS
               </h3>
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
-                {intel.topDays.slice(0, 10).map((d: any, i: number) => (
+                {intel.topDays.slice(0, 10).map((d: TopDay, i: number) => (
                   <div key={d.day} className={`text-center p-3 rounded border ${i === 0 ? "border-primary/30 bg-primary/5" : "border-border/20"}`}>
                     <p className="text-lg font-bold text-primary">{formatDollars(d.revenue)}</p>
                     <p className="text-[9px] text-foreground/40">{d.day} ({d.jobs} jobs)</p>
@@ -783,7 +809,7 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
             <Zap className="w-4 h-4 text-primary" /> WHAT TO DO NOW
           </h3>
           <div className="space-y-2">
-            {intel.recommendations.map((r: any, i: number) => (
+            {intel.recommendations.map((r: IntelRecommendation, i: number) => (
               <div key={i} className={`flex items-start gap-3 p-3 rounded border ${
                 r.priority === "high" ? "border-red-500/20 bg-red-500/5" :
                 r.priority === "medium" ? "border-amber-500/20 bg-amber-500/5" :
@@ -841,7 +867,7 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
             <div>
               <p className="text-[10px] text-foreground/40 font-bold uppercase mb-2">High-Value Customers Going Quiet</p>
               <div className="space-y-1">
-                {custIntel.atRiskWhales.map((w: any, i: number) => (
+                {custIntel.atRiskWhales.map((w: AtRiskWhaleRev, i: number) => (
                   <div key={i} className="flex items-center gap-3 py-1.5 px-2 rounded bg-red-500/5 border border-red-500/10">
                     <span className="text-xs font-medium text-foreground flex-1">{w.name}</span>
                     <span className="text-xs font-bold text-primary">${w.totalSpent.toLocaleString()}</span>
@@ -879,7 +905,7 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
 
   const deleteInvoice = trpc.invoices.delete.useMutation({
     onSuccess: () => { utils.invoices.list.invalidate(); utils.invoices.stats.invalidate(); toast.success("Invoice deleted"); },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: { message: string }) => toast.error(err.message),
   });
 
   const toggleSort = (field: "date" | "amount") => {
@@ -893,7 +919,7 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
 
   const sortedItems = useMemo(() => {
     if (!data?.items) return [];
-    return [...data.items].sort((a: any, b: any) => {
+    return [...data.items].sort((a: InvoiceItem, b: InvoiceItem) => {
       if (sortField === "date") {
         const diff = new Date(a.invoiceDate).getTime() - new Date(b.invoiceDate).getTime();
         return sortDir === "asc" ? diff : -diff;
@@ -954,7 +980,7 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
             </div>
             <div className="col-span-2"></div>
           </div>
-          {sortedItems.map((inv: any, _iIdx: number) => (
+          {sortedItems.map((inv: InvoiceItem, _iIdx: number) => (
             <div key={inv.id} className="stagger-in grid grid-cols-12 gap-2 items-center px-4 py-3 bg-card border border-border/20 hover:border-border/40 transition-colors" style={{ animationDelay: `${_iIdx * 40}ms` }}>
               <div className="col-span-1 text-[10px] text-foreground/30">{inv.invoiceNumber || inv.id}</div>
               <div className="col-span-3">
@@ -976,14 +1002,14 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
                   {inv.paymentStatus?.toUpperCase()}
                 </span>
               </div>
-              <div className="col-span-1 font-bold text-sm text-primary">{formatCents(inv.totalAmount)}</div>
+              <div className="col-span-1 font-bold text-sm text-primary">{formatCents(inv.totalAmount ?? inv.total ?? 0)}</div>
               <div className="col-span-1 text-[9px] text-foreground/30">
                 {new Date(inv.invoiceDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               </div>
               <div className="col-span-2 flex items-center gap-1 justify-end">
                 {(inv.paymentStatus === "pending" || inv.paymentStatus === "partial") && inv.customerPhone && (
                   <a
-                    href={`sms:${inv.customerPhone}?body=Hi ${inv.customerName?.split(" ")[0] || ""}, this is Nick's Tire %26 Auto. Your invoice of ${formatCents(inv.totalAmount)} is still outstanding. Reply or call us to settle. Thanks!`}
+                    href={`sms:${inv.customerPhone}?body=Hi ${inv.customerName?.split(" ")[0] || ""}, this is Nick's Tire %26 Auto. Your invoice of ${formatCents(inv.totalAmount ?? inv.total ?? 0)} is still outstanding. Reply or call us to settle. Thanks!`}
                     className="p-1 text-foreground/20 hover:text-blue-400 transition-colors"
                     title="SMS follow-up"
                   >
@@ -1022,8 +1048,8 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
     partsCost: "",
     laborCost: "",
     taxAmount: "",
-    paymentMethod: "card" as const,
-    paymentStatus: "paid" as const,
+    paymentMethod: "card",
+    paymentStatus: "paid",
     invoiceNumber: "",
     invoiceDate: new Date().toISOString().split("T")[0],
   });
@@ -1033,7 +1059,7 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
       toast.success("Invoice created");
       onDone();
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: { message: string }) => toast.error(err.message),
   });
 
   const handleSubmit = () => {
@@ -1048,8 +1074,8 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
       partsCost: form.partsCost ? Math.round(parseFloat(form.partsCost) * 100) : 0,
       laborCost: form.laborCost ? Math.round(parseFloat(form.laborCost) * 100) : 0,
       taxAmount: form.taxAmount ? Math.round(parseFloat(form.taxAmount) * 100) : 0,
-      paymentMethod: form.paymentMethod,
-      paymentStatus: form.paymentStatus,
+      paymentMethod: form.paymentMethod as "card" | "cash" | "check" | "financing" | "other",
+      paymentStatus: form.paymentStatus as "paid" | "pending" | "partial" | "refunded",
       invoiceNumber: form.invoiceNumber || undefined,
       invoiceDate: form.invoiceDate,
       source: "manual",
@@ -1086,7 +1112,7 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
         <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="font-mono text-[10px] text-foreground/50 tracking-wide block mb-1">Payment Method</label>
-            <select value={form.paymentMethod} onChange={(e) => setForm(f => ({ ...f, paymentMethod: e.target.value as any }))} className="w-full bg-background border border-border/30 px-3 py-2 text-[12px] text-foreground">
+            <select value={form.paymentMethod} onChange={(e) => setForm(f => ({ ...f, paymentMethod: e.target.value as typeof f.paymentMethod }))} className="w-full bg-background border border-border/30 px-3 py-2 text-[12px] text-foreground">
               <option value="card">Card</option>
               <option value="cash">Cash</option>
               <option value="check">Check</option>
@@ -1096,7 +1122,7 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
           </div>
           <div>
             <label className="font-mono text-[10px] text-foreground/50 tracking-wide block mb-1">Status</label>
-            <select value={form.paymentStatus} onChange={(e) => setForm(f => ({ ...f, paymentStatus: e.target.value as any }))} className="w-full bg-background border border-border/30 px-3 py-2 text-[12px] text-foreground">
+            <select value={form.paymentStatus} onChange={(e) => setForm(f => ({ ...f, paymentStatus: e.target.value as typeof f.paymentStatus }))} className="w-full bg-background border border-border/30 px-3 py-2 text-[12px] text-foreground">
               <option value="paid">Paid</option>
               <option value="pending">Pending</option>
               <option value="partial">Partial</option>

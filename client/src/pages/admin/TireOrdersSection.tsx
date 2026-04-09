@@ -239,7 +239,7 @@ function OrderDetail({ orderId, onUpdate }: { orderId: number; onUpdate: () => v
           return (
             <button
               key={nextStatus}
-              onClick={() => updateOrder.mutate({ id: orderId, status: nextStatus as any })}
+              onClick={() => updateOrder.mutate({ id: orderId, status: nextStatus as "confirmed" | "cancelled" | "received" | "scheduled" | "delivered" | "ordered" | "in_transit" | "installed" })}
               disabled={updateOrder.isPending}
               className={`text-xs px-3 py-1.5 rounded-md border border-border/30 ${nextConfig.color} hover:${nextConfig.bg} transition-colors disabled:opacity-50 flex items-center gap-1.5`}
             >

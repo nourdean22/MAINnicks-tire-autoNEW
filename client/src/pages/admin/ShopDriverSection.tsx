@@ -42,8 +42,8 @@ export default function ShopDriverSection() {
       const res = await importMutation.mutateAsync({ csvContent });
       setResult(res);
       refetchHistory();
-    } catch (err: any) {
-      setResult({ success: false, error: err.message || "Import failed" });
+    } catch (err: unknown) {
+      setResult({ success: false, error: err instanceof Error ? err.message : "Import failed" });
     } finally {
       setImporting(false);
     }

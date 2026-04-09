@@ -91,7 +91,7 @@ export const shareCardsRouter = router({
           .update(shareCards)
           .set({ views: (card[0].views || 0) + 1 })
           .where(eq(shareCards.token, input.token))
-          .catch((err: any) => {
+          .catch((err: unknown) => {
             console.error("[ShareCards] Failed to increment views:", err);
           });
       });

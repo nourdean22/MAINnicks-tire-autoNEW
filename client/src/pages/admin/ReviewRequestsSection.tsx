@@ -88,6 +88,7 @@ export default function ReviewRequestsSection() {
     if (formMaxPerDay) data.maxPerDay = parseInt(formMaxPerDay);
     if (formCooldown) data.cooldownDays = parseInt(formCooldown);
     if (formTemplate !== undefined) data.messageTemplate = formTemplate || null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- partial update object doesn't match full mutation input
     updateSettings.mutate(data as any);
   };
 

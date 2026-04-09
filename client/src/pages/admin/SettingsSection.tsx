@@ -68,8 +68,8 @@ export default function SettingsSection() {
         ? await syncInvoicesMut.mutateAsync()
         : await syncCustomersMut.mutateAsync();
       setSyncResult({ type, data: result });
-    } catch (err: any) {
-      setSyncResult({ type, data: { success: false, error: err.message } });
+    } catch (err: unknown) {
+      setSyncResult({ type, data: { success: false, error: err instanceof Error ? err.message : String(err) } });
     } finally {
       setSyncing(null);
     }

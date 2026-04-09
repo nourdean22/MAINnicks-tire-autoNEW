@@ -306,12 +306,12 @@ export default function BookingsSection() {
                       )}
                       {/* Confirmation status indicator */}
                       {booking.status !== "cancelled" && booking.status !== "completed" && (
-                        (booking as any).confirmedAt ? (
+                        (booking as typeof booking & { confirmedAt?: string; confirmationMethod?: string; confirmationSentAt?: string }).confirmedAt ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 border text-[10px] tracking-wider text-emerald-400 bg-emerald-500/10 border-emerald-500/30">
                             <ShieldCheck className="w-3 h-3" />
-                            CONFIRMED {(booking as any).confirmationMethod === "sms_reply" ? "via SMS" : (booking as any).confirmationMethod === "admin" ? "by Admin" : (booking as any).confirmationMethod === "phone" ? "by Phone" : ""}
+                            CONFIRMED {(booking as typeof booking & { confirmedAt?: string; confirmationMethod?: string; confirmationSentAt?: string }).confirmationMethod === "sms_reply" ? "via SMS" : (booking as typeof booking & { confirmedAt?: string; confirmationMethod?: string; confirmationSentAt?: string }).confirmationMethod === "admin" ? "by Admin" : (booking as typeof booking & { confirmedAt?: string; confirmationMethod?: string; confirmationSentAt?: string }).confirmationMethod === "phone" ? "by Phone" : ""}
                           </span>
-                        ) : (booking as any).confirmationSentAt ? (
+                        ) : (booking as typeof booking & { confirmedAt?: string; confirmationMethod?: string; confirmationSentAt?: string }).confirmationSentAt ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 border text-[10px] tracking-wider text-amber-400 bg-amber-500/10 border-amber-500/30">
                             <ShieldAlert className="w-3 h-3" />
                             AWAITING CONFIRM

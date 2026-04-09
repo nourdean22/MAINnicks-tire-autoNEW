@@ -38,7 +38,7 @@ export default function PriceEstimator() {
   const [showResult, setShowResult] = useState(false);
 
   const estimateQuery = trpc.pricing.estimate.useQuery(
-    { serviceType: service, vehicleCategory: vehicleCategory as any },
+    { serviceType: service, vehicleCategory: vehicleCategory || "compact" },
     { enabled: showResult && !!service && !!vehicleCategory }
   );
 
@@ -120,7 +120,7 @@ export default function PriceEstimator() {
                       <button
                         key={v.value}
                         type="button"
-                        onClick={() => setVehicleCategory(v.value as any)}
+                        onClick={() => setVehicleCategory(v.value as typeof vehicleCategory)}
                         className={`flex items-center gap-3 px-4 py-3.5 border rounded-md text-left transition-all ${
                           vehicleCategory === v.value
                             ? "border-primary bg-primary/10 text-primary ring-1 ring-nick-yellow/30"
@@ -275,15 +275,15 @@ export default function PriceEstimator() {
             WHY OUR PRICING IS DIFFERENT
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
-            {[
+            {([
               { title: "No Hidden Fees", desc: "The price we quote is the price you pay. Period." },
               { title: "Approval First", desc: "We explain the diagnosis and get your OK before any work starts." },
               { title: "Fair Parts Pricing", desc: "We use quality parts at competitive prices. No markups on markups." },
               { title: "Acima Lease-to-Own Accepted", desc: "Get repairs done today for $10 initial payment. No credit history needed. 90-day early purchase option.", accent: true },
-            ].map((item) => (
-              <div key={item.title} className={`text-center ${(item as any).accent ? "bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4" : ""}`}>
-                {(item as any).accent && <CreditCard className="w-5 h-5 text-emerald-400 mx-auto mb-2" />}
-                <h3 className={`font-bold text-sm tracking-[-0.01em] mb-2 ${(item as any).accent ? "text-emerald-400" : "text-primary"}`}>{item.title}</h3>
+            ] as { title: string; desc: string; accent?: boolean }[]).map((item) => (
+              <div key={item.title} className={`text-center ${item.accent ? "bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4" : ""}`}>
+                {item.accent && <CreditCard className="w-5 h-5 text-emerald-400 mx-auto mb-2" />}
+                <h3 className={`font-bold text-sm tracking-[-0.01em] mb-2 ${item.accent ? "text-emerald-400" : "text-primary"}`}>{item.title}</h3>
                 <p className="text-foreground/60 text-sm">{item.desc}</p>
               </div>
             ))}

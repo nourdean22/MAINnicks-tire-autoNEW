@@ -58,12 +58,12 @@ function ContentManager() {
 
   const updateArticle = trpc.contentAdmin.updateArticleStatus.useMutation({
     onSuccess: () => toast.success("Article updated"),
-    onError: (err: any) => toast.error("Failed: " + err.message),
+    onError: (err: { message: string }) => toast.error("Failed: " + err.message),
   });
 
   const toggleNotif = trpc.contentAdmin.toggleNotification.useMutation({
     onSuccess: () => toast.success("Notification updated"),
-    onError: (err: any) => toast.error("Failed: " + err.message),
+    onError: (err: { message: string }) => toast.error("Failed: " + err.message),
   });
 
   if (articlesLoading || notifsLoading) {
@@ -254,7 +254,7 @@ function AIIdeasEngine() {
 
   const generateArticle = trpc.contentAdmin.generateArticle.useMutation({
     onSuccess: () => toast.success("Article generated! Check Content Manager tab to review."),
-    onError: (err: any) => toast.error("Generation failed: " + err.message),
+    onError: (err: { message: string }) => toast.error("Generation failed: " + err.message),
   });
 
   const isLoading = chatLoading || seasonalLoading || compLoading || contentLoading;
@@ -264,6 +264,7 @@ function AIIdeasEngine() {
 
   // Trending Topics — from chat FAQ pipeline
   if (chatFunnel && typeof chatFunnel === "object") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
     const funnel = chatFunnel as any;
     const topics = funnel.topQuestions || funnel.topTopics || funnel.questions || [];
     if (Array.isArray(topics)) {
@@ -282,7 +283,9 @@ function AIIdeasEngine() {
   }
 
   // Competitor Gaps
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
   if (competitor && typeof competitor === "object") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
     const comp = competitor as any;
     const gaps = comp.gaps || comp.opportunities || comp.missingTopics || [];
     if (Array.isArray(gaps)) {
@@ -300,8 +303,10 @@ function AIIdeasEngine() {
     }
   }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
   // Content Performance — double down on what works
   if (contentPerf && typeof contentPerf === "object") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
     const perf = contentPerf as any;
     const topContent = perf.topPerformers || perf.bestArticles || perf.winners || [];
     if (Array.isArray(topContent)) {

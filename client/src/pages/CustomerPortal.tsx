@@ -360,7 +360,7 @@ function PortalDashboard({ token, onLogout }: { token: string; onLogout: () => v
         ].map((t) => (
           <button
             key={t.key}
-            onClick={() => setActiveTab(t.key as any)}
+            onClick={() => setActiveTab(t.key as typeof activeTab)}
             className={`px-4 py-2.5 text-[12px] tracking-wider border-b-2 -mb-[1px] transition-colors ${
               activeTab === t.key ? "border-primary text-primary" : "border-transparent text-foreground/40 hover:text-foreground/60"
             }`}

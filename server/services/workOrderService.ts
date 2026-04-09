@@ -150,6 +150,7 @@ export async function createWorkOrder(params: {
     inspectionId: params.inspectionId,
     promisedAt: params.promisedAt,
     quotedTotal: params.quotedTotal ? String(params.quotedTotal) : "0",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Drizzle insert type mismatch
   } as any);
 
   await logTransition(id, null, "approved", "system", "Work order created");
@@ -434,10 +435,10 @@ async function checkAllPartsReceived(workOrderId: string): Promise<void> {
     partStatus: workOrderItems.partStatus,
   }).from(workOrderItems).where(eq(workOrderItems.workOrderId, workOrderId));
 
-  const partsLines = lines.filter((l: any) => l.partStatus !== "not_needed");
+  const partsLines = lines.filter((l: { partStatus: string | null }) => l.partStatus !== "not_needed");
   if (partsLines.length === 0) return;
 
-  const pendingParts = partsLines.filter((l: any) =>
+  const pendingParts = partsLines.filter((l: { partStatus: string | null }) =>
     l.partStatus !== "received" && l.partStatus !== "installed"
   );
 
@@ -451,7 +452,7 @@ async function checkAllPartsReceived(workOrderId: string): Promise<void> {
       await updateStatus(workOrderId, "parts_received", "system", { note: "All parts received" });
       await updateStatus(workOrderId, "ready_for_bay", "system", { note: "Auto-advanced: all parts in" });
     }
-  } else if (partsLines.some((l: any) => l.partStatus === "received")) {
+  } else if (partsLines.some((l: { partStatus: string | null }) => l.partStatus === "received")) {
     if (wo.status === "parts_ordered") {
       await updateStatus(workOrderId, "parts_partial", "system", {
         note: `${pendingParts.length} parts still pending`,
@@ -534,7 +535,7 @@ export async function getWorkOrderStats(): Promise<{
 
   for (const row of rows) {
     byStatus[row.status] = Number(row.count);
-    if (ACTIVE_STATUSES.includes(row.status as any)) {
+    if ((ACTIVE_STATUSES as readonly string[]).includes(row.status)) {
       active += Number(row.count);
     }
     if (row.status === "in_progress") {
@@ -693,7 +694,7 @@ export async function getConversionFunnel(days: number = 90): Promise<{
     }
   }
 
-  const nonDraft = totalCreated - (rows.filter((r: any) => r.status === "draft").length);
+  const nonDraft = totalCreated - (rows.filter((r: { status: string }) => r.status === "draft").length);
   const conversionRate = nonDraft > 0 ? Math.round((completed / nonDraft) * 100) : 0;
 
   return {
@@ -758,9 +759,9 @@ export async function getDeclinedWorkHistory(customerId: string): Promise<any[]>
     .orderBy(desc(workOrders.createdAt))
     .limit(5);
 
-  return pastOrders.flatMap((wo: any) => {
+  return pastOrders.flatMap((wo: { declinedWorkJson: unknown; createdAt: Date | string; id: string; orderNumber: string }) => {
     const items = (wo.declinedWorkJson as Record<string, unknown>[] || []);
-    return items.map((item: any) => ({
+    return items.map((item: Record<string, unknown>) => ({
       ...item,
       declinedDate: wo.createdAt,
       workOrderId: wo.id,

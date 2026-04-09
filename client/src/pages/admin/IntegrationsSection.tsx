@@ -627,7 +627,7 @@ function LaborGuideTab() {
               </div>
               <div className="flex items-center gap-4 text-foreground/40 text-[10px]">
                 <span>RANGE: {job.minHours}–{job.maxHours}h</span>
-                {"categoryName" in job && <span className="text-foreground/30">{(job as any).categoryName}</span>}
+                {"categoryName" in job && <span className="text-foreground/30">{(job as typeof job & { categoryName?: string }).categoryName}</span>}
               </div>
               {job.notes && (
                 <p className="text-foreground/30 text-xs mt-1">{job.notes}</p>

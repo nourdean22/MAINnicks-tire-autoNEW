@@ -63,6 +63,7 @@ function OpportunityTracker() {
     }
 
     if (bookings) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
       (bookings as any[]).forEach(b => {
         const text = `${b.service || ""} ${b.vehicle || ""} ${b.notes || ""}`.toLowerCase();
         const hasHighValue = highValueServices.some(k => text.includes(k));

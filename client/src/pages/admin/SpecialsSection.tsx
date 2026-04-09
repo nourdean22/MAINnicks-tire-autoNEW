@@ -113,7 +113,7 @@ export default function SpecialsSection() {
               <label className="block text-foreground/60 text-xs mb-1">Discount Type</label>
               <select
                 value={form.discountType}
-                onChange={(e) => setForm({ ...form, discountType: e.target.value as any })}
+                onChange={(e) => setForm({ ...form, discountType: e.target.value as typeof form.discountType })}
                 className="w-full bg-background border border-border/50 text-foreground px-3 py-2 text-sm"
               >
                 <option value="percent">Percent Off</option>
