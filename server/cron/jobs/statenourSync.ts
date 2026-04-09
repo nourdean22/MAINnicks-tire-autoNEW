@@ -271,19 +271,38 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
       shopFloor: stats.shopFloor || null,
     };
 
-    const res = await fetch(`${statenourUrl}/api/sync/business`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(syncKey ? { "Authorization": `Bearer ${syncKey}` } : {}),
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(15000),
-    });
+    // Retry with backoff — Vercel cold starts cause intermittent 500s
+    let res: Response | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        res = await fetch(`${statenourUrl}/api/sync/business`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(syncKey ? { "Authorization": `Bearer ${syncKey}` } : {}),
+          },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(attempt === 0 ? 10000 : 20000),
+        });
+        if (res.ok) break;
+        if (res.status >= 500 && attempt < 2) {
+          log.warn(`Statenour sync attempt ${attempt + 1} failed (${res.status}), retrying...`);
+          await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+          continue;
+        }
+      } catch (fetchErr) {
+        if (attempt < 2) {
+          log.warn(`Statenour sync attempt ${attempt + 1} timeout, retrying...`);
+          await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+          continue;
+        }
+        throw fetchErr;
+      }
+    }
 
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "unknown");
-      throw new Error(`Statenour sync failed: ${res.status} ${errText}`);
+    if (!res || !res.ok) {
+      const errText = res ? await res.text().catch(() => "unknown") : "no response";
+      throw new Error(`Statenour sync failed after 3 attempts: ${res?.status || 'timeout'} ${errText}`);
     }
 
     const result = await res.json();
