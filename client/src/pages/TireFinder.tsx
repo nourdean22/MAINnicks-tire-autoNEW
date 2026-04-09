@@ -11,6 +11,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead } from "@/components/SEO";
+import { trackPhoneClick } from "@/lib/analytics";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FinancingCTA from "@/components/FinancingCTA";
 import { trpc } from "@/lib/trpc";
@@ -243,7 +244,7 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
             <div className="bg-primary/5 border border-primary/20 rounded-md p-4 mb-4">
               <p className="text-xs font-semibold text-primary mb-3">Pay to Confirm Your Order:</p>
               <a
-                href="tel:2168620005"
+                href="tel:2168620005" onClick={() => trackPhoneClick("tire-finder")}
                 className="block w-full text-center bg-primary text-primary-foreground py-3 rounded-md text-sm font-semibold hover:bg-primary/90 transition-colors"
               >
                 Call to Pay — (216) 862-0005
@@ -869,7 +870,7 @@ export default function TireFinder() {
               ) : isError ? (
                 <div className="text-center py-16">
                   <p className="text-muted-foreground mb-4">Unable to search tires right now.</p>
-                  <a href="tel:2168620005" className="text-primary hover:underline">Call us at (216) 862-0005</a>
+                  <a href="tel:2168620005" onClick={() => trackPhoneClick("tire-finder")} className="text-primary hover:underline">Call us at (216) 862-0005</a>
                 </div>
               ) : data?.tires && data.tires.length > 0 ? (
                 <>
@@ -1038,7 +1039,7 @@ export default function TireFinder() {
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <a
-                      href="tel:2168620005"
+                      href="tel:2168620005" onClick={() => trackPhoneClick("tire-finder")}
                       className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
                     >
                       <Phone className="w-4 h-4" />
@@ -1112,7 +1113,7 @@ export default function TireFinder() {
 
                   <div className="mt-5 flex flex-col sm:flex-row gap-3">
                     <a
-                      href="tel:2168620005"
+                      href="tel:2168620005" onClick={() => trackPhoneClick("tire-finder")}
                       className="inline-flex items-center justify-center gap-2 bg-red-500/10 text-red-400 border border-red-500/20 px-6 py-3 rounded-md text-sm font-medium hover:bg-red-500/20 transition-colors"
                     >
                       <Phone className="w-4 h-4" />
@@ -1172,7 +1173,7 @@ export default function TireFinder() {
                   </div>
 
                   <p className="text-sm text-muted-foreground mt-5 leading-relaxed">
-                    Used tire inventory changes daily. <a href="tel:2168620005" className="text-primary hover:underline">Call us</a> or stop by to see what we have in your size. Walk-ins welcome.
+                    Used tire inventory changes daily. <a href="tel:2168620005" onClick={() => trackPhoneClick("tire-finder")} className="text-primary hover:underline">Call us</a> or stop by to see what we have in your size. Walk-ins welcome.
                   </p>
                 </div>
               </div>
@@ -1314,7 +1315,7 @@ export default function TireFinder() {
                 Your tire size is printed on the sidewall of your current tires. It looks like <strong className="text-foreground">215/60R16</strong> or <strong className="text-foreground">P225/65R17</strong>.
               </p>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                You can also find it on the sticker inside your driver's door jamb, or in your vehicle owner's manual. Not sure? <a href="tel:2168620005" className="text-primary hover:underline">Call us</a> and we will help you find it.
+                You can also find it on the sticker inside your driver's door jamb, or in your vehicle owner's manual. Not sure? <a href="tel:2168620005" onClick={() => trackPhoneClick("tire-finder")} className="text-primary hover:underline">Call us</a> and we will help you find it.
               </p>
             </div>
 
