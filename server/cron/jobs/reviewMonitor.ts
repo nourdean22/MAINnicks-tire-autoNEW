@@ -9,9 +9,9 @@ import { buildPlaceDetailsUrl } from "@shared/const";
 const log = createLogger("review-monitor");
 
 export async function processReviewMonitor(): Promise<{ recordsProcessed: number; details?: string }> {
-  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
-    return { recordsProcessed: 0, details: "GOOGLE_PLACES_API_KEY not configured — skipping" };
+    return { recordsProcessed: 0, details: "GOOGLE_PLACES_API_KEY or GOOGLE_MAPS_API_KEY not configured — skipping" };
   }
 
   try {

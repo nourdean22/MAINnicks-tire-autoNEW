@@ -86,31 +86,31 @@ declare global {
   }
 }
 
-const API_KEY = import.meta.env.VITE_FRONTEND_FORGE_API_KEY || "";
-const FORGE_BASE_URL =
-  import.meta.env.VITE_FRONTEND_FORGE_API_URL ||
-  "https://forge.butterfly-effect.dev";
-const MAPS_PROXY_URL = `${FORGE_BASE_URL}/v1/maps/proxy`;
+const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
 
-function loadMapScript() {
+let _loadPromise: Promise<void> | null = null;
+
+function loadMapScript(): Promise<void> {
   if (!API_KEY) {
-    console.warn("[Map] VITE_FRONTEND_FORGE_API_KEY not set — maps disabled");
-    return Promise.resolve(null);
+    console.warn("[Map] VITE_GOOGLE_MAPS_API_KEY not set — maps disabled");
+    return Promise.resolve();
   }
-  return new Promise(resolve => {
+  if (window.google?.maps) return Promise.resolve();
+  if (_loadPromise) return _loadPromise;
+
+  _loadPromise = new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = `${MAPS_PROXY_URL}/maps/api/js?key=${API_KEY}&v=weekly&libraries=marker,places,geocoding,geometry`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&v=weekly&libraries=marker,places`;
     script.async = true;
-    script.crossOrigin = "anonymous";
-    script.onload = () => {
-      resolve(null);
-      script.remove(); // Clean up immediately
-    };
+    script.defer = true;
+    script.onload = () => resolve();
     script.onerror = () => {
-      console.error("Failed to load Google Maps script");
+      _loadPromise = null;
+      reject(new Error("Failed to load Google Maps script"));
     };
     document.head.appendChild(script);
   });
+  return _loadPromise;
 }
 
 interface MapViewProps {
@@ -130,19 +130,21 @@ export function MapView({
   const map = useRef<google.maps.Map | null>(null);
 
   const init = usePersistFn(async () => {
-    await loadMapScript();
-    if (!mapContainer.current) {
-      console.error("Map container not found");
+    try {
+      await loadMapScript();
+    } catch (err) {
+      console.error("[Map] Script load failed:", err);
       return;
     }
-    map.current = new window.google.maps.Map(mapContainer.current, {
+    if (!mapContainer.current || !window.google?.maps) return;
+    map.current = new window.google!.maps.Map(mapContainer.current, {
       zoom: initialZoom,
       center: initialCenter,
-      mapTypeControl: true,
+      mapTypeControl: false,
       fullscreenControl: true,
       zoomControl: true,
-      streetViewControl: true,
-      mapId: "DEMO_MAP_ID",
+      streetViewControl: false,
+      mapId: "nickstire-map",
     });
     if (onMapReady) {
       onMapReady(map.current);

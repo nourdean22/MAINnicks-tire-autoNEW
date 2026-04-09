@@ -295,8 +295,8 @@ export async function checkOperationalSafety(): Promise<CheckResult<OperationalM
 
   try {
     // Check critical API keys
-    if (!process.env.GOOGLE_PLACES_API_KEY) {
-      alerts.push({ severity: "warning", message: "GOOGLE_PLACES_API_KEY not set — review monitoring is disabled" });
+    if (!process.env.GOOGLE_PLACES_API_KEY && !process.env.GOOGLE_MAPS_API_KEY) {
+      alerts.push({ severity: "warning", message: "GOOGLE_PLACES_API_KEY or GOOGLE_MAPS_API_KEY not set — review monitoring is disabled" });
     }
     if (!process.env.TWILIO_ACCOUNT_SID) {
       alerts.push({ severity: "warning", message: "Twilio not configured — all SMS features disabled" });
