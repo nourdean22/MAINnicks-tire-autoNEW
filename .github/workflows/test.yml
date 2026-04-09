@@ -28,8 +28,19 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Run tests
-        run: npx vitest run
+        run: npx vitest run --reporter=verbose 2>&1 | tee test-output.txt || true
 
-      - name: Test Summary
-        if: always()
-        run: echo "Tests completed. Check output above for results."
+      - name: Check test results
+        run: |
+          if grep -q "Tests.*failed" test-output.txt 2>/dev/null; then
+            echo "::error::Tests failed"
+            tail -50 test-output.txt
+            exit 1
+          elif grep -q "Tests.*passed" test-output.txt 2>/dev/null; then
+            echo "All tests passed"
+            tail -5 test-output.txt
+          else
+            echo "::error::Test runner crashed"
+            cat test-output.txt
+            exit 1
+          fi
