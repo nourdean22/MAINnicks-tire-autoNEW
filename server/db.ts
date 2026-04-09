@@ -13,6 +13,7 @@ import {
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Drizzle db instance: typed properly requires fixing 165+ downstream execute/insert/update calls (structural tech debt)
 let _db: any = null;
 let _pool: mysql.Pool | null = null;
 

@@ -22,6 +22,36 @@ const STAGES = [
 
 type StageKey = typeof STAGES[number]["key"];
 
+interface BookingJob {
+  id: number;
+  name?: string;
+  phone?: string;
+  vehicle?: string;
+  service?: string;
+  status: string;
+  stage?: string;
+  urgency?: string;
+  referenceCode?: string;
+  adminNotes?: string;
+  preferredTime?: string;
+  createdAt: string | Date;
+  stageUpdatedAt?: string | Date;
+  priority?: string;
+}
+
+interface TechItem {
+  id: number;
+  name: string;
+  title?: string;
+  activeJobs?: number;
+}
+
+interface WorkloadItem {
+  id: number;
+  name: string;
+  activeJobs: number;
+}
+
 function getTimeElapsed(date: string | Date): string {
   const ms = Date.now() - new Date(date).getTime();
   const hours = Math.floor(ms / (1000 * 60 * 60));
@@ -31,7 +61,7 @@ function getTimeElapsed(date: string | Date): string {
   return `${mins}m`;
 }
 
-function getPriorityColor(urgency: string, stage: string): string {
+function getPriorityColor(urgency: string | undefined, stage: string | undefined): string {
   if (urgency === "emergency") return "border-l-4 border-l-red-500";
   if (urgency === "this-week") return "border-l-4 border-l-amber-500";
   return "border-l-4 border-l-transparent";
@@ -49,7 +79,7 @@ export default function JobBoardSection() {
 
   const updateStage = trpc.booking.updateStage.useMutation({
     onSuccess: () => { utils.booking.list.invalidate(); utils.jobAssignments.workload.invalidate(); toast.success("Stage updated"); },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: { message: string }) => toast.error(err.message),
   });
 
   const assignTech = trpc.jobAssignments.assign.useMutation({
@@ -59,7 +89,7 @@ export default function JobBoardSection() {
       setAssigningBookingId(null);
       toast.success("Technician assigned");
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: { message: string }) => toast.error(err.message),
   });
 
   const startTimer = trpc.jobAssignments.startTimer.useMutation({
@@ -80,12 +110,12 @@ export default function JobBoardSection() {
 
   const jobs = useMemo(() => {
     if (!bookingsData) return [];
-    let filtered = bookingsData.filter((b: any) => b.status !== "cancelled");
+    let filtered = bookingsData.filter((b: BookingJob) => b.status !== "cancelled");
 
     // Search filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      filtered = filtered.filter((b: any) =>
+      filtered = filtered.filter((b: BookingJob) =>
         b.name?.toLowerCase().includes(q) ||
         b.phone?.includes(q) ||
         b.vehicle?.toLowerCase().includes(q) ||
@@ -96,16 +126,16 @@ export default function JobBoardSection() {
 
     // Urgency filter
     if (filterUrgency !== "all") {
-      filtered = filtered.filter((b: any) => b.urgency === filterUrgency);
+      filtered = filtered.filter((b: BookingJob) => b.urgency === filterUrgency);
     }
 
     return filtered;
   }, [bookingsData, searchQuery, filterUrgency]);
 
   const jobsByStage = useMemo(() => {
-    const map: Record<string, any[]> = {};
+    const map: Record<string, BookingJob[]> = {};
     STAGES.forEach(s => { map[s.key] = []; });
-    jobs.forEach((j: any) => {
+    jobs.forEach((j: BookingJob) => {
       const stage = j.stage || "received";
       if (map[stage]) map[stage].push(j);
     });
@@ -115,7 +145,7 @@ export default function JobBoardSection() {
   // Technician workload summary
   const techWorkloadMap = useMemo(() => {
     const map: Record<number, { name: string; activeJobs: number }> = {};
-    workload?.forEach((t: any) => {
+    workload?.forEach((t: WorkloadItem) => {
       map[t.id] = { name: t.name, activeJobs: t.activeJobs };
     });
     return map;
@@ -123,7 +153,7 @@ export default function JobBoardSection() {
 
   // Stats
   const totalActive = jobs.length;
-  const emergencyCount = jobs.filter((j: any) => j.urgency === "emergency").length;
+  const emergencyCount = jobs.filter((j: BookingJob) => j.urgency === "emergency").length;
   const readyCount = jobsByStage["ready"]?.length || 0;
 
   if (isLoading) {
@@ -192,7 +222,7 @@ export default function JobBoardSection() {
             <span className="font-bold text-sm text-foreground tracking-wider">TECHNICIAN WORKLOAD</span>
           </div>
           <div className="flex flex-wrap gap-3">
-            {workload.map((t: any) => (
+            {workload.map((t: WorkloadItem) => (
               <div key={t.id} className="flex items-center gap-2 bg-background/50 px-3 py-2 border border-border/20">
                 <div className="w-7 h-7 bg-primary/20 flex items-center justify-center">
                   <span className="font-bold text-xs text-primary">{t.name.charAt(0)}</span>
@@ -237,7 +267,7 @@ export default function JobBoardSection() {
                 </div>
               </div>
               <div className="p-2 space-y-2">
-                {(jobsByStage[stage.key] || []).map((job: any) => (
+                {(jobsByStage[stage.key] || []).map((job: BookingJob) => (
                   <JobCard
                     key={job.id}
                     job={job}
@@ -265,7 +295,7 @@ export default function JobBoardSection() {
               <p className="text-[12px] text-foreground/40">No jobs match your search criteria.</p>
             </div>
           ) : (
-            jobs.map((job: any) => (
+            jobs.map((job: BookingJob) => (
               <div key={job.id} className={`bg-card border border-border/30 p-4 ${getPriorityColor(job.urgency, job.stage)}`}>
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex-1 min-w-0">
@@ -295,7 +325,7 @@ export default function JobBoardSection() {
                     </button>
                     <select
                       value={job.stage || "received"}
-                      onChange={(e) => updateStage.mutate({ id: job.id, stage: e.target.value as any })}
+                      onChange={(e) => updateStage.mutate({ id: job.id, stage: e.target.value as StageKey })}
                       className="px-2 py-1 text-xs bg-card border border-border/30 text-foreground"
                     >
                       {STAGES.map(s => (
@@ -324,7 +354,7 @@ export default function JobBoardSection() {
               Assigning a tech will auto-move the job to "Inspecting" if it's still in "Received".
             </p>
             <div className="space-y-2">
-              {(techList || []).map((tech: any) => {
+              {(techList || []).map((tech: TechItem) => {
                 const load = techWorkloadMap[tech.id]?.activeJobs || 0;
                 return (
                   <button
@@ -374,7 +404,7 @@ function JobCard({
   onAssign,
   techWorkload,
 }: {
-  job: any;
+  job: BookingJob;
   stage: string;
   onStageChange: (stage: StageKey) => void;
   onAssign: () => void;

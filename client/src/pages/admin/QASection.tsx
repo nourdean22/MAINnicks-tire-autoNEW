@@ -50,7 +50,7 @@ export default function QASection() {
     // Trending topics
     const topicCounts: Record<string, number> = {};
     for (const q of all) {
-      const text = ((q as any).question || "").toLowerCase();
+      const text = ((q as { question?: string }).question || "").toLowerCase();
       for (const [topic, keywords] of Object.entries(TOPIC_KEYWORDS)) {
         if (keywords.some(kw => text.includes(kw))) {
           topicCounts[topic] = (topicCounts[topic] || 0) + 1;

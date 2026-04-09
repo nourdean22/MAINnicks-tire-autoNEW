@@ -111,7 +111,7 @@ export default function SiteHealthSection() {
             </div>
             <div className="flex items-center justify-between p-2.5 border border-border/20">
               <span className="text-[12px] text-foreground/60">Validation Status</span>
-              <span className="text-[12px] text-emerald-400">{(health as any).validationStatus ?? "Check GSC"}</span>
+              <span className="text-[12px] text-emerald-400">{(health as typeof health & { validationStatus?: string }).validationStatus ?? "Check GSC"}</span>
             </div>
             <a href="https://search.google.com/search-console/index?resource_id=https%3A%2F%2Fnickstire.org%2F" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 text-primary hover:text-primary/80 text-[12px] p-2 border border-primary/20 hover:border-primary/40 transition-colors">
               View Full Report in GSC <ExternalLink className="w-3 h-3" />

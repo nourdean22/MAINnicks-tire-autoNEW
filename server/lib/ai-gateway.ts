@@ -429,14 +429,15 @@ function logRequest(entry: RequestLogEntry) {
 }
 
 // ─── Error classification ───────────────────────────
-function classifyError(err: any): string {
-  if (err.name === "AbortError" || (err as Error).message?.includes("aborted")) return "timeout";
-  if ((err as Error).message?.includes("ECONNREFUSED")) return "connection_refused";
-  if ((err as Error).message?.includes("ECONNRESET")) return "connection_reset";
-  if ((err as Error).message?.includes("ETIMEDOUT")) return "network_timeout";
-  if ((err as Error).message?.includes("404") || (err as Error).message?.includes("model")) return "model_not_found";
-  if ((err as Error).message?.includes("429")) return "rate_limited";
-  if (/\b5\d{2}\b/.test((err as Error).message || "")) return "server_error";
+function classifyError(err: unknown): string {
+  const e = err instanceof Error ? err : new Error(String(err));
+  if (e.name === "AbortError" || e.message?.includes("aborted")) return "timeout";
+  if (e.message?.includes("ECONNREFUSED")) return "connection_refused";
+  if (e.message?.includes("ECONNRESET")) return "connection_reset";
+  if (e.message?.includes("ETIMEDOUT")) return "network_timeout";
+  if (e.message?.includes("404") || e.message?.includes("model")) return "model_not_found";
+  if (e.message?.includes("429")) return "rate_limited";
+  if (/\b5\d{2}\b/.test(e.message || "")) return "server_error";
   return "unknown";
 }
 

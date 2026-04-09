@@ -13,6 +13,23 @@ import {
   Loader2, Trophy, Gift, Star, Phone, Award, TrendingUp, BarChart3
 } from "lucide-react";
 
+interface RewardItem {
+  id: number;
+  title: string;
+  description?: string;
+  pointsCost: number;
+  discountValue?: number;
+  rewardValue?: number;
+  isActive: number;
+}
+
+interface CustomerLookup {
+  id: number;
+  phone?: string;
+  name?: string;
+  totalPoints?: number;
+}
+
 export default function LoyaltyAdminSection() {
   const [phone, setPhone] = useState("");
   const [points, setPoints] = useState("");
@@ -20,7 +37,7 @@ export default function LoyaltyAdminSection() {
 
   const awardPoints = trpc.loyalty.awardPoints.useMutation({
     onSuccess: () => { setPhone(""); setPoints(""); setDesc(""); toast.success("Points awarded"); },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: { message: string }) => toast.error(err.message),
   });
 
   const { data: rewards, isLoading: rewardsLoading } = trpc.loyalty.rewards.useQuery();
@@ -30,18 +47,18 @@ export default function LoyaltyAdminSection() {
 
   const createReward = trpc.loyalty.createReward.useMutation({
     onSuccess: () => { utils.loyalty.rewards.invalidate(); setShowRewardForm(false); setRewardForm({ title: "", description: "", pointsCost: "", discountValue: "" }); toast.success("Reward created"); },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: { message: string }) => toast.error(err.message),
   });
 
   const rewardStats = useMemo(() => {
     const all = rewards ?? [];
     const totalRewards = all.length;
-    const activeRewards = all.filter((r: any) => r.isActive !== 0).length;
+    const activeRewards = all.filter((r: RewardItem) => r.isActive !== 0).length;
     const totalPointsValue = all.reduce((sum: number, r: any) => sum + (r.pointsCost || 0), 0);
     const totalDiscountValue = all.reduce((sum: number, r: any) => sum + (r.discountValue || r.rewardValue || 0), 0);
     // "Most Popular" = lowest cost reward (most accessible)
     const cheapest = all.length > 0
-      ? [...all].sort((a: any, b: any) => (a.pointsCost || 0) - (b.pointsCost || 0))[0]
+      ? [...all].sort((a: RewardItem, b: RewardItem) => (a.pointsCost || 0) - (b.pointsCost || 0))[0]
       : null;
     const avgCost = totalRewards > 0 ? Math.round(totalPointsValue / totalRewards) : 0;
     return { totalRewards, activeRewards, totalDiscountValue, cheapest, avgCost };
@@ -67,9 +84,9 @@ export default function LoyaltyAdminSection() {
               <div>
                 <span className="text-[10px] text-foreground/40 tracking-wider">MOST ACCESSIBLE REWARD</span>
                 <div className="text-sm font-bold text-foreground">
-                  {(rewardStats.cheapest as any).title}
+                  {(rewardStats.cheapest as RewardItem).title}
                   <span className="text-foreground/40 font-normal ml-2">
-                    {(rewardStats.cheapest as any).pointsCost} pts &middot; ${(rewardStats.cheapest as any).discountValue || (rewardStats.cheapest as any).rewardValue} off
+                    {(rewardStats.cheapest as RewardItem).pointsCost} pts &middot; ${(rewardStats.cheapest as RewardItem).discountValue || (rewardStats.cheapest as RewardItem).rewardValue} off
                   </span>
                 </div>
               </div>
@@ -90,8 +107,8 @@ export default function LoyaltyAdminSection() {
             try {
               const normalized = phone.replace(/\D/g, "").slice(-10);
               const customersRaw = await utils.customers.list.fetch() as unknown;
-              const customerList = Array.isArray(customersRaw) ? customersRaw : (customersRaw as any)?.customers ?? [];
-              const match = customerList.find((c: any) => c.phone?.replace(/\D/g, "").includes(normalized));
+              const customerList: CustomerLookup[] = Array.isArray(customersRaw) ? customersRaw : ((customersRaw as Record<string, unknown>)?.customers as CustomerLookup[]) ?? [];
+              const match = customerList.find((c: CustomerLookup) => c.phone?.replace(/\D/g, "").includes(normalized));
               if (!match) { toast.error("Customer not found for this phone number"); return; }
               awardPoints.mutate({ userId: match.id, points: parseInt(points) || 0, description: desc || "Manual award" });
             } catch { toast.error("Failed to look up customer"); }
@@ -133,7 +150,7 @@ export default function LoyaltyAdminSection() {
           </div>
         ) : (
           <div className="space-y-3">
-            {(rewards ?? []).map((r: any) => (
+            {(rewards ?? []).map((r: RewardItem) => (
               <div key={r.id} className="bg-card border border-border/30 p-4 flex items-center justify-between">
                 <div>
                   <span className="font-bold text-foreground text-sm">{r.title}</span>

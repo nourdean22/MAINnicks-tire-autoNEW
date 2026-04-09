@@ -200,19 +200,19 @@ async function lookupMemories(
   }
 
   // Filter out dead memories from the working set
-  const liveMemories = memories.filter((m: any) => !memoriesToDelete.includes(m.id));
+  const liveMemories = memories.filter((m: { id: number }) => !memoriesToDelete.includes(m.id));
   if (liveMemories.length === 0) return { formatted: undefined, memoryIds: [] };
 
   // Score and sort by composite memoryScore
   const scored = liveMemories
-    .map((m: any) => ({ ...m, memoryScore: computeMemoryScore(m) }))
-    .sort((a: any, b: any) => b.memoryScore - a.memoryScore)
+    .map((m: typeof memories[number]) => ({ ...m, memoryScore: computeMemoryScore(m as Parameters<typeof computeMemoryScore>[0]) }))
+    .sort((a: { memoryScore: number }, b: { memoryScore: number }) => b.memoryScore - a.memoryScore)
     .slice(0, 10); // Top 10 most relevant
 
   // Update lastAccessed for retrieved memories (fire-and-forget)
-  const activeIds = scored.map((m: any) => m.id);
+  const activeIds = scored.map((m: { id: number }) => m.id);
   Promise.all(
-    activeIds.map((id: any) =>
+    activeIds.map((id: number) =>
       d.update(conversationMemory)
         .set({ lastAccessed: new Date() })
         .where(eq(conversationMemory.id, id))
@@ -220,7 +220,7 @@ async function lookupMemories(
   ).catch((e) => { console.warn("[routers/chat] fire-and-forget failed:", e); });
 
   const formatted = scored
-    .map((m: any) => `- [${m.category}] ${m.content}`)
+    .map((m: { category: string; content: string }) => `- [${m.category}] ${m.content}`)
     .join("\n");
 
   return { formatted, memoryIds: activeIds };
@@ -250,7 +250,7 @@ async function saveMemories(
       .limit(20);
 
     // Simple dedup: if content is substantially similar, reinforce instead of inserting
-    const duplicate = existing.find((e: any) =>
+    const duplicate = existing.find((e: { content: string; id: number; accessCount: number }) =>
       e.content.toLowerCase().includes(mem.content.toLowerCase().slice(0, 30)) ||
       mem.content.toLowerCase().includes(e.content.toLowerCase().slice(0, 30))
     );
@@ -571,14 +571,14 @@ export const chatRouter = router({
             SELECT COUNT(*) as cnt FROM work_orders
             WHERE status IN ('in_progress', 'approved', 'waiting_parts', 'quality_check')
           `);
-          const activeWOs = Number((woRows as any)?.[0]?.cnt || 0);
+          const activeWOs = Number((woRows as Array<Record<string, unknown>>)?.[0]?.cnt || 0);
 
           // Today's confirmed bookings = expected arrivals
           const [bkRows] = await d.execute(rawSql`
             SELECT COUNT(*) as cnt FROM bookings
             WHERE createdAt >= CURDATE() AND status IN ('new', 'confirmed')
           `);
-          const todayBookings = Number((bkRows as any)?.[0]?.cnt || 0);
+          const todayBookings = Number((bkRows as Array<Record<string, unknown>>)?.[0]?.cnt || 0);
 
           // Real wait estimate: active WOs * 45min avg, capped at 3 hours
           // If no active WOs, minimal wait (walk-in friendly)

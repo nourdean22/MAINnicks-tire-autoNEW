@@ -106,6 +106,7 @@ function CustomerJourney({ phone }: { phone: string }) {
 
   return (
     <div className="space-y-0">
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
       {(timeline as any[]).slice(0, 15).map((event: any, i: number) => {
         const cfg = JOURNEY_ICONS[event.type] || { icon: "📌", color: "border-foreground/20" };
         const date = new Date(event.date);
@@ -115,7 +116,7 @@ function CustomerJourney({ phone }: { phone: string }) {
             {/* Timeline line */}
             <div className="flex flex-col items-center w-6 shrink-0">
               <span className="text-sm">{cfg.icon}</span>
-              {i < (timeline as any[]).length - 1 && (
+              {i < (timeline as unknown[]).length - 1 && (
                 <div className="w-px flex-1 bg-foreground/10 my-1" />
               )}
             </div>

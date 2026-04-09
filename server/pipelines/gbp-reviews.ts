@@ -27,6 +27,14 @@ async function db() {
 
 // ─── TYPES ───────────────────────────────────────────────
 
+interface GooglePlacesReview {
+  author_name?: string;
+  rating: number;
+  text?: string;
+  relative_time_description?: string;
+  time?: number;
+}
+
 export interface RawReview {
   authorName: string;
   rating: number;
@@ -114,12 +122,12 @@ export async function fetchRecentReviews(): Promise<RawReview[]> {
     return [];
   }
 
-  return details.result.reviews.map((r: any) => ({
+  return details.result.reviews.map((r: GooglePlacesReview) => ({
     authorName: r.author_name || "Unknown",
     rating: r.rating,
     text: r.text || "",
     relativeTime: r.relative_time_description || "",
-    time: r.time,
+    time: r.time || 0,
   }));
 }
 
@@ -148,20 +156,20 @@ async function fetchCompetitorReviews(query: string): Promise<{ name: string; pl
 
     if (details.status !== "OK") return null;
 
-    const reviews = (details.result?.reviews || []).map((r: any) => ({
+    const reviews = (details.result?.reviews || []).map((r: GooglePlacesReview) => ({
       authorName: r.author_name || "Unknown",
       rating: r.rating,
       text: r.text || "",
       relativeTime: r.relative_time_description || "",
-      time: r.time,
+      time: r.time || 0,
     }));
 
     return {
       name: details.result?.name || query,
       placeId,
       reviews,
-      rating: (details.result as any)?.rating || 0,
-      totalReviews: (details.result as any)?.user_ratings_total || 0,
+      rating: ((details.result as unknown as { rating?: number; user_ratings_total?: number }))?.rating || 0,
+      totalReviews: ((details.result as unknown as { rating?: number; user_ratings_total?: number }))?.user_ratings_total || 0,
     };
   } catch (error) {
     console.error(`[GBP Pipeline] Competitor fetch failed for "${query}":`, error);
@@ -272,8 +280,8 @@ export async function suggestResponse(review: AnalyzedReview): Promise<string> {
         .limit(5);
 
       pastResponses = approved
-        .filter((r: any) => r.response)
-        .map((r: any) => `[${r.rating}-star] "${r.reviewText?.slice(0, 80) || '(no text)'}" → Response: "${r.response!.slice(0, 150)}"`);
+        .filter((r: { response?: string | null; rating: number; reviewText?: string | null }) => r.response)
+        .map((r: { response?: string | null; rating: number; reviewText?: string | null }) => `[${r.rating}-star] "${r.reviewText?.slice(0, 80) || '(no text)'}" → Response: "${r.response!.slice(0, 150)}"`);
     }
   } catch (e) {
     console.warn("[pipelines/gbp-reviews] operation failed:", e);
@@ -402,10 +410,10 @@ export async function detectTrends(): Promise<ReviewTrendSnapshot> {
   // Compute current metrics
   const totalReviews = currentReviews.length;
   const avgRating = totalReviews > 0
-    ? currentReviews.reduce((sum: any, r: any) => sum + r.rating, 0) / totalReviews
+    ? currentReviews.reduce((sum: number, r: RawReview) => sum + r.rating, 0) / totalReviews
     : 0;
-  const positiveCount = currentReviews.filter((r: any) => r.rating >= 4).length;
-  const negativeCount = currentReviews.filter((r: any) => r.rating <= 2).length;
+  const positiveCount = currentReviews.filter((r: RawReview) => r.rating >= 4).length;
+  const negativeCount = currentReviews.filter((r: RawReview) => r.rating <= 2).length;
 
   // Sentiment distribution
   const sentimentDist: Record<string, number> = { positive: 0, negative: 0, neutral: 0, mixed: 0 };
@@ -433,7 +441,7 @@ export async function detectTrends(): Promise<ReviewTrendSnapshot> {
 
   // Trend detection
   const prevAvgRating = previousReviews.length > 0
-    ? previousReviews.reduce((sum: any, r: any) => sum + r.rating, 0) / previousReviews.length
+    ? previousReviews.reduce((sum: number, r: RawReview) => sum + r.rating, 0) / previousReviews.length
     : avgRating;
 
   const ratingDelta = avgRating - prevAvgRating;

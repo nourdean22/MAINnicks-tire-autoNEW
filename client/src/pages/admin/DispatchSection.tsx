@@ -230,6 +230,7 @@ function ReadyQueue() {
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
   const orders = (workOrders as any[]) || [];
 
   if (orders.length === 0) {
@@ -372,7 +373,9 @@ function QcReview() {
   const [selectedWo, setSelectedWo] = useState<string | null>(null);
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
   const orders = (workOrders as any[]) || [];
 
   if (orders.length === 0) {
@@ -436,8 +439,10 @@ function QcChecklistPanel({ workOrderId }: { workOrderId: string }) {
         <CreateQcButton workOrderId={workOrderId} />
       </div>
     );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
   const items = (checklist.items as any[]) || [];
   const allRequiredPassed = items.filter(i => i.required).every(i => i.passed === true);
   const roadTestOk = !checklist.roadTestRequired || checklist.roadTestCompleted;

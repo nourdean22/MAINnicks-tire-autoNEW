@@ -3,12 +3,15 @@
  * Targets skilled technicians who are tired of dealership chaos and flat-rate grind.
  * Built for search: JobPosting schema, plain-language job descriptions, local SEO.
  */
+import { useState } from "react";
 import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead } from "@/components/SEO";
 import { Link } from "wouter";
 import { BUSINESS, SITE_URL } from "@shared/business";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import {
   Wrench,
   Shield,
@@ -19,6 +22,10 @@ import {
   ArrowRight,
   Phone,
   Mail,
+  Star,
+  Send,
+  Loader2,
+  Gift,
 } from "lucide-react";
 
 // ─── TYPES ────────────────────────────────────────────────
@@ -92,11 +99,11 @@ const POSITIONS: Position[] = [
     schemaId: "service-advisor",
   },
   {
-    title: "Tire Technician",
+    title: "Tire / Hybrid Technician",
     type: "Full-Time",
     level: "Entry to Mid",
     description:
-      "The role that keeps us running. Fast hands, attention to TPMS sensors, and the discipline to torque lug nuts to spec without skipping steps. We're one of Cleveland's busiest tire operations — there's always work, and the pace is real.",
+      "The role that keeps us running. Fast hands, attention to TPMS sensors, and the discipline to torque lug nuts to spec without skipping steps. We're one of Cleveland's busiest tire operations — there's always work, the pace is real, and the money is consistent.",
     responsibilities: [
       "Mount, balance, and install tires on a wide range of vehicles",
       "Perform TPMS sensor service and resets",
@@ -124,28 +131,28 @@ const POSITIONS: Position[] = [
 const WHY_WORK = [
   {
     icon: Shield,
-    heading: "Systems, not chaos",
-    body: "We have documented processes for intake, diagnosis, and customer communication. You don't have to improvise your way through every shift.",
+    heading: "Consistent work, consistent money",
+    body: "We're one of Cleveland's busiest shops. The volume is here every single day. You won't sit around waiting for cars — you'll stay busy, your hours are full, and your check is reliable. This is the kind of place where you can raise a family.",
   },
   {
     icon: Wrench,
-    heading: "Respect for the craft",
-    body: "We don't skip steps to turn cars faster. We do the job right, document it, and stand behind it. Techs who take pride in their work fit here.",
+    heading: "You won't be dropping motors",
+    body: "Most of our work is tires, brakes, diagnostics, and general maintenance — the bread and butter that keeps a shop alive. You're not pulling engines on 20-year-old trucks. You're doing real work at a real pace without destroying your body.",
   },
   {
     icon: TrendingUp,
     heading: "Room to grow",
-    body: "If you want to develop diagnostics skills, move into a senior role, or eventually advise on shop operations, we're interested in growing with you.",
+    body: "If you want to develop diagnostics skills, move into a senior role, or eventually advise on shop operations, we're interested in growing with you. Pay scales with experience and what you bring to the table.",
   },
   {
     icon: Users,
-    heading: "A team that treats people right",
-    body: "We have regulars who've been coming here for years. That doesn't happen when you rip people off. We're the shop people send their mothers to.",
+    heading: "4.9 stars. 1,685+ reviews.",
+    body: "That's not marketing — that's what our customers actually say. You'll work at a shop people trust and recommend. That kind of reputation means steady customers and a team that does things right.",
   },
   {
     icon: Clock,
     heading: "Predictable schedule",
-    body: `${BUSINESS.hours.display}. Sunday hours available for those who want them. We don't ask you to be on call at midnight.`,
+    body: `${BUSINESS.hours.display}. Sunday hours available for those who want them. No midnight calls. No drama. Show up, do good work, go home to your family.`,
   },
 ];
 
@@ -194,11 +201,10 @@ function JobPostingSchemas() {
       currency: "USD",
       value: {
         "@type": "QuantitativeValue",
-        minValue: pos.title === "Automotive Technician" ? 20 : pos.title === "Service Advisor" ? 15 : 14,
-        maxValue: pos.title === "Automotive Technician" ? 35 : pos.title === "Service Advisor" ? 25 : 20,
         unitText: "HOUR",
       },
     },
+    qualifications: "Compensation depends on experience, skill level, and what you bring to the table. Competitive hourly pay — we take care of people who take care of our customers.",
   }));
 
   return (
@@ -287,7 +293,7 @@ function PositionCard({ pos }: { pos: Position }) {
       {/* Apply CTA */}
       <div className="px-6 pb-6">
         <a
-          href={`mailto:jobs@nickstire.org?subject=Application: ${pos.title}`}
+          href="#apply"
           className="flex items-center justify-center gap-2 stagger-in w-full bg-primary text-primary-foreground btn-premium py-3 rounded-xl font-semibold text-sm tracking-wide hover:opacity-90 transition-opacity"
         >
           Apply for {pos.title}
@@ -295,6 +301,181 @@ function PositionCard({ pos }: { pos: Position }) {
         </a>
       </div>
     </div>
+  );
+}
+
+// ─── APPLICATION FORM ─────────────────────────────────────
+function ApplicationForm() {
+  const [form, setForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    position: POSITIONS[0].title,
+    experience: "",
+    message: "",
+    referredBy: "",
+  });
+  const [submitted, setSubmitted] = useState(false);
+  const submitLead = trpc.lead.submit.useMutation({
+    onSuccess: () => setSubmitted(true),
+    onError: () => toast.error("Something went wrong. Please call us instead."),
+  });
+
+  if (submitted) {
+    return (
+      <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-8 text-center">
+        <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-4" />
+        <h3 className="font-heading text-xl font-extrabold uppercase text-foreground mb-2">
+          Application Received
+        </h3>
+        <p className="text-sm text-foreground/60">
+          We'll review your info and reach out within 48 hours. If you'd like to follow up,
+          call us at <a href={BUSINESS.phone.href} className="text-primary font-semibold">{BUSINESS.phone.display}</a>.
+        </p>
+      </div>
+    );
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim() || !form.phone.trim()) {
+      toast.error("Name and phone are required.");
+      return;
+    }
+    const problemText = [
+      `Position: ${form.position}`,
+      form.experience && `Experience: ${form.experience}`,
+      form.message && `About: ${form.message}`,
+      form.referredBy && `Referred by: ${form.referredBy}`,
+    ].filter(Boolean).join("\n");
+
+    submitLead.mutate({
+      name: form.name,
+      phone: form.phone,
+      email: form.email || undefined,
+      problem: problemText,
+      source: "careers",
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
+            Name *
+          </label>
+          <input
+            type="text"
+            required
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            placeholder="Your full name"
+            className="w-full bg-[oklch(0.08_0.004_260)] border border-border/30 rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-foreground/25 focus:border-primary/50 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
+            Phone *
+          </label>
+          <input
+            type="tel"
+            required
+            value={form.phone}
+            onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+            placeholder="(216) 555-0000"
+            className="w-full bg-[oklch(0.08_0.004_260)] border border-border/30 rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-foreground/25 focus:border-primary/50 focus:outline-none"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
+          Email (optional)
+        </label>
+        <input
+          type="email"
+          value={form.email}
+          onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+          placeholder="your@email.com"
+          className="w-full bg-[oklch(0.08_0.004_260)] border border-border/30 rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-foreground/25 focus:border-primary/50 focus:outline-none"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
+            Position
+          </label>
+          <select
+            value={form.position}
+            onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))}
+            className="w-full bg-[oklch(0.08_0.004_260)] border border-border/30 rounded-lg px-4 py-3 text-sm text-foreground focus:border-primary/50 focus:outline-none"
+          >
+            {POSITIONS.map((p) => (
+              <option key={p.schemaId} value={p.title}>{p.title}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
+            Experience Level
+          </label>
+          <select
+            value={form.experience}
+            onChange={(e) => setForm((f) => ({ ...f, experience: e.target.value }))}
+            className="w-full bg-[oklch(0.08_0.004_260)] border border-border/30 rounded-lg px-4 py-3 text-sm text-foreground focus:border-primary/50 focus:outline-none"
+          >
+            <option value="">Select...</option>
+            <option value="entry">Entry Level (0-1 years)</option>
+            <option value="mid">Mid Level (2-4 years)</option>
+            <option value="senior">Senior (5+ years)</option>
+            <option value="master">Master Tech (10+ years)</option>
+          </select>
+          <p className="text-[10px] text-foreground/30 mt-1">
+            Pay depends on experience and what you bring. Up to $35/hr for master techs, up to $25/hr for tire/hybrid techs.
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
+          Tell us about yourself
+        </label>
+        <textarea
+          value={form.message}
+          onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
+          placeholder="What kind of work have you done? What are you looking for? Keep it brief — we'll talk details in person."
+          rows={3}
+          className="w-full bg-[oklch(0.08_0.004_260)] border border-border/30 rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-foreground/25 focus:border-primary/50 focus:outline-none resize-none"
+        />
+      </div>
+
+      <div>
+        <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
+          Referred by (optional)
+        </label>
+        <input
+          type="text"
+          value={form.referredBy}
+          onChange={(e) => setForm((f) => ({ ...f, referredBy: e.target.value }))}
+          placeholder="Who told you about us?"
+          className="w-full bg-[oklch(0.08_0.004_260)] border border-border/30 rounded-lg px-4 py-3 text-sm text-foreground placeholder:text-foreground/25 focus:border-primary/50 focus:outline-none"
+        />
+      </div>
+
+      <button
+        type="submit"
+        disabled={submitLead.isPending}
+        className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground btn-premium py-3.5 rounded-xl font-semibold text-sm tracking-wide hover:opacity-90 transition-opacity disabled:opacity-50"
+      >
+        {submitLead.isPending ? (
+          <><Loader2 className="w-4 h-4 animate-spin" /> Submitting...</>
+        ) : (
+          <><Send className="w-4 h-4" /> Submit Application</>
+        )}
+      </button>
+    </form>
   );
 }
 
@@ -328,10 +509,10 @@ export default function Careers() {
             </p>
             <div className="mt-8 flex flex-wrap gap-4 stagger-in">
               <a
-                href="#positions"
+                href="#apply"
                 className="inline-flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-6 py-3 rounded-xl font-semibold text-sm tracking-wide hover:opacity-90 transition-opacity"
               >
-                See Open Positions
+                Apply Now
                 <ArrowRight className="w-4 h-4" />
               </a>
               <a
@@ -431,52 +612,66 @@ export default function Careers() {
         </div>
       </section>
 
-      {/* ─── HOW TO APPLY ──────────────────────────────── */}
+      {/* ─── WHAT OUR CUSTOMERS SAY ─────────────────────── */}
       <section className="bg-[oklch(0.055_0.004_260)] py-16 lg:py-20 border-t border-border/20">
         <div className="container">
-          <div className="max-w-2xl">
-            <h2 className="font-heading text-3xl font-extrabold uppercase text-foreground mb-4">
-              How to Apply
+          <div className="mb-10">
+            <p className="text-xs font-semibold tracking-[0.12em] uppercase text-foreground/40 mb-3">
+              Don't take our word for it
+            </p>
+            <h2 className="font-heading text-4xl lg:text-5xl font-extrabold uppercase text-foreground leading-tight">
+              What Our <span className="text-nick-yellow">Customers</span> Say
+            </h2>
+            <p className="mt-4 text-foreground/55 max-w-xl leading-relaxed">
+              4.9 stars across 1,685+ Google reviews. When customers trust a shop like this, it means the
+              work is real, the team is solid, and the money keeps coming in.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 stagger-in">
+            {[
+              { text: "Fastest tire shop in Cleveland. I was in and out in 20 minutes. The guys know what they're doing and they don't waste your time.", author: "Mike R." },
+              { text: "I've been coming here for 3 years. They always tell me what's actually wrong — no upselling, no pressure. Honest shop, honest people.", author: "Jasmine T." },
+              { text: "They showed me my brakes before doing anything. Explained exactly what needed to be done and what could wait. This is how every shop should operate.", author: "David K." },
+            ].map((review) => (
+              <div key={review.author} className="stagger-in rounded-xl border border-border/25 bg-[oklch(0.07_0.004_260)] p-5">
+                <div className="flex items-center gap-0.5 mb-3">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star key={i} className="w-3.5 h-3.5 fill-nick-yellow text-nick-yellow" />
+                  ))}
+                </div>
+                <p className="text-sm text-foreground/70 leading-relaxed italic mb-3">"{review.text}"</p>
+                <p className="text-xs font-semibold text-foreground/50">{review.author}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 text-center">
+            <a href="https://www.google.com/maps/place/Nick's+Tire+%26+Auto/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-primary hover:opacity-80 transition-opacity">
+              See all 1,685+ reviews on Google <ArrowRight className="w-4 h-4" />
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── APPLY NOW ────────────────────────────────────── */}
+      <section id="apply" className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-20 border-t border-border/20">
+        <div className="container">
+          <div className="max-w-2xl mx-auto">
+            <h2 className="font-heading text-3xl font-extrabold uppercase text-foreground mb-2">
+              Apply in 2 Minutes
             </h2>
             <p className="text-sm text-foreground/55 leading-relaxed mb-8">
-              No long application forms. Send us an email with your name, the position you're
-              interested in, and a brief description of your experience. We respond to every
-              application within 48 hours.
+              No resume required. Tell us who you are and what you can do. We respond within 48 hours.
             </p>
-
-            <div className="space-y-4">
-              <div className="flex items-start gap-4 stagger-in rounded-xl border border-border/25 bg-[oklch(0.07_0.004_260)] p-5">
-                <Mail className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-semibold text-foreground/90">Email us directly</p>
-                  <a
-                    href="mailto:jobs@nickstire.org"
-                    className="text-sm text-primary hover:opacity-80 transition-opacity"
-                  >
-                    jobs@nickstire.org
-                  </a>
-                  <p className="mt-1 text-xs text-foreground/45">
-                    Subject line: "Application: [Position Name]"
-                  </p>
-                </div>
-              </div>
-
+            <ApplicationForm />
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex items-start gap-4 stagger-in rounded-xl border border-border/25 bg-[oklch(0.07_0.004_260)] p-5">
                 <Phone className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-semibold text-foreground/90">Call or stop in</p>
-                  <a
-                    href={BUSINESS.phone.href}
-                    className="text-sm text-primary hover:opacity-80 transition-opacity"
-                  >
-                    {BUSINESS.phone.display}
-                  </a>
-                  <p className="mt-1 text-xs text-foreground/45">
-                    Ask for the manager. Walk-in introductions welcome during business hours.
-                  </p>
+                  <a href={BUSINESS.phone.href} className="text-sm text-primary hover:opacity-80 transition-opacity">{BUSINESS.phone.display}</a>
+                  <p className="mt-1 text-xs text-foreground/45">Walk-ins welcome during business hours.</p>
                 </div>
               </div>
-
               <div className="flex items-start gap-4 stagger-in rounded-xl border border-border/25 bg-[oklch(0.07_0.004_260)] p-5">
                 <Wrench className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                 <div>
@@ -486,14 +681,37 @@ export default function Careers() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
 
-            <p className="mt-8 text-xs text-foreground/35 leading-relaxed">
-              Nick's Tire & Auto is an equal opportunity employer. We evaluate all candidates on
-              skill, character, and fit — nothing else.
+      {/* ─── REFERRAL BONUS ───────────────────────────────── */}
+      <section className="bg-[oklch(0.055_0.004_260)] py-12 lg:py-16 border-t border-border/20">
+        <div className="container">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="inline-flex items-center gap-2 bg-nick-yellow/10 border border-nick-yellow/20 text-nick-yellow px-4 py-2 rounded-full mb-4">
+              <Gift className="w-4 h-4" />
+              <span className="text-sm font-semibold tracking-wide">REFERRAL BONUS</span>
+            </div>
+            <h3 className="font-heading text-2xl font-extrabold uppercase text-foreground mb-3">
+              Know a Good Mechanic?
+            </h3>
+            <p className="text-sm text-foreground/60 leading-relaxed max-w-lg mx-auto">
+              Refer a technician who gets hired and stays 90 days — you get <span className="font-bold text-nick-yellow">$300 cash</span>.
+              Customers who refer a new hire get <span className="font-bold text-nick-yellow">free services on us</span>.
+              Just tell them to mention your name when they apply.
             </p>
           </div>
         </div>
       </section>
+
+      <div className="bg-[oklch(0.055_0.004_260)] py-8 border-t border-border/10">
+        <div className="container">
+          <p className="text-xs text-foreground/35 leading-relaxed text-center">
+            Nick's Tire & Auto is an equal opportunity employer. We evaluate all candidates on skill, character, and fit — nothing else.
+          </p>
+        </div>
+      </div>
       <InternalLinks />
     </PageLayout>
   );

@@ -26,7 +26,7 @@ async function db() {
 }
 
 /** Auto-create an invoice when a tire order is marked as installed */
-async function autoCreateInvoiceFromTireOrder(d: any, orderId: number): Promise<void> {
+async function autoCreateInvoiceFromTireOrder(d: ReturnType<typeof import("drizzle-orm/mysql2").drizzle>, orderId: number): Promise<void> {
   const [order] = await d.select().from(tireOrders).where(eq(tireOrders.id, orderId)).limit(1);
   if (!order) return;
 
@@ -251,6 +251,7 @@ const SERVICE_FEE_PER_TIRE = 0;
 
 // ─── Data Freshness Tracking ────────────────────────
 interface SearchCacheEntry {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- search results have varied shapes across live/catalog/pipeline
   results: any;
   fetchedAt: number;
   source: "live" | "catalog";
@@ -270,6 +271,7 @@ function getCachedSearch(key: string): SearchCacheEntry | null {
   return entry;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- search results have varied shapes
 function setCachedSearch(key: string, results: any, source: "live" | "catalog") {
   // Keep cache bounded
   if (searchCache.size > 100) {
@@ -1181,7 +1183,7 @@ export const gatewayTireRouter = router({
         try {
           const data = await res.json();
           if (Array.isArray(data)) {
-            const tires = data.map((item: any) => {
+            const tires = data.map((item: Record<string, any>) => {
               const cost = parseFloat(item.cost || item.price || "0");
               const retail = parseFloat(item.retail || item.msrp || "0");
               const shopPrice = Math.ceil(cost * (1 + markup / 100) * 100) / 100;

@@ -45,13 +45,13 @@ export default function ReviewPage() {
 
   // Track review link clicks via Meta Pixel
   const handleReviewClick = () => {
-    if (typeof window !== "undefined" && (window as any).fbq) {
-      (window as any).fbq("trackCustom", "ReviewLinkClick", {
+    if (typeof window !== "undefined" && window.fbq) {
+      window.fbq("trackCustom", "ReviewLinkClick", {
         source: "review_page",
       });
     }
-    if (typeof window !== "undefined" && (window as any).gtag) {
-      (window as any).gtag("event", "review_click", {
+    if (typeof window !== "undefined" && window.gtag) {
+      window.gtag("event", "review_click", {
         event_category: "engagement",
         event_label: "google_review",
       });

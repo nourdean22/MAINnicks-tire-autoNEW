@@ -177,6 +177,7 @@ export default function Admin() {
   }, [user, utils]);
 
   // Pending callback count for badge
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
   const pendingCallbacks = (callbacks as any[] | undefined)?.filter(
     (c: any) => c.status === "new" || c.status === "pending"
   ).length ?? 0;

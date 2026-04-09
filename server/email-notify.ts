@@ -624,18 +624,21 @@ export function notifyNewLead(details: {
   fleetSize?: number;
   vehicleTypes?: string;
 }) {
+  const isCareerApplicant = details.source === "careers";
   const isHighValue = (details.urgencyScore || 0) >= 4 || details.source === "fleet";
   const fleetInfo = details.source === "fleet"
     ? `\nCompany: ${details.companyName || "N/A"}\nFleet Size: ${details.fleetSize || "N/A"}\nVehicle Types: ${details.vehicleTypes || "N/A"}`
     : "";
 
   return sendNotification({
-    category: isHighValue ? "high_value" : "lead",
-    subject: isHighValue
+    category: isCareerApplicant ? "lead" : isHighValue ? "high_value" : "lead",
+    subject: isCareerApplicant
+      ? `JOB APPLICATION: ${details.name} — nickstire.org/careers`
+      : isHighValue
       ? `URGENT Lead (${details.urgencyScore}/5): ${details.name}`
       : `New Lead: ${details.name} — ${details.interest || details.recommendedService || "General Inquiry"}`,
     body: [
-      isHighValue ? `HIGH-PRIORITY LEAD` : `NEW LEAD CAPTURED`,
+      isCareerApplicant ? `NEW JOB APPLICATION` : isHighValue ? `HIGH-PRIORITY LEAD` : `NEW LEAD CAPTURED`,
       ``,
       `Name: ${details.name}`,
       `Phone: ${details.phone}`,
@@ -650,7 +653,7 @@ export function notifyNewLead(details: {
       ``,
       `Time: ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`,
       ``,
-      isHighValue ? `ACTION: Call this customer within 15 minutes.` : `ACTION: Follow up within 1 hour.`,
+      isCareerApplicant ? `ACTION: Review application and call within 48 hours.` : isHighValue ? `ACTION: Call this customer within 15 minutes.` : `ACTION: Follow up within 1 hour.`,
       ``,
       `— Nick's Tire & Auto Website`,
     ].filter(Boolean).join("\n"),

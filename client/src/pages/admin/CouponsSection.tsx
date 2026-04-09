@@ -56,7 +56,7 @@ export default function CouponsSection() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-foreground/60 text-xs mb-1">Discount Type</label>
-              <select value={form.discountType} onChange={(e) => setForm({ ...form, discountType: e.target.value as any })} className="w-full bg-background border border-border/50 text-foreground px-3 py-2 text-sm">
+              <select value={form.discountType} onChange={(e) => setForm({ ...form, discountType: e.target.value as typeof form.discountType })} className="w-full bg-background border border-border/50 text-foreground px-3 py-2 text-sm">
                 <option value="dollar">Dollar Off</option>
                 <option value="percent">Percent Off</option>
                 <option value="free">Free Service</option>

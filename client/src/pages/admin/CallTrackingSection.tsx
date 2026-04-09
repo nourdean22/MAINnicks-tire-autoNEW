@@ -75,6 +75,7 @@ export default function CallTrackingSection() {
   // Pending callbacks (missed call queue)
   const pendingCallbacks = useMemo(() => {
     if (!callbacks) return [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
     return (callbacks as any[]).filter((c: any) => c.status === "new" || c.status === "pending");
   }, [callbacks]);
 

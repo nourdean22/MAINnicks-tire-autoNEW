@@ -77,7 +77,64 @@ const PRIORITY_CONFIG: Record<string, { label: string; color: string; bgColor: s
   low: { label: "LOW", color: "text-foreground/30", bgColor: "bg-foreground/5 border-border/10" },
 };
 
-function formatTimeAgo(date: Date | string | null): string {
+// ─── Types ──────────────────────────────────────────────
+interface WOListItem {
+  id: string | number;
+  orderNumber: string;
+  status: string;
+  priority: string;
+  serviceDescription?: string;
+  customerComplaint?: string;
+  vehicleYear?: string;
+  vehicleMake?: string;
+  vehicleModel?: string;
+  assignedTech?: string;
+  assignedBay?: string;
+  blockerType?: string | null;
+  blockerNote?: string;
+  blockerSince?: string | Date;
+  promisedAt?: string | Date | null | undefined;
+  createdAt: string | Date | null;
+  completedAt?: string | Date | null | undefined;
+  customerName?: string;
+  customerId?: string | number;
+  customerPhone?: string | null;
+  total?: string | number;
+  financingUsed?: boolean;
+}
+
+interface WOLineItem {
+  id: string | number;
+  description: string;
+  type: string;
+  quantity: number;
+  total?: string | number;
+  partNumber?: string;
+  partStatus?: string;
+  partEta?: string;
+  approved?: boolean;
+  supplierName?: string;
+}
+
+interface WOTransition {
+  createdAt: string | Date;
+  toStatus: string;
+  changedBy?: string;
+  note?: string;
+}
+
+interface PendingPart {
+  lineId: string | number;
+  description: string;
+  workOrderId: string;
+  orderNumber: string;
+  partEta?: string;
+  supplierOrderRef?: string;
+  partStatus?: string;
+  supplierName?: string;
+}
+
+function formatTimeAgo(date: Date | string | null | undefined): string {
   if (!date) return "";
   const ms = Date.now() - new Date(date).getTime();
   const mins = Math.floor(ms / 60000);
@@ -87,7 +144,7 @@ function formatTimeAgo(date: Date | string | null): string {
   return `${Math.floor(hrs / 24)}d`;
 }
 
-function formatPromiseTime(date: Date | string | null): { text: string; overdue: boolean } {
+function formatPromiseTime(date: Date | string | null | undefined): { text: string; overdue: boolean } {
   if (!date) return { text: "", overdue: false };
   const diff = new Date(date).getTime() - Date.now();
   const overdue = diff < 0;
@@ -100,7 +157,7 @@ function formatPromiseTime(date: Date | string | null): { text: string; overdue:
 }
 
 // ─── Work Order Card ─────────────────────────────────────
-function WOCard({ wo, onClick }: { wo: any; onClick: () => void }) {
+function WOCard({ wo, onClick }: { wo: WOListItem; onClick: () => void }) {
   const promise = formatPromiseTime(wo.promisedAt);
   const prio = PRIORITY_CONFIG[wo.priority] || PRIORITY_CONFIG.normal;
   const age = formatTimeAgo(wo.createdAt);
@@ -327,7 +384,7 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
             <div>
               <div className="text-[10px] font-semibold text-foreground/40 tracking-wide mb-2">LINE ITEMS ({wo.items.length})</div>
               <div className="space-y-1.5">
-                {wo.items.map((item: any) => {
+                {wo.items.map((item: WOLineItem) => {
                   const hasPart = item.partStatus && item.partStatus !== "not_needed";
                   const partNext = hasPart ? (
                     item.partStatus === "needed" ? [{ s: "ordered", l: "Mark Ordered" }] :
@@ -354,7 +411,7 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
                             item.partStatus === "ordered" ? "bg-amber-500/10 text-amber-400" :
                             "bg-blue-500/10 text-blue-400"
                           }`}>
-                            {item.partStatus.toUpperCase()}
+                            {item.partStatus!.toUpperCase()}
                           </span>
                         )}
                         {item.approved === false && (
@@ -377,7 +434,7 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
                           {partNext.map(pn => (
                             <button
                               key={pn.s}
-                              onClick={() => updatePart.mutate({ lineId: item.id, status: pn.s })}
+                              onClick={() => updatePart.mutate({ lineId: String(item.id), status: pn.s })}
                               disabled={updatePart.isPending}
                               className="text-[10px] font-medium px-2 py-1 rounded border border-primary/30 text-primary hover:bg-primary/10 transition-colors ml-auto"
                             >
@@ -398,7 +455,7 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
             <div>
               <div className="text-[10px] font-semibold text-foreground/40 tracking-wide mb-2">HISTORY</div>
               <div className="space-y-1">
-                {wo.transitions.slice(0, 15).map((t: any, i: number) => (
+                {wo.transitions.slice(0, 15).map((t: WOTransition, i: number) => (
                   <div key={i} className="flex items-center gap-2 text-[10px] text-foreground/50">
                     <span className="text-foreground/30 w-10 shrink-0">{formatTimeAgo(t.createdAt)}</span>
                     <ArrowRight className="w-2.5 h-2.5 text-foreground/20" />
@@ -483,7 +540,7 @@ function PendingPartsView({ onSelectWO }: { onSelectWO: (id: string) => void }) 
   if (isLoading) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-primary/60" /></div>;
   if (!parts?.length) return <div className="text-center py-20 text-foreground/30 text-sm">No pending parts</div>;
 
-  const bySupplier = parts.reduce((acc: Record<string, any[]>, p: any) => {
+  const bySupplier = parts.reduce((acc: Record<string, PendingPart[]>, p: PendingPart) => {
     const key = p.supplierName || "Unassigned";
     (acc[key] = acc[key] || []).push(p);
     return acc;
@@ -496,10 +553,10 @@ function PendingPartsView({ onSelectWO }: { onSelectWO: (id: string) => void }) 
         <div key={supplier} className="border border-border/30 rounded-lg overflow-hidden">
           <div className="bg-card px-3 py-2 flex items-center justify-between border-b border-border/20">
             <span className="text-xs font-semibold flex items-center gap-1.5"><Truck className="w-3.5 h-3.5 text-foreground/40" /> {supplier}</span>
-            <span className="text-[10px] text-foreground/40">{(items as any[]).length} parts</span>
+            <span className="text-[10px] text-foreground/40">{(items as PendingPart[]).length} parts</span>
           </div>
           <div className="divide-y divide-border/10">
-            {(items as any[]).map((p: any) => (
+            {(items as PendingPart[]).map((p: PendingPart) => (
               <div key={p.lineId} className="px-3 py-2 flex items-center gap-3 hover:bg-foreground/[0.02]">
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-medium truncate">{p.description}</div>
@@ -516,7 +573,7 @@ function PendingPartsView({ onSelectWO }: { onSelectWO: (id: string) => void }) 
                 </span>
                 {p.partStatus === "ordered" && (
                   <button
-                    onClick={() => updatePart.mutate({ lineId: p.lineId, status: "received" })}
+                    onClick={() => updatePart.mutate({ lineId: String(p.lineId), status: "received" })}
                     disabled={updatePart.isPending}
                     className="text-[10px] font-medium px-2 py-1 rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
                   >
@@ -525,7 +582,7 @@ function PendingPartsView({ onSelectWO }: { onSelectWO: (id: string) => void }) 
                 )}
                 {p.partStatus === "needed" && (
                   <button
-                    onClick={() => updatePart.mutate({ lineId: p.lineId, status: "ordered" })}
+                    onClick={() => updatePart.mutate({ lineId: String(p.lineId), status: "ordered" })}
                     disabled={updatePart.isPending}
                     className="text-[10px] font-medium px-2 py-1 rounded border border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
                   >
@@ -557,10 +614,10 @@ function BlockersView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
           <div className="text-[10px] text-foreground/30 py-4 text-center">No overdue work orders</div>
         ) : (
           <div className="space-y-1.5">
-            {overdue.map((wo: any) => {
+            {overdue.map((wo: WOListItem) => {
               const promise = formatPromiseTime(wo.promisedAt);
               return (
-                <button key={wo.id} onClick={() => onSelectWO(wo.id)}
+                <button key={wo.id} onClick={() => onSelectWO(String(wo.id))}
                   className="w-full text-left bg-red-500/5 border border-red-500/20 rounded-lg p-3 hover:border-red-500/40 transition-all">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-mono font-semibold">{wo.orderNumber}</span>
@@ -587,8 +644,8 @@ function BlockersView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
           <div className="text-[10px] text-foreground/30 py-4 text-center">No blocked work orders</div>
         ) : (
           <div className="space-y-1.5">
-            {blocked.map((wo: any) => (
-              <button key={wo.id} onClick={() => onSelectWO(wo.id)}
+            {blocked.map((wo: WOListItem) => (
+              <button key={wo.id} onClick={() => onSelectWO(String(wo.id))}
                 className="w-full text-left bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 hover:border-amber-500/40 transition-all">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-mono font-semibold">{wo.orderNumber}</span>
@@ -623,9 +680,9 @@ function PickupQueueView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
   return (
     <div className="space-y-2">
       <div className="text-xs text-foreground/40">{queue.length} vehicles ready for pickup</div>
-      {queue.map((wo: any) => (
+      {queue.map((wo: WOListItem) => (
         <div key={wo.id} className="bg-card border border-emerald-500/20 rounded-lg p-3 flex items-center gap-3">
-          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onSelectWO(wo.id)}>
+          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onSelectWO(String(wo.id))}>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xs font-mono font-semibold">{wo.orderNumber}</span>
               <span className={`text-[10px] font-medium ${STATUS_COLORS[wo.status]}`}>{STATUS_LABELS[wo.status]}</span>
@@ -642,7 +699,7 @@ function PickupQueueView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
               {wo.financingUsed && <div className="text-[9px] text-amber-400">FINANCED</div>}
             </div>
             <button
-              onClick={() => advance.mutate({ id: wo.id, status: "picked_up" })}
+              onClick={() => advance.mutate({ id: String(wo.id), status: "picked_up" })}
               disabled={advance.isPending}
               className="text-[11px] font-medium px-3 py-1.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
             >
@@ -658,7 +715,7 @@ function PickupQueueView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
 // ─── Shop Pulse Mood Indicator ────────────────────────────
 function ShopPulseMood() {
   const { data: stats } = trpc.adminDashboard.stats.useQuery(undefined, { refetchInterval: 30000 });
-  const shopFloor = (stats as any)?.shopFloor;
+  const shopFloor = (stats as typeof stats & { shopFloor?: { revenueToday: number; invoicesToday: number } })?.shopFloor;
 
   if (!shopFloor) return null;
 
@@ -756,7 +813,7 @@ export default function WorkOrdersSection() {
     if (!workOrders) return [];
     if (!searchQuery.trim()) return workOrders;
     const q = searchQuery.toLowerCase();
-    return workOrders.filter((wo: any) =>
+    return workOrders.filter((wo: WOListItem) =>
       (wo.customerName && wo.customerName.toLowerCase().includes(q)) ||
       (wo.orderNumber && wo.orderNumber.toLowerCase().includes(q)) ||
       (wo.vehicleMake && wo.vehicleMake.toLowerCase().includes(q)) ||
@@ -770,17 +827,17 @@ export default function WorkOrdersSection() {
 
   // Group work orders by kanban column
   const columns = useMemo(() => {
-    if (!filteredWorkOrders.length) return KANBAN_COLUMNS.map(c => ({ ...c, orders: [] as any[] }));
+    if (!filteredWorkOrders.length) return KANBAN_COLUMNS.map(c => ({ ...c, orders: [] as WOListItem[] }));
     return KANBAN_COLUMNS.map(col => ({
       ...col,
-      orders: filteredWorkOrders.filter((wo: any) => col.statuses.includes(wo.status)),
+      orders: filteredWorkOrders.filter((wo: WOListItem) => col.statuses.includes(wo.status)),
     }));
   }, [filteredWorkOrders]);
 
   // On-hold / cancelled sidebar
   const holdOrders = useMemo(() => {
     if (!filteredWorkOrders.length) return [];
-    return filteredWorkOrders.filter((wo: any) => wo.status === "on_hold" || wo.status === "cancelled");
+    return filteredWorkOrders.filter((wo: WOListItem) => wo.status === "on_hold" || wo.status === "cancelled");
   }, [filteredWorkOrders]);
 
   return (
@@ -885,8 +942,8 @@ export default function WorkOrdersSection() {
                 {col.orders.length === 0 && (
                   <p className="text-foreground/20 text-xs text-center py-6">No jobs in this stage</p>
                 )}
-                {col.orders.map((wo: any) => (
-                  <WOCard key={wo.id} wo={wo} onClick={() => setSelectedId(wo.id)} />
+                {col.orders.map((wo: WOListItem) => (
+                  <WOCard key={wo.id} wo={wo} onClick={() => setSelectedId(String(wo.id))} />
                 ))}
               </div>
             </div>
@@ -900,8 +957,8 @@ export default function WorkOrdersSection() {
                 <span className="text-[10px] font-bold text-foreground/40">{holdOrders.length}</span>
               </div>
               <div className="p-2 space-y-2">
-                {holdOrders.map((wo: any) => (
-                  <WOCard key={wo.id} wo={wo} onClick={() => setSelectedId(wo.id)} />
+                {holdOrders.map((wo: WOListItem) => (
+                  <WOCard key={wo.id} wo={wo} onClick={() => setSelectedId(String(wo.id))} />
                 ))}
               </div>
             </div>

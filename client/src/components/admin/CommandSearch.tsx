@@ -115,7 +115,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
         } else {
           const custIdx = selectedIndex - matchingSections.length;
           if (customers[custIdx]) {
-            onSelectCustomer((customers[custIdx] as any).id);
+            onSelectCustomer((customers[custIdx] as { id: number }).id);
             close();
           }
         }

@@ -212,9 +212,9 @@ export function CustomerDrawer({ customerId, onClose, onNavigateToSection }: Pro
                           <span className={`text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded ${statusCls}`}>
                             {event.status?.replace(/_/g, " ").toUpperCase()}
                           </span>
-                          {(event as any).amount > 0 && (
+                          {((event as typeof event & { amount?: number }).amount ?? 0) > 0 && (
                             <span className="text-[10px] font-mono text-emerald-400/70">
-                              ${((event as any).amount / 100).toLocaleString()}
+                              ${(((event as typeof event & { amount?: number }).amount ?? 0) / 100).toLocaleString()}
                             </span>
                           )}
                         </div>

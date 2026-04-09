@@ -25,8 +25,8 @@ export default function SmsSection() {
       setLastResult(res);
       if (res.success) toast.success("Test SMS sent successfully!");
       else toast.error(res.error || "Failed to send test SMS");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to send");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to send");
     }
   };
 
@@ -41,8 +41,8 @@ export default function SmsSection() {
       } else {
         toast.error(res.error || "Failed to send");
       }
-    } catch (err: any) {
-      toast.error(err.message || "Failed to send");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to send");
     }
   };
 

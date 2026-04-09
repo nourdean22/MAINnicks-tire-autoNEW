@@ -14,6 +14,23 @@ import {
   AlertTriangle, Car, CheckCircle2, ChevronRight, ExternalLink, FileSpreadsheet, Filter, Hash, Loader2, Mail, MessageSquare, Phone, PhoneCall, RefreshCw, Search, Trash2, UserCheck, Users, Wrench, XCircle, Zap, LayoutGrid, List
 } from "lucide-react";
 
+// ── Lead type ──
+interface LeadItem {
+  id: number;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  vehicle?: string | null;
+  problem?: string | null;
+  status: string;
+  source?: string | null;
+  urgencyScore?: number | null;
+  estimatedValueCents?: number | null;
+  contactNotes?: string | null;
+  createdAt: string | Date;
+  lastFollowUpAt?: string | Date | null;
+}
+
 // ── SLA Timer for leads ──
 function LeadAge({ dateStr }: { dateStr: string | Date }) {
   const created = new Date(dateStr);
@@ -49,7 +66,7 @@ const KANBAN_COLUMNS: { status: LeadStatus; label: string; color: string }[] = [
 ];
 
 function KanbanLeadCard({ lead, onUpdate }: {
-  lead: any;
+  lead: LeadItem;
   onUpdate: (id: number, status: LeadStatus) => void;
 }) {
   const [showMenu, setShowMenu] = useState(false);
@@ -72,6 +89,13 @@ function KanbanLeadCard({ lead, onUpdate }: {
             {lead.urgencyScore ?? 3}/5
           </span>
         </div>
+
+        {/* Career badge */}
+        {lead.source === "careers" && (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-purple-400 bg-purple-500/10 border border-purple-500/30">
+            JOB APPLICANT
+          </span>
+        )}
 
         {/* Phone */}
         <div className="flex items-center gap-2 text-foreground/70">
@@ -153,12 +177,12 @@ function KanbanLeadCard({ lead, onUpdate }: {
 }
 
 function KanbanBoard({ leadsData, onUpdate, isLoading }: {
-  leadsData: any[] | undefined;
+  leadsData: LeadItem[] | undefined;
   onUpdate: (id: number, status: LeadStatus) => void;
   isLoading: boolean;
 }) {
   const leadsByStatus = useMemo(() => {
-    const grouped: Record<LeadStatus, any[]> = {
+    const grouped: Record<LeadStatus, LeadItem[]> = {
       new: [],
       contacted: [],
       booked: [],
@@ -246,9 +270,8 @@ export default function LeadsSection() {
   });
 
   const availableSources = useMemo((): string[] => {
-    if (!leadsData) return [];
-    const sourceSet = new Set<string>();
-    leadsData.forEach((l: any) => { if (l.source) sourceSet.add(String(l.source)); });
+    const sourceSet = new Set<string>(["careers"]); // Always show careers as a source option
+    if (leadsData) leadsData.forEach((l: LeadItem) => { if (l.source) sourceSet.add(String(l.source)); });
     return [...sourceSet].sort();
   }, [leadsData]);
 
@@ -268,7 +291,7 @@ export default function LeadsSection() {
   };
 
   // Category filter helper
-  const applyCategory = (list: any[]) => {
+  const applyCategory = (list: LeadItem[]) => {
     switch (category) {
       case "estimates":
         return list.filter(l =>
@@ -310,11 +333,11 @@ export default function LeadsSection() {
   const leadStats = useMemo(() => {
     if (!leadsData) return { new: 0, contacted: 0, urgent: 0, total: 0, booked: 0 };
     return {
-      new: leadsData.filter((l: any) => l.status === "new").length,
-      contacted: leadsData.filter((l: any) => l.status === "contacted").length,
-      urgent: leadsData.filter((l: any) => (l.urgencyScore ?? 0) >= 4).length,
+      new: leadsData.filter((l: LeadItem) => l.status === "new").length,
+      contacted: leadsData.filter((l: LeadItem) => l.status === "contacted").length,
+      urgent: leadsData.filter((l: LeadItem) => (l.urgencyScore ?? 0) >= 4).length,
       total: leadsData.length,
-      booked: leadsData.filter((l: any) => l.status === "booked").length,
+      booked: leadsData.filter((l: LeadItem) => l.status === "booked").length,
     };
   }, [leadsData]);
 
@@ -455,9 +478,15 @@ export default function LeadsSection() {
                         <span className={`inline-flex items-center px-2 py-0.5 border text-[10px] tracking-wider ${LEAD_STATUS_CONFIG[lead.status as LeadStatus]?.color} ${LEAD_STATUS_CONFIG[lead.status as LeadStatus]?.bgColor}`}>
                           {LEAD_STATUS_CONFIG[lead.status as LeadStatus]?.label}
                         </span>
-                        <span className="font-mono text-[10px] text-foreground/30 uppercase tracking-wider">
-                          via {lead.source}
-                        </span>
+                        {lead.source === "careers" ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 border text-[10px] tracking-wider font-bold text-purple-400 bg-purple-500/10 border-purple-500/30">
+                            JOB APPLICANT
+                          </span>
+                        ) : (
+                          <span className="font-mono text-[10px] text-foreground/30 uppercase tracking-wider">
+                            via {lead.source}
+                          </span>
+                        )}
                         <LeadAge dateStr={lead.createdAt} />
                       </div>
 
