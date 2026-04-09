@@ -76,6 +76,8 @@ async function startServer() {
   _httpServer = server;
   // Trust proxy — required for rate limiting behind reverse proxy
   app.set("trust proxy", 1);
+  // Remove X-Powered-By header — leaks server technology to attackers
+  app.disable("x-powered-by");
   // Compression — gzip/deflate all responses (fixes Ahrefs "Not compressed" for all pages)
   app.use(compression({ threshold: 1024 }));
   // Body parser — 2MB default, photo uploads handled separately
