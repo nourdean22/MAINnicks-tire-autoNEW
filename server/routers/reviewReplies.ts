@@ -17,10 +17,10 @@ async function db() {
 }
 
 async function fetchNewReviewsFromGoogle(): Promise<any[]> {
-  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
 
   if (!apiKey) {
-    throw new Error("GOOGLE_PLACES_API_KEY not configured");
+    throw new Error("GOOGLE_PLACES_API_KEY or GOOGLE_MAPS_API_KEY not configured");
   }
 
   try {

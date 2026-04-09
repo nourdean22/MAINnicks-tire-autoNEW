@@ -11,7 +11,7 @@ import { alertSystem } from "./telegram";
 
 const log = createLogger("competitor-monitor");
 
-const API_KEY = process.env.GOOGLE_PLACES_API_KEY || "";
+const API_KEY = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY || "";
 
 interface CompetitorData {
   name: string;

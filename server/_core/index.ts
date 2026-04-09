@@ -9,6 +9,15 @@ const RECOMMENDED_ENV = [
   "BRIDGE_API_KEY", "OPENAI_API_KEY",
 ] as const;
 
+// Unify Google API keys — GOOGLE_MAPS_API_KEY works for Places, Maps, and all Google APIs
+if (process.env.GOOGLE_MAPS_API_KEY && !process.env.GOOGLE_PLACES_API_KEY) {
+  process.env.GOOGLE_PLACES_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+}
+if (process.env.GOOGLE_MAPS_API_KEY && !process.env.GOOGLE_SEARCH_CONSOLE_KEY) {
+  // GSC uses service account, not API key — but set for scheduler env check
+  process.env.GOOGLE_SEARCH_CONSOLE_KEY = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ? "configured" : "";
+}
+
 const missingRequired = REQUIRED_ENV.filter(k => !process.env[k]);
 if (missingRequired.length) {
   console.error(`FATAL: Missing required env vars: ${missingRequired.join(", ")}`);
