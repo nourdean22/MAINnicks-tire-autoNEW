@@ -157,7 +157,7 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
       lastMemoryAlertAt = now;
       import("../services/telegram").then(({ sendTelegram }) => {
         sendTelegram(`⚠️ MEMORY ${memPercent}% — ${memUsedMB}MB/${heapCeilingMB}MB heap. RSS: ${Math.round(mem.rss / 1024 / 1024)}MB. Consider restart.`);
-      }).catch(() => {});
+      }).catch((e) => { log.warn("Memory alert Telegram failed:", e); });
     }
   }
 
