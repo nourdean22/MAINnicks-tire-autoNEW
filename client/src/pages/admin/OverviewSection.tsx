@@ -530,7 +530,7 @@ export default function OverviewSection() {
           </div>
           <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
             <div className="text-center">
-              <div className="text-lg font-bold text-primary">${shopPulse.today.revenue.toLocaleString()}</div>
+              <div className="text-lg font-bold text-primary revenue-glow">${shopPulse.today.revenue.toLocaleString()}</div>
               <div className="text-[9px] text-muted-foreground tracking-wider">TODAY REV</div>
             </div>
             <div className="text-center">
