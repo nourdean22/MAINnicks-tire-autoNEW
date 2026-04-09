@@ -438,23 +438,38 @@ async function ensureInitialized(): Promise<void> {
           mirror_synced: "sync", data_refreshed: "sync",
         };
 
-        await fetch(`${statenourUrl}/api/sync/events`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-sync-key": syncKey,
-          },
-          body: JSON.stringify({
-            type: `nickstire:${event.type}`,
-            category: categoryMap[event.type] || "other",
-            timestamp: event.timestamp,
-            source: event.source || "nickstire",
-            priority: event.priority,
-            data: event.data,
-          }),
-          signal: AbortSignal.timeout(5000),
+        const payload = JSON.stringify({
+          type: `nickstire:${event.type}`,
+          category: categoryMap[event.type] || "other",
+          timestamp: event.timestamp,
+          source: event.source || "nickstire",
+          priority: event.priority,
+          data: event.data,
         });
-      } catch (e) { console.warn("[eventBus:statenour] sync push failed:", e); }
+
+        // Retry with backoff — Vercel cold starts can take 3-5s
+        let lastErr: unknown;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const res = await fetch(`${statenourUrl}/api/sync/events`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-sync-key": syncKey },
+              body: payload,
+              signal: AbortSignal.timeout(attempt === 0 ? 8000 : 15000), // 8s first, 15s retry
+            });
+            if (res.ok) break;
+            if (res.status >= 500 && attempt < 2) {
+              await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // 1s, 2s backoff
+              continue;
+            }
+            break; // 4xx = don't retry
+          } catch (e) {
+            lastErr = e;
+            if (attempt < 2) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          }
+        }
+        if (lastErr) console.warn("[eventBus:statenour] sync push failed after retries:", lastErr);
+      } catch (e) { console.warn("[eventBus:statenour] sync push error:", e); }
     },
   });
 
