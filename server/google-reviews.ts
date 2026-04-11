@@ -11,7 +11,7 @@
 import { makeRequest, type PlaceDetailsResult, type PlacesSearchResult } from "./_core/map";
 import { eq } from "drizzle-orm";
 import { shopSettings } from "../drizzle/schema";
-import { BUSINESS } from "@shared/business";
+import { BUSINESS, resolveReviewDisplay } from "@shared/business";
 
 // Cache configuration
 let cachedData: GoogleReviewData | null = null;
@@ -154,6 +154,7 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
     }
 
     const placeId = search.results[0].place_id;
+    const dbStats = await getReviewStatsFromDb();
 
     // Step 2: Get full details using the discovered Place ID
     const details = await makeRequest<PlaceDetailsResult>(
@@ -172,14 +173,20 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
 
     const r = details.result;
 
+    const rawGoogle =
+      typeof r.user_ratings_total === "number" && r.user_ratings_total > 0
+        ? r.user_ratings_total
+        : null;
+    const resolved = resolveReviewDisplay({
+      googleCount: rawGoogle,
+      adminCount: dbStats?.count ?? null,
+    });
+
     const reviewData: GoogleReviewData = {
       placeId,
       name: r.name || "Nick's Tire & Auto",
       rating: typeof r.rating === "number" && r.rating > 0 ? r.rating : BUSINESS.reviews.rating,
-      totalReviews:
-        typeof r.user_ratings_total === "number" && r.user_ratings_total > 0
-          ? r.user_ratings_total
-          : BUSINESS.reviews.count,
+      totalReviews: resolved.numeric,
       reviews: (r.reviews || []).map((rev) => ({
         authorName: rev.author_name,
         rating: rev.rating,
@@ -216,12 +223,16 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
  */
 async function buildFallbackData(): Promise<GoogleReviewData> {
   const dbStats = await getReviewStatsFromDb();
+  const resolved = resolveReviewDisplay({
+    googleCount: null,
+    adminCount: dbStats?.count ?? null,
+  });
 
   return {
     placeId: "",
     name: BUSINESS.name,
     rating: dbStats?.rating ?? BUSINESS.reviews.rating,
-    totalReviews: dbStats?.count ?? BUSINESS.reviews.count,
+    totalReviews: resolved.numeric,
     reviews: [],
     address: BUSINESS.address.full,
     phone: BUSINESS.phone.display,

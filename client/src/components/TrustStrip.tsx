@@ -11,7 +11,7 @@ const SIGNALS = [
   {
     icon: Star,
     value: `${BUSINESS.reviews.rating} Stars`,
-    sub: `${BUSINESS.reviews.countDisplay}+ Google Reviews`,
+    sub: `${BUSINESS.reviews.countDisplay} Google Reviews`,
     iconClass: "text-nick-yellow",
   },
   {

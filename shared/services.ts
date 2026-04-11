@@ -654,7 +654,7 @@ export const SERVICES: ServiceData[] = [
     quickAnswers: [
       {
         question: "How do I find a trustworthy mechanic in Cleveland?",
-        answer: "Look for a shop with a high volume of verified Google reviews, transparent pricing, and technicians who explain repairs before performing them. Nick's Tire & Auto has over 1,685 Google reviews at 4.9 stars. We provide written estimates, show you the problem before we fix it, and never pressure you into unnecessary repairs."
+        answer: "Look for a shop with a high volume of verified Google reviews, transparent pricing, and technicians who explain repairs before performing them. Nick's Tire & Auto has over 1,700+ Google reviews at 4.9 stars. We provide written estimates, show you the problem before we fix it, and never pressure you into unnecessary repairs."
       },
       {
         question: "What are signs my car needs suspension repair?",

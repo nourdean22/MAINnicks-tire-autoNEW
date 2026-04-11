@@ -28,26 +28,64 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
         getShopPulse(),
       ]);
       intelligence = { pipeline, revenue, pulse };
-    } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); }
+    } catch (e) { log.warn("[jobs/statenourSync] intelligence gather failed", { error: String(e) }); }
+
+    let estimateLeadFunnel: Record<string, unknown> | null = null;
+    try {
+      const { getEstimateLeadFunnelWindows } = await import("../../services/nickIntelligence");
+      estimateLeadFunnel = await getEstimateLeadFunnelWindows();
+    } catch (e) {
+      log.warn("[jobs/statenourSync] estimateLeadFunnel failed", { error: String(e) });
+    }
+
+    let featureFlagSnapshot: Array<{ key: string; enabled: boolean }> = [];
+    try {
+      const { getAllFlags } = await import("../../services/featureFlags");
+      featureFlagSnapshot = (await getAllFlags()).map((r) => ({
+        key: r.key,
+        enabled: Boolean(r.value),
+      }));
+    } catch (e) {
+      log.warn("[jobs/statenourSync] feature flags snapshot failed", { error: String(e) });
+    }
 
     // Gather Nick AI memories
     let memories: any[] = [];
     try {
       const { recall } = await import("../../services/nickMemory");
       memories = await recall({ limit: 20 });
-    } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); }
+    } catch (e) { log.warn("[jobs/statenourSync] nickMemory recall failed", { error: String(e) }); }
 
     // Gather bridge analytics
     let bridgeAnalytics: any = {};
     try {
       const { getEventAnalytics } = await import("../../nour-os-bridge");
       bridgeAnalytics = getEventAnalytics();
-    } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); }
+    } catch (e) { log.warn("[jobs/statenourSync] bridge analytics failed", { error: String(e) }); }
+
+    const sentAt = new Date().toISOString();
 
     const payload = {
       source: "nickstire",
-      timestamp: new Date().toISOString(),
+      timestamp: sentAt,
       version: "v2", // upgraded sync format
+      syncMeta: {
+        sentAt,
+        payloadVersion: "v2" as const,
+        host: process.env.RAILWAY_PUBLIC_DOMAIN || process.env.SITE_URL || null,
+        bridge: bridgeAnalytics && typeof bridgeAnalytics === "object"
+          ? {
+              totalCloudPushes: (bridgeAnalytics as { totalCloudPushes?: number }).totalCloudPushes ?? 0,
+              totalCloudFailures: (bridgeAnalytics as { totalCloudFailures?: number }).totalCloudFailures ?? 0,
+              lastCloudSuccessAt: (bridgeAnalytics as { lastCloudSuccessAt?: string | null }).lastCloudSuccessAt ?? null,
+              lastCloudErrorAt: (bridgeAnalytics as { lastCloudErrorAt?: string | null }).lastCloudErrorAt ?? null,
+              lastCloudError: (bridgeAnalytics as { lastCloudError?: string | null }).lastCloudError ?? null,
+              lastEventAt: (bridgeAnalytics as { lastEventAt?: string | null }).lastEventAt ?? null,
+            }
+          : null,
+      },
+      estimateLeadFunnel,
+      featureFlagSnapshot,
       bookings: {
         total: stats.bookings.total,
         thisWeek: stats.bookings.thisWeek,
@@ -147,7 +185,7 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             walkRate: intelligence.pulse?.thisWeek?.walkRate ?? 0,
           };
         } catch (e) {
-          console.warn("[jobs/statenourSync] operation failed:", e);
+          log.warn("[jobs/statenourSync] revenue DB rollup failed", { error: String(e) });
           // Fallback to intelligence if DB query fails
           return {
             todayEstimate: intelligence.pulse?.today?.revenue ?? 0,
@@ -194,7 +232,7 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             peakHours: ci.peakHours,
             actionPlan: plan,
           };
-        } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); return null; }
+        } catch (e) { log.warn("[jobs/statenourSync] customerIntelligence failed", { error: String(e) }); return null; }
       })(),
       // ═══ Feedback Loop Data ═══
       feedbackLoop: await (async () => {
@@ -206,14 +244,14 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             anomalies: anomalies.map(a => ({ type: a.type, current: a.current, average: a.average, deviation: a.deviation })),
             briefEngagement: engagement,
           };
-        } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); return null; }
+        } catch (e) { log.warn("[jobs/statenourSync] feedbackLoop failed", { error: String(e) }); return null; }
       })(),
       // ═══ Event Lifecycle Journeys ═══
       customerJourneys: (() => {
         try {
           const { getActiveJourneys } = require("../../services/eventBus");
           return getActiveJourneys();
-        } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); return []; }
+        } catch (e) { log.warn("[jobs/statenourSync] customerJourneys failed", { error: String(e) }); return []; }
       })(),
       // ═══ Declined Work (revenue on the table) ═══
       declinedWork: await (async () => {
@@ -225,14 +263,29 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             totalRecoverable: unrecovered.reduce((s, e) => s + e.totalDeclinedValue, 0),
             customerCount: unrecovered.length,
             safetyItemCount: unrecovered.filter(e => e.hasSafetyItems).length,
-            topItems: unrecovered.slice(0, 3).map(e => ({
-              customer: e.customerName,
-              phone: e.phone,
-              value: e.totalDeclinedValue,
-              hasSafety: e.hasSafetyItems,
-            })),
+            topItems: unrecovered.slice(0, 3).map((e) => {
+              const open = e.declinedItems.filter((i) => !i.recovered);
+              return {
+                workOrderId: e.workOrderId,
+                orderNumber: e.orderNumber,
+                customer: e.customerName,
+                phone: e.phone,
+                vehicle: e.vehicle,
+                value: e.totalDeclinedValue,
+                hasSafety: e.hasSafetyItems,
+                lines: open.slice(0, 5).map((i) => ({
+                  description: i.description,
+                  total: i.total,
+                  declineReason: i.declineReason,
+                  safetyRelated: i.safetyRelated,
+                  outreachAt: i.outreachAt,
+                  recoveryMethod: i.recoveryMethod,
+                  recoveryNotes: i.recoveryNotes,
+                })),
+              };
+            }),
           };
-        } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); return null; }
+        } catch (e) { log.warn("[jobs/statenourSync] declinedWork failed", { error: String(e) }); return null; }
       })(),
       // ═══ Work Order Status ═══
       workOrders: await (async () => {
@@ -247,14 +300,14 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             d.select({ count: sql<number>`count(*)` }).from(woTable).where(sql`${woTable.status} = 'blocked'`),
           ]);
           return { open: open[0]?.count ?? 0, blocked: blocked[0]?.count ?? 0 };
-        } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); return null; }
+        } catch (e) { log.warn("[jobs/statenourSync] workOrders snapshot failed", { error: String(e) }); return null; }
       })(),
       // ═══ Question Patterns (what Nour asks about) ═══
       operatorPatterns: (() => {
         try {
           const { getTopQuestions } = require("../../services/nickMemory");
           return getTopQuestions(5);
-        } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); return []; }
+        } catch (e) { log.warn("[jobs/statenourSync] operatorPatterns failed", { error: String(e) }); return []; }
       })(),
       // ═══ ALG Source-of-Truth Health ═══
       algHealth: await (async () => {
@@ -265,7 +318,7 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             status: health.recordsProcessed > 0 ? "ok" : "degraded",
             details: health.details,
           };
-        } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); return { status: "unknown", details: "health check failed" }; }
+        } catch (e) { log.warn("[jobs/statenourSync] algHealth failed", { error: String(e) }); return { status: "unknown", details: "health check failed" }; }
       })(),
       // ═══ Shop Floor (ALG-sourced) ═══
       shopFloor: stats.shopFloor || null,
@@ -332,7 +385,7 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
             urgentAlerts.map((a: any) => a.message || a.title || String(a)).join("\n")
           );
         }
-      } catch (e) { console.warn("[jobs/statenourSync] operation failed:", e); }
+      } catch (e) { log.warn("[jobs/statenourSync] statenour response handling failed", { error: String(e) }); }
     }
 
     return {
