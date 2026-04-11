@@ -1,0 +1,8 @@
+# Default owner
+* @owner
+
+# High-risk areas
+/server/_core/ @owner
+/server @owner
+/drizzle @owner
+/.github/workflows @owner
