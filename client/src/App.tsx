@@ -12,6 +12,7 @@ import { TIRE_SIZE_PAGES } from "@shared/tireSizes";
 import { VEHICLE_SERVICE_PAGES } from "@shared/vehicleServicePages";
 import { SkipToContent } from "@/components/SEO";
 import QuickAccessDock from "@/components/QuickAccessDock";
+import { Analytics } from "@vercel/analytics/react";
 
 // ─── LOADING FALLBACK ─────────────────────────────────
 function PageLoader() {
@@ -344,6 +345,7 @@ function App() {
           <Router />
           <QuickAccessDock />
           <EmergencyMode />
+          <Analytics />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
