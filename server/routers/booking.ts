@@ -24,6 +24,8 @@ import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { logIntegrationFailure } from "../integration-failures";
 import { withRetry } from "../retry";
 import { logAdminAction } from "../services/auditTrail";
+import { getDb } from "../lib/db-helper";
+import { BUSINESS } from "@shared/business";
 
 // ─── LABOR GUIDE REFERENCE (for auto-invoice labor estimation) ───
 const SERVICE_LABOR_MAP: Record<string, { hours: number; description: string }> = {
@@ -56,6 +58,7 @@ function estimateLaborFromService(service: string): { hours: number; description
 
 /** Auto-create an invoice when a booking is marked completed */
 async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void> {
+  try {
   const invoiceNumber = await getNextInvoiceNumber();
   const labor = estimateLaborFromService(booking.service || "General Repair");
 
@@ -157,12 +160,11 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
     console.error("[Invoice] WO linkage failed:", err instanceof Error ? err.message : err);
   }
 
-  console.info(`[invoice:created] ${invoiceNumber} for booking #${booking.id} — $${(totalAmount / 100).toFixed(2)}`);
-}
-
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
+  console.info(`[invoice:created] ${invoiceNumber} for booking #${booking.id} — ${(totalAmount / 100).toFixed(2)}`);
+  } catch (err) {
+    console.error(`[Invoice] autoCreateInvoiceFromBooking failed for booking #${booking.id}:`, err instanceof Error ? err.message : err);
+    throw err; // Re-throw so the caller's .catch() handler and logIntegrationFailure fire
+  }
 }
 
 function generateRefCode(): string {
@@ -395,7 +397,7 @@ export const bookingRouter = router({
       return { ...result, referenceCode: refCode };
       } catch (err) {
         console.error("[Booking] Create failed:", err);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "We couldn't save your booking. Please call us directly at (216) 862-0005." });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `We couldn't save your booking. Please call us directly at ${BUSINESS.phone.display}.` });
       }
     }),
 
@@ -436,7 +438,7 @@ export const bookingRouter = router({
 
       // Send confirmation SMS when booking is confirmed by admin
       if (input.status === "confirmed") {
-        const d = await db();
+        const d = await getDb();
         if (d) {
           const [booking] = await d.select().from(bookings).where(eq(bookings.id, input.id)).limit(1);
           if (booking) {
@@ -453,7 +455,7 @@ export const bookingRouter = router({
               if (await isEnabled("sms_appointment_reminders")) {
                 const { sendSms } = await import("../sms");
                 const firstName = (booking.name || "").split(" ")[0] || "there";
-                await sendSms(booking.phone, `Hi ${firstName}! Your booking at Nick's Tire & Auto is confirmed. Just drop off when you're ready — no appointment time needed. (216) 862-0005`);
+                await sendSms(booking.phone, `Hi ${firstName}! Your booking at Nick's Tire & Auto is confirmed. Just drop off when you're ready — no appointment time needed. ${BUSINESS.phone.display}`);
               }
             }
           }
@@ -462,7 +464,7 @@ export const bookingRouter = router({
 
       // Auto-schedule Google review request when booking is completed
       if (input.status === "completed") {
-        const d = await db();
+        const d = await getDb();
         if (d) {
           const [booking] = await d.select().from(bookings).where(eq(bookings.id, input.id)).limit(1);
           if (booking && booking.phone) {
@@ -512,8 +514,14 @@ export const bookingRouter = router({
               })
             ).catch(e => console.warn("[booking:updateStatus] event bus booking completed dispatch failed:", e));
 
-            // Auto-create invoice from completed booking
-            autoCreateInvoiceFromBooking(d, booking).catch(err => {
+            // Auto-create invoice from completed booking (gated by feature flag)
+            import("../services/featureFlags").then(async ({ isEnabled }) => {
+              if (!(await isEnabled("auto_invoice_on_completion"))) {
+                console.info(`[Invoice] auto_invoice_on_completion disabled — skipping for booking #${booking.id}`);
+                return;
+              }
+              return autoCreateInvoiceFromBooking(d, booking);
+            }).catch(err => {
               console.error(`[Invoice] Error auto-creating for booking #${booking.id}:`, err);
               logIntegrationFailure({
                 failureType: "invoice",
@@ -570,7 +578,7 @@ export const bookingRouter = router({
         newValue: input.stage,
       }).catch(e => console.warn("[booking:updateStage] audit trail logging failed:", e));
 
-      const d = await db();
+      const d = await getDb();
       if (d) {
         const [booking] = await d.select().from(bookings).where(eq(bookings.id, input.id)).limit(1);
         if (booking) {
@@ -589,7 +597,7 @@ export const bookingRouter = router({
             recipientEmail: booking.email,
             notificationType: "status_update",
             subject: `Vehicle Status Update — ${input.stage === "ready" ? "Ready for Pickup!" : "In Progress"}`,
-            message: `Hi ${booking.name.split(" ")[0]}, your vehicle is ${stageLabels[input.stage] || "being worked on"}. ${input.stage === "ready" ? "You can pick it up anytime during business hours. Call (216) 862-0005 if you have questions." : "We'll keep you updated. Ref: " + (booking.referenceCode || "")}`,
+            message: `Hi ${booking.name.split(" ")[0]}, your vehicle is ${stageLabels[input.stage] || "being worked on"}. ${input.stage === "ready" ? `You can pick it up anytime during business hours. Call ${BUSINESS.phone.display} if you have questions.` : "We'll keep you updated. Ref: " + (booking.referenceCode || "")}`,
           });
 
           if (booking.phone) {
@@ -644,7 +652,7 @@ export const bookingRouter = router({
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
-      const d = await db();
+      const d = await getDb();
       if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       await d.delete(bookings).where(eq(bookings.id, input.id));
       logAdminAction({

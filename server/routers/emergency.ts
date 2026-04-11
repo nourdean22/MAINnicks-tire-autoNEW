@@ -13,95 +13,13 @@ import { syncLeadToSheet } from "../sheets-sync";
 import { withRetry } from "../retry";
 import { logIntegrationFailure } from "../integration-failures";
 import { TRPCError } from "@trpc/server";
+import { getDb } from "../lib/db-helper";
+import { getNextOpenTime } from "../services/afterHours";
+import { BUSINESS } from "@shared/business";
 
-const STORE_OWNER_PHONE = process.env.OWNER_PHONE_NUMBER || process.env.ADMIN_PHONE || "";
-
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
-
-function getNextOpenTime(): string {
-  const now = new Date();
-  // Set to Eastern Time
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-  });
-  const easterParts = formatter.formatToParts(now);
-  const easterDate = new Date(
-    parseInt(easterParts.find(p => p.type === "year")?.value || "2026", 10),
-    parseInt(easterParts.find(p => p.type === "month")?.value || "1", 10) - 1,
-    parseInt(easterParts.find(p => p.type === "day")?.value || "1", 10),
-    parseInt(easterParts.find(p => p.type === "hour")?.value || "0", 10),
-    parseInt(easterParts.find(p => p.type === "minute")?.value || "0", 10),
-    0
-  );
-
-  // Determine next business hours based on current time
-  const dayOfWeek = easterDate.getDay(); // 0 = Sunday, 6 = Saturday
-  const hour = easterDate.getHours();
-
-  let nextOpen = new Date(easterDate);
-
-  if (dayOfWeek === 0) {
-    // Sunday: open at 9 AM
-    if (hour < 9) {
-      nextOpen.setHours(9, 0, 0, 0);
-    } else {
-      // Next Monday 8 AM
-      nextOpen.setDate(nextOpen.getDate() + 1);
-      nextOpen.setHours(8, 0, 0, 0);
-    }
-  } else if (dayOfWeek === 6) {
-    // Saturday: open at 8 AM, but closes at some point - treat as open until next Monday
-    if (hour < 8) {
-      nextOpen.setHours(8, 0, 0, 0);
-    } else {
-      // Next Monday 8 AM
-      nextOpen.setDate(nextOpen.getDate() + 2);
-      nextOpen.setHours(8, 0, 0, 0);
-    }
-  } else {
-    // Monday-Friday: open at 8 AM
-    if (hour < 8) {
-      nextOpen.setHours(8, 0, 0, 0);
-    } else {
-      // Next day at 8 AM
-      nextOpen.setDate(nextOpen.getDate() + 1);
-      nextOpen.setHours(8, 0, 0, 0);
-    }
-  }
-
-  // Format as human-readable (e.g., "8:00 AM tomorrow")
-  const tomorrow = new Date(easterDate);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  let timeStr = "tomorrow";
-  if (nextOpen.toDateString() === easterDate.toDateString()) {
-    timeStr = "today";
-  } else if (nextOpen.toDateString() === tomorrow.toDateString()) {
-    timeStr = "tomorrow";
-  } else {
-    const daysOfWeek = [
-      "Sunday",
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
-    ];
-    timeStr = daysOfWeek[nextOpen.getDay()];
-  }
-
-  const timeOfDay =
-    nextOpen.getHours() === 9
-      ? "9:00 AM"
-      : nextOpen.getHours() === 8
-        ? "8:00 AM"
-        : `${nextOpen.getHours()}:00 AM`;
-
-  return `${timeOfDay} ${timeStr}`;
+const STORE_OWNER_PHONE = process.env.OWNER_PHONE_NUMBER || "";
+if (!STORE_OWNER_PHONE) {
+  console.error("[Emergency] OWNER_PHONE_NUMBER is not configured — owner SMS alerts will be skipped");
 }
 
 export const emergencyRouter = router({
@@ -129,7 +47,7 @@ export const emergencyRouter = router({
           });
         }
 
-        const d = await db();
+        const d = await getDb();
         if (!d) throw new Error("Database not available");
 
         // Create emergency request record
@@ -228,7 +146,7 @@ export const emergencyRouter = router({
           () =>
             sendSms(
               phone,
-              `Thanks ${name}! We received your emergency request. Our next available time is ${nextOpenTime}. Call us then at (216) 862-0005. - Nick's Tire & Auto`
+              `Thanks ${name}! We received your emergency request. Our next available time is ${nextOpenTime}. Call us then at ${BUSINESS.phone.display}. - Nick's Tire & Auto`
             ),
           { maxRetries: 2, baseDelayMs: 500, label: "emergency-customer-sms" }
         ).catch((err) => {
@@ -252,7 +170,7 @@ export const emergencyRouter = router({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message:
-            "We couldn't save your emergency request. Please call us immediately at (216) 862-0005.",
+            `We couldn't save your emergency request. Please call us immediately at ${BUSINESS.phone.display}.`,
         });
       }
     }),

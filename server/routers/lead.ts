@@ -18,11 +18,8 @@ import { SITE_URL } from "@shared/business";
 import { handleAfterHoursCapture, isAfterHours } from "../services/afterHours";
 import { alertNewLead } from "../services/telegram";
 import { logAdminAction } from "../services/auditTrail";
-
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+import { getDb } from "../lib/db-helper";
+import { BUSINESS } from "@shared/business";
 
 export const leadRouter = router({
   submit: publicProcedure
@@ -61,7 +58,7 @@ export const leadRouter = router({
       const vehicle = sanitizeText(input.vehicle);
       const problem = sanitizeText(input.problem);
 
-      const d = await db();
+      const d = await getDb();
       if (!d) throw new Error("Database not available");
 
       let scoring = { score: 3, reason: "Manual review recommended", recommendedService: "General Repair" };
@@ -199,7 +196,7 @@ export const leadRouter = router({
 
       // Send SMS: financing pre-approval gets a special message
       if (input.source === "financing_preapproval") {
-        const financingSms = `You may qualify for $0 down financing at Nick's! Bring your ID when you drop off. (216) 862-0005`;
+        const financingSms = `You may qualify for $0 down financing at Nick's! Bring your ID when you drop off. ${BUSINESS.phone.display}`;
         withRetry(
           () => sendSms(input.phone, financingSms),
           { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (financing preapproval)" }
@@ -259,12 +256,12 @@ export const leadRouter = router({
       };
       } catch (err) {
         console.error("[Lead] Submit failed:", err);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "We couldn't save your information. Please call us at (216) 862-0005." });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `We couldn't save your information. Please call us at ${BUSINESS.phone.display}.` });
       }
     }),
 
   list: adminProcedure.query(async () => {
-    const d = await db();
+    const d = await getDb();
     if (!d) return [];
     return d.select().from(leads).orderBy(desc(leads.createdAt)).limit(1000);
   }),
@@ -282,7 +279,7 @@ export const leadRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const d = await db();
+      const d = await getDb();
       if (!d) throw new Error("Database not available");
       const { id, lostReason, ...updates } = input;
       const setObj: Record<string, unknown> = {};
@@ -340,7 +337,7 @@ export const leadRouter = router({
   delete: adminProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
-      const d = await db();
+      const d = await getDb();
       if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
       await d.delete(leads).where(eq(leads.id, input.id));
       logAdminAction({
