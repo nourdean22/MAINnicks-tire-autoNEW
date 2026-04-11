@@ -175,8 +175,11 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
     const reviewData: GoogleReviewData = {
       placeId,
       name: r.name || "Nick's Tire & Auto",
-      rating: r.rating || 4.9,
-      totalReviews: r.user_ratings_total || 0,
+      rating: typeof r.rating === "number" && r.rating > 0 ? r.rating : BUSINESS.reviews.rating,
+      totalReviews:
+        typeof r.user_ratings_total === "number" && r.user_ratings_total > 0
+          ? r.user_ratings_total
+          : BUSINESS.reviews.count,
       reviews: (r.reviews || []).map((rev) => ({
         authorName: rev.author_name,
         rating: rev.rating,

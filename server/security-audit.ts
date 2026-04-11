@@ -5,7 +5,9 @@
  */
 
 import type { Request, Response, NextFunction } from "express";
-import { logger } from "./logger";
+import { createLogger } from "./lib/logger";
+
+const log = createLogger("security");
 
 // ─── Patterns ──────────────────────────────────────────
 const XSS_PATTERNS = [
@@ -66,7 +68,7 @@ function recordBlock(ip: string): void {
       record.count++;
       if (record.count >= BLOCK_THRESHOLD) {
         record.bannedUntil = now + BAN_DURATION;
-        logger.warn("[Security] IP temp-banned for excessive blocked requests", { ip });
+        log.warn("[Security] IP temp-banned for excessive blocked requests", { ip });
       }
     }
   } else {
@@ -120,7 +122,7 @@ export function securityScan() {
     const pathThreat = scanValue(req.path);
     if (pathThreat) {
       recordBlock(ip);
-      logger.warn("[Security] Blocked request — path", { ip, path: req.path, threat: pathThreat });
+      log.warn("[Security] Blocked request — path", { ip, path: req.path, threat: pathThreat });
       return res.status(403).json({ error: "Request blocked" });
     }
 
@@ -129,7 +131,7 @@ export function securityScan() {
       const queryThreat = scanValue(req.query);
       if (queryThreat) {
         recordBlock(ip);
-        logger.warn("[Security] Blocked request — query", { ip, path: req.path, threat: queryThreat });
+        log.warn("[Security] Blocked request — query", { ip, path: req.path, threat: queryThreat });
         return res.status(403).json({ error: "Request blocked" });
       }
     }
@@ -139,7 +141,7 @@ export function securityScan() {
       const bodyThreat = scanValue(req.body);
       if (bodyThreat) {
         recordBlock(ip);
-        logger.warn("[Security] Blocked request — body", { ip, path: req.path, threat: bodyThreat });
+        log.warn("[Security] Blocked request — body", { ip, path: req.path, threat: bodyThreat });
         return res.status(403).json({ error: "Request blocked" });
       }
     }

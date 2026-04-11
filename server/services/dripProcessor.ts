@@ -172,8 +172,46 @@ export async function processDripSteps(): Promise<{ recordsProcessed: number; de
           if (await isEnabled("drip_campaigns_enabled")) {
             await sendSms(enrollment.customerPhone, msg);
           }
+        } else if (step.channel === "email") {
+          const { isEnabled } = await import("./featureFlags");
+          if (!(await isEnabled("drip_campaigns_enabled"))) {
+            /* skip */
+          } else {
+            const email =
+              typeof meta.email === "string" && meta.email.includes("@")
+                ? meta.email.trim()
+                : null;
+            const resendKey = process.env.RESEND_API_KEY;
+            if (!email) {
+              log.warn("Drip email step skipped — no customer email in enrollment metadata");
+            } else if (!resendKey) {
+              log.warn("Drip email step skipped — RESEND_API_KEY not set");
+            } else {
+              const { Resend } = await import("resend");
+              const resend = new Resend(resendKey);
+              const fromEmail =
+                process.env.RESEND_FROM_EMAIL || "Nick's Tire & Auto <noreply@nickstire.org>";
+              const subject =
+                typeof meta.emailSubject === "string" && meta.emailSubject.trim()
+                  ? meta.emailSubject.trim()
+                  : "Nick's Tire & Auto";
+              const { error } = await resend.emails.send({
+                from: fromEmail,
+                replyTo: process.env.SHOP_EMAIL || undefined,
+                to: [email],
+                subject,
+                html: `<div style="font-family:system-ui,sans-serif;line-height:1.5">${msg
+                  .replace(/&/g, "&amp;")
+                  .replace(/</g, "&lt;")
+                  .replace(/>/g, "&gt;")
+                  .replace(/\n/g, "<br/>")}</div>`,
+              });
+              if (error) {
+                log.warn("Drip email send failed", { error: error.message });
+              }
+            }
+          }
         }
-        // TODO: Add email channel support
 
         const nextStepNum = enrollment.currentStep + 1;
         const nextStep = campaign.steps[nextStepNum];

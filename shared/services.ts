@@ -154,7 +154,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where is the best tire shop near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 21300 Euclid Ave is Cleveland's top-rated tire shop with 4.9 stars from 1,700+ Google reviews. We carry new and quality used tires from all major brands, offer same-day installation, and are open 7 days a week for walk-ins. Call (216) 862-0005 for a free tire quote."
+        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 is Cleveland's top-rated tire shop with 4.9 stars from 1,700+ Google reviews. We carry new and quality used tires from all major brands, offer same-day installation, and are open 7 days a week for walk-ins. Call (216) 862-0005 for a free tire quote."
       }
     ],
     includedItems: [
@@ -258,7 +258,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I find brake repair near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 21300 Euclid Ave, Cleveland is open 7 days a week for brake repair. We offer free brake inspections, same-day brake service starting at $129/axle, and a 36-month warranty on all brake work. Walk-ins welcome. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112, Cleveland is open 7 days a week for brake repair. We offer free brake inspections, same-day brake service starting at $129/axle, and a 36-month warranty on all brake work. Walk-ins welcome. Call (216) 862-0005."
       }
     ],
     includedItems: [
@@ -363,7 +363,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I find check engine light service near me?",
-        answer: "Nick's Tire & Auto at 21300 Euclid Ave, Cleveland is open 7 days a week for check engine light diagnostics. We offer a free code scan with repair, advanced OBD-II testing, and same-day service for most check engine light issues. No appointment needed. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112, Cleveland is open 7 days a week for check engine light diagnostics. We offer a free code scan with repair, advanced OBD-II testing, and same-day service for most check engine light issues. No appointment needed. Call (216) 862-0005."
       }
     ],
     includedItems: [
@@ -567,7 +567,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I get an oil change near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 21300 Euclid Ave, Cleveland offers oil changes starting at $29.99 for conventional and $69.99 for full synthetic. Every oil change includes a free multi-point inspection. Walk-ins welcome 7 days a week, most oil changes done in under 30 minutes. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112, Cleveland offers oil changes starting at $29.99 for conventional and $69.99 for full synthetic. Every oil change includes a free multi-point inspection. Walk-ins welcome 7 days a week, most oil changes done in under 30 minutes. Call (216) 862-0005."
       }
     ],
     includedItems: [
@@ -670,7 +670,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I find auto repair near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 21300 Euclid Ave, Cleveland is a full-service auto repair shop open 7 days a week. Whether you need brake repair, oil changes, engine diagnostics, or suspension work, we handle it all with free estimates, written quotes, and a 36-month warranty. 4.9 stars from 1,700+ Google reviews. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112, Cleveland is a full-service auto repair shop open 7 days a week. Whether you need brake repair, oil changes, engine diagnostics, or suspension work, we handle it all with free estimates, written quotes, and a 36-month warranty. 4.9 stars from 1,700+ Google reviews. Call (216) 862-0005."
       },
       {
         question: "How do I find a good mechanic near me?",
@@ -1104,7 +1104,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I find muffler shops near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 21300 Euclid Ave, Cleveland is a full-service muffler and exhaust shop. We handle muffler replacement, exhaust pipe repair, catalytic converters, and emissions-related exhaust work. Walk-ins welcome 7 days a week with same-day service on most exhaust repairs. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112, Cleveland is a full-service muffler and exhaust shop. We handle muffler replacement, exhaust pipe repair, catalytic converters, and emissions-related exhaust work. Walk-ins welcome 7 days a week with same-day service on most exhaust repairs. Call (216) 862-0005."
       }
     ],
     includedItems: ["Full exhaust inspection", "Code reading", "Written estimate", "Post-repair leak check"],
