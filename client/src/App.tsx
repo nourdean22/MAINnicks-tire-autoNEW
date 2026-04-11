@@ -84,6 +84,7 @@ const AreasServed = lazy(() => import("./pages/AreasServed"));
 const PayInvoice = lazy(() => import("./pages/PayInvoice"));
 const TireSizePage = lazy(() => import("./pages/TireSizePage"));
 const VehicleServicePage = lazy(() => import("./pages/VehicleServicePage"));
+const WomensSafetyPage = lazy(() => import("./pages/WomensSafetyPage"));
 
 function Router() {
   const [location] = useLocation();
@@ -317,6 +318,8 @@ function Router() {
             <Route path={"/near/:slug"} component={IntersectionPage} />
             {/* Careers */}
             <Route path={"/careers"} component={Careers} />
+            {/* Women's Safety & Pit Stop Experience */}
+            <Route path={"/womens-safety"} component={WomensSafetyPage} />
             {/* Legal pages */}
             <Route path={"/privacy-policy"} component={PrivacyPolicy} />
             <Route path={"/terms"} component={Terms} />
