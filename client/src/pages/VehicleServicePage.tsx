@@ -164,7 +164,7 @@ export default function VehicleServicePage() {
             <p className="mt-6 text-lg sm:text-xl text-foreground/80 max-w-2xl font-light leading-relaxed">
               Expert {page.service.toLowerCase()} for {page.make} vehicles in Cleveland.
               We service all {page.make} models including {page.commonModels.slice(0, 4).join(", ")}.
-              Same-day service available. 4.9-star rated with 1,685+ reviews.
+              Same-day service available. 4.9-star rated with 1,700+ reviews.
             </p>
           </FadeIn>
           <FadeIn delay={0.2}>
@@ -191,7 +191,7 @@ export default function VehicleServicePage() {
       <section className="py-8 bg-card/50 border-y border-border/30">
         <div className="container">
           <div className="flex flex-wrap items-center justify-center gap-8 text-sm text-foreground/60">
-            <div className="flex items-center gap-2"><Star className="w-4 h-4 text-primary" /> 4.9 Stars, 1,685+ Reviews</div>
+            <div className="flex items-center gap-2"><Star className="w-4 h-4 text-primary" /> 4.9 Stars, 1,700+ Reviews</div>
             <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-primary" /> Same-Day Service</div>
             <div className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-primary" /> Warranty on All Work</div>
             <div className="flex items-center gap-2"><Wrench className="w-4 h-4 text-primary" /> All {page.make} Models</div>

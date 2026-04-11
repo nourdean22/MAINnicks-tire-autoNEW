@@ -4,6 +4,7 @@
  * Dark background, gold accent for Nick's column.
  */
 import { Check, X, AlertTriangle } from "lucide-react";
+import { BUSINESS } from "@shared/business";
 
 type Status = "yes" | "no" | "warn";
 
@@ -21,7 +22,7 @@ const ROWS: Row[] = [
   { feature: "All makes & models",       nicks: "yes", dealership: "no",   chain: "yes"  },
   { feature: "$0-Down financing",        nicks: "yes", dealership: "warn", chain: "no"   },
   { feature: "Open 7 days",             nicks: "yes", dealership: "no",   chain: "warn" },
-  { feature: "1688+ Reviews",           nicks: "yes", dealership: "warn", chain: "no"   },
+  { feature: `${BUSINESS.reviews.countDisplay} Google reviews`, nicks: "yes", dealership: "warn", chain: "no" },
   { feature: "No pressure upselling",   nicks: "yes", dealership: "no",   chain: "no"   },
   { feature: "ASE certified",           nicks: "yes", dealership: "yes",  chain: "warn" },
   { feature: "Free diagnostic estimates", nicks: "yes", dealership: "no",   chain: "no"   },

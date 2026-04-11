@@ -168,3 +168,51 @@ export const BUSINESS = {
 } as const;
 
 export type Business = typeof BUSINESS;
+
+/** Inputs for unified review count (GBP live + admin override + marketing floor). */
+export type ReviewDisplayInputs = {
+  /** Google Places `user_ratings_total` when API returned a positive value */
+  googleCount?: number | null;
+  /** `shop_settings.reviewCount` when admin set a positive override */
+  adminCount?: number | null;
+};
+
+/**
+ * Single rule for public review totals: **max(marketing floor, live Google, admin override)**.
+ * - Floor is `BUSINESS.reviews.count` so GBP lag never shows below the canonical marketing line.
+ * - When Google or admin is higher, the UI reflects the higher number.
+ */
+export function resolveReviewDisplay(inputs: ReviewDisplayInputs): {
+  numeric: number;
+  /** e.g. "1,723+" — includes trailing + for trust/marketing copy */
+  countDisplay: string;
+  provenance: "business" | "google" | "admin";
+} {
+  const floor = BUSINESS.reviews.count as number;
+  const g =
+    typeof inputs.googleCount === "number" && inputs.googleCount > 0
+      ? inputs.googleCount
+      : null;
+  const a =
+    typeof inputs.adminCount === "number" && inputs.adminCount > 0
+      ? inputs.adminCount
+      : null;
+
+  let numeric = floor;
+  let provenance: "business" | "google" | "admin" = "business";
+
+  if (g !== null && g > numeric) {
+    numeric = g;
+    provenance = "google";
+  }
+  if (a !== null && a > numeric) {
+    numeric = a;
+    provenance = "admin";
+  }
+
+  return {
+    numeric,
+    countDisplay: `${numeric.toLocaleString("en-US")}+`,
+    provenance,
+  };
+}

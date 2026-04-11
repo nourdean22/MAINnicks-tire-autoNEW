@@ -464,7 +464,7 @@ export default function LandingPage() {
             <div className="w-px h-12 bg-white/10" />
             <div>
               <p className="font-bold text-yellow-400 text-xl">
-                {BUSINESS.reviews.countDisplay}+
+                {BUSINESS.reviews.countDisplay}
               </p>
               <p className="text-xs text-white/60">Reviews</p>
             </div>
