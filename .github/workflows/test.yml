@@ -1,4 +1,4 @@
-name: Test & Type Check
+name: Test, Lint, Build & Type Check
 
 on:
   push:
@@ -7,9 +7,9 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -24,21 +24,31 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
+      - name: Validate env contract (template)
+        run: pnpm env:validate
+
       - name: TypeScript check
-        run: npx tsc --noEmit
+        run: pnpm check
+
+      - name: Lint / format check
+        run: pnpm lint
 
       - name: Run tests
-        run: |
-          npx vitest run --reporter=verbose 2>&1 | tee /tmp/test-output.txt
+        run: pnpm test -- --reporter=verbose 2>&1 | tee /tmp/test-output.txt
         env:
           NO_COLOR: 1
 
-      - name: Upload test output on failure
+      - name: Build
+        run: pnpm build 2>&1 | tee /tmp/build-output.txt
+
+      - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: test-output
-          path: /tmp/test-output.txt
+          name: verify-logs
+          path: |
+            /tmp/test-output.txt
+            /tmp/build-output.txt
           retention-days: 3
 
       - name: Print test summary
