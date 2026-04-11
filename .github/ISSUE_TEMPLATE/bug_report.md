@@ -6,24 +6,41 @@ labels: bug
 assignees: ""
 ---
 
-## What happened?
+## 1) Problem summary
 
-## Steps to reproduce
+What is broken, in one sentence?
+
+## 2) Business/operational impact
+
+- [ ] Revenue-critical flow impacted
+- [ ] Admin/control workflow impacted
+- [ ] Integration/webhook path impacted
+- [ ] Data integrity concern
+
+Describe user/business impact.
+
+## 3) Reproduction steps
 
 1.
 2.
 3.
 
-## Expected behavior
+## 4) Expected vs actual behavior
 
-## Environment
+- Expected:
+- Actual:
+
+## 5) Environment details
 
 - Branch/commit:
 - Browser/runtime:
-- Relevant env flags:
+- Relevant environment flags/variables:
+- Time observed (UTC):
 
-## Impact
+## 6) Evidence
 
-- [ ] Revenue-critical flow affected
-- [ ] Admin/control workflow affected
-- [ ] Integration/webhook affected
+Attach logs, screenshots, stack traces, or API responses.
+
+## 7) Suspected scope
+
+List likely files/modules/components touched.

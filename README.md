@@ -1,96 +1,202 @@
-# Nick's Tire & Auto — Main Application
+# Nick's Tire & Auto — Main Application Operating Repository
 
-Production web platform for Nick's Tire & Auto: customer-facing site + admin tooling + automation and integrations used to support lead generation, operations, and growth.
+Production application platform for Nick's Tire & Auto. This repository powers customer acquisition flows, shop operations interfaces, admin controls, and multi-system integrations that directly affect revenue and service delivery.
 
-## Tech Stack
+---
+
+## 1) Mission of this repository
+
+This is **not** a brochure website repo. It is an operating system for:
+
+- customer-facing conversion flows
+- admin/business control surfaces
+- automation and integration pipelines
+- reliability-sensitive business processes
+
+If this repo drifts from truth (docs/scripts/env/CI), operator trust degrades and failure risk rises.
+
+---
+
+## 2) Current stack (source of truth)
 
 - **Package manager:** `pnpm`
 - **Runtime:** Node.js 20+ (CI uses Node 22)
 - **Frontend:** React + Vite + TypeScript
-- **Backend:** Node.js + Express (bundled from `server/_core/index.ts`)
-- **Database:** MySQL + Drizzle ORM / Drizzle Kit
+- **Backend:** Node.js + Express (`server/_core/index.ts` entrypoint)
+- **Database:** MySQL + Drizzle ORM + Drizzle Kit migrations
 - **Testing:** Vitest
-- **Formatting:** Prettier
+- **Formatting/lint baseline:** Prettier (repo-scoped script targets)
 
-## Quickstart (Local Development)
+---
 
-1. Install dependencies:
+## 3) Local operator quickstart
 
-   ```bash
-   pnpm install
-   ```
+### Prerequisites
 
-2. Create local env file:
+- Node.js 20+
+- pnpm 9+
+- MySQL instance reachable by `DATABASE_URL`
 
-   ```bash
-   cp .env.example .env
-   ```
+### Setup
 
-3. Start dev server:
+```bash
+pnpm install
+cp .env.example .env
+pnpm env:validate
+```
 
-   ```bash
-   pnpm dev
-   ```
+### Development
 
-4. Open app (default):
-   - `http://localhost:3000`
+```bash
+pnpm dev
+```
 
-## Core Commands
+Default app URL: `http://localhost:3000`
 
-- Start local dev: `pnpm dev`
-- Type check: `pnpm check`
-- Lint (format check): `pnpm lint`
-- Auto-fix formatting: `pnpm lint:fix`
-- Run tests: `pnpm test`
-- Build app/server: `pnpm build`
-- Build + prerender: `pnpm build:prerender`
-- Run production bundle: `pnpm start`
-- Generate + run DB migrations: `pnpm db:push`
-- Validate env contract (template): `pnpm env:validate`
-- Full local gate (CI-like): `pnpm verify`
+---
 
-## Runtime Architecture (Practical)
+## 4) Core command surface (required to know)
 
-- `client/` — React frontend and UI runtime
-- `server/` — API, integrations, background behaviors, and business logic
-- `server/_core/index.ts` — primary server entrypoint used for dev/build
-- `shared/` — cross-runtime constants/types/SEO content data
-- `drizzle/` + `drizzle.config.ts` — schema + SQL migrations
-- `scripts/` — operational scripts (preflight, prerender, utilities)
+| Command             | Purpose                                                                  | When to run                 |
+| ------------------- | ------------------------------------------------------------------------ | --------------------------- |
+| `pnpm dev`          | Start local dev server                                                   | During feature/dev work     |
+| `pnpm check`        | TypeScript safety gate                                                   | Before every PR             |
+| `pnpm lint`         | Prettier/format lint gate on governance contract files                   | Before every PR             |
+| `pnpm lint:fix`     | Auto-fix formatting for lint targets                                     | Before commit if lint fails |
+| `pnpm test`         | Vitest suite                                                             | Before PR + CI              |
+| `pnpm build`        | Production build for client + bundled server                             | Before deploy               |
+| `pnpm env:validate` | Environment contract validation (`.env.example`)                         | Local setup + CI            |
+| `pnpm verify`       | Local CI-equivalent chain (`env:validate → check → lint → test → build`) | Before merge/deploy         |
+| `pnpm db:push`      | Generate + run DB migrations                                             | Schema changes              |
 
-## Environment Strategy
+---
 
-- `.env.example` is the canonical environment contract.
-- Required local baseline is called out under sections marked **required**.
-- Optional integrations are intentionally commented and can be enabled as needed.
-- Railway-specific variables are host-provided and should not be set manually.
+## 5) Architecture boundaries (operator model)
 
-## Deployment Notes
+### Customer runtime
 
-- Production run target is the bundled Node server in `dist/index.js`.
-- Typical deploy flow:
-  1. `pnpm install --frozen-lockfile`
-  2. `pnpm verify`
-  3. `pnpm build`
-  4. deploy `dist/` with required environment variables
+- path: `client/`
+- responsibility: conversion, booking, contact, financing CTAs, public experience
 
-## Load-Bearing Areas (Handle Carefully)
+### Server/control runtime
 
-Before changing these, review impact and add tests where possible:
+- path: `server/`
+- responsibility: routing, auth, admin APIs, integrations, business logic
 
-- Auth and admin access control
-- Payment and Stripe paths
-- CRM/sync and bridge integrations
-- Twilio and outbound communication flows
-- Cron/background job endpoints
-- Data schema/migrations
+### Core bootstrap
 
-## Governance & Contribution
+- path: `server/_core/index.ts`
+- responsibility: runtime assembly, middleware, mounts, boot behavior
 
-- See `CONTRIBUTING.md` for workflow and standards.
-- See `SECURITY.md` for vulnerability reporting.
-- PRs use `.github/pull_request_template.md`.
+### Data model + migrations
 
-## License
+- paths: `drizzle/`, `drizzle.config.ts`
+- responsibility: schema truth, migration evolution, DB contract
+
+### Shared domain contracts
+
+- path: `shared/`
+- responsibility: cross-runtime constants, route/domain semantics, SEO/service datasets
+
+### Ops scripts
+
+- path: `scripts/`
+- responsibility: deploy helpers, validation tasks, operational tooling
+
+---
+
+## 6) Environment contract strategy
+
+- `.env.example` is the baseline environment contract for this repo.
+- Section headers classify variables by operational requirement level.
+- `pnpm env:validate` enforces required-key coverage in `.env.example`.
+- Runtime validation mode exists via:
+
+```bash
+pnpm env:validate -- --runtime
+```
+
+### Environment governance rules
+
+1. Never commit real secrets.
+2. New env keys must be added to `.env.example` with explanatory comments.
+3. If a key is required for baseline operation, add it to validator required lists.
+4. If a key is optional integration-only, document fallback behavior.
+
+---
+
+## 7) CI enforcement model
+
+`/.github/workflows/test.yml` enforces:
+
+1. dependency install
+2. environment contract validation
+3. type checking
+4. lint gate
+5. tests
+6. production build
+7. failure artifact upload and summary output
+
+CI should be treated as the authoritative contract gate for merge safety.
+
+---
+
+## 8) Load-bearing systems (do not change blindly)
+
+Any changes touching these areas require explicit risk review + validation notes in PR:
+
+- authentication and admin authorization paths
+- Stripe/payment paths
+- Twilio/SMS and notification flows
+- cron/background job trigger paths
+- bridge/sync integration paths
+- DB schema/migrations
+- webhook verification paths (Meta/Twilio/etc.)
+
+---
+
+## 9) Deployment and rollback baseline
+
+### Deploy baseline
+
+```bash
+pnpm install --frozen-lockfile
+pnpm verify
+pnpm build
+```
+
+Deploy bundled output from `dist/` with required environment configuration.
+
+### Rollback baseline
+
+- revert to previous known-good deploy artifact/commit
+- verify critical business flows (booking, lead/contact, admin login)
+- review integration heartbeat (SMS, bridge sync, payment endpoints)
+
+---
+
+## 10) Operational incident checklist (minimum)
+
+When production issues occur:
+
+1. identify scope (public, admin, integration, DB, deploy)
+2. inspect latest deploy/commit and CI status
+3. validate env contract and required keys presence
+4. run targeted critical path checks
+5. decide rollback vs hotfix
+6. record root cause + prevention action
+
+---
+
+## 11) Contribution and governance
+
+- Contribution standards: `CONTRIBUTING.md`
+- Security reporting: `SECURITY.md`
+- PR process and quality checklist: `.github/pull_request_template.md`
+- Ownership routing: `.github/CODEOWNERS`
+
+---
+
+## 12) License
 
 MIT

@@ -9,7 +9,7 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
@@ -25,13 +25,13 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Validate env contract (template)
-        run: pnpm env:validate
+        run: pnpm env:validate 2>&1 | tee /tmp/env-output.txt
 
       - name: TypeScript check
-        run: pnpm check
+        run: pnpm check 2>&1 | tee /tmp/check-output.txt
 
       - name: Lint / format check
-        run: pnpm lint
+        run: pnpm lint 2>&1 | tee /tmp/lint-output.txt
 
       - name: Run tests
         run: pnpm test -- --reporter=verbose 2>&1 | tee /tmp/test-output.txt
@@ -47,10 +47,23 @@ jobs:
         with:
           name: verify-logs
           path: |
+            /tmp/env-output.txt
+            /tmp/check-output.txt
+            /tmp/lint-output.txt
             /tmp/test-output.txt
             /tmp/build-output.txt
-          retention-days: 3
+          retention-days: 5
 
-      - name: Print test summary
+      - name: Print verify summary
         if: always()
-        run: tail -30 /tmp/test-output.txt 2>/dev/null || echo "No test output"
+        run: |
+          echo "--- env ---"
+          tail -20 /tmp/env-output.txt 2>/dev/null || true
+          echo "--- check ---"
+          tail -20 /tmp/check-output.txt 2>/dev/null || true
+          echo "--- lint ---"
+          tail -20 /tmp/lint-output.txt 2>/dev/null || true
+          echo "--- test ---"
+          tail -30 /tmp/test-output.txt 2>/dev/null || true
+          echo "--- build ---"
+          tail -20 /tmp/build-output.txt 2>/dev/null || true
