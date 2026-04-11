@@ -1,8 +1,21 @@
 # Default owner
 * @owner
 
-# High-risk areas
+# Load-bearing runtime areas
 /server/_core/ @owner
-/server @owner
-/drizzle @owner
-/.github/workflows @owner
+/server/routers/ @owner
+/server/integrations/ @owner
+/server/ @owner
+
+# Data and migration contract
+/drizzle/ @owner
+/drizzle.config.ts @owner
+
+# CI/CD and governance contracts
+/.github/workflows/ @owner
+/.github/pull_request_template.md @owner
+/.github/ISSUE_TEMPLATE/ @owner
+
+# Environment contract
+/.env.example @owner
+/scripts/env-validate.mjs @owner

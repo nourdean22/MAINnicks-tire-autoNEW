@@ -6,10 +6,27 @@ labels: enhancement
 assignees: ""
 ---
 
-## Problem
+## 1) Problem statement
 
-## Proposed solution
+What operator or user problem are we solving?
 
-## Revenue/operations impact
+## 2) Proposed solution
 
-## Risks and dependencies
+Describe the expected behavior and boundary.
+
+## 3) Business value
+
+- revenue impact
+- operational efficiency impact
+- risk reduction impact
+
+## 4) Scope and dependencies
+
+- affected modules
+- external integrations
+- env/secret requirements
+- migration requirements
+
+## 5) Validation plan
+
+How will we confirm success after implementation?
