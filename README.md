@@ -1,71 +1,96 @@
-# MAINnicks-tire-autoNEW
+# Nick's Tire & Auto — Main Application
 
-## Setup Instructions
+Production web platform for Nick's Tire & Auto: customer-facing site + admin tooling + automation and integrations used to support lead generation, operations, and growth.
 
-1. **Clone the repository**:
+## Tech Stack
+
+- **Package manager:** `pnpm`
+- **Runtime:** Node.js 20+ (CI uses Node 22)
+- **Frontend:** React + Vite + TypeScript
+- **Backend:** Node.js + Express (bundled from `server/_core/index.ts`)
+- **Database:** MySQL + Drizzle ORM / Drizzle Kit
+- **Testing:** Vitest
+- **Formatting:** Prettier
+
+## Quickstart (Local Development)
+
+1. Install dependencies:
+
    ```bash
-   git clone https://github.com/owner/MAINnicks-tire-autoNEW.git
-   cd MAINnicks-tire-autoNEW
+   pnpm install
    ```
 
-2. **Install dependencies**:
-   Make sure you have Node.js installed. Run the following command to install the dependencies:
+2. Create local env file:
+
    ```bash
-   npm install
+   cp .env.example .env
    ```
 
-3. **Environment variables**:
-   Create a `.env` file in the root of the project. Use `.env.example` as a reference for required variables.
+3. Start dev server:
 
-## Architecture Overview
-
-The architecture of the MAINnicks-tire-autoNEW application is designed around a microservices pattern, allowing for scalability and maintainability. The main components include:
-
-- **Frontend**: Built with React, providing a responsive interface.
-- **Backend**: Node.js/Express server handling API requests.
-- **Database**: MongoDB for data persistence.
-
-Each component interacts via RESTful APIs, ensuring loose coupling and clear separation of concerns.
-
-## Deployment Guide
-
-To deploy the application, follow these steps:
-
-1. **Build the application**:
    ```bash
-   npm run build
+   pnpm dev
    ```
 
-2. **Deploy to server**:
-   You can use services like Heroku, AWS, or DigitalOcean. Make sure to set up the environment variables before deployment.
+4. Open app (default):
+   - `http://localhost:3000`
 
-3. **Run migrations**:
-   If your application uses database migrations, run the migration commands to set up the database.
+## Core Commands
 
-## Local Development Steps
+- Start local dev: `pnpm dev`
+- Type check: `pnpm check`
+- Lint (format check): `pnpm lint`
+- Auto-fix formatting: `pnpm lint:fix`
+- Run tests: `pnpm test`
+- Build app/server: `pnpm build`
+- Build + prerender: `pnpm build:prerender`
+- Run production bundle: `pnpm start`
+- Generate + run DB migrations: `pnpm db:push`
+- Validate env contract (template): `pnpm env:validate`
+- Full local gate (CI-like): `pnpm verify`
 
-To start developing locally:
+## Runtime Architecture (Practical)
 
-1. **Start the development server**:
-   ```bash
-   npm start
-   ```
+- `client/` — React frontend and UI runtime
+- `server/` — API, integrations, background behaviors, and business logic
+- `server/_core/index.ts` — primary server entrypoint used for dev/build
+- `shared/` — cross-runtime constants/types/SEO content data
+- `drizzle/` + `drizzle.config.ts` — schema + SQL migrations
+- `scripts/` — operational scripts (preflight, prerender, utilities)
 
-2. **Access the application**:
-   Open your browser and go to `http://localhost:3000` to see the application running.
+## Environment Strategy
 
-3. **Testing**:
-   Ensure you run the tests to check for any issues with:
-   ```bash
-   npm test
-   ```
+- `.env.example` is the canonical environment contract.
+- Required local baseline is called out under sections marked **required**.
+- Optional integrations are intentionally commented and can be enabled as needed.
+- Railway-specific variables are host-provided and should not be set manually.
 
-## Contribution
+## Deployment Notes
 
-If you would like to contribute to this project, please fork the repository and submit a pull request with your proposed changes. 
+- Production run target is the bundled Node server in `dist/index.js`.
+- Typical deploy flow:
+  1. `pnpm install --frozen-lockfile`
+  2. `pnpm verify`
+  3. `pnpm build`
+  4. deploy `dist/` with required environment variables
+
+## Load-Bearing Areas (Handle Carefully)
+
+Before changing these, review impact and add tests where possible:
+
+- Auth and admin access control
+- Payment and Stripe paths
+- CRM/sync and bridge integrations
+- Twilio and outbound communication flows
+- Cron/background job endpoints
+- Data schema/migrations
+
+## Governance & Contribution
+
+- See `CONTRIBUTING.md` for workflow and standards.
+- See `SECURITY.md` for vulnerability reporting.
+- PRs use `.github/pull_request_template.md`.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-**Last Updated**: 2026-04-11 01:08:45 (UTC)
+MIT
