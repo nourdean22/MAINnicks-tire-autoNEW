@@ -45,6 +45,7 @@ import rateLimit from "express-rate-limit";
 import { registerOAuthRoutes } from "./oauth";
 import { registerBridgeRoutes } from "./bridge-routes";
 import { registerNourStrategyRoute } from "../routes/nour-strategy";
+import { registerNourChiefStrategistRoute } from "../routes/nour-chief-strategist";
 import { healthHandler, pingHandler, readyHandler, recoverHandler } from "../lib/health";
 import { startSelfHealing, recordRequest } from "../lib/self-healing";
 import { createLogger } from "../lib/logger";
@@ -426,6 +427,9 @@ async function startServer() {
 
   // ─── Nour Strategy — AI Lead Analysis ──────────────────
   registerNourStrategyRoute(app);
+
+  // ─── Nour Chief Strategist — AI Strategic Advisor ──────
+  registerNourChiefStrategistRoute(app);
 
   // Higher body limit for photo upload (base64 encoded images up to 7.5MB)
   app.use("/api/trpc/booking.uploadPhoto", express.json({ limit: "12mb" }));
