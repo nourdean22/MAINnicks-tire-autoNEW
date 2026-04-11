@@ -242,7 +242,7 @@ REVIEW this ${input.contentType} for:
    - Phone: (216) 862-0005
    - Address: 17625 Euclid Ave, Cleveland, OH 44112
    - Hours: Mon-Sat 8AM-6PM, Sun 9AM-4PM
-   - Rating: 4.9 stars, 1685+ reviews
+   - Rating: 4.9 stars, 1,700+ reviews
    - Walk-ins welcome, first come first serve, drop-offs encouraged
 2. TONE — Does it match the brand? Direct, honest, no-nonsense, Cleveland proud, not corporate.
 3. ERRORS — Grammar, spelling, broken formatting, missing info.

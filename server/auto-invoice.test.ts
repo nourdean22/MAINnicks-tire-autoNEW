@@ -211,7 +211,7 @@ describe("BUSINESS Constants Centralization", () => {
 
   it("should have updated review count (not stale 1683)", async () => {
     const { BUSINESS } = await import("../shared/business");
-    expect(BUSINESS.reviews.count).toBeGreaterThanOrEqual(1685);
+    expect(BUSINESS.reviews.count).toBeGreaterThanOrEqual(1700);
   });
 
   it("should have googleBusiness URL", async () => {

@@ -1674,6 +1674,12 @@ export const workOrderItems = mysqlTable("work_order_items", {
   approved: boolean("approved").default(true),
   declined: boolean("declined").default(false),
   declineReason: varchar("decline_reason", { length: 100 }),
+  /** Declined-line recovery outreach (while line may still be declined) */
+  declineOutreachAt: timestamp("decline_outreach_at"),
+  declineOutreachMethod: varchar("decline_outreach_method", { length: 64 }),
+  declineOutreachNotes: text("decline_outreach_notes"),
+  /** When customer approved the line (converted from declined) */
+  declineRecoveredAt: timestamp("decline_recovered_at"),
   completed: boolean("completed").default(false),
   /** Urgency from inspection */
   urgency: varchar("urgency", { length: 20 }), // 'safety_now' | 'needs_soon' | 'monitor'

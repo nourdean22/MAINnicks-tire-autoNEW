@@ -5,7 +5,13 @@
  * Enables follow-up campaigns for safety items and high-value repairs.
  * Recovery methods: callback, SMS follow-up, financing offer, next-visit reminder.
  */
-import { eq, desc, sql, and, gte, isNotNull } from "drizzle-orm";
+import { eq, desc, sql, and, gte } from "drizzle-orm";
+import { workOrderItems as workOrderItemsTable } from "../../drizzle/schema";
+import { createLogger } from "../lib/logger";
+
+type WorkOrderItemRow = typeof workOrderItemsTable.$inferSelect;
+
+const log = createLogger("declined-work-recovery");
 
 async function getDbAndSchema() {
   const { getDb } = await import("../db");
@@ -23,9 +29,12 @@ interface DeclinedItem {
   total: string;
   declineReason: string | null;
   safetyRelated: boolean;
+  /** True once the line is converted from declined (also clears from this ledger). */
   recovered: boolean;
+  /** Last outreach logged while the line was still declined. */
   recoveryMethod: string | null;
   recoveryNotes: string | null;
+  outreachAt: string | null;
 }
 
 interface DeclinedWorkEntry {
@@ -89,10 +98,12 @@ export async function getDeclinedWorkLedger(limit = 50): Promise<DeclinedWorkEnt
         }
       }
     } catch (err) {
-      console.error("[DeclinedWork] Customer lookup for recovery failed:", err instanceof Error ? err.message : err);
+      log.error("[DeclinedWork] Customer lookup for recovery failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
 
-    const declinedItems: DeclinedItem[] = items.map((item: any) => ({
+    const declinedItems: DeclinedItem[] = items.map((item: WorkOrderItemRow) => ({
       id: item.id,
       description: item.description,
       type: item.type,
@@ -100,9 +111,10 @@ export async function getDeclinedWorkLedger(limit = 50): Promise<DeclinedWorkEnt
       total: item.total || "0",
       declineReason: item.declineReason || null,
       safetyRelated: isSafetyRelated(item.description),
-      recovered: false, // TODO: track in DB
-      recoveryMethod: null,
-      recoveryNotes: null,
+      recovered: Boolean(item.declineRecoveredAt),
+      recoveryMethod: item.declineOutreachMethod || null,
+      recoveryNotes: item.declineOutreachNotes || null,
+      outreachAt: item.declineOutreachAt?.toISOString() ?? null,
     }));
 
     const vehicle = [wo.vehicleYear, wo.vehicleMake, wo.vehicleModel].filter(Boolean).join(" ");
@@ -133,12 +145,41 @@ export async function markItemRecovered(params: {
 }): Promise<void> {
   const { db, workOrderItems } = await getDbAndSchema();
 
+  const recoveryNote = `Recovered via ${params.method}${params.notes ? `: ${params.notes}` : ""}`;
+
+  const [existing] = await db
+    .select({ notes: workOrderItems.notes })
+    .from(workOrderItems)
+    .where(eq(workOrderItems.id, params.itemId))
+    .limit(1);
+  const prev = existing?.notes?.trim() ? `${existing.notes.trim()}\n\n` : "";
+
   // Update the declined item — mark as approved (recovered)
   await db.update(workOrderItems).set({
     declined: false,
     approved: true,
-    notes: `Recovered via ${params.method}${params.notes ? `: ${params.notes}` : ""}`,
+    declineRecoveredAt: new Date(),
+    declineOutreachMethod: params.method,
+    declineOutreachNotes: params.notes ?? null,
+    notes: `${prev}${recoveryNote}`,
   }).where(eq(workOrderItems.id, params.itemId));
+}
+
+/** Log outreach on a declined line before the customer approves the work. */
+export async function recordDeclineOutreach(params: {
+  itemId: string;
+  method: string;
+  notes?: string;
+}): Promise<void> {
+  const { db, workOrderItems } = await getDbAndSchema();
+  await db
+    .update(workOrderItems)
+    .set({
+      declineOutreachAt: new Date(),
+      declineOutreachMethod: params.method,
+      declineOutreachNotes: params.notes ?? null,
+    })
+    .where(eq(workOrderItems.id, params.itemId));
 }
 
 // ─── Declined work stats ────────────────────────────
