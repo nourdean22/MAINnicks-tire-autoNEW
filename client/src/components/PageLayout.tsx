@@ -12,7 +12,6 @@ import ChatWidget from "@/components/ChatWidget";
 import CallbackModal from "@/components/CallbackModal";
 import NotificationBar from "@/components/NotificationBar";
 import ReviewCTA from "@/components/ReviewCTA";
-import { SkipToContent } from "@/components/SEO";
 
 interface PageLayoutProps {
   children: React.ReactNode;
@@ -20,14 +19,17 @@ interface PageLayoutProps {
   showChat?: boolean;
 }
 
-export default function PageLayout({ children, activeHref, showChat = false }: PageLayoutProps) {
+export default function PageLayout({
+  children,
+  activeHref,
+  showChat = false,
+}: PageLayoutProps) {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
 
   return (
     <div className="min-h-screen flex flex-col">
-      <SkipToContent />
       <NotificationBar />
       <SiteNavbar activeHref={activeHref} />
       <StickyTrustBar />
