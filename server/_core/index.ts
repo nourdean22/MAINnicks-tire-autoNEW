@@ -44,6 +44,7 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import rateLimit from "express-rate-limit";
 import { registerOAuthRoutes } from "./oauth";
 import { registerBridgeRoutes } from "./bridge-routes";
+import { startStatenourBridge, stopStatenourBridge, getRealtimeMetrics, requireBridgeApiKey } from "../services/statenourBridge";
 import { registerNourStrategyRoute } from "../routes/nour-strategy";
 import { registerPsychDominanceRoute } from "../routes/psych-dominance";
 import { registerBurnoutRadarRoute } from "../routes/burnout-radar";
@@ -331,6 +332,11 @@ async function startServer() {
     serverLog.info("SSE endpoint registered: /api/admin/events");
   }).catch(e => console.warn("[server:init] SSE endpoint registration failed:", e));
 
+  // ─── Statenour Bridge — real-time metrics relay for NOUR OS ──
+  // Connects to /api/admin/events SSE stream and caches live metrics
+  // so NOUR OS can poll /api/bridge/realtime-metrics every 30s.
+  startStatenourBridge();
+
   // ─── Admin API Key middleware (shared by all admin REST endpoints) ───
   function requireAdminApiKey(req: any, res: any, next: any) {
     const auth = req.headers.authorization;
@@ -426,6 +432,17 @@ async function startServer() {
   // Higher body limit for bridge report ingestion (large JSON payloads)
   app.use("/api/bridge/ingest-reports", express.json({ limit: "20mb" }));
   registerBridgeRoutes(app);
+
+  // ─── Real-time Metrics for NOUR OS ─────────────────────
+  // NOUR OS polls this every 30s to display live CEO dashboard metrics.
+  // Backed by statenourBridge: SSE stream + periodic DB refresh (30s TTL).
+  // Auth: X-Bridge-Key or Bridge-Api-Key header matching BRIDGE_API_KEY.
+  app.get("/api/bridge/realtime-metrics", requireBridgeApiKey, (_req, res) => {
+    const metrics = getRealtimeMetrics();
+    // Cache-Control: allow NOUR OS to cache for up to 30s
+    res.setHeader("Cache-Control", "private, max-age=30");
+    res.json(metrics);
+  });
 
   // ─── Nour Strategy — AI Lead Analysis ──────────────────
   registerNourStrategyRoute(app);
@@ -796,6 +813,7 @@ process.on("SIGTERM", () => {
   try { require("../sms").stopDelayedQueueProcessor(); } catch (e) { console.warn("[server:shutdown] SMS queue stop failed:", e); }
   try { require("../services/telegram").stopBatchTimer?.(); } catch (e) { console.warn("[server:shutdown] Telegram timer stop failed:", e); }
   try { require("../nour-os-bridge").stopRetryProcessor?.(); } catch (e) { console.warn("[server:shutdown] NOUR OS bridge stop failed:", e); }
+  try { stopStatenourBridge(); } catch (e) { console.warn("[server:shutdown] Statenour bridge stop failed:", e); }
 
   // 3. Give in-flight requests 10s to finish, then force exit
   setTimeout(() => {
