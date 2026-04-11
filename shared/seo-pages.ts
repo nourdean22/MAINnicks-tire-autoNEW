@@ -81,7 +81,7 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
       },
       {
         question: "Where is the best brake shop in Cleveland?",
-        answer: "Nick's Tire & Auto at 21300 Euclid Ave is Cleveland's top-rated brake shop with 4.9 stars from 1,700+ reviews. We offer competitive brake repair pricing with a 36-month warranty on parts and labor. Walk-ins welcome 7 days a week. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 is Cleveland's top-rated brake shop with 4.9 stars from 1,700+ reviews. We offer competitive brake repair pricing with a 36-month warranty on parts and labor. Walk-ins welcome 7 days a week. Call (216) 862-0005."
       }
     ],
     relatedPages: ["brakes", "diagnostics-cleveland", "car-shaking-while-driving", "brakes-grinding"]
@@ -137,7 +137,7 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
       },
       {
         question: "Where can I find check engine light service near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 21300 Euclid Ave in Cleveland is open 7 days a week for check engine light diagnostics. We offer free code scans with repair and same-day service for most check engine light problems. Call (216) 862-0005 or walk in — no appointment needed."
+        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 is open 7 days a week for check engine light diagnostics. We offer free code scans with repair and same-day service for most check engine light problems. Call (216) 862-0005 or walk in — no appointment needed."
       }
     ],
     relatedPages: ["diagnostics", "emissions", "check-engine-light-flashing", "car-overheating"]

@@ -14,13 +14,13 @@ import { BUSINESS } from "@shared/business";
 
 // ─── SERVICE CARDS ────────────────────────────────────
 const SERVICE_CARDS = [
-  { key: "Tires — New, Used, Repair", label: "Tires", price: "See prices", icon: CircleDot },
+  { key: "Tires — New, Used, Repair", label: "Tires", price: "Used from $60", icon: CircleDot },
   { key: "Brake Repair", label: "Brakes", price: "Free inspection", icon: AlertCircle },
-  { key: "Check Engine Light / Diagnostics", label: "Diagnostics", price: "From $59.99", icon: Gauge },
-  { key: "Ohio E-Check / Emissions Repair", label: "Emissions", price: "From $24.99", icon: Thermometer },
-  { key: "Oil Change", label: "Oil Change", price: "From $39.99", icon: Droplets },
-  { key: "Suspension & Steering", label: "Suspension", price: "From $100", icon: Settings },
-  { key: "AC Repair", label: "AC", price: "From $100", icon: Thermometer },
+  { key: "Check Engine Light / Diagnostics", label: "Diagnostics", price: "Written estimate", icon: Gauge },
+  { key: "Ohio E-Check / Emissions Repair", label: "Emissions", price: "Walk-in today", icon: Thermometer },
+  { key: "Oil Change", label: "Oil Change", price: "Competitive pricing", icon: Droplets },
+  { key: "Suspension & Steering", label: "Suspension", price: "Free estimate", icon: Settings },
+  { key: "AC Repair", label: "AC", price: "Free estimate", icon: Thermometer },
   { key: "General Repair / Other", label: "General/Other", price: "Free estimate", icon: Wrench },
 ] as const;
 

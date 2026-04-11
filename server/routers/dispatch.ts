@@ -306,6 +306,20 @@ export const dispatchRouter = router({
       return { success: true };
     }),
 
+  recordDeclineOutreach: adminProcedure
+    .input(
+      z.object({
+        itemId: z.string(),
+        method: z.string(),
+        notes: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const { recordDeclineOutreach } = await import("../services/declinedWorkRecovery");
+      await recordDeclineOutreach(input);
+      return { success: true };
+    }),
+
   // ─── Invoice Reconciliation ───────────────────────
   reconcileWorkOrder: adminProcedure
     .input(z.object({ workOrderId: z.string() }))
