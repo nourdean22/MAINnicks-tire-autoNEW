@@ -10,6 +10,8 @@ import { captureUtmParams } from "@/lib/utm";
 import { NEIGHBORHOODS } from "@shared/neighborhoods";
 import { TIRE_SIZE_PAGES } from "@shared/tireSizes";
 import { VEHICLE_SERVICE_PAGES } from "@shared/vehicleServicePages";
+import { SkipToContent } from "@/components/SEO";
+import QuickAccessDock from "@/components/QuickAccessDock";
 
 // ─── LOADING FALLBACK ─────────────────────────────────
 function PageLoader() {
@@ -17,7 +19,9 @@ function PageLoader() {
     <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
         <div className="w-10 h-10 border-2 border-[#FDB913] border-t-transparent rounded-full animate-spin" />
-        <span className="text-[#A0A0A0] text-sm tracking-wider">LOADING...</span>
+        <span className="text-[#A0A0A0] text-sm tracking-wider">
+          LOADING...
+        </span>
       </div>
     </div>
   );
@@ -94,163 +98,231 @@ function Router() {
       >
         <Suspense fallback={<PageLoader />}>
           <Switch>
-        <Route path={"/"} component={Home} />
-        {/* Services overview page */}
-        <Route path={"/services"} component={ServicesOverview} />
-        {/* Individual service pages for SEO */}
-        <Route path={"/tires"} component={TireFinder} />
-        <Route path={"/brakes"} component={ServicePage} />
-        <Route path={"/diagnostics"} component={ServicePage} />
-        <Route path={"/emissions"} component={ServicePage} />
-        <Route path={"/oil-change"} component={ServicePage} />
-        <Route path={"/general-repair"} component={ServicePage} />
-        <Route path={"/ac-repair"} component={ServicePage} />
-        <Route path={"/transmission"} component={ServicePage} />
-        <Route path={"/electrical"} component={ServicePage} />
-        <Route path={"/battery"} component={ServicePage} />
-        <Route path={"/exhaust"} component={ServicePage} />
-        <Route path={"/cooling"} component={ServicePage} />
-        <Route path={"/pre-purchase-inspection"} component={ServicePage} />
-        <Route path={"/belts-hoses"} component={ServicePage} />
-        <Route path={"/starter-alternator"} component={ServicePage} />
-        <Route path={"/alignment"} component={AlignmentPage} />
-        {/* Booking / Appointment */}
-        <Route path={"/appointment"} component={BookingPage} />
-        <Route path={"/booking"} component={BookingPage} />
-        {/* Standalone pages */}
-        <Route path={"/contact"} component={Contact} />
-        <Route path={"/about"} component={About} />
-        {/* Admin dashboard */}
-        <Route path={"/admin"} component={Admin} />
-        <Route path={"/admin/content"} component={AdminContent} />
-        {/* City-specific landing pages for local SEO */}
-        <Route path={"/cleveland-auto-repair"} component={CityPage} />
-        <Route path={"/euclid-auto-repair"} component={CityPage} />
-        <Route path={"/lakewood-auto-repair"} component={CityPage} />
-        <Route path={"/parma-auto-repair"} component={CityPage} />
-        <Route path={"/east-cleveland-auto-repair"} component={CityPage} />
-        <Route path={"/shaker-heights-auto-repair"} component={CityPage} />
-        <Route path={"/cleveland-heights-auto-repair"} component={CityPage} />
-        <Route path={"/mentor-auto-repair"} component={CityPage} />
-        <Route path={"/strongsville-auto-repair"} component={CityPage} />
-        <Route path={"/south-euclid-auto-repair"} component={CityPage} />
-        <Route path={"/garfield-heights-auto-repair"} component={CityPage} />
-        <Route path={"/richmond-heights-auto-repair"} component={CityPage} />
-        <Route path={"/lyndhurst-auto-repair"} component={CityPage} />
-        <Route path={"/willoughby-auto-repair"} component={CityPage} />
-        <Route path={"/maple-heights-auto-repair"} component={CityPage} />
-        <Route path={"/bedford-auto-repair"} component={CityPage} />
-        <Route path={"/warrensville-heights-auto-repair"} component={CityPage} />
-        {/* Seasonal landing pages */}
-        <Route path={"/winter-car-care-cleveland"} component={SeasonalPage} />
-        <Route path={"/summer-car-care-cleveland"} component={SeasonalPage} />
-        {/* Dedicated SEO service pages (long-tail keywords) */}
-        <Route path={"/brake-repair-cleveland"} component={SEOServicePage} />
-        <Route path={"/check-engine-light-cleveland"} component={SEOServicePage} />
-        <Route path={"/tire-repair-cleveland"} component={SEOServicePage} />
-        <Route path={"/suspension-repair-cleveland"} component={SEOServicePage} />
-        <Route path={"/ac-repair-cleveland"} component={SEOServicePage} />
-        <Route path={"/diagnostics-cleveland"} component={SEOServicePage} />
-        {/* Vehicle make pages */}
-        <Route path={"/toyota-repair-cleveland"} component={VehicleMakePage} />
-        <Route path={"/honda-repair-cleveland"} component={VehicleMakePage} />
-        <Route path={"/ford-repair-cleveland"} component={VehicleMakePage} />
-        <Route path={"/chevy-repair-cleveland"} component={VehicleMakePage} />
-        <Route path={"/nissan-repair-cleveland"} component={VehicleMakePage} />
-        <Route path={"/hyundai-repair-cleveland"} component={VehicleMakePage} />
-        <Route path={"/kia-repair-cleveland"} component={VehicleMakePage} />
-        <Route path={"/jeep-repair-cleveland"} component={VehicleMakePage} />
-        <Route path={"/bmw-repair-cleveland"} component={VehicleMakePage} />
-        <Route path={"/dodge-ram-repair-cleveland"} component={VehicleMakePage} />
-        {/* Problem-specific pages */}
-        <Route path={"/car-shaking-while-driving"} component={ProblemPage} />
-        <Route path={"/brakes-grinding"} component={ProblemPage} />
-        <Route path={"/check-engine-light-flashing"} component={ProblemPage} />
-        <Route path={"/car-overheating"} component={ProblemPage} />
-        <Route path={"/car-wont-start"} component={ProblemPage} />
-        <Route path={"/steering-wheel-shaking"} component={ProblemPage} />
-        <Route path={"/car-pulling-to-one-side"} component={ProblemPage} />
-        <Route path={"/transmission-slipping"} component={ProblemPage} />
-        <Route path={"/ac-not-blowing-cold"} component={ProblemPage} />
-        <Route path={"/battery-keeps-dying"} component={ProblemPage} />
-        <Route path={"/oil-leak-under-car"} component={ProblemPage} />
-        <Route path={"/grinding-noise-when-braking"} component={ProblemPage} />
-        <Route path={"/check-engine-light-on"} component={ProblemPage} />
-        {/* Reviews page */}
-        <Route path={"/reviews"} component={ReviewsPage} />
-        {/* Diagnostic tool */}
-        <Route path={"/diagnose"} component={DiagnosePage} />
-        {/* Specials & Coupons */}
-        <Route path={"/specials"} component={SpecialsPage} />
-        {/* My Garage */}
-        <Route path={"/my-garage"} component={MyGaragePage} />
-        {/* Referral Program */}
-        <Route path={"/refer"} component={ReferralPage} />
-        {/* Ask a Mechanic */}
-        <Route path={"/ask"} component={AskMechanicPage} />
-        {/* Car Care Guide */}
-        <Route path={"/car-care-guide"} component={CarCareGuidePage} />
-        {/* Review Generation */}
-        <Route path={"/review"} component={ReviewPage} />
-        {/* Status Tracker */}
-        <Route path={"/status"} component={StatusTracker} />
-        <Route path={"/track"} component={TrackJob} />
-        {/* Price Estimator */}
-        <Route path={"/pricing"} component={PriceEstimator} />
-        <Route path={"/estimate"} component={LaborEstimator} />
-        {/* Digital Inspection Reports */}
-        <Route path={"/inspection/:token"} component={InspectionReport} />
-        {/* Fleet & Commercial */}
-        <Route path={"/fleet"} component={Fleet} />
-        {/* Financing */}
-        <Route path={"/financing"} component={Financing} />
-        {/* Loyalty Rewards */}
-        <Route path={"/rewards"} component={Loyalty} />
-        {/* Customer Portal */}
-        <Route path={"/portal"} component={CustomerPortal} />
-        {/* Tire Info (service page) */}
-        <Route path={"/tires/info"} component={ServicePage} />
-        {/* Tire size pages (30 pages — programmatic SEO) */}
-        <Route path={"/tires/:size"} component={TireSizePage} />
-        {/* FAQ page */}
-        <Route path={"/faq"} component={FAQ} />
-        {/* Blog / Tips */}
-        <Route path={"/blog"} component={Blog} />
-        <Route path={"/blog/:slug"} component={BlogPost} />
-        {/* Guides */}
-        <Route path={"/guides"} component={GuidesIndex} />
-        <Route path={"/guides/:slug"} component={GuidePage} />
-        {/* Phase 5: Cost Estimator */}
-        <Route path={"/cost-estimator"} component={CostEstimator} />
-        {/* Phase 5: Google Ads Landing Pages (no nav, conversion-only) */}
-        <Route path={"/lp/brakes"} component={LandingPage} />
-        <Route path={"/lp/tires"} component={LandingPage} />
-        <Route path={"/lp/diagnostics"} component={LandingPage} />
-        <Route path={"/lp/emergency"} component={LandingPage} />
-        {/* Phase 5: Share My Repair card */}
-        <Route path={"/share/:token"} component={SharePage} />
-        {/* Areas Served hub — links to all city/neighborhood/intersection pages */}
-        <Route path={"/areas-served"} component={AreasServed} />
-        <Route path={"/pay"} component={PayInvoice} />
-        {/* Vehicle + Service combo pages (50 pages — programmatic SEO) */}
-        {VEHICLE_SERVICE_PAGES.map((p) => (
-          <Route key={p.slug} path={`/${p.slug}`} component={VehicleServicePage} />
-        ))}
-        {/* Neighborhood micro-pages — dynamic from NEIGHBORHOODS data (61 pages) */}
-        {NEIGHBORHOODS.map((n) => (
-          <Route key={n.slug} path={`/${n.slug}`} component={NeighborhoodPage} />
-        ))}
-        {/* Intersection pages (hyper-local SEO — /near/:slug) */}
-        <Route path={"/near/:slug"} component={IntersectionPage} />
-        {/* Careers */}
-        <Route path={"/careers"} component={Careers} />
-        {/* Legal pages */}
-        <Route path={"/privacy-policy"} component={PrivacyPolicy} />
-        <Route path={"/terms"} component={Terms} />
-        <Route path={"/404"} component={NotFound} />
-        {/* Final fallback route */}
-        <Route component={NotFound} />
-      </Switch>
+            <Route path={"/"} component={Home} />
+            {/* Services overview page */}
+            <Route path={"/services"} component={ServicesOverview} />
+            {/* Individual service pages for SEO */}
+            <Route path={"/tires"} component={TireFinder} />
+            <Route path={"/brakes"} component={ServicePage} />
+            <Route path={"/diagnostics"} component={ServicePage} />
+            <Route path={"/emissions"} component={ServicePage} />
+            <Route path={"/oil-change"} component={ServicePage} />
+            <Route path={"/general-repair"} component={ServicePage} />
+            <Route path={"/ac-repair"} component={ServicePage} />
+            <Route path={"/transmission"} component={ServicePage} />
+            <Route path={"/electrical"} component={ServicePage} />
+            <Route path={"/battery"} component={ServicePage} />
+            <Route path={"/exhaust"} component={ServicePage} />
+            <Route path={"/cooling"} component={ServicePage} />
+            <Route path={"/pre-purchase-inspection"} component={ServicePage} />
+            <Route path={"/belts-hoses"} component={ServicePage} />
+            <Route path={"/starter-alternator"} component={ServicePage} />
+            <Route path={"/alignment"} component={AlignmentPage} />
+            {/* Booking / Appointment */}
+            <Route path={"/appointment"} component={BookingPage} />
+            <Route path={"/booking"} component={BookingPage} />
+            {/* Standalone pages */}
+            <Route path={"/contact"} component={Contact} />
+            <Route path={"/about"} component={About} />
+            {/* Admin dashboard */}
+            <Route path={"/admin"} component={Admin} />
+            <Route path={"/admin/content"} component={AdminContent} />
+            {/* City-specific landing pages for local SEO */}
+            <Route path={"/cleveland-auto-repair"} component={CityPage} />
+            <Route path={"/euclid-auto-repair"} component={CityPage} />
+            <Route path={"/lakewood-auto-repair"} component={CityPage} />
+            <Route path={"/parma-auto-repair"} component={CityPage} />
+            <Route path={"/east-cleveland-auto-repair"} component={CityPage} />
+            <Route path={"/shaker-heights-auto-repair"} component={CityPage} />
+            <Route
+              path={"/cleveland-heights-auto-repair"}
+              component={CityPage}
+            />
+            <Route path={"/mentor-auto-repair"} component={CityPage} />
+            <Route path={"/strongsville-auto-repair"} component={CityPage} />
+            <Route path={"/south-euclid-auto-repair"} component={CityPage} />
+            <Route
+              path={"/garfield-heights-auto-repair"}
+              component={CityPage}
+            />
+            <Route
+              path={"/richmond-heights-auto-repair"}
+              component={CityPage}
+            />
+            <Route path={"/lyndhurst-auto-repair"} component={CityPage} />
+            <Route path={"/willoughby-auto-repair"} component={CityPage} />
+            <Route path={"/maple-heights-auto-repair"} component={CityPage} />
+            <Route path={"/bedford-auto-repair"} component={CityPage} />
+            <Route
+              path={"/warrensville-heights-auto-repair"}
+              component={CityPage}
+            />
+            {/* Seasonal landing pages */}
+            <Route
+              path={"/winter-car-care-cleveland"}
+              component={SeasonalPage}
+            />
+            <Route
+              path={"/summer-car-care-cleveland"}
+              component={SeasonalPage}
+            />
+            {/* Dedicated SEO service pages (long-tail keywords) */}
+            <Route
+              path={"/brake-repair-cleveland"}
+              component={SEOServicePage}
+            />
+            <Route
+              path={"/check-engine-light-cleveland"}
+              component={SEOServicePage}
+            />
+            <Route path={"/tire-repair-cleveland"} component={SEOServicePage} />
+            <Route
+              path={"/suspension-repair-cleveland"}
+              component={SEOServicePage}
+            />
+            <Route path={"/ac-repair-cleveland"} component={SEOServicePage} />
+            <Route path={"/diagnostics-cleveland"} component={SEOServicePage} />
+            {/* Vehicle make pages */}
+            <Route
+              path={"/toyota-repair-cleveland"}
+              component={VehicleMakePage}
+            />
+            <Route
+              path={"/honda-repair-cleveland"}
+              component={VehicleMakePage}
+            />
+            <Route
+              path={"/ford-repair-cleveland"}
+              component={VehicleMakePage}
+            />
+            <Route
+              path={"/chevy-repair-cleveland"}
+              component={VehicleMakePage}
+            />
+            <Route
+              path={"/nissan-repair-cleveland"}
+              component={VehicleMakePage}
+            />
+            <Route
+              path={"/hyundai-repair-cleveland"}
+              component={VehicleMakePage}
+            />
+            <Route path={"/kia-repair-cleveland"} component={VehicleMakePage} />
+            <Route
+              path={"/jeep-repair-cleveland"}
+              component={VehicleMakePage}
+            />
+            <Route path={"/bmw-repair-cleveland"} component={VehicleMakePage} />
+            <Route
+              path={"/dodge-ram-repair-cleveland"}
+              component={VehicleMakePage}
+            />
+            {/* Problem-specific pages */}
+            <Route
+              path={"/car-shaking-while-driving"}
+              component={ProblemPage}
+            />
+            <Route path={"/brakes-grinding"} component={ProblemPage} />
+            <Route
+              path={"/check-engine-light-flashing"}
+              component={ProblemPage}
+            />
+            <Route path={"/car-overheating"} component={ProblemPage} />
+            <Route path={"/car-wont-start"} component={ProblemPage} />
+            <Route path={"/steering-wheel-shaking"} component={ProblemPage} />
+            <Route path={"/car-pulling-to-one-side"} component={ProblemPage} />
+            <Route path={"/transmission-slipping"} component={ProblemPage} />
+            <Route path={"/ac-not-blowing-cold"} component={ProblemPage} />
+            <Route path={"/battery-keeps-dying"} component={ProblemPage} />
+            <Route path={"/oil-leak-under-car"} component={ProblemPage} />
+            <Route
+              path={"/grinding-noise-when-braking"}
+              component={ProblemPage}
+            />
+            <Route path={"/check-engine-light-on"} component={ProblemPage} />
+            {/* Reviews page */}
+            <Route path={"/reviews"} component={ReviewsPage} />
+            {/* Diagnostic tool */}
+            <Route path={"/diagnose"} component={DiagnosePage} />
+            {/* Specials & Coupons */}
+            <Route path={"/specials"} component={SpecialsPage} />
+            {/* My Garage */}
+            <Route path={"/my-garage"} component={MyGaragePage} />
+            {/* Referral Program */}
+            <Route path={"/refer"} component={ReferralPage} />
+            {/* Ask a Mechanic */}
+            <Route path={"/ask"} component={AskMechanicPage} />
+            {/* Car Care Guide */}
+            <Route path={"/car-care-guide"} component={CarCareGuidePage} />
+            {/* Review Generation */}
+            <Route path={"/review"} component={ReviewPage} />
+            {/* Status Tracker */}
+            <Route path={"/status"} component={StatusTracker} />
+            <Route path={"/track"} component={TrackJob} />
+            {/* Price Estimator */}
+            <Route path={"/pricing"} component={PriceEstimator} />
+            <Route path={"/estimate"} component={LaborEstimator} />
+            {/* Digital Inspection Reports */}
+            <Route path={"/inspection/:token"} component={InspectionReport} />
+            {/* Fleet & Commercial */}
+            <Route path={"/fleet"} component={Fleet} />
+            {/* Financing */}
+            <Route path={"/financing"} component={Financing} />
+            {/* Loyalty Rewards */}
+            <Route path={"/rewards"} component={Loyalty} />
+            {/* Customer Portal */}
+            <Route path={"/portal"} component={CustomerPortal} />
+            {/* Tire Info (service page) */}
+            <Route path={"/tires/info"} component={ServicePage} />
+            {/* Tire size pages (30 pages — programmatic SEO) */}
+            <Route path={"/tires/:size"} component={TireSizePage} />
+            {/* FAQ page */}
+            <Route path={"/faq"} component={FAQ} />
+            {/* Blog / Tips */}
+            <Route path={"/blog"} component={Blog} />
+            <Route path={"/blog/:slug"} component={BlogPost} />
+            {/* Guides */}
+            <Route path={"/guides"} component={GuidesIndex} />
+            <Route path={"/guides/:slug"} component={GuidePage} />
+            {/* Phase 5: Cost Estimator */}
+            <Route path={"/cost-estimator"} component={CostEstimator} />
+            {/* Phase 5: Google Ads Landing Pages (no nav, conversion-only) */}
+            <Route path={"/lp/brakes"} component={LandingPage} />
+            <Route path={"/lp/tires"} component={LandingPage} />
+            <Route path={"/lp/diagnostics"} component={LandingPage} />
+            <Route path={"/lp/emergency"} component={LandingPage} />
+            {/* Phase 5: Share My Repair card */}
+            <Route path={"/share/:token"} component={SharePage} />
+            {/* Areas Served hub — links to all city/neighborhood/intersection pages */}
+            <Route path={"/areas-served"} component={AreasServed} />
+            <Route path={"/pay"} component={PayInvoice} />
+            {/* Vehicle + Service combo pages (50 pages — programmatic SEO) */}
+            {VEHICLE_SERVICE_PAGES.map(p => (
+              <Route
+                key={p.slug}
+                path={`/${p.slug}`}
+                component={VehicleServicePage}
+              />
+            ))}
+            {/* Neighborhood micro-pages — dynamic from NEIGHBORHOODS data (61 pages) */}
+            {NEIGHBORHOODS.map(n => (
+              <Route
+                key={n.slug}
+                path={`/${n.slug}`}
+                component={NeighborhoodPage}
+              />
+            ))}
+            {/* Intersection pages (hyper-local SEO — /near/:slug) */}
+            <Route path={"/near/:slug"} component={IntersectionPage} />
+            {/* Careers */}
+            <Route path={"/careers"} component={Careers} />
+            {/* Legal pages */}
+            <Route path={"/privacy-policy"} component={PrivacyPolicy} />
+            <Route path={"/terms"} component={Terms} />
+            <Route path={"/404"} component={NotFound} />
+            {/* Final fallback route */}
+            <Route component={NotFound} />
+          </Switch>
         </Suspense>
       </motion.div>
     </AnimatePresence>
@@ -267,8 +339,10 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
+          <SkipToContent />
           <Toaster />
           <Router />
+          <QuickAccessDock />
           <EmergencyMode />
         </TooltipProvider>
       </ThemeProvider>
