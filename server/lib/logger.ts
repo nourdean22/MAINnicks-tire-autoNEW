@@ -2,7 +2,7 @@
  * Structured Logger — Container-friendly JSON logging
  *
  * - JSON output in production, pretty-print in dev
- * - Request ID tracing via createRequestLogger()
+ * - Child loggers via createLogger(module).child(...)
  * - Named child loggers via createLogger(module)
  * - Levels: debug, info, warn, error, fatal
  */

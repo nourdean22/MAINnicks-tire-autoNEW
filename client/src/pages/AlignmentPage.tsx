@@ -224,7 +224,7 @@ function FAQSection() {
     },
     {
       question: "Where can I get wheel alignment near me in Cleveland?",
-      answer: "Nick's Tire & Auto at 21300 Euclid Ave, Cleveland offers professional wheel alignment at competitive prices. We use computerized alignment equipment and adjust all wheels to manufacturer specifications. Walk-ins welcome 7 days a week, same-day service on most alignments. Call (216) 862-0005.",
+      answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 offers professional wheel alignment at competitive prices. We use computerized alignment equipment and adjust all wheels to manufacturer specifications. Walk-ins welcome 7 days a week, same-day service on most alignments. Call (216) 862-0005.",
     },
     {
       question: "How much does wheel alignment cost in Cleveland?",

@@ -48,8 +48,8 @@ export const BUSINESS = {
 
   // ─── HOURS ───────────────────────────────────────────
   hours: {
-    display: "Mon–Sat 8AM–6PM",
-    shortDisplay: "Mon–Sat 8–6",
+    display: "7 days — Mon–Sat 8AM–6PM, Sun 9AM–4PM",
+    shortDisplay: "7 days · 8AM start",
     fullDisplay: "Monday–Saturday: 8:00 AM–6:00 PM | Sunday: 9:00 AM–4:00 PM",
     sunday: "Sun 9AM–4PM",
     structured: {
@@ -66,8 +66,8 @@ export const BUSINESS = {
   // ─── REVIEWS ─────────────────────────────────────────
   reviews: {
     rating: 4.9,
-    count: 1685,
-    countDisplay: "1,685+",
+    count: 1700,
+    countDisplay: "1,700+",
     source: "Google",
     url: "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid",
   },
