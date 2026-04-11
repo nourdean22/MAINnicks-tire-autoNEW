@@ -74,6 +74,9 @@ export const FLAG_DEFINITIONS = [
   { key: "drop_off_sms_flow", description: "Automated drop-off → status → pickup SMS sequence" },
   { key: "uber_integration_cta", description: "Suggest Uber/Lyft after drop-off" },
 
+  // ─── AUTOMATION KILL SWITCHES ─────────────────────
+  { key: "auto_invoice_on_completion", description: "Auto-create invoice when booking is marked completed" },
+
   // ─── ADMIN / CEO FLAGS ────────────────────────────
   { key: "live_telegram_feed", description: "Real-time closed job notifications to Telegram" },
   { key: "daily_wins_digest", description: "End-of-day wins summary to Telegram" },
@@ -127,8 +130,10 @@ async function refreshCache(): Promise<void> {
 /**
  * All flags start DISABLED. Nour enables manually after QA review.
  * Use the admin Feature Flags panel (ShopDriver HQ) to toggle.
+ * Exception: auto_invoice_on_completion starts ENABLED (preserves existing behavior).
+ * Nour can disable it instantly from the Feature Flags panel if invoicing breaks.
  */
-const AUTO_ENABLE_FLAGS: string[] = [];
+const AUTO_ENABLE_FLAGS: string[] = ["auto_invoice_on_completion"];
 
 /** Seed all flags — idempotent (skips existing). High-value flags auto-enable. */
 export async function seedFlags(): Promise<{ seeded: number; skipped: number }> {
