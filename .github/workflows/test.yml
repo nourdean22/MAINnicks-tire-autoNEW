@@ -10,6 +10,9 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - uses: actions/checkout@v4
@@ -25,21 +28,31 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Validate env contract (template)
-        run: pnpm env:validate 2>&1 | tee /tmp/env-output.txt
+        run: |
+          set -o pipefail
+          pnpm env:validate 2>&1 | tee /tmp/env-output.txt
 
       - name: TypeScript check
-        run: pnpm check 2>&1 | tee /tmp/check-output.txt
+        run: |
+          set -o pipefail
+          pnpm check 2>&1 | tee /tmp/check-output.txt
 
       - name: Lint / format check
-        run: pnpm lint 2>&1 | tee /tmp/lint-output.txt
+        run: |
+          set -o pipefail
+          pnpm lint 2>&1 | tee /tmp/lint-output.txt
 
       - name: Run tests
-        run: pnpm test -- --reporter=verbose 2>&1 | tee /tmp/test-output.txt
+        run: |
+          set -o pipefail
+          pnpm test -- --reporter=verbose 2>&1 | tee /tmp/test-output.txt
         env:
           NO_COLOR: 1
 
       - name: Build
-        run: pnpm build 2>&1 | tee /tmp/build-output.txt
+        run: |
+          set -o pipefail
+          pnpm build 2>&1 | tee /tmp/build-output.txt
 
       - name: Upload logs on failure
         if: failure()
