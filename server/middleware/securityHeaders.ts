@@ -27,13 +27,15 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
 
   // Content Security Policy
+  // unsafe-inline required for GA4/Meta Pixel inline scripts + Tailwind inline styles
+  // unsafe-eval REMOVED — not needed in production (only Vite dev HMR)
   res.setHeader("Content-Security-Policy", [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://www.google-analytics.com",
+    "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://connect.facebook.net https://www.google-analytics.com https://analytics.ahrefs.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https: http:",
-    "connect-src 'self' https://www.google-analytics.com https://www.facebook.com https://d2xsxph8kpxj0f.cloudfront.net https://api.nhtsa.gov",
+    "img-src 'self' data: blob: https:",
+    "connect-src 'self' https://www.google-analytics.com https://www.facebook.com https://d2xsxph8kpxj0f.cloudfront.net https://api.nhtsa.gov https://analytics.ahrefs.com",
     "frame-src https://www.google.com https://maps.google.com",
     "media-src 'self' blob:",
     "frame-ancestors 'none'",

@@ -195,24 +195,32 @@ export async function generateCrossSellRecommendations() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 20);
 
+  // Pre-fetch all customer names/phones (eliminates N+1 per pattern match)
+  const custLookup = await (await db()).select({
+    id: customers.id,
+    firstName: customers.firstName,
+    lastName: customers.lastName,
+    phone: customers.phone,
+  }).from(customers);
+  type CustEntry = typeof custLookup[number];
+  const custMap = new Map<string, CustEntry>(custLookup.map((c: CustEntry) => [c.id.toString(), c]));
+
   // Find customers due for cross-sell
   const recommendations: { customerId: string; phone: string; name: string; service: string; reason: string; urgency: string }[] = [];
 
   for (const pattern of patterns.slice(0, 10)) {
-    // Find customers who got the "from" service but not the "to" service yet
     for (const [custKey, timeline] of Object.entries(customerServices)) {
       const lastFrom = [...timeline].reverse().find(t => t.categories.includes(pattern.from));
       const hasTo = timeline.some(t => t.categories.includes(pattern.to) && t.date > (lastFrom?.date || new Date(0)));
       if (lastFrom && !hasTo) {
         const daysSince = Math.floor((Date.now() - lastFrom.date.getTime()) / 86400000);
         if (daysSince >= pattern.avgDays * 0.8 && daysSince <= pattern.avgDays * 1.5) {
-          const cust = await (await db()).select({ firstName: customers.firstName, lastName: customers.lastName, phone: customers.phone })
-            .from(customers).where(eq(customers.id, parseInt(custKey) || 0)).limit(1);
-          if (cust[0]) {
+          const cust = custMap.get(custKey);
+          if (cust) {
             recommendations.push({
               customerId: custKey,
-              phone: cust[0].phone || "",
-              name: `${cust[0].firstName || ""} ${cust[0].lastName || ""}`.trim(),
+              phone: cust.phone || "",
+              name: `${cust.firstName || ""} ${cust.lastName || ""}`.trim(),
               service: pattern.to,
               reason: `Got ${pattern.from} ${daysSince}d ago — ${pattern.count} customers followed up with ${pattern.to} around this time`,
               urgency: daysSince > pattern.avgDays ? "overdue" : "upcoming",
@@ -240,10 +248,24 @@ const SOURCE_QUALITY: Record<string, number> = {
 };
 
 export async function scoreLeads() {
-  const openLeads = await (await db()).select().from(leads)
+  const d = await db();
+  const openLeads = await d.select().from(leads)
     .where(sql`${leads.status} IN ('new', 'contacted')`);
 
-  const scored = await Promise.all(openLeads.map(async (lead: typeof openLeads[number]) => {
+  // Pre-fetch all customers with phone numbers (eliminates N+1 per lead)
+  const allCustomers = await d.select({
+    phone: customers.phone,
+    totalSpent: customers.totalSpent,
+    totalVisits: customers.totalVisits,
+  }).from(customers).where(sql`${customers.phone} IS NOT NULL AND ${customers.phone} != ''`);
+
+  // Build phone lookup map (last 10 digits → customer data)
+  const customerByPhone = new Map<string, { totalSpent: number | null; totalVisits: number | null }>();
+  for (const c of allCustomers) {
+    if (c.phone) customerByPhone.set(c.phone.slice(-10), c);
+  }
+
+  const scored = openLeads.map((lead: typeof openLeads[number]) => {
     let score = 0;
     const factors: string[] = [];
 
@@ -259,14 +281,13 @@ export async function scoreLeads() {
     score += sourcePoints;
     factors.push(`source:${sourcePoints}`);
 
-    // 3. Existing customer bonus (0-15 points)
+    // 3. Existing customer bonus (0-15 points) — lookup from pre-fetched map
     let existingBonus = 0;
     if (lead.phone) {
-      const existing = await (await db()).select({ totalSpent: customers.totalSpent, totalVisits: customers.totalVisits })
-        .from(customers).where(sql`RIGHT(${customers.phone}, 10) = RIGHT(${lead.phone}, 10)`).limit(1);
-      if (existing[0]) {
-        existingBonus = Math.min(15, Math.round((existing[0].totalSpent || 0) / 100 / 100)); // $1 = 0.01 points, max 15
-        if (existingBonus < 5 && (existing[0].totalVisits || 0) > 0) existingBonus = 5; // min 5 for any existing customer
+      const existing = customerByPhone.get(lead.phone.slice(-10));
+      if (existing) {
+        existingBonus = Math.min(15, Math.round((existing.totalSpent || 0) / 100 / 100));
+        if (existingBonus < 5 && (existing.totalVisits || 0) > 0) existingBonus = 5;
       }
     }
     score += existingBonus;
@@ -291,14 +312,21 @@ export async function scoreLeads() {
     if (decay < 0) factors.push(`decay:${decay}`);
 
     return { id: lead.id, name: lead.name, phone: lead.phone, score: Math.max(0, Math.min(100, score)), factors, vehicle: lead.vehicle, problem: lead.problem };
-  }));
+  });
 
-  // Update urgencyScore in DB for top leads
+  // Batch UPDATE urgencyScore — one query per score value instead of one per lead
+  const scoreGroups = new Map<number, number[]>();
   for (const s of scored) {
-    await (await db()).update(leads).set({ urgencyScore: s.score }).where(eq(leads.id, s.id));
+    const ids = scoreGroups.get(s.score) || [];
+    ids.push(s.id);
+    scoreGroups.set(s.score, ids);
+  }
+  for (const [score, ids] of scoreGroups) {
+    await d.execute(sql`UPDATE leads SET urgencyScore = ${score} WHERE id IN (${sql.raw(ids.join(","))})`);
   }
 
-  return scored.sort((a, b) => b.score - a.score);
+  type ScoredLead = typeof scored[number];
+  return scored.sort((a: ScoredLead, b: ScoredLead) => b.score - a.score);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -306,8 +334,10 @@ export async function scoreLeads() {
 // ═══════════════════════════════════════════════════════════
 
 export async function trackCampaignAttribution() {
-  // Find review requests that were sent + subsequent bookings/invoices within 14 days
-  const sentReviews = await (await db()).select().from(reviewRequests)
+  const d = await db();
+
+  // Find review requests that were sent in last 90 days
+  const sentReviews = await d.select().from(reviewRequests)
     .where(and(eq(reviewRequests.status, "sent"), gte(reviewRequests.sentAt, sql`DATE_SUB(NOW(), INTERVAL 90 DAY)`)));
 
   const reviewAttribution: { sent: number; clicked: number; bookedAfter: number; revenueGenerated: number } = {
@@ -317,24 +347,61 @@ export async function trackCampaignAttribution() {
     revenueGenerated: 0,
   };
 
-  // Check if review request customers booked again within 30 days
-  for (const rev of sentReviews) {
-    if (!rev.phone) continue;
-    const followUp = await (await db()).select({ id: bookings.id }).from(bookings)
-      .where(and(
-        sql`RIGHT(${bookings.phone}, 10) = RIGHT(${rev.phone}, 10)`,
-        gte(bookings.createdAt, rev.sentAt!),
-        lte(bookings.createdAt, sql`DATE_ADD(${rev.sentAt}, INTERVAL 30 DAY)`)
-      )).limit(1);
-    if (followUp.length > 0) reviewAttribution.bookedAfter++;
+  // Pre-fetch ALL bookings from last 90 days with phone numbers (eliminates N+1 per review)
+  const recentBookings = await d.select({
+    phone: bookings.phone,
+    createdAt: bookings.createdAt,
+  }).from(bookings)
+    .where(gte(bookings.createdAt, sql`DATE_SUB(NOW(), INTERVAL 90 DAY)`));
+
+  // Build phone → booking dates map for fast in-memory matching
+  const bookingsByPhone = new Map<string, Date[]>();
+  for (const b of recentBookings) {
+    if (!b.phone) continue;
+    const key = b.phone.slice(-10);
+    const dates = bookingsByPhone.get(key) || [];
+    dates.push(new Date(b.createdAt));
+    bookingsByPhone.set(key, dates);
   }
 
-  // SMS campaign attribution — find customers who received campaign SMS and then booked
-  const campaignSms = await (await db()).select({
+  // Match reviews to bookings in memory (was N+1 DB queries)
+  for (const rev of sentReviews) {
+    if (!rev.phone || !rev.sentAt) continue;
+    const phoneKey = rev.phone.slice(-10);
+    const custBookings = bookingsByPhone.get(phoneKey);
+    if (custBookings) {
+      const sentDate = new Date(rev.sentAt);
+      const cutoff = new Date(sentDate.getTime() + 30 * 86400000);
+      if (custBookings.some(d => d >= sentDate && d <= cutoff)) {
+        reviewAttribution.bookedAfter++;
+      }
+    }
+  }
+
+  // SMS campaign attribution
+  const campaignSms = await d.select({
     phone: customers.phone,
     campaignDate: customers.smsCampaignDate,
   }).from(customers)
     .where(and(eq(customers.smsCampaignSent, 1), gte(customers.smsCampaignDate, sql`DATE_SUB(NOW(), INTERVAL 90 DAY)`)));
+
+  // Pre-fetch ALL invoices from last 90 days with phone + amounts (eliminates N+1)
+  const recentInvoices = await d.select({
+    customerPhone: invoices.customerPhone,
+    invoiceDate: invoices.invoiceDate,
+    totalAmount: invoices.totalAmount,
+  }).from(invoices)
+    .where(gte(invoices.invoiceDate, sql`DATE_SUB(NOW(), INTERVAL 90 DAY)`));
+
+  // Build phone → invoice data map
+  const invoicesByPhone = new Map<string, { date: Date; amount: number }[]>();
+  for (const inv of recentInvoices) {
+    if (!inv.customerPhone || !inv.invoiceDate) continue;
+    const key = inv.customerPhone.slice(-10);
+    const entries = invoicesByPhone.get(key) || [];
+    entries.push({ date: new Date(inv.invoiceDate), amount: inv.totalAmount || 0 });
+    invoicesByPhone.set(key, entries);
+  }
 
   const smsAttribution: { sent: number; bookedAfter: number; revenueAfter: number } = {
     sent: campaignSms.length,
@@ -342,17 +409,19 @@ export async function trackCampaignAttribution() {
     revenueAfter: 0,
   };
 
+  // Match campaign SMS to invoices in memory (was N+1 DB queries — the biggest bottleneck)
   for (const c of campaignSms) {
     if (!c.phone || !c.campaignDate) continue;
-    const followInvoice = await (await db()).select({ total: invoices.totalAmount }).from(invoices)
-      .where(and(
-        sql`RIGHT(${invoices.customerPhone}, 10) = RIGHT(${c.phone}, 10)`,
-        gte(invoices.invoiceDate, c.campaignDate),
-        lte(invoices.invoiceDate, sql`DATE_ADD(${c.campaignDate}, INTERVAL 14 DAY)`)
-      ));
-    if (followInvoice.length > 0) {
-      smsAttribution.bookedAfter++;
-      smsAttribution.revenueAfter += followInvoice.reduce((s: number, i: typeof followInvoice[number]) => s + (i.total || 0), 0) / 100;
+    const phoneKey = c.phone.slice(-10);
+    const custInvoices = invoicesByPhone.get(phoneKey);
+    if (custInvoices) {
+      const campDate = new Date(c.campaignDate);
+      const cutoff = new Date(campDate.getTime() + 14 * 86400000);
+      const matched = custInvoices.filter(inv => inv.date >= campDate && inv.date <= cutoff);
+      if (matched.length > 0) {
+        smsAttribution.bookedAfter++;
+        smsAttribution.revenueAfter += matched.reduce((s, inv) => s + inv.amount, 0) / 100;
+      }
     }
   }
 
@@ -423,14 +492,21 @@ export async function predictCustomerLTV() {
       };
     });
 
-    // Update customer_metrics in background (fire-and-forget, don't block the response)
+    // Batch UPDATE customer_metrics by churnRisk group (eliminates N+1)
     const dbRef = await db();
     Promise.resolve().then(async () => {
       try {
+        const groups: Record<string, { ids: number[]; isVip: number }> = {};
         for (const s of scored.slice(0, 200)) {
-          await dbRef.update(customerMetrics)
-            .set({ churnRisk: s.churnRisk as "low" | "medium" | "high", isVip: s.ltvScore >= 70 ? 1 : 0 })
-            .where(eq(customerMetrics.customerId, s.id));
+          const key = `${s.churnRisk}:${s.ltvScore >= 70 ? 1 : 0}`;
+          if (!groups[key]) groups[key] = { ids: [], isVip: s.ltvScore >= 70 ? 1 : 0 };
+          groups[key].ids.push(s.id);
+        }
+        for (const [key, group] of Object.entries(groups)) {
+          const risk = key.split(":")[0] as "low" | "medium" | "high";
+          if (group.ids.length > 0) {
+            await dbRef.execute(sql`UPDATE customer_metrics SET churnRisk = ${risk}, isVip = ${group.isVip} WHERE customerId IN (${sql.raw(group.ids.join(","))})`);
+          }
         }
       } catch (e) {
         console.error("[intelligence:ltv] background metrics update failed:", e);
@@ -494,28 +570,45 @@ export async function analyzeChatDemand() {
 
 /** Click-to-call → booking attribution */
 export async function analyzeCallAttribution() {
-  const calls = await (await db()).select().from(callEvents)
+  const d = await db();
+  const calls = await d.select().from(callEvents)
     .where(gte(callEvents.createdAt, sql`DATE_SUB(NOW(), INTERVAL 30 DAY)`));
 
   // Match calls to bookings by phone within 24 hours
   let attributed = 0;
   const pagePerformance: Record<string, { calls: number; bookings: number }> = {};
 
+  // Reuse the bookingsByPhone map pattern — pre-fetch bookings once
+  const recentCallBookings = await d.select({
+    phone: bookings.phone,
+    createdAt: bookings.createdAt,
+  }).from(bookings)
+    .where(gte(bookings.createdAt, sql`DATE_SUB(NOW(), INTERVAL 30 DAY)`));
+
+  const callBookingsByPhone = new Map<string, Date[]>();
+  for (const b of recentCallBookings) {
+    if (!b.phone) continue;
+    const key = b.phone.slice(-10);
+    const dates = callBookingsByPhone.get(key) || [];
+    dates.push(new Date(b.createdAt));
+    callBookingsByPhone.set(key, dates);
+  }
+
   for (const call of calls) {
     const page = call.sourcePage || "unknown";
     if (!pagePerformance[page]) pagePerformance[page] = { calls: 0, bookings: 0 };
     pagePerformance[page].calls++;
 
-    if (call.phoneNumber) {
-      const booking = await (await db()).select({ id: bookings.id }).from(bookings)
-        .where(and(
-          sql`RIGHT(${bookings.phone}, 10) = RIGHT(${call.phoneNumber}, 10)`,
-          gte(bookings.createdAt, call.createdAt!),
-          lte(bookings.createdAt, sql`DATE_ADD(${call.createdAt}, INTERVAL 24 HOUR)`)
-        )).limit(1);
-      if (booking.length > 0) {
-        attributed++;
-        pagePerformance[page].bookings++;
+    if (call.phoneNumber && call.createdAt) {
+      const phoneKey = call.phoneNumber.slice(-10);
+      const custBookings = callBookingsByPhone.get(phoneKey);
+      if (custBookings) {
+        const callDate = new Date(call.createdAt);
+        const cutoff = new Date(callDate.getTime() + 24 * 3600000);
+        if (custBookings.some(d => d >= callDate && d <= cutoff)) {
+          attributed++;
+          pagePerformance[page].bookings++;
+        }
       }
     }
   }

@@ -55,9 +55,10 @@ export async function detectNoShows(): Promise<{ recordsProcessed: number; detai
     const noShows = rows as RawRow[];
     if (noShows.length === 0) return { recordsProcessed: 0, details: "No no-shows" };
 
-    // Mark as cancelled (no "no-show" enum value — use cancelled + adminNotes)
-    for (const b of noShows) {
-      await d.execute(sql`UPDATE bookings SET status = 'cancelled', adminNotes = CONCAT(COALESCE(adminNotes, ''), '\n[AUTO] No-show: past preferred date, auto-cancelled') WHERE id = ${b.id} AND status IN ('new', 'confirmed')`);
+    // Batch-cancel all no-shows in one query (eliminates N+1 loop)
+    const noShowIds = noShows.map((b) => b.id);
+    if (noShowIds.length > 0) {
+      await d.execute(sql`UPDATE bookings SET status = 'cancelled', adminNotes = CONCAT(COALESCE(adminNotes, ''), '\n[AUTO] No-show: past preferred date, auto-cancelled') WHERE id IN (${sql.raw(noShowIds.join(","))}) AND status IN ('new', 'confirmed')`);
     }
 
     // Send follow-up SMS to those with phone numbers (gated by feature flag)
@@ -108,10 +109,10 @@ export async function autoCleanStaleBookings(): Promise<{ recordsProcessed: numb
     const stale = rows as RawRow[];
     if (stale.length === 0) return { recordsProcessed: 0, details: "No stale bookings" };
 
-    // Auto-cancel
-    // Cancel stale bookings one by one (safe parameterized queries)
-    for (const b of stale) {
-      await d.execute(sql`UPDATE bookings SET status = 'cancelled', updatedAt = NOW() WHERE id = ${b.id}`);
+    // Batch-cancel all stale bookings in one query
+    const staleIds = stale.map((b) => b.id);
+    if (staleIds.length > 0) {
+      await d.execute(sql`UPDATE bookings SET status = 'cancelled', updatedAt = NOW() WHERE id IN (${sql.raw(staleIds.join(","))})`);
     }
 
     // Send "rebook" SMS (gated by feature flag)
@@ -260,16 +261,15 @@ export async function autoAdvanceWorkOrders(): Promise<{ recordsProcessed: numbe
     const resultHeader = rows as RawRow;
     const affected = Number(resultHeader?.affectedRows || resultHeader?.changedRows || 0);
 
-    // Insert audit trail records into work_order_transitions
-    if (affected > 0) {
-      for (const woId of woIds) {
-        try {
-          await d.execute(sql`
-            INSERT INTO work_order_transitions (work_order_id, from_status, to_status, changed_by, note, created_at)
-            VALUES (${woId}, 'completed', 'invoiced', 'system:cron', 'Auto-advanced after 24h in completed', NOW())
-          `);
-        } catch { /* transition table may not exist yet — non-critical */ }
-      }
+    // Batch INSERT audit trail records (eliminates N+1 INSERT loop)
+    if (affected > 0 && woIds.length > 0) {
+      try {
+        const values = woIds.map((id) => `(${id}, 'completed', 'invoiced', 'system:cron', 'Auto-advanced after 24h in completed', NOW())`).join(",");
+        await d.execute(sql`
+          INSERT INTO work_order_transitions (work_order_id, from_status, to_status, changed_by, note, created_at)
+          VALUES ${sql.raw(values)}
+        `);
+      } catch { /* transition table may not exist yet — non-critical */ }
       log.info(`Auto-advanced ${affected} WOs from completed to invoiced (audit trail written)`);
     }
     return { recordsProcessed: affected, details: `${affected} WOs auto-advanced to invoiced` };
