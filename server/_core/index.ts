@@ -189,6 +189,16 @@ async function startServer() {
     message: { error: "Too many AI requests. Please try again later or call us at (216) 862-0005." },
   });
 
+  // Upload limiter — tighter than forms: 15 uploads/hour/IP (each is a ~7MB base64 payload)
+  const uploadLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 15,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many file uploads. Please try again later." },
+  });
+
+  app.use("/api/trpc/booking.uploadPhoto", uploadLimiter);
   app.use("/api/trpc/booking.create", formLimiter);
   app.use("/api/trpc/lead.submit", formLimiter);
   app.use("/api/trpc/callback.submit", formLimiter);

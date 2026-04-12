@@ -22,7 +22,7 @@ export default function TrustBadges() {
               <badge.icon className="w-5 h-5 text-primary shrink-0" />
               <div>
                 <p className="text-sm font-medium text-foreground leading-tight">{badge.label}</p>
-                <p className="text-xs text-foreground/40">{badge.detail}</p>
+                <p className="text-xs text-foreground/70">{badge.detail}</p>
               </div>
             </div>
           ))}

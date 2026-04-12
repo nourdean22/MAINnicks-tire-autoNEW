@@ -111,12 +111,12 @@ export default function ChatWidget() {
                   <span className="font-semibold text-foreground text-[13px] tracking-[-0.01em] block">
                     Nick's AI Mechanic
                   </span>
-                  <span className="text-foreground/40 text-[11px]">
+                  <span className="text-foreground/70 text-[11px]">
                     What's going on with your car?
                   </span>
                 </div>
               </div>
-              <button onClick={() => setOpen(false)} className="text-foreground/30 hover:text-foreground/60 transition-colors p-1" aria-label="Close chat">
+              <button onClick={() => setOpen(false)} className="text-foreground/60 hover:text-foreground/60 transition-colors p-1" aria-label="Close chat">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -131,7 +131,7 @@ export default function ChatWidget() {
                       <Wrench className="w-5 h-5 text-foreground/15" />
                     </div>
                     <p className="text-foreground/70 text-[13px] font-medium">Hey — I'm Nick's AI mechanic.</p>
-                    <p className="text-foreground/50 text-[12px] leading-relaxed max-w-[280px] mx-auto mt-1">
+                    <p className="text-foreground/70 text-[12px] leading-relaxed max-w-[280px] mx-auto mt-1">
                       I can help with:
                     </p>
                   </div>
@@ -145,7 +145,7 @@ export default function ChatWidget() {
                         setMessages([{ role: "user", content: prompt }]);
                         sendMessage.mutate({ message: prompt });
                       }}
-                      className="w-full text-left text-[12px] text-foreground/60 hover:text-foreground border border-[oklch(0.17_0.004_260)] rounded-lg px-3 py-2.5 hover:border-foreground/15 hover:bg-foreground/[0.03] transition-all"
+                      className="w-full text-left text-[12px] text-foreground/60 hover:text-foreground border border-[oklch(0.17_0.004_260)] rounded-lg px-3 py-3 hover:border-foreground/15 hover:bg-foreground/[0.03] transition-all"
                     >
                       🔧 Diagnose a car problem
                     </button>
@@ -156,7 +156,7 @@ export default function ChatWidget() {
                         setMessages([{ role: "user", content: prompt }]);
                         sendMessage.mutate({ message: prompt });
                       }}
-                      className="w-full text-left text-[12px] text-foreground/60 hover:text-foreground border border-[oklch(0.17_0.004_260)] rounded-lg px-3 py-2.5 hover:border-foreground/15 hover:bg-foreground/[0.03] transition-all"
+                      className="w-full text-left text-[12px] text-foreground/60 hover:text-foreground border border-[oklch(0.17_0.004_260)] rounded-lg px-3 py-3 hover:border-foreground/15 hover:bg-foreground/[0.03] transition-all"
                     >
                       💰 Get a price estimate
                     </button>
@@ -167,7 +167,7 @@ export default function ChatWidget() {
                         setMessages([{ role: "user", content: prompt }]);
                         sendMessage.mutate({ message: prompt });
                       }}
-                      className="w-full text-left text-[12px] text-foreground/60 hover:text-foreground border border-[oklch(0.17_0.004_260)] rounded-lg px-3 py-2.5 hover:border-foreground/15 hover:bg-foreground/[0.03] transition-all"
+                      className="w-full text-left text-[12px] text-foreground/60 hover:text-foreground border border-[oklch(0.17_0.004_260)] rounded-lg px-3 py-3 hover:border-foreground/15 hover:bg-foreground/[0.03] transition-all"
                     >
                       📅 Book an appointment
                     </button>
@@ -176,7 +176,7 @@ export default function ChatWidget() {
                         const inputEl = document.querySelector("[placeholder='What\\'s your car doing?']") as HTMLInputElement;
                         inputEl?.focus();
                       }}
-                      className="w-full text-left text-[12px] text-foreground/60 hover:text-foreground border border-[oklch(0.17_0.004_260)] rounded-lg px-3 py-2.5 hover:border-foreground/15 hover:bg-foreground/[0.03] transition-all"
+                      className="w-full text-left text-[12px] text-foreground/60 hover:text-foreground border border-[oklch(0.17_0.004_260)] rounded-lg px-3 py-3 hover:border-foreground/15 hover:bg-foreground/[0.03] transition-all"
                     >
                       ❓ Answer a question
                     </button>
@@ -200,7 +200,7 @@ export default function ChatWidget() {
 
               {sendMessage.isPending && (
                 <div className="flex justify-start">
-                  <div className="bg-foreground/[0.05] border border-[oklch(0.17_0.004_260)] rounded-xl rounded-bl-sm px-3.5 py-2.5 text-[13px] text-foreground/40">
+                  <div className="bg-foreground/[0.05] border border-[oklch(0.17_0.004_260)] rounded-xl rounded-bl-sm px-3.5 py-2.5 text-[13px] text-foreground/70">
                     <span className="inline-flex gap-1">
                       <span className="animate-pulse">●</span>
                       <span className="animate-pulse" style={{ animationDelay: "0.2s" }}>●</span>
@@ -216,7 +216,7 @@ export default function ChatWidget() {
                   <p className="text-[11px] text-emerald-400/70 text-center mb-2">
                     We also offer lease-to-own starting at $10 down — ask us about it!
                   </p>
-                  <p className="text-foreground/50 text-[12px]">
+                  <p className="text-foreground/70 text-[12px]">
                     Want us to call you with a free assessment?
                   </p>
                   <input
@@ -260,6 +260,7 @@ export default function ChatWidget() {
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleSend()}
                 placeholder="What's your car doing?"
+                aria-label="Describe your car problem"
                 className="flex-1 bg-foreground/[0.04] border border-[oklch(0.17_0.004_260)] rounded-lg text-foreground px-3 py-2 text-[13px] placeholder:text-foreground/25 focus:border-foreground/15 focus:outline-none transition-all"
               />
               <button
@@ -273,9 +274,9 @@ export default function ChatWidget() {
             </div>
 
             {/* ─── CALL CTA ─── */}
-            <div className="border-t border-[oklch(0.12_0.004_260)] px-3 py-2 flex items-center justify-center gap-2 text-foreground/20 text-[11px] shrink-0">
+            <div className="border-t border-[oklch(0.12_0.004_260)] px-3 py-2 flex items-center justify-center gap-2 text-foreground/50 text-[11px] shrink-0">
               <Phone className="w-3 h-3" />
-              <span>Or call: <a href={BUSINESS.phone.href} className="text-foreground/35 hover:text-foreground/50 transition-colors">{BUSINESS.phone.display}</a></span>
+              <span>Or call: <a href={BUSINESS.phone.href} className="text-foreground/60 hover:text-foreground/90 transition-colors">{BUSINESS.phone.display}</a></span>
             </div>
           </motion.div>
         )}

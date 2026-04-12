@@ -34,7 +34,7 @@ export default function ProofClusterStrip({
                 ))}
               </div>
               <span className="font-mono text-sm font-bold text-nick-yellow">4.9</span>
-              <span className="text-xs text-foreground/40">
+              <span className="text-xs text-foreground/70">
                 {BUSINESS.reviews.countDisplay} reviews
               </span>
             </div>
@@ -47,7 +47,7 @@ export default function ProofClusterStrip({
                 <div key={tag.label} className="flex items-center gap-1.5 text-xs font-medium text-foreground/70 bg-background/40 border border-border/30 rounded-full px-3 py-1">
                   <CheckCircle2 className="w-3 h-3 text-primary/60 shrink-0" />
                   <span>{tag.label}</span>
-                  {tag.stat && <span className="text-foreground/40 ml-0.5">· {tag.stat}</span>}
+                  {tag.stat && <span className="text-foreground/70 ml-0.5">· {tag.stat}</span>}
                 </div>
               ))}
             </div>
@@ -59,7 +59,7 @@ export default function ProofClusterStrip({
               <Quote className="w-4 h-4 text-primary/30 shrink-0 mt-0.5" />
               <div>
                 <p className="text-xs text-foreground/70 leading-relaxed line-clamp-2">{spotlight.text}</p>
-                <p className="mt-1 text-xs font-semibold text-foreground/40">— {spotlight.author}</p>
+                <p className="mt-1 text-xs font-semibold text-foreground/70">— {spotlight.author}</p>
               </div>
             </div>
           )}

@@ -61,7 +61,7 @@ export default function CallbackModal() {
           <div className="relative bg-nick-charcoal border border-border rounded-lg w-full max-w-sm p-6">
             <button
               onClick={() => setOpen(false)}
-              className="absolute top-3 right-3 text-foreground/40 hover:text-foreground transition-colors"
+              className="absolute top-3 right-3 text-foreground/70 hover:text-foreground transition-colors"
               aria-label="Close"
             >
               <X className="w-5 h-5" />
@@ -73,7 +73,7 @@ export default function CallbackModal() {
                   <Check className="w-6 h-6 text-green-400" />
                 </div>
                 <h3 className="text-lg font-semibold text-foreground">We'll call you back</h3>
-                <p className="text-foreground/50 text-sm mt-2">
+                <p className="text-foreground/70 text-sm mt-2">
                   Expect a call from {BUSINESS.phone.display} shortly.
                 </p>
                 <p className="text-[11px] text-emerald-400/60 mt-2">
@@ -83,7 +83,7 @@ export default function CallbackModal() {
             ) : (
               <>
                 <h3 className="text-lg font-semibold text-foreground mb-1">Request a Callback</h3>
-                <p className="text-foreground/50 text-sm mb-5">
+                <p className="text-foreground/70 text-sm mb-5">
                   Leave your name and number. We'll call you back — usually within 30 minutes during business hours.
                 </p>
 
@@ -95,7 +95,7 @@ export default function CallbackModal() {
                     onChange={(e) => setName(e.target.value)}
                     required
                     aria-label="Name"
-                    className="w-full bg-background border border-border rounded-md px-4 py-3 text-sm text-foreground placeholder:text-foreground/30 focus:outline-none focus:ring-1 focus:ring-nick-yellow"
+                    className="w-full bg-background border border-border rounded-md px-4 py-3 text-sm text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-1 focus:ring-nick-yellow"
                   />
                   <input
                     type="tel"
@@ -104,7 +104,7 @@ export default function CallbackModal() {
                     onChange={(e) => setPhone(e.target.value)}
                     required
                     aria-label="Phone"
-                    className="w-full bg-background border border-border rounded-md px-4 py-3 text-sm text-foreground placeholder:text-foreground/30 focus:outline-none focus:ring-1 focus:ring-nick-yellow"
+                    className="w-full bg-background border border-border rounded-md px-4 py-3 text-sm text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-1 focus:ring-nick-yellow"
                   />
                   <button
                     type="submit"

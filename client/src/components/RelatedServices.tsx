@@ -77,10 +77,10 @@ export default function RelatedServices({ current, related, title = "Related Ser
   return (
     <section className="bg-[oklch(0.055_0.004_260)] py-16 border-t border-border/30">
       <div className="container">
-        <h3 className="text-xs font-semibold text-foreground/30 uppercase tracking-widest mb-2">
+        <h3 className="text-xs font-semibold text-foreground/60 uppercase tracking-widest mb-2">
           {title}
         </h3>
-        <p className="text-foreground/50 text-sm mb-8">
+        <p className="text-foreground/70 text-sm mb-8">
           Looking for another service? We handle it all under one roof.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -96,16 +96,16 @@ export default function RelatedServices({ current, related, title = "Related Ser
               <h4 className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors tracking-wide">
                 {s.title}
               </h4>
-              <p className="text-xs text-foreground/40 mt-2 leading-relaxed line-clamp-2">
+              <p className="text-xs text-foreground/70 mt-2 leading-relaxed line-clamp-2">
                 {s.desc}
               </p>
-              <span className="inline-flex items-center gap-1 mt-3 text-xs text-foreground/30 group-hover:text-primary transition-colors">
+              <span className="inline-flex items-center gap-1 mt-3 text-xs text-foreground/60 group-hover:text-primary transition-colors">
                 Learn more <ArrowRight className="w-3 h-3" />
               </span>
             </Link>
           ))}
         </div>
-        <div className="mt-6 flex flex-wrap gap-4 text-xs text-foreground/40">
+        <div className="mt-6 flex flex-wrap gap-4 text-xs text-foreground/70">
           <Link href="/financing" className="hover:text-primary transition-colors">Need financing? Apply in 2 minutes</Link>
           <span className="text-foreground/20">|</span>
           <Link href="/booking" className="hover:text-primary transition-colors">Book your appointment online</Link>

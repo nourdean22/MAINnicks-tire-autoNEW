@@ -146,7 +146,7 @@ const WHY_WORK = [
   },
   {
     icon: Users,
-    heading: "4.9 stars. 1,685+ reviews.",
+    heading: "4.9 stars. 1,700+ reviews.",
     body: "That's not marketing — that's what our customers actually say. You'll work at a shop people trust and recommend. That kind of reputation means steady customers and a team that does things right.",
   },
   {
@@ -623,7 +623,7 @@ export default function Careers() {
               What Our <span className="text-nick-yellow">Customers</span> Say
             </h2>
             <p className="mt-4 text-foreground/55 max-w-xl leading-relaxed">
-              4.9 stars across 1,685+ Google reviews. When customers trust a shop like this, it means the
+              4.9 stars across 1,700+ Google reviews. When customers trust a shop like this, it means the
               work is real, the team is solid, and the money keeps coming in.
             </p>
           </div>
@@ -646,7 +646,7 @@ export default function Careers() {
           </div>
           <div className="mt-6 text-center">
             <a href="https://www.google.com/maps/place/Nick's+Tire+%26+Auto/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-primary hover:opacity-80 transition-opacity">
-              See all 1,685+ reviews on Google <ArrowRight className="w-4 h-4" />
+              See all 1,700+ reviews on Google <ArrowRight className="w-4 h-4" />
             </a>
           </div>
         </div>

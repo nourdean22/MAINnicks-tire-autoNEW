@@ -13,7 +13,7 @@ export function QueryLoading({ message = "Loading...", className = "" }: QueryLo
   return (
     <div className={`flex flex-col items-center justify-center py-16 ${className}`}>
       <Loader2 className="w-8 h-8 animate-spin text-primary mb-3" />
-      <p className="text-[13px] text-foreground/50">{message}</p>
+      <p className="text-[13px] text-foreground/70">{message}</p>
     </div>
   );
 }
@@ -53,8 +53,8 @@ export function QueryEmpty({ icon, title = "No data yet", message, className = "
   return (
     <div className={`flex flex-col items-center justify-center py-16 text-center ${className}`}>
       {icon && <div className="text-foreground/20 mb-4">{icon}</div>}
-      <p className="font-bold text-lg text-foreground/40 tracking-wider">{title}</p>
-      {message && <p className="text-[13px] text-foreground/30 mt-2 max-w-md">{message}</p>}
+      <p className="font-bold text-lg text-foreground/70 tracking-wider">{title}</p>
+      {message && <p className="text-[13px] text-foreground/60 mt-2 max-w-md">{message}</p>}
     </div>
   );
 }

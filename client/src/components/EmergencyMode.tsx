@@ -81,7 +81,7 @@ export function EmergencyMode() {
           </div>
           <button
             onClick={() => setShowForm(true)}
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded font-semibold font-bold text-sm tracking-wide transition-colors flex-shrink-0 ml-4"
+            className="bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded font-semibold font-bold text-sm tracking-wide transition-colors flex-shrink-0 ml-4"
           >
             EMERGENCY REQUEST
           </button>
@@ -114,7 +114,7 @@ export function EmergencyMode() {
                 </div>
                 <button
                   onClick={() => setShowForm(false)}
-                  className="text-foreground/40 hover:text-foreground transition-colors"
+                  className="text-foreground/70 hover:text-foreground transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -141,6 +141,7 @@ export function EmergencyMode() {
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       required
+                      aria-label="Your name"
                       className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none text-sm"
                       placeholder="Your name"
                     />
@@ -155,6 +156,7 @@ export function EmergencyMode() {
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       required
+                      aria-label="Phone number"
                       className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none text-sm"
                       placeholder="(555) 123-4567"
                     />
@@ -166,6 +168,7 @@ export function EmergencyMode() {
                       type="text"
                       value={formData.vehicle}
                       onChange={(e) => setFormData({ ...formData, vehicle: e.target.value })}
+                      aria-label="Vehicle year make model"
                       className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none text-sm"
                       placeholder="e.g. 2018 Honda Civic"
                     />
@@ -179,6 +182,7 @@ export function EmergencyMode() {
                       value={formData.issue}
                       onChange={(e) => setFormData({ ...formData, issue: e.target.value })}
                       required
+                      aria-label="Describe your issue"
                       className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none text-sm resize-none"
                       placeholder="Describe your issue..."
                       rows={3}
@@ -199,7 +203,7 @@ export function EmergencyMode() {
                         />
                         <span className="flex-1">
                           <span className="font-semibold text-foreground text-sm">🔴 Emergency — need help ASAP</span>
-                          <p className="text-foreground/50 text-xs">Critical issue, vehicle not drivable</p>
+                          <p className="text-foreground/70 text-xs">Critical issue, vehicle not drivable</p>
                         </span>
                       </label>
 
@@ -214,7 +218,7 @@ export function EmergencyMode() {
                         />
                         <span className="flex-1">
                           <span className="font-semibold text-foreground text-sm">🟡 Can wait until tomorrow</span>
-                          <p className="text-foreground/50 text-xs">Non-critical, can schedule for next business day</p>
+                          <p className="text-foreground/70 text-xs">Non-critical, can schedule for next business day</p>
                         </span>
                       </label>
                     </div>
@@ -228,7 +232,7 @@ export function EmergencyMode() {
                     {submitEmergency.isPending ? "SUBMITTING..." : "SUBMIT EMERGENCY REQUEST"}
                   </button>
 
-                  <p className="text-foreground/40 text-xs text-center">
+                  <p className="text-foreground/70 text-xs text-center">
                     We'll contact you as soon as possible to confirm your request.
                   </p>
                 </form>
