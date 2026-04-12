@@ -424,7 +424,7 @@ export default function SeasonalPage() {
           <Phone className="w-4 h-4" />
           CALL NOW
         </a>
-        <a href="#booking" className="flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue text-nick-blue-light flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label="Book an appointment online">
+        <a href="#booking" className="flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue text-nick-blue-light flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label="Schedule a drop-off online">
           BOOK ONLINE
         </a>
       </div>

@@ -341,8 +341,66 @@ export default function LeadsSection() {
     };
   }, [leadsData]);
 
+  // Urgent uncontacted leads — the money bleeder
+  const uncontactedLeads = useMemo(() => {
+    if (!leadsData) return [];
+    return leadsData
+      .filter((l: LeadItem) => l.status === "new")
+      .sort((a: LeadItem, b: LeadItem) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }, [leadsData]);
+
   return (
     <div className="space-y-6">
+      {/* CRITICAL ALERT — Uncontacted leads with ticking timer */}
+      {uncontactedLeads.length > 0 && (
+        <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-4 animate-pulse-slow">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="w-4 h-4 text-red-400" />
+            <span className="text-[13px] font-bold text-red-400 tracking-wide">
+              {uncontactedLeads.length} LEAD{uncontactedLeads.length > 1 ? "S" : ""} — NOT YET CONTACTED
+            </span>
+            <span className="text-[10px] text-red-400/60 ml-auto">Every hour = -15% conversion</span>
+          </div>
+          <div className="space-y-2">
+            {uncontactedLeads.slice(0, 5).map((lead: LeadItem) => {
+              const ageMs = Date.now() - new Date(lead.createdAt).getTime();
+              const ageMin = Math.floor(ageMs / 60000);
+              const ageHrs = Math.floor(ageMin / 60);
+              const ageLabel = ageHrs > 0 ? `${ageHrs}h ${ageMin % 60}m` : `${ageMin}m`;
+              const isCritical = ageMin > 240; // 4+ hours
+              return (
+                <div key={lead.id} className="flex items-center gap-3 text-[12px]">
+                  <span className={`font-mono font-bold px-2 py-0.5 rounded text-[11px] ${
+                    isCritical ? "bg-red-500/20 text-red-400" : ageMin > 60 ? "bg-amber-500/20 text-amber-400" : "bg-emerald-500/20 text-emerald-400"
+                  }`}>
+                    {ageLabel} ago
+                  </span>
+                  <span className="font-bold text-foreground">{lead.name}</span>
+                  {lead.phone && (
+                    <a href={`tel:${lead.phone}`} className="text-primary hover:underline flex items-center gap-1">
+                      <Phone className="w-3 h-3" /> {lead.phone}
+                    </a>
+                  )}
+                  <span className="text-foreground/40 truncate flex-1">{lead.vehicle || lead.problem?.slice(0, 40)}</span>
+                  {lead.estimatedValueCents && (
+                    <span className="text-primary font-mono font-bold">${(lead.estimatedValueCents / 100).toFixed(0)}</span>
+                  )}
+                  <button
+                    onClick={() => handleStatusChange(lead.id, "contacted")}
+                    className="px-2 py-1 bg-emerald-500/20 text-emerald-400 text-[10px] font-bold rounded hover:bg-emerald-500/30 transition-colors"
+                  >
+                    Mark Called
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          {uncontactedLeads.length > 5 && (
+            <p className="text-[10px] text-red-400/60 mt-2">+ {uncontactedLeads.length - 5} more uncontacted</p>
+          )}
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard label="Total Leads" value={leadStats.total} icon={<Hash className="w-4 h-4" />} color="text-foreground" />

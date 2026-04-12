@@ -815,7 +815,7 @@ export default function DiagnosePage() {
                     href="/contact"
                     className="flex items-center justify-center gap-2 border-2 border-[#FDB913]/40 text-[#FDB913] px-8 py-4 rounded-md font-heading text-base tracking-wider hover:bg-[#FDB913]/10 hover:border-[#FDB913] transition-colors flex-1"
                   >
-                    BOOK APPOINTMENT
+                    SCHEDULE DROP-OFF
                     <ArrowRight className="w-5 h-5" />
                   </Link>
                 </div>

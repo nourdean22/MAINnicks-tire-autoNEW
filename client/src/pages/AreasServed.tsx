@@ -216,14 +216,14 @@ export default function AreasServed() {
           </h2>
           <p className="text-foreground/60 mb-8">
             Nick's Tire & Auto welcomes drivers from all over Northeast Ohio. Walk-ins are welcome
-            7 days a week, or book an appointment online.
+            7 days a week, or schedule a drop-off online.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 stagger-in justify-center">
             <Link
               href="/booking"
               className="inline-flex items-center justify-center px-6 py-3 bg-[#FDB913] text-black font-semibold text-sm hover:bg-[#FDB913]/90 transition-colors"
             >
-              Book Appointment
+              Schedule Drop-Off
             </Link>
             <Link
               href="/contact"

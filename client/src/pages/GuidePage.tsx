@@ -163,7 +163,7 @@ export default function GuidePage() {
                   NEED HELP WITH YOUR VEHICLE?
                 </h3>
                 <p className="text-foreground/60 mb-6">
-                  Our technicians are ready to help. Call or book online for an appointment.
+                  Our technicians are ready to help. Call or schedule a drop-off online.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <a href={BUSINESS.phone.href} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-semibold font-bold text-sm tracking-wide hover:bg-primary/90 transition-colors">

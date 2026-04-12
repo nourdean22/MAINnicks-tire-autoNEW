@@ -383,7 +383,7 @@ export default function NeighborhoodPage() {
             <div className="text-center">
               <span className="font-mono text-nick-blue-light text-sm tracking-wide">Schedule Service</span>
               <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight">
-                BOOK YOUR APPOINTMENT
+                SCHEDULE YOUR DROP-OFF
               </h2>
               <p className="mt-4 text-foreground/60 text-lg">
                 {neighborhood.name} residents are just {neighborhood.driveTime} away. Call us or book online.
@@ -434,7 +434,7 @@ export default function NeighborhoodPage() {
           <Phone className="w-4 h-4" />
           CALL NOW
         </a>
-        <a href="#booking" className="flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue text-nick-blue-light flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label="Book an appointment online">
+        <a href="#booking" className="flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue text-nick-blue-light flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label="Schedule a drop-off online">
           BOOK ONLINE
         </a>
       </div>

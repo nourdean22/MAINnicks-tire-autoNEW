@@ -52,7 +52,7 @@ export default function PrivacyPolicy() {
               <p>We may collect the following types of information:</p>
               <h3 className="text-xl font-semibold text-foreground mt-6 mb-3">Information You Provide</h3>
               <ul className="list-disc pl-6 space-y-2">
-                <li>Name, phone number, and email address when you book an appointment, submit a contact form, or request a callback</li>
+                <li>Name, phone number, and email address when you schedule a drop-off, submit a contact form, or request a callback</li>
                 <li>Vehicle information (year, make, model, mileage) when you use our booking or diagnostic tools</li>
                 <li>Service history and preferences when you create a My Garage account</li>
                 <li>Phone number when you opt in to receive SMS text messages</li>
