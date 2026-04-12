@@ -200,6 +200,76 @@ export default function EstimatesSection() {
         </div>
       </div>
 
+      {/* ─── ESTIMATE AGING — oldest first, showing time in stage ─── */}
+      {estimateLeads.filter((l: any) => l.status === "new" || l.status === "contacted").length > 0 && (
+        <div className="stat-card !p-5">
+          <h3 className="text-xs font-semibold text-muted-foreground tracking-wide uppercase mb-3 flex items-center gap-2">
+            <Timer className="w-3.5 h-3.5 text-amber-400" />
+            Aging Estimates — Needs Follow-Up
+          </h3>
+          <div className="space-y-2">
+            {estimateLeads
+              .filter((l: any) => l.status === "new" || l.status === "contacted")
+              .sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+              .slice(0, 8)
+              .map((lead: any) => {
+                const ageMs = Date.now() - new Date(lead.createdAt).getTime();
+                const ageHours = Math.floor(ageMs / 3600000);
+                const ageDays = Math.floor(ageHours / 24);
+                const maxBarDays = 14;
+                const barPct = Math.min(100, (ageDays / maxBarDays) * 100 || (ageHours / (maxBarDays * 24)) * 100);
+                const barColor = ageDays > 7 ? "bg-red-500" : ageDays > 3 ? "bg-amber-500" : ageDays > 1 ? "bg-blue-400" : "bg-emerald-400";
+                const valueDollars = lead.estimatedValueCents ? (lead.estimatedValueCents / 100) : 0;
+
+                return (
+                  <div key={lead.id} className="flex items-center gap-3 text-[12px]">
+                    <div className="w-20 shrink-0">
+                      <span className={`font-mono font-bold ${ageDays > 3 ? "text-red-400" : ageDays > 1 ? "text-amber-400" : "text-foreground/70"}`}>
+                        {ageDays > 0 ? `${ageDays}d ${ageHours % 24}h` : `${ageHours}h`}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-foreground truncate">{lead.name}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                          lead.status === "new" ? "bg-blue-500/10 text-blue-400" : "bg-amber-500/10 text-amber-400"
+                        }`}>{lead.status}</span>
+                        {valueDollars > 0 && <span className="text-primary font-mono">${valueDollars.toFixed(0)}</span>}
+                      </div>
+                      {/* Aging bar */}
+                      <div className="h-1.5 bg-muted/30 rounded-full mt-1 overflow-hidden">
+                        <div className={`h-full rounded-full ${barColor} transition-all`} style={{ width: `${Math.max(5, barPct)}%` }} />
+                      </div>
+                    </div>
+                    {lead.phone && (
+                      <a href={`tel:${lead.phone}`} className="shrink-0 text-primary hover:underline flex items-center gap-1">
+                        <Phone className="w-3 h-3" />
+                      </a>
+                    )}
+                    <button
+                      onClick={() => updateLead.mutate({ id: lead.id, status: lead.status === "new" ? "contacted" : "booked" })}
+                      className="shrink-0 px-2 py-1 bg-primary/10 text-primary text-[10px] font-bold rounded hover:bg-primary/20 transition-colors"
+                    >
+                      {lead.status === "new" ? "Mark Called" : "Mark Booked"}
+                    </button>
+                  </div>
+                );
+              })}
+          </div>
+          {avgResponseHours && (
+            <div className="mt-3 text-[10px] text-muted-foreground">
+              Avg response time: <span className="font-mono font-bold text-foreground">{avgResponseHours}</span> ·
+              Pipeline value: <span className="font-mono font-bold text-primary">
+                ${estimateLeads
+                  .filter((l: any) => l.status !== "booked" && l.status !== "lost")
+                  .reduce((s: number, l: any) => s + (l.estimatedValueCents || 0) / 100, 0)
+                  .toFixed(0)}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ─── SEARCH + FILTER ─── */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1">
