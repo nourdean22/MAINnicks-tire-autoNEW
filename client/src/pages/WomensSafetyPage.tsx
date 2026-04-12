@@ -75,7 +75,7 @@ export default function WomensSafetyPage() {
       <SEOHead
         title="Women's Safety at Nick's Tire & Auto | Cleveland's Safest Auto Shop"
         description="Stay in your car or drop off and go. Nick's Tire & Auto in Cleveland is built around your comfort and safety — no pressure, full transparency, Uber drop-off available."
-        canonical="/womens-safety"
+        canonicalPath="/womens-safety"
       />
 
       {/* ── Hero ─────────────────────────────────────────── */}
