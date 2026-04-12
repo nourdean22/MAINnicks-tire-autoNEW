@@ -68,7 +68,7 @@ export default function WhatToExpectAtYourVisit({
                 <p className="text-sm font-semibold text-foreground/85 leading-snug">
                   {step.heading}
                 </p>
-                <p className="mt-0.5 text-xs text-foreground/50 leading-relaxed">{step.detail}</p>
+                <p className="mt-0.5 text-xs text-foreground/70 leading-relaxed">{step.detail}</p>
               </div>
             </div>
           );

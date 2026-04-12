@@ -181,7 +181,12 @@ export default function SiteHealthSection() {
                   ))}
                 </div>
                 <p className="font-bold text-4xl text-foreground">{reviews.rating || BUSINESS.reviews.rating}</p>
-                <p className="text-[13px] text-foreground/50 mt-1">{reviews.totalReviews || BUSINESS.reviews.countDisplay}+ reviews</p>
+                <p className="text-[13px] text-foreground/50 mt-1">
+                  {typeof reviews.totalReviews === "number" && reviews.totalReviews > 0
+                    ? `${reviews.totalReviews.toLocaleString("en-US")}+`
+                    : BUSINESS.reviews.countDisplay}{" "}
+                  reviews
+                </p>
               </div>
               {reviews.reviews && reviews.reviews.length > 0 && (
                 <div className="space-y-3">

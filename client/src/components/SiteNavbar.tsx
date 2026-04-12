@@ -68,7 +68,7 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
               className={`text-[13px] font-medium tracking-[-0.005em] transition-colors duration-200 ${
                 l.href === activeHref
                   ? "text-foreground"
-                  : "text-foreground/50 hover:text-foreground"
+                  : "text-foreground/70 hover:text-foreground"
               }`}
             >
               {l.label}
@@ -86,7 +86,7 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
           </Link>
           <Link
             href="/estimate"
-            className="text-[13px] font-medium text-foreground/50 hover:text-foreground transition-colors duration-200"
+            className="text-[13px] font-medium text-foreground/70 hover:text-foreground transition-colors duration-200"
           >
             Estimate
           </Link>
@@ -162,7 +162,7 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
                 <a
                   href={BUSINESS.phone.href}
                   onClick={() => trackPhoneClick("navbar-mobile")}
-                  className="flex items-center gap-2.5 text-foreground/40 hover:text-foreground transition-colors"
+                  className="flex items-center gap-2.5 text-foreground/70 hover:text-foreground transition-colors"
                   aria-label="Call Nick's Tire and Auto"
                 >
                   <Phone className="w-4 h-4" />

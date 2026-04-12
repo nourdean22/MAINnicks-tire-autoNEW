@@ -284,7 +284,7 @@ export const CITIES: CityData[] = [
     distance: "6 miles",
     driveTime: "13 minutes",
     neighborhoods: ["Center Plaza", "Richmond Center", "Gates Mills border", "Peacock Creek", "Emerson Circle"],
-    localContent: "Richmond Heights residents benefit from our convenient location on Euclid Avenue, making us an easy choice for all your auto repair needs. We serve the Richmond Heights community with the same honest, expert service that has earned us a 4.9-star rating and over 1,685 five-star reviews. Our technicians understand Northeast Ohio driving conditions and provide thorough diagnostics using advanced OBD-II equipment. Whether you need an oil change, brake repair, tire service, or complex engine diagnostics, we handle every job with care and integrity.",
+    localContent: "Richmond Heights residents benefit from our convenient location on Euclid Avenue, making us an easy choice for all your auto repair needs. We serve the Richmond Heights community with the same honest, expert service that has earned us a 4.9-star rating and over 1,700 five-star reviews. Our technicians understand Northeast Ohio driving conditions and provide thorough diagnostics using advanced OBD-II equipment. Whether you need an oil change, brake repair, tire service, or complex engine diagnostics, we handle every job with care and integrity.",
     serviceHighlights: [
       "Advanced engine diagnostics for all check engine lights",
       "Complete brake service — pads, rotors, calipers, and ABS",
@@ -355,11 +355,11 @@ export const CITIES: CityData[] = [
     metaTitle: "Auto Repair Cleveland OH | 4.9 Stars | Nick's Tire & Auto",
     metaDescription: "Cleveland's top-rated auto repair shop. Tires, brakes, diagnostics, emissions, oil changes. 1700+ reviews, 4.9 stars. Walk-ins 7 days. (216) 862-0005.",
     heroHeadline: "CLEVELAND'S #1 AUTO\nREPAIR & TIRE SHOP",
-    heroSubline: "Nick's Tire & Auto is Cleveland's top-rated shop for a reason. With over 1,685 five-star reviews, honest diagnostics, and the largest new and used tire selection in the area, we are the shop Cleveland trusts.",
+    heroSubline: "Nick's Tire & Auto is Cleveland's top-rated shop for a reason. With over 1,700 five-star reviews, honest diagnostics, and the largest new and used tire selection in the area, we are the shop Cleveland trusts.",
     distance: "0 miles",
     driveTime: "You're here",
     neighborhoods: ["Downtown Cleveland", "East Side", "West Side", "Collinwood", "Nottingham", "Five Points", "University Circle", "Tremont", "Ohio City", "Slavic Village", "Glenville", "Hough"],
-    localContent: "Nick's Tire & Auto is located at 17625 Euclid Avenue in the heart of Cleveland's East Side. Since 2018, we have built a reputation as the most trusted auto repair shop in Cleveland. Our secret is simple: honest diagnostics, transparent pricing, and quality work. We never sell you services you don't need. We show you the problem, explain your options, and let you decide. That approach has earned us 1,685+ five-star Google reviews and a 4.9-star rating — the highest of any independent shop in Cleveland. Whether you need new tires, brake repair, engine diagnostics, emissions testing, or any other service, Nick's is the shop Cleveland trusts. Walk-ins welcome 7 days a week, and we offer $10 down financing through Acima, Koalafi, Snap Finance, and American First Finance.",
+    localContent: "Nick's Tire & Auto is located at 17625 Euclid Avenue in the heart of Cleveland's East Side. Since 2018, we have built a reputation as the most trusted auto repair shop in Cleveland. Our secret is simple: honest diagnostics, transparent pricing, and quality work. We never sell you services you don't need. We show you the problem, explain your options, and let you decide. That approach has earned us 1,700+ five-star Google reviews and a 4.9-star rating — the highest of any independent shop in Cleveland. Whether you need new tires, brake repair, engine diagnostics, emissions testing, or any other service, Nick's is the shop Cleveland trusts. Walk-ins welcome 7 days a week, and we offer $10 down financing through Acima, Koalafi, Snap Finance, and American First Finance.",
     serviceHighlights: [
       "Cleveland's largest new and used tire selection with free premium installation",
       "Expert brake repair — pads, rotors, calipers, ABS diagnostics",
@@ -436,7 +436,7 @@ export const CITIES: CityData[] = [
     distance: "7 miles",
     driveTime: "12 minutes",
     neighborhoods: ["Warrensville Center Road", "Emery Road", "Miles Road", "Harvard Road", "Chagrin Highlands"],
-    localContent: "Warrensville Heights sits conveniently between Cleveland Heights and Garfield Heights, making Nick's Tire & Auto an easy 12-minute drive for residents. We have earned the trust of drivers throughout this community by consistently delivering honest diagnostics and quality repairs at fair prices. Our technicians use advanced diagnostic equipment to pinpoint problems accurately the first time, which saves you money and gets you back on the road faster. Whether you are dealing with a check engine light, need new brakes, or failed your Ohio E-Check, our team delivers the same transparent, high-quality service that has earned us over 1,685 five-star reviews from drivers across the Cleveland metro area.",
+    localContent: "Warrensville Heights sits conveniently between Cleveland Heights and Garfield Heights, making Nick's Tire & Auto an easy 12-minute drive for residents. We have earned the trust of drivers throughout this community by consistently delivering honest diagnostics and quality repairs at fair prices. Our technicians use advanced diagnostic equipment to pinpoint problems accurately the first time, which saves you money and gets you back on the road faster. Whether you are dealing with a check engine light, need new brakes, or failed your Ohio E-Check, our team delivers the same transparent, high-quality service that has earned us over 1,700 five-star reviews from drivers across the Cleveland metro area.",
     serviceHighlights: [
       "Full diagnostic service for all dashboard warning lights",
       "Brake inspection, repair, and replacement",

@@ -36,7 +36,7 @@ export default function ServiceReviewsBlock({ service, serviceTitle }: ServiceRe
           WHAT CLEVELAND DRIVERS SAY ABOUT OUR{" "}
           <span className="text-primary">{serviceTitle.toUpperCase()}</span>
         </h3>
-        <p className="mt-3 text-foreground/50 text-sm">
+        <p className="mt-3 text-foreground/70 text-sm">
           Recent verified reviews from customers who got this exact service.
         </p>
 
@@ -63,11 +63,11 @@ export default function ServiceReviewsBlock({ service, serviceTitle }: ServiceRe
 
                 {/* Attribution */}
                 <div className="mt-4 flex items-center justify-between">
-                  <span className="text-foreground/50 text-xs font-medium">
+                  <span className="text-foreground/70 text-xs font-medium">
                     &mdash; {review.name}
                   </span>
                   {review.date && (
-                    <span className="text-foreground/30 text-xs">
+                    <span className="text-foreground/60 text-xs">
                       {review.date}
                     </span>
                   )}

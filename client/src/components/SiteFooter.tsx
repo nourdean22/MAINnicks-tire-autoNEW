@@ -6,8 +6,8 @@ import { Star } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { GBP_REVIEW_URL } from "@shared/const";
 
-const LINK_CLASS = "block text-[13px] text-foreground/30 hover:text-foreground/60 transition-colors duration-200";
-const HEADING_CLASS = "text-[11px] font-semibold uppercase tracking-[0.1em] text-foreground/50 mb-5";
+const LINK_CLASS = "block text-[13px] text-foreground/60 hover:text-foreground/90 transition-colors duration-200";
+const HEADING_CLASS = "text-[11px] font-semibold uppercase tracking-[0.1em] text-foreground/70 mb-5";
 
 export default function SiteFooter() {
   return (
@@ -43,13 +43,13 @@ export default function SiteFooter() {
               <span className="text-[#FDB913] font-bold text-[17px] tracking-[-0.02em]">
                 Nick's Tire & Auto
               </span>
-              <p className="mt-3 text-foreground/25 text-[13px] leading-relaxed max-w-[240px]">
+              <p className="mt-3 text-foreground/60 text-[13px] leading-relaxed max-w-[240px]">
                 {BUSINESS.taglines.meme} Honest auto repair for Cleveland since 2018.
               </p>
               <p className="mt-3 text-foreground/30 text-[13px] leading-relaxed">
                 {BUSINESS.address.full}
               </p>
-              <a href={BUSINESS.phone.href} className="block mt-1 text-foreground/30 hover:text-foreground/60 text-[13px] transition-colors duration-200">
+              <a href={BUSINESS.phone.href} className="block mt-1 text-foreground/60 hover:text-foreground/90 text-[13px] transition-colors duration-200">
                 {BUSINESS.phone.display}
               </a>
               {/* Social links */}
@@ -58,7 +58,7 @@ export default function SiteFooter() {
                   href="https://www.instagram.com/nicks_tire_euclid/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-foreground/30 hover:text-foreground/60 transition-colors duration-200"
+                  className="text-foreground/60 hover:text-foreground/90 transition-colors duration-200"
                   aria-label="Instagram"
                 >
                   <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
@@ -67,7 +67,7 @@ export default function SiteFooter() {
                   href="https://www.facebook.com/nickstireeuclid/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-foreground/30 hover:text-foreground/60 transition-colors duration-200"
+                  className="text-foreground/60 hover:text-foreground/90 transition-colors duration-200"
                   aria-label="Facebook"
                 >
                   <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
@@ -76,7 +76,7 @@ export default function SiteFooter() {
                   href={GBP_REVIEW_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-foreground/30 hover:text-foreground/60 transition-colors duration-200"
+                  className="text-foreground/60 hover:text-foreground/90 transition-colors duration-200"
                   aria-label="Google Reviews"
                 >
                   <Star className="w-[18px] h-[18px]" />
@@ -176,7 +176,7 @@ export default function SiteFooter() {
                   },
                 ].map((group) => (
                   <div key={group.region}>
-                    <span className="text-[12px] font-medium text-foreground/40 block mb-1.5">{group.region}</span>
+                    <span className="text-[12px] font-medium text-foreground/70 block mb-1.5">{group.region}</span>
                     <div className="ml-0 space-y-1.5">
                       {group.cities.map((c) => (
                         <Link key={c.href} href={c.href} className={LINK_CLASS}>{c.label}</Link>

@@ -160,11 +160,11 @@ export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
       <nav aria-label="Breadcrumb" className="flex items-center gap-2 flex-wrap">
         {fullItems.map((item, index) => (
           <span key={index} className="flex items-center gap-2">
-            {index > 0 && <ChevronRight className="w-3 h-3 text-foreground/30" />}
+            {index > 0 && <ChevronRight className="w-3 h-3 text-foreground/60" />}
             {item.href && index < fullItems.length - 1 ? (
               <Link
                 href={item.href}
-                className="text-[12px] text-foreground/50 hover:text-primary transition-colors"
+                className="text-[12px] text-foreground/70 hover:text-primary transition-colors"
               >
                 {item.label}
               </Link>

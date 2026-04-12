@@ -224,7 +224,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
               : ""}
             .
           </p>
-          <p className="text-foreground/40 text-sm">
+          <p className="text-foreground/70 text-sm">
             We'll text you a confirmation shortly at {formData.phone}.
           </p>
           <div className="pt-4">
@@ -267,7 +267,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                     ? "bg-primary text-primary-foreground"
                     : isCurrent
                     ? "border-2 border-primary text-primary bg-transparent"
-                    : "bg-[#2A2A2A] text-foreground/30"
+                    : "bg-[#2A2A2A] text-foreground/60"
                 }`}
               >
                 {isCompleted ? <Check className="w-4 h-4" /> : stepNum}
@@ -308,7 +308,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
       <h3 className="font-bold text-[22px] text-foreground tracking-[-0.02em] mb-1">
         Schedule Your Drop-Off
       </h3>
-      <p className="text-foreground/40 text-[13px] mb-5">
+      <p className="text-foreground/70 text-[13px] mb-5">
         Walk-ins and drop-offs welcome. Most jobs done same day.
       </p>
 
@@ -336,7 +336,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
               className="space-y-6"
             >
               <div>
-                <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-3">
+                <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-3">
                   What do you need? *
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -359,7 +359,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                             <Check className="w-3 h-3 text-primary-foreground" />
                           </div>
                         )}
-                        <Icon className={`w-6 h-6 ${selected ? "text-primary" : "text-foreground/50"}`} />
+                        <Icon className={`w-6 h-6 ${selected ? "text-primary" : "text-foreground/70"}`} />
                         <span className={`text-[13px] font-semibold ${selected ? "text-primary" : "text-foreground/70"}`}>
                           {svc.label}
                         </span>
@@ -374,7 +374,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
 
               {/* Urgency Selector */}
               <div>
-                <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
+                <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-2">
                   How urgent is this?
                 </label>
                 <div className="flex gap-2">
@@ -426,7 +426,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
               className="space-y-5"
             >
               <div>
-                <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
+                <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-2">
                   Vehicle Year
                 </label>
                 <div className="relative">
@@ -434,6 +434,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                   <select
                     value={formData.vehicleYear}
                     onChange={(e) => update("vehicleYear", e.target.value)}
+                    aria-label="Vehicle year"
                     className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all appearance-none"
                   >
                     <option value="">Select Year</option>
@@ -446,12 +447,13 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
+                  <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-2">
                     Make
                   </label>
                   <select
                     value={formData.vehicleMake}
                     onChange={(e) => update("vehicleMake", e.target.value)}
+                    aria-label="Vehicle make"
                     className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-3 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all appearance-none"
                   >
                     <option value="">Select Make</option>
@@ -461,13 +463,14 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                   </select>
                 </div>
                 <div>
-                  <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
+                  <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-2">
                     Model
                   </label>
                   <input
                     type="text"
                     value={formData.vehicleModel}
                     onChange={(e) => update("vehicleModel", e.target.value)}
+                    aria-label="Vehicle model"
                     className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-3 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                     placeholder="e.g. Camry, Civic"
                   />
@@ -475,19 +478,20 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
               </div>
 
               <div>
-                <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
+                <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-2">
                   Describe what you're experiencing
                 </label>
                 <textarea
                   value={formData.message}
                   onChange={(e) => update("message", e.target.value)}
                   rows={3}
+                  aria-label="Describe your vehicle problem"
                   className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all resize-none"
                   placeholder="Noise when braking, engine light on, pulling to one side..."
                 />
               </div>
 
-              <p className="text-foreground/30 text-[12px] flex items-center gap-1.5">
+              <p className="text-foreground/60 text-[12px] flex items-center gap-1.5">
                 <Car className="w-3.5 h-3.5" />
                 We've serviced 14,000+ vehicles in Cleveland
               </p>
@@ -496,7 +500,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                 <button
                   type="button"
                   onClick={() => goTo(1)}
-                  className="flex items-center gap-2 border border-[oklch(0.17_0.004_260)] text-foreground/40 px-6 py-3 rounded-lg font-semibold text-[13px] hover:text-foreground/60 transition-colors"
+                  className="flex items-center gap-2 border border-[oklch(0.17_0.004_260)] text-foreground/60 px-6 py-3 rounded-lg font-semibold text-[13px] hover:text-foreground/90 transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4" /> Back
                 </button>
@@ -524,7 +528,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
               className="space-y-5"
             >
               <div>
-                <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
+                <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-2">
                   Preferred Date
                 </label>
                 <div className="relative">
@@ -533,6 +537,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                     type="date"
                     value={formData.preferredDate}
                     onChange={(e) => update("preferredDate", e.target.value)}
+                    aria-label="Preferred date"
                     min={minDate}
                     max={maxDate}
                     className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
@@ -541,7 +546,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
               </div>
 
               <div>
-                <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
+                <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-2">
                   Preferred Time
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -574,7 +579,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                 <button
                   type="button"
                   onClick={() => goTo(2)}
-                  className="flex items-center gap-2 border border-[oklch(0.17_0.004_260)] text-foreground/40 px-6 py-3 rounded-lg font-semibold text-[13px] hover:text-foreground/60 transition-colors"
+                  className="flex items-center gap-2 border border-[oklch(0.17_0.004_260)] text-foreground/60 px-6 py-3 rounded-lg font-semibold text-[13px] hover:text-foreground/90 transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4" /> Back
                 </button>
@@ -602,7 +607,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
               className="space-y-5"
             >
               <div>
-                <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-1.5">
+                <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-1.5">
                   Your Name *
                 </label>
                 <div className="relative">
@@ -612,6 +617,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                     required
                     value={formData.name}
                     onChange={(e) => update("name", e.target.value)}
+                    aria-label="Your name"
                     className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                     placeholder="John Smith"
                   />
@@ -619,7 +625,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
               </div>
 
               <div>
-                <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-1.5">
+                <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-1.5">
                   Phone Number *
                 </label>
                 <div className="relative">
@@ -629,6 +635,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                     required
                     value={formData.phone}
                     onChange={(e) => update("phone", formatPhone(e.target.value))}
+                    aria-label="Phone number"
                     className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                     placeholder={BUSINESS.phone.placeholder}
                   />
@@ -636,7 +643,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
               </div>
 
               <div>
-                <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-1.5">
+                <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-1.5">
                   Email (Optional)
                 </label>
                 <div className="relative">
@@ -645,6 +652,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                     type="email"
                     value={formData.email}
                     onChange={(e) => update("email", e.target.value)}
+                    aria-label="Email address"
                     className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                     placeholder="you@email.com"
                   />
@@ -652,7 +660,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
               </div>
 
               <div>
-                <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-1.5">
+                <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-1.5">
                   Who referred you? (optional)
                 </label>
                 <div className="relative">
@@ -661,6 +669,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                     type="text"
                     value={formData.referredBy}
                     onChange={(e) => update("referredBy", e.target.value)}
+                    aria-label="Referral source"
                     className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                     placeholder="Friend's name, social media, etc."
                     maxLength={100}
@@ -690,7 +699,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                 <button
                   type="button"
                   onClick={() => goTo(3)}
-                  className="flex items-center gap-2 border border-[oklch(0.17_0.004_260)] text-foreground/40 px-6 py-3 rounded-lg font-semibold text-[13px] hover:text-foreground/60 transition-colors"
+                  className="flex items-center gap-2 border border-[oklch(0.17_0.004_260)] text-foreground/60 px-6 py-3 rounded-lg font-semibold text-[13px] hover:text-foreground/90 transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4" /> Back
                 </button>

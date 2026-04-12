@@ -94,6 +94,83 @@ export async function analyzeConversionPipeline(): Promise<{
   };
 }
 
+/** Estimate-style leads (recommendedService set) in rolling windows — for CEO / Statenour sync. */
+export async function getEstimateLeadFunnelWindows(): Promise<{
+  last7d: {
+    estimateLeads: number;
+    bookedFromEstimates: number;
+    openPipelineCents: number;
+    staleNewEstimates: number;
+  };
+  last30d: {
+    estimateLeads: number;
+    bookedFromEstimates: number;
+    openPipelineCents: number;
+    staleNewEstimates: number;
+  };
+}> {
+  const empty = {
+    estimateLeads: 0,
+    bookedFromEstimates: 0,
+    openPipelineCents: 0,
+    staleNewEstimates: 0,
+  };
+  const d = await db();
+  if (!d) return { last7d: { ...empty }, last30d: { ...empty } };
+
+  const { leads } = await import("../../drizzle/schema");
+  const now = Date.now();
+  const d7 = new Date(now - 7 * 24 * 60 * 60 * 1000);
+  const d30 = new Date(now - 30 * 24 * 60 * 60 * 1000);
+  /** Estimate leads still "new" and untouched for 48h+ (conversion risk). */
+  const stale48h = new Date(now - 48 * 60 * 60 * 1000);
+
+  async function window(since: Date) {
+    const [
+      estimateLeads,
+      bookedFromEstimates,
+      openCentsRow,
+      staleNewEstimates,
+    ] = await Promise.all([
+      d.select({ count: sql<number>`count(*)` }).from(leads).where(
+        and(sql`${leads.recommendedService} IS NOT NULL`, gte(leads.createdAt, since)),
+      ),
+      d.select({ count: sql<number>`count(*)` }).from(leads).where(
+        and(
+          sql`${leads.recommendedService} IS NOT NULL`,
+          gte(leads.createdAt, since),
+          sql`${leads.status} IN ('booked','completed')`,
+        ),
+      ),
+      d.select({ sum: sql<number>`coalesce(sum(${leads.estimatedValueCents}), 0)` }).from(leads).where(
+        and(
+          sql`${leads.recommendedService} IS NOT NULL`,
+          gte(leads.createdAt, since),
+          sql`${leads.status} IN ('new','contacted')`,
+        ),
+      ),
+      d.select({ count: sql<number>`count(*)` }).from(leads).where(
+        and(
+          sql`${leads.recommendedService} IS NOT NULL`,
+          eq(leads.status, "new"),
+          lte(leads.createdAt, stale48h),
+          gte(leads.createdAt, since),
+        ),
+      ),
+    ]);
+
+    return {
+      estimateLeads: estimateLeads[0]?.count ?? 0,
+      bookedFromEstimates: bookedFromEstimates[0]?.count ?? 0,
+      openPipelineCents: openCentsRow[0]?.sum ?? 0,
+      staleNewEstimates: staleNewEstimates[0]?.count ?? 0,
+    };
+  }
+
+  const [last7d, last30d] = await Promise.all([window(d7), window(d30)]);
+  return { last7d, last30d };
+}
+
 // ─── REVENUE PROJECTION ───────────────────────────────
 
 export async function projectRevenue(): Promise<{
