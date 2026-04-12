@@ -4,7 +4,9 @@
  */
 import { adminProcedure, router } from "../_core/trpc";
 import { sql, eq, gte, and } from "drizzle-orm";
-import { execSync } from "child_process";
+import { exec } from "child_process";
+import { promisify } from "util";
+const execAsync = promisify(exec);
 import { bookings, leads, callbackRequests, smsMessages, dailyExecution, dailyHabits } from "../../drizzle/schema";
 import { getGatewayHealth, getAvailableModels } from "../lib/ai-gateway";
 import { z } from "zod";
@@ -644,34 +646,22 @@ export const controlCenterRouter = router({
     try {
       const cwd = process.cwd();
 
-      // Recent commits (last 7 days)
-      const logRaw = execSync(
-        'git log --oneline --since="7 days ago" --no-decorate 2>/dev/null',
-        { cwd, encoding: "utf-8", timeout: 5000 }
-      ).trim();
+      // Run all git commands concurrently (non-blocking, was execSync)
+      const gitCmd = (cmd: string, timeout = 5000) =>
+        execAsync(cmd, { cwd, encoding: "utf-8", timeout }).then(r => r.stdout.trim()).catch(() => "");
+
+      const [logRaw, diffRaw, branch, statusRaw] = await Promise.all([
+        gitCmd('git log --oneline --since="7 days ago" --no-decorate 2>/dev/null'),
+        gitCmd('git diff --name-only HEAD~1 2>/dev/null'),
+        gitCmd('git branch --show-current 2>/dev/null', 3000),
+        gitCmd('git status --porcelain 2>/dev/null', 3000),
+      ]);
+
       const commits = logRaw ? logRaw.split("\n").map(line => {
         const [hash, ...rest] = line.split(" ");
         return { hash, message: rest.join(" ") };
       }) : [];
-
-      // Files changed today
-      const diffRaw = execSync(
-        'git diff --name-only HEAD~1 2>/dev/null || echo ""',
-        { cwd, encoding: "utf-8", timeout: 5000 }
-      ).trim();
       const recentFiles = diffRaw ? diffRaw.split("\n").filter(Boolean).slice(0, 10) : [];
-
-      // Current branch
-      const branch = execSync(
-        'git branch --show-current 2>/dev/null',
-        { cwd, encoding: "utf-8", timeout: 3000 }
-      ).trim();
-
-      // Uncommitted changes
-      const statusRaw = execSync(
-        'git status --porcelain 2>/dev/null',
-        { cwd, encoding: "utf-8", timeout: 3000 }
-      ).trim();
       const uncommittedCount = statusRaw ? statusRaw.split("\n").filter(Boolean).length : 0;
 
       return {
