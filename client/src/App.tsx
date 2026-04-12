@@ -12,7 +12,7 @@ import { TIRE_SIZE_PAGES } from "@shared/tireSizes";
 import { VEHICLE_SERVICE_PAGES } from "@shared/vehicleServicePages";
 import { SkipToContent } from "@/components/SEO";
 import QuickAccessDock from "@/components/QuickAccessDock";
-import { Analytics } from "@vercel/analytics/react";
+// @vercel/analytics removed — this runs on Railway, not Vercel
 
 // ─── LOADING FALLBACK ─────────────────────────────────
 function PageLoader() {
@@ -348,7 +348,7 @@ function App() {
           <Router />
           <QuickAccessDock />
           <EmergencyMode />
-          <Analytics />
+          {/* Analytics removed — runs on Railway, not Vercel */}
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
