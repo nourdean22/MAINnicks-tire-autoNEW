@@ -46,8 +46,8 @@ export default function TrustStrip() {
                 <Icon className={`w-4 h-4 shrink-0 ${s.iconClass}`} />
                 <div>
                   <span className="text-sm font-bold text-foreground/90">{s.value}</span>
-                  <span className="hidden sm:inline text-foreground/40 text-xs ml-2">{s.sub}</span>
-                  <span className="sm:hidden block text-foreground/40 text-[10px] leading-tight">
+                  <span className="hidden sm:inline text-foreground/70 text-xs ml-2">{s.sub}</span>
+                  <span className="sm:hidden block text-foreground/70 text-[10px] leading-tight">
                     {s.sub}
                   </span>
                 </div>

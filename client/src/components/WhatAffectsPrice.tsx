@@ -43,12 +43,12 @@ export default function WhatAffectsPrice({
     <div className="rounded-xl border border-border/25 bg-[oklch(0.07_0.004_260)] p-6 space-y-5">
       {/* Header */}
       <div className="flex items-start gap-3">
-        <Info className="w-4 h-4 text-foreground/40 shrink-0 mt-0.5" />
+        <Info className="w-4 h-4 text-foreground/70 shrink-0 mt-0.5" />
         <div>
           <p className="text-sm font-semibold text-foreground/90">
             What affects the price of {service}
           </p>
-          <p className="mt-0.5 text-xs text-foreground/40">
+          <p className="mt-0.5 text-xs text-foreground/70">
             We break this down so there are zero surprises in your estimate.
           </p>
         </div>
@@ -73,7 +73,7 @@ export default function WhatAffectsPrice({
 
       {/* Reassurance footer */}
       {reassurance && (
-        <p className="pt-3 border-t border-border/20 text-xs text-foreground/40 leading-relaxed">
+        <p className="pt-3 border-t border-border/20 text-xs text-foreground/70 leading-relaxed">
           {reassurance}
         </p>
       )}

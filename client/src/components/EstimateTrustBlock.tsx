@@ -56,7 +56,7 @@ export default function EstimateTrustBlock({ service, noteOverride }: EstimateTr
             <p.icon className="w-4 h-4 text-primary/60 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-semibold text-foreground/90 leading-snug">{p.heading}</p>
-              <p className="mt-0.5 text-xs text-foreground/50 leading-relaxed">{p.detail}</p>
+              <p className="mt-0.5 text-xs text-foreground/70 leading-relaxed">{p.detail}</p>
             </div>
           </div>
         ))}
@@ -64,7 +64,7 @@ export default function EstimateTrustBlock({ service, noteOverride }: EstimateTr
 
       {/* Footer note */}
       <div className="px-6 py-3 bg-primary/5 border-t border-border/20">
-        <p className="text-xs text-foreground/50">
+        <p className="text-xs text-foreground/70">
           {note}{" "}
           <a
             href={BUSINESS.phone.href}

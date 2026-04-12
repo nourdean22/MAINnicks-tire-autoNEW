@@ -44,8 +44,8 @@ const TIERS = [
     label: "Monitor",
     sublabel: "Watch at next visit",
     colorClass: "border-border/25 bg-[oklch(0.07_0.004_260)]",
-    iconClass: "text-foreground/40",
-    badgeClass: "bg-foreground/10 text-foreground/50",
+    iconClass: "text-foreground/70",
+    badgeClass: "bg-foreground/10 text-foreground/70",
   },
 ];
 
@@ -63,7 +63,7 @@ export default function SafetyNowSoonLater({
   return (
     <div className="space-y-3">
       {contextNote && (
-        <p className="text-xs text-foreground/40 leading-relaxed">{contextNote}</p>
+        <p className="text-xs text-foreground/70 leading-relaxed">{contextNote}</p>
       )}
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -82,7 +82,7 @@ export default function SafetyNowSoonLater({
                   <p className="text-sm font-semibold text-foreground/90 leading-none">
                     {tier.label}
                   </p>
-                  <p className="text-[10px] text-foreground/40 mt-0.5">{tier.sublabel}</p>
+                  <p className="text-[10px] text-foreground/70 mt-0.5">{tier.sublabel}</p>
                 </div>
               </div>
 

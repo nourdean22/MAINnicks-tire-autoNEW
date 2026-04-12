@@ -97,7 +97,7 @@ export default function InternalLinks({ title = "Explore More Services", maxLink
   return (
     <section className="bg-[oklch(0.055_0.004_260)] py-16 border-t border-border/30">
       <div className="container">
-        <h3 className="text-xs font-semibold text-foreground/30 uppercase tracking-widest mb-8">
+        <h3 className="text-xs font-semibold text-foreground/60 uppercase tracking-widest mb-8">
           {title}
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -111,7 +111,7 @@ export default function InternalLinks({ title = "Explore More Services", maxLink
                 <p className="font-medium text-sm text-foreground group-hover:text-primary transition-colors truncate">
                   {link.label}
                 </p>
-                <p className="text-xs text-foreground/40 mt-0.5 truncate">{link.desc}</p>
+                <p className="text-xs text-foreground/70 mt-0.5 truncate">{link.desc}</p>
               </div>
               <ChevronRight className="w-4 h-4 text-foreground/20 group-hover:text-primary shrink-0 ml-3 transition-colors" />
             </Link>

@@ -48,7 +48,7 @@ export default function ObjectionProofBlock({
             <div className="flex items-center gap-2 mt-2">
               <span className="text-sm font-semibold text-foreground/60">— {q.author}</span>
               {q.badge && (
-                <span className="text-[10px] font-semibold tracking-wide uppercase text-foreground/40 border border-border/30 px-1.5 py-0.5 rounded">
+                <span className="text-[10px] font-semibold tracking-wide uppercase text-foreground/70 border border-border/30 px-1.5 py-0.5 rounded">
                   {q.badge}
                 </span>
               )}
@@ -59,7 +59,7 @@ export default function ObjectionProofBlock({
 
       {/* Stat line */}
       {statLine && (
-        <p className="mt-5 pt-4 border-t border-border/20 text-xs text-foreground/40 font-medium">
+        <p className="mt-5 pt-4 border-t border-border/20 text-xs text-foreground/70 font-medium">
           {statLine}
         </p>
       )}

@@ -764,6 +764,7 @@ export const smsMessages = mysqlTable("sms_messages", {
 }, (table) => ({
   idx_sms_msg_conv: index("idx_sms_msg_conv").on(table.conversationId),
   idx_sms_msg_created: index("idx_sms_msg_created").on(table.createdAt),
+  idx_sms_msg_status_created: index("idx_sms_msg_status_created").on(table.status, table.createdAt),
 }));
 
 export type SmsMessage = typeof smsMessages.$inferSelect;
@@ -1074,6 +1075,8 @@ export const invoices = mysqlTable("invoices", {
   customerId: int("customerId"),
   /** Link to booking if matched */
   bookingId: int("bookingId"),
+  /** Link to work order if matched */
+  workOrderId: int("workOrderId"),
   /** Customer name (denormalized for display) */
   customerName: varchar("customerName", { length: 255 }).notNull(),
   customerPhone: varchar("customerPhone", { length: 30 }),
@@ -1103,6 +1106,7 @@ export const invoices = mysqlTable("invoices", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
   index("idx_invoice_booking").on(table.bookingId),
+  index("idx_invoice_work_order").on(table.workOrderId),
   index("idx_invoice_customer").on(table.customerName),
   index("idx_invoice_date").on(table.invoiceDate),
   index("idx_invoice_payment_status").on(table.paymentStatus),
@@ -1110,6 +1114,45 @@ export const invoices = mysqlTable("invoices", {
 
 export type Invoice = typeof invoices.$inferSelect;
 export type InsertInvoice = typeof invoices.$inferInsert;
+
+// ─── ESTIMATES LOG ─────────────────────────────────────���─
+/**
+ * Persists every estimate generated (AI or manual).
+ * Closes the analytics gap: tracks estimate→conversion rate and $ pipeline.
+ */
+export const estimatesLog = mysqlTable("estimates_log", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Customer phone for matching */
+  phone: varchar("phone", { length: 30 }).notNull(),
+  /** Customer name */
+  name: varchar("name", { length: 255 }),
+  /** Vehicle info */
+  vehicle: varchar("vehicle", { length: 255 }),
+  /** Service described */
+  service: varchar("service", { length: 255 }).notNull(),
+  /** Estimated amount in cents */
+  estimatedAmountCents: int("estimatedAmountCents"),
+  /** Low end of range in cents */
+  estimatedLowCents: int("estimatedLowCents"),
+  /** High end of range in cents */
+  estimatedHighCents: int("estimatedHighCents"),
+  /** Source: ai-estimator, manual, phone-quote */
+  source: mysqlEnum("source", ["ai-estimator", "manual", "phone-quote"]).default("ai-estimator").notNull(),
+  /** Whether customer converted (booked / invoiced) */
+  converted: int("converted").default(0).notNull(),
+  /** Link to invoice if converted */
+  invoiceId: int("invoiceId"),
+  /** Link to booking if converted */
+  bookingId: int("bookingId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_estimate_phone").on(table.phone),
+  index("idx_estimate_source").on(table.source),
+  index("idx_estimate_created").on(table.createdAt),
+]);
+
+export type EstimateLog = typeof estimatesLog.$inferSelect;
+export type InsertEstimateLog = typeof estimatesLog.$inferInsert;
 
 // ─── KPI SNAPSHOTS (Command Center) ────────────────────
 /**

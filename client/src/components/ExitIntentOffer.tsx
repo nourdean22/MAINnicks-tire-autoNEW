@@ -69,7 +69,7 @@ export default function ExitIntentOffer({ serviceName }: { serviceName: string }
           >
             <button
               onClick={dismiss}
-              className="absolute top-4 right-4 text-foreground/25 hover:text-foreground/50 transition-colors p-1 z-10"
+              className="absolute top-4 right-4 text-foreground/70 hover:text-foreground/70 transition-colors p-1 z-10"
               aria-label="Close popup"
             >
               <X className="w-4 h-4" />
@@ -79,7 +79,7 @@ export default function ExitIntentOffer({ serviceName }: { serviceName: string }
               <h3 className="font-bold text-[20px] text-foreground tracking-[-0.02em]">
                 Before you go —
               </h3>
-              <p className="text-foreground/50 text-[13px] mt-2 leading-relaxed">
+              <p className="text-foreground/70 text-[13px] mt-2 leading-relaxed">
                 Get approved for lease-to-own in 60 seconds. $10 initial payment, no credit history needed.
               </p>
 
@@ -95,19 +95,19 @@ export default function ExitIntentOffer({ serviceName }: { serviceName: string }
 
               <a
                 href={BUSINESS.phone.href}
-                className="flex items-center justify-center gap-2 mt-3 text-foreground/40 text-[13px] hover:text-foreground/60 transition-colors"
+                className="flex items-center justify-center gap-2 mt-3 text-foreground/70 text-[13px] hover:text-foreground/60 transition-colors"
               >
                 <Phone className="w-3.5 h-3.5" />
                 Or call us: {BUSINESS.phone.display}
               </a>
 
-              <p className="text-[9px] text-foreground/25 mt-4 leading-relaxed">
+              <p className="text-[9px] text-foreground/70 mt-4 leading-relaxed">
                 {ACIMA_COMPACT_DISCLOSURE} Not available in {ACIMA_STATES_EXCLUDED}.
               </p>
 
               <button
                 onClick={dismiss}
-                className="block mx-auto mt-3 text-foreground/25 text-[12px] hover:text-foreground/40 transition-colors"
+                className="block mx-auto mt-3 text-foreground/70 text-[12px] hover:text-foreground/70 transition-colors"
               >
                 No thanks, maybe later
               </button>

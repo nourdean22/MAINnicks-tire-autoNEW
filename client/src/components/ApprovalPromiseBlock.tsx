@@ -53,7 +53,7 @@ export default function ApprovalPromiseBlock({ variant = "full" }: ApprovalPromi
             ))}
           </ul>
 
-          <p className="mt-5 text-xs text-foreground/40">
+          <p className="mt-5 text-xs text-foreground/70">
             Questions before you come in?{" "}
             <a
               href={BUSINESS.phone.href}

@@ -144,7 +144,7 @@ export default function LeadPopup() {
   };
 
   const inputCls =
-    "w-full bg-foreground/[0.04] border border-[oklch(0.17_0.004_260)] rounded-lg text-foreground px-4 py-3 text-[13px] placeholder:text-foreground/25 focus:border-primary/30 focus:outline-none transition-all";
+    "w-full bg-foreground/[0.04] border border-[oklch(0.17_0.004_260)] rounded-lg text-foreground px-4 py-3 text-[13px] placeholder:text-foreground/50 focus:border-primary/30 focus:outline-none transition-all";
 
   return (
     <AnimatePresence>
@@ -174,7 +174,7 @@ export default function LeadPopup() {
                   Car Problem?
                 </span>
               </div>
-              <button onClick={dismiss} className="text-foreground/25 hover:text-foreground/50 transition-colors p-1">
+              <button onClick={dismiss} className="text-foreground/50 hover:text-foreground/50 transition-colors p-1">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -185,7 +185,7 @@ export default function LeadPopup() {
                   <h3 className="font-bold text-[22px] text-foreground tracking-[-0.02em]">
                     Tell us what's going on.
                   </h3>
-                  <p className="text-foreground/40 text-[13px] mt-2 leading-relaxed">
+                  <p className="text-foreground/70 text-[13px] mt-2 leading-relaxed">
                     Describe your vehicle problem and we'll call you with an honest assessment. No obligation.
                   </p>
                   <p className="text-[11px] text-emerald-400/70 mt-1">
@@ -236,19 +236,19 @@ export default function LeadPopup() {
                     </button>
                   </form>
 
-                  <div className="mt-4 flex items-center justify-center gap-2 text-foreground/25 text-[12px]">
+                  <div className="mt-4 flex items-center justify-center gap-2 text-foreground/50 text-[12px]">
                     <Phone className="w-3 h-3" />
-                    <span>Or call: <a href={BUSINESS.phone.href} className="text-foreground/40 hover:text-foreground/60 transition-colors">{BUSINESS.phone.display}</a></span>
+                    <span>Or call: <a href={BUSINESS.phone.href} className="text-foreground/60 hover:text-foreground/90 transition-colors">{BUSINESS.phone.display}</a></span>
                   </div>
                 </>
               ) : (
                 <div className="py-8 text-center">
                   <CheckCircle className="w-12 h-12 text-primary mx-auto mb-4" />
                   <h3 className="font-bold text-[20px] text-foreground tracking-[-0.02em]">Got it. We'll call you.</h3>
-                  <p className="text-foreground/40 text-[13px] mt-2 leading-relaxed">
+                  <p className="text-foreground/70 text-[13px] mt-2 leading-relaxed">
                     Expect a call from (216) 862-0005 soon.
                   </p>
-                  <button onClick={dismiss} className="mt-6 text-foreground/30 text-[12px] hover:text-foreground/50 transition-colors">
+                  <button onClick={dismiss} className="mt-6 text-foreground/60 text-[12px] hover:text-foreground/80 transition-colors">
                     Close
                   </button>
                 </div>

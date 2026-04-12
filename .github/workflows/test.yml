@@ -33,10 +33,14 @@ jobs:
       - name: Lint / format check
         run: pnpm lint 2>&1 | tee /tmp/lint-output.txt
 
-      - name: Run tests
-        run: pnpm test -- --reporter=verbose 2>&1 | tee /tmp/test-output.txt
+      - name: Run tests with coverage
+        run: pnpm test -- --reporter=verbose --coverage 2>&1 | tee /tmp/test-output.txt
         env:
           NO_COLOR: 1
+
+      - name: Audit dependencies
+        run: pnpm audit --prod --audit-level=high 2>&1 | tee /tmp/audit-output.txt
+        continue-on-error: true
 
       - name: Build
         run: pnpm build 2>&1 | tee /tmp/build-output.txt
@@ -51,6 +55,7 @@ jobs:
             /tmp/check-output.txt
             /tmp/lint-output.txt
             /tmp/test-output.txt
+            /tmp/audit-output.txt
             /tmp/build-output.txt
           retention-days: 5
 
@@ -65,5 +70,7 @@ jobs:
           tail -20 /tmp/lint-output.txt 2>/dev/null || true
           echo "--- test ---"
           tail -30 /tmp/test-output.txt 2>/dev/null || true
+          echo "--- audit ---"
+          tail -20 /tmp/audit-output.txt 2>/dev/null || true
           echo "--- build ---"
           tail -20 /tmp/build-output.txt 2>/dev/null || true
