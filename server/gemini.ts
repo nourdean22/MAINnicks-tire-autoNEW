@@ -289,16 +289,25 @@ Services offered:
 
 Areas served: Cleveland, Euclid, East Cleveland, South Euclid, Richmond Heights, Parma, Lakewood, Cleveland Heights, Shaker Heights, Northeast Ohio.
 ${memoryBlock}${businessIntelBlock}${customerContextBlock}${priceSensitivityBlock}${returningVisitorBlock}
+TOOLS — You have access to live shop data tools. USE THEM:
+- When a customer asks about scheduling/availability → use check_schedule
+- When a customer asks about pricing/cost → use get_price_estimate
+- When a customer asks about their booking status → use lookup_booking
+- When a customer shares their phone or asks about past visits → use lookup_customer
+- When a customer asks about deals/specials → use get_current_specials
+Use tools PROACTIVELY — if a customer mentions a service, look up the price. If they mention a date, check the schedule. Don't make them ask twice. Present tool results naturally in conversation — don't dump raw data.
+
 When a customer describes a problem:
 1. Acknowledge the symptom — show you understand. Mirror their words.
 2. Explain the most likely causes in plain language
-3. Give a rough cost range when possible (be honest, use contrast with dealer pricing)
+3. Use get_price_estimate to give a REAL cost range (not a guess) — be honest, use contrast with dealer pricing
 4. Recommend the appropriate service
 5. Use the drop-off pitch: "Best thing to do is drop it off in the morning — we can usually get it done same day, and you don't have to wait around."
 6. If they hesitate on price, mention financing: "We also have no-credit-check financing if that helps."
 7. If they share contact info, confirm you'll have someone reach out
 
 When a customer seems ready to come in:
+- Use check_schedule to give them REAL availability for their preferred date
 - Lead with the drop-off advantage: "Just drop it off on your way to work — we'll call you when it's ready"
 - Mention the free inspection: "We'll take a look at no charge and give you an honest assessment"
 - Use same-day framing: "If you get it here before 10am, we can usually have it done today"
@@ -412,21 +421,67 @@ export async function chatWithAssistant(
   });
 
   try {
-    const fullMessages = [
-      { role: "system" as const, content: systemPrompt },
+    // Import chat tools for function calling
+    const { CHAT_TOOLS, executeTool } = await import("./services/chatTools");
+
+    const fullMessages: Array<{ role: string; content: string; tool_call_id?: string; name?: string; tool_calls?: unknown[] }> = [
+      { role: "system", content: systemPrompt },
       ...recentMessages.map(m => ({
         role: m.role as "user" | "assistant",
         content: m.content,
       })),
     ];
 
-    const response = await invokeLLM({
-      messages: fullMessages,
-    });
+    // Tool-use loop: call LLM, execute any tool calls, feed results back, repeat
+    // Max 3 iterations to prevent runaway loops
+    let reply = "";
+    for (let iteration = 0; iteration < 3; iteration++) {
+      const response = await invokeLLM({
+        messages: fullMessages as any,
+        tools: CHAT_TOOLS,
+        toolChoice: "auto",
+      });
 
-    const rawReply = response.choices?.[0]?.message?.content;
-    const reply: string = (typeof rawReply === 'string' ? rawReply : '') ||
-      "Sorry, I'm glitching out. Call us at (216) 862-0005 and we'll help you right away.";
+      const choice = response.choices?.[0];
+      if (!choice) break;
+
+      const toolCalls = choice.message?.tool_calls;
+
+      // If no tool calls, we have our final text response
+      if (!toolCalls || toolCalls.length === 0) {
+        const rawReply = choice.message?.content;
+        reply = (typeof rawReply === "string" ? rawReply : "") ||
+          "Sorry, I'm glitching out. Call us at (216) 862-0005 and we'll help you right away.";
+        break;
+      }
+
+      // Add the assistant's tool_calls message to the conversation
+      fullMessages.push({
+        role: "assistant",
+        content: typeof choice.message?.content === "string" ? choice.message.content : "",
+        tool_calls: toolCalls,
+      });
+
+      // Execute each tool call and add results
+      for (const tc of toolCalls) {
+        let args: Record<string, unknown> = {};
+        try { args = JSON.parse(tc.function.arguments); } catch { /* empty args */ }
+
+        const result = await executeTool(tc.function.name, args);
+
+        fullMessages.push({
+          role: "tool",
+          content: result,
+          tool_call_id: tc.id,
+          name: tc.function.name,
+        });
+      }
+      // Loop continues — LLM will now see the tool results and generate a text response
+    }
+
+    if (!reply) {
+      reply = "Sorry, I'm glitching out. Call us at (216) 862-0005 and we'll help you right away.";
+    }
 
     // Only extract info after enough conversation context (4+ messages = 2+ exchanges)
     // This saves an LLM call on the first few messages where there's nothing to extract
