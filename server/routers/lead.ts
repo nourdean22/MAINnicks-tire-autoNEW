@@ -351,4 +351,56 @@ export const leadRouter = router({
       }).catch((e) => { console.warn("[routers/lead] fire-and-forget failed:", e); });
       return { success: true };
     }),
+
+  /** AI-draft a personalized response for a lead */
+  draftResponse: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      const [lead] = await d.select().from(leads).where(eq(leads.id, input.id)).limit(1);
+      if (!lead) throw new TRPCError({ code: "NOT_FOUND", message: "Lead not found" });
+
+      const { invokeLLM } = await import("../_core/llm");
+      const result = await invokeLLM({
+        messages: [
+          {
+            role: "system",
+            content: `You are writing a response for Nick's Tire & Auto in Cleveland/Euclid.
+Draft a friendly, professional SMS or call script to respond to this lead.
+
+Rules:
+- Use their first name
+- Reference their specific vehicle and service need
+- Mention our FCFS / drop-off model (no appointment needed)
+- Include a rough price range if the service is identifiable
+- Keep it under 150 words for SMS, or 200 words for call script
+- Tone: warm, knowledgeable, not salesy
+- Always include: (216) 862-0005
+- Business hours: Mon-Sat 8am-6pm
+- End with a clear next step`,
+          },
+          {
+            role: "user",
+            content: `Lead: ${lead.name}
+Phone: ${lead.phone || "unknown"}
+Vehicle: ${lead.vehicle || "unknown"}
+Problem: ${lead.problem || "general inquiry"}
+Source: ${lead.source || "website"}
+Urgency: ${lead.urgencyScore || 3}/5
+Value estimate: ${lead.estimatedValueCents ? `$${(lead.estimatedValueCents / 100).toFixed(0)}` : "unknown"}
+
+Draft both an SMS response and a phone call script.`,
+          },
+        ],
+      });
+
+      const draft = result.choices?.[0]?.message?.content;
+      if (typeof draft !== "string" || draft.length < 20) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "AI draft generation failed" });
+      }
+
+      return { draft, leadId: input.id, leadName: lead.name };
+    }),
 });
