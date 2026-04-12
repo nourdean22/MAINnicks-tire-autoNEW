@@ -89,7 +89,7 @@ class ErrorBoundary extends Component<Props, State> {
             {/* Error details (collapsed by default) */}
             {error && (
               <details className="mb-8 text-left">
-                <summary className="text-[12px] text-foreground/40 cursor-pointer hover:text-foreground/60 transition-colors">
+                <summary className="text-[12px] text-foreground/70 cursor-pointer hover:text-foreground/60 transition-colors">
                   Technical details
                 </summary>
                 <div className="mt-3 p-4 bg-background/50 border border-border/30 overflow-auto max-h-40">
@@ -130,7 +130,7 @@ class ErrorBoundary extends Component<Props, State> {
             </div>
 
             {/* Contact fallback */}
-            <p className="mt-8 text-foreground/30 text-[12px]">
+            <p className="mt-8 text-foreground/60 text-[12px]">
               Need help? Call us at{" "}
               <a href={`tel:${BUSINESS.phone.raw}`} className="text-primary hover:text-primary transition-colors">
                 {BUSINESS.phone.display}

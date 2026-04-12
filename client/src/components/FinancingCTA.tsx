@@ -85,7 +85,7 @@ export default function FinancingCTA({ variant = "banner", className = "" }: Fin
             </div>
             <div>
               <p className="font-bold text-foreground text-sm">Fix It Now, Pay Over Time</p>
-              <p className="text-foreground/50 text-xs">
+              <p className="text-foreground/70 text-xs">
                 4 options · No credit needed · Approved in seconds · Up to $7,500
               </p>
             </div>

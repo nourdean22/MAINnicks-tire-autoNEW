@@ -64,7 +64,7 @@ export default function FastPaths() {
       <div className="container">
         {/* Heading */}
         <div className="mb-8">
-          <p className="text-xs font-semibold tracking-[0.12em] uppercase text-foreground/40 mb-2">
+          <p className="text-xs font-semibold tracking-[0.12em] uppercase text-foreground/70 mb-2">
             Quick answers
           </p>
           <h2 className="font-heading text-3xl lg:text-4xl font-extrabold uppercase text-foreground leading-tight">
@@ -98,7 +98,7 @@ export default function FastPaths() {
         </div>
 
         {/* Local anchor */}
-        <p className="mt-6 text-xs text-foreground/30 text-center">
+        <p className="mt-6 text-xs text-foreground/60 text-center">
           17625 Euclid Ave, Cleveland · Mon–Sat 8–6, Sun 9–4 · Walk-ins welcome
         </p>
       </div>

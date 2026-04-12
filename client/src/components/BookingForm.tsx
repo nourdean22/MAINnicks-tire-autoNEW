@@ -180,7 +180,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
             <div className="flex items-start gap-3">
               <Wrench className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
               <div>
-                <div className="text-foreground/40 text-xs uppercase font-semibold tracking-wide">Service</div>
+                <div className="text-foreground/70 text-xs uppercase font-semibold tracking-wide">Service</div>
                 <div className="text-foreground text-base font-semibold">{formData.service}</div>
               </div>
             </div>
@@ -188,7 +188,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
               <div className="flex items-start gap-3">
                 <Car className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-foreground/40 text-xs uppercase font-semibold tracking-wide">Vehicle</div>
+                  <div className="text-foreground/70 text-xs uppercase font-semibold tracking-wide">Vehicle</div>
                   <div className="text-foreground text-base font-semibold">
                     {formData.vehicleYear} {formData.vehicleMake} {formData.vehicleModel}
                   </div>
@@ -235,7 +235,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
             </p>
           </div>
 
-          <p className="text-foreground/40 text-xs text-center mb-6">
+          <p className="text-foreground/70 text-xs text-center mb-6">
             Need to change something? Just reply to our text or call us.
           </p>
 
@@ -259,7 +259,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                 <div key={idx} className="flex items-start justify-between gap-4 p-4 bg-background/40 border border-border/30 rounded-md">
                   <div>
                     <div className="font-semibold text-foreground text-sm">{upsell.suggestion}</div>
-                    <div className="text-foreground/50 text-xs mt-1">{upsell.note}</div>
+                    <div className="text-foreground/70 text-xs mt-1">{upsell.note}</div>
                   </div>
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
                     <div className="text-primary font-bold text-sm">{upsell.price}</div>
@@ -325,7 +325,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
       <h3 className="font-bold text-[22px] text-foreground tracking-[-0.02em] mb-1">
         Book an Appointment
       </h3>
-      <p className="text-foreground/40 text-[13px] mb-5">
+      <p className="text-foreground/70 text-[13px] mb-5">
         Walk-ins welcome! Same-day appointments available.
       </p>
 
@@ -344,7 +344,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
           {/* Service Selection or "Not Sure" Textarea */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-[12px] font-medium text-foreground/40 tracking-wide block">
+              <label className="text-[12px] font-medium text-foreground/70 tracking-wide block">
                 What do you need? *
               </label>
               <button
@@ -362,6 +362,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                 value={formData.message}
                 onChange={(e) => update("message", e.target.value)}
                 rows={4}
+                aria-label="Describe your vehicle problem"
                 className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all resize-none"
                 placeholder="Describe what's going on with your vehicle or what service you need..."
               />
@@ -388,7 +389,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
 
           {/* Vehicle Information */}
           <div>
-            <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
+            <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-2">
               Vehicle Information (Optional)
             </label>
             <div className="grid grid-cols-3 gap-3">
@@ -397,6 +398,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                 <select
                   value={formData.vehicleYear}
                   onChange={(e) => update("vehicleYear", e.target.value)}
+                  aria-label="Vehicle year"
                   className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-2 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all appearance-none"
                 >
                   <option value="">Year</option>
@@ -408,6 +410,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
               <select
                 value={formData.vehicleMake}
                 onChange={(e) => update("vehicleMake", e.target.value)}
+                aria-label="Vehicle make"
                 className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-3 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all appearance-none"
               >
                 <option value="">Make</option>
@@ -419,6 +422,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                 type="text"
                 value={formData.vehicleModel}
                 onChange={(e) => update("vehicleModel", e.target.value)}
+                aria-label="Vehicle model"
                 className="w-full bg-background/60 border border-border/50 rounded-md text-foreground px-3 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                 placeholder="Model"
               />
@@ -427,7 +431,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
 
           {/* Photo Upload */}
           <div>
-            <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
+            <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-2">
               Photos of the Problem (Optional — up to 3)
             </label>
             <div className="flex flex-wrap gap-3">
@@ -472,7 +476,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
 
           {/* Urgency Routing */}
           <div>
-            <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
+            <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-2">
               How urgent is this?
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -526,7 +530,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
           {/* Contact Info */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
-              <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-1.5">
+              <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-1.5">
                 Your Name *
               </label>
               <div className="relative">
@@ -536,6 +540,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                   required
                   value={formData.name}
                   onChange={(e) => update("name", e.target.value)}
+                  aria-label="Your name"
                   className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                   placeholder="John Smith"
                 />
@@ -543,7 +548,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
             </div>
 
             <div>
-              <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-1.5">
+              <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-1.5">
                 Phone Number *
               </label>
               <div className="relative">
@@ -553,6 +558,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                   required
                   value={formData.phone}
                   onChange={(e) => update("phone", e.target.value)}
+                  aria-label="Phone number"
                   className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                   placeholder={BUSINESS.phone.placeholder}
                 />
@@ -560,7 +566,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
             </div>
 
             <div className="sm:col-span-2">
-              <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-1.5">
+              <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-1.5">
                 Email (Optional)
               </label>
               <div className="relative">
@@ -569,6 +575,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                   type="email"
                   value={formData.email}
                   onChange={(e) => update("email", e.target.value)}
+                  aria-label="Email address"
                   className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                   placeholder="you@email.com"
                 />
@@ -579,7 +586,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
           {/* Preferred Date & Time */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
-              <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-1.5">
+              <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-1.5">
                 Preferred Date (Optional)
               </label>
               <div className="relative">
@@ -588,12 +595,13 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                   type="date"
                   value={formData.preferredDate}
                   onChange={(e) => update("preferredDate", e.target.value)}
+                  aria-label="Preferred date"
                   className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                 />
               </div>
             </div>
             <div>
-              <label className="text-[12px] font-medium text-foreground/40 tracking-wide block mb-2">
+              <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-2">
                 Preferred Time
               </label>
               <div className="flex flex-wrap gap-2">
@@ -606,7 +614,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                     key={opt.value}
                     type="button"
                     onClick={() => update("preferredTime", opt.value)}
-                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 border rounded-md text-[13px] transition-all ${
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-3 border rounded-md text-[13px] transition-all ${
                       formData.preferredTime === opt.value
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-border/50 text-foreground/60 hover:border-nick-teal/40"
@@ -647,7 +655,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
             <button
               type="button"
               onClick={() => setStep(1)}
-              className="flex items-center gap-2 border border-[oklch(0.17_0.004_260)] text-foreground/40 px-6 py-3 rounded-lg font-semibold text-[13px] hover:text-foreground/60 transition-colors"
+              className="flex items-center gap-2 border border-[oklch(0.17_0.004_260)] text-foreground/60 px-6 py-3 rounded-lg font-semibold text-[13px] hover:text-foreground/90 transition-colors"
               aria-label="Go back to step 1"
             >
               <ChevronLeft className="w-4 h-4" /> Back

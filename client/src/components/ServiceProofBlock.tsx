@@ -17,7 +17,7 @@ export default function ServiceProofBlock({ quotes, heading }: ServiceProofBlock
   return (
     <div className="space-y-4">
       {heading && (
-        <p className="text-xs font-semibold tracking-[0.12em] uppercase text-foreground/40">{heading}</p>
+        <p className="text-xs font-semibold tracking-[0.12em] uppercase text-foreground/70">{heading}</p>
       )}
       <div className={`grid gap-4 ${quotes.length === 1 ? "" : quotes.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3"}`}>
         {quotes.map((q, i) => (
