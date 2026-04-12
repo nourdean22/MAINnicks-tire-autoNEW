@@ -18,7 +18,7 @@ export default function BookingPage() {
       <main className="max-w-3xl mx-auto px-4 py-12 sm:py-16">
         <div className="text-center mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
-            Book Your Appointment
+            Schedule Your Drop-Off
           </h1>
           <p className="text-foreground/60 text-lg max-w-xl mx-auto">
             Schedule your service online. Walk-ins are also welcome 7 days a week.

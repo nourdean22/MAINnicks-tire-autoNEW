@@ -358,18 +358,29 @@ async function pushToCloud(event: NourOsEvent): Promise<void> {
   const start = Date.now();
 
   await cloudCB.call(async () => {
-    const res = await fetch(`${STATENOUR_URL}/api/sync/events`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(SYNC_KEY ? { Authorization: `Bearer ${SYNC_KEY}` } : {}),
-      },
-      body: JSON.stringify({ events: [event] }),
-      signal: AbortSignal.timeout(10000),
-    });
+    const headers = {
+      "Content-Type": "application/json",
+      ...(SYNC_KEY ? { Authorization: `Bearer ${SYNC_KEY}` } : {}),
+    };
+    const body = JSON.stringify({ events: [event] });
 
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => "unknown")}`);
+    // Push to both endpoints in parallel: sync (storage) + webhook (real-time alerts)
+    const [syncRes] = await Promise.all([
+      fetch(`${STATENOUR_URL}/api/sync/events`, {
+        method: "POST", headers, body,
+        signal: AbortSignal.timeout(10000),
+      }),
+      // Real-time webhook — triggers instant Telegram alerts for critical events
+      fetch(`${STATENOUR_URL}/api/webhooks/nickstire`, {
+        method: "POST", headers, body,
+        signal: AbortSignal.timeout(10000),
+      }).catch((err) => {
+        log.warn("Webhook push failed (non-blocking)", { error: String(err) });
+      }),
+    ]);
+
+    if (!syncRes.ok) {
+      throw new Error(`HTTP ${syncRes.status}: ${await syncRes.text().catch(() => "unknown")}`);
     }
 
     const latency = Date.now() - start;

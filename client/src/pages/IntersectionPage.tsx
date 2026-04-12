@@ -333,7 +333,7 @@ export default function IntersectionPage() {
             <div className="text-center mb-10">
               <span className="font-mono text-nick-blue-light text-sm tracking-wide">Schedule Service</span>
               <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight">
-                BOOK YOUR APPOINTMENT
+                SCHEDULE YOUR DROP-OFF
               </h2>
               <p className="mt-4 text-foreground/60 max-w-lg mx-auto">
                 Near {intersection.name}? Schedule your service online or call us at {BUSINESS.phone.display}.

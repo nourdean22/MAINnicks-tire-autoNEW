@@ -108,7 +108,7 @@ export default function RelatedServices({ current, related, title = "Related Ser
         <div className="mt-6 flex flex-wrap gap-4 text-xs text-foreground/70">
           <Link href="/financing" className="hover:text-primary transition-colors">Need financing? Apply in 2 minutes</Link>
           <span className="text-foreground/20">|</span>
-          <Link href="/booking" className="hover:text-primary transition-colors">Book your appointment online</Link>
+          <Link href="/booking" className="hover:text-primary transition-colors">Schedule your drop-off online</Link>
           <span className="text-foreground/20">|</span>
           <Link href="/services" className="hover:text-primary transition-colors">View all services</Link>
         </div>

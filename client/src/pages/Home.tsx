@@ -573,7 +573,7 @@ export default function Home() {
                   { href: "/diagnose", label: "Diagnose My Car" },
                   { href: "/pricing", label: "Price Estimator" },
                   { href: "/financing", label: "Financing — No Credit Check" },
-                  { href: "/booking", label: "Book Appointment Online" },
+                  { href: "/booking", label: "Schedule Drop-Off Online" },
                   { href: "/specials", label: "Specials & Coupons" },
                   { href: "/blog", label: "Repair Tips Blog" },
                   { href: "/car-care-guide", label: "Car Care Guide" },

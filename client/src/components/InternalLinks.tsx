@@ -45,7 +45,7 @@ const ALL_LINKS: LinkItem[] = [
   { href: "/guides/annual-car-maintenance-cost-guide", label: "Annual Maintenance Cost", desc: "What Cleveland drivers actually spend" },
   { href: "/faq", label: "FAQ", desc: "Common auto repair questions answered" },
   { href: "/contact", label: "Contact & Booking", desc: "Schedule your appointment today" },
-  { href: "/booking", label: "Book Appointment", desc: "Online scheduling — walk-ins also welcome" },
+  { href: "/booking", label: "Schedule Drop-Off", desc: "Online scheduling — walk-ins also welcome" },
   { href: "/fleet", label: "Fleet Accounts", desc: "Commercial vehicle maintenance" },
   { href: "/financing", label: "Financing Options", desc: "No credit check — 4 providers, apply in 2 min" },
   { href: "/rewards", label: "Rewards Program", desc: "Earn points on every service" },

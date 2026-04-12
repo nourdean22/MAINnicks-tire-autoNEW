@@ -43,7 +43,7 @@ export default function Terms() {
               <p>
                 By accessing or using the Nick's Tire & Auto website at{" "}
                 <a href="https://nickstire.org" className="text-primary hover:underline">nickstire.org</a>,
-                booking an appointment, or opting in to our SMS messaging program, you agree to be bound by these
+                scheduling a drop-off, or opting in to our SMS messaging program, you agree to be bound by these
                 Terms and Conditions. If you do not agree, please do not use our website or services.
               </p>
             </div>

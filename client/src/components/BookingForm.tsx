@@ -323,7 +323,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
   return (
     <form onSubmit={handleSubmit} className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-8 lg:p-10">
       <h3 className="font-bold text-[22px] text-foreground tracking-[-0.02em] mb-1">
-        Book an Appointment
+        Schedule Your Drop-Off
       </h3>
       <p className="text-foreground/70 text-[13px] mb-5">
         Walk-ins welcome! Same-day appointments available.

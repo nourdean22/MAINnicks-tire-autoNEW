@@ -489,7 +489,7 @@ export default function LandingPage() {
               Call Now: {BUSINESS.phone.display}
             </a>
             <button onClick={() => location[1]("/booking")} className="w-full bg-yellow-400 hover:bg-yellow-300 text-black font-bold py-4 rounded-lg transition-colors">
-              Book Online Appointment
+              Schedule Online Drop-Off
             </button>
           </div>
         </div>

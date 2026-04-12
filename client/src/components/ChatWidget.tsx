@@ -162,7 +162,7 @@ export default function ChatWidget() {
                     </button>
                     <button
                       onClick={() => {
-                        const prompt = "I'd like to book an appointment";
+                        const prompt = "I'd like to schedule a drop-off";
                         setInput(prompt);
                         setMessages([{ role: "user", content: prompt }]);
                         sendMessage.mutate({ message: prompt });
