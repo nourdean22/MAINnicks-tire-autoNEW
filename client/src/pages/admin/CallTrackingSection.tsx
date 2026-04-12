@@ -3,7 +3,7 @@
  */
 import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import { StatCard, CHART_COLORS } from "./shared";
+import { StatCard, CHART_COLORS, CHART_THEME } from "./shared";
 import {
   Phone, PhoneCall, MapPin, Loader2, Clock, AlertTriangle,
   TrendingUp, BarChart3, Users, CheckCircle2,
@@ -39,7 +39,7 @@ export default function CallTrackingSection() {
       hour: h,
       label: h === 0 ? "12a" : h < 12 ? `${h}a` : h === 12 ? "12p" : `${h - 12}p`,
       count: hourCounts[h] || 0,
-      fill: hourCounts[h] >= 3 ? "#F5A623" : hourCounts[h] >= 1 ? "#3B82F6" : "oklch(0.20 0.005 260)",
+      fill: hourCounts[h] >= 3 ? CHART_THEME.primary : hourCounts[h] >= 1 ? CHART_THEME.secondary : "oklch(0.20 0.005 260)",
     })).filter(h => h.hour >= 7 && h.hour <= 21); // Business hours only
   }, [calls]);
 
