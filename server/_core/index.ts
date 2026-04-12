@@ -135,30 +135,9 @@ async function startServer() {
     next();
   });
 
-  // Security headers — hardened per OWASP recommendations
-  app.use((_req, res, next) => {
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("X-Frame-Options", "DENY");
-    // X-XSS-Protection: 0 — modern best practice, the legacy XSS auditor causes more
-    // vulnerabilities than it prevents. CSP is the real protection.
-    res.setHeader("X-XSS-Protection", "0");
-    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-    // Content Security Policy
-    res.setHeader("Content-Security-Policy", [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://www.google-analytics.com",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' data: blob: https: http:",
-      "connect-src 'self' https://www.google-analytics.com https://www.facebook.com https://d2xsxph8kpxj0f.cloudfront.net https://api.nhtsa.gov",
-      "frame-src https://www.google.com https://maps.google.com",
-      "media-src 'self' blob:",
-      "frame-ancestors 'none'",
-    ].join("; "));
-    next();
-  });
+  // Security headers — uses the centralized middleware from securityHeaders.ts
+  // (includes CSP with all allowed domains: ahrefs, GA, Meta, etc.)
+  app.use((await import("../middleware/securityHeaders")).securityHeaders);
   // Request tracking for self-healing anomaly detection (non-blocking, ~0ms)
   app.use((_req, _res, next) => { recordRequest(); next(); });
 
