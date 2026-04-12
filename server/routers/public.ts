@@ -10,20 +10,25 @@ import { runDiagnosis } from "../diagnose";
 import { generateLaborEstimate } from "../laborEstimate";
 import { z } from "zod";
 import { sanitizeText } from "../sanitize";
+import { cached } from "../lib/cache";
 import { desc, gte, like, or, and, sql } from "drizzle-orm";
 
 export const weatherRouter = router({
   current: publicProcedure.query(async () => {
-    const weather = await getWeather();
-    if (!weather) return { alert: null, weather: null };
-    const alert = getWeatherAlert(weather);
-    return { alert, weather };
+    return cached("weather:current", 600, async () => {
+      const weather = await getWeather();
+      if (!weather) return { alert: null, weather: null };
+      const alert = getWeatherAlert(weather);
+      return { alert, weather };
+    });
   }),
 });
 
 export const reviewsRouter = router({
   google: publicProcedure.query(async () => {
-    return getGoogleReviews();
+    return cached("reviews:google", 3600, async () => {
+      return getGoogleReviews();
+    });
   }),
 });
 
@@ -31,10 +36,15 @@ export const instagramRouter = router({
   posts: publicProcedure
     .input(z.object({ limit: z.number().min(1).max(20).default(6) }).optional())
     .query(async ({ input }) => {
-      return getInstagramPosts(input?.limit ?? 6);
+      const limit = input?.limit ?? 6;
+      return cached(`instagram:posts:${limit}`, 1800, async () => {
+        return getInstagramPosts(limit);
+      });
     }),
   account: publicProcedure.query(async () => {
-    return getInstagramAccount();
+    return cached("instagram:account", 1800, async () => {
+      return getInstagramAccount();
+    });
   }),
 });
 
