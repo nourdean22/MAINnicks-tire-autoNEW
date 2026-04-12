@@ -22,25 +22,51 @@ function useDebounce(value: string, delay: number) {
   return debounced;
 }
 
-const SECTION_SHORTCUTS: { id: AdminSection; label: string; keywords: string[] }[] = [
-  { id: "overview", label: "Dashboard Overview", keywords: ["dashboard", "overview", "home", "today"] },
-  { id: "commandCenter", label: "NOUR OS Bridge", keywords: ["nour", "brain", "bridge", "sync", "system", "health"] },
-  { id: "workOrders", label: "Work Orders", keywords: ["work order", "job", "repair", "service", "bay", "tech"] },
-  { id: "bookings", label: "Bookings", keywords: ["booking", "appointment", "schedule"] },
-  { id: "leads", label: "Leads / CRM", keywords: ["lead", "crm", "prospect"] },
-  { id: "estimates", label: "Estimate Pipeline", keywords: ["estimate", "pipeline", "quote", "approval"] },
-  { id: "customers", label: "Customers", keywords: ["customer", "client", "database"] },
-  { id: "sms", label: "SMS Messaging", keywords: ["sms", "text", "message"] },
-  { id: "financing", label: "Financing Command", keywords: ["financing", "payment", "acima", "snap", "koalafi", "american first finance"] },
-  { id: "revenue", label: "Revenue Center", keywords: ["revenue", "money", "income"] },
-  { id: "reviewRequests", label: "Review Requests", keywords: ["review", "rating", "star", "proof"] },
-  { id: "callTrackingView", label: "Call Tracking", keywords: ["call", "phone", "tracking", "missed"] },
-  { id: "analyticsView", label: "Analytics", keywords: ["analytics", "stats", "data"] },
-  { id: "campaigns", label: "Campaigns", keywords: ["campaign", "blast", "bulk", "outreach"] },
-  { id: "tireOrders", label: "Tire Orders", keywords: ["tire", "order", "inventory"] },
-  { id: "health", label: "Site Health", keywords: ["health", "sitemap", "seo", "domain"] },
-  { id: "activity", label: "Activity Log", keywords: ["activity", "log", "history", "audit"] },
-  { id: "settings", label: "Settings", keywords: ["setting", "config", "sync"] },
+const SECTION_SHORTCUTS: { id: AdminSection; label: string; keywords: string[]; group: string }[] = [
+  // Core Operations
+  { id: "overview", label: "Dashboard Overview", keywords: ["dashboard", "overview", "home", "today"], group: "Operations" },
+  { id: "workOrders", label: "Work Orders", keywords: ["work order", "job", "repair", "service", "bay", "tech"], group: "Operations" },
+  { id: "bookings", label: "Drop-Offs / Schedule", keywords: ["booking", "drop-off", "schedule", "dropoff"], group: "Operations" },
+  { id: "dispatch", label: "Dispatch Board", keywords: ["dispatch", "bay", "assign", "tech", "technician"], group: "Operations" },
+  { id: "inspections", label: "Inspections", keywords: ["inspect", "inspection", "check", "diagnose"], group: "Operations" },
+
+  // Sales Pipeline
+  { id: "leads", label: "Leads / CRM", keywords: ["lead", "crm", "prospect", "new customer"], group: "Sales" },
+  { id: "estimates", label: "Estimate Pipeline", keywords: ["estimate", "pipeline", "quote", "approval", "cost"], group: "Sales" },
+  { id: "declinedEstimates", label: "Declined Estimates", keywords: ["declined", "walked", "lost", "recovery", "didn't convert"], group: "Sales" },
+  { id: "followups", label: "Follow-Ups", keywords: ["follow up", "followup", "callback", "touch"], group: "Sales" },
+  { id: "financing", label: "Financing", keywords: ["financing", "payment", "acima", "snap", "koalafi"], group: "Sales" },
+
+  // Revenue & Analytics
+  { id: "revenue", label: "Revenue Center", keywords: ["revenue", "money", "income", "sales", "total"], group: "Revenue" },
+  { id: "analyticsView", label: "Analytics", keywords: ["analytics", "stats", "data", "chart", "trend"], group: "Revenue" },
+  { id: "callTrackingView", label: "Call Tracking", keywords: ["call", "phone", "tracking", "missed"], group: "Revenue" },
+
+  // Customers
+  { id: "customers", label: "Customer Database", keywords: ["customer", "client", "database", "lookup"], group: "Customers" },
+  { id: "winback", label: "Win-Back Engine", keywords: ["winback", "churn", "dormant", "inactive", "lapsed"], group: "Customers" },
+  { id: "loyalty", label: "Loyalty Program", keywords: ["loyalty", "points", "reward", "tier"], group: "Customers" },
+  { id: "referrals", label: "Referrals", keywords: ["referral", "refer", "word of mouth"], group: "Customers" },
+
+  // Marketing
+  { id: "sms", label: "SMS Command Center", keywords: ["sms", "text", "message", "blast"], group: "Marketing" },
+  { id: "campaigns", label: "Campaigns", keywords: ["campaign", "blast", "bulk", "outreach", "promo"], group: "Marketing" },
+  { id: "reviewRequests", label: "Review Engine", keywords: ["review", "rating", "star", "proof", "google"], group: "Marketing" },
+  { id: "content", label: "Content Studio", keywords: ["content", "post", "social", "instagram", "blog"], group: "Marketing" },
+  { id: "specials", label: "Specials & Coupons", keywords: ["special", "coupon", "deal", "discount", "promo"], group: "Marketing" },
+
+  // Inventory
+  { id: "tireOrders", label: "Tire Orders", keywords: ["tire", "order", "inventory", "stock", "size"], group: "Inventory" },
+
+  // Intelligence
+  { id: "intelligence", label: "Intelligence Center", keywords: ["intelligence", "brain", "insight", "ai", "analysis"], group: "Intelligence" },
+  { id: "commandCenter", label: "NOUR OS Bridge", keywords: ["nour", "brain", "bridge", "sync", "system", "health"], group: "Intelligence" },
+
+  // System
+  { id: "health", label: "Site Health", keywords: ["health", "sitemap", "seo", "domain", "uptime"], group: "System" },
+  { id: "activity", label: "Activity Log", keywords: ["activity", "log", "history", "audit"], group: "System" },
+  { id: "exportView", label: "Export Data", keywords: ["export", "csv", "download", "backup"], group: "System" },
+  { id: "settings", label: "Settings", keywords: ["setting", "config", "sync", "preference"], group: "System" },
 ];
 
 export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
