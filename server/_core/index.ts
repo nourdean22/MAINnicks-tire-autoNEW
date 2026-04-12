@@ -49,6 +49,7 @@ import { registerPsychDominanceRoute } from "../routes/psych-dominance";
 import { registerBurnoutRadarRoute } from "../routes/burnout-radar";
 import { registerSimulatorRoute } from "../routes/simulator";
 import { registerNourChiefStrategistRoute } from "../routes/nour-chief-strategist";
+import { registerNourOsQueryRoute } from "../routes/nour-os-query";
 import { healthHandler, pingHandler, readyHandler, recoverHandler } from "../lib/health";
 import { startSelfHealing, recordRequest } from "../lib/self-healing";
 import { createLogger } from "../lib/logger";
@@ -446,6 +447,7 @@ async function startServer() {
   registerBurnoutRadarRoute(app);
   registerSimulatorRoute(app);
   registerNourChiefStrategistRoute(app);
+  registerNourOsQueryRoute(app);
 
   // Higher body limit for photo upload (base64 encoded images up to 7.5MB)
   app.use("/api/trpc/booking.uploadPhoto", express.json({ limit: "12mb" }));

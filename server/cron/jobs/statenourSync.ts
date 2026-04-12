@@ -322,6 +322,51 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
       })(),
       // ═══ Shop Floor (ALG-sourced) ═══
       shopFloor: stats.shopFloor || null,
+      // ═══ Trends (this week vs last week) ═══
+      trends: await (async () => {
+        try {
+          const { getDb } = await import("../../db");
+          const { sql } = await import("drizzle-orm");
+          const d = await getDb();
+          if (!d) return null;
+          const [thisWeekLeads] = await d.execute(sql`SELECT COUNT(*) as cnt FROM leads WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`);
+          const [lastWeekLeads] = await d.execute(sql`SELECT COUNT(*) as cnt FROM leads WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL 14 DAY) AND createdAt < DATE_SUB(CURDATE(), INTERVAL 7 DAY)`);
+          const [thisWeekRevenue] = await d.execute(sql`SELECT COALESCE(SUM(totalAmount),0) as rev FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND paymentStatus='paid'`);
+          const [lastWeekRevenue] = await d.execute(sql`SELECT COALESCE(SUM(totalAmount),0) as rev FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL 14 DAY) AND invoiceDate < DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND paymentStatus='paid'`);
+          const [thisWeekBookings] = await d.execute(sql`SELECT COUNT(*) as cnt FROM bookings WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`);
+          const [lastWeekBookings] = await d.execute(sql`SELECT COUNT(*) as cnt FROM bookings WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL 14 DAY) AND createdAt < DATE_SUB(CURDATE(), INTERVAL 7 DAY)`);
+          const tw = (v: unknown) => Number((v as Record<string, unknown>[])?.[0]?.cnt || (v as Record<string, unknown>[])?.[0]?.rev || (v as Record<string, unknown>)?.cnt || (v as Record<string, unknown>)?.rev || 0);
+          const twLeads = tw(thisWeekLeads), lwLeads = tw(lastWeekLeads);
+          const twRev = tw(thisWeekRevenue), lwRev = tw(lastWeekRevenue);
+          const twBk = tw(thisWeekBookings), lwBk = tw(lastWeekBookings);
+          const delta = (curr: number, prev: number) => prev === 0 ? (curr > 0 ? 100 : 0) : Math.round(((curr - prev) / prev) * 100);
+          return {
+            leads: { thisWeek: twLeads, lastWeek: lwLeads, delta: delta(twLeads, lwLeads) },
+            revenue: { thisWeek: Math.round(twRev / 100), lastWeek: Math.round(lwRev / 100), delta: delta(twRev, lwRev) },
+            bookings: { thisWeek: twBk, lastWeek: lwBk, delta: delta(twBk, lwBk) },
+          };
+        } catch (e) { log.warn("[jobs/statenourSync] trends failed", { error: String(e) }); return null; }
+      })(),
+      // ═══ Attention Alerts (what needs Nour's attention NOW) ═══
+      attentionAlerts: await (async () => {
+        try {
+          const { getDb } = await import("../../db");
+          const { sql } = await import("drizzle-orm");
+          const d = await getDb();
+          if (!d) return [];
+          const alerts: Array<{ level: string; msg: string; count: number }> = [];
+          const cnt = async (q: ReturnType<typeof sql>) => { const [r] = await d.execute(q); return Number((r as Record<string,unknown>[])?.[0]?.cnt || (r as Record<string,unknown>)?.cnt || 0); };
+          const stale = await cnt(sql`SELECT COUNT(*) as cnt FROM leads WHERE status='new' AND createdAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)`);
+          if (stale > 0) alerts.push({ level: "critical", msg: `${stale} leads untouched >24h — money dying`, count: stale });
+          const cbs = await cnt(sql`SELECT COUNT(*) as cnt FROM callback_requests WHERE status='new' AND createdAt < DATE_SUB(NOW(), INTERVAL 4 HOUR)`);
+          if (cbs > 0) alerts.push({ level: "critical", msg: `${cbs} callbacks unanswered >4h`, count: cbs });
+          const pendingInv = await cnt(sql`SELECT COUNT(*) as cnt FROM invoices WHERE paymentStatus='pending' AND invoiceDate < DATE_SUB(NOW(), INTERVAL 3 DAY)`);
+          if (pendingInv > 0) alerts.push({ level: "warning", msg: `${pendingInv} invoices unpaid >3 days ($)`, count: pendingInv });
+          const overdueWo = await cnt(sql`SELECT COUNT(*) as cnt FROM work_orders WHERE status NOT IN ('completed','cancelled') AND promisedTime IS NOT NULL AND promisedTime < NOW()`);
+          if (overdueWo > 0) alerts.push({ level: "warning", msg: `${overdueWo} work orders past promise time`, count: overdueWo });
+          return alerts;
+        } catch (e) { log.warn("[jobs/statenourSync] attentionAlerts failed", { error: String(e) }); return []; }
+      })(),
     };
 
     // Retry with backoff — Vercel cold starts cause intermittent 500s
