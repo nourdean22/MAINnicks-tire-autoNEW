@@ -4,9 +4,10 @@ import { StatCard } from "../shared";
 import { SectionSpinner, NoData, EngineCard, MiniTable, fmt, pct, STALE_TIME } from "./utils";
 
 const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
+import { useState, useEffect } from "react";
 import {
   DollarSign, BarChart3, Target, TrendingUp, TrendingDown, Minus,
-  AlertTriangle, CreditCard, Activity,
+  AlertTriangle, CreditCard, Activity, CloudRain,
 } from "lucide-react";
 
 export default function RevenueTab() {
@@ -220,6 +221,84 @@ export default function RevenueTab() {
           </EngineCard>
         ) : null}
       </div>
+
+      {/* Weather Impact — from statenour */}
+      <WeatherImpactCard />
     </div>
+  );
+}
+
+function WeatherImpactCard() {
+  const [weather, setWeather] = useState<any>(null);
+
+  useEffect(() => {
+    fetch("https://statenour-os.vercel.app/api/weather")
+      .then(r => r.ok ? r.json() : null)
+      .then(setWeather)
+      .catch(() => {});
+  }, []);
+
+  if (!weather?.businessImpact) return null;
+
+  const impact = weather.businessImpact;
+  const current = weather.current;
+  const forecast = weather.forecast || [];
+
+  const demandColor = impact.demandForecast === "surge" ? "text-emerald-400"
+    : impact.demandForecast === "high" ? "text-emerald-400"
+    : impact.demandForecast === "low" ? "text-red-400"
+    : "text-foreground/70";
+
+  return (
+    <EngineCard
+      title="WEATHER → REVENUE CORRELATION"
+      icon={<CloudRain className="w-4 h-4 text-blue-400" />}
+      border={impact.demandForecast === "surge" ? "border-emerald-500/20" : "border-border/30"}
+    >
+      <div className="grid grid-cols-3 gap-4 mb-3">
+        <div className="text-center">
+          <div className={`text-xl font-bold font-mono ${demandColor}`}>
+            {impact.demandForecast.toUpperCase()}
+          </div>
+          <div className="text-[10px] text-foreground/40">DEMAND LEVEL</div>
+        </div>
+        <div className="text-center">
+          <div className="text-xl font-bold font-mono text-foreground">
+            {impact.demandMultiplier}x
+          </div>
+          <div className="text-[10px] text-foreground/40">MULTIPLIER</div>
+        </div>
+        <div className="text-center">
+          <div className="text-xl font-bold font-mono text-foreground">
+            {current?.tempHigh}°F
+          </div>
+          <div className="text-[10px] text-foreground/40">{current?.description}</div>
+        </div>
+      </div>
+
+      <div className="text-[12px] text-foreground/50 mb-2">{impact.reasoning}</div>
+      <div className="text-[12px] text-foreground/70 font-medium mb-2">Staffing: {impact.staffingAdvice}</div>
+
+      {impact.alerts?.length > 0 && (
+        <div className="space-y-1 mt-2">
+          {impact.alerts.map((a: string, i: number) => (
+            <div key={i} className="text-[11px] text-amber-400 flex items-center gap-1.5">
+              <AlertTriangle className="w-3 h-3 shrink-0" /> {a}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 3-day forecast */}
+      <div className="flex gap-2 mt-3 pt-3 border-t border-border/20">
+        {forecast.slice(1, 4).map((d: any) => (
+          <div key={d.date} className="flex-1 text-center">
+            <div className="text-[10px] text-foreground/40">{d.date.slice(5)}</div>
+            <div className="text-[11px] font-mono text-foreground/70">{d.tempHigh}°</div>
+            <div className="text-[10px] text-foreground/30">{d.description}</div>
+          </div>
+        ))}
+      </div>
+    </EngineCard>
   );
 }

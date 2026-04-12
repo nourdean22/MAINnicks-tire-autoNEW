@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { StatCard } from "../shared";
@@ -5,7 +6,7 @@ import { Spinner, NoData, STALE_TIME } from "./utils";
 
 const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
 import {
-  Activity, AlertTriangle, TrendingUp, Users, Star, Zap,
+  Activity, AlertTriangle, TrendingUp, Users, Star, Zap, Brain,
 } from "lucide-react";
 
 export default function OverviewTab() {
@@ -110,6 +111,9 @@ export default function OverviewTab() {
       </div>
       {/* ─── CUSTOMER JOURNEY FUNNEL ─── */}
       <CustomerJourneyFunnel data={data} />
+
+      {/* ─── NOUR OS BRAIN INTEGRATION ─── */}
+      <NourOsBrainCard />
     </div>
   );
 }
@@ -204,6 +208,77 @@ function AlertCard({ type, icon, message, border }: {
         <span className="text-[10px] font-semibold text-foreground/50 tracking-wide">{type}</span>
       </div>
       <p className="text-[12px] text-foreground/80 leading-relaxed">{message}</p>
+    </div>
+  );
+}
+
+function NourOsBrainCard() {
+  const [brain, setBrain] = useState<any>(null);
+  const [weather, setWeather] = useState<any>(null);
+
+  useEffect(() => {
+    Promise.all([
+      fetch("https://statenour-os.vercel.app/api/brain/status").then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch("https://statenour-os.vercel.app/api/weather").then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([b, w]) => {
+      setBrain(b?.data ?? b);
+      setWeather(w);
+    });
+  }, []);
+
+  if (!brain && !weather) return null;
+
+  const memories = brain?.memories;
+  const impact = weather?.businessImpact;
+
+  return (
+    <div className="bg-card border border-violet-500/20 p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-6 h-6 bg-violet-500/20 flex items-center justify-center rounded-sm">
+          <Brain className="w-3.5 h-3.5 text-violet-400" />
+        </div>
+        <span className="text-[11px] font-bold text-violet-400 tracking-wide">NOUR OS BRAIN LINK</span>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {memories && (
+          <>
+            <div className="text-center">
+              <div className="text-lg font-bold font-mono text-violet-400">{memories.total ?? 0}</div>
+              <div className="text-[10px] text-foreground/40">MEMORIES</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold font-mono text-foreground">{memories.permanent ?? 0}</div>
+              <div className="text-[10px] text-foreground/40">PERMANENT</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold font-mono text-foreground">
+                {memories.avgConfidence ? `${Math.round(memories.avgConfidence * 100)}%` : "—"}
+              </div>
+              <div className="text-[10px] text-foreground/40">AVG CONFIDENCE</div>
+            </div>
+          </>
+        )}
+        {impact && (
+          <div className="text-center">
+            <div className={`text-lg font-bold font-mono ${
+              impact.demandForecast === "surge" ? "text-emerald-400" :
+              impact.demandForecast === "high" ? "text-emerald-400" :
+              impact.demandForecast === "low" ? "text-red-400" : "text-foreground/70"
+            }`}>
+              {impact.demandForecast.toUpperCase()}
+            </div>
+            <div className="text-[10px] text-foreground/40">WEATHER DEMAND</div>
+          </div>
+        )}
+      </div>
+
+      {brain?.automationRules && (
+        <div className="mt-3 text-[11px] text-foreground/40">
+          {brain.automationRules.active ?? 0} autonomous rules active ·
+          Brain health: {memories?.avgConfidence > 0.3 ? "healthy" : "needs attention"}
+        </div>
+      )}
     </div>
   );
 }
