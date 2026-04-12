@@ -62,7 +62,7 @@ export async function processReviewMonitor(): Promise<{ recordsProcessed: number
         reviewRating: review.rating || 3,
         reviewText: sanitizeText(review.text || ""),
         reviewDate: review.time ? new Date(review.time * 1000) : new Date(),
-        draftReply: getDefaultDraft(review.rating, review.author_name),
+        draftReply: await getDefaultDraft(review.rating, review.author_name, review.text),
         status: "draft",
       });
 
@@ -109,8 +109,43 @@ export async function processReviewMonitor(): Promise<{ recordsProcessed: number
   }
 }
 
-function getDefaultDraft(rating: number, authorName: string): string {
+async function getDefaultDraft(rating: number, authorName: string, reviewText?: string): Promise<string> {
   const name = authorName?.split(" ")[0] || "there";
+
+  // For negative reviews (≤3 stars), use AI to craft a professional response
+  if (rating <= 3 && reviewText && reviewText.length > 10) {
+    try {
+      const { invokeLLM } = await import("../../_core/llm");
+      const result = await invokeLLM({
+        messages: [
+          {
+            role: "system",
+            content: `You are Nick's Tire & Auto's review response writer. Write a professional, empathetic response to a negative Google review.
+
+Rules:
+- Address the reviewer by first name
+- Acknowledge their specific concern (reference what they wrote)
+- Apologize without being defensive
+- Invite them to call (216) 862-0005 to resolve
+- Keep it under 100 words
+- Tone: warm, professional, takes ownership
+- Never blame the customer
+- Business name: Nick's Tire & Auto`,
+          },
+          {
+            role: "user",
+            content: `${rating} star review from ${authorName}:\n"${reviewText}"`,
+          },
+        ],
+      });
+      const aiResponse = typeof result.choices?.[0]?.message?.content === "string" ? result.choices[0].message.content : "";
+      if (aiResponse && aiResponse.length > 20) return aiResponse;
+    } catch (err) {
+      log.warn("AI review draft failed, using template", { error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  // Fallback templates
   if (rating >= 4) {
     return `Thank you so much, ${name}! We're glad you had a great experience. We look forward to seeing you again!`;
   }

@@ -95,6 +95,51 @@ export const CHAT_TOOLS: Tool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "find_tire_in_stock",
+      description: "Search tire inventory by size. Use when customer asks about tire availability, 'do you have my size', or mentions a tire size like '225/65R17'.",
+      parameters: {
+        type: "object",
+        properties: {
+          tireSize: {
+            type: "string",
+            description: "Tire size (e.g., '225/65R17', '205/55R16'). Extract from customer message.",
+          },
+        },
+        required: ["tireSize"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "estimate_wait_time",
+      description: "Estimate current wait time based on job queue. Use when customer asks 'how long will it take', 'wait time', or 'how busy are you'.",
+      parameters: {
+        type: "object",
+        properties: {},
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "check_financing",
+      description: "Pre-screen financing eligibility. Use when customer asks about payment plans, financing, 'can I pay monthly', or affordability.",
+      parameters: {
+        type: "object",
+        properties: {
+          estimatedTotal: {
+            type: "number",
+            description: "Estimated total cost in dollars.",
+          },
+        },
+        required: ["estimatedTotal"],
+      },
+    },
+  },
 ];
 
 // ─── TOOL EXECUTORS ─────────────────────────────────────
@@ -114,6 +159,12 @@ export async function executeTool(
       return executeLookupCustomer(args.phone as string);
     case "get_current_specials":
       return executeGetCurrentSpecials();
+    case "find_tire_in_stock":
+      return executeFindTireInStock(args.tireSize as string);
+    case "estimate_wait_time":
+      return executeEstimateWaitTime();
+    case "check_financing":
+      return executeCheckFinancing(args.estimatedTotal as number);
     default:
       return JSON.stringify({ error: `Unknown tool: ${name}` });
   }
@@ -358,4 +409,118 @@ async function executeGetCurrentSpecials(): Promise<string> {
       ],
     });
   }
+}
+
+// ─── NEW TOOLS (v6) ─────────────────────────────────────
+
+async function executeFindTireInStock(tireSize: string): Promise<string> {
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return JSON.stringify({ inStock: false, note: "Inventory check unavailable — call (216) 862-0005 for availability." });
+
+    // Search tire inventory by size (normalize: remove spaces, uppercase)
+    const normalized = tireSize.replace(/\s+/g, "").toUpperCase();
+    const results = await d.execute(
+      sql`SELECT brand, model, size, price_cents, quantity FROM tire_inventory WHERE REPLACE(UPPER(size), ' ', '') LIKE ${`%${normalized}%`} AND quantity > 0 LIMIT 5`
+    );
+
+    const tires = (results as any[]) || [];
+
+    if (tires.length === 0) {
+      return JSON.stringify({
+        inStock: false,
+        size: tireSize,
+        note: `We don't currently have ${tireSize} in stock, but we can order it — usually arrives in 1-2 business days. Call (216) 862-0005 or drop by and we'll get you set up.`,
+      });
+    }
+
+    return JSON.stringify({
+      inStock: true,
+      size: tireSize,
+      options: tires.map((t: any) => ({
+        brand: t.brand,
+        model: t.model,
+        size: t.size,
+        price: t.price_cents ? `$${(t.price_cents / 100).toFixed(2)}` : "Call for price",
+        qty: t.quantity,
+      })),
+      note: "Prices include mounting + balancing. Drop-off anytime — no appointment needed!",
+    });
+  } catch {
+    return JSON.stringify({
+      inStock: false,
+      note: "Inventory check unavailable right now. Call (216) 862-0005 and we'll check for you!",
+    });
+  }
+}
+
+async function executeEstimateWaitTime(): Promise<string> {
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return JSON.stringify({ estimatedWait: "Unknown", note: "Call (216) 862-0005 for current wait." });
+
+    // Count in-progress bookings today
+    const today = new Date().toISOString().split("T")[0];
+    const result = await d.execute(
+      sql`SELECT COUNT(*) as active FROM bookings WHERE DATE(scheduled_date) = ${today} AND status IN ('in_progress', 'checked_in', 'pending')`
+    );
+
+    const activeJobs = Number((result as any[])?.[0]?.active) || 0;
+
+    let estimate: string;
+    let busy: string;
+    if (activeJobs === 0) {
+      estimate = "No wait — come right in!";
+      busy = "quiet";
+    } else if (activeJobs <= 2) {
+      estimate = "About 30-45 minutes";
+      busy = "normal";
+    } else if (activeJobs <= 4) {
+      estimate = "About 1-2 hours";
+      busy = "busy";
+    } else {
+      estimate = "2-3 hours (very busy today)";
+      busy = "very busy";
+    }
+
+    return JSON.stringify({
+      estimatedWait: estimate,
+      activeJobs,
+      busyLevel: busy,
+      note: "Drop-off available anytime — leave your car and we'll call when it's done! No appointment needed.",
+    });
+  } catch {
+    return JSON.stringify({
+      estimatedWait: "Unknown",
+      note: "Call (216) 862-0005 for current wait time.",
+    });
+  }
+}
+
+async function executeCheckFinancing(estimatedTotal: number): Promise<string> {
+  const monthlyPayments = [
+    { months: 6, payment: Math.round(estimatedTotal / 6) },
+    { months: 12, payment: Math.round(estimatedTotal / 12) },
+    { months: 18, payment: Math.round(estimatedTotal / 18) },
+  ];
+
+  return JSON.stringify({
+    eligible: true,
+    estimatedTotal: `$${estimatedTotal.toFixed(0)}`,
+    plans: monthlyPayments.map(p => ({
+      term: `${p.months} months`,
+      monthlyPayment: `$${p.payment}/mo`,
+    })),
+    requirements: [
+      "No credit check required",
+      "Just $10 down to start",
+      "Bring valid ID and proof of income",
+    ],
+    note: "Financing available for repairs over $200. Apply in person — takes about 5 minutes. Drop by anytime!",
+    provider: "In-house financing — no third-party hassle",
+  });
 }
