@@ -42,6 +42,17 @@ export const TIME_LABELS: Record<string, string> = {
 
 export const CHART_COLORS = ["#F5A623", "#3B82F6", "#10B981", "#EF4444", "#8B5CF6", "#EC4899", "#F97316", "#06B6D4"];
 
+/** Shared chart styling — single source of truth for all Recharts components */
+export const CHART_THEME = {
+  grid: "#333",
+  axis: "#666",
+  tooltip: { background: "#1a1a1a", border: "1px solid #333", fontSize: 12 },
+  primary: "#F5A623",
+  secondary: "#3B82F6",
+  tertiary: "#10B981",
+  quaternary: "#8B5CF6",
+} as const;
+
 export type NavGroup = { label: string; items: { id: AdminSection; label: string; icon: React.ReactNode; badge?: string }[] };
 
 /**

@@ -8,7 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Link } from "wouter";
 import {
-  StatCard, ActivityIcon, StatusDot, CHART_COLORS, BOOKING_STATUS_CONFIG,
+  StatCard, ActivityIcon, StatusDot, CHART_COLORS, CHART_THEME, BOOKING_STATUS_CONFIG,
   type BookingStatus,
 } from "./shared";
 import {
@@ -486,9 +486,9 @@ export default function OverviewSection() {
   }));
 
   const leadPipelineData = [
-    { name: "New", value: stats.leads.new, fill: "#3B82F6" },
-    { name: "Contacted", value: stats.leads.contacted, fill: "#F5A623" },
-    { name: "Booked", value: stats.leads.booked, fill: "#10B981" },
+    { name: "New", value: stats.leads.new, fill: CHART_THEME.secondary },
+    { name: "Contacted", value: stats.leads.contacted, fill: CHART_THEME.primary },
+    { name: "Booked", value: stats.leads.booked, fill: CHART_THEME.tertiary },
     { name: "Closed", value: stats.leads.closed, fill: "#6B7280" },
     { name: "Lost", value: stats.leads.lost, fill: "#EF4444" },
   ].filter(d => d.value > 0);
@@ -1199,7 +1199,7 @@ export default function OverviewSection() {
               <BarChart data={serviceChartData} layout="vertical" margin={{ left: 0, right: 16 }}>
                 <XAxis type="number" tick={{ fill: "oklch(0.48 0.008 260)", fontSize: 10, fontFamily: "'Roboto Mono', monospace" }} axisLine={false} tickLine={false} />
                 <YAxis type="category" dataKey="name" tick={{ fill: "oklch(0.60 0.008 260)", fontSize: 10, fontFamily: "'Roboto Mono', monospace" }} width={110} axisLine={false} tickLine={false} />
-                <RechartsTooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: "#F5A623" }} />
+                <RechartsTooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: CHART_THEME.primary }} />
                 <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                   {serviceChartData.map((entry, i) => (
                     <Cell key={i} fill={entry.fill} />
