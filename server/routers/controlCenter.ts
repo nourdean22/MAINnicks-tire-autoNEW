@@ -253,7 +253,69 @@ export const controlCenterRouter = router({
     const priorityOrder = { high: 0, medium: 1, low: 2 };
     urgentItems.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 
-    return { todayStats, aiGateway, systemHealth, urgentItems };
+    // ─── Revenue Pipeline ($) ────────────────────────
+    let revenueWaiting = {
+      pipelineValueCents: 0,
+      stalePipelineValueCents: 0,
+      staleLeadsCount: 0,
+      staleQuotesCount: 0,
+      pendingCallbacks: todayStats.callbacksPending,
+      avgLeadAgeDays: 0,
+      oldestUntouchedHours: 0,
+      topOpportunities: [] as Array<{
+        id: number; name: string; phone: string; service: string;
+        createdAt: Date; status: string; estimatedValueCents: number | null;
+        lastFollowUpAt: Date | null; ageHours: number;
+      }>,
+    };
+
+    if (d) {
+      try {
+        const [pipelineVal, staleVal, topLeads] = await Promise.all([
+          d.select({ total: sql<number>`COALESCE(SUM(${leads.estimatedValueCents}), 0)` })
+            .from(leads).where(sql`${leads.status} IN ('new', 'contacted')`),
+          d.select({ total: sql<number>`COALESCE(SUM(${leads.estimatedValueCents}), 0)` })
+            .from(leads).where(and(
+              sql`${leads.status} IN ('new', 'contacted')`,
+              sql`${leads.createdAt} < ${yesterday}`,
+              sql`(${leads.lastFollowUpAt} IS NULL OR ${leads.lastFollowUpAt} < ${yesterday})`
+            )),
+          d.select({
+            id: leads.id, name: leads.name, phone: leads.phone,
+            service: leads.recommendedService, createdAt: leads.createdAt, status: leads.status,
+            estimatedValueCents: leads.estimatedValueCents, lastFollowUpAt: leads.lastFollowUpAt,
+          }).from(leads).where(sql`${leads.status} IN ('new', 'contacted')`)
+            .orderBy(sql`CASE ${leads.status} WHEN 'new' THEN 0 ELSE 1 END`, leads.createdAt)
+            .limit(5),
+        ]);
+
+        revenueWaiting.pipelineValueCents = pipelineVal[0]?.total ?? 0;
+        revenueWaiting.stalePipelineValueCents = staleVal[0]?.total ?? 0;
+
+        const nowMs = Date.now();
+        let totalAge = 0, oldest = 0;
+        for (const o of topLeads) {
+          const age = nowMs - new Date(o.createdAt).getTime();
+          totalAge += age;
+          const touch = o.lastFollowUpAt ? new Date(o.lastFollowUpAt).getTime() : new Date(o.createdAt).getTime();
+          const untouched = nowMs - touch;
+          if (untouched > oldest) oldest = untouched;
+        }
+        revenueWaiting.avgLeadAgeDays = topLeads.length > 0 ? Math.round(totalAge / topLeads.length / 86400000 * 10) / 10 : 0;
+        revenueWaiting.oldestUntouchedHours = Math.round(oldest / 3600000);
+        revenueWaiting.topOpportunities = topLeads.map((o: typeof topLeads[number]) => ({
+          id: o.id, name: o.name, phone: o.phone,
+          service: o.service ?? "General", createdAt: o.createdAt, status: o.status,
+          estimatedValueCents: o.estimatedValueCents ?? null,
+          lastFollowUpAt: o.lastFollowUpAt ?? null,
+          ageHours: Math.round((nowMs - new Date(o.createdAt).getTime()) / 3600000),
+        }));
+      } catch (e) {
+        console.error("[ControlCenter] Pipeline query failed:", e instanceof Error ? e.message : e);
+      }
+    }
+
+    return { todayStats, aiGateway, systemHealth, urgentItems, revenueWaiting };
   }),
 
   // ─── DAILY BRIEF ─────────────────────────────────────

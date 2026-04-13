@@ -6,7 +6,7 @@
 import { trpc } from "@/lib/trpc";
 import {
   Zap, ExternalLink, Activity, Wrench, AlertTriangle, CheckCircle2,
-  Clock, Loader2, ArrowRight, Wifi, WifiOff, RefreshCw, BarChart3,
+  Clock, Loader2, ArrowRight, Wifi, WifiOff, RefreshCw, BarChart3, DollarSign,
 } from "lucide-react";
 import { toast } from "sonner";
 import { StatCard } from "./shared";
@@ -286,6 +286,82 @@ export default function CommandCenterSection() {
               </div>
             </div>
           </div>
+
+          {/* Revenue Pipeline — $ amounts + money aging */}
+          {systemOverview.revenueWaiting && (
+            <div className="bg-card/50 border border-border/40 rounded-lg p-5">
+              <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-4 flex items-center gap-2">
+                <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+                Revenue Pipeline
+              </h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] text-muted-foreground">Pipeline Value</span>
+                  <span className="text-[14px] font-bold text-emerald-400">
+                    ${systemOverview.revenueWaiting.pipelineValueCents > 0
+                      ? Math.round(systemOverview.revenueWaiting.pipelineValueCents / 100).toLocaleString()
+                      : "0"}
+                  </span>
+                </div>
+                {systemOverview.revenueWaiting.stalePipelineValueCents > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] text-red-400">Aging (24h+ no contact)</span>
+                    <span className="text-[13px] font-semibold text-red-400">
+                      ${Math.round(systemOverview.revenueWaiting.stalePipelineValueCents / 100).toLocaleString()} at risk
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] text-muted-foreground">Stale Leads / Quotes / Callbacks</span>
+                  <span className="text-[11px] text-foreground/70">
+                    {systemOverview.revenueWaiting.staleLeadsCount} / {systemOverview.revenueWaiting.staleQuotesCount} / {systemOverview.revenueWaiting.pendingCallbacks}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] text-muted-foreground">Avg Lead Age</span>
+                  <span className={`text-[11px] font-mono ${
+                    systemOverview.revenueWaiting.avgLeadAgeDays > 3 ? "text-red-400" :
+                    systemOverview.revenueWaiting.avgLeadAgeDays > 1 ? "text-amber-400" : "text-emerald-400"
+                  }`}>{systemOverview.revenueWaiting.avgLeadAgeDays}d</span>
+                </div>
+                {systemOverview.revenueWaiting.oldestUntouchedHours > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12px] text-muted-foreground">Oldest Untouched</span>
+                    <span className={`text-[11px] font-mono ${
+                      systemOverview.revenueWaiting.oldestUntouchedHours > 48 ? "text-red-400" :
+                      systemOverview.revenueWaiting.oldestUntouchedHours > 12 ? "text-amber-400" : "text-emerald-400"
+                    }`}>{systemOverview.revenueWaiting.oldestUntouchedHours}h ago</span>
+                  </div>
+                )}
+                {/* Top opportunities with $ value */}
+                {systemOverview.revenueWaiting.topOpportunities?.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-border/30">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Top Opportunities</p>
+                    <div className="space-y-1.5">
+                      {systemOverview.revenueWaiting.topOpportunities.slice(0, 5).map((opp: any) => (
+                        <div key={opp.id} className="flex items-center justify-between text-[11px]">
+                          <div className="flex items-center gap-2 truncate">
+                            <span className={`w-1.5 h-1.5 rounded-full ${opp.status === "new" ? "bg-amber-400" : "bg-blue-400"}`} />
+                            <span className="text-foreground/80 truncate">{opp.name}</span>
+                            <span className="text-muted-foreground">·</span>
+                            <span className="text-muted-foreground truncate">{opp.service}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {opp.estimatedValueCents > 0 && (
+                              <span className="text-emerald-400 font-medium">${Math.round(opp.estimatedValueCents / 100)}</span>
+                            )}
+                            <span className={`font-mono ${opp.ageHours > 24 ? "text-red-400" : "text-muted-foreground"}`}>
+                              {opp.ageHours}h
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* AI Gateway */}
           <div className="bg-card/50 border border-border/40 rounded-lg p-5">
