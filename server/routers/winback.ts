@@ -20,45 +20,181 @@ async function db() {
   return getDb();
 }
 
-// ─── WIN-BACK MESSAGE TEMPLATES ─────────────────────────
-const WINBACK_TEMPLATES = {
+// ─── WIN-BACK MESSAGE TEMPLATES (8 segments, 22 total messages) ─────────────────────────
+// Each segment targets a different customer profile with personalized messaging.
+// Templates use {firstName}, {lastService}, {vehicleInfo} for personalization.
+const WINBACK_TEMPLATES: Record<string, { step: number; delayDays: number; template: string }[]> = {
+  // ── LAPSED (90-180 days, was active) — 4-step sequence ──
   lapsed: [
     {
-      step: 1,
-      delayDays: 0,
-      template: `Hi {firstName}, this is ${STORE_NAME}. We noticed it has been a while since your last visit. Your vehicle may be due for maintenance. Call us at ${STORE_PHONE} or book online at nickstire.org — we're here when you need us.`,
+      step: 1, delayDays: 0,
+      template: `Hi {firstName}, this is ${STORE_NAME}. It's been a while since we last worked on your {vehicleInfo}. Your vehicle may be due for maintenance — car problems rarely stay the same, they usually get worse. Drop by or call ${STORE_PHONE}. No appointment needed.`,
     },
     {
-      step: 2,
-      delayDays: 5,
-      template: `Hi {firstName}, just a quick reminder from ${STORE_NAME}. Regular maintenance helps prevent costly breakdowns. We offer free check engine light diagnostics for returning customers. Call ${STORE_PHONE} to schedule.`,
+      step: 2, delayDays: 4,
+      template: `{firstName}, quick follow-up from ${STORE_NAME}. We checked our records — last time you were in for {lastService}. It might be time for a follow-up check. We'll do a free inspection under 1 hour. Drop off your car, call an Uber out, we'll call when it's done. ${STORE_PHONE}`,
     },
     {
-      step: 3,
-      delayDays: 12,
-      template: `Hi {firstName}, ${STORE_NAME} here. We wanted to make sure your vehicle is running safely. Whether it is an oil change, brakes, or a check engine light, our technicians are ready to help. Book at nickstire.org or call ${STORE_PHONE}.`,
+      step: 3, delayDays: 10,
+      template: `{firstName}, this is Nick from ${STORE_NAME}. Haven't heard back — just want to make sure your {vehicleInfo} is running right. We've seen a lot of {lastService} issues turn into bigger problems when left too long. Free diagnostic if you come in this week. ${STORE_PHONE}`,
+    },
+    {
+      step: 4, delayDays: 21,
+      template: `Last check-in, {firstName}. ${STORE_NAME} — we're here 7 days a week, no appointment needed. If your car is giving you any trouble, don't wait. Drop it off early, we'll get to it same day. ${STORE_PHONE} or book at nickstire.org`,
     },
   ],
-  unknown: [
+
+  // ── DORMANT (180-365 days) — 3-step, more urgency ──
+  dormant: [
     {
-      step: 1,
-      delayDays: 0,
-      template: `Hi {firstName}, this is ${STORE_NAME} in Cleveland. We have your vehicle on file and wanted to check in. If your car needs any service, we are here to help. Call ${STORE_PHONE} or visit nickstire.org.`,
+      step: 1, delayDays: 0,
+      template: `Hi {firstName}, ${STORE_NAME} here. It's been over 6 months since your last visit. Your {vehicleInfo} is overdue for a checkup. We're offering a free safety inspection for returning customers — no strings. Drop by or call ${STORE_PHONE}.`,
     },
     {
-      step: 2,
-      delayDays: 7,
-      template: `Hi {firstName}, ${STORE_NAME} here. Spring is a great time for a vehicle checkup — brakes, tires, and fluids. We offer honest diagnostics at fair prices. Call ${STORE_PHONE} to schedule.`,
+      step: 2, delayDays: 7,
+      template: `{firstName}, the longer you wait on maintenance, the more expensive it gets. We've seen $200 brake jobs turn into $800 rotor replacements. Let us catch it early. Free inspection, 7 days a week. ${STORE_PHONE}`,
+    },
+    {
+      step: 3, delayDays: 14,
+      template: `{firstName}, last message from ${STORE_NAME}. If you've found another shop, no hard feelings. But if you haven't — we're still here, still honest, still fast. 4.9 stars, 1700+ reviews. ${STORE_PHONE}`,
     },
   ],
+
+  // ── LOST (365+ days) — 2-step, re-introduction ──
+  lost: [
+    {
+      step: 1, delayDays: 0,
+      template: `Hi {firstName}, this is ${STORE_NAME} — Nick's Tire & Auto at 17625 Euclid Ave. It's been over a year since your last visit. A lot has changed — new equipment, faster service, same honest pricing. Come see what's new. ${STORE_PHONE}`,
+    },
+    {
+      step: 2, delayDays: 10,
+      template: `{firstName}, we're offering 10% off your first service back at ${STORE_NAME}. Tires, brakes, oil change — whatever your {vehicleInfo} needs. No appointment, just drop in. ${STORE_PHONE}`,
+    },
+  ],
+
+  // ── DECLINED WORK (had an estimate, didn't convert) — 3-step ──
+  declined: [
+    {
+      step: 1, delayDays: 0,
+      template: `Hi {firstName}, ${STORE_NAME} here. We gave you an estimate for {lastService} on your {vehicleInfo}. Just checking — did you get it taken care of? If not, that estimate is still valid. ${STORE_PHONE}`,
+    },
+    {
+      step: 2, delayDays: 7,
+      template: `{firstName}, car problems rarely fix themselves. The {lastService} we quoted you on could get worse (and more expensive) with time. We offer $0 down financing if cost was the concern. ${STORE_PHONE}`,
+    },
+    {
+      step: 3, delayDays: 21,
+      template: `{firstName}, final reminder from ${STORE_NAME}. Your {lastService} estimate expires in 7 days. After that, we'd need to re-inspect. Book now at nickstire.org or call ${STORE_PHONE}. We're open 7 days.`,
+    },
+  ],
+
+  // ── TIRE CUSTOMERS (bought tires, due for rotation/replacement) — 2-step ──
+  tire_customer: [
+    {
+      step: 1, delayDays: 0,
+      template: `Hi {firstName}, ${STORE_NAME} here. You got tires from us — they're due for a rotation to extend their life and keep you safe. Quick in-and-out, no appointment. ${STORE_PHONE}`,
+    },
+    {
+      step: 2, delayDays: 14,
+      template: `{firstName}, uneven tire wear cuts tire life in half. A rotation takes 20 minutes and saves you money long-term. Drop by anytime — ${STORE_NAME}, 17625 Euclid Ave. ${STORE_PHONE}`,
+    },
+  ],
+
+  // ── VIP / HIGH-VALUE — 2-step, exclusive tone ──
+  vip: [
+    {
+      step: 1, delayDays: 0,
+      template: `{firstName}, this is Nick personally from ${STORE_NAME}. You're one of our top customers and we haven't seen you in a while. Everything good with your {vehicleInfo}? If anything comes up, you get priority — call me direct at ${STORE_PHONE}.`,
+    },
+    {
+      step: 2, delayDays: 10,
+      template: `{firstName}, just a heads up — we're offering our VIP customers early access to winter tire deals before the rush. Limited stock on popular sizes. Let me know if you want us to set a set aside. ${STORE_PHONE}`,
+    },
+  ],
+
+  // ── FLEET / COMMERCIAL — 2-step, business tone ──
+  fleet: [
+    {
+      step: 1, delayDays: 0,
+      template: `Hi {firstName}, ${STORE_NAME} fleet services here. We service commercial vehicles 7 days a week with priority scheduling for business accounts. If your fleet needs maintenance, call ${STORE_PHONE} for fleet pricing.`,
+    },
+    {
+      step: 2, delayDays: 7,
+      template: `{firstName}, fleet downtime costs money. ${STORE_NAME} offers same-day service for commercial accounts — tires, brakes, diagnostics, emissions. Let's set up a maintenance schedule. ${STORE_PHONE}`,
+    },
+  ],
+
+  // ── RECENT (30-90 days) — 1 message, light touch ──
   recent: [
     {
-      step: 1,
-      delayDays: 0,
-      template: `Hi {firstName}, thank you for being a loyal customer at ${STORE_NAME}. As a valued customer, we wanted to let you know about our current specials. Visit nickstire.org/specials or call ${STORE_PHONE}.`,
+      step: 1, delayDays: 0,
+      template: `Hi {firstName}, thanks for choosing ${STORE_NAME}! As a valued customer, you get priority service — no appointment needed, just drop in. If your {vehicleInfo} needs anything, we're here 7 days a week. ${STORE_PHONE}`,
     },
   ],
 };
+
+/**
+ * Build a SQL WHERE filter for each customer segment.
+ * Uses date-based logic instead of the limited DB enum.
+ */
+function buildSegmentFilter(segment: string) {
+  const now = new Date();
+  const d90 = new Date(now.getTime() - 90 * 86400000);
+  const d180 = new Date(now.getTime() - 180 * 86400000);
+  const d365 = new Date(now.getTime() - 365 * 86400000);
+  const d30 = new Date(now.getTime() - 30 * 86400000);
+
+  switch (segment) {
+    case "lapsed":
+      return and(
+        sql`${customers.lastVisitDate} IS NOT NULL`,
+        sql`${customers.lastVisitDate} < ${d90}`,
+        sql`${customers.lastVisitDate} >= ${d180}`,
+        eq(customers.smsOptOut, 0)
+      )!;
+    case "dormant":
+      return and(
+        sql`${customers.lastVisitDate} IS NOT NULL`,
+        sql`${customers.lastVisitDate} < ${d180}`,
+        sql`${customers.lastVisitDate} >= ${d365}`,
+        eq(customers.smsOptOut, 0)
+      )!;
+    case "lost":
+      return and(
+        sql`${customers.lastVisitDate} IS NOT NULL`,
+        sql`${customers.lastVisitDate} < ${d365}`,
+        eq(customers.smsOptOut, 0)
+      )!;
+    case "declined":
+      return and(
+        eq(customers.segment, "lapsed"),
+        eq(customers.smsOptOut, 0)
+      )!;
+    case "tire_customer":
+      return and(
+        sql`${customers.lastVisitDate} < ${d90}`,
+        eq(customers.smsOptOut, 0)
+      )!;
+    case "vip":
+      return and(
+        sql`${customers.totalSpent} > 500`,
+        eq(customers.smsOptOut, 0)
+      )!;
+    case "fleet":
+      return and(
+        sql`${customers.totalSpent} > 1000`,
+        eq(customers.smsOptOut, 0)
+      )!;
+    case "recent":
+      return and(
+        sql`${customers.lastVisitDate} >= ${d30}`,
+        sql`${customers.lastVisitDate} < ${d90}`,
+        eq(customers.smsOptOut, 0)
+      )!;
+    default:
+      return and(eq(customers.segment, segment as any), eq(customers.smsOptOut, 0))!;
+  }
+}
 
 export const winbackRouter = router({
   /** List all campaigns */
@@ -121,7 +257,7 @@ export const winbackRouter = router({
   create: adminProcedure
     .input(z.object({
       name: z.string().min(1).max(255),
-      targetSegment: z.enum(["lapsed", "unknown", "recent"]),
+      targetSegment: z.enum(["lapsed", "dormant", "lost", "declined", "tire_customer", "vip", "fleet", "recent"]),
       customMessages: z.array(z.object({
         step: z.number(),
         delayDays: z.number(),
@@ -134,10 +270,11 @@ export const winbackRouter = router({
 
       const cleanName = input.name.replace(/<[^>]*>/g, "").trim();
 
-      // Count target customers
+      // Count target customers — smart filter by segment type
+      const segmentFilter = buildSegmentFilter(input.targetSegment);
       const [targetCount] = await d.select({ count: sql<number>`count(*)` })
         .from(customers)
-        .where(eq(customers.segment, input.targetSegment));
+        .where(segmentFilter);
 
       // Create campaign
       const [result] = await d.insert(winbackCampaigns).values({
@@ -191,7 +328,7 @@ export const winbackRouter = router({
 
       const sampleCustomers = await d.select()
         .from(customers)
-        .where(eq(customers.segment, campaign.targetSegment as any))
+        .where(buildSegmentFilter(campaign.targetSegment))
         .limit(5);
 
       return sampleCustomers.map((c: any) => ({
@@ -224,7 +361,7 @@ export const winbackRouter = router({
       // Get all target customers (exclude SMS opt-outs — TCPA compliance)
       const targetCustomers = await d.select()
         .from(customers)
-        .where(sql`${customers.segment} = ${campaign.targetSegment} AND ${customers.smsOptOut} = 0`);
+        .where(buildSegmentFilter(campaign.targetSegment));
 
       const now = new Date();
       let created = 0;
