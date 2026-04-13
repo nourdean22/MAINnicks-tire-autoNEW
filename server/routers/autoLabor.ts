@@ -19,22 +19,49 @@ async function db() {
 const SHOPDRIVER_BASE = "https://secure.autolaborexperts.com";
 const SHOPDRIVER_API = "https://8DD0FCE9-80F9-4A9E-B0C3-CF76825AD9B7.autolaborexperts.com";
 
-// Session management for ShopDriver — JWT token auth
-// TTL set to 30 min to avoid frequent re-auth that invalidates the shop's browser session.
-// lastAuthAt guard prevents re-auth within 25 min even if token object is cleared.
+// Session management for ShopDriver — JWT token auth with smart validation.
+// Old approach: 25-min cooldown blindly cached stale tokens when shop login kicked the session.
+// New approach: 5-min cooldown + lightweight probe validates token before returning it.
+// If token is invalid (shop logged in), re-auth immediately instead of serving stale tokens.
 let shopDriverSession: { token: string; expiresAt: number } | null = null;
 let lastAuthAt = 0;
+let lastValidationAt = 0;
+
+/** Quick probe to check if our cached token is still valid */
+async function isTokenValid(token: string): Promise<boolean> {
+  // Don't validate more than once per 2 minutes — lightweight but not spammy
+  if (Date.now() - lastValidationAt < 2 * 60 * 1000) return true;
+  try {
+    const res = await fetch(`${SHOPDRIVER_API}/api/Vehicle/listVehicles?pageSize=1`, {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      signal: AbortSignal.timeout(5000),
+    });
+    lastValidationAt = Date.now();
+    // 401/403 = token kicked by shop login. 200 = still good. 404 = endpoint issue but token works.
+    return res.status !== 401 && res.status !== 403;
+  } catch {
+    // Network error — assume token is still good (don't re-auth on network blips)
+    return true;
+  }
+}
 
 /** Authenticate with ShopDriver Elite via GUID API endpoint */
 async function getShopDriverSession(): Promise<string | null> {
-  // If token exists and hasn't expired, reuse it
+  // If token exists and hasn't expired, validate it's still alive
   if (shopDriverSession && Date.now() < shopDriverSession.expiresAt) {
-    return shopDriverSession.token;
+    const valid = await isTokenValid(shopDriverSession.token);
+    if (valid) return shopDriverSession.token;
+    // Token was kicked — invalidate and re-auth below
+    console.log("[ShopDriver] Token invalidated (likely shop login). Re-authenticating...");
+    shopDriverSession = null;
   }
 
-  // Don't re-authenticate if we already authed within 25 minutes — prevents
-  // kicking the physical shop's browser session with rapid re-logins
-  const AUTH_COOLDOWN = 25 * 60 * 1000;
+  // Cooldown reduced from 25min to 5min — fast recovery when token gets kicked.
+  // Shop login conflict is handled by validation above, not by long cooldowns.
+  const AUTH_COOLDOWN = 5 * 60 * 1000;
   if (shopDriverSession && (Date.now() - lastAuthAt) < AUTH_COOLDOWN) {
     return shopDriverSession.token;
   }

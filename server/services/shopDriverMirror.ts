@@ -35,10 +35,12 @@ const ALERT_COOLDOWN_MS = 2 * 60 * 60 * 1000; // Don't spam — max 1 alert ever
 
 let mirrorSession: { token: string; expiresAt: number } | null = null;
 let lastMirrorAuthAt = 0;
+let lastMirrorValidationAt = 0;
 
 /** Force-clear the cached session */
 function invalidateSession() {
   mirrorSession = null;
+  lastMirrorValidationAt = 0;
 }
 
 /**
@@ -46,12 +48,9 @@ function invalidateSession() {
  * ShopDriver API returns 401/403 for expired tokens.
  */
 function isSessionKicked(res: Response, body?: string): boolean {
-  // 401/403 = token expired or invalidated
   if (res.status === 401 || res.status === 403) return true;
-  // Redirect to login page (shouldn't happen with API calls but check anyway)
   const location = res.headers.get("location") || "";
   if (location.includes("/login") || location.includes("/signin")) return true;
-  // HTML body contains login form = we got the SPA shell instead of data
   if (body && (
     body.includes('name="password"') ||
     body.includes('id="login-form"') ||
@@ -61,15 +60,39 @@ function isSessionKicked(res: Response, body?: string): boolean {
   return false;
 }
 
+/** Quick probe to check if cached token is still valid (max once per 2 min) */
+async function isTokenAlive(token: string): Promise<boolean> {
+  if (Date.now() - lastMirrorValidationAt < 2 * 60 * 1000) return true;
+  try {
+    const isCookie = token.startsWith("cookie:");
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (isCookie) {
+      headers["Cookie"] = token.replace("cookie:", "");
+    } else {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    const res = await fetch(`${SHOPDRIVER_API}/api/Vehicle/listVehicles?pageSize=1`, {
+      headers,
+      signal: AbortSignal.timeout(5000),
+    });
+    lastMirrorValidationAt = Date.now();
+    return res.status !== 401 && res.status !== 403;
+  } catch {
+    return true; // Network error — don't re-auth on blips
+  }
+}
+
 async function getSession(): Promise<string | null> {
-  // Reuse token within its TTL window
+  // Validate cached token before returning — catches shop-login session kicks
   if (mirrorSession && Date.now() < mirrorSession.expiresAt) {
-    return mirrorSession.token;
+    const alive = await isTokenAlive(mirrorSession.token);
+    if (alive) return mirrorSession.token;
+    log.warn("Token invalidated (shop login detected). Re-authenticating immediately.");
+    invalidateSession();
   }
 
-  // Don't re-authenticate if we already authed within 25 minutes — prevents
-  // kicking the physical shop's browser session with rapid re-logins
-  const AUTH_COOLDOWN = 25 * 60 * 1000;
+  // Cooldown reduced from 25min to 5min — fast recovery when token gets kicked
+  const AUTH_COOLDOWN = 5 * 60 * 1000;
   if (mirrorSession && (Date.now() - lastMirrorAuthAt) < AUTH_COOLDOWN) {
     return mirrorSession.token;
   }
