@@ -42,6 +42,14 @@ export default function SpecialsSection() {
     onError: (err) => toast.error(err.message),
   });
 
+  const seedSpecials = trpc.specials.seed.useMutation({
+    onSuccess: (data) => {
+      utils.specials.getActive.invalidate();
+      toast.success(`Seeded ${data.seeded}/${data.total} specials`);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   function handleCreate() {
     createSpecial.mutate({
       title: form.title,
@@ -68,12 +76,24 @@ export default function SpecialsSection() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="font-bold text-xl text-foreground tracking-wider">ACTIVE SPECIALS</h2>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 font-bold text-xs tracking-wide hover:bg-primary/90 transition-colors"
-        >
-          {showForm ? "CANCEL" : "+ NEW SPECIAL"}
-        </button>
+        <div className="flex items-center gap-2">
+          {(!specials || specials.length <= 1) && (
+            <button
+              onClick={() => seedSpecials.mutate()}
+              disabled={seedSpecials.isPending}
+              className="flex items-center gap-2 border border-primary/30 text-primary px-4 py-2 font-bold text-xs tracking-wide hover:bg-primary/10 transition-colors"
+            >
+              <Zap className="w-3 h-3" />
+              {seedSpecials.isPending ? "Seeding..." : "SEED SPECIALS"}
+            </button>
+          )}
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 font-bold text-xs tracking-wide hover:bg-primary/90 transition-colors"
+          >
+            {showForm ? "CANCEL" : "+ NEW SPECIAL"}
+          </button>
+        </div>
       </div>
 
       {showForm && (
