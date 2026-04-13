@@ -14,9 +14,14 @@ import {
 type View = "list" | "create" | "detail" | "preview";
 
 const SEGMENT_LABELS: Record<string, string> = {
-  lapsed: "Lapsed Customers",
-  unknown: "Unknown Segment",
-  recent: "Recent Customers",
+  lapsed: "Lapsed (90-180d)",
+  dormant: "Dormant (180-365d)",
+  lost: "Lost (365d+)",
+  declined: "Declined Work",
+  tire_customer: "Tire Customers",
+  vip: "VIP Customers",
+  fleet: "Fleet/Commercial",
+  recent: "Recent (30-90d)",
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string; icon: React.ReactNode }> = {
@@ -28,15 +33,13 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: str
 
 function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated: (id: number) => void }) {
   const [name, setName] = useState("");
-  const [segment, setSegment] = useState<"lapsed" | "unknown" | "recent">("lapsed");
+  const [segment, setSegment] = useState<"lapsed" | "dormant" | "lost" | "declined" | "tire_customer" | "vip" | "fleet" | "recent">("lapsed");
   const [creating, setCreating] = useState(false);
 
   const { data: customerStats } = trpc.customers.stats.useQuery();
   const createMutation = trpc.winback.create.useMutation();
 
-  const segmentCount = segment === "lapsed" ? customerStats?.lapsed
-    : segment === "unknown" ? customerStats?.unknown
-    : customerStats?.recent;
+  const segmentCount = (customerStats as any)?.[segment] ?? 0;
 
   async function handleCreate() {
     if (!name.trim()) return;
@@ -76,11 +79,14 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
 
         <div>
           <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-2">Target Segment</label>
-          <div className="grid grid-cols-3 gap-3">
-            {(["lapsed", "unknown", "recent"] as const).map(s => {
-              const count = s === "lapsed" ? customerStats?.lapsed
-                : s === "unknown" ? customerStats?.unknown
-                : customerStats?.recent;
+          <div className="grid grid-cols-4 gap-2">
+            {(["lapsed", "dormant", "lost", "declined", "tire_customer", "vip", "fleet", "recent"] as const).map(s => {
+              const labels: Record<string, string> = {
+                lapsed: "Lapsed (90-180d)", dormant: "Dormant (180-365d)", lost: "Lost (365d+)",
+                declined: "Declined Work", tire_customer: "Tire Customers", vip: "VIP",
+                fleet: "Fleet/Commercial", recent: "Recent (30-90d)",
+              };
+              const count = customerStats?.[s as keyof typeof customerStats] ?? "?";
               return (
                 <button
                   key={s}
@@ -91,10 +97,10 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
                       : "border-border/30 bg-card hover:border-border/50"
                   }`}
                 >
-                  <span className="font-bold text-xs tracking-wide text-foreground block">
-                    {s === "lapsed" ? "Lapsed" : s === "unknown" ? "Unknown" : "Recent"}
+                  <span className="font-bold text-[10px] tracking-wide text-foreground block leading-tight">
+                    {labels[s] ?? s}
                   </span>
-                  <span className="font-bold text-2xl text-primary mt-1 block">{count ?? 0}</span>
+                  <span className="font-bold text-lg text-primary mt-1 block">{typeof count === "number" ? count : "?"}</span>
                   <span className="font-mono text-[10px] text-foreground/40 tracking-wider">CUSTOMERS</span>
                 </button>
               );
@@ -107,19 +113,52 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
           <div className="space-y-3">
             {segment === "lapsed" && (
               <>
-                <StepPreview step={1} delay="Immediately" desc="Re-engagement: Remind them their vehicle may be due for maintenance" />
-                <StepPreview step={2} delay="Day 5" desc="Value offer: Free check engine light diagnostics for returning customers" />
-                <StepPreview step={3} delay="Day 12" desc="Safety check: Encourage them to ensure their vehicle is running safely" />
+                <StepPreview step={1} delay="Immediately" desc="Re-engage: Your vehicle may be due, car problems get worse" />
+                <StepPreview step={2} delay="Day 4" desc="Service reminder: Last service follow-up + free inspection" />
+                <StepPreview step={3} delay="Day 10" desc="Urgency: Problems get expensive, free diagnostic this week" />
+                <StepPreview step={4} delay="Day 21" desc="Final: We're here 7 days, drop off anytime" />
               </>
             )}
-            {segment === "unknown" && (
+            {segment === "dormant" && (
               <>
-                <StepPreview step={1} delay="Immediately" desc="Check-in: Let them know we have their vehicle on file" />
-                <StepPreview step={2} delay="Day 7" desc="Seasonal: Spring vehicle checkup reminder" />
+                <StepPreview step={1} delay="Immediately" desc="6+ months: Free safety inspection for returning customers" />
+                <StepPreview step={2} delay="Day 7" desc="Cost warning: $200 brake job → $800 rotor replacement" />
+                <StepPreview step={3} delay="Day 14" desc="Final: No hard feelings, still here, 4.9★ 1700+ reviews" />
+              </>
+            )}
+            {segment === "lost" && (
+              <>
+                <StepPreview step={1} delay="Immediately" desc="Re-introduction: A lot has changed, come see what's new" />
+                <StepPreview step={2} delay="Day 10" desc="Incentive: 10% off first service back" />
+              </>
+            )}
+            {segment === "declined" && (
+              <>
+                <StepPreview step={1} delay="Immediately" desc="Follow-up: Did you get the work done? Estimate still valid" />
+                <StepPreview step={2} delay="Day 7" desc="Urgency: Problems get worse + $0 down financing available" />
+                <StepPreview step={3} delay="Day 21" desc="Expiry: Estimate expires in 7 days, re-inspection needed after" />
+              </>
+            )}
+            {segment === "tire_customer" && (
+              <>
+                <StepPreview step={1} delay="Immediately" desc="Rotation due: Quick in-and-out, extends tire life" />
+                <StepPreview step={2} delay="Day 14" desc="Wear warning: Uneven wear cuts tire life in half" />
+              </>
+            )}
+            {segment === "vip" && (
+              <>
+                <StepPreview step={1} delay="Immediately" desc="Personal: Nick checking in, you get priority service" />
+                <StepPreview step={2} delay="Day 10" desc="Exclusive: Early access to seasonal deals" />
+              </>
+            )}
+            {segment === "fleet" && (
+              <>
+                <StepPreview step={1} delay="Immediately" desc="Fleet services: 7 days, priority scheduling, fleet pricing" />
+                <StepPreview step={2} delay="Day 7" desc="Downtime costs money: Same-day service for commercial" />
               </>
             )}
             {segment === "recent" && (
-              <StepPreview step={1} delay="Immediately" desc="Loyalty: Thank them and share current specials" />
+              <StepPreview step={1} delay="Immediately" desc="Thank you: Priority service, no appointment needed" />
             )}
           </div>
         </div>
