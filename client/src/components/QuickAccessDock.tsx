@@ -16,6 +16,9 @@ export default function QuickAccessDock() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Hide on admin pages — this is a customer-facing component
+  if (typeof window !== "undefined" && window.location.pathname.startsWith("/admin")) return null;
+
   if (!showDock) return null;
 
   return (
