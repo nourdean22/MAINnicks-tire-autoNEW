@@ -267,11 +267,16 @@ export const controlCenterRouter = router({
     // ─── Top Action (single highest-priority urgent item) ───
     let topAction: { type: string; message: string; action: string } | null = null;
 
-    // ─── Revenue Waiting ────────────────────────────────
+    // ─── Revenue Waiting (counts + $ amounts + aging) ────────────────────────────────
     let revenueWaiting = {
       staleLeadsCount: 0,
       staleQuotesCount: 0,
       pendingCallbacks: 0,
+      // NEW: Dollar amounts in the pipeline
+      pipelineValueCents: 0, // total estimated $ of open leads
+      stalePipelineValueCents: 0, // $ value of stale leads (24h+ no contact)
+      avgLeadAgeDays: 0, // average days since lead was created
+      oldestUntouchedHours: 0, // hours since oldest lead without follow-up
       topOpportunities: [] as Array<{
         id: number;
         name: string;
@@ -279,12 +284,15 @@ export const controlCenterRouter = router({
         service: string;
         createdAt: Date;
         status: string;
+        estimatedValueCents: number | null;
+        lastFollowUpAt: Date | null;
+        ageHours: number;
       }>,
     };
 
     if (d) {
       // Parallel revenue queries (was 4 serial)
-      const [staleLeadsArr, staleQuotesArr, callbacksArr, topOpps] = await Promise.all([
+      const [staleLeadsArr, staleQuotesArr, callbacksArr, topOpps, pipelineValue, stalePipelineValue] = await Promise.all([
         d.select({ count: sql<number>`count(*)` })
           .from(leads)
           .where(and(eq(leads.status, "new"), sql`${leads.createdAt} < ${yesterday}`)),
@@ -297,38 +305,79 @@ export const controlCenterRouter = router({
         d.select({
             id: leads.id, name: leads.name, phone: leads.phone,
             service: leads.recommendedService, createdAt: leads.createdAt, status: leads.status,
+            estimatedValueCents: leads.estimatedValueCents,
+            lastFollowUpAt: leads.lastFollowUpAt,
           })
           .from(leads)
           .where(sql`${leads.status} IN ('new', 'contacted')`)
           .orderBy(sql`CASE ${leads.status} WHEN 'new' THEN 0 WHEN 'contacted' THEN 1 ELSE 2 END`, leads.createdAt)
-          .limit(5),
+          .limit(10),
+        // Total pipeline $ value (all open leads with estimated value)
+        d.select({ total: sql<number>`COALESCE(SUM(${leads.estimatedValueCents}), 0)` })
+          .from(leads)
+          .where(sql`${leads.status} IN ('new', 'contacted')`),
+        // Stale pipeline $ value (leads 24h+ with no follow-up)
+        d.select({ total: sql<number>`COALESCE(SUM(${leads.estimatedValueCents}), 0)` })
+          .from(leads)
+          .where(and(
+            sql`${leads.status} IN ('new', 'contacted')`,
+            sql`${leads.createdAt} < ${yesterday}`,
+            sql`(${leads.lastFollowUpAt} IS NULL OR ${leads.lastFollowUpAt} < ${yesterday})`
+          )),
       ]);
 
       revenueWaiting.staleLeadsCount = staleLeadsArr[0]?.count ?? 0;
       revenueWaiting.staleQuotesCount = staleQuotesArr[0]?.count ?? 0;
       revenueWaiting.pendingCallbacks = callbacksArr[0]?.count ?? 0;
-      revenueWaiting.topOpportunities = topOpps.map((o: typeof topOpps[number]) => ({
-        id: o.id, name: o.name, phone: o.phone,
-        service: o.service ?? "General", createdAt: o.createdAt, status: o.status,
-      }));
+      revenueWaiting.pipelineValueCents = pipelineValue[0]?.total ?? 0;
+      revenueWaiting.stalePipelineValueCents = stalePipelineValue[0]?.total ?? 0;
+
+      // Compute aging metrics from topOpps
+      const nowMs = Date.now();
+      let totalAgeMs = 0;
+      let oldestUntouched = 0;
+      for (const o of topOpps) {
+        const ageMs = nowMs - new Date(o.createdAt).getTime();
+        totalAgeMs += ageMs;
+        const lastTouch = o.lastFollowUpAt ? new Date(o.lastFollowUpAt).getTime() : new Date(o.createdAt).getTime();
+        const untouchedMs = nowMs - lastTouch;
+        if (untouchedMs > oldestUntouched) oldestUntouched = untouchedMs;
+      }
+      revenueWaiting.avgLeadAgeDays = topOpps.length > 0 ? Math.round(totalAgeMs / topOpps.length / 86400000 * 10) / 10 : 0;
+      revenueWaiting.oldestUntouchedHours = Math.round(oldestUntouched / 3600000);
+
+      revenueWaiting.topOpportunities = topOpps.map((o: typeof topOpps[number]) => {
+        const ageHours = Math.round((nowMs - new Date(o.createdAt).getTime()) / 3600000);
+        return {
+          id: o.id, name: o.name, phone: o.phone,
+          service: o.service ?? "General", createdAt: o.createdAt, status: o.status,
+          estimatedValueCents: o.estimatedValueCents ?? null,
+          lastFollowUpAt: o.lastFollowUpAt ?? null,
+          ageHours,
+        };
+      });
 
       // Build topAction from priority: stale leads > pending callbacks > stale quotes > failed SMS
+      // NOW WITH $ AMOUNTS — money aging is visible in every alert
+      const staleDollars = revenueWaiting.stalePipelineValueCents > 0
+        ? ` (~$${Math.round(revenueWaiting.stalePipelineValueCents / 100).toLocaleString()} at risk)`
+        : "";
       if (revenueWaiting.staleLeadsCount > 0) {
         topAction = {
           type: "lead",
-          message: `${revenueWaiting.staleLeadsCount} lead${revenueWaiting.staleLeadsCount > 1 ? "s" : ""} with no response in 24h`,
+          message: `${revenueWaiting.staleLeadsCount} lead${revenueWaiting.staleLeadsCount > 1 ? "s" : ""} with no response in 24h${staleDollars}`,
           action: "/admin#leads",
         };
       } else if (revenueWaiting.pendingCallbacks > 0) {
         topAction = {
           type: "callback",
-          message: `${revenueWaiting.pendingCallbacks} callback${revenueWaiting.pendingCallbacks > 1 ? "s" : ""} pending`,
+          message: `${revenueWaiting.pendingCallbacks} callback${revenueWaiting.pendingCallbacks > 1 ? "s" : ""} pending — money waiting`,
           action: "/admin#bookings",
         };
       } else if (revenueWaiting.staleQuotesCount > 0) {
         topAction = {
           type: "quote",
-          message: `${revenueWaiting.staleQuotesCount} quote${revenueWaiting.staleQuotesCount > 1 ? "s" : ""} not followed up (48h+)`,
+          message: `${revenueWaiting.staleQuotesCount} quote${revenueWaiting.staleQuotesCount > 1 ? "s" : ""} not followed up (48h+)${staleDollars}`,
           action: "/admin#leads",
         };
       } else {
