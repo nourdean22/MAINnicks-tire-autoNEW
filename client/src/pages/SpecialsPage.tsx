@@ -223,6 +223,11 @@ export default function SpecialsPage() {
       return isNaN(expires.getTime()) || expires >= now;
     });
 
+    if (dbSpecials && dbSpecials.length >= 3) {
+      // DB has enough specials — use ONLY DB (admin controls everything)
+      return dbSpecials.map((s: any, i: number) => mapDbSpecial(s, i));
+    }
+
     if (dbSpecials && dbSpecials.length > 0) {
       // Merge: DB specials first, then active hardcoded fallbacks
       const fromDb = dbSpecials.map((s: any, i: number) => mapDbSpecial(s, i));
@@ -278,7 +283,7 @@ export default function SpecialsPage() {
           </FadeIn>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {specials.map((s, i) => (
+            {specials.map((s: any, i: number) => (
               <FadeIn key={s.id} delay={i * 0.05}>
                 <SpecialCard special={s} />
               </FadeIn>
