@@ -63,6 +63,49 @@ export const inventoryRouter = router({
       return { id };
     }),
 
+  /** Update inventory item details */
+  update: adminProcedure
+    .input(z.object({
+      id: z.string(),
+      name: z.string().optional(),
+      category: z.string().optional(),
+      brand: z.string().optional(),
+      size: z.string().optional(),
+      cost: z.number().optional(),
+      retailPrice: z.number().optional(),
+      reorderThreshold: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { inventory } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      const updates: Record<string, unknown> = {};
+      if (input.name !== undefined) updates.name = input.name;
+      if (input.category !== undefined) updates.category = input.category;
+      if (input.brand !== undefined) updates.brand = input.brand;
+      if (input.size !== undefined) updates.size = input.size;
+      if (input.cost !== undefined) updates.cost = String(input.cost);
+      if (input.retailPrice !== undefined) updates.retailPrice = String(input.retailPrice);
+      if (input.reorderThreshold !== undefined) updates.reorderThreshold = input.reorderThreshold;
+      if (Object.keys(updates).length > 0) {
+        await db.update(inventory).set(updates).where(eq(inventory.id, input.id));
+      }
+      return { success: true };
+    }),
+
+  /** Delete inventory item */
+  delete: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { inventory } = await import("../../drizzle/schema");
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      await db.delete(inventory).where(eq(inventory.id, input.id));
+      return { success: true };
+    }),
+
   /** Demand forecast — which vehicle makes we service most (predicts parts to stock) */
   demandForecast: adminProcedure.query(async () => {
     try {
