@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Link } from "wouter";
 import {
   StatCard, ActivityIcon, StatusDot, CHART_COLORS, CHART_THEME, BOOKING_STATUS_CONFIG,
+  PageHeader, LoadingState,
   type BookingStatus,
 } from "./shared";
 import {
@@ -456,11 +457,7 @@ export default function OverviewSection() {
   }, [allBookings]);
 
   if (isLoading || !stats) {
-    return (
-      <div className="flex items-center justify-center py-32">
-        <Loader2 className="w-6 h-6 animate-spin text-primary/60" />
-      </div>
-    );
+    return <LoadingState label="Loading dashboard..." />;
   }
 
   // ─── DERIVED DATA ────────────────────────────────────

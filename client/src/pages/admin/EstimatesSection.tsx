@@ -10,7 +10,7 @@ import {
   ArrowRight, CheckCircle2, XCircle, MessageSquare, Filter,
   ChevronRight, Send, AlertTriangle, Timer, Eye, Zap,
 } from "lucide-react";
-import { StatCard } from "./shared";
+import { StatCard, PageHeader, LoadingState, EmptyState } from "./shared";
 
 type PipelineStage = "new" | "contacted" | "quoted" | "booked" | "lost";
 

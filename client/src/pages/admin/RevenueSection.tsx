@@ -28,7 +28,7 @@ import {
   AreaChart, Area, CartesianGrid,
 } from "recharts";
 
-import { CHART_COLORS, CHART_THEME } from "./shared";
+import { CHART_COLORS, CHART_THEME, PageHeader, LoadingState } from "./shared";
 
 function formatCents(cents: number): string {
   return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
