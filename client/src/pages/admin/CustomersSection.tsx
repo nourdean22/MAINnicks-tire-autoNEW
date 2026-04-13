@@ -6,7 +6,7 @@
  */
 import React, { useState, lazy, Suspense } from "react";
 import { trpc } from "@/lib/trpc";
-import { StatCard } from "./shared";
+import { StatCard, PageHeader, LoadingState, EmptyState } from "./shared";
 import {
   Users, Search, ChevronLeft, ChevronRight, Phone, Mail,
   MapPin, Calendar, UserCheck, AlertTriangle, Building2,
