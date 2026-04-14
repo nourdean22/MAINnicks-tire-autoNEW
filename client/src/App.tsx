@@ -87,7 +87,17 @@ const VehicleServicePage = lazy(() => import("./pages/VehicleServicePage"));
 const WomensSafetyPage = lazy(() => import("./pages/WomensSafetyPage"));
 
 function Router() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
+
+  // Normalize URL path to lowercase — wouter is case-sensitive so /ADMIN
+  // wouldn't match /admin. Redirect uppercase paths to their lowercase
+  // equivalents while preserving query string.
+  useEffect(() => {
+    if (location !== location.toLowerCase()) {
+      const lower = location.toLowerCase();
+      setLocation(lower, { replace: true });
+    }
+  }, [location, setLocation]);
 
   return (
     <AnimatePresence mode="wait">
