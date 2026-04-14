@@ -223,6 +223,28 @@ export const bookingRouter = router({
       const email = input.email ? sanitizeEmail(input.email) : null;
       const service = sanitizeText(input.service);
       const message = sanitizeText(input.message);
+
+      // ─── Junk / spam validation ────────────────────
+      // Reject keyboard-mash names, all-same-char, no-vowel gibberish,
+      // obvious test entries, and phones that are all the same digit.
+      // This is a polite 400 — tells the user their name looks invalid
+      // rather than silently accepting spam.
+      const nameClean = name?.trim().toLowerCase() || "";
+      const isJunkName =
+        nameClean.length < 3 ||
+        new Set(nameClean).size === 1 ||
+        (new Set(nameClean.replace(/[^a-z]/g, "")).size <= 3 && nameClean.length >= 4) ||
+        !/[aeiouy]/.test(nameClean) ||
+        /\btest\b/i.test(nameClean) ||
+        ["hello", "hi", "hey", "asdf", "qwerty"].includes(nameClean);
+      const phoneDigits = phone?.replace(/\D/g, "") || "";
+      const isJunkPhone = phoneDigits.length > 0 && new Set(phoneDigits).size === 1;
+      if (isJunkName || isJunkPhone) {
+        return {
+          success: false,
+          error: "Please enter a valid name and phone number so we can confirm your booking.",
+        };
+      }
       const vehicleStr = input.vehicleYear && input.vehicleMake
         ? `${sanitizeText(input.vehicleYear)} ${sanitizeText(input.vehicleMake)} ${sanitizeText(input.vehicleModel)}`.trim()
         : sanitizeText(input.vehicle) || null;
