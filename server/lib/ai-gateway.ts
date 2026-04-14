@@ -1,5 +1,5 @@
 /**
- * AI Gateway — Unified routing layer for Venice (primary), OpenAI (fallback), and Ollama (local dev)
+ * AI Gateway — Unified routing layer for Venice (primary) + OpenAI (fallback)
  *
  * Routes AI requests to the best available provider based on:
  * - Task type (classification, generation, embeddings, SQL, code)
@@ -9,6 +9,10 @@
  *
  * Venice is OpenAI-compatible at https://api.venice.ai/api/v1.
  * OpenAI is the fallback for all tasks. Embeddings use OpenAI as primary (text-embedding-3-small).
+ *
+ * NOTE: Ollama was the original local-dev provider but was removed when the
+ * stack migrated fully to cloud AI. The `codex/ollama-local` git branch name
+ * is historical — do not rename it, it's the live deploy branch.
  */
 
 import { createLogger } from "./logger";
@@ -54,10 +58,11 @@ async function persistLog(entry: Record<string, unknown>) {
 // ─── Configuration ───────────────────────────────────
 const VENICE_BASE = process.env.VENICE_BASE_URL?.replace(/\/$/, "") || "https://api.venice.ai/api/v1";
 const OPENAI_BASE = process.env.OPENAI_BASE_URL?.replace(/\/$/, "") || "https://api.openai.com";
-// Ollama constant retained for potential local dev use — not used in production routing
-const _OLLAMA_BASE = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 
-export type AIProvider = "venice" | "openai" | "ollama";
+// Note: Ollama was removed when the stack migrated to Venice/OpenAI cloud.
+// The "ollama" provider type and env vars have been stripped from runtime code.
+// The `codex/ollama-local` git branch name is kept for historical reasons.
+export type AIProvider = "venice" | "openai";
 
 export type TaskType =
   | "chat"           // General conversation / operator chat
@@ -373,7 +378,6 @@ let dailyStats: DailyStats = makeDailyStats();
 const providerLatency: Record<AIProvider, LatencyTracker> = {
   venice: { totalMs: 0, count: 0 },
   openai: { totalMs: 0, count: 0 },
-  ollama: { totalMs: 0, count: 0 },
 };
 
 function getTodayET(): string {
@@ -390,7 +394,6 @@ function ensureDailyReset() {
     dailyStats = makeDailyStats();
     providerLatency.venice = { totalMs: 0, count: 0 };
     providerLatency.openai = { totalMs: 0, count: 0 };
-    providerLatency.ollama = { totalMs: 0, count: 0 };
   }
 }
 
