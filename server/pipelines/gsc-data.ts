@@ -83,7 +83,12 @@ export interface SeasonalComparison {
 
 // ─── GSC API CLIENT ──────────────────────────────────────
 
-const GSC_SITE_URL = "sc-domain:nickstire.org";
+// URL-prefix property, not sc-domain. Reason: the teezy-491218 service account
+// is only registered as siteOwner on the URL-prefix property. The sc-domain
+// property would need DNS TXT re-verification at globaldomaingroup.com which
+// we don't control. nickstire.org redirects www/http → apex https, so the
+// URL-prefix captures all organic search traffic without loss.
+const GSC_SITE_URL = "https://nickstire.org/";
 
 /**
  * Check if GSC API credentials are configured.
