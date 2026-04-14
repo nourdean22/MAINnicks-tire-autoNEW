@@ -247,9 +247,9 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
         } catch (e) { log.warn("[jobs/statenourSync] feedbackLoop failed", { error: String(e) }); return null; }
       })(),
       // ═══ Event Lifecycle Journeys ═══
-      customerJourneys: (() => {
+      customerJourneys: await (async () => {
         try {
-          const { getActiveJourneys } = require("../../services/eventBus");
+          const { getActiveJourneys } = await import("../../services/eventBus");
           return getActiveJourneys();
         } catch (e) { log.warn("[jobs/statenourSync] customerJourneys failed", { error: String(e) }); return []; }
       })(),
@@ -303,9 +303,9 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
         } catch (e) { log.warn("[jobs/statenourSync] workOrders snapshot failed", { error: String(e) }); return null; }
       })(),
       // ═══ Question Patterns (what Nour asks about) ═══
-      operatorPatterns: (() => {
+      operatorPatterns: await (async () => {
         try {
-          const { getTopQuestions } = require("../../services/nickMemory");
+          const { getTopQuestions } = await import("../../services/nickMemory");
           return getTopQuestions(5);
         } catch (e) { log.warn("[jobs/statenourSync] operatorPatterns failed", { error: String(e) }); return []; }
       })(),
@@ -362,7 +362,7 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
           if (cbs > 0) alerts.push({ level: "critical", msg: `${cbs} callbacks unanswered >4h`, count: cbs });
           const pendingInv = await cnt(sql`SELECT COUNT(*) as cnt FROM invoices WHERE paymentStatus='pending' AND invoiceDate < DATE_SUB(NOW(), INTERVAL 3 DAY)`);
           if (pendingInv > 0) alerts.push({ level: "warning", msg: `${pendingInv} invoices unpaid >3 days ($)`, count: pendingInv });
-          const overdueWo = await cnt(sql`SELECT COUNT(*) as cnt FROM work_orders WHERE status NOT IN ('completed','cancelled') AND promisedTime IS NOT NULL AND promisedTime < NOW()`);
+          const overdueWo = await cnt(sql`SELECT COUNT(*) as cnt FROM work_orders WHERE status NOT IN ('completed','cancelled') AND promised_at IS NOT NULL AND promised_at < NOW()`);
           if (overdueWo > 0) alerts.push({ level: "warning", msg: `${overdueWo} work orders past promise time`, count: overdueWo });
           return alerts;
         } catch (e) { log.warn("[jobs/statenourSync] attentionAlerts failed", { error: String(e) }); return []; }

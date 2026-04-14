@@ -36,15 +36,29 @@ export async function forecastRevenue() {
   const etNow = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
   const dayOfWeek = etNow.getDay(); // 0=Sun
 
-  // Pull daily revenue for last 90 days (paid invoices only)
-  const dailyRevenue = await (await db()).select({
-    day: sql<string>`DATE(${invoices.invoiceDate})`.as("day"),
-    dow: sql<number>`DAYOFWEEK(${invoices.invoiceDate})`.as("dow"),
-    total: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)`.as("total"),
-    count: sql<number>`COUNT(*)`.as("cnt"),
-  }).from(invoices)
-    .where(and(gte(invoices.invoiceDate, sql`DATE_SUB(NOW(), INTERVAL 90 DAY)`), eq(invoices.paymentStatus, "paid")))
-    .groupBy(sql`DATE(${invoices.invoiceDate})`);
+  // Pull daily revenue for last 90 days (paid invoices only).
+  // Use raw SQL to guarantee SELECT and GROUP BY expressions match textually
+  // — Drizzle's template renders `${invoices.invoiceDate}` inconsistently
+  // (unqualified in SELECT, qualified in GROUP BY), which TiDB strict mode
+  // treats as non-matching expressions and rejects under only_full_group_by.
+  const dailyRevenueRaw = await (await db()).execute(sql`
+    SELECT
+      DATE(\`invoiceDate\`) AS day,
+      MIN(DAYOFWEEK(\`invoiceDate\`)) AS dow,
+      COALESCE(SUM(\`totalAmount\`), 0) AS total,
+      COUNT(*) AS cnt
+    FROM \`invoices\`
+    WHERE \`invoiceDate\` >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+      AND \`paymentStatus\` = 'paid'
+    GROUP BY DATE(\`invoiceDate\`)
+  `);
+  // mysql2 .execute returns [rows, fields] — rows is an array of plain objects
+  const dailyRevenue = ((dailyRevenueRaw as unknown as any[])[0] || []) as Array<{
+    day: string;
+    dow: number;
+    total: number;
+    cnt: number;
+  }>;
 
   // Day-of-week averages
   const dowAvg: Record<number, { avg: number; count: number }> = {};
@@ -91,14 +105,21 @@ export async function forecastRevenue() {
   const daysInMonth = new Date(etNow.getFullYear(), etNow.getMonth() + 1, 0).getDate();
   const monthProjection = dayOfMonth > 0 ? Math.round(monthSoFar * (daysInMonth / dayOfMonth)) : 0;
 
-  // Last 4 weeks trend (paid invoices only)
-  const weeklyTrend = await (await db()).select({
-    week: sql<string>`DATE_FORMAT(${invoices.invoiceDate}, '%Y-%u')`.as("week"),
-    total: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)`.as("total"),
-  }).from(invoices)
-    .where(and(gte(invoices.invoiceDate, sql`DATE_SUB(NOW(), INTERVAL 28 DAY)`), eq(invoices.paymentStatus, "paid")))
-    .groupBy(sql`DATE_FORMAT(${invoices.invoiceDate}, '%Y-%u')`)
-    .orderBy(sql`week`);
+  // Last 4 weeks trend (paid invoices only) — raw SQL for consistent column qualification.
+  const weeklyTrendRaw = await (await db()).execute(sql`
+    SELECT
+      DATE_FORMAT(\`invoiceDate\`, '%Y-%u') AS week,
+      COALESCE(SUM(\`totalAmount\`), 0) AS total
+    FROM \`invoices\`
+    WHERE \`invoiceDate\` >= DATE_SUB(NOW(), INTERVAL 28 DAY)
+      AND \`paymentStatus\` = 'paid'
+    GROUP BY DATE_FORMAT(\`invoiceDate\`, '%Y-%u')
+    ORDER BY week
+  `);
+  const weeklyTrend = ((weeklyTrendRaw as unknown as any[])[0] || []) as Array<{
+    week: string;
+    total: number;
+  }>;
 
   const weeks = weeklyTrend.map((w: typeof weeklyTrend[number]) => w.total / 100);
   const trend = weeks.length >= 2
@@ -778,15 +799,25 @@ export async function forecastSeasonalDemand(): Promise<{
   const currentMonthNum = now.getMonth() + 1; // 1-12
   const nextMonthNum = currentMonthNum === 12 ? 1 : currentMonthNum + 1;
 
-  // Get invoice service descriptions grouped by month for the last 24 months
-  const monthlyServices = await (await db()).select({
-    monthNum: sql<number>`MONTH(${invoices.invoiceDate})`.as("monthNum"),
-    yearNum: sql<number>`YEAR(${invoices.invoiceDate})`.as("yearNum"),
-    serviceDescription: invoices.serviceDescription,
-    cnt: sql<number>`COUNT(*)`.as("cnt"),
-  }).from(invoices)
-    .where(gte(invoices.invoiceDate, sql`DATE_SUB(NOW(), INTERVAL 24 MONTH)`))
-    .groupBy(sql`MONTH(${invoices.invoiceDate})`, sql`YEAR(${invoices.invoiceDate})`, invoices.serviceDescription);
+  // Get invoice service descriptions grouped by month for the last 24 months.
+  // Raw SQL to keep SELECT and GROUP BY textually identical — Drizzle template
+  // renders column refs inconsistently which breaks TiDB's only_full_group_by.
+  const monthlyServicesRaw = await (await db()).execute(sql`
+    SELECT
+      MONTH(\`invoiceDate\`) AS monthNum,
+      YEAR(\`invoiceDate\`) AS yearNum,
+      \`serviceDescription\`,
+      COUNT(*) AS cnt
+    FROM \`invoices\`
+    WHERE \`invoiceDate\` >= DATE_SUB(NOW(), INTERVAL 24 MONTH)
+    GROUP BY MONTH(\`invoiceDate\`), YEAR(\`invoiceDate\`), \`serviceDescription\`
+  `);
+  const monthlyServices = ((monthlyServicesRaw as unknown as any[])[0] || []) as Array<{
+    monthNum: number;
+    yearNum: number;
+    serviceDescription: string | null;
+    cnt: number;
+  }>;
 
   // Categorize and aggregate by month + service category
   const monthCategoryTotals: Record<number, Record<string, { count: number; years: Set<number> }>> = {};

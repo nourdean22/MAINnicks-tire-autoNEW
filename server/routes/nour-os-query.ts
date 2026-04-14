@@ -162,10 +162,18 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     const { sql } = await import("drizzle-orm");
     const d = await getDb();
     if (!d) return { error: "No DB" };
+    // work_orders DB uses snake_case columns. Alias back to camelCase for API shape.
+    // customer/vehicle info live on joined tables or denormalized vehicle_* columns.
     const [rows] = await d.execute(sql`
-      SELECT id, orderNumber, customerName, vehicleInfo, status, promisedTime, createdAt
+      SELECT id,
+             order_number AS orderNumber,
+             customer_id AS customerId,
+             CONCAT_WS(' ', vehicle_year, vehicle_make, vehicle_model) AS vehicleInfo,
+             status,
+             promised_at AS promisedAt,
+             created_at AS createdAt
       FROM work_orders WHERE status NOT IN ('completed', 'cancelled')
-      ORDER BY createdAt DESC LIMIT 30
+      ORDER BY created_at DESC LIMIT 30
     `);
     return { activeOrders: rows, count: (rows as unknown[]).length };
   },
@@ -195,7 +203,7 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     if (pendingCount > 0) alerts.push({ level: "warning", message: `${pendingCount} invoices pending >3 days`, count: pendingCount });
 
     // Overdue work orders
-    const [overdue] = await d.execute(sql`SELECT COUNT(*) as cnt FROM work_orders WHERE status NOT IN ('completed','cancelled') AND promisedTime IS NOT NULL AND promisedTime < NOW()`);
+    const [overdue] = await d.execute(sql`SELECT COUNT(*) as cnt FROM work_orders WHERE status NOT IN ('completed','cancelled') AND promised_at IS NOT NULL AND promised_at < NOW()`);
     const overdueCount = Number((overdue as Record<string, unknown>[])?.[0]?.cnt || (overdue as Record<string, unknown>)?.cnt || 0);
     if (overdueCount > 0) alerts.push({ level: "warning", message: `${overdueCount} work orders past promised time`, count: overdueCount });
 
