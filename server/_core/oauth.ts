@@ -9,7 +9,68 @@ function getQueryParam(req: Request, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+/**
+ * Dev-only sign-in route. Mints a real session cookie (signed by JWT_SECRET,
+ * same as Google OAuth flow) for the OWNER_OPEN_ID user. Works on localhost
+ * so developers can preview /admin without real Google OAuth.
+ *
+ * HARD-GATED by NODE_ENV !== "production". Returns 404 in prod so the route
+ * doesn't even exist there.
+ */
+function registerDevSigninRoute(app: Express) {
+  if (process.env.NODE_ENV === "production") return;
+
+  app.get("/api/dev/signin", async (req: Request, res: Response) => {
+    try {
+      const ownerOpenId = process.env.OWNER_OPEN_ID;
+      if (!ownerOpenId) {
+        res.status(500).send("OWNER_OPEN_ID not set — cannot dev sign in");
+        return;
+      }
+
+      // Ensure the user exists (upsert matches production OAuth flow)
+      await db.upsertUser({
+        openId: ownerOpenId,
+        name: "Local Dev (Owner)",
+        email: process.env.ADMIN_EMAIL || null,
+        loginMethod: "dev-signin",
+        lastSignedIn: new Date(),
+      });
+
+      const existing = await db.getUserByOpenId(ownerOpenId);
+      if (!existing) {
+        res.status(500).send("Failed to upsert dev user");
+        return;
+      }
+
+      // Mint a real session token — same path as OAuth callback
+      const sessionToken = await sdk.createSessionToken(ownerOpenId, {
+        name: existing.name || "Dev Owner",
+        expiresInMs: THIRTY_DAYS_MS,
+      });
+
+      const cookieOptions = getSessionCookieOptions(req);
+      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: THIRTY_DAYS_MS });
+
+      // Redirect to where they wanted to go, defaulting to /admin
+      const dest = typeof req.query.next === "string" && req.query.next.startsWith("/")
+        ? req.query.next
+        : "/admin";
+      res.redirect(302, dest);
+    } catch (err) {
+      console.error("[DevSignin] Failed:", err);
+      res.status(500).send(`Dev signin failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
+  });
+
+  console.warn(
+    "\n⚠ [dev-signin] /api/dev/signin is active — dev only. Never enabled in production.\n"
+  );
+}
+
 export function registerOAuthRoutes(app: Express) {
+  registerDevSigninRoute(app);
+
   // Google OAuth callback
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
