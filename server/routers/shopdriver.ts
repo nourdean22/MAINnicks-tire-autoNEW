@@ -75,64 +75,149 @@ function parseCSV(csv: string): string[][] {
 const SD_BASE = "https://secure.autolaborexperts.com";
 let sdSessionCookie: string | null = null;
 let sdSessionExpiry = 0;
+let sdLastProbeAt = 0;
+let sdLoginInFlight: Promise<boolean> | null = null;
+
+/** Detect when ShopDriver has kicked the session (login page / HTML / auth error). */
+function isSessionKicked(res: Response, bodyPreview: string): boolean {
+  if (res.status === 401 || res.status === 403) return true;
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("text/html")) return true;
+  const trimmed = bodyPreview.trimStart().toLowerCase();
+  if (trimmed.startsWith("<!doctype") || trimmed.startsWith("<html") || trimmed.startsWith("<")) return true;
+  if (trimmed.includes("<html") || trimmed.includes("login") && trimmed.includes("password")) return true;
+  return false;
+}
 
 async function sdLogin(): Promise<boolean> {
-  const username = process.env.AUTO_LABOR_USERNAME || process.env.ALG_USERNAME;
-  const password = process.env.AUTO_LABOR_PASSWORD || process.env.ALG_PASSWORD;
-  if (!username || !password) return false;
+  // Single-flight: coalesce concurrent logins so we don't stampede the auth endpoint.
+  if (sdLoginInFlight) return sdLoginInFlight;
+
+  sdLoginInFlight = (async () => {
+    const username = process.env.AUTO_LABOR_USERNAME || process.env.ALG_USERNAME;
+    const password = process.env.AUTO_LABOR_PASSWORD || process.env.ALG_PASSWORD;
+    if (!username || !password) {
+      console.error("[ShopDriver] Missing credentials: AUTO_LABOR_USERNAME / AUTO_LABOR_PASSWORD");
+      return false;
+    }
+
+    try {
+      const res = await fetch(`${SD_BASE}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+        redirect: "manual",
+      });
+
+      // Extract session cookie from Set-Cookie header
+      const setCookie = res.headers.get("set-cookie");
+      if (setCookie) {
+        sdSessionCookie = setCookie.split(";")[0];
+        sdSessionExpiry = Date.now() + 30 * 60 * 1000; // 30 min
+        sdLastProbeAt = Date.now();
+        console.info("[ShopDriver] Logged in successfully (cookie auth)");
+        return true;
+      }
+
+      // Some systems return a token in the body
+      if (res.ok) {
+        try {
+          const body = await res.json();
+          if (body.token || body.session) {
+            sdSessionCookie = `token=${body.token || body.session}`;
+            sdSessionExpiry = Date.now() + 30 * 60 * 1000;
+            sdLastProbeAt = Date.now();
+            console.info("[ShopDriver] Logged in successfully (token auth)");
+            return true;
+          }
+        } catch (e) { /* response not JSON — expected for some auth flows */ console.warn("[routers/shopdriver] operation failed:", e); }
+      }
+
+      console.error("[ShopDriver] Login returned no session cookie or token, status:", res.status);
+      return false;
+    } catch (err) {
+      console.error("[ShopDriver] Login failed:", err instanceof Error ? err.message : err);
+      return false;
+    }
+  })();
 
   try {
-    const res = await fetch(`${SD_BASE}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-      redirect: "manual",
-    });
-
-    // Extract session cookie from Set-Cookie header
-    const setCookie = res.headers.get("set-cookie");
-    if (setCookie) {
-      sdSessionCookie = setCookie.split(";")[0];
-      sdSessionExpiry = Date.now() + 30 * 60 * 1000; // 30 min
-      return true;
-    }
-
-    // Some systems return a token in the body
-    if (res.ok) {
-      try {
-        const body = await res.json();
-        if (body.token || body.session) {
-          sdSessionCookie = `token=${body.token || body.session}`;
-          sdSessionExpiry = Date.now() + 30 * 60 * 1000;
-          return true;
-        }
-      } catch (e) { /* response not JSON — expected for some auth flows */ console.warn("[routers/shopdriver] operation failed:", e); }
-    }
-
-    return false;
-  } catch (err) {
-    console.error("[ShopDriver] Login failed:", err instanceof Error ? err.message : err);
-    return false;
+    return await sdLoginInFlight;
+  } finally {
+    sdLoginInFlight = null;
   }
 }
 
+/** Invalidate the cached session so the next call forces a fresh login. */
+function sdInvalidateSession() {
+  sdSessionCookie = null;
+  sdSessionExpiry = 0;
+}
+
+/**
+ * Core fetch with auto-reauth:
+ *   1. Ensure we have a cookie (login if missing/expired)
+ *   2. Fire request
+ *   3. If response is HTML / 401 / 403 → session was kicked
+ *   4. Invalidate + re-login + retry ONCE
+ */
 async function sdFetch(path: string): Promise<Response | null> {
+  // Ensure session (respects local expiry)
   if (!sdSessionCookie || Date.now() > sdSessionExpiry) {
     const ok = await sdLogin();
     if (!ok) return null;
   }
 
+  const doFetch = async (): Promise<Response | null> => {
+    try {
+      return await fetch(`${SD_BASE}${path}`, {
+        headers: {
+          Cookie: sdSessionCookie || "",
+          Accept: "application/json",
+        },
+      });
+    } catch (err) {
+      console.error("[ShopDriver] Fetch failed:", err instanceof Error ? err.message : err);
+      return null;
+    }
+  };
+
+  // First attempt
+  let res = await doFetch();
+  if (!res) return null;
+
+  // Peek at body WITHOUT consuming it, so downstream can still read it
+  const clone = res.clone();
+  let bodyPreview = "";
   try {
-    return await fetch(`${SD_BASE}${path}`, {
-      headers: {
-        Cookie: sdSessionCookie || "",
-        Accept: "application/json",
-      },
-    });
-  } catch (err) {
-    console.error("[ShopDriver] Fetch failed:", err instanceof Error ? err.message : err);
-    return null;
+    bodyPreview = (await clone.text()).substring(0, 500);
+  } catch { /* ignore */ }
+
+  if (isSessionKicked(res, bodyPreview)) {
+    console.warn(`[ShopDriver] Session kicked on ${path} (status ${res.status}, preview: ${bodyPreview.substring(0, 80)}) — forcing re-login`);
+    sdInvalidateSession();
+    const ok = await sdLogin();
+    if (!ok) return res; // re-login failed, return the HTML response so caller reports it
+
+    // Retry once with fresh cookie
+    res = await doFetch();
+    if (!res) return null;
+
+    // If STILL kicked after fresh login, give up and return what we got
+    const clone2 = res.clone();
+    let preview2 = "";
+    try { preview2 = (await clone2.text()).substring(0, 500); } catch { /* ignore */ }
+    if (isSessionKicked(res, preview2)) {
+      console.error(`[ShopDriver] Still kicked after re-login on ${path} — credentials may be wrong or API changed`);
+    }
   }
+
+  // Passive liveness: if we haven't probed in 2 min, record this successful call as a heartbeat
+  if (res.ok && !isSessionKicked(res, bodyPreview)) {
+    sdLastProbeAt = Date.now();
+  }
+
+  return res;
 }
 
 // ─── SYNC STATE TRACKING ───────────────────────────────
