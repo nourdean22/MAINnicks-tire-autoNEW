@@ -1,11 +1,16 @@
 # ═══════════════════════════════════════════════════════════════
-# NICKSTIRE LOCAL DEV — one-command startup
+# NICKSTIRE LOCAL DEV — standalone startup (no Claude)
 # ═══════════════════════════════════════════════════════════════
 #
-# What this does:
+# ⚠ IF YOU'RE USING CLAUDE CODE / CLAUDE PREVIEW MCP: you don't need
+#   this script. Just call `preview_start({name: "Nickstire"})` in
+#   Claude — it launches dev-server-wrapper.mjs automatically which
+#   handles everything below.
+#
+# This script is for running nickstire dev WITHOUT Claude:
 #   1. Kills any zombie node processes on ports 3500-3504
 #   2. Verifies .env exists (pulls from Railway if missing)
-#   3. Starts tsx watch on port 3500
+#   3. Starts tsx watch on port 3500 (direct, no wrapper — you own the shell)
 #   4. Opens http://localhost:3500/api/dev/signin in default browser
 #      (mints session cookie + redirects to /admin — no Google OAuth needed)
 #
