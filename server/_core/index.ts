@@ -279,6 +279,14 @@ async function startServer() {
         INDEX idx_push_customer (customer_id),
         INDEX idx_push_admin (is_admin)
       )`,
+      // ═══ CRITICAL: invoices.workOrderId — linking invoices to work orders ═══
+      // Root cause of: admin $0 revenue, nickActions.shopPulse failure,
+      // invoices.intelligence failure, customer-intelligence failure, statenourSync failure.
+      // Drizzle schema had this column but actual TiDB table never got it.
+      `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS workOrderId int NULL AFTER bookingId`,
+      // ═══ review_pipeline schema drift (admin review queue) ═══
+      `ALTER TABLE review_pipeline ADD COLUMN IF NOT EXISTS reviewed int NOT NULL DEFAULT 0`,
+      `ALTER TABLE review_pipeline ADD COLUMN IF NOT EXISTS responseSent int NOT NULL DEFAULT 0`,
     ];
     let applied = 0;
     for (const stmt of alters) {

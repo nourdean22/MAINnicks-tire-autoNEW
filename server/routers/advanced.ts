@@ -420,11 +420,12 @@ export const invoicesRouter = router({
           FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
         `),
         // 2. Labor vs Parts ratio
+        // NOTE: `both` is a reserved word in TiDB/MySQL — use `bothJobs`.
         d.execute(rawSql`
           SELECT
             SUM(CASE WHEN laborCost > 0 AND partsCost = 0 THEN 1 ELSE 0 END) as laborOnly,
             SUM(CASE WHEN laborCost = 0 AND partsCost > 0 THEN 1 ELSE 0 END) as partsOnly,
-            SUM(CASE WHEN laborCost > 0 AND partsCost > 0 THEN 1 ELSE 0 END) as both,
+            SUM(CASE WHEN laborCost > 0 AND partsCost > 0 THEN 1 ELSE 0 END) as bothJobs,
             COALESCE(SUM(laborCost),0) as totalLabor,
             COALESCE(SUM(partsCost),0) as totalParts
           FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
@@ -543,7 +544,7 @@ export const invoicesRouter = router({
           partsPct: Number(overview.rev) > 0 ? Math.round(Number(lp.totalParts || 0) / Number(overview.rev) * 100) : 0,
           laborOnlyJobs: Number(lp.laborOnly || 0),
           partsOnlyJobs: Number(lp.partsOnly || 0),
-          bothJobs: Number(lp.both || 0),
+          bothJobs: Number(lp.bothJobs || 0),
         },
         monthlyTrend: monthly.map((m: RawRow) => ({
           month: m.month,

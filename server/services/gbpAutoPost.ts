@@ -6,6 +6,7 @@
 
 import { createLogger } from "../lib/logger";
 import { randomUUID } from "crypto";
+import { BUSINESS } from "@shared/business";
 
 const log = createLogger("gbp-poster");
 
@@ -23,7 +24,6 @@ export interface GBPPost {
 
 /** Create a GBP post draft from a special/promotion */
 export function createSpecialPost(special: { title: string; description: string; expiresAt?: Date }): GBPPost {
-  const { BUSINESS } = require("@shared/business");
   const text = `${special.title}\n\n${special.description}\n\n📍 ${BUSINESS.name} — ${BUSINESS.address.street}, ${BUSINESS.address.city}\n📞 ${BUSINESS.phone.display}\n⭐ ${BUSINESS.reviews.rating} stars, ${BUSINESS.reviews.countDisplay} reviews`;
   return {
     id: randomUUID(),

@@ -185,7 +185,7 @@ async function executeCheckSchedule(date: string): Promise<string> {
 
     // Count active work orders for that day
     const [woRows] = await d.execute(
-      sql`SELECT COUNT(*) as cnt FROM work_orders WHERE DATE(createdAt) = ${date} AND status NOT IN ('completed', 'cancelled')`
+      sql`SELECT COUNT(*) as cnt FROM work_orders WHERE DATE(created_at) = ${date} AND status NOT IN ('completed', 'cancelled')`
     );
     const woCount = Number((woRows as Record<string, unknown>[])?.[0]?.cnt || (woRows as Record<string, unknown>)?.cnt || 0);
 

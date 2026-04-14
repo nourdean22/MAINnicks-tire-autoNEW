@@ -14,6 +14,7 @@
 
 import { createLogger } from "../lib/logger";
 import { sql, desc, eq } from "drizzle-orm";
+import { createHash } from "crypto";
 
 const log = createLogger("nick-memory");
 
@@ -672,7 +673,6 @@ export async function getProactiveMemoryAlerts(): Promise<string[]> {
 }
 
 function simpleHash(str: string): string {
-  const { createHash } = require("crypto");
   const normalized = str.toLowerCase().trim().replace(/\s+/g, " ");
   return createHash("md5").update(normalized).digest("hex").slice(0, 12);
 }
