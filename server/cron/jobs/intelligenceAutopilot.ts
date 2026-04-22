@@ -260,7 +260,7 @@ export async function runIntelligenceAutopilot(): Promise<{ recordsProcessed: nu
     if (alerts.length > 0) {
       try {
         const { sendTelegram } = await import("../../services/telegram");
-        const now = new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit", hour12: true });
+        const now = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", minute: "2-digit", hour12: true });
 
         await sendTelegram(
           `🧠 INTELLIGENCE AUTOPILOT — ${now}${healthScore ? ` | Health: ${healthScore}/100` : ""}\n\n` +

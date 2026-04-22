@@ -72,7 +72,7 @@ export function createSeasonalPost(season: { title: string; services: string[]; 
 export async function generateAndNotifyGBPPost(): Promise<{ recordsProcessed: number; details: string }> {
   try {
     // Only generate weekly (check day — run on Mondays)
-    const day = new Date().toLocaleString("en-US", { timeZone: "America/New_York", weekday: "long" });
+    const day = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, weekday: "long" });
     if (day !== "Monday") return { recordsProcessed: 0, details: "Not Monday — skipping GBP post" };
 
     const month = new Date().getMonth();

@@ -10,6 +10,7 @@ import { getDb } from './db';
 import { analyticsSnapshots } from '../drizzle/schema';
 import { sql } from 'drizzle-orm';
 
+import { BUSINESS } from "@shared/business";
 /**
  * Extract source from referrer and UTM parameters
  */
@@ -34,7 +35,7 @@ export function extractSource(referrer?: string, utmSource?: string): string {
  * Get today's analytics snapshot
  */
 export async function getTodaySnapshot() {
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
   const db = await getDb();
 
   if (!db) return null;

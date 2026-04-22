@@ -3,6 +3,7 @@
  */
 import { createLogger } from "../../lib/logger";
 import { sendSms } from "../../sms";
+import { BUSINESS } from "@shared/business";
 const log = createLogger("cron:daily-report");
 
 export async function generateDailyReport(): Promise<{ recordsProcessed: number; details: string }> {
@@ -14,7 +15,7 @@ export async function generateDailyReport(): Promise<{ recordsProcessed: number;
 
   try {
     // Only send at evening (after 6 PM ET) — skip morning run
-    const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+    const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
     if (etHour < 18) return { recordsProcessed: 0, details: "Not yet evening — skipped" };
 
     const { getDb } = await import("../../db");
@@ -24,7 +25,7 @@ export async function generateDailyReport(): Promise<{ recordsProcessed: number;
     if (!db) return { recordsProcessed: 0, details: "No database" };
 
     // Gather full intelligence for a rich daily report
-    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
     const rawBookings = await db.execute(sql`SELECT COUNT(*) as cnt FROM bookings WHERE DATE(createdAt) = ${today}`);
     const bookingRows = Array.isArray(rawBookings) && Array.isArray(rawBookings[0]) ? rawBookings[0] : rawBookings;
     const bookingCount = (bookingRows as any)?.[0]?.cnt || 0;

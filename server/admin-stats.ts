@@ -7,6 +7,7 @@ import { getDb } from "./db";
 import { bookings, leads, chatSessions, dynamicArticles, notificationMessages, contentGenerationLog, users, callbackRequests, callEvents, invoices, customers, workOrders } from "../drizzle/schema";
 import { eq, desc, gte, sql, and } from "drizzle-orm";
 
+import { BUSINESS } from "@shared/business";
 type Booking = typeof bookings.$inferSelect;
 type Lead = typeof leads.$inferSelect;
 type Article = typeof dynamicArticles.$inferSelect;
@@ -338,7 +339,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     // ─── SHOP FLOOR (ALG Invoice/Estimate Data) ──────────
     let shopFloorStats = defaultStats.shopFloor;
     try {
-      const todayStart = new Date(new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }));
+      const todayStart = new Date(new Date().toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone }));
       const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
 
       const [

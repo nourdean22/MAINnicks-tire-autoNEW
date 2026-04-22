@@ -14,6 +14,7 @@ import { sql } from "drizzle-orm";
 
 import { db } from "../lib/db-helper";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("feedback-loop");
 
 // ─── EVENT ANALYTICS (track patterns over time) ──────
@@ -138,7 +139,7 @@ export function getBriefEngagement(): { sent: string | null; responded: string |
 const pendingImpacts: Array<{ action: string; beforeRevenue: number; timestamp: number; date: string }> = [];
 
 export async function measureRevenueImpact(actionName: string, beforeRevenue: number): Promise<void> {
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
   pendingImpacts.push({ action: actionName, beforeRevenue, timestamp: Date.now(), date: today });
   // Cap to prevent unbounded growth
   if (pendingImpacts.length > 20) pendingImpacts.splice(0, pendingImpacts.length - 20);
@@ -152,7 +153,7 @@ export async function checkPendingImpacts(): Promise<number> {
   let checked = 0;
 
   // Only check impacts that are at least 2 hours old AND same day (cross-day comparison is invalid)
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
   const ready = pendingImpacts.filter(p => now - p.timestamp > twoHoursMs && p.date === today);
   // Discard stale cross-day entries
   const stale = pendingImpacts.filter(p => p.date !== today && now - p.timestamp > twoHoursMs);
@@ -257,7 +258,7 @@ export async function runFeedbackCycle(): Promise<{ recordsProcessed?: number; d
   try {
     const { getShopPulse, projectRevenue } = await import("./nickIntelligence");
     const [pulse, revenue] = await Promise.all([getShopPulse(), projectRevenue()]);
-    const currentHour = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+    const currentHour = parseInt(new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
     const hoursOpen = Math.max(1, currentHour - 7); // Shop opens at 7am
     const totalBusinessHours = 14; // 7am-9pm = 14 hours
     const expectedByNow = revenue.avgDailyRevenue * (hoursOpen / totalBusinessHours);

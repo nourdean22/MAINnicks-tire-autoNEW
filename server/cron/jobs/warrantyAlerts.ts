@@ -6,6 +6,7 @@
 import { createLogger } from "../../lib/logger";
 import { and, eq, gte, lte, sql } from "drizzle-orm";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("cron:warranty");
 
 export async function processWarrantyAlerts(): Promise<{ recordsProcessed: number }> {
@@ -25,8 +26,8 @@ export async function processWarrantyAlerts(): Promise<{ recordsProcessed: numbe
     from.setDate(from.getDate() + 12);
     const to = new Date(now);
     to.setDate(to.getDate() + 16);
-    const fromStr = from.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-    const toStr = to.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    const fromStr = from.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
+    const toStr = to.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
 
     const expiring = await db
       .select()
@@ -61,7 +62,7 @@ export async function processWarrantyAlerts(): Promise<{ recordsProcessed: numbe
       }
 
       const firstName = customer.firstName || "there";
-      const expiryDate = new Date(w.expiresAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "America/New_York" });
+      const expiryDate = new Date(w.expiresAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: BUSINESS.timezone });
       const message = `Hi ${firstName}, your warranty on ${w.serviceDescription || "your service"} at Nick's Tire & Auto expires on ${expiryDate}. Schedule a check before it's up: (216) 862-0005`;
 
       const result = await sendSms(customer.phone, message);

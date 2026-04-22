@@ -16,6 +16,7 @@
 import { createLogger } from "../lib/logger";
 import { getOrCreateBreaker } from "../lib/circuit-breaker";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("telegram");
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
@@ -162,7 +163,7 @@ function escapeHtml(text: string): string {
 }
 
 function formatTimestamp(): string {
-  return new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+  return new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone });
 }
 
 function divider(): string {

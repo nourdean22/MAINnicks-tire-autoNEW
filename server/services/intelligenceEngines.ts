@@ -33,7 +33,7 @@ async function db() {
 
 export async function forecastRevenue() {
   const now = new Date();
-  const etNow = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const etNow = new Date(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone }));
   const dayOfWeek = etNow.getDay(); // 0=Sun
 
   // Pull daily revenue for last 90 days (paid invoices only).

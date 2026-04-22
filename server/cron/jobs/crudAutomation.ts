@@ -17,6 +17,7 @@
  */
 import { createLogger } from "../../lib/logger";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("cron:crud-automation");
 
 /** Shape for raw SQL result rows from d.execute() */
@@ -388,7 +389,7 @@ export async function autoFetchAndDraftReviews(): Promise<{ recordsProcessed: nu
 export async function autoGenerateContent(): Promise<{ recordsProcessed: number; details?: string }> {
   try {
     // Run on Wednesdays (mid-week) and Saturdays (weekend) — 2 articles per week
-    const dow = new Date().toLocaleString("en-US", { timeZone: "America/New_York", weekday: "long" });
+    const dow = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, weekday: "long" });
     if (dow !== "Wednesday" && dow !== "Saturday") return { recordsProcessed: 0, details: "Not a content day (Wed/Sat)" };
 
     const { generateArticle } = await import("../../content-generator");

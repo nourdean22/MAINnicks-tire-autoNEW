@@ -18,6 +18,7 @@ import { eq, and, isNotNull, sql, isNull, or, inArray } from "drizzle-orm";
 import { STORE_PHONE } from "@shared/const";
 import type { FlagKey } from "../../services/featureFlags";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("cron:retention");
 
 // ─── RETENTION TIERS ─────────────────────────────────
@@ -71,7 +72,7 @@ const RETENTION_TIERS: RetentionTier[] = [
 /** Only send retention SMS between 9am-6pm ET */
 function isWithinRetentionHours(): boolean {
   const etHour = parseInt(
-    new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }),
+    new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }),
     10,
   );
   return etHour >= 9 && etHour < 18;

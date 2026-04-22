@@ -46,6 +46,10 @@ export const BUSINESS = {
     lng: -81.5268,
   },
 
+  // ─── TIMEZONE ─────────────────────────────────────────
+  // Single source of truth — replace hardcoded "America/New_York" everywhere.
+  timezone: "America/New_York",
+
   // ─── HOURS ───────────────────────────────────────────
   hours: {
     display: "7 days — Mon–Sat 8AM–6PM, Sun 9AM–4PM",

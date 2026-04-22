@@ -6,6 +6,7 @@
 
 import type { Tool } from "../_core/llm";
 
+import { BUSINESS } from "@shared/business";
 // ─── TOOL DEFINITIONS (sent to LLM) ────────────────────
 
 export const CHAT_TOOLS: Tool[] = [
@@ -193,7 +194,7 @@ async function executeCheckSchedule(date: string): Promise<string> {
     const MAX_DAILY_CAPACITY = 12;
 
     // Determine availability
-    const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+    const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
     const isToday = date === new Date().toISOString().split("T")[0];
 
     let bestTimes: string[] = [];

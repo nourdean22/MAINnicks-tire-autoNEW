@@ -21,6 +21,7 @@ import {
   bookingConfirmationRequestSms,
 } from "../sms";
 
+import { BUSINESS } from "@shared/business";
 /**
  * Convert an Eastern Time hour to UTC hour for a given date.
  * Railway runs UTC — we must offset scheduled times so customers
@@ -29,7 +30,7 @@ import {
 function etHourToUtcHour(date: Date, etHour: number): number {
   // Find the ET offset (4 or 5 hours) for the given date using Intl
   const utcParts = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", hour: "numeric", hour12: false }).formatToParts(date);
-  const etParts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }).formatToParts(date);
+  const etParts = new Intl.DateTimeFormat("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }).formatToParts(date);
   const utcH = parseInt(utcParts.find(p => p.type === "hour")?.value || "0", 10);
   const etH = parseInt(etParts.find(p => p.type === "hour")?.value || "0", 10);
   let offset = utcH - etH;

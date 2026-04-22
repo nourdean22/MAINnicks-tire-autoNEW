@@ -5,6 +5,7 @@
 
 import { createLogger } from "../lib/logger";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("shop-status");
 
 const TOTAL_BAYS = 4;
@@ -37,8 +38,8 @@ interface ShopStatus {
 export function getShopStatus(activeOrderCount?: number): ShopStatus {
   // Use Eastern Time — Railway runs UTC, but business hours are ET
   const now = new Date();
-  const hour = parseInt(now.toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
-  const day = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" })).getDay(); // 0=Sun
+  const hour = parseInt(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
+  const day = new Date(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone })).getDay(); // 0=Sun
 
   // Business hours check
   let isOpen = false;

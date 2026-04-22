@@ -14,6 +14,7 @@
 
 import { invokeLLM } from "./_core/llm";
 
+import { BUSINESS } from "@shared/business";
 // ─── TEMPORAL HELPERS ────────────────────────────────────
 
 type DayOfWeek = "Sunday" | "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday";
@@ -45,7 +46,7 @@ function getSeasonalContext(season: Season): string {
 function getTemporalContext(now: Date): string {
   // Get ET components using Intl (reliable across Node versions)
   const etFormatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
+    timeZone: BUSINESS.timezone,
     weekday: "long",
     hour: "numeric",
     minute: "numeric",

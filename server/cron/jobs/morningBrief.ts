@@ -13,6 +13,7 @@ import { invokeLLM } from "../../_core/llm";
 
 import { db } from "../../lib/db-helper";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("cron:morning-brief");
 
 export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; details?: string }> {
@@ -72,8 +73,8 @@ export async function sendMorningBrief(): Promise<{ recordsProcessed?: number; d
     const staleCount = staleLeads[0]?.count ?? 0;
 
     // ─── Build raw data for AI to analyze ──────────────
-    const dayName = now.toLocaleDateString("en-US", { weekday: "long", timeZone: "America/New_York" });
-    const dateStr = now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "America/New_York" });
+    const dayName = now.toLocaleDateString("en-US", { weekday: "long", timeZone: BUSINESS.timezone });
+    const dateStr = now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: BUSINESS.timezone });
 
     const dataBlock = `DATE: ${dayName}, ${dateStr}
 

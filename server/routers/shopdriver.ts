@@ -12,6 +12,7 @@ import { eq, sql, desc, and, isNull } from "drizzle-orm";
 import { customers, shopSettings, customerImportLog, invoices, bookings } from "../../drizzle/schema";
 import { db } from "../lib/db-helper";
 import { normalizePhone } from "../lib/phone";
+import { getAdminActivity } from "../lib/adminActivity";
 
 /** Classify customer segment based on last visit date */
 function classifySegment(lastVisitStr: string | null | undefined): "recent" | "lapsed" | "unknown" {
@@ -221,6 +222,37 @@ interface SyncResult {
 const syncHistory: SyncResult[] = [];
 
 export const shopdriverRouter = router({
+  // ═══════════════════════════════════════════════════════
+  // SHOP-PROTECT STATUS — tells admin UI whether probes are running
+  // ═══════════════════════════════════════════════════════
+
+  /**
+   * Returns the shop-protection state. When Nour is on /admin, probes run.
+   * When Nour is away, probes skip so the shop counter's ShopDriver session
+   * stays alive (probes auth against ShopDriver which kicks the shop login).
+   */
+  shopProtectStatus: adminProcedure.query(async () => {
+    const activity = getAdminActivity();
+    return {
+      ...activity,
+      probesEnabled: activity.active,
+      explanation: activity.active
+        ? "Probes running. Admin session active — ShopDriver/ALG sync will run on schedule."
+        : "Probes paused. No admin activity in the last 10 min. The shop counter is protected from session kicks. Open /admin to resume syncs, or trigger a manual sync below.",
+    };
+  }),
+
+  /**
+   * Manually force a ShopDriver full-mirror run, bypassing the admin-activity
+   * gate. Use when Nour needs fresh data and understands this will kick the
+   * shop counter out of ShopDriver.
+   */
+  forceSyncNow: adminProcedure.mutation(async () => {
+    const { runFullMirror } = await import("../services/shopDriverMirror");
+    const result = await runFullMirror();
+    return { ...result, note: "Manual full-mirror run — shop counter session may have been kicked." };
+  }),
+
   // ═══════════════════════════════════════════════════════
   // EXISTING: CSV Import
   // ═══════════════════════════════════════════════════════

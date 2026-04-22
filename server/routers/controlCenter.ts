@@ -13,9 +13,10 @@ import { z } from "zod";
 
 import { db } from "../lib/db-helper";
 
+import { BUSINESS } from "@shared/business";
 /** Get today's date string (YYYY-MM-DD) in America/New_York timezone */
 function getTodayET(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  return new Date().toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
 }
 
 // ─── Domain Constants (single source of truth for thresholds) ───
@@ -484,7 +485,7 @@ export const controlCenterRouter = router({
 
         // Parallel reads: execution + habits + streak (was 3 sequential)
         const thirtyDaysAgo = new Date(now.getTime() - THRESHOLDS.STREAK_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
-          .toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+          .toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
 
         const [execRows, todayHabits, streakRows] = await Promise.all([
           d.select().from(dailyExecution).where(sql`${dailyExecution.date} = ${today}`).limit(1),
@@ -561,7 +562,7 @@ export const controlCenterRouter = router({
     }
 
     // ─── Time Context ───────────────────────────────────
-    const etNow = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const etNow = new Date(new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone }));
     const etHour = etNow.getHours();
 
     let period: "morning" | "afternoon" | "evening" | "night";
@@ -731,7 +732,7 @@ export const controlCenterRouter = router({
 
     const now = new Date();
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-      .toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+      .toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
 
     const [row] = await d.select().from(dailyExecution).where(sql`${dailyExecution.date} = ${yesterday}`).limit(1);
     if (!row) return null;

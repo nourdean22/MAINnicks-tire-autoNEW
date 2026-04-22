@@ -583,7 +583,7 @@ export const chatRouter = router({
 
           // Best times to come in (from historical data)
           let availableSlots: string[] = [];
-          const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+          const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
           if (etHour < 10) availableSlots.push("Right now — mornings are best for same-day service");
           else if (etHour < 14) availableSlots.push("Drop off now, done by end of day");
           else availableSlots.push("Drop off today, ready by tomorrow morning");

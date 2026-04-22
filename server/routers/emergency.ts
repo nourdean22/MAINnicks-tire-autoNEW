@@ -16,13 +16,14 @@ import { TRPCError } from "@trpc/server";
 
 import { db } from "../lib/db-helper";
 
+import { BUSINESS } from "@shared/business";
 const STORE_OWNER_PHONE = process.env.OWNER_PHONE_NUMBER || process.env.ADMIN_PHONE || "";
 
 function getNextOpenTime(): string {
   const now = new Date();
   // Set to Eastern Time
   const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
+    timeZone: BUSINESS.timezone,
   });
   const easterParts = formatter.formatToParts(now);
   const easterDate = new Date(

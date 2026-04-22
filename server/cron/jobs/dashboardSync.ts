@@ -6,6 +6,7 @@
 import { createLogger } from "../../lib/logger";
 import { gte, sql, count } from "drizzle-orm";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("cron:dashboard-sync");
 
 export async function processDashboardSync(): Promise<{ recordsProcessed: number; details?: string }> {
@@ -16,12 +17,12 @@ export async function processDashboardSync(): Promise<{ recordsProcessed: number
     if (!db) return { recordsProcessed: 0 };
 
     // Only sync during business hours (8am-7pm ET)
-    const etHour = new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false });
+    const etHour = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false });
     const hour = parseInt(etHour, 10);
     if (hour < 8 || hour > 19) return { recordsProcessed: 0, details: "Outside business hours" };
 
     // Use ET timezone for "today" — shop is in Cleveland
-    const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
 
     // Query today's metrics
     const [todayBookings] = await db
@@ -56,8 +57,8 @@ export async function processDashboardSync(): Promise<{ recordsProcessed: number
     } catch (e) { console.warn("[jobs/dashboardSync] operation failed:", e); }
 
     const metrics = {
-      date: new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" }),
-      time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" }),
+      date: new Date().toLocaleDateString("en-US", { timeZone: BUSINESS.timezone }),
+      time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: BUSINESS.timezone }),
       bookings: todayBookings?.count || 0,
       leads: todayLeads?.count || 0,
       callbacks: todayCallbacks?.count || 0,

@@ -26,6 +26,7 @@ import { createLogger } from "./lib/logger";
 import { getOrCreateBreaker } from "./lib/circuit-breaker";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { BUSINESS } from "@shared/business";
 const execAsync = promisify(exec);
 const log = createLogger("email-notify");
 
@@ -546,7 +547,7 @@ export function notifyNewBooking(details: {
       details.refCode ? `Reference: ${details.refCode}` : "",
       details.notes ? `Notes: ${details.notes}` : "",
       ``,
-      `Time: ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`,
+      `Time: ${new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone })}`,
       ``,
       `ACTION: Contact customer to confirm appointment.`,
       ``,
@@ -651,7 +652,7 @@ export function notifyNewLead(details: {
       details.recommendedService ? `Recommended: ${details.recommendedService}` : "",
       fleetInfo,
       ``,
-      `Time: ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`,
+      `Time: ${new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone })}`,
       ``,
       isCareerApplicant ? `ACTION: Review application and call within 48 hours.` : isHighValue ? `ACTION: Call this customer within 15 minutes.` : `ACTION: Follow up within 1 hour.`,
       ``,
@@ -680,7 +681,7 @@ export function notifyCallbackRequest(details: {
       ``,
       `Please call back within 15 minutes for best conversion.`,
       ``,
-      `Time: ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`,
+      `Time: ${new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone })}`,
       ``,
       `— Nick's Tire & Auto Website`,
     ].filter(Boolean).join("\n"),
@@ -709,7 +710,7 @@ export function notifyTireOrder(details: {
       `NEW ONLINE TIRE ORDER`,
       ``,
       `Order: ${details.orderNumber}`,
-      `Date: ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`,
+      `Date: ${new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone })}`,
       ``,
       `CUSTOMER`,
       `Name: ${details.customerName}`,
@@ -750,7 +751,7 @@ export function notifyWeeklyReport(details: {
     subject: `Weekly Report: $${details.totalRevenue.toFixed(0)} Revenue — ${details.bookingCount} Bookings`,
     body: [
       `WEEKLY PERFORMANCE REPORT`,
-      `Week ending: ${new Date().toLocaleDateString("en-US", { timeZone: "America/New_York" })}`,
+      `Week ending: ${new Date().toLocaleDateString("en-US", { timeZone: BUSINESS.timezone })}`,
       ``,
       `REVENUE: $${details.totalRevenue.toFixed(2)}`,
       `Bookings: ${details.bookingCount}`,
@@ -776,7 +777,7 @@ export function notifySystemAlert(details: {
       ``,
       details.message,
       ``,
-      `Time: ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`,
+      `Time: ${new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone })}`,
       ``,
       `— Nick's Tire & Auto System`,
     ].join("\n"),
@@ -803,7 +804,7 @@ export function notifyInvoiceCreated(details: {
       `Total: $${details.totalAmount.toFixed(2)}`,
       `Source: ${details.source === "booking" ? "Completed Booking" : "Tire Order Installation"}`,
       ``,
-      `Time: ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`,
+      `Time: ${new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone })}`,
       ``,
       `This invoice was auto-generated and synced to Google Sheets.`,
       `Review in the Invoices tab of your CRM spreadsheet.`,
