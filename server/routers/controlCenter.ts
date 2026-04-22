@@ -866,4 +866,43 @@ export const controlCenterRouter = router({
 
     return { runtime, knownDocs };
   }),
+
+  // ─── SECURITY / COMPLIANCE ──────────────────────────
+  /**
+   * Last-N admin logins — for "is anyone else signing into my shop?" peace of mind.
+   * Shows email, IP, UA, timestamp. Powered by compliance_log (audit_log table).
+   */
+  recentAdminLogins: adminProcedure
+    .input(z.object({ limit: z.number().min(1).max(100).default(20) }).optional())
+    .query(async ({ input }) => {
+      const { getRecentAdminLogins, getRecentAdminLoginFailures } = await import(
+        "../services/complianceLog"
+      );
+      const [successes, failures] = await Promise.all([
+        getRecentAdminLogins(input?.limit ?? 20),
+        getRecentAdminLoginFailures(10),
+      ]);
+      return {
+        successes,
+        failures,
+        uniqueIpsLast30d: Array.from(
+          new Set(successes.map((s) => s.ipAddress).filter(Boolean) as string[]),
+        ),
+      };
+    }),
+
+  /**
+   * Recent SMS opt-ins + opt-outs for TCPA audit trail.
+   * If Twilio ever calls, we can show this proof.
+   */
+  smsConsentAudit: adminProcedure
+    .input(z.object({ limit: z.number().min(1).max(500).default(100) }).optional())
+    .query(async ({ input }) => {
+      const { getRecentOptIns, getRecentOptOuts } = await import("../services/complianceLog");
+      const [optIns, optOuts] = await Promise.all([
+        getRecentOptIns(input?.limit ?? 100),
+        getRecentOptOuts(input?.limit ?? 100),
+      ]);
+      return { optIns, optOuts, totalOptIns: optIns.length, totalOptOuts: optOuts.length };
+    }),
 });

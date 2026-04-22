@@ -113,9 +113,29 @@ export function registerOAuthRoutes(app: Express) {
       // Redirect to admin if user has admin role, otherwise homepage
       const freshUser = await db.getUserByOpenId(userInfo.openId);
       const dest = freshUser?.role === "admin" ? "/admin" : "/";
+
+      // Compliance: record admin login for audit trail (IP, UA, email).
+      if (freshUser?.role === "admin" && userInfo.email) {
+        import("../services/complianceLog").then(({ logAdminLogin }) =>
+          logAdminLogin({
+            email: userInfo.email ?? "unknown",
+            openId: userInfo.openId,
+            ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+            userAgent: req.headers["user-agent"] ?? null,
+          }),
+        ).catch((err) => console.warn("[OAuth] admin login log failed:", err));
+      }
+
       res.redirect(302, dest);
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
+      import("../services/complianceLog").then(({ logAdminLoginFail }) =>
+        logAdminLoginFail({
+          reason: error instanceof Error ? error.message : String(error),
+          ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+          userAgent: req.headers["user-agent"] ?? null,
+        }),
+      ).catch(() => { /* silent */ });
       res.redirect(302, "/admin?error=auth_failed");
     }
   });
