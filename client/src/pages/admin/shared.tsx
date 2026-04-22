@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch" | "intelligence" | "specials" | "warranty" | "inventory" | "waitlist" | "seoEngine" | "declinedEstimates" | "reEngagement" | "noShowRisk" | "compliance" | "shopFloor" | "walkInCalc";
+export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch" | "intelligence" | "specials" | "warranty" | "inventory" | "waitlist" | "seoEngine" | "declinedEstimates" | "reEngagement" | "noShowRisk" | "compliance" | "shopFloor" | "walkInCalc" | "snapDashboard";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -85,6 +85,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "leads", label: "Leads & Estimates", icon: <Users className="w-4 h-4" />, badge: "leads" },
       { id: "declinedEstimates", label: "Declined Work", icon: <AlertTriangle className="w-4 h-4" /> },
       { id: "noShowRisk", label: "No-Show Risk", icon: <AlertTriangle className="w-4 h-4" /> },
+      { id: "snapDashboard", label: "Snap Finance", icon: <CreditCard className="w-4 h-4" /> },
       { id: "revenue", label: "Revenue & Shop", icon: <TrendingUp className="w-4 h-4" /> },
     ],
   },
@@ -155,6 +156,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   compliance: "Compliance",
   shopFloor: "Shop Floor",
   walkInCalc: "Walk-In Quote",
+  snapDashboard: "Snap Finance",
 };
 
 // ─── PAGE HEADER ────────────────────────────────────────

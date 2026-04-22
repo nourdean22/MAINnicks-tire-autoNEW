@@ -44,6 +44,7 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import rateLimit from "express-rate-limit";
 import { registerOAuthRoutes } from "./oauth";
 import { registerBridgeRoutes } from "./bridge-routes";
+import { registerStatenourBridgeRoutes } from "./statenour-bridge-routes";
 import { registerNourStrategyRoute } from "../routes/nour-strategy";
 import { registerPsychDominanceRoute } from "../routes/psych-dominance";
 import { registerBurnoutRadarRoute } from "../routes/burnout-radar";
@@ -231,6 +232,33 @@ async function startServer() {
       res.sendStatus(204);
     } catch (e) {
       console.warn("[server:abandonedForm] tracking failed:", e);
+      res.sendStatus(204);
+    }
+  });
+
+  // ─── Uber drop-off code tracking ────────────────────
+  // Hits from UberDropoffWidget — records to audit_log so drop-off-ratio
+  // bridge endpoint can count Uber-out events.
+  app.post("/api/uber-code", express.json({ limit: "2kb" }), async (req, res) => {
+    try {
+      const body = req.body as { code?: string };
+      if (!body?.code) return res.sendStatus(204);
+      const { db } = await import("../lib/db-helper");
+      const { auditLog } = await import("../../drizzle/schema");
+      const { randomUUID } = await import("crypto");
+      const d = await db();
+      if (!d) return res.sendStatus(204);
+      await d.insert(auditLog).values({
+        id: randomUUID(),
+        actor: "public",
+        action: "customer.uber_requested",
+        entityType: "uber_code",
+        entityId: body.code.slice(0, 32),
+        changes: { code: body.code, userAgent: req.headers["user-agent"]?.toString().slice(0, 200) ?? null },
+        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+      });
+      res.sendStatus(204);
+    } catch {
       res.sendStatus(204);
     }
   });
@@ -460,6 +488,11 @@ async function startServer() {
   // Higher body limit for bridge report ingestion (large JSON payloads)
   app.use("/api/bridge/ingest-reports", express.json({ limit: "20mb" }));
   registerBridgeRoutes(app);
+
+  // ─── Statenour Bridge (v11.1 cross-ring contract) ─────
+  // 5 endpoints authed via X-Statenour-Sync-Key header. See
+  // docs/NICKSTIRE-QUERY-CONTRACT.md (mirror lives in statenour-os).
+  registerStatenourBridgeRoutes(app);
 
   // ─── Nour Strategy — AI Lead Analysis ──────────────────
   registerNourStrategyRoute(app);
