@@ -162,6 +162,8 @@ interface ShopFloorData {
 // ─── PRIORITY ACTION ITEM TYPE ─────────────────────────
 interface ActionItem {
   id: string;
+  /** Numeric entity ID — needed to call mutations (mark-done, delete) */
+  entityId: number;
   type: "booking" | "lead" | "callback" | "workOrder";
   name: string;
   detail: string;
@@ -276,6 +278,83 @@ function NextBestActions() {
 }
 
 export default function OverviewSection() {
+  const utils = trpc.useUtils();
+
+  // ─── Priority Action Queue — row mutations ─────────────
+  // Mark-done / delete wired here so each row has inline actions.
+  // All mutations invalidate the relevant list on success so the queue
+  // recomputes without a hard refresh.
+  const refetchQueues = () => {
+    utils.booking.list.invalidate();
+    utils.lead.list.invalidate();
+    utils.callback.list.invalidate();
+    utils.workOrders.list.invalidate();
+  };
+  const bookingUpdateStatus = trpc.booking.updateStatus.useMutation({
+    onSuccess: () => { toast.success("Booking updated"); refetchQueues(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const bookingDelete = trpc.booking.delete.useMutation({
+    onSuccess: () => { toast.success("Booking deleted"); refetchQueues(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const leadUpdate = trpc.lead.update.useMutation({
+    onSuccess: () => { toast.success("Lead updated"); refetchQueues(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const leadDelete = trpc.lead.delete.useMutation({
+    onSuccess: () => { toast.success("Lead deleted"); refetchQueues(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const callbackUpdateStatus = trpc.callback.updateStatus.useMutation({
+    onSuccess: () => { toast.success("Callback updated"); refetchQueues(); },
+    onError: (e) => toast.error(e.message),
+  });
+  function handleMarkDone(item: ActionItem) {
+    if (!confirm(`Mark ${item.type} for ${item.name} as done/contacted?`)) return;
+    switch (item.type) {
+      case "booking":
+        bookingUpdateStatus.mutate({ id: item.entityId, status: "confirmed" });
+        break;
+      case "lead":
+        leadUpdate.mutate({ id: item.entityId, status: "contacted", contacted: 1 });
+        break;
+      case "callback":
+        callbackUpdateStatus.mutate({ id: item.entityId, status: "completed" });
+        break;
+      case "workOrder":
+        toast.info("Open Work Orders section to manage WO status");
+        break;
+    }
+  }
+  function handleDelete(item: ActionItem) {
+    if (!confirm(`Delete ${item.type} for ${item.name}? This cannot be undone.`)) return;
+    switch (item.type) {
+      case "booking": bookingDelete.mutate({ id: item.entityId }); break;
+      case "lead": leadDelete.mutate({ id: item.entityId }); break;
+      case "callback":
+        // No hard delete — mark completed
+        callbackUpdateStatus.mutate({ id: item.entityId, status: "completed" });
+        break;
+      case "workOrder":
+        toast.info("Open Work Orders section to delete WO");
+        break;
+    }
+  }
+  function handleOpenSection(item: ActionItem) {
+    const sectionMap: Record<ActionItem["type"], string> = {
+      booking: "bookings",
+      lead: "leads",
+      callback: "overview", // callbacks live inside overview
+      workOrder: "workOrders",
+    };
+    const target = sectionMap[item.type];
+    // Admin.tsx listens for this event and swaps the section
+    window.dispatchEvent(new CustomEvent("admin:navigate-section", {
+      detail: { section: target, highlightId: item.entityId },
+    }));
+  }
+
   const { data: stats, isLoading } = trpc.adminDashboard.stats.useQuery(undefined, {
     refetchInterval: 30000,
   });
@@ -340,6 +419,7 @@ export default function OverviewSection() {
         .forEach((b: BookingItem) => {
           items.push({
             id: `booking-${b.id}`,
+            entityId: b.id,
             type: "booking",
             name: b.name || "Unknown",
             detail: `${b.service || "General"} · ${b.preferredTime === "morning" ? "AM" : b.preferredTime === "afternoon" ? "PM" : "Flex"}`,
@@ -358,6 +438,7 @@ export default function OverviewSection() {
         .forEach((l: LeadItem) => {
           items.push({
             id: `lead-${l.id}`,
+            entityId: l.id,
             type: "lead",
             name: l.name || l.email || "Unknown",
             detail: `${l.source || "Direct"} · Score ${l.urgencyScore || 1}/5`,
@@ -376,6 +457,7 @@ export default function OverviewSection() {
         .forEach((c: CallbackItem) => {
           items.push({
             id: `callback-${c.id}`,
+            entityId: c.id,
             type: "callback",
             name: c.name || "Unknown",
             detail: `Callback request · ${c.reason || "General inquiry"}`,
@@ -406,6 +488,7 @@ export default function OverviewSection() {
 
         items.push({
           id: `wo-${wo.id}`,
+          entityId: wo.id,
           type: "workOrder",
           name: wo.customerName || String(wo.customerId ?? "") || "Work Order",
           detail: `${wo.serviceDescription || wo.status?.replace(/_/g, " ") || "Service"}${flags ? ` · ${flags}` : ""}`,
@@ -921,13 +1004,27 @@ export default function OverviewSection() {
                 key={item.id}
                 className="flex items-center gap-3 px-3 py-2.5 bg-background/50 border border-border/20 hover:border-primary/30 transition-all group"
               >
-                {/* Type icon */}
-                <div className="shrink-0">{typeIcons[item.type]}</div>
+                {/* Type icon — clicking opens the corresponding admin section */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenSection(item)}
+                  className="shrink-0 cursor-pointer hover:scale-110 transition-transform"
+                  title={`Open ${item.type} in ${item.type === "callback" ? "overview" : item.type + "s"} section`}
+                >
+                  {typeIcons[item.type]}
+                </button>
 
-                {/* Content */}
+                {/* Content — name clickable to open section + row */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-foreground truncate">{item.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenSection(item)}
+                      className="text-sm font-medium text-foreground truncate hover:text-primary transition-colors text-left cursor-pointer"
+                      title="Open in section"
+                    >
+                      {item.name}
+                    </button>
                     <span className={`text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded ${typeBadgeColors[item.type]}`}>
                       {typeLabels[item.type]}
                     </span>
@@ -953,16 +1050,47 @@ export default function OverviewSection() {
                 {/* SLA Timer */}
                 <SlaTimer dateStr={item.createdAt} />
 
-                {/* Quick call action */}
-                {item.phone && (
-                  <a
-                    href={`tel:${item.phone}`}
-                    className="shrink-0 p-1.5 text-foreground/20 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-all"
-                    title={`Call ${item.phone}`}
+                {/* Inline actions — show on row hover */}
+                <div className="flex items-center gap-0.5 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
+                  {item.phone && (
+                    <a
+                      href={`tel:${item.phone}`}
+                      className="p-1.5 text-foreground/40 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-all"
+                      title={`Call ${item.phone}`}
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                  {item.phone && (
+                    <a
+                      href={`sms:${item.phone}?body=${encodeURIComponent(
+                        `Hi ${item.name.split(" ")[0]}, it's Nick's Tire. Following up on your ${item.type}.`
+                      )}`}
+                      className="p-1.5 text-foreground/40 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-all"
+                      title="Send SMS"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleMarkDone(item)}
+                    disabled={bookingUpdateStatus.isPending || leadUpdate.isPending || callbackUpdateStatus.isPending}
+                    className="p-1.5 text-foreground/40 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-all disabled:opacity-30"
+                    title="Mark contacted / done"
                   >
-                    <Phone className="w-3.5 h-3.5" />
-                  </a>
-                )}
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(item)}
+                    disabled={bookingDelete.isPending || leadDelete.isPending || callbackUpdateStatus.isPending}
+                    className="p-1.5 text-foreground/40 hover:text-red-400 hover:bg-red-500/10 rounded transition-all disabled:opacity-30"
+                    title="Delete / remove from queue"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             ))}
             {filteredQueue.length > 15 && (
