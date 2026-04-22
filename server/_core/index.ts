@@ -235,6 +235,37 @@ async function startServer() {
     }
   });
 
+  // ─── Core Web Vitals telemetry ──────────────────────
+  // Receives navigator.sendBeacon from client/src/lib/cwv.ts
+  // No auth — it's anonymous metric data. Batched samples per request.
+  app.post("/api/cwv", express.json({ limit: "32kb" }), async (req, res) => {
+    try {
+      const { recordCwvSample } = await import("../lib/cwv-telemetry");
+      const body = req.body as { samples?: unknown };
+      if (!Array.isArray(body?.samples)) return res.sendStatus(204);
+      // Cap per-request to prevent abuse
+      for (const s of (body.samples as unknown[]).slice(0, 25)) {
+        if (typeof s !== "object" || !s) continue;
+        const sample = s as {
+          metric?: string; value?: number; route?: string;
+          navType?: string; sessionId?: string; timestamp?: number;
+        };
+        if (!sample.metric || typeof sample.value !== "number") continue;
+        recordCwvSample({
+          metric: sample.metric as "LCP" | "CLS" | "INP" | "FCP" | "TTFB",
+          value: sample.value,
+          route: (sample.route || "/").slice(0, 200),
+          navType: (sample.navType || "navigate").slice(0, 40),
+          sessionId: (sample.sessionId || "anon").slice(0, 80),
+          timestamp: sample.timestamp,
+        });
+      }
+      res.sendStatus(204);
+    } catch {
+      res.sendStatus(204);
+    }
+  });
+
   // ─── Self-Healing Monitor ─────────────────────────────
   startSelfHealing();
 
