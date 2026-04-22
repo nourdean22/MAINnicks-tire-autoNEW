@@ -191,6 +191,24 @@ export default function Admin() {
     return () => { es?.close(); };
   }, [user, utils]);
 
+  // ─── Section-navigation bridge ──────────────────────
+  // Any admin component (e.g. OverviewSection rows) can fire this event
+  // to jump to another section. Payload: { section, highlightId? }.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { section?: string; highlightId?: number } | undefined;
+      if (detail?.section) {
+        setSection(detail.section as AdminSection);
+        if (typeof window !== "undefined") {
+          // Scroll to top so the user sees the destination section
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      }
+    };
+    window.addEventListener("admin:navigate-section", handler);
+    return () => window.removeEventListener("admin:navigate-section", handler);
+  }, []);
+
   // Pending callback count for badge
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
   const pendingCallbacks = (callbacks as any[] | undefined)?.filter(
