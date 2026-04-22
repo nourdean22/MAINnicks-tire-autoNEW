@@ -26,6 +26,16 @@ let lastSuccessfulSync: Date | null = null;
 let lastAlertSent: Date | null = null;
 const ALERT_COOLDOWN_MS = 2 * 60 * 60 * 1000; // Don't spam — max 1 alert every 2 hours
 
+/**
+ * Public getter — when did we last successfully pull data from ALG?
+ * Used by the statenour bridge endpoints to tell consumers "data as of".
+ * Null means: process just booted AND shop-protection has kept probes
+ * idle. Consumers should treat DB as "last-known-good" regardless.
+ */
+export function getLastSuccessfulSync(): Date | null {
+  return lastSuccessfulSync;
+}
+
 // ─── SESSION AUTH ──────────────────────────────────────
 // ShopDriver uses JWT token auth via a GUID-subdomain API.
 // The SPA at secure.autolaborexperts.com calls the GUID API for all data.
