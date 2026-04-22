@@ -76,6 +76,7 @@ import {
   featureFlagsRouter,
   intelligenceRouter,
   reEngagementRouter,
+  noShowRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -198,6 +199,10 @@ export const appRouter = router({
   // Re-engagement — tire-life, brake reminders, oil-change nudges.
   // Powers the dormant-revenue flywheel.
   reEngagement: reEngagementRouter,
+
+  // No-show prediction — scores upcoming bookings by skip-risk, suggests
+  // admin actions + pre-draft confirmation SMS.
+  noShow: noShowRouter,
 });
 
 export type AppRouter = typeof appRouter;
