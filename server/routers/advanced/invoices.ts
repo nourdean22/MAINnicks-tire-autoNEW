@@ -2,165 +2,23 @@
  * Advanced Features Router — Job Assignments, Invoices, CLV, KPIs, Customer Portal
  * AUDIT-FIXED: Rate limiting, session cleanup, invoice CRUD, optimized KPI, auto-stage
  */
-import { adminProcedure, publicProcedure, router } from "../_core/trpc";
+import { adminProcedure, publicProcedure, router } from "../../_core/trpc";
 import { z } from "zod";
-import { BUSINESS } from "../../shared/business";
+import { BUSINESS } from "../../../shared/business";
 
 const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
 import { eq, desc, gte, lte, and, sql, asc } from "drizzle-orm";
 import {
   jobAssignments, invoices, customerMetrics, kpiSnapshots, portalSessions,
   bookings, customers, technicians, reviewRequests, leads, serviceHistory,
-} from "../../drizzle/schema";
+} from "../../../drizzle/schema";
 
-import { db } from "../lib/db-helper";
+import { db } from "../../lib/db-helper";
 
-import { createLogger } from "../lib/logger";
+import { createLogger } from "../../lib/logger";
 
 const log = createLogger("routers:advanced");
 // ─── JOB ASSIGNMENTS ────────────────────────────────────
-export const jobAssignmentsRouter = router({
-  /** Assign a technician to a booking — also auto-updates stage to inspecting */
-  assign: adminProcedure
-    .input(z.object({
-      bookingId: z.number(),
-      technicianId: z.number(),
-      estimatedHours: z.string().max(20).optional(),
-      notes: z.string().max(5000).optional(),
-    }))
-    .mutation(async ({ input }) => {
-      const d = await db();
-      if (!d) throw new Error("Database not available");
-      // Check if already assigned
-      const existing = await d.select().from(jobAssignments)
-        .where(and(eq(jobAssignments.bookingId, input.bookingId), eq(jobAssignments.technicianId, input.technicianId)))
-        .limit(1);
-      if (existing.length > 0) {
-        await d.update(jobAssignments).set({
-          estimatedHours: input.estimatedHours || null,
-          notes: input.notes || null,
-        }).where(eq(jobAssignments.id, existing[0].id));
-        return { success: true, id: existing[0].id };
-      }
-      const result = await d.insert(jobAssignments).values({
-        bookingId: input.bookingId,
-        technicianId: input.technicianId,
-        estimatedHours: input.estimatedHours || null,
-        notes: input.notes || null,
-      });
-
-      // Auto-update booking stage to "inspecting" if still "received"
-      const [booking] = await d.select().from(bookings).where(eq(bookings.id, input.bookingId)).limit(1);
-      if (booking && booking.stage === "received") {
-        await d.update(bookings).set({
-          stage: "inspecting",
-          stageUpdatedAt: new Date(),
-        }).where(eq(bookings.id, input.bookingId));
-      }
-
-      return { success: true, id: Number(result[0].insertId) };
-    }),
-
-  /** Unassign a technician */
-  unassign: adminProcedure
-    .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
-      const d = await db();
-      if (!d) throw new Error("Database not available");
-      await d.delete(jobAssignments).where(eq(jobAssignments.id, input.id));
-      return { success: true };
-    }),
-
-  /** Start timer for a job — also auto-updates stage to in-progress */
-  startTimer: adminProcedure
-    .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
-      const d = await db();
-      if (!d) throw new Error("Database not available");
-      const now = new Date();
-      await d.update(jobAssignments).set({ startedAt: now }).where(eq(jobAssignments.id, input.id));
-
-      // Auto-update booking stage to "in-progress"
-      const [assignment] = await d.select().from(jobAssignments).where(eq(jobAssignments.id, input.id)).limit(1);
-      if (assignment) {
-        await d.update(bookings).set({
-          stage: "in-progress",
-          stageUpdatedAt: now,
-        }).where(eq(bookings.id, assignment.bookingId));
-      }
-
-      return { success: true };
-    }),
-
-  /** Stop timer for a job — also auto-updates stage to quality-check */
-  stopTimer: adminProcedure
-    .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
-      const d = await db();
-      if (!d) throw new Error("Database not available");
-      const now = new Date();
-      await d.update(jobAssignments).set({ completedAt: now }).where(eq(jobAssignments.id, input.id));
-
-      // Auto-update booking stage to "quality-check"
-      const [assignment] = await d.select().from(jobAssignments).where(eq(jobAssignments.id, input.id)).limit(1);
-      if (assignment) {
-        await d.update(bookings).set({
-          stage: "quality-check",
-          stageUpdatedAt: now,
-        }).where(eq(bookings.id, assignment.bookingId));
-      }
-
-      return { success: true };
-    }),
-
-  /** Get all assignments for a booking */
-  byBooking: adminProcedure
-    .input(z.object({ bookingId: z.number() }))
-    .query(async ({ input }) => {
-      const d = await db();
-      if (!d) return [];
-      const assignments = await d.select().from(jobAssignments)
-        .where(eq(jobAssignments.bookingId, input.bookingId))
-        .orderBy(desc(jobAssignments.createdAt));
-      // Enrich with technician names
-      const techIds = Array.from(new Set(assignments.map((a: typeof assignments[number]) => a.technicianId)));
-      const techs = techIds.length > 0
-        ? await d.select().from(technicians).where(sql`${technicians.id} IN (${sql.join(techIds.map(id => sql`${id}`), sql`, `)})`)
-        : [];
-      const techMap = new Map(techs.map((t: typeof techs[number]) => [t.id, t]));
-      return assignments.map((a: typeof assignments[number]) => ({
-        ...a,
-        technician: techMap.get(a.technicianId) || null,
-      }));
-    }),
-
-  /** Get all active assignments (for workload view) */
-  active: adminProcedure.query(async () => {
-    const d = await db();
-    if (!d) return [];
-    const assignments = await d.select().from(jobAssignments)
-      .where(sql`${jobAssignments.completedAt} IS NULL`)
-      .orderBy(desc(jobAssignments.createdAt));
-    return assignments;
-  }),
-
-  /** Technician workload summary */
-  workload: adminProcedure.query(async () => {
-    const d = await db();
-    if (!d) return [];
-    const techs = await d.select().from(technicians).where(eq(technicians.isActive, 1));
-    const activeJobs = await d.select().from(jobAssignments)
-      .where(sql`${jobAssignments.completedAt} IS NULL`);
-    return techs.map((t: typeof techs[number]) => ({
-      id: t.id,
-      name: t.name,
-      title: t.title,
-      photoUrl: t.photoUrl,
-      activeJobs: activeJobs.filter((j: typeof activeJobs[number]) => j.technicianId === t.id).length,
-      assignments: activeJobs.filter((j: typeof activeJobs[number]) => j.technicianId === t.id),
-    }));
-  }),
-});
 
 // ─── INVOICES / REVENUE ─────────────────────────────────
 export const invoicesRouter = router({
@@ -225,7 +83,7 @@ export const invoicesRouter = router({
       const invNum = input.invoiceNumber || `INV-${invoiceId}`;
 
       // Unified event bus (→ NOUR OS + ShopDriver + Telegram + learning)
-      import("../services/eventBus").then(({ emit }) =>
+      import("../../services/eventBus").then(({ emit }) =>
         emit.invoiceCreated({
           invoiceNumber: invNum,
           customerName: input.customerName,
@@ -236,7 +94,7 @@ export const invoicesRouter = router({
 
       // Push to Auto Labor Guide (tries API first, falls back to Telegram)
       if (input.source !== "shopdriver") {
-        import("../services/shopDriverSync").then(({ pushInvoice }) =>
+        import("../../services/shopDriverSync").then(({ pushInvoice }) =>
           pushInvoice({
             invoiceNumber: invNum,
             customerName: input.customerName,
@@ -293,7 +151,7 @@ export const invoicesRouter = router({
 
       // Fire invoice_paid only on actual transition (not if already paid)
       if (input.paymentStatus === "paid" && !wasPaid) {
-        import("../services/eventBus").then(({ emit }) =>
+        import("../../services/eventBus").then(({ emit }) =>
           emit.invoicePaid({
             invoiceNumber: String(input.id),
             customerName: input.customerName || "Unknown",
@@ -709,258 +567,5 @@ export const invoicesRouter = router({
       // Update to partial status to indicate follow-up scheduled
       await d.update(invoices).set({ paymentStatus: "partial" }).where(eq(invoices.id, input.id));
       return { success: true };
-    }),
-});
-
-// ─── KPI COMMAND CENTER ─────────────────────────────────
-export const kpiRouter = router({
-  /** Get current KPIs (computed live) — OPTIMIZED: uses SQL aggregation */
-  current: adminProcedure.query(async () => {
-    const d = await db();
-    if (!d) return null;
-    const now = new Date();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-    // This week's bookings
-    const weekBookings = await d.select().from(bookings).where(gte(bookings.createdAt, weekAgo));
-    const monthBookings = await d.select().from(bookings).where(gte(bookings.createdAt, monthAgo));
-    const weekLeads = await d.select().from(leads).where(gte(leads.createdAt, weekAgo));
-    const monthLeads = await d.select().from(leads).where(gte(leads.createdAt, monthAgo));
-
-    // Revenue this month
-    const monthInvoices = await d.select().from(invoices)
-      .where(and(gte(invoices.invoiceDate, monthAgo), eq(invoices.paymentStatus, "paid")));
-    const monthRevenue = Math.round(monthInvoices.reduce((sum: number, inv: typeof monthInvoices[number]) => sum + inv.totalAmount, 0) / 100);
-
-    // Review stats
-    const monthReviews = await d.select().from(reviewRequests).where(gte(reviewRequests.createdAt, monthAgo));
-    const reviewsSent = monthReviews.filter((r: typeof monthReviews[number]) => r.status === "sent" || r.status === "clicked").length;
-    const reviewsClicked = monthReviews.filter((r: typeof monthReviews[number]) => r.status === "clicked").length;
-
-    // Conversion rate
-    const totalLeads = monthLeads.length;
-    const convertedLeads = monthLeads.filter((l: typeof monthLeads[number]) => l.status === "booked").length;
-    const conversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100) : 0;
-
-    // Customer counts
-    const [customerCount] = await d.select({ count: sql<number>`count(*)` }).from(customers);
-    const [newCustomerCount] = await d.select({ count: sql<number>`count(*)` }).from(customers).where(gte(customers.createdAt, monthAgo));
-
-    // Booking by day of week (OPTIMIZED: SQL aggregation instead of fetching all rows)
-    // NOTE: Use raw SQL to avoid TiDB mismatch between SELECT/GROUP BY column qualification
-    const dayOfWeekRaw = await d.execute(
-      sql`SELECT DAYOFWEEK(createdAt) as dow, count(*) as cnt FROM bookings GROUP BY dow`
-    );
-
-    type RawRow2 = Record<string, unknown>;
-    const dayOfWeekCounts = [0, 0, 0, 0, 0, 0, 0]; // Sun-Sat
-    for (const r of (dayOfWeekRaw as [RawRow2[], unknown])[0]) {
-      const idx = Number(r.dow) - 1;
-      if (idx >= 0 && idx < 7) dayOfWeekCounts[idx] = Number(r.cnt);
-    }
-
-    // Booking by hour (OPTIMIZED: SQL aggregation)
-    const hourRaw = await d.execute(
-      sql`SELECT HOUR(createdAt) as hr, count(*) as cnt FROM bookings GROUP BY hr`
-    );
-
-    const hourCounts = new Array(24).fill(0);
-    for (const r of (hourRaw as [RawRow2[], unknown])[0]) {
-      if (Number(r.hr) >= 0 && Number(r.hr) < 24) hourCounts[Number(r.hr)] = Number(r.cnt);
-    }
-
-    return {
-      weekBookings: weekBookings.length,
-      monthBookings: monthBookings.length,
-      weekLeads: weekLeads.length,
-      monthLeads: monthLeads.length,
-      monthRevenue,
-      avgTicket: monthInvoices.length > 0 ? Math.round(monthRevenue / monthInvoices.length) : 0,
-      conversionRate,
-      reviewsSent,
-      reviewsClicked,
-      totalCustomers: customerCount?.count ?? 0,
-      newCustomersThisMonth: newCustomerCount?.count ?? 0,
-      dayOfWeekCounts,
-      hourCounts,
-      completedThisWeek: weekBookings.filter((b: typeof weekBookings[number]) => b.status === "completed").length,
-      completedThisMonth: monthBookings.filter((b: typeof monthBookings[number]) => b.status === "completed").length,
-      emergencyThisWeek: weekBookings.filter((b: typeof weekBookings[number]) => b.urgency === "emergency").length,
-    };
-  }),
-
-  /** Get historical KPI snapshots for trend charts */
-  history: adminProcedure
-    .input(z.object({ weeks: z.number().default(12) }).optional())
-    .query(async ({ input }) => {
-      const d = await db();
-      if (!d) return [];
-      return d.select().from(kpiSnapshots)
-        .orderBy(desc(kpiSnapshots.weekStart))
-        .limit(input?.weeks ?? 12);
-    }),
-});
-
-// ─── CUSTOMER PORTAL ────────────────────────────────────
-export const portalRouter = router({
-  /** Request a verification code (public) — with rate limiting */
-  requestCode: publicProcedure
-    .input(z.object({ phone: z.string().min(10).max(20) }))
-    .mutation(async ({ input }) => {
-      const d = await db();
-      if (!d) throw new Error("Database not available");
-      const normalized = input.phone.replace(/\D/g, "").slice(-10);
-
-      // Rate limiting: max 3 codes per phone per hour
-      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-      const recentCodes = await d.select({ count: sql<number>`count(*)` })
-        .from(portalSessions)
-        .where(and(
-          eq(portalSessions.phone, normalized),
-          gte(portalSessions.createdAt, oneHourAgo),
-        ));
-      if ((recentCodes[0]?.count ?? 0) >= 3) {
-        throw new Error("Too many code requests. Please wait and try again.");
-      }
-
-      // Generate 6-digit code
-      const { randomInt } = await import("crypto");
-      const code = String(randomInt(100000, 999999));
-      const codeExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
-
-      // Find customer
-      const [customer] = await d.select().from(customers)
-        .where(sql`REPLACE(REPLACE(REPLACE(REPLACE(${customers.phone}, '-', ''), '(', ''), ')', ''), ' ', '') LIKE ${'%' + normalized}`)
-        .limit(1);
-
-      await d.insert(portalSessions).values({
-        phone: normalized,
-        customerId: customer?.id || null,
-        verificationCode: code,
-        codeExpiresAt,
-      });
-
-      // Send verification code via SMS
-      try {
-        const { sendSms } = await import("../sms");
-        const result = await sendSms(normalized, `Your Nick's Tire & Auto verification code is: ${code}. Valid for 10 minutes.`);
-        if (!result.success) {
-          log.warn(`[Portal] SMS failed for ${normalized}:`, result);
-        }
-      } catch (err) {
-        if (process.env.NODE_ENV !== "production") {
-          // Only log last 4 digits of phone in dev — never leak OTPs
-          log.warn(`[Portal] Verification code sent to ...${normalized.slice(-4)}`);
-        }
-      }
-
-      return { success: true, message: "Verification code sent" };
-    }),
-
-  /** Verify code and create session (public) — cleans up expired sessions */
-  verifyCode: publicProcedure
-    .input(z.object({ phone: z.string().max(20), code: z.string().max(6) }))
-    .mutation(async ({ input }) => {
-      const d = await db();
-      if (!d) throw new Error("Database not available");
-      const normalized = input.phone.replace(/\D/g, "").slice(-10);
-      const now = new Date();
-
-      // Brute force protection — block after 5 failed attempts (1 hour cooldown)
-      const { checkBruteForce, recordFailedAttempt, clearAttempts } = await import("../middleware/bruteForce");
-      const bruteCheck = checkBruteForce(normalized);
-      if (!bruteCheck.allowed) {
-        throw new Error(`Too many attempts. Try again in ${Math.ceil((bruteCheck.retryAfter || 3600) / 60)} minutes.`);
-      }
-
-      // Clean up expired sessions (older than 24 hours)
-      const cleanupCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      await d.delete(portalSessions).where(lte(portalSessions.createdAt, cleanupCutoff));
-
-      const [session] = await d.select().from(portalSessions)
-        .where(and(
-          eq(portalSessions.phone, normalized),
-          eq(portalSessions.verificationCode, input.code),
-          eq(portalSessions.verified, 0),
-          gte(portalSessions.codeExpiresAt, now),
-        ))
-        .orderBy(desc(portalSessions.createdAt))
-        .limit(1);
-
-      if (!session) {
-        recordFailedAttempt(normalized);
-        throw new Error("Invalid or expired code");
-      }
-
-      // Valid code — clear brute force counter
-      clearAttempts(normalized);
-
-      // Generate session token
-      const { randomInt } = await import("crypto");
-      const token = Array.from({ length: 64 }, () => "abcdefghijklmnopqrstuvwxyz0123456789"[randomInt(36)]).join("");
-      const sessionExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
-      await d.update(portalSessions).set({
-        verified: 1,
-        sessionToken: token,
-        sessionExpiresAt,
-      }).where(eq(portalSessions.id, session.id));
-
-      return { success: true, token, customerId: session.customerId };
-    }),
-
-  /** Get customer data by portal session token (public) */
-  myData: publicProcedure
-    .input(z.object({ token: z.string().max(500) }))
-    .query(async ({ input }) => {
-      const d = await db();
-      if (!d) throw new Error("Database not available");
-      const now = new Date();
-
-      const [session] = await d.select().from(portalSessions)
-        .where(and(
-          eq(portalSessions.sessionToken, input.token),
-          eq(portalSessions.verified, 1),
-          gte(portalSessions.sessionExpiresAt, now),
-        ))
-        .limit(1);
-
-      if (!session) throw new Error("Session expired or invalid");
-
-      // Get customer info
-      let customer = null;
-      if (session.customerId) {
-        const [c] = await d.select().from(customers).where(eq(customers.id, session.customerId)).limit(1);
-        customer = c || null;
-      }
-
-      // Get bookings by phone
-      const customerBookings = await d.select().from(bookings)
-        .where(sql`REPLACE(REPLACE(REPLACE(REPLACE(${bookings.phone}, '-', ''), '(', ''), ')', ''), ' ', '') LIKE ${'%' + session.phone}`)
-        .orderBy(desc(bookings.createdAt))
-        .limit(20);
-
-      // Get invoices by phone
-      const customerInvoices = await d.select().from(invoices)
-        .where(sql`REPLACE(REPLACE(REPLACE(REPLACE(${invoices.customerPhone}, '-', ''), '(', ''), ')', ''), ' ', '') LIKE ${'%' + session.phone}`)
-        .orderBy(desc(invoices.invoiceDate))
-        .limit(20);
-
-      // Get service history if customer exists
-      const history = session.customerId
-        ? await d.select().from(serviceHistory)
-            .where(eq(serviceHistory.userId, session.customerId))
-            .orderBy(desc(serviceHistory.completedAt))
-            .limit(20)
-        : [];
-
-      return {
-        customer,
-        bookings: customerBookings,
-        invoices: customerInvoices,
-        serviceHistory: history,
-        phone: session.phone,
-      };
     }),
 });
