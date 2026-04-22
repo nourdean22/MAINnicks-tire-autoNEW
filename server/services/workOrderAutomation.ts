@@ -262,7 +262,7 @@ export async function processEstimateFollowUp(): Promise<{ recordsProcessed: num
       LIMIT 10
     `);
 
-    const estimates = rows as any[];
+    const estimates = rows as unknown as any[];
     if (!estimates || estimates.length === 0) return { recordsProcessed: 0, details: "No estimates to follow up" };
 
     const { sendSms } = await import("../sms");

@@ -90,7 +90,7 @@ export async function checkFinancialSafety(): Promise<CheckResult<FinancialMetri
       WHERE invoiceDate >= CURDATE()
         AND paymentStatus IN ('paid', 'partial')
     `);
-    const todayRev = Number((todayRows as Record<string, unknown>[])?.[0]?.todayRev || 0);
+    const todayRev = Number((todayRows as unknown as Record<string, unknown>[])?.[0]?.todayRev || 0);
 
     const [avgRows] = await db.execute(sql`
       SELECT COALESCE(SUM(totalAmount), 0) / GREATEST(DATEDIFF(NOW(), MIN(invoiceDate)), 1) as dailyAvg
@@ -98,7 +98,7 @@ export async function checkFinancialSafety(): Promise<CheckResult<FinancialMetri
       WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
         AND paymentStatus IN ('paid', 'partial')
     `);
-    const dailyAvg = Number((avgRows as Record<string, unknown>[])?.[0]?.dailyAvg || 1);
+    const dailyAvg = Number((avgRows as unknown as Record<string, unknown>[])?.[0]?.dailyAvg || 1);
 
     // Only check revenue drop after noon ET (too early = no data yet)
     const etHour = parseInt(
@@ -122,7 +122,7 @@ export async function checkFinancialSafety(): Promise<CheckResult<FinancialMetri
       WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
         AND paymentStatus IN ('paid', 'partial')
     `);
-    const avgInv = Number((avgInvRows as Record<string, unknown>[])?.[0]?.avgInv || 0);
+    const avgInv = Number((avgInvRows as unknown as Record<string, unknown>[])?.[0]?.avgInv || 0);
 
     if (avgInv > 0) {
       const [unusualRows] = await db.execute(sql`
@@ -131,7 +131,7 @@ export async function checkFinancialSafety(): Promise<CheckResult<FinancialMetri
         WHERE invoiceDate >= CURDATE()
           AND totalAmount > ${avgInv * 3}
       `);
-      metrics.unusualTransactions = Number((unusualRows as Record<string, unknown>[])?.[0]?.cnt || 0);
+      metrics.unusualTransactions = Number((unusualRows as unknown as Record<string, unknown>[])?.[0]?.cnt || 0);
       if (metrics.unusualTransactions > 0) {
         alerts.push({
           severity: "warning",
@@ -146,7 +146,7 @@ export async function checkFinancialSafety(): Promise<CheckResult<FinancialMetri
       FROM invoices
       WHERE paymentStatus IN ('pending', 'partial')
     `);
-    metrics.unpaidInvoicesTotal = Number((unpaidRows as Record<string, unknown>[])?.[0]?.unpaidTotal || 0);
+    metrics.unpaidInvoicesTotal = Number((unpaidRows as unknown as Record<string, unknown>[])?.[0]?.unpaidTotal || 0);
     if (metrics.unpaidInvoicesTotal > 500000) { // >$5K in cents
       alerts.push({
         severity: "warning",
@@ -162,8 +162,8 @@ export async function checkFinancialSafety(): Promise<CheckResult<FinancialMetri
       FROM invoices
       WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
     `);
-    const refunded = Number((refundRows as Record<string, unknown>[])?.[0]?.refunded || 0);
-    const totalInv = Number((refundRows as Record<string, unknown>[])?.[0]?.total || 1);
+    const refunded = Number((refundRows as unknown as Record<string, unknown>[])?.[0]?.refunded || 0);
+    const totalInv = Number((refundRows as unknown as Record<string, unknown>[])?.[0]?.total || 1);
     metrics.refundRate = Math.round((refunded / totalInv) * 100);
     if (metrics.refundRate > 5) {
       alerts.push({
@@ -204,7 +204,7 @@ export async function checkReputationSafety(): Promise<CheckResult<ReputationMet
       WHERE \`rating\` <= 2
         AND \`createdAt\` >= DATE_SUB(NOW(), INTERVAL 7 DAY)
     `);
-    metrics.recentNegativeReviews = Number((negRows as Record<string, unknown>[])?.[0]?.cnt || 0);
+    metrics.recentNegativeReviews = Number((negRows as unknown as Record<string, unknown>[])?.[0]?.cnt || 0);
     if (metrics.recentNegativeReviews >= 2) {
       alerts.push({
         severity: "critical",
@@ -223,7 +223,7 @@ export async function checkReputationSafety(): Promise<CheckResult<ReputationMet
       FROM review_pipeline
       WHERE \`createdAt\` >= DATE_SUB(NOW(), INTERVAL 30 DAY)
     `);
-    metrics.avgRatingLast30 = Math.round(Number((avgRows as Record<string, unknown>[])?.[0]?.avgRating || 5) * 100) / 100;
+    metrics.avgRatingLast30 = Math.round(Number((avgRows as unknown as Record<string, unknown>[])?.[0]?.avgRating || 5) * 100) / 100;
     if (metrics.avgRatingLast30 < 4.5) {
       alerts.push({
         severity: "warning",
@@ -238,7 +238,7 @@ export async function checkReputationSafety(): Promise<CheckResult<ReputationMet
       WHERE \`reviewed\` = 0
         AND \`responseSent\` = 0
     `);
-    metrics.unansweredReviews = Number((unansweredRows as Record<string, unknown>[])?.[0]?.cnt || 0);
+    metrics.unansweredReviews = Number((unansweredRows as unknown as Record<string, unknown>[])?.[0]?.cnt || 0);
     if (metrics.unansweredReviews > 5) {
       alerts.push({
         severity: "warning",
@@ -263,8 +263,8 @@ export async function checkReputationSafety(): Promise<CheckResult<ReputationMet
         AND i1.customerId IS NOT NULL
         AND i1.vehicleInfo IS NOT NULL
     `);
-    const comebacks = Number((comebackRows as Record<string, unknown>[])?.[0]?.comebacks || 0);
-    const totalCust = Number((comebackRows as Record<string, unknown>[])?.[0]?.totalCustomers || 1);
+    const comebacks = Number((comebackRows as unknown as Record<string, unknown>[])?.[0]?.comebacks || 0);
+    const totalCust = Number((comebackRows as unknown as Record<string, unknown>[])?.[0]?.totalCustomers || 1);
     metrics.comebackRate = Math.round((comebacks / totalCust) * 100);
     if (metrics.comebackRate > 5) {
       alerts.push({
@@ -320,7 +320,7 @@ export async function checkOperationalSafety(): Promise<CheckResult<OperationalM
       WHERE status NOT IN ('completed', 'picked_up', 'cancelled', 'invoiced')
         AND updated_at < DATE_SUB(NOW(), INTERVAL 3 DAY)
     `);
-    metrics.stalePendingJobs = Number((staleWoRows as Record<string, unknown>[])?.[0]?.cnt || 0);
+    metrics.stalePendingJobs = Number((staleWoRows as unknown as Record<string, unknown>[])?.[0]?.cnt || 0);
     if (metrics.stalePendingJobs > 0) {
       alerts.push({
         severity: "warning",
@@ -335,7 +335,7 @@ export async function checkOperationalSafety(): Promise<CheckResult<OperationalM
       WHERE status = 'new'
         AND createdAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
     `);
-    metrics.missedCallbacks = Number((cbRows as Record<string, unknown>[])?.[0]?.cnt || 0);
+    metrics.missedCallbacks = Number((cbRows as unknown as Record<string, unknown>[])?.[0]?.cnt || 0);
     if (metrics.missedCallbacks > 0) {
       alerts.push({
         severity: "warning",
@@ -351,7 +351,7 @@ export async function checkOperationalSafety(): Promise<CheckResult<OperationalM
         AND confirmedAt IS NULL
         AND createdAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
     `);
-    const unconfirmedCount = Number((unconfirmedRows as Record<string, unknown>[])?.[0]?.cnt || 0);
+    const unconfirmedCount = Number((unconfirmedRows as unknown as Record<string, unknown>[])?.[0]?.cnt || 0);
     if (unconfirmedCount > 0) {
       alerts.push({
         severity: "warning",
@@ -366,7 +366,7 @@ export async function checkOperationalSafety(): Promise<CheckResult<OperationalM
       WHERE paymentStatus = 'pending'
         AND invoiceDate < DATE_SUB(NOW(), INTERVAL 7 DAY)
     `);
-    metrics.overdueFollowups = Number((overdueRows as Record<string, unknown>[])?.[0]?.cnt || 0);
+    metrics.overdueFollowups = Number((overdueRows as unknown as Record<string, unknown>[])?.[0]?.cnt || 0);
     if (metrics.overdueFollowups > 5) {
       alerts.push({
         severity: "warning",
@@ -382,8 +382,8 @@ export async function checkOperationalSafety(): Promise<CheckResult<OperationalM
       FROM customers
       WHERE updatedAt >= DATE_SUB(NOW(), INTERVAL 30 DAY)
     `);
-    const optedOut = Number((optOutRows as Record<string, unknown>[])?.[0]?.optedOut || 0);
-    const totalSms = Number((optOutRows as Record<string, unknown>[])?.[0]?.total || 1);
+    const optedOut = Number((optOutRows as unknown as Record<string, unknown>[])?.[0]?.optedOut || 0);
+    const totalSms = Number((optOutRows as unknown as Record<string, unknown>[])?.[0]?.total || 1);
     metrics.smsOptOutRate = Math.round((optedOut / totalSms) * 100);
     if (metrics.smsOptOutRate > 3) {
       alerts.push({
@@ -400,8 +400,8 @@ export async function checkOperationalSafety(): Promise<CheckResult<OperationalM
       FROM cron_log
       WHERE started_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
     `);
-    const cronFailed = Number((cronRows as Record<string, unknown>[])?.[0]?.failed || 0);
-    const cronTotal = Number((cronRows as Record<string, unknown>[])?.[0]?.total || 1);
+    const cronFailed = Number((cronRows as unknown as Record<string, unknown>[])?.[0]?.failed || 0);
+    const cronTotal = Number((cronRows as unknown as Record<string, unknown>[])?.[0]?.total || 1);
     metrics.cronFailureRate = Math.round((cronFailed / cronTotal) * 100);
     if (metrics.cronFailureRate > 10) {
       alerts.push({
@@ -460,7 +460,7 @@ export async function checkDataSafety(): Promise<CheckResult<DataMetrics>> {
       ORDER BY completed_at DESC
       LIMIT 1
     `);
-    const lastBackupAt = (backupRows as Record<string, unknown>[])?.[0]?.completed_at;
+    const lastBackupAt = (backupRows as unknown as Record<string, unknown>[])?.[0]?.completed_at;
     if (lastBackupAt) {
       metrics.lastBackupAge = Math.round((Date.now() - new Date(lastBackupAt as string).getTime()) / (1000 * 60 * 60));
     }
@@ -483,7 +483,7 @@ export async function checkDataSafety(): Promise<CheckResult<DataMetrics>> {
       WHERE (customerPhone IS NULL OR customerPhone = '')
         AND (customerId IS NULL)
     `);
-    metrics.orphanedRecords = Number((orphanRows as Record<string, unknown>[])?.[0]?.cnt || 0);
+    metrics.orphanedRecords = Number((orphanRows as unknown as Record<string, unknown>[])?.[0]?.cnt || 0);
     if (metrics.orphanedRecords > 10) {
       alerts.push({
         severity: "warning",
@@ -501,7 +501,7 @@ export async function checkDataSafety(): Promise<CheckResult<DataMetrics>> {
         HAVING COUNT(*) > 1
       ) as dups
     `);
-    metrics.duplicateCustomers = Number((dupRows as Record<string, unknown>[])?.[0]?.cnt || 0);
+    metrics.duplicateCustomers = Number((dupRows as unknown as Record<string, unknown>[])?.[0]?.cnt || 0);
     if (metrics.duplicateCustomers > 0) {
       alerts.push({
         severity: "warning",
@@ -544,7 +544,7 @@ export async function checkComplianceSafety(): Promise<CheckResult<ComplianceMet
         AND body NOT LIKE '%opt out%'
         AND body NOT LIKE '%unsubscribe%'
     `);
-    metrics.smsWithoutOptOut = Number((smsRows as Record<string, unknown>[])?.[0]?.cnt || 0);
+    metrics.smsWithoutOptOut = Number((smsRows as unknown as Record<string, unknown>[])?.[0]?.cnt || 0);
     if (metrics.smsWithoutOptOut > 0) {
       alerts.push({
         severity: "warning",
@@ -561,7 +561,7 @@ export async function checkComplianceSafety(): Promise<CheckResult<ComplianceMet
         AND expires_at IS NOT NULL
         AND expires_at < NOW()
     `);
-    metrics.expiredSpecials = Number((expiredRows as Record<string, unknown>[])?.[0]?.cnt || 0);
+    metrics.expiredSpecials = Number((expiredRows as unknown as Record<string, unknown>[])?.[0]?.cnt || 0);
     if (metrics.expiredSpecials > 0) {
       alerts.push({
         severity: "warning",
@@ -576,7 +576,7 @@ export async function checkComplianceSafety(): Promise<CheckResult<ComplianceMet
       WHERE is_active = 1
         AND updated_at < DATE_SUB(NOW(), INTERVAL 90 DAY)
     `);
-    metrics.outdatedPricing = Number((stalePricingRows as Record<string, unknown>[])?.[0]?.cnt || 0);
+    metrics.outdatedPricing = Number((stalePricingRows as unknown as Record<string, unknown>[])?.[0]?.cnt || 0);
     if (metrics.outdatedPricing > 0) {
       alerts.push({
         severity: "info",

@@ -292,7 +292,7 @@ async function loadSyncTimestamps(): Promise<void> {
     const [rows] = await db.execute(sql`
       SELECT \`key\`, value FROM shop_settings WHERE \`key\` IN ('shopdriver_lastPushAt', 'shopdriver_lastPullAt')
     `);
-    for (const row of (rows as any[]) || []) {
+    for (const row of (rows as unknown as any[]) || []) {
       if (row.key === "shopdriver_lastPushAt") _lastPushAt = new Date(row.value);
       if (row.key === "shopdriver_lastPullAt") _lastPullAt = new Date(row.value);
     }

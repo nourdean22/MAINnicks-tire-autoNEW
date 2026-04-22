@@ -1,5 +1,5 @@
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle, type MySql2Database } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import {
   InsertUser, users, bookings, InsertBooking,
@@ -13,7 +13,14 @@ import {
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Drizzle db instance: typed properly requires fixing 165+ downstream execute/insert/update calls (structural tech debt)
+/**
+ * Typed Drizzle MySQL2 database instance — exported for use in new code.
+ * The internal `_db` is still typed loose to avoid churning ~200 legacy
+ * `.execute().cast` call sites. Migrate site-by-site via getDbTyped().
+ */
+export type DB = MySql2Database<Record<string, never>>;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Drizzle instance typed as any to keep legacy .execute() cast sites compiling. Migrate per-file via getDbTyped() when ready.
 let _db: any = null;
 let _pool: mysql.Pool | null = null;
 
@@ -24,7 +31,17 @@ export function resetDbConnection(): void {
   _db = null;
 }
 
+/**
+ * Strictly-typed variant for new code — same singleton, but returns the
+ * proper DB type. Prefer this for anything written after 2026-04-22.
+ */
+export async function getDbTyped(): Promise<DB | null> {
+  return (await getDb()) as DB | null;
+}
+
 // Lazily create the drizzle instance with connection pooling.
+// Return type kept as `any` so the 200+ legacy call sites don't need
+// updating all at once. New code should prefer getDbTyped().
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
