@@ -13,6 +13,7 @@
 import { eq } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("drop-off-flow");
 
 const STORE_PHONE_DISPLAY = "(216) 862-0005";
@@ -66,7 +67,7 @@ async function getWorkOrderContext(workOrderId: string) {
     ? new Date(wo.estimatedCompletion).toLocaleTimeString("en-US", {
         hour: "numeric",
         minute: "2-digit",
-        timeZone: "America/New_York",
+        timeZone: BUSINESS.timezone,
       })
     : null;
 
@@ -83,7 +84,7 @@ async function getWorkOrderContext(workOrderId: string) {
 
 function getClosingTime(): string {
   const now = new Date();
-  const day = now.toLocaleDateString("en-US", { weekday: "long", timeZone: "America/New_York" });
+  const day = now.toLocaleDateString("en-US", { weekday: "long", timeZone: BUSINESS.timezone });
   return day === "Sunday" ? "4PM" : "6PM";
 }
 

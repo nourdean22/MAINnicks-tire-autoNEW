@@ -15,6 +15,7 @@
 
 import { createLogger } from "./lib/logger";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("sheets-sync");
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_CRM_ID || "";
@@ -99,7 +100,7 @@ export async function syncLeadToSheet(lead: {
   urgencyReason?: string | null;
   recommendedService?: string | null;
 }): Promise<boolean> {
-  const now = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+  const now = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone });
   return appendRow("Leads", [
     now,
     lead.name,
@@ -131,7 +132,7 @@ export async function syncBookingToSheet(booking: {
   preferredTime: string;
   message?: string | null;
 }): Promise<boolean> {
-  const now = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+  const now = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone });
   return appendRow("Bookings", [
     now,
     booking.name,
@@ -169,7 +170,7 @@ export async function syncCallbackToSheet(callback: {
   reason?: string | null;
   sourcePage?: string | null;
 }): Promise<boolean> {
-  const now = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+  const now = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone });
   return appendRow("Callbacks", [
     now,
     callback.name,
@@ -205,7 +206,7 @@ export async function syncInvoiceToSheet(invoice: {
   orderRef?: string | null;
   notes?: string | null;
 }): Promise<boolean> {
-  const now = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+  const now = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone });
   return appendRow("Invoices", [
     invoice.invoiceNumber,
     now,
@@ -241,7 +242,7 @@ export async function syncFinancingToSheet(application: {
   status: string;
   notes?: string | null;
 }): Promise<boolean> {
-  const now = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+  const now = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone });
   return appendRow("Financing", [
     now,
     application.provider,
@@ -273,7 +274,7 @@ export async function syncWorkOrderToSheet(wo: {
   source?: string | null;
   estimatedTotal?: number | null;
 }): Promise<boolean> {
-  const now = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+  const now = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone });
   const vehicle = [wo.vehicleYear, wo.vehicleMake, wo.vehicleModel].filter(Boolean).join(" ");
   return appendRow("WorkOrders", [
     now,

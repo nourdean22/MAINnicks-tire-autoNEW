@@ -6,12 +6,13 @@
 import { createLogger } from "../../lib/logger";
 import { and, eq, gte, lte, isNull } from "drizzle-orm";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("cron:stale-leads");
 
 export async function processStaleLeadFollowUp(): Promise<{ recordsProcessed: number }> {
   try {
     // Only during business hours (ET)
-    const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+    const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
     if (etHour < 8 || etHour > 18) return { recordsProcessed: 0 };
 
     const { isEnabled } = await import("../../services/featureFlags");

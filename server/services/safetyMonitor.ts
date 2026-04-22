@@ -14,6 +14,7 @@
 import { createLogger } from "../lib/logger";
 import { sql } from "drizzle-orm";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("safety-monitor");
 
 // ─── Types ──────────────────────────────────────────
@@ -101,7 +102,7 @@ export async function checkFinancialSafety(): Promise<CheckResult<FinancialMetri
 
     // Only check revenue drop after noon ET (too early = no data yet)
     const etHour = parseInt(
-      new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }),
+      new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }),
       10,
     );
     if (dailyAvg > 0 && etHour >= 12) {
@@ -689,7 +690,7 @@ async function sendSafetyAlerts(result: Awaited<ReturnType<typeof runFullSafetyC
       ``,
       ...criticals.map(a => `❌ ${a.message}`),
       ``,
-      `⏰ ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`,
+      `⏰ ${new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone })}`,
     ];
     await sendTelegramMessage(lines.join("\n"), "critical");
   }

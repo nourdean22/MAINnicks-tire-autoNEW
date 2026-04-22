@@ -14,7 +14,7 @@ import { sendLeadEvent } from "../meta-capi";
 import { logIntegrationFailure } from "../integration-failures";
 import { withRetry } from "../retry";
 import { sendSms, leadConfirmationSms } from "../sms";
-import { SITE_URL } from "@shared/business";
+import { SITE_URL, BUSINESS } from "@shared/business";
 import { handleAfterHoursCapture, isAfterHours } from "../services/afterHours";
 import { alertNewLead } from "../services/telegram";
 import { logAdminAction } from "../services/auditTrail";
@@ -241,7 +241,7 @@ export const leadRouter = router({
             email ? `\u2709\uFE0F ${email}` : "",
             `\uD83D\uDCB0 Estimated: ~$${amount}`,
             "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500",
-            `\u23F0 ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`,
+            `\u23F0 ${new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone })}`,
           ];
           sendTelegramMessage(lines.filter(Boolean).join("\n"), "critical");
         }).catch((e) => { console.warn("[routers/lead] fire-and-forget failed:", e); });

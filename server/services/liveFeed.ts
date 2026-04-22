@@ -17,6 +17,7 @@
 
 import { createLogger } from "../lib/logger";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("live-feed");
 
 const MONTHLY_TARGET = 20_000; // $20K monthly target (matches intelligenceEngines.ts)
@@ -51,7 +52,7 @@ const daily: DailyState = {
 const MILESTONES = [500, 1000, 1500, 2000, 2500, 3000];
 
 function getTodayET(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  return new Date().toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
 }
 
 function ensureDayReset(): void {
@@ -73,7 +74,7 @@ function ensureDayReset(): void {
 
 function getMonthlyPacePercent(): number {
   const now = new Date();
-  const etDate = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const etDate = new Date(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone }));
   const dayOfMonth = etDate.getDate();
   const daysInMonth = new Date(etDate.getFullYear(), etDate.getMonth() + 1, 0).getDate();
   const expectedDaily = MONTHLY_TARGET / daysInMonth;
@@ -233,7 +234,7 @@ export async function sendDailyWinsDigest(): Promise<{ recordsProcessed: number;
 
     // Only send in the evening (6 PM - 9 PM ET)
     const etHour = parseInt(
-      new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }),
+      new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }),
       10,
     );
     if (etHour < 18 || etHour > 21) {

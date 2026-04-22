@@ -3,6 +3,7 @@
  */
 import { createLogger } from "../lib/logger";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("scheduler");
 
 const BAYS = 4;
@@ -100,7 +101,7 @@ export function getUpsellRecommendations(params: {
 /** Seasonal service predictor */
 export function getSeasonalFocus(): { month: string; services: string[]; promoIdea: string } {
   // Use Eastern Time — Railway runs UTC
-  const etDate = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const etDate = new Date(new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone }));
   const month = etDate.getMonth(); // 0-11
   const SEASONAL: Record<number, { services: string[]; promoIdea: string }> = {
     0: { services: ["battery", "winter-tires", "heating"], promoIdea: "Free battery test with any service" },

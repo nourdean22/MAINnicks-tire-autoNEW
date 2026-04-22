@@ -18,6 +18,7 @@ import { invokeLLM } from "../_core/llm";
 
 import { db } from "../lib/db-helper";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("nick-intelligence");
 
 // ─── CROSS-PIPELINE ANALYTICS ─────────────────────────
@@ -242,7 +243,7 @@ export async function generateProactiveAlerts(): Promise<string[]> {
   const urgentLeadCount = urgentLeads[0]?.count ?? 0;
   const callbackCount = urgentCallbacks[0]?.count ?? 0;
   const bookingCount = todayBookings[0]?.count ?? 0;
-  const etHour = parseInt(now.toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+  const etHour = parseInt(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
   const dayOfWeek = now.getDay(); // 0=Sun
 
   if (urgentLeadCount > 0) {
@@ -454,7 +455,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
 
   // AUTO-ACTION 3: Slow day by noon — push marketing + measure revenue impact
   const hour = new Date().getHours();
-  const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+  const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
   if (hour >= 12 && hour <= 14 && pulse.today.jobsClosed < 2 && pulse.shopStatus === "slow") {
     const beforeRevenue = pulse.today.revenue;
     await sendTelegram(
@@ -506,7 +507,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
   // AUTO-ACTION 5: Detect revenue anomaly (today vs same day last week)
   try {
     const revenue = await projectRevenue();
-    const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+    const etHour = parseInt(new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
     if (etHour >= 14 && pulse.today.revenue < revenue.avgDailyRevenue * 0.3 && revenue.avgDailyRevenue > 200) {
       await sendTelegram(
         `📉 NICK AUTO-ACTION: Revenue anomaly detected\n\n` +
@@ -534,7 +535,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
 
   // AUTO-ACTION 7: Evening debrief (auto-generated at 5-6pm with AI analysis)
   try {
-    const etHour2 = parseInt(new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+    const etHour2 = parseInt(new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
     if (etHour2 >= 17 && etHour2 <= 18) {
       const { analyzeCustomers, getCustomerActionPlan } = await import("./customerIntelligence");
       const ci = await analyzeCustomers();
@@ -818,7 +819,7 @@ export async function getShopPulse(): Promise<{
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const hour = parseInt(now.toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+  const hour = parseInt(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
 
   const [
     todayInvoicesPaid, todayInvoicesPending, todayEstimateLeads,

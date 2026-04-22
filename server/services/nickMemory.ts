@@ -18,6 +18,7 @@ import { createHash } from "crypto";
 
 import { db } from "../lib/db-helper";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("nick-memory");
 
 export interface NickMemory {
@@ -238,9 +239,9 @@ Respond with JSON:
 export async function learnFromEvent(eventType: string, data: Record<string, any>): Promise<void> {
   const now = new Date();
   const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][now.getDay()];
-  const hour = parseInt(now.toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+  const hour = parseInt(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
   const period = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
-  const dateStr = now.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
+  const dateStr = now.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: BUSINESS.timezone });
 
   try {
     switch (eventType) {
@@ -630,8 +631,8 @@ export async function getProactiveMemoryAlerts(): Promise<string[]> {
   const memories = await recall({ limit: 30 });
 
   const now = new Date();
-  const dayName = now.toLocaleDateString("en-US", { weekday: "long", timeZone: "America/New_York" });
-  const hour = parseInt(now.toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }), 10);
+  const dayName = now.toLocaleDateString("en-US", { weekday: "long", timeZone: BUSINESS.timezone });
+  const hour = parseInt(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
 
   for (const m of memories) {
     // Pattern memories that match current day/time

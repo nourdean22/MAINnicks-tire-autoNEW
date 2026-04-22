@@ -19,6 +19,7 @@ import { createLogger } from "./logger";
 import { appendFile, stat, writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("ai-gateway");
 
 // ─── File-based persistent logging ──────────────────
@@ -381,7 +382,7 @@ const providerLatency: Record<AIProvider, LatencyTracker> = {
 };
 
 function getTodayET(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  return new Date().toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
 }
 
 function makeDailyStats(): DailyStats {

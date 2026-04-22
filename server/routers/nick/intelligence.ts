@@ -8,6 +8,7 @@ import { invokeLLM } from "../../_core/llm";
 import type { Invoice } from "../../../drizzle/schema";
 import { log, db } from "./utils";
 
+import { BUSINESS } from "@shared/business";
 // ─── OPERATOR COMMAND (Admin-only Nick AI interface) ──────
 
 export async function handleOperatorCommand(input: {
@@ -50,7 +51,7 @@ export async function handleOperatorCommand(input: {
       const avgTicket = monthInvoicesPaid.length > 0 ? Math.round(monthRevenue / monthInvoicesPaid.length) : 0;
 
       bizContext = `\nLIVE BUSINESS STATE (Nick's Tire & Auto):
-- Time: ${now.toLocaleString("en-US", { timeZone: "America/New_York" })}
+- Time: ${now.toLocaleString("en-US", { timeZone: BUSINESS.timezone })}
 - Model: First come first serve, drop-offs encouraged (holds place in line)
 TODAY:
 - Leads: ${leadsToday[0]?.count ?? 0} | Drop-offs: ${bookingsToday[0]?.count ?? 0}

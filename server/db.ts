@@ -33,7 +33,11 @@ export async function getDb() {
         connectionLimit: 5,
         maxIdle: 2,
         waitForConnections: true,
-        queueLimit: 0,
+        // Bounded queue — spike protection. Under burst load, rather than
+        // letting the queue grow unbounded (→ OOM), we fail fast once 50
+        // requests are waiting. Monitor hits; if frequent, raise
+        // connectionLimit, not queueLimit.
+        queueLimit: 50,
         idleTimeout: 60000,
         enableKeepAlive: true,
         keepAliveInitialDelay: 10000,

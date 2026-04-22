@@ -45,7 +45,7 @@ const tiers: Tier[] = [];
 
 function isBusinessHours(): boolean {
   const etHour = parseInt(
-    new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }),
+    new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }),
     10,
   );
   return etHour >= 7 && etHour <= 21;
@@ -151,8 +151,18 @@ export function startTieredScheduler(): void {
         name: "alg-mirror-health", // CRITICAL: detect stale ALG data fast
         businessHoursOnly: true,
         handler: async () => {
-          const { checkMirrorHealth } = await import("../services/shopDriverMirror");
-          return checkMirrorHealth();
+          // SHOP-PROTECT: only probe ALG when admin session is active.
+          // Probes kick the shop's browser login out of ShopDriver/ALG.
+          const { runIfAdminActive } = await import("../lib/adminActivity");
+          const result = await runIfAdminActive(
+            async () => {
+              const { checkMirrorHealth } = await import("../services/shopDriverMirror");
+              return checkMirrorHealth();
+            },
+            { jobName: "alg-mirror-health" },
+          );
+          if ("skipped" in result) return { details: result.reason };
+          return result;
         },
       },
       {
@@ -232,8 +242,18 @@ export function startTieredScheduler(): void {
         name: "shopdriver-mirror",
         businessHoursOnly: true,
         handler: async () => {
-          const { runFullMirror } = await import("../services/shopDriverMirror");
-          return runFullMirror();
+          // SHOP-PROTECT: probes kick the shop's ShopDriver session. Only run
+          // when admin is actively at /admin (or within last 10 min).
+          const { runIfAdminActive } = await import("../lib/adminActivity");
+          const result = await runIfAdminActive(
+            async () => {
+              const { runFullMirror } = await import("../services/shopDriverMirror");
+              return runFullMirror();
+            },
+            { jobName: "shopdriver-mirror" },
+          );
+          if ("skipped" in result) return { details: result.reason };
+          return result;
         },
       },
       {
@@ -414,20 +434,27 @@ export function startTieredScheduler(): void {
         name: "auto-labor-guide-sync", // Auto Labor Guide data sync
         businessHoursOnly: true,
         handler: async () => {
-          try {
-            const { pullRecentTickets } = await import("../services/shopDriverSync");
-            const tickets = await pullRecentTickets();
-            if (tickets.length > 0) {
-              const { remember } = await import("../services/nickMemory");
-              await remember({
-                type: "insight",
-                content: `ALG sync: ${tickets.length} recent tickets pulled. Latest: ${tickets.slice(0, 3).map((t: Record<string, unknown>) => `${t.customerName || "?"} ($${t.totalAmount || 0})`).join(", ")}`,
-                source: "alg_sync",
-                confidence: 0.8,
-              });
-            }
-            return { recordsProcessed: tickets.length, details: `${tickets.length} ALG tickets synced` };
-          } catch (e) { console.warn("[cron/scheduler] operation failed:", e); return { details: "ALG sync failed" }; }
+          // SHOP-PROTECT: ALG auth kicks the shop's browser session.
+          const { runIfAdminActive } = await import("../lib/adminActivity");
+          const result = await runIfAdminActive(
+            async () => {
+              const { pullRecentTickets } = await import("../services/shopDriverSync");
+              const tickets = await pullRecentTickets();
+              if (tickets.length > 0) {
+                const { remember } = await import("../services/nickMemory");
+                await remember({
+                  type: "insight",
+                  content: `ALG sync: ${tickets.length} recent tickets pulled. Latest: ${tickets.slice(0, 3).map((t: Record<string, unknown>) => `${t.customerName || "?"} ($${t.totalAmount || 0})`).join(", ")}`,
+                  source: "alg_sync",
+                  confidence: 0.8,
+                });
+              }
+              return { recordsProcessed: tickets.length, details: `${tickets.length} ALG tickets synced` };
+            },
+            { jobName: "auto-labor-guide-sync" },
+          );
+          if ("skipped" in result) return { details: result.reason };
+          return result;
         },
       },
       {
@@ -650,16 +677,34 @@ export function startTieredScheduler(): void {
       {
         name: "shopdriver-daily-ticket-pull",
         handler: async () => {
-          const { pullRecentTickets } = await import("../services/shopDriverSync");
-          const tickets = await pullRecentTickets();
-          return { recordsProcessed: tickets.length, details: `Pulled ${tickets.length} tickets from ShopDriver` };
+          // SHOP-PROTECT: daily ShopDriver login kicks the shop session.
+          const { runIfAdminActive } = await import("../lib/adminActivity");
+          const result = await runIfAdminActive(
+            async () => {
+              const { pullRecentTickets } = await import("../services/shopDriverSync");
+              const tickets = await pullRecentTickets();
+              return { recordsProcessed: tickets.length, details: `Pulled ${tickets.length} tickets from ShopDriver` };
+            },
+            { jobName: "shopdriver-daily-ticket-pull", windowMinutes: 60 },
+          );
+          if ("skipped" in result) return { details: result.reason };
+          return result;
         },
       },
       {
         name: "shopdriver-full-mirror",
         handler: async () => {
-          const { runFullMirror } = await import("../services/shopDriverMirror");
-          return runFullMirror();
+          // SHOP-PROTECT: full mirror logs into ShopDriver → kicks shop session.
+          const { runIfAdminActive } = await import("../lib/adminActivity");
+          const result = await runIfAdminActive(
+            async () => {
+              const { runFullMirror } = await import("../services/shopDriverMirror");
+              return runFullMirror();
+            },
+            { jobName: "shopdriver-full-mirror", windowMinutes: 60 },
+          );
+          if ("skipped" in result) return { details: result.reason };
+          return result;
         },
       },
       // NOTE: Also runs in hourly tier for more frequent updates
@@ -1002,8 +1047,18 @@ export function startTieredScheduler(): void {
       {
         name: "alg-auto-discovery", // Probe ShopDriver API for new endpoints
         handler: async () => {
-          const { runAlgAutoDiscovery } = await import("./jobs/intelligenceAutopilot");
-          return runAlgAutoDiscovery();
+          // SHOP-PROTECT: ALG endpoint discovery auths heavily. Only when Nour
+          // is on admin so we don't kick the shop counter out of ShopDriver.
+          const { runIfAdminActive } = await import("../lib/adminActivity");
+          const result = await runIfAdminActive(
+            async () => {
+              const { runAlgAutoDiscovery } = await import("./jobs/intelligenceAutopilot");
+              return runAlgAutoDiscovery();
+            },
+            { jobName: "alg-auto-discovery", windowMinutes: 60 },
+          );
+          if ("skipped" in result) return { details: result.reason };
+          return result;
         },
       },
       {
@@ -1150,7 +1205,7 @@ export function startTieredScheduler(): void {
       {
         name: "weekly-strategic-insight", // AI strategic brief — only fires on Sundays
         handler: async () => {
-          const dow = new Date().toLocaleString("en-US", { timeZone: "America/New_York", weekday: "long" });
+          const dow = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, weekday: "long" });
           if (dow !== "Sunday") return { details: "Not Sunday, skipped" };
           try {
             const { generateWeeklyInsight } = await import("../services/nickIntelligence");
@@ -1166,7 +1221,7 @@ export function startTieredScheduler(): void {
       {
         name: "chat-faq-pipeline", // Weekly chat question analysis — Sunday only
         handler: async () => {
-          const dow = new Date().toLocaleString("en-US", { timeZone: "America/New_York", weekday: "long" });
+          const dow = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, weekday: "long" });
           if (dow !== "Sunday") return { details: "Not Sunday, skipped" };
           try {
             const { runChatFaqPipeline } = await import("./jobs/chatFaqPipeline");

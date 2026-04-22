@@ -12,6 +12,7 @@ import { createLogger } from "../lib/logger";
 import { sendSms } from "../sms";
 import { alertAfterHours } from "./telegram";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("after-hours");
 
 const STORE_PHONE = "(216) 862-0005";
@@ -21,14 +22,14 @@ export function isAfterHours(): boolean {
   const now = new Date();
   const hour = parseInt(
     now.toLocaleString("en-US", {
-      timeZone: "America/New_York",
+      timeZone: BUSINESS.timezone,
       hour: "numeric",
       hour12: false,
     }),
     10
   );
   const day = new Date(
-    now.toLocaleString("en-US", { timeZone: "America/New_York" })
+    now.toLocaleString("en-US", { timeZone: BUSINESS.timezone })
   ).getDay(); // 0=Sun
 
   if (day === 0) return hour < 9 || hour >= 16; // Sunday 9-4
@@ -40,7 +41,7 @@ export function isAfterHours(): boolean {
 export function getNextOpenTime(): string {
   const now = new Date();
   const et = new Date(
-    now.toLocaleString("en-US", { timeZone: "America/New_York" })
+    now.toLocaleString("en-US", { timeZone: BUSINESS.timezone })
   );
   const day = et.getDay();
   const hour = et.getHours();

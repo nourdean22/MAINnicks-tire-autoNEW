@@ -21,6 +21,7 @@ import { createLogger } from "./lib/logger";
 import { normalizePhone } from "./lib/phone";
 import { getOrCreateBreaker } from "./lib/circuit-breaker";
 
+import { BUSINESS } from "@shared/business";
 const log = createLogger("sms");
 
 // ─── Circuit Breaker ────────────────────────────────
@@ -53,14 +54,14 @@ function getFromNumber(): string {
 function isWithinSendingHours(): boolean {
   const now = new Date();
   // Get current hour in Eastern Time
-  const etTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const etTime = new Date(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone }));
   const hour = etTime.getHours();
   return hour >= 8 && hour < 20; // 8AM to 8PM
 }
 
 function getNextSendWindow(): Date {
   const now = new Date();
-  const etTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const etTime = new Date(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone }));
   const hour = etTime.getHours();
 
   if (hour >= 20) {
