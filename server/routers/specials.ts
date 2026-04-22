@@ -6,6 +6,9 @@ import { eq } from "drizzle-orm";
 import { router, publicProcedure, adminProcedure } from "../_core/trpc";
 import { randomUUID } from "crypto";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:specials");
 export const specialsRouter = router({
   getActive: publicProcedure.query(async () => {
     try {
@@ -22,7 +25,7 @@ export const specialsRouter = router({
         return results.filter((s: any) => !s.expiresAt || new Date(s.expiresAt) > now);
       });
     } catch (err) {
-      console.error("[Specials] Failed to fetch specials:", err instanceof Error ? err.message : err);
+      log.error("[Specials] Failed to fetch specials:", err instanceof Error ? err.message : err);
       return [];
     }
   }),

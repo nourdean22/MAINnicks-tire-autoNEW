@@ -91,11 +91,11 @@ async function runTier(tier: Tier): Promise<void> {
         log.info(`[${tier.name}] ${job.name}: ${dur}ms`);
       }
       // Log to cron_log table for audit trail
-      logTierJob(job.name, "completed", dur, result?.recordsProcessed, result?.details).catch((e) => { console.warn("[cron/scheduler] fire-and-forget failed:", e); });
+      logTierJob(job.name, "completed", dur, result?.recordsProcessed, result?.details).catch((e) => { log.warn("[cron/scheduler] fire-and-forget failed:", e); });
     } catch (err) {
       const dur = Date.now() - jobStart;
       log.error(`[${tier.name}] ${job.name} failed:`, { error: err instanceof Error ? err.message : String(err) });
-      logTierJob(job.name, "failed", dur, 0, err instanceof Error ? err.message : String(err)).catch((e) => { console.warn("[cron/scheduler] fire-and-forget failed:", e); });
+      logTierJob(job.name, "failed", dur, 0, err instanceof Error ? err.message : String(err)).catch((e) => { log.warn("[cron/scheduler] fire-and-forget failed:", e); });
     } finally {
       if (jobTimer) clearTimeout(jobTimer);
     }
@@ -127,7 +127,7 @@ async function logTierJob(jobName: string, status: string, durationMs: number, r
       startedAt: new Date(Date.now() - durationMs),
       completedAt: new Date(),
     });
-  } catch (e) { console.warn("[cron/scheduler] operation failed:", e); }
+  } catch (e) { log.warn("[cron/scheduler] operation failed:", e); }
 }
 
 /**
@@ -201,7 +201,7 @@ export function startTieredScheduler(): void {
             }
 
             return { recordsProcessed: issues.length, details: issues.length === 0 ? "All data clean" : issues.join("; ") };
-          } catch (e) { console.warn("[cron/scheduler] operation failed:", e); return { details: "Accuracy check failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Accuracy check failed" }; }
         },
       },
     ],
@@ -305,7 +305,7 @@ export function startTieredScheduler(): void {
               await sendTelegram(`💰 Big day building: $${Math.round(todayRevenue)} so far today (${Math.round((todayRevenue/dailyTarget)*100)}% of daily target)`);
             }
             return { recordsProcessed: 1, details: `Today: $${Math.round(todayRevenue)}` };
-          } catch (e) { console.warn("[cron/scheduler] operation failed:", e); return { details: "Revenue pulse skipped" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Revenue pulse skipped" }; }
         },
       },
       {
@@ -393,7 +393,7 @@ export function startTieredScheduler(): void {
               try {
                 const { sendUrgentBrief } = await import("./jobs/morningBrief");
                 await sendUrgentBrief("NOUR OS Drift Alert", driftAlerts.map((a: Record<string, unknown>) => a.message || a.title || String(a)).join("\n"));
-              } catch (e) { console.warn("[cron/scheduler] operation failed:", e); }
+              } catch (e) { log.warn("[cron/scheduler] operation failed:", e); }
             }
 
             // Non-urgent alerts still stored as memories
@@ -403,7 +403,7 @@ export function startTieredScheduler(): void {
             }
 
             return { recordsProcessed: imported, details: `${imported} items pulled (insights+patterns+predictions+loops+alerts), ${driftAlerts.length} urgent` };
-          } catch (e) { console.warn("[cron/scheduler] operation failed:", e); return { details: "Pull failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Pull failed" }; }
         },
       },
       {
@@ -464,7 +464,7 @@ export function startTieredScheduler(): void {
           try {
             const { processCustomerSegmentation } = await import("./jobs/customerSegmentation");
             return processCustomerSegmentation();
-          } catch (e) { console.warn("[cron/scheduler] operation failed:", e); return { details: "Segmentation skipped" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Segmentation skipped" }; }
         },
       },
       {
@@ -521,7 +521,7 @@ export function startTieredScheduler(): void {
               );
             }
             return { recordsProcessed: atRiskJobs.length, details: `${atRiskJobs.length} at-risk WOs` };
-          } catch (e) { console.warn("[cron/scheduler] operation failed:", e); return { details: "Promise risk check skipped" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Promise risk check skipped" }; }
         },
       },
       {
@@ -550,7 +550,7 @@ export function startTieredScheduler(): void {
               );
             }
             return { recordsProcessed: stale.length, details: `${stale.length} stale estimates alerted` };
-          } catch (e) { console.warn("[cron/scheduler] operation failed:", e); return { details: "Stale estimate check failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Stale estimate check failed" }; }
         },
       },
       {
@@ -561,7 +561,7 @@ export function startTieredScheduler(): void {
             const { sendEscalationAlerts } = await import("../services/nickIntelligence");
             const result = await sendEscalationAlerts();
             return { recordsProcessed: result.sent, details: `${result.sent} escalation alerts sent` };
-          } catch (e) { console.warn("[cron/scheduler] operation failed:", e); return { details: "Escalation check skipped" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Escalation check skipped" }; }
         },
       },
       {
@@ -624,10 +624,10 @@ export function startTieredScheduler(): void {
         handler: async () => {
           const { analyzeChatDemand, analyzeCallAttribution, analyzeFleet, analyzeGeography } = await import("../services/intelligenceEngines");
           const results = await Promise.all([
-            analyzeChatDemand().catch((e) => { console.warn("[cron/scheduler] optional operation failed:", e); return null; }),
-            analyzeCallAttribution().catch((e) => { console.warn("[cron/scheduler] optional operation failed:", e); return null; }),
-            analyzeFleet().catch((e) => { console.warn("[cron/scheduler] optional operation failed:", e); return null; }),
-            analyzeGeography().catch((e) => { console.warn("[cron/scheduler] optional operation failed:", e); return null; }),
+            analyzeChatDemand().catch((e) => { log.warn("[cron/scheduler] optional operation failed:", e); return null; }),
+            analyzeCallAttribution().catch((e) => { log.warn("[cron/scheduler] optional operation failed:", e); return null; }),
+            analyzeFleet().catch((e) => { log.warn("[cron/scheduler] optional operation failed:", e); return null; }),
+            analyzeGeography().catch((e) => { log.warn("[cron/scheduler] optional operation failed:", e); return null; }),
           ]);
           return { recordsProcessed: results.filter(Boolean).length, details: `4 data analyzers refreshed` };
         },
@@ -804,11 +804,11 @@ export function startTieredScheduler(): void {
                       service: entry.declinedItems.map((i) => i.description || "service").join(", ").slice(0, 100),
                     });
                     enrolled++;
-                  } catch (e) { console.warn("[cron/scheduler] operation failed:", e); }
+                  } catch (e) { log.warn("[cron/scheduler] operation failed:", e); }
                 }
               }
               if (enrolled > 0) log.info(`Enrolled ${enrolled} declined-estimate customers in drip`);
-            } catch (e) { console.warn("[cron/scheduler] operation failed:", e); }
+            } catch (e) { log.warn("[cron/scheduler] operation failed:", e); }
           }
 
           return { recordsProcessed: ledger.length, details: `${unrecovered.length} unrecovered ($${totalRecoverableValue}), ${safetyItems.length} safety` };
@@ -876,13 +876,13 @@ export function startTieredScheduler(): void {
                       name: cust.name || "there",
                     });
                     enrolled++;
-                  } catch (e) { console.warn("[cron/scheduler] operation failed:", e); }
+                  } catch (e) { log.warn("[cron/scheduler] operation failed:", e); }
                 }
               }
               if (enrolled > 0) log.info(`Enrolled ${enrolled} at-risk customers in drip`);
             }
             return { recordsProcessed: data.atRiskCustomers.length, details: `${data.atRiskCustomers.length} at-risk, ${data.retentionRate}% retention` };
-          } catch (e) { console.warn("[cron/scheduler] operation failed:", e); return { details: "Churn detection failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Churn detection failed" }; }
         },
       },
       {
@@ -912,7 +912,7 @@ export function startTieredScheduler(): void {
               await remember({ type: "lesson", content: `QC comeback check: ${comebacks} potential comebacks this week (customers who returned within 30d of a completed job). Review quality.`, source: "qc_detection", confidence: 0.8 });
             }
             return { recordsProcessed: comebacks, details: `${comebacks} potential comebacks detected` };
-          } catch (e) { console.warn("[cron/scheduler] operation failed:", e); return { details: "QC comeback detection failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "QC comeback detection failed" }; }
         },
       },
       {
@@ -1086,7 +1086,7 @@ export function startTieredScheduler(): void {
               );
             }
             return { recordsProcessed: result.fetched || 0, details: `${result.fetched || 0} reviews synced, ${urgent.length} urgent` };
-          } catch (e) { console.warn("[cron/scheduler] operation failed:", e); return { details: "Review pipeline skipped" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Review pipeline skipped" }; }
         },
       },
       {
@@ -1107,7 +1107,7 @@ export function startTieredScheduler(): void {
               );
             }
             return { recordsProcessed: result.sync?.fetched || 0, details: `${result.sync?.fetched || 0} rows synced, ${drops.length} ranking drops` };
-          } catch (e) { console.warn("[cron/scheduler] operation failed:", e); return { details: "GSC pipeline skipped" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "GSC pipeline skipped" }; }
         },
       },
       {
@@ -1159,7 +1159,7 @@ export function startTieredScheduler(): void {
               confidence: 0.95,
             });
             return { recordsProcessed: 1, details: `Revenue: $${truth.totalRevenue || 0}, ${truth.completedJobs || 0} jobs` };
-          } catch (e) { console.warn("[cron/scheduler] operation failed:", e); return { details: "Revenue reconciliation failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Revenue reconciliation failed" }; }
         },
       },
     ],
@@ -1215,7 +1215,7 @@ export function startTieredScheduler(): void {
               await sendTelegram(`🧠 WEEKLY STRATEGIC BRIEF\n\n${insight.slice(0, 3500)}`);
             }
             return { recordsProcessed: 1, details: "Weekly insight sent" };
-          } catch (e) { console.warn("[cron/scheduler] operation failed:", e); return { details: "Weekly insight failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Weekly insight failed" }; }
         },
       },
       {
@@ -1226,7 +1226,7 @@ export function startTieredScheduler(): void {
           try {
             const { runChatFaqPipeline } = await import("./jobs/chatFaqPipeline");
             return runChatFaqPipeline();
-          } catch (e) { console.warn("[cron/scheduler] operation failed:", e); return { details: "Chat FAQ pipeline failed" }; }
+          } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Chat FAQ pipeline failed" }; }
         },
       },
     ],
@@ -1267,7 +1267,7 @@ export function startTieredScheduler(): void {
         source: "business_model_seed",
         confidence: 1.0,
       });
-    } catch (e) { console.warn("[cron/scheduler] operation failed:", e); }
+    } catch (e) { log.warn("[cron/scheduler] operation failed:", e); }
   }, 60_000); // Wait 60s after boot for DB to be ready
 }
 

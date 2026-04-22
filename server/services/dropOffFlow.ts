@@ -93,7 +93,7 @@ async function isDropOffFlowEnabled(): Promise<boolean> {
     const { isEnabled } = await import("./featureFlags");
     return isEnabled("drop_off_sms_flow");
   } catch (e) {
-    console.warn("[services/dropOffFlow] operation failed:", e);
+    log.warn("[services/dropOffFlow] operation failed:", e);
     return false;
   }
 }

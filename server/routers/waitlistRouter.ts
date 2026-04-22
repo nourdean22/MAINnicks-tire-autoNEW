@@ -7,6 +7,9 @@ import { router, publicProcedure, adminProcedure } from "../_core/trpc";
 import { randomUUID } from "crypto";
 import { sanitizeName, sanitizePhone, sanitizeText } from "../sanitize";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:waitlistRouter");
 export const waitlistRouter = router({
   join: publicProcedure
     .input(z.object({
@@ -102,7 +105,7 @@ export const waitlistRouter = router({
         priority: e.isVip ? "vip" : e.customerId ? "returning" : "new",
       }));
     } catch (e) {
-      console.error("[Waitlist] Smart queue failed:", e instanceof Error ? e.message : e);
+      log.error("[Waitlist] Smart queue failed:", e instanceof Error ? e.message : e);
       return [];
     }
   }),

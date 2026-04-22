@@ -6,6 +6,9 @@
 
 import { invokeLLM } from "./_core/llm";
 
+import { createLogger } from "./lib/logger";
+
+const log = createLogger("diagnose");
 const DIAGNOSIS_SYSTEM_PROMPT = `You are a professional automotive diagnostic system for Nick's Tire & Auto, a trusted independent auto repair shop at 17625 Euclid Ave, Cleveland, OH 44112.
 
 Your role is to analyze vehicle symptoms reported by customers and provide a structured preliminary assessment. You must:
@@ -132,7 +135,7 @@ Respond with a JSON object with these exact fields:
       return parsed;
     }
   } catch (error) {
-    console.error("[Diagnose] AI diagnosis failed:", error);
+    log.error("[Diagnose] AI diagnosis failed:", error);
   }
 
   // Fallback

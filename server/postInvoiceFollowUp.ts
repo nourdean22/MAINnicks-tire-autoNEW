@@ -23,6 +23,9 @@ async function getDatabase() {
 import { sendSms } from "./sms";
 import { STORE_NAME, STORE_PHONE } from "@shared/const";
 
+import { createLogger } from "./lib/logger";
+
+const log = createLogger("postInvoiceFollowUp");
 // ─── SHORT URLs (saves ~50 chars → 2 segments instead of 3) ─────
 const REVIEW_URL = "nickstire.org/review";
 const REFER_URL = "nickstire.org/refer";
@@ -72,7 +75,7 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
     // - has a valid E.164 phone number (starts with +1)
     const db = await getDatabase();
     if (!db) {
-      console.error("[PostInvoiceFollowUp] Database not available");
+      log.error("[PostInvoiceFollowUp] Database not available");
       return result;
     }
     const eligibleCustomers = await db
@@ -128,7 +131,7 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
           result.failed++;
         }
       } catch (err) {
-        console.error("[PostInvoiceFollowUp] Follow-up send failed:", err instanceof Error ? err.message : err);
+        log.error("[PostInvoiceFollowUp] Follow-up send failed:", err instanceof Error ? err.message : err);
         result.failed++;
       }
 
@@ -136,7 +139,7 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
       await new Promise((resolve) => setTimeout(resolve, 1100));
     }
   } catch (err) {
-    console.error("[PostInvoiceFollowUp] Processing error:", err);
+    log.error("[PostInvoiceFollowUp] Processing error:", err);
   }
 
   return result;

@@ -6,6 +6,9 @@
  */
 import { eq, and, gte, sql, desc, between } from "drizzle-orm";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("services:invoiceReconciliation");
 async function getDbAndSchema() {
   const { getDb } = await import("../db");
   const schema = await import("../../drizzle/schema");
@@ -62,7 +65,7 @@ export async function reconcileWorkOrder(workOrderId: string): Promise<WorkOrder
       if (cust) customerName = `${cust.firstName} ${cust.lastName || ""}`.trim();
     }
   } catch (err) {
-    console.warn("[InvoiceRecon] Customer name lookup failed:", err instanceof Error ? err.message : err);
+    log.warn("[InvoiceRecon] Customer name lookup failed:", err instanceof Error ? err.message : err);
   }
 
   const lineItems: LineItemMargin[] = items

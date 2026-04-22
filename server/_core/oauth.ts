@@ -4,6 +4,9 @@ import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("_core:oauth");
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
   return typeof value === "string" ? value : undefined;
@@ -58,12 +61,12 @@ function registerDevSigninRoute(app: Express) {
         : "/admin";
       res.redirect(302, dest);
     } catch (err) {
-      console.error("[DevSignin] Failed:", err);
+      log.error("[DevSignin] Failed:", err);
       res.status(500).send(`Dev signin failed: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
   });
 
-  console.warn(
+  log.warn(
     "\n⚠ [dev-signin] /api/dev/signin is active — dev only. Never enabled in production.\n"
   );
 }
@@ -123,12 +126,12 @@ export function registerOAuthRoutes(app: Express) {
             ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
             userAgent: req.headers["user-agent"] ?? null,
           }),
-        ).catch((err) => console.warn("[OAuth] admin login log failed:", err));
+        ).catch((err) => log.warn("[OAuth] admin login log failed:", err));
       }
 
       res.redirect(302, dest);
     } catch (error) {
-      console.error("[OAuth] Callback failed", error);
+      log.error("[OAuth] Callback failed", error);
       import("../services/complianceLog").then(({ logAdminLoginFail }) =>
         logAdminLoginFail({
           reason: error instanceof Error ? error.message : String(error),

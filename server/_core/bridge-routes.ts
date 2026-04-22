@@ -11,6 +11,9 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { timingSafeEqual } from "crypto";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("_core:bridge-routes");
 function safeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   return timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -25,7 +28,7 @@ function bridgeAuth(req: Request, res: Response, next: NextFunction): void {
   }
 
   if (key.length < 32) {
-    console.warn("[Bridge] WARNING: BRIDGE_API_KEY is short (" + key.length + " chars). Recommend 64+ chars for security.");
+    log.warn("[Bridge] WARNING: BRIDGE_API_KEY is short (" + key.length + " chars). Recommend 64+ chars for security.");
   }
 
   const provided = req.headers["x-bridge-key"];
@@ -51,7 +54,7 @@ export function registerBridgeRoutes(app: Express): void {
         const d = await getDb();
         dbHealthy = !!d;
       } catch (err) {
-        console.error("[Bridge] DB health check failed:", err instanceof Error ? err.message : err);
+        log.error("[Bridge] DB health check failed:", err instanceof Error ? err.message : err);
       }
 
       res.json({
@@ -86,7 +89,7 @@ export function registerBridgeRoutes(app: Express): void {
         const { getWorkOrderStats } = await import("../services/workOrderService");
         workOrders = await getWorkOrderStats();
       } catch (err) {
-        console.error("[Bridge] Work order stats failed:", err instanceof Error ? err.message : err);
+        log.error("[Bridge] Work order stats failed:", err instanceof Error ? err.message : err);
       }
 
       // Vendor health
@@ -98,7 +101,7 @@ export function registerBridgeRoutes(app: Express): void {
         vendors = report.results;
         vendorOverall = report.overallStatus;
       } catch (err) {
-        console.error("[Bridge] Vendor health failed:", err instanceof Error ? err.message : err);
+        log.error("[Bridge] Vendor health failed:", err instanceof Error ? err.message : err);
       }
 
       // Dispatch load
@@ -114,7 +117,7 @@ export function registerBridgeRoutes(app: Express): void {
           totalBays: load.bays.length,
         };
       } catch (err) {
-        console.error("[Bridge] Dispatch load failed:", err instanceof Error ? err.message : err);
+        log.error("[Bridge] Dispatch load failed:", err instanceof Error ? err.message : err);
       }
 
       // QC stats
@@ -123,7 +126,7 @@ export function registerBridgeRoutes(app: Express): void {
         const { getQcStats } = await import("../services/qcService");
         qc = await getQcStats();
       } catch (err) {
-        console.error("[Bridge] QC stats failed:", err instanceof Error ? err.message : err);
+        log.error("[Bridge] QC stats failed:", err instanceof Error ? err.message : err);
       }
 
       // Promise risk
@@ -132,7 +135,7 @@ export function registerBridgeRoutes(app: Express): void {
         const { getPromiseRiskSummary } = await import("../services/promiseRisk");
         risk = await getPromiseRiskSummary();
       } catch (err) {
-        console.error("[Bridge] Promise risk failed:", err instanceof Error ? err.message : err);
+        log.error("[Bridge] Promise risk failed:", err instanceof Error ? err.message : err);
       }
 
       // Live revenue + bookings + leads + callbacks
@@ -153,7 +156,7 @@ export function registerBridgeRoutes(app: Express): void {
           shopInsight: pulse.shopInsight,
         };
       } catch (err) {
-        console.error("[Bridge] Shop pulse fetch failed:", err instanceof Error ? err.message : err);
+        log.error("[Bridge] Shop pulse fetch failed:", err instanceof Error ? err.message : err);
       }
       try {
         const { getDashboardStats } = await import("../admin-stats");
@@ -162,7 +165,7 @@ export function registerBridgeRoutes(app: Express): void {
         leads = { total: stats.leads.total, thisWeek: stats.leads.thisWeek, new: stats.leads.new, urgent: stats.leads.urgent };
         callbacks = { total: stats.callbacks.total, new: stats.callbacks.new };
       } catch (err) {
-        console.error("[Bridge] Dashboard stats fetch failed:", err instanceof Error ? err.message : err);
+        log.error("[Bridge] Dashboard stats fetch failed:", err instanceof Error ? err.message : err);
       }
 
       res.json({
@@ -208,7 +211,7 @@ export function registerBridgeRoutes(app: Express): void {
       await db.update(leads).set({ status: "contacted" }).where(eq(leads.id, leadId));
       res.json({ success: true, leadId });
     } catch (err: unknown) {
-      console.error("[Bridge] Action error:", err);
+      log.error("[Bridge] Action error:", err);
       res.status(500).json({ error: "Internal error" });
     }
   });
@@ -221,7 +224,7 @@ export function registerBridgeRoutes(app: Express): void {
       console.info(`[bridge:note] ${context || "general"}: ${note}`);
       res.json({ success: true, logged: true });
     } catch (err: unknown) {
-      console.error("[Bridge] Action error:", err);
+      log.error("[Bridge] Action error:", err);
       res.status(500).json({ error: "Internal error" });
     }
   });
@@ -255,7 +258,7 @@ export function registerBridgeRoutes(app: Express): void {
             source: "report_ingestion",
             confidence: 0.95,
           });
-        } catch (e) { console.warn("[bridge] operation failed:", e); }
+        } catch (e) { log.warn("[bridge] operation failed:", e); }
       }
 
       // Ingest invoices
@@ -281,7 +284,7 @@ export function registerBridgeRoutes(app: Express): void {
         });
       }
     } catch (err: unknown) {
-      console.error("[Bridge] Ingest error:", err);
+      log.error("[Bridge] Ingest error:", err);
       res.status(500).json({ error: (err as Error).message || "Ingestion failed" });
     }
   });
@@ -436,11 +439,11 @@ export function registerBridgeRoutes(app: Express): void {
       try {
         const { sendTelegram } = await import("../services/telegram");
         await sendTelegram(`📱 SMS Campaign Sent\n\n${sent} messages sent, ${failed} failed\nCampaign: Thank You + Referral + Review`);
-      } catch (e) { console.warn("[bridge] operation failed:", e); }
+      } catch (e) { log.warn("[bridge] operation failed:", e); }
 
       res.json({ sent, failed, total: messages.length, timestamp: new Date().toISOString() });
     } catch (err: unknown) {
-      console.error("[Bridge] SMS campaign error:", err);
+      log.error("[Bridge] SMS campaign error:", err);
       res.status(500).json({ error: (err as Error).message || "Campaign failed" });
     }
   });
@@ -452,7 +455,7 @@ export function registerBridgeRoutes(app: Express): void {
       const result = await runHistoricalBackfill();
       res.json({ ...result, timestamp: new Date().toISOString() });
     } catch (err: unknown) {
-      console.error("[Bridge] Backfill error:", err);
+      log.error("[Bridge] Backfill error:", err);
       res.status(500).json({ error: (err as Error).message || "Backfill failed" });
     }
   });
@@ -464,7 +467,7 @@ export function registerBridgeRoutes(app: Express): void {
       const result = await runFullMirror();
       res.json({ success: true, ...result, debug: debugLastFetch(), timestamp: new Date().toISOString() });
     } catch (err: unknown) {
-      console.error("[Bridge] Mirror trigger error:", err);
+      log.error("[Bridge] Mirror trigger error:", err);
       res.status(500).json({ error: (err as Error).message || "Mirror sync failed" });
     }
   });
@@ -476,7 +479,7 @@ export function registerBridgeRoutes(app: Express): void {
       const results = await probeAlgEndpoints();
       res.json({ results, timestamp: new Date().toISOString() });
     } catch (err: unknown) {
-      console.error("[Bridge] ALG probe error:", err);
+      log.error("[Bridge] ALG probe error:", err);
       res.status(500).json({ error: (err as Error).message || "Probe failed" });
     }
   });
@@ -546,7 +549,7 @@ export function registerBridgeRoutes(app: Express): void {
       }
       res.json({ ...result, timestamp: new Date().toISOString() });
     } catch (err: unknown) {
-      console.error("[Bridge] Run job error:", err);
+      log.error("[Bridge] Run job error:", err);
       res.status(500).json({ error: (err as Error).message || "Job failed" });
     }
   });
@@ -575,7 +578,7 @@ export function registerBridgeRoutes(app: Express): void {
       const { getJobStatuses } = await import("../cron/index");
       res.json({ jobs: getJobStatuses(), timestamp: new Date().toISOString() });
     } catch (err: unknown) {
-      console.error("[Bridge] Cron status error:", err);
+      log.error("[Bridge] Cron status error:", err);
       res.json({ jobs: [], error: "Internal error" });
     }
   });
@@ -769,7 +772,7 @@ export function registerBridgeRoutes(app: Express): void {
             dailyRev.map((d) => ({ date: d.date, amount: d.revenue, orderCount: d.jobs }))
           );
         }
-      } catch (e) { console.warn("[bridge] operation failed:", e); }
+      } catch (e) { log.warn("[bridge] operation failed:", e); }
 
       // 8. Shop pulse (current state)
       try {
@@ -781,7 +784,7 @@ export function registerBridgeRoutes(app: Express): void {
 
       res.json(results);
     } catch (err: unknown) {
-      console.error("[Bridge] Intelligence error:", err);
+      log.error("[Bridge] Intelligence error:", err);
       res.status(500).json({ error: "Internal error", timestamp: new Date().toISOString() });
     }
   });

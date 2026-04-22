@@ -18,6 +18,9 @@ import { getInstagramPosts, getInstagramAccount } from "../instagram";
 
 import { db } from "../lib/db-helper";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("pipelines:instagram-data");
 // ─── TYPES ───────────────────────────────────────────────
 
 export interface PostAnalysis {
@@ -132,7 +135,7 @@ export async function syncInstagramPosts(): Promise<{
 
       newPosts++;
     } catch (error) {
-      console.error("[Instagram Pipeline] Error processing post:", error);
+      log.error("[Instagram Pipeline] Error processing post:", error);
       errors++;
     }
   }
@@ -203,7 +206,7 @@ Scoring guide:
       return { score, themes };
     }
   } catch (error) {
-    console.error("[Instagram Pipeline] Content scoring failed:", error);
+    log.error("[Instagram Pipeline] Content scoring failed:", error);
   }
 
   return { score: 5, themes: [] };
@@ -356,7 +359,7 @@ export async function getTopPosts(opts?: { limit?: number }): Promise<PostAnalys
     dayOfWeek: r.dayOfWeek || 0,
     hourOfDay: r.hourOfDay || 0,
     contentScore: r.contentScore || 0,
-    themes: r.themesJson ? (() => { try { return JSON.parse(r.themesJson); } catch (e) { console.warn("[pipelines/instagram-data] operation failed:", e); return []; } })() : [],
+    themes: r.themesJson ? (() => { try { return JSON.parse(r.themesJson); } catch (e) { log.warn("[pipelines/instagram-data] operation failed:", e); return []; } })() : [],
   }));
 }
 
@@ -439,7 +442,7 @@ Focus on: posting frequency, content types, timing, engagement tactics, and cont
       }
     }
   } catch (error) {
-    console.error("[Instagram Pipeline] Recommendation generation failed:", error);
+    log.error("[Instagram Pipeline] Recommendation generation failed:", error);
     recommendations = ["Unable to generate recommendations. Check pipeline logs."];
   }
 

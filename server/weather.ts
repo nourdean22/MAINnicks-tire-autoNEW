@@ -1,3 +1,6 @@
+import { createLogger } from "./lib/logger";
+const log = createLogger("weather");
+
 /**
  * Weather service for Cleveland, OH using Open-Meteo API (free, no API key required).
  * Fetches current conditions and generates weather-reactive notifications
@@ -74,7 +77,7 @@ export async function getWeather(): Promise<WeatherData | null> {
 
     const response = await fetch(url);
     if (!response.ok) {
-      console.warn("[Weather] API returned status:", response.status);
+      log.warn("[Weather] API returned status:", response.status);
       return cachedWeather?.data || null;
     }
 
@@ -93,7 +96,7 @@ export async function getWeather(): Promise<WeatherData | null> {
     cachedWeather = { data, timestamp: Date.now() };
     return data;
   } catch (error) {
-    console.warn("[Weather] Failed to fetch:", error);
+    log.warn("[Weather] Failed to fetch:", error);
     return cachedWeather?.data || null;
   }
 }

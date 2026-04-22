@@ -7,6 +7,9 @@
  */
 import { eq, desc } from "drizzle-orm";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("services:customerMessaging");
 async function getDbAndSchema() {
   const { getDb } = await import("../db");
   const schema = await import("../../drizzle/schema");
@@ -92,7 +95,7 @@ export async function generateStatusMessage(params: {
       }
     }
   } catch (err) {
-    console.error("[CustomerMessaging] Customer lookup failed:", err instanceof Error ? err.message : err);
+    log.error("[CustomerMessaging] Customer lookup failed:", err instanceof Error ? err.message : err);
   }
 
   const vehicle = [wo.vehicleYear, wo.vehicleMake, wo.vehicleModel].filter(Boolean).join(" ") || "your vehicle";

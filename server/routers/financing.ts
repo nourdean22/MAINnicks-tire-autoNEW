@@ -8,6 +8,9 @@ import { syncFinancingToSheet } from "../sheets-sync";
 import { FINANCING_PROVIDERS, PROVIDER_MAP } from "../../shared/financing";
 import { z } from "zod";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:financing");
 export const financingRouter = router({
   /**
    * Track a financing application click from the website.
@@ -63,7 +66,7 @@ export const financingRouter = router({
             source: `financing_${input.provider}`,
             urgencyScore: 5, // Max score — high intent, they're applying for money
           })
-        ).catch((e) => { console.warn("[routers/financing] fire-and-forget failed:", e); });
+        ).catch((e) => { log.warn("[routers/financing] fire-and-forget failed:", e); });
 
         return {
           success: true,

@@ -127,10 +127,10 @@ export async function recall(params?: {
           uses: data.uses || 1,
           createdAt: data.createdAt || "",
         };
-      } catch (e) { console.warn("[services/nickMemory] operation failed:", e); return null; }
+      } catch (e) { log.warn("[services/nickMemory] operation failed:", e); return null; }
     }).filter(Boolean) as NickMemory[];
   } catch (e) {
-    console.warn("[services/nickMemory] operation failed:", e);
+    log.warn("[services/nickMemory] operation failed:", e);
     return [];
   }
 }
@@ -228,9 +228,9 @@ Respond with JSON:
             });
           }
         }
-      } catch (e) { console.warn("[services/nickMemory] operation failed:", e); }
+      } catch (e) { log.warn("[services/nickMemory] operation failed:", e); }
     }
-  } catch (e) { console.warn("[services/nickMemory] operation failed:", e); }
+  } catch (e) { log.warn("[services/nickMemory] operation failed:", e); }
 }
 
 /**
@@ -376,7 +376,7 @@ export async function learnFromEvent(eventType: string, data: Record<string, any
         break;
       }
     }
-  } catch (e) { console.warn("[services/nickMemory] operation failed:", e); }
+  } catch (e) { log.warn("[services/nickMemory] operation failed:", e); }
 }
 
 /**
@@ -408,7 +408,7 @@ export async function syncMemoriesToStatenour(): Promise<number> {
       signal: AbortSignal.timeout(5000),
     });
     return memories.length;
-  } catch (e) { console.warn("[services/nickMemory] operation failed:", e); return 0; }
+  } catch (e) { log.warn("[services/nickMemory] operation failed:", e); return 0; }
 }
 
 /**
@@ -591,10 +591,10 @@ export async function decayMemories(): Promise<number> {
           await d.delete(shopSettings).where(sql`${shopSettings.id} = ${row.id}`);
           decayed++;
         }
-      } catch (e) { console.warn("[services/nickMemory] operation failed:", e); }
+      } catch (e) { log.warn("[services/nickMemory] operation failed:", e); }
     }
     return decayed;
-  } catch (e) { console.warn("[services/nickMemory] operation failed:", e); return 0; }
+  } catch (e) { log.warn("[services/nickMemory] operation failed:", e); return 0; }
 }
 
 /**

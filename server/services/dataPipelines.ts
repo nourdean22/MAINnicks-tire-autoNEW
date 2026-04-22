@@ -58,7 +58,7 @@ export async function refreshGatewayPrices(): Promise<{ recordsProcessed: number
     const cookies = res.headers.getSetCookie?.() || [];
     cookie = cookies.map((c: string) => c.split(";")[0]).join("; ");
   } catch (e) {
-    console.warn("[services/dataPipelines] operation failed:", e);
+    log.warn("[services/dataPipelines] operation failed:", e);
     return { recordsProcessed: 0, details: "Gateway auth failed" };
   }
 
@@ -107,7 +107,7 @@ export async function refreshGatewayPrices(): Promise<{ recordsProcessed: number
       // Small delay between requests to not hammer the API
       await new Promise(r => setTimeout(r, 800));
     } catch (e) {
-      console.warn("[services/dataPipelines] operation failed:", e);
+      log.warn("[services/dataPipelines] operation failed:", e);
       log.warn(`Price fetch failed for size ${size}`);
     }
   }
@@ -121,7 +121,7 @@ export async function refreshGatewayPrices(): Promise<{ recordsProcessed: number
         `${priceChanges.length > 10 ? `...and ${priceChanges.length - 10} more\n` : ""}` +
         `Updated: ${sizesUpdated} sizes, ${totalFetched} tires`
       );
-    } catch (e) { console.warn("[services/dataPipelines] operation failed:", e); }
+    } catch (e) { log.warn("[services/dataPipelines] operation failed:", e); }
   }
 
   return {
@@ -332,7 +332,7 @@ export async function crossReconcileInvoices(): Promise<{ recordsProcessed: numb
           ).join("\n") +
           `\n\n${anomalies.join("\n")}`
         );
-      } catch (e) { console.warn("[services/dataPipelines] operation failed:", e); }
+      } catch (e) { log.warn("[services/dataPipelines] operation failed:", e); }
     }
 
     // Store insights
@@ -347,7 +347,7 @@ export async function crossReconcileInvoices(): Promise<{ recordsProcessed: numb
           confidence: 0.9,
         });
       }
-    } catch (e) { console.warn("[services/dataPipelines] operation failed:", e); }
+    } catch (e) { log.warn("[services/dataPipelines] operation failed:", e); }
 
     return {
       recordsProcessed: invoices.length,

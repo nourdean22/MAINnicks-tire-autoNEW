@@ -654,8 +654,8 @@ export async function getVendorHealthReport(): Promise<{
 
   // Dispatch vendor health snapshot to NOUR OS bridge (non-blocking)
   import("../nour-os-bridge").then(({ dispatchVendorHealthSnapshot }) => {
-    dispatchVendorHealthSnapshot(results).catch((e) => { console.warn("[services/vendorHealth] fire-and-forget failed:", e); });
-  }).catch((e) => { console.warn("[services/vendorHealth] fire-and-forget failed:", e); });
+    dispatchVendorHealthSnapshot(results).catch((e) => { log.warn("[services/vendorHealth] fire-and-forget failed:", e); });
+  }).catch((e) => { log.warn("[services/vendorHealth] fire-and-forget failed:", e); });
 
   const overallStatus = computeOverall(results);
   return {
@@ -712,7 +712,7 @@ export function startContinuousMonitoring(): void {
               const { alertVendorDown } = await import("./telegram");
               alertVendorDown(current.vendor, firstError);
             } catch (e) {
-              console.warn("[services/vendorHealth] operation failed:", e);
+              log.warn("[services/vendorHealth] operation failed:", e);
               // best-effort
             }
             log.error(`Vendor ${current.vendor} went ${current.status}`, {
@@ -727,7 +727,7 @@ export function startContinuousMonitoring(): void {
               const { alertVendorRecovered } = await import("./telegram");
               alertVendorRecovered(current.vendor);
             } catch (e) {
-              console.warn("[services/vendorHealth] operation failed:", e);
+              log.warn("[services/vendorHealth] operation failed:", e);
               // best-effort
             }
             log.info(`Vendor ${current.vendor} recovered`, { vendor: current.vendor });

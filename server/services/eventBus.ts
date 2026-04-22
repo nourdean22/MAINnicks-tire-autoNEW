@@ -212,7 +212,7 @@ async function ensureInitialized(): Promise<void> {
               WHERE RIGHT(phone, 10) = ${phone} OR RIGHT(phone2, 10) = ${phone}
             `);
           }
-        } catch (e) { console.warn("[eventBus:automation] customer totalSpent/totalVisits update failed:", e); }
+        } catch (e) { log.warn("[eventBus:automation] customer totalSpent/totalVisits update failed:", e); }
       }
     },
   });
@@ -332,7 +332,7 @@ async function ensureInitialized(): Promise<void> {
               .where(like(leadsTable.phone, `%${phone10}%`)).limit(2);
             if (prior.length > 1) returnNote = "\n🔄 RETURNING CUSTOMER — they've contacted before";
           }
-        } catch (e) { console.warn("[eventBus:telegram] returning customer check failed:", e); }
+        } catch (e) { log.warn("[eventBus:telegram] returning customer check failed:", e); }
         await sendTelegram(
           `🔴 HIGH-URGENCY LEAD: ${event.data.name} (${event.data.phone})\n` +
           `Source: ${event.data.source} | Urgency: ${event.data.urgencyScore}/5${returnNote}\n` +
@@ -381,7 +381,7 @@ async function ensureInitialized(): Promise<void> {
       try {
         const { learnFromEvent } = await import("./nickMemory");
         await learnFromEvent(event.type, event.data);
-      } catch (e) { console.warn("[eventBus:nickLearning] learnFromEvent failed:", e); }
+      } catch (e) { log.warn("[eventBus:nickLearning] learnFromEvent failed:", e); }
     },
   });
 
@@ -395,7 +395,7 @@ async function ensureInitialized(): Promise<void> {
       try {
         const { recordEventOccurrence } = await import("./feedbackLoop");
         recordEventOccurrence(event.type);
-      } catch (e) { console.warn("[eventBus:feedbackLoop] event occurrence recording failed:", e); }
+      } catch (e) { log.warn("[eventBus:feedbackLoop] event occurrence recording failed:", e); }
     },
   });
 
@@ -453,8 +453,8 @@ async function ensureInitialized(): Promise<void> {
             if (attempt < 2) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
           }
         }
-        if (lastErr) console.warn("[eventBus:statenour] sync push failed after retries:", lastErr);
-      } catch (e) { console.warn("[eventBus:statenour] sync push error:", e); }
+        if (lastErr) log.warn("[eventBus:statenour] sync push failed after retries:", lastErr);
+      } catch (e) { log.warn("[eventBus:statenour] sync push error:", e); }
     },
   });
 
@@ -642,7 +642,7 @@ function trackLifecycle(type: BusinessEvent, data: Record<string, any>): void {
         source: "lifecycle_tracker",
         confidence: 0.95,
       })
-    ).catch(e => console.warn("[eventBus:lifecycle] full conversion memory save failed:", e));
+    ).catch(e => log.warn("[eventBus:lifecycle] full conversion memory save failed:", e));
     lifecycleTracker.delete(key);
   }
 }

@@ -8,6 +8,9 @@ import viteConfig from "../../vite.config";
 import { getRouteByPath } from "../../shared/routes";
 import { SITE_URL } from "../../shared/business";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("_core:vite");
 /**
  * Inject route-specific meta tags (title, description, canonical, OG) into the HTML template.
  * This is critical for SEO — without it, Google sees the same homepage meta tags on every page,
@@ -115,7 +118,7 @@ export function serveStatic(app: Express) {
       ? path.resolve(import.meta.dirname, "../..", "dist", "public")
       : path.resolve(import.meta.dirname, "public");
   if (!fs.existsSync(distPath)) {
-    console.error(
+    log.error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`
     );
   }

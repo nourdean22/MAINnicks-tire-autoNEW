@@ -112,7 +112,7 @@ async function refreshCache(): Promise<void> {
     lastCacheRefresh = Date.now();
   } catch (err) {
     // Use stale cache — log for visibility
-    console.warn("[FeatureFlags] Cache refresh failed, using stale:", err instanceof Error ? err.message : err);
+    log.warn("[FeatureFlags] Cache refresh failed, using stale:", err instanceof Error ? err.message : err);
   }
 }
 

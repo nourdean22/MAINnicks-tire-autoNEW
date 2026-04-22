@@ -144,7 +144,7 @@ ${conversionRate < 40 ? `- 📉 Conversion rate ${conversionRate}% is below 40% 
       const [pipeline, revenue] = await Promise.all([analyzeConversionPipeline(), projectRevenue()]);
       enrichmentBlock += `\nPROJECTIONS: This week $${revenue.thisWeekProjection}, this month $${revenue.thisMonthProjection}. WoW: ${revenue.weekOverWeek > 0 ? "+" : ""}${revenue.weekOverWeek}% (${revenue.trend}).`;
       enrichmentBlock += `\nPIPELINE: Est→Job ${pipeline.estimateToInvoice}%, Lead→Booking ${pipeline.leadToBooking}%. ${pipeline.staleEstimates} stale estimates.`;
-    } catch (e) { console.warn("[morningBrief] enrichment data (revenue/pipeline/declined) failed:", e); }
+    } catch (e) { log.warn("[morningBrief] enrichment data (revenue/pipeline/declined) failed:", e); }
 
     // ─── Brief self-review: did yesterday's brief drive action? ────
     let briefReviewBlock = "";
@@ -154,26 +154,26 @@ ${conversionRate < 40 ? `- 📉 Conversion rate ${conversionRate}% is below 40% 
       if (engagement.sent) {
         briefReviewBlock = `\nYESTERDAY'S BRIEF: ${engagement.engagementRate === "engaged" ? "Nour read it and engaged ✓" : "Sent but no response — maybe adjust timing or content."}`;
       }
-    } catch (e) { console.warn("[morningBrief] brief engagement review failed:", e); }
+    } catch (e) { log.warn("[morningBrief] brief engagement review failed:", e); }
 
     // ─── Inject memory + personal context + customer intel ────
     let memoryBlock = "";
     try {
       const { getWarmupContext } = await import("../../services/nickMemory");
       memoryBlock = await getWarmupContext();
-    } catch (e) { console.warn("[morningBrief] memory warmup context failed:", e); }
+    } catch (e) { log.warn("[morningBrief] memory warmup context failed:", e); }
 
     let personalBlock = "";
     try {
       const { getNourPersonalContext } = await import("../../services/nourContext");
       personalBlock = getNourPersonalContext();
-    } catch (e) { console.warn("[morningBrief] personal context load failed:", e); }
+    } catch (e) { log.warn("[morningBrief] personal context load failed:", e); }
 
     let customerBlock = "";
     try {
       const { getCustomerBrief } = await import("../../services/customerIntelligence");
       customerBlock = await getCustomerBrief();
-    } catch (e) { console.warn("[morningBrief] customer brief load failed:", e); }
+    } catch (e) { log.warn("[morningBrief] customer brief load failed:", e); }
 
     // ─── Master Intelligence Report ─────────────────────
     let masterBlock = "";
@@ -203,11 +203,11 @@ ${conversionRate < 40 ? `- 📉 Conversion rate ${conversionRate}% is below 40% 
       } = await import("../../services/intelligenceEngines");
 
       const [forecast, ltv, scoredLeads, crossSell, declined] = await Promise.all([
-        forecastRevenue().catch((e) => { console.warn("[jobs/morningBrief] optional operation failed:", e); return null; }),
-        predictCustomerLTV().catch((e) => { console.warn("[jobs/morningBrief] optional operation failed:", e); return null; }),
-        scoreLeads().catch((e) => { console.warn("[jobs/morningBrief] optional operation failed:", e); return null; }),
-        generateCrossSellRecommendations().catch((e) => { console.warn("[jobs/morningBrief] optional operation failed:", e); return null; }),
-        analyzeDeclinedWork().catch((e) => { console.warn("[jobs/morningBrief] optional operation failed:", e); return null; }),
+        forecastRevenue().catch((e) => { log.warn("[jobs/morningBrief] optional operation failed:", e); return null; }),
+        predictCustomerLTV().catch((e) => { log.warn("[jobs/morningBrief] optional operation failed:", e); return null; }),
+        scoreLeads().catch((e) => { log.warn("[jobs/morningBrief] optional operation failed:", e); return null; }),
+        generateCrossSellRecommendations().catch((e) => { log.warn("[jobs/morningBrief] optional operation failed:", e); return null; }),
+        analyzeDeclinedWork().catch((e) => { log.warn("[jobs/morningBrief] optional operation failed:", e); return null; }),
       ]);
 
       intelligenceBlock = "\nINTELLIGENCE:";
@@ -235,7 +235,7 @@ ${conversionRate < 40 ? `- 📉 Conversion rate ${conversionRate}% is below 40% 
       if (declined) {
         intelligenceBlock += `\n💸 Declined Work Recovery — $${declined.totalDeclinedValue} total declined | $${declined.recoveryOpportunity} recoverable (20% est.)`;
       }
-    } catch (e) { console.warn("[morningBrief] intelligence engines data load failed:", e); }
+    } catch (e) { log.warn("[morningBrief] intelligence engines data load failed:", e); }
 
     // ─── Use Nick AI to write the brief ────────────────
     let briefText: string;
@@ -308,7 +308,7 @@ Systems over motivation. Let's go.`;
     try {
       const { recordBriefSent } = await import("../../services/feedbackLoop");
       recordBriefSent();
-    } catch (e) { console.warn("[morningBrief] brief delivery tracking failed:", e); }
+    } catch (e) { log.warn("[morningBrief] brief delivery tracking failed:", e); }
 
     return { recordsProcessed: 1, details: `Full brief sent. ${pendingCount} pending. $${monthRevenue.toLocaleString()} 30d rev.` };
   } catch (err) {

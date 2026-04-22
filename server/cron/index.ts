@@ -91,7 +91,7 @@ async function runJob(job: CronJob): Promise<void> {
     const durationMs = Date.now() - startedAt.getTime();
     job.lastRun = new Date();
 
-    logCronRun(job.name, "completed", durationMs, result.recordsProcessed, result.details).catch((e) => { console.warn("[cron/index] fire-and-forget failed:", e); });
+    logCronRun(job.name, "completed", durationMs, result.recordsProcessed, result.details).catch((e) => { log.warn("[cron/index] fire-and-forget failed:", e); });
 
     if (result.recordsProcessed && result.recordsProcessed > 0) {
       log.info(`Cron completed: ${job.name}`, { duration: durationMs, records: result.recordsProcessed });
@@ -99,7 +99,7 @@ async function runJob(job: CronJob): Promise<void> {
   } catch (err) {
     const durationMs = Date.now() - startedAt.getTime();
     const error = err instanceof Error ? err.message : String(err);
-    logCronRun(job.name, "failed", durationMs, 0, error).catch((e) => { console.warn("[cron/index] fire-and-forget failed:", e); });
+    logCronRun(job.name, "failed", durationMs, 0, error).catch((e) => { log.warn("[cron/index] fire-and-forget failed:", e); });
     log.error(`Cron failed: ${job.name}`, { duration: durationMs, error });
   } finally {
     if (jobTimeout) clearTimeout(jobTimeout);
@@ -126,7 +126,7 @@ async function logCronRun(jobName: string, status: string, durationMs: number, r
     });
   } catch (err) {
     // Don't let log failures crash cron — but record the error
-    console.error("[Cron] Log persistence failed:", err instanceof Error ? err.message : err);
+    log.error("[Cron] Log persistence failed:", err instanceof Error ? err.message : err);
   }
 }
 
@@ -165,12 +165,12 @@ export async function runJobByName(jobName: string): Promise<{ status: string; r
   try {
     const result = await job.handler();
     const durationMs = Date.now() - startedAt;
-    logCronRun(job.name, "completed", durationMs, result.recordsProcessed, result.details).catch((e) => { console.warn("[cron/index] fire-and-forget failed:", e); });
+    logCronRun(job.name, "completed", durationMs, result.recordsProcessed, result.details).catch((e) => { log.warn("[cron/index] fire-and-forget failed:", e); });
     return { status: "completed", recordsProcessed: result.recordsProcessed, details: result.details };
   } catch (err) {
     const durationMs = Date.now() - startedAt;
     const error = err instanceof Error ? err.message : String(err);
-    logCronRun(job.name, "failed", durationMs, 0, error).catch((e) => { console.warn("[cron/index] fire-and-forget failed:", e); });
+    logCronRun(job.name, "failed", durationMs, 0, error).catch((e) => { log.warn("[cron/index] fire-and-forget failed:", e); });
     return { status: "failed", details: error };
   }
 }

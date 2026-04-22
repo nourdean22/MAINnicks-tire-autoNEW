@@ -209,7 +209,7 @@ export async function assignWorkOrder(params: {
       service: wo.serviceDescription || undefined,
     });
   } catch (err) {
-    console.error("[Dispatch] NOUR OS bridge event failed (assign):", err instanceof Error ? err.message : err);
+    log.error("[Dispatch] NOUR OS bridge event failed (assign):", err instanceof Error ? err.message : err);
   }
 }
 
@@ -241,7 +241,7 @@ export async function startWork(params: {
       service: wo.serviceDescription || undefined,
     });
   } catch (err) {
-    console.error("[Dispatch] NOUR OS bridge event failed (start):", err instanceof Error ? err.message : err);
+    log.error("[Dispatch] NOUR OS bridge event failed (start):", err instanceof Error ? err.message : err);
   }
 }
 
@@ -279,7 +279,7 @@ export async function techComplete(params: {
     const { createQcChecklist } = await import("./qcService");
     await createQcChecklist(params.workOrderId);
   } catch (err) {
-    console.error("[Dispatch] Auto QC checklist creation failed:", err instanceof Error ? err.message : err);
+    log.error("[Dispatch] Auto QC checklist creation failed:", err instanceof Error ? err.message : err);
   }
 
   try {
@@ -292,7 +292,7 @@ export async function techComplete(params: {
       service: wo.serviceDescription || undefined,
     });
   } catch (err) {
-    console.error("[Dispatch] NOUR OS bridge event failed (qc_review):", err instanceof Error ? err.message : err);
+    log.error("[Dispatch] NOUR OS bridge event failed (qc_review):", err instanceof Error ? err.message : err);
   }
 }
 

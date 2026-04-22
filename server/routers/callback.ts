@@ -17,6 +17,9 @@ import { alertNewLead } from "../services/telegram";
 
 import { db } from "../lib/db-helper";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:callback");
 export const callbackRouter = router({
   submit: publicProcedure
     .input(z.object({
@@ -71,7 +74,7 @@ export const callbackRouter = router({
           utmCampaign: input.utmCampaign || null,
           landingPage: input.landingPage || null,
           referrer: input.referrer || null,
-        }).catch((e: any) => console.warn("[callback:submit] lead insert failed:", e));
+        }).catch((e: any) => log.warn("[callback:submit] lead insert failed:", e));
       }
 
       notifyCallbackRequest({
@@ -79,19 +82,19 @@ export const callbackRouter = router({
         phone: input.phone,
         reason: input.context || undefined,
         sourcePage: input.sourcePage || undefined,
-      }).catch(err => console.error("[Callback] Email notification failed:", err));
+      }).catch(err => log.error("[Callback] Email notification failed:", err));
 
       // Unified event bus dispatch (→ NOUR OS + ShopDriver + Telegram + learning)
       import("../services/eventBus").then(({ emit }) =>
         emit.callbackRequested({ name, phone, reason: input.context || null })
-      ).catch(e => console.warn("[callback:submit] event bus dispatch failed:", e));
+      ).catch(e => log.warn("[callback:submit] event bus dispatch failed:", e));
 
       // After-hours gets a different SMS than business hours
       if (isAfterHours()) {
-        handleAfterHoursCapture({ name, phone, type: "callback" }).catch(e => console.warn("[callback:submit] after-hours capture failed:", e));
+        handleAfterHoursCapture({ name, phone, type: "callback" }).catch(e => log.warn("[callback:submit] after-hours capture failed:", e));
       } else {
         sendSms(input.phone, callbackConfirmationSms(input.name)).catch(err =>
-          console.error("[SMS] Callback confirmation failed:", err)
+          log.error("[SMS] Callback confirmation failed:", err)
         );
       }
 
@@ -102,14 +105,14 @@ export const callbackRouter = router({
         problem: "Callback request",
         urgencyScore: 4,
         urgencyReason: "Customer requested callback",
-      }).catch(e => console.warn("[callback:submit] lead sheet sync failed:", e));
+      }).catch(e => log.warn("[callback:submit] lead sheet sync failed:", e));
 
       syncCallbackToSheet({
         name: input.name,
         phone: input.phone,
         reason: input.context || undefined,
         sourcePage: input.sourcePage || undefined,
-      }).catch(e => console.warn("[callback:submit] callback sheet sync failed:", e));
+      }).catch(e => log.warn("[callback:submit] callback sheet sync failed:", e));
 
       // Meta Conversions API: Send server-side Lead event for callback
       if (input.pixelEventId) {
@@ -123,15 +126,15 @@ export const callbackRouter = router({
           fbp: input.pixelUserData?.fbp,
           contentName: "Callback Request",
           contentCategory: input.sourcePage || "website",
-        }).catch(err => console.error("[CAPI] Callback lead event failed:", err));
+        }).catch(err => log.error("[CAPI] Callback lead event failed:", err));
       }
 
       // Telegram alert (always, regardless of hours)
-      alertNewLead({ name, phone, service: input.context || "Callback", source: "callback" }).catch(e => console.warn("[callback:submit] telegram lead alert failed:", e));
+      alertNewLead({ name, phone, service: input.context || "Callback", source: "callback" }).catch(e => log.warn("[callback:submit] telegram lead alert failed:", e));
 
       return result;
       } catch (err) {
-        console.error("[Callback] Submit failed:", err);
+        log.error("[Callback] Submit failed:", err);
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "We couldn't save your callback request. Please call us directly at (216) 862-0005." });
       }
     }),
@@ -156,13 +159,13 @@ export const callbackRouter = router({
           newStatus: input.status,
           notes: input.notes,
         }, { priority: input.status === "completed" ? "high" : "normal", source: "callback" })
-      ).catch(e => console.warn("[callback:updateStatus] event bus stage change dispatch failed:", e));
+      ).catch(e => log.warn("[callback:updateStatus] event bus stage change dispatch failed:", e));
 
       // Completed callback = conversion success, track for feedback
       if (input.status === "completed") {
         import("../services/feedbackLoop").then(({ trackAlertOutcome }) =>
           trackAlertOutcome("callback_followup", "acted")
-        ).catch(e => console.warn("[callback:updateStatus] feedback tracking for completed callback failed:", e));
+        ).catch(e => log.warn("[callback:updateStatus] feedback tracking for completed callback failed:", e));
       } else if (input.status === "no-answer") {
         import("../services/nickMemory").then(({ remember }) =>
           remember({
@@ -171,7 +174,7 @@ export const callbackRouter = router({
             source: "callback_feedback",
             confidence: 0.6,
           })
-        ).catch(e => console.warn("[callback:updateStatus] no-answer memory lesson failed:", e));
+        ).catch(e => log.warn("[callback:updateStatus] no-answer memory lesson failed:", e));
       }
 
       return result;

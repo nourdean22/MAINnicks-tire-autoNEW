@@ -15,7 +15,6 @@ import {
   type WorkOrderExtraction, type FollowUpStep, type FollowUpChainData,
   type DispatchAnalysis, type VerifiedAction, type ExecutionResult,
 } from "./utils";
-
 // ─── Smart Work Order Creation from Chat Session ────
 
 export async function handleCreateWorkOrder(input: {
@@ -347,7 +346,7 @@ Return JSON:
   try {
     chainData = JSON.parse(typeof chainRaw === "string" ? chainRaw : "{}") as FollowUpChainData;
   } catch (e) {
-    console.warn("[routers/nickActions] operation failed:", e);
+    log.warn("[routers/nickActions] operation failed:", e);
     log.warn("Failed to parse follow-up chain, building fallback");
     chainData = null;
   }

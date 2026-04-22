@@ -35,6 +35,9 @@ import crypto from "crypto";
 
 import { GBP_REVIEW_URL as GOOGLE_REVIEW_URL, STORE_NAME } from "@shared/const";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:reviewRequests");
 /**
  * Build the personalized review request SMS message.
  * Supports custom templates with {firstName}, {service}, {reviewUrl} placeholders.
@@ -99,7 +102,7 @@ export async function scheduleReviewRequest(bookingId: number, name: string, pho
     // Review request scheduled
     return { scheduled: true };
   } catch (error: any) {
-    console.error("[ReviewRequest] Failed to schedule:", error.message);
+    log.error("[ReviewRequest] Failed to schedule:", error.message);
     return { scheduled: false, reason: error.message };
   }
 }
@@ -139,7 +142,7 @@ export async function processReviewRequestQueue() {
     } else {
       await markReviewRequestFailed(req.id, result.error || "Unknown error");
       failed++;
-      console.error(`[ReviewRequest] Failed for ${req.customerName}: ${result.error}`);
+      log.error(`[ReviewRequest] Failed for ${req.customerName}: ${result.error}`);
     }
 
     // Small delay between sends to avoid Twilio rate limits

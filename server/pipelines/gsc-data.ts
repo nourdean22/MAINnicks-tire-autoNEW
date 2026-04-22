@@ -21,6 +21,9 @@ import { desc, eq, gte, lte, sql, and } from "drizzle-orm";
 
 import { db } from "../lib/db-helper";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("pipelines:gsc-data");
 // ─── TYPES ───────────────────────────────────────────────
 
 export interface SearchPerformanceRow {
@@ -152,7 +155,7 @@ export async function fetchSearchPerformance(
   dateRange: DateRange,
 ): Promise<SearchPerformanceRow[]> {
   if (!hasGscCredentials()) {
-    console.warn("[GSC Pipeline] Service account credentials not configured — skipping fetch");
+    log.warn("[GSC Pipeline] Service account credentials not configured — skipping fetch");
     return [];
   }
 
@@ -202,7 +205,7 @@ export async function fetchSearchPerformance(
       date: row.keys[2],
     }));
   } catch (error) {
-    console.error("[GSC Pipeline] Fetch failed:", error);
+    log.error("[GSC Pipeline] Fetch failed:", error);
     return [];
   }
 }
@@ -233,7 +236,7 @@ export async function syncSearchPerformance(dateRange: DateRange): Promise<{
       });
       stored++;
     } catch (error) {
-      console.error("[GSC Pipeline] Insert error:", error);
+      log.error("[GSC Pipeline] Insert error:", error);
     }
   }
 
@@ -418,7 +421,7 @@ Aim for 4-8 clusters. Don't create clusters with only 1 query unless it's truly 
       };
     });
   } catch (error) {
-    console.error("[GSC Pipeline] Query clustering failed:", error);
+    log.error("[GSC Pipeline] Query clustering failed:", error);
     return [];
   }
 }

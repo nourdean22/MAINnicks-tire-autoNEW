@@ -11,6 +11,9 @@ import {
 } from "../db";
 import { sendSms, maintenanceReminderSms } from "../sms";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:reminders");
 export const remindersRouter = router({
   /** Get all reminder interval settings (admin) */
   getSettings: adminProcedure.query(async () => {
@@ -100,7 +103,7 @@ export async function processReminderQueue() {
         failed++;
       }
     } catch (err) {
-      console.error(`[Reminders] Failed to send reminder #${reminder.id}:`, err);
+      log.error(`[Reminders] Failed to send reminder #${reminder.id}:`, err);
       failed++;
     }
   }

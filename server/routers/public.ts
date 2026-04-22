@@ -13,6 +13,9 @@ import { sanitizeText } from "../sanitize";
 import { cached } from "../lib/cache";
 import { desc, gte, like, or, and, sql } from "drizzle-orm";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:public");
 export const weatherRouter = router({
   current: publicProcedure.query(async () => {
     return cached("weather:current", 600, async () => {
@@ -130,7 +133,7 @@ export const laborEstimateRouter = router({
               urgencyScore: 3,
             });
           } catch (err) {
-            console.error("[Estimate] Pipeline failed:", err instanceof Error ? err.message : err);
+            log.error("[Estimate] Pipeline failed:", err instanceof Error ? err.message : err);
           }
         })();
       }
@@ -252,7 +255,7 @@ export const activityRouter = router({
       items.sort((a, b) => a.minutesAgo - b.minutesAgo);
       return items.slice(0, 10);
     } catch (err) {
-      console.error("[Activity] Failed to fetch recent activity:", err);
+      log.error("[Activity] Failed to fetch recent activity:", err);
       return [];
     }
   }),
@@ -320,7 +323,7 @@ export const serviceReviewsRouter = router({
           })),
         };
       } catch (err) {
-        console.error("[ServiceReviews] Failed:", err);
+        log.error("[ServiceReviews] Failed:", err);
         return { reviews: [] };
       }
     }),

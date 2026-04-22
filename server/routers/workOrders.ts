@@ -5,6 +5,9 @@
 import { z } from "zod";
 import { router, adminProcedure } from "../_core/trpc";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:workOrders");
 export const workOrdersRouter = router({
   /** Create work order (from estimate or standalone) */
   create: adminProcedure
@@ -42,7 +45,7 @@ export const workOrdersRouter = router({
           vehicle: [input.vehicleMake, input.vehicleModel].filter(Boolean).join(" "),
           source: input.source,
         }, { priority: "high", source: "work_order" })
-      ).catch((e) => { console.warn("[routers/workOrders] fire-and-forget failed:", e); });
+      ).catch((e) => { log.warn("[routers/workOrders] fire-and-forget failed:", e); });
 
       return result;
     }),
@@ -114,7 +117,7 @@ export const workOrdersRouter = router({
           changedBy: input.changedBy,
           note: input.note,
         }, { priority: "normal", source: "work_order" })
-      ).catch((e) => { console.warn("[routers/workOrders] fire-and-forget failed:", e); });
+      ).catch((e) => { log.warn("[routers/workOrders] fire-and-forget failed:", e); });
 
       // Completed work orders = revenue realized
       if (["completed", "invoiced", "picked_up"].includes(input.status)) {
@@ -124,7 +127,7 @@ export const workOrdersRouter = router({
             name: input.changedBy,
             service: input.note || "Work Order Completed",
           }, { priority: "high", source: "work_order" })
-        ).catch((e) => { console.warn("[routers/workOrders] fire-and-forget failed:", e); });
+        ).catch((e) => { log.warn("[routers/workOrders] fire-and-forget failed:", e); });
       }
 
       return { success: true };

@@ -4,6 +4,9 @@
 import { z } from "zod";
 import { router, publicProcedure, adminProcedure } from "../_core/trpc";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:fleetRouter");
 export const fleetRouter = router({
   inquiry: publicProcedure
     .input(z.object({
@@ -64,7 +67,7 @@ export const fleetRouter = router({
         },
       };
     } catch (e) {
-      console.error("[Fleet] Intelligence engine failed:", e instanceof Error ? e.message : e);
+      log.error("[Fleet] Intelligence engine failed:", e instanceof Error ? e.message : e);
       return { fleet: { totalVehicles: 0, topMakes: [], topByRevenue: [] }, geography: { totalWithZip: 0, hotZones: [] } };
     }
   }),

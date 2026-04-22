@@ -13,6 +13,9 @@ import { eq } from "drizzle-orm";
 import { shopSettings } from "../drizzle/schema";
 import { BUSINESS, resolveReviewDisplay } from "@shared/business";
 
+import { createLogger } from "./lib/logger";
+
+const log = createLogger("google-reviews");
 // Cache configuration
 let cachedData: GoogleReviewData | null = null;
 let cacheTimestamp = 0;
@@ -74,7 +77,7 @@ async function getReviewStatsFromDb(): Promise<{ count: number; rating: number }
       rating: rating ?? BUSINESS.reviews.rating,
     };
   } catch (err) {
-    console.warn("[GoogleReviews] Review data fetch failed:", err instanceof Error ? err.message : err);
+    log.warn("[GoogleReviews] Review data fetch failed:", err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -148,7 +151,7 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
     );
 
     if (search.status !== "OK" || !search.results?.length) {
-      console.warn("[GoogleReviews] Text search returned:", search.status);
+      log.warn("[GoogleReviews] Text search returned:", search.status);
       failCount++;
       return cachedData || await buildFallbackData();
     }
@@ -166,7 +169,7 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
     );
 
     if (details.status !== "OK" || !details.result) {
-      console.warn("[GoogleReviews] Place details failed for ID", placeId, ":", details.status);
+      log.warn("[GoogleReviews] Place details failed for ID", placeId, ":", details.status);
       failCount++;
       return cachedData || await buildFallbackData();
     }
@@ -210,7 +213,7 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
     // Reviews fetched successfully
     return reviewData;
   } catch (error) {
-    console.error("[GoogleReviews] Failed to fetch:", error);
+    log.error("[GoogleReviews] Failed to fetch:", error);
     failCount++;
     // Return cached data even if stale, or DB-stored fallback
     return cachedData || await buildFallbackData();

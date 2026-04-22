@@ -6,6 +6,9 @@ import { eq, lte } from "drizzle-orm";
 import { router, adminProcedure } from "../_core/trpc";
 import { randomUUID } from "crypto";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:inventoryRouter");
 export const inventoryRouter = router({
   getAll: adminProcedure
     .input(z.object({ category: z.string().optional(), limit: z.number().default(100) }))
@@ -117,7 +120,7 @@ export const inventoryRouter = router({
         topByRevenue: result.topByRevenue,
       };
     } catch (e) {
-      console.error("[Inventory] Demand forecast failed:", e instanceof Error ? e.message : e);
+      log.error("[Inventory] Demand forecast failed:", e instanceof Error ? e.message : e);
       return { totalVehicles: 0, topMakes: [], topByRevenue: [] };
     }
   }),
@@ -134,7 +137,7 @@ export const inventoryRouter = router({
         recoveryOpportunity: result.recoveryOpportunity,
       };
     } catch (e) {
-      console.error("[Inventory] Declined work analysis failed:", e instanceof Error ? e.message : e);
+      log.error("[Inventory] Declined work analysis failed:", e instanceof Error ? e.message : e);
       return { totalWithDeclined: 0, totalDeclinedValue: 0, topDeclinedServices: [], recoveryOpportunity: 0 };
     }
   }),

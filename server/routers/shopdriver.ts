@@ -14,6 +14,9 @@ import { db } from "../lib/db-helper";
 import { normalizePhone } from "../lib/phone";
 import { getAdminActivity } from "../lib/adminActivity";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:shopdriver");
 /** Classify customer segment based on last visit date */
 function classifySegment(lastVisitStr: string | null | undefined): "recent" | "lapsed" | "unknown" {
   if (!lastVisitStr) return "unknown";
@@ -87,7 +90,7 @@ async function sdLogin(): Promise<boolean> {
     const username = process.env.AUTO_LABOR_USERNAME || process.env.ALG_USERNAME;
     const password = process.env.AUTO_LABOR_PASSWORD || process.env.ALG_PASSWORD;
     if (!username || !password) {
-      console.error("[ShopDriver] Missing credentials: AUTO_LABOR_USERNAME / AUTO_LABOR_PASSWORD");
+      log.error("[ShopDriver] Missing credentials: AUTO_LABOR_USERNAME / AUTO_LABOR_PASSWORD");
       return false;
     }
 
@@ -120,13 +123,13 @@ async function sdLogin(): Promise<boolean> {
             console.info("[ShopDriver] Logged in successfully (token auth)");
             return true;
           }
-        } catch (e) { /* response not JSON — expected for some auth flows */ console.warn("[routers/shopdriver] operation failed:", e); }
+        } catch (e) { /* response not JSON — expected for some auth flows */ log.warn("[routers/shopdriver] operation failed:", e); }
       }
 
-      console.error("[ShopDriver] Login returned no session cookie or token, status:", res.status);
+      log.error("[ShopDriver] Login returned no session cookie or token, status:", res.status);
       return false;
     } catch (err) {
-      console.error("[ShopDriver] Login failed:", err instanceof Error ? err.message : err);
+      log.error("[ShopDriver] Login failed:", err instanceof Error ? err.message : err);
       return false;
     }
   })();
@@ -167,7 +170,7 @@ async function sdFetch(path: string): Promise<Response | null> {
         },
       });
     } catch (err) {
-      console.error("[ShopDriver] Fetch failed:", err instanceof Error ? err.message : err);
+      log.error("[ShopDriver] Fetch failed:", err instanceof Error ? err.message : err);
       return null;
     }
   };
@@ -184,7 +187,7 @@ async function sdFetch(path: string): Promise<Response | null> {
   } catch { /* ignore */ }
 
   if (isSessionKicked(res, bodyPreview)) {
-    console.warn(`[ShopDriver] Session kicked on ${path} (status ${res.status}, preview: ${bodyPreview.substring(0, 80)}) — forcing re-login`);
+    log.warn(`[ShopDriver] Session kicked on ${path} (status ${res.status}, preview: ${bodyPreview.substring(0, 80)}) — forcing re-login`);
     sdInvalidateSession();
     const ok = await sdLogin();
     if (!ok) return res; // re-login failed, return the HTML response so caller reports it
@@ -198,7 +201,7 @@ async function sdFetch(path: string): Promise<Response | null> {
     let preview2 = "";
     try { preview2 = (await clone2.text()).substring(0, 500); } catch { /* ignore */ }
     if (isSessionKicked(res, preview2)) {
-      console.error(`[ShopDriver] Still kicked after re-login on ${path} — credentials may be wrong or API changed`);
+      log.error(`[ShopDriver] Still kicked after re-login on ${path} — credentials may be wrong or API changed`);
     }
   }
 
@@ -381,7 +384,7 @@ export const shopdriverRouter = router({
             newCount++;
           }
         } catch (err) {
-          console.warn("[ShopDriver] Customer import row skipped:", err instanceof Error ? err.message : err);
+          log.warn("[ShopDriver] Customer import row skipped:", err instanceof Error ? err.message : err);
           skippedCount++;
         }
       }
@@ -435,7 +438,7 @@ export const shopdriverRouter = router({
 
       // Check if response is HTML instead of JSON (expired session / login page)
       if (bodyText.trimStart().startsWith("<") || bodyText.includes("<html")) {
-        console.error("[ShopDriver] Invoice sync got HTML response:", bodyText.substring(0, 200));
+        log.error("[ShopDriver] Invoice sync got HTML response:", bodyText.substring(0, 200));
         return { success: false, error: "ShopDriver returned HTML instead of JSON — the API session may have expired", synced: 0 };
       }
 
@@ -443,8 +446,8 @@ export const shopdriverRouter = router({
       try {
         data = JSON.parse(bodyText);
       } catch (e) {
-        console.warn("[routers/shopdriver] operation failed:", e);
-        console.error("[ShopDriver] Invoice sync non-JSON response:", bodyText.substring(0, 200));
+        log.warn("[routers/shopdriver] operation failed:", e);
+        log.error("[ShopDriver] Invoice sync non-JSON response:", bodyText.substring(0, 200));
         return { success: false, error: "ShopDriver returned non-JSON response — check API credentials", synced: 0 };
       }
 
@@ -508,7 +511,7 @@ export const shopdriverRouter = router({
 
       return { success: true, synced, updated, total: tickets.length };
     } catch (err) {
-      console.error("[ShopDriver] Invoice sync failed:", err instanceof Error ? err.message : err);
+      log.error("[ShopDriver] Invoice sync failed:", err instanceof Error ? err.message : err);
       return { success: false, error: `Failed to sync invoices: ${err instanceof Error ? err.message : "Unknown error"}`, synced: 0 };
     }
   }),
@@ -533,7 +536,7 @@ export const shopdriverRouter = router({
 
       // Check if response is HTML instead of JSON (expired session / login page)
       if (bodyText.trimStart().startsWith("<") || bodyText.includes("<html")) {
-        console.error("[ShopDriver] Customer sync got HTML response:", bodyText.substring(0, 200));
+        log.error("[ShopDriver] Customer sync got HTML response:", bodyText.substring(0, 200));
         return { success: false, error: "ShopDriver returned HTML instead of JSON — the API session may have expired", synced: 0 };
       }
 
@@ -541,8 +544,8 @@ export const shopdriverRouter = router({
       try {
         data = JSON.parse(bodyText);
       } catch (e) {
-        console.warn("[routers/shopdriver] operation failed:", e);
-        console.error("[ShopDriver] Customer sync non-JSON response:", bodyText.substring(0, 200));
+        log.warn("[routers/shopdriver] operation failed:", e);
+        log.error("[ShopDriver] Customer sync non-JSON response:", bodyText.substring(0, 200));
         return { success: false, error: "ShopDriver returned non-JSON response — check API credentials", synced: 0 };
       }
 
@@ -602,7 +605,7 @@ export const shopdriverRouter = router({
 
       return { success: true, newCustomers: newCount, updatedCustomers: updatedCount };
     } catch (err) {
-      console.error("[ShopDriver] Customer sync failed:", err instanceof Error ? err.message : err);
+      log.error("[ShopDriver] Customer sync failed:", err instanceof Error ? err.message : err);
       return { success: false, error: `Failed to sync customers: ${err instanceof Error ? err.message : "Unknown error"}`, synced: 0 };
     }
   }),
@@ -707,7 +710,7 @@ export const shopdriverRouter = router({
           });
           synced++;
         } catch (err) {
-          console.warn("[ShopDriver] Invoice row import skipped:", err instanceof Error ? err.message : err);
+          log.warn("[ShopDriver] Invoice row import skipped:", err instanceof Error ? err.message : err);
           skipped++;
         }
       }

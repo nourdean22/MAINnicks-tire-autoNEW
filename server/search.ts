@@ -9,6 +9,9 @@ import { SERVICES } from "../shared/services";
 import { BLOG_ARTICLES } from "../shared/blog";
 import { invokeLLM } from "./_core/llm";
 
+import { createLogger } from "./lib/logger";
+
+const log = createLogger("search");
 export interface SearchResult {
   type: "service" | "blog" | "page" | "faq";
   title: string;
@@ -281,7 +284,7 @@ Be direct and helpful. No hype. No jargon.`,
 
     return result;
   } catch (err) {
-    console.error("[AI Search] Error:", err);
+    log.error("[AI Search] Error:", err);
     // Fall back to keyword results
     return {
       aiSummary: "",

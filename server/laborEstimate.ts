@@ -9,6 +9,9 @@ import { invokeLLM } from "./_core/llm";
 import { eq } from "drizzle-orm";
 import { shopSettings } from "../drizzle/schema";
 
+import { createLogger } from "./lib/logger";
+
+const log = createLogger("laborEstimate");
 /** Search Auto Labor Guide for matching jobs to inject real labor times */
 async function findMatchingLaborJobs(repairDescription: string): Promise<string> {
   try {
@@ -27,7 +30,7 @@ async function findMatchingLaborJobs(repairDescription: string): Promise<string>
 
     return `\n\nAUTO LABOR GUIDE REFERENCE DATA (use these verified labor times):\n${matches.join("\n")}`;
   } catch (e) {
-    console.warn("[laborEstimate] labor guide lookup failed:", e);
+    log.warn("[laborEstimate] labor guide lookup failed:", e);
     return "";
   }
 }
@@ -44,7 +47,7 @@ async function getShopLaborRate(): Promise<number> {
     const result = await d.select().from(shopSettings).where(eq(shopSettings.key, "laborRate")).limit(1);
     return result.length > 0 ? parseFloat(result[0].value) || DEFAULT_LABOR_RATE : DEFAULT_LABOR_RATE;
   } catch (err) {
-    console.warn("[LaborEstimate] Failed to fetch labor rate, using default:", err instanceof Error ? err.message : err);
+    log.warn("[LaborEstimate] Failed to fetch labor rate, using default:", err instanceof Error ? err.message : err);
     return DEFAULT_LABOR_RATE;
   }
 }
@@ -234,7 +237,7 @@ Respond with a JSON object:
       return parsed;
     }
   } catch (error) {
-    console.error("[LaborEstimate] AI estimate failed:", error);
+    log.error("[LaborEstimate] AI estimate failed:", error);
   }
 
   // Fallback

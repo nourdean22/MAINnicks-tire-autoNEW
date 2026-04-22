@@ -244,7 +244,7 @@ export async function runPricingIntelligenceJob(): Promise<{
           alerts.join("\n\n") +
           `\n\n📊 ${rates.length} service categories analyzed`
         );
-      } catch (e) { console.warn("[services/pricingIntelligence] operation failed:", e); }
+      } catch (e) { log.warn("[services/pricingIntelligence] operation failed:", e); }
 
       try {
         const { remember } = await import("./nickMemory");
@@ -254,7 +254,7 @@ export async function runPricingIntelligenceJob(): Promise<{
           source: "pricing_intelligence",
           confidence: 0.85,
         });
-      } catch (e) { console.warn("[services/pricingIntelligence] operation failed:", e); }
+      } catch (e) { log.warn("[services/pricingIntelligence] operation failed:", e); }
     }
 
     const details = `${rates.length} categories, ${alerts.length} pricing alerts`;

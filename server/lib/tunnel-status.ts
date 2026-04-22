@@ -2,6 +2,9 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
 
+import { createLogger } from "./logger";
+
+const log = createLogger("lib:tunnel-status");
 type TunnelMode = "named" | "quick" | "none";
 
 interface TunnelStatus {
@@ -88,7 +91,7 @@ export async function getTunnelStatus(): Promise<TunnelStatus> {
       mode,
     };
   } catch (e) { /* Tunnel status file doesn't exist or can't be read — expected */
-    console.warn("[lib/tunnel-status] tunnel status read failed:", e);
+    log.warn("[lib/tunnel-status] tunnel status read failed:", e);
     return inactive;
   }
 }

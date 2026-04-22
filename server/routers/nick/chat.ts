@@ -8,7 +8,6 @@ import { eq, sql } from "drizzle-orm";
 import { invokeLLM } from "../../_core/llm";
 import type { ShopSetting } from "../../../drizzle/schema";
 import { log, db, type CameraEntry } from "./utils";
-
 // ─── Social Post ──────────────────────────────────────
 
 export async function handleSocialPost(input: {
@@ -31,7 +30,7 @@ export async function handleSocialPost(input: {
       platforms: input.platforms,
       success: result.results.every(r => r.success),
     })
-  ).catch(e => console.warn("[nickActions:socialPost] event bus dispatch failed:", e));
+  ).catch(e => log.warn("[nickActions:socialPost] event bus dispatch failed:", e));
 
   return result;
 }
@@ -64,7 +63,7 @@ export async function handleCameraFeed(input: { cameraId: string }) {
     try {
       const data = JSON.parse(r.value) as Record<string, string>;
       return { id: r.key.replace("camera_", ""), name: data.name, url: data.url, type: data.type || "http" };
-    } catch (e) { console.warn("[routers/nickActions] operation failed:", e); return null; }
+    } catch (e) { log.warn("[routers/nickActions] operation failed:", e); return null; }
   }).filter((c: CameraEntry | null): c is CameraEntry => c !== null);
 
   const target = cameras.find((c) => c.id === input.cameraId);
@@ -92,7 +91,7 @@ export async function handleCameras() {
     try {
       const data = JSON.parse(r.value) as Record<string, unknown>;
       return { id: r.key.replace("camera_", ""), ...data };
-    } catch (e) { console.warn("[routers/nickActions] operation failed:", e); return null; }
+    } catch (e) { log.warn("[routers/nickActions] operation failed:", e); return null; }
   }).filter((c: Record<string, unknown> | null): c is Record<string, unknown> & { id: string } => c !== null);
 }
 
@@ -273,7 +272,7 @@ Respond with JSON:
       const cleaned = raw.replace(/```json\s*\n?/g, "").replace(/```\s*$/g, "").trim();
       result = JSON.parse(cleaned);
     } catch (e) {
-      console.warn("[routers/nickActions] operation failed:", e);
+      log.warn("[routers/nickActions] operation failed:", e);
       result = { approved: false, score: 0, issues: ["AI review response was not valid JSON"], suggestions: ["Re-run review"], correctedContent: null };
     }
   }
@@ -282,7 +281,7 @@ Respond with JSON:
   try {
     const { recordReviewResult } = await import("../../services/feedbackLoop");
     await recordReviewResult(input.contentType, result.score, result.issues);
-  } catch (e) { console.warn("[nickActions:selfReview] feedback recording failed:", e); }
+  } catch (e) { log.warn("[nickActions:selfReview] feedback recording failed:", e); }
 
   return result;
 }

@@ -11,6 +11,9 @@ import { csvSafe } from "../sanitize";
 
 import { db } from "../lib/db-helper";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:customers");
 export const customersRouter = router({
   /** List customers with pagination, search, segment, date range filtering */
   list: adminProcedure
@@ -516,7 +519,7 @@ export const customersRouter = router({
           details: `SMS sent to ${customer.firstName || ""} ${customer.lastName || ""}`.trim(),
           newValue: input.message,
           metadata: { phone: customer.phone },
-        }).catch((e) => { console.warn("[routers/customers] fire-and-forget failed:", e); });
+        }).catch((e) => { log.warn("[routers/customers] fire-and-forget failed:", e); });
       }
 
       return result;
@@ -540,7 +543,7 @@ export const customersRouter = router({
         entityId: input.id,
         details: "Customer notes updated",
         newValue: input.notes,
-      }).catch((e) => { console.warn("[routers/customers] fire-and-forget failed:", e); });
+      }).catch((e) => { log.warn("[routers/customers] fire-and-forget failed:", e); });
 
       return { success: true };
     }),
@@ -703,7 +706,7 @@ export const customersRouter = router({
         }));
       } catch (err) {
         // Some tables may not exist yet
-        console.warn("[Customers] Activity timeline query failed:", err instanceof Error ? err.message : err);
+        log.warn("[Customers] Activity timeline query failed:", err instanceof Error ? err.message : err);
       }
 
       // Sort chronologically, newest first
@@ -752,7 +755,7 @@ export const customersRouter = router({
         segments: result.segments,
       };
     } catch (e) {
-      console.error("[Customers] LTV intelligence failed:", e instanceof Error ? e.message : e);
+      log.error("[Customers] LTV intelligence failed:", e instanceof Error ? e.message : e);
       return { topCustomers: [], atRiskHighValue: [], segments: { whales: 0, regulars: 0, occasional: 0, oneTimers: 0 } };
     }
   }),
@@ -766,7 +769,7 @@ export const customersRouter = router({
         recommendations: result.recommendations,
       };
     } catch (e) {
-      console.error("[Customers] Cross-sell engine failed:", e instanceof Error ? e.message : e);
+      log.error("[Customers] Cross-sell engine failed:", e instanceof Error ? e.message : e);
       return { patterns: [], recommendations: [] };
     }
   }),
@@ -782,7 +785,7 @@ export const customersRouter = router({
         weeklyTrend: result.weeklyTrend,
       };
     } catch (e) {
-      console.error("[Customers] Forecast engine failed:", e instanceof Error ? e.message : e);
+      log.error("[Customers] Forecast engine failed:", e instanceof Error ? e.message : e);
       return { today: null, month: null, trend: "flat", weeklyTrend: [] };
     }
   }),

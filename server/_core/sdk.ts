@@ -6,6 +6,9 @@ import { SignJWT, jwtVerify } from "jose";
 import type { User } from "../../drizzle/schema";
 import * as db from "../db";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("_core:sdk");
 // Utility function
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
@@ -29,7 +32,7 @@ class GoogleOAuthService {
     this.clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET ?? "";
 
     if (!this.clientId || !this.clientSecret) {
-      console.error(
+      log.error(
         "[OAuth] ERROR: GOOGLE_OAUTH_CLIENT_ID or GOOGLE_OAUTH_CLIENT_SECRET is not configured!"
       );
     }
@@ -195,7 +198,7 @@ class SDKServer {
 
       return { openId, appId, name };
     } catch (err) {
-      console.error("[SDK] Token verification failed:", err instanceof Error ? err.message : err);
+      log.error("[SDK] Token verification failed:", err instanceof Error ? err.message : err);
       return null;
     }
   }

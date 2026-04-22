@@ -12,6 +12,9 @@
 
 import type { Express, Request, Response } from "express";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routes:simulator");
 interface OpenAIChoice {
   message: {
     content: string;
@@ -88,7 +91,7 @@ export function registerSimulatorRoute(app: Express): void {
 
       res.json({ simulation });
     } catch (err: unknown) {
-      console.error("[simulator] Agent failed:", err);
+      log.error("[simulator] Agent failed:", err);
       res.status(500).json({
         error: err instanceof Error ? err.message : "Simulator agent failed",
       });

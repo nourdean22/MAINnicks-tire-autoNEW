@@ -12,6 +12,9 @@
 
 import type { Express, Request, Response } from "express";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routes:nour-chief-strategist");
 interface OpenAIChoice {
   message: {
     content: string;
@@ -109,7 +112,7 @@ export function registerNourChiefStrategistRoute(app: Express): void {
         timestamp: new Date().toISOString(),
       });
     } catch (err: unknown) {
-      console.error("[nour-chief-strategist] Strategy generation failed:", err);
+      log.error("[nour-chief-strategist] Strategy generation failed:", err);
       res.status(500).json({
         error:
           err instanceof Error ? err.message : "Strategy generation failed",

@@ -207,7 +207,7 @@ export async function recoverHandler(req: Request, res: Response): Promise<void>
       return;
     }
   } catch (e) {
-    console.warn("[lib/health] operation failed:", e);
+    log.warn("[lib/health] operation failed:", e);
     res.status(401).json({ error: "Auth verification failed" });
     return;
   }

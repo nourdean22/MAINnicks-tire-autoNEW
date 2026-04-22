@@ -22,6 +22,9 @@ import { tireOrders, shopSettings, bookings } from "../../drizzle/schema";
 
 import { db } from "../lib/db-helper";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:gatewayTire");
 /** Auto-create an invoice when a tire order is marked as installed */
 async function autoCreateInvoiceFromTireOrder(d: ReturnType<typeof import("drizzle-orm/mysql2").drizzle>, orderId: number): Promise<void> {
   const [order] = await d.select().from(tireOrders).where(eq(tireOrders.id, orderId)).limit(1);
@@ -35,7 +38,7 @@ async function autoCreateInvoiceFromTireOrder(d: ReturnType<typeof import("drizz
     const [setting] = await d.select().from(shopSettings).where(eq(shopSettings.key, "laborRate")).limit(1);
     if (setting) laborRate = parseFloat(setting.value);
   } catch (err) {
-    console.error("[GatewayTire] Failed to fetch labor rate, using default:", err instanceof Error ? (err as Error).message : err);
+    log.error("[GatewayTire] Failed to fetch labor rate, using default:", err instanceof Error ? (err as Error).message : err);
   }
 
   // Tire installation labor: 0.7 hours for mount + balance (from Auto Labor Guide)
@@ -90,7 +93,7 @@ async function autoCreateInvoiceFromTireOrder(d: ReturnType<typeof import("drizz
     totalAmount: totalAmount / 100,
     source: "tire_order",
     serviceDescription: `Tire Install: ${order.quantity}x ${order.tireBrand} ${order.tireModel}`,
-  }).catch(e => console.warn("[gatewayTire:autoInvoice] invoice email notification failed:", e));
+  }).catch(e => log.warn("[gatewayTire:autoInvoice] invoice email notification failed:", e));
 
   // Notify admin — synced to dashboard
   import("../services/telegram").then(({ sendTelegram }) =>
@@ -107,7 +110,7 @@ async function autoCreateInvoiceFromTireOrder(d: ReturnType<typeof import("drizz
       `Total: $${(totalAmount / 100).toFixed(2)}\n\n` +
       `⚡ Create this invoice in ShopDriver NOW`
     )
-  ).catch(e => console.warn("[gatewayTire:autoInvoice] telegram invoice alert failed:", e));
+  ).catch(e => log.warn("[gatewayTire:autoInvoice] telegram invoice alert failed:", e));
 
   // Unified event bus
   import("../services/eventBus").then(({ emit }) =>
@@ -117,7 +120,7 @@ async function autoCreateInvoiceFromTireOrder(d: ReturnType<typeof import("drizz
       totalAmount: totalAmount / 100,
       source: "tire_order",
     })
-  ).catch(e => console.warn("[gatewayTire:autoInvoice] event bus invoice dispatch failed:", e));
+  ).catch(e => log.warn("[gatewayTire:autoInvoice] event bus invoice dispatch failed:", e));
 
   console.info(`[invoice:created] ${invoiceNumber} for tire order ${order.orderNumber} — $${(totalAmount / 100).toFixed(2)}`);
 }
@@ -180,7 +183,7 @@ async function getGatewaySession(): Promise<string | null> {
 
     return null;
   } catch (err) {
-    console.error("[GatewayTire] Auth error:", err);
+    log.error("[GatewayTire] Auth error:", err);
     return null;
   }
 }
@@ -200,7 +203,7 @@ async function gatewayFetch(path: string, options: RequestInit = {}): Promise<Re
       },
     });
   } catch (err) {
-    console.error("[GatewayTire] Fetch error:", err);
+    log.error("[GatewayTire] Fetch error:", err);
     return null;
   }
 }
@@ -377,10 +380,10 @@ async function syncOrderToGoogleSheet(order: {
     if (resp.ok) {
       console.info(`[tireorder:sheets] Synced ${order.orderNumber} to Google Sheets`);
     } else {
-      console.error(`[TireOrder] Google Sheets sync failed:`, resp.status, await resp.text());
+      log.error(`[TireOrder] Google Sheets sync failed:`, resp.status, await resp.text());
     }
   } catch (err) {
-    console.error("[TireOrder] Google Sheets sync error:", err);
+    log.error("[TireOrder] Google Sheets sync error:", err);
   }
 }
 
@@ -516,7 +519,7 @@ export const gatewayTireRouter = router({
           setCachedSearch(cacheKey, cacheResult, "live");
           return { ...cacheResult, cached: false };
         }
-      } catch (e) { console.warn("[gatewayTire:search] pipeline cache lookup failed, falling through to live:", e); }
+      } catch (e) { log.warn("[gatewayTire:search] pipeline cache lookup failed, falling through to live:", e); }
 
       // Try live Gateway Tire API
       const res = await gatewayFetch(`/api/products/search?q=${encodeURIComponent(sizeClean)}`);
@@ -578,7 +581,7 @@ export const gatewayTireRouter = router({
             return liveResult;
           }
         } catch (err) {
-          console.error("[GatewayTire] Live tire search failed, falling through to catalog:", err instanceof Error ? (err as Error).message : err);
+          log.error("[GatewayTire] Live tire search failed, falling through to catalog:", err instanceof Error ? (err as Error).message : err);
         }
       }
 
@@ -720,7 +723,7 @@ export const gatewayTireRouter = router({
         try {
           const [setting] = await d.select().from(shopSettings).where(eq(shopSettings.key, "laborRate")).limit(1);
           if (setting) laborRate = parseFloat(setting.value);
-        } catch (e) { console.warn("[gatewayTire:placeOrder] labor rate fetch failed, using default $115:", e); }
+        } catch (e) { log.warn("[gatewayTire:placeOrder] labor rate fetch failed, using default $115:", e); }
 
         const installHours = 0.7; // Mount + balance from Auto Labor Guide
         const laborCostCents = Math.round(installHours * laborRate * 100);
@@ -754,7 +757,7 @@ export const gatewayTireRouter = router({
             totalAmount: grandTotalCents / 100,
             source: "tire_order",
           })
-        ).catch(e => console.warn("[gatewayTire:placeOrder] event bus invoice dispatch failed:", e));
+        ).catch(e => log.warn("[gatewayTire:placeOrder] event bus invoice dispatch failed:", e));
 
         // Sync invoice to Sheets
         syncInvoiceToSheet({
@@ -774,11 +777,11 @@ export const gatewayTireRouter = router({
           source: "tire_order",
           orderRef: orderNumber,
           notes: `Auto-created with tire order ${orderNumber}`,
-        }).catch(err => console.error("[TireOrder] Invoice sheet sync error:", err));
+        }).catch(err => log.error("[TireOrder] Invoice sheet sync error:", err));
 
         console.info(`[invoice:created] ${invoiceNumber} for tire order ${orderNumber} — $${(grandTotalCents / 100).toFixed(2)} (pending payment)`);
       } catch (err) {
-        console.error("[TireOrder] Invoice creation failed:", err instanceof Error ? (err as Error).message : err);
+        log.error("[TireOrder] Invoice creation failed:", err instanceof Error ? (err as Error).message : err);
       }
 
       // Sync to Google Sheets (async, don't block)
@@ -796,7 +799,7 @@ export const gatewayTireRouter = router({
         totalAmount: totalDollars,
         customerNotes: input.customerNotes || null,
         status: "received",
-      }).catch(err => console.error("[TireOrder] Sheet sync error:", err));
+      }).catch(err => log.error("[TireOrder] Sheet sync error:", err));
 
       // Send email notification to shop + CEO (async, don't block)
       notifyTireOrder({
@@ -812,7 +815,7 @@ export const gatewayTireRouter = router({
         pricePerTire,
         totalAmount: totalDollars,
         notes: input.customerNotes || undefined,
-      }).catch(err => console.error("[TireOrder] Notification error:", err));
+      }).catch(err => log.error("[TireOrder] Notification error:", err));
 
       // Push to Auto Labor Guide (ShopDriver) — async, don't block
       import("../services/shopDriverSync").then(({ pushTireOrder }) =>
@@ -828,7 +831,7 @@ export const gatewayTireRouter = router({
           totalAmount: totalDollars,
           installPreference: input.installPreference,
         })
-      ).catch(e => console.warn("[gatewayTire:placeOrder] ShopDriver sync failed:", e));
+      ).catch(e => log.warn("[gatewayTire:placeOrder] ShopDriver sync failed:", e));
 
       // Unified event bus (→ NOUR OS + ShopDriver + Telegram + learning)
       import("../services/eventBus").then(({ emit }) =>
@@ -840,7 +843,7 @@ export const gatewayTireRouter = router({
           quantity: input.quantity,
           totalAmount: totalDollars,
         })
-      ).catch(e => console.warn("[gatewayTire:placeOrder] event bus tire order dispatch failed:", e));
+      ).catch(e => log.warn("[gatewayTire:placeOrder] event bus tire order dispatch failed:", e));
 
       // ─── Smart uncommon-size detection ────────────────
       // If the tire size isn't one we commonly stock, flag it for Gateway ordering
@@ -857,7 +860,7 @@ export const gatewayTireRouter = router({
             `🔧 This size needs to be ordered from Gateway Tire (b2b.dktire.com).\n` +
             `Log in → search "${input.tireSize}" → place order → update status to "ordered".`
           )
-        ).catch(e => console.warn("[gatewayTire:placeOrder] uncommon size telegram alert failed:", e));
+        ).catch(e => log.warn("[gatewayTire:placeOrder] uncommon size telegram alert failed:", e));
 
         // Also email the shop
         notifyTireOrder({
@@ -873,7 +876,7 @@ export const gatewayTireRouter = router({
           pricePerTire,
           totalAmount: totalDollars,
           notes: `⚠️ UNCOMMON SIZE — ${input.tireSize} is NOT in regular stock. Order from Gateway Tire immediately.`,
-        }).catch(e => console.warn("[gatewayTire:placeOrder] uncommon size email notification failed:", e));
+        }).catch(e => log.warn("[gatewayTire:placeOrder] uncommon size email notification failed:", e));
       }
 
       return {
@@ -1056,7 +1059,7 @@ export const gatewayTireRouter = router({
             pricePerTire: (currentOrder.pricePerTire || 0) / 100,
             totalAmount: (currentOrder.totalAmount || 0) / 100,
             notes: `✅ TIRES DELIVERED — Ready for installation. Call customer to schedule.`,
-          }).catch(e => console.warn("[gatewayTire:updateOrder] delivery email notification failed:", e));
+          }).catch(e => log.warn("[gatewayTire:updateOrder] delivery email notification failed:", e));
 
           import("../services/telegram").then(({ sendTelegram }) =>
             sendTelegram(
@@ -1066,7 +1069,7 @@ export const gatewayTireRouter = router({
               `Vehicle: ${currentOrder.vehicleInfo || "N/A"}\n\n` +
               `⚡ Call customer to schedule installation NOW`
             )
-          ).catch(e => console.warn("[gatewayTire:updateOrder] delivery telegram alert failed:", e));
+          ).catch(e => log.warn("[gatewayTire:updateOrder] delivery telegram alert failed:", e));
         }
 
         // IN_TRANSIT → Telegram heads-up
@@ -1078,7 +1081,7 @@ export const gatewayTireRouter = router({
               `Customer: ${currentOrder.customerName}\n` +
               (input.expectedDelivery ? `ETA: ${input.expectedDelivery}` : "")
             )
-          ).catch(e => console.warn("[gatewayTire:updateOrder] in-transit telegram alert failed:", e));
+          ).catch(e => log.warn("[gatewayTire:updateOrder] in-transit telegram alert failed:", e));
         }
 
         // INSTALLED → Telegram confirmation
@@ -1089,7 +1092,7 @@ export const gatewayTireRouter = router({
               `${orderDesc}\n` +
               `Customer: ${currentOrder.customerName} | $${((currentOrder.totalAmount || 0) / 100).toFixed(2)}`
             )
-          ).catch(e => console.warn("[gatewayTire:updateOrder] installed telegram alert failed:", e));
+          ).catch(e => log.warn("[gatewayTire:updateOrder] installed telegram alert failed:", e));
         }
 
         // CANCELLED → Telegram alert
@@ -1101,7 +1104,7 @@ export const gatewayTireRouter = router({
               `Customer: ${currentOrder.customerName} | ${currentOrder.customerPhone}\n` +
               (input.adminNotes ? `Reason: ${input.adminNotes}` : "")
             )
-          ).catch(e => console.warn("[gatewayTire:updateOrder] cancelled telegram alert failed:", e));
+          ).catch(e => log.warn("[gatewayTire:updateOrder] cancelled telegram alert failed:", e));
         }
       }
 
@@ -1202,7 +1205,7 @@ export const gatewayTireRouter = router({
             return { tires, source: "live" as const, markup };
           }
         } catch (err) {
-          console.error("[GatewayTire] Admin tire search failed:", err instanceof Error ? (err as Error).message : err);
+          log.error("[GatewayTire] Admin tire search failed:", err instanceof Error ? (err as Error).message : err);
         }
       }
 
