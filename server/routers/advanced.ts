@@ -13,10 +13,7 @@ import {
   bookings, customers, technicians, reviewRequests, leads, serviceHistory,
 } from "../../drizzle/schema";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+import { db } from "../lib/db-helper";
 
 // ─── JOB ASSIGNMENTS ────────────────────────────────────
 export const jobAssignmentsRouter = router({

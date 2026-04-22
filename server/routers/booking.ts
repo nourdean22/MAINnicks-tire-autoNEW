@@ -25,6 +25,8 @@ import { logIntegrationFailure } from "../integration-failures";
 import { withRetry } from "../retry";
 import { logAdminAction } from "../services/auditTrail";
 
+import { db } from "../lib/db-helper";
+
 // ─── LABOR GUIDE REFERENCE (for auto-invoice labor estimation) ───
 const SERVICE_LABOR_MAP: Record<string, { hours: number; description: string }> = {
   "oil change": { hours: 0.3, description: "Oil Change Service" },
@@ -158,11 +160,6 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
   }
 
   console.info(`[invoice:created] ${invoiceNumber} for booking #${booking.id} — $${(totalAmount / 100).toFixed(2)}`);
-}
-
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
 }
 
 function generateRefCode(): string {

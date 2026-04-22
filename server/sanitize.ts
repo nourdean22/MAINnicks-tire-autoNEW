@@ -57,6 +57,18 @@ export function sanitizeMessage(input: string | undefined | null): string {
 }
 
 /**
+ * CSV-safe value wrapper — prevents spreadsheet formula injection (CSV injection /
+ * "CSV injection attack"). When a CSV cell starts with `=`, `+`, `-`, `@`, a tab, or
+ * carriage return, Excel/Sheets may execute it as a formula. Prefix with `'` to
+ * force literal text. Use on every user-controlled field before writing to CSV.
+ */
+export function csvSafe(val: unknown): string {
+  const s = String(val ?? "");
+  if (/^[=+\-@\t\r]/.test(s)) return `'${s}`;
+  return s;
+}
+
+/**
  * Sanitize all string fields in an object.
  * Useful for bulk-sanitizing form data.
  */

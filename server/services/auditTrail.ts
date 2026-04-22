@@ -10,12 +10,9 @@ import { createLogger } from "../lib/logger";
 import { randomUUID } from "crypto";
 import { eq, and, desc } from "drizzle-orm";
 
-const log = createLogger("audit-trail");
+import { db } from "../lib/db-helper";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+const log = createLogger("audit-trail");
 
 // ─── Typed Actions ──────────────────────────────────
 export type AuditAction =

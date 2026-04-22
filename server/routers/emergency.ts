@@ -14,12 +14,9 @@ import { withRetry } from "../retry";
 import { logIntegrationFailure } from "../integration-failures";
 import { TRPCError } from "@trpc/server";
 
-const STORE_OWNER_PHONE = process.env.OWNER_PHONE_NUMBER || process.env.ADMIN_PHONE || "";
+import { db } from "../lib/db-helper";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+const STORE_OWNER_PHONE = process.env.OWNER_PHONE_NUMBER || process.env.ADMIN_PHONE || "";
 
 function getNextOpenTime(): string {
   const now = new Date();

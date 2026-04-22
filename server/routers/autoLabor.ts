@@ -11,10 +11,7 @@ import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+import { db } from "../lib/db-helper";
 
 const SHOPDRIVER_BASE = "https://secure.autolaborexperts.com";
 const SHOPDRIVER_API = "https://8DD0FCE9-80F9-4A9E-B0C3-CF76825AD9B7.autolaborexperts.com";

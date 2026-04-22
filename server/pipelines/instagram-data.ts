@@ -16,10 +16,7 @@ import { instagramAnalytics } from "../../drizzle/schema";
 import { desc, eq, gte, sql } from "drizzle-orm";
 import { getInstagramPosts, getInstagramAccount } from "../instagram";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+import { db } from "../lib/db-helper";
 
 // ─── TYPES ───────────────────────────────────────────────
 

@@ -16,12 +16,9 @@ import { createLogger } from "../lib/logger";
 import { sql, desc, eq } from "drizzle-orm";
 import { createHash } from "crypto";
 
-const log = createLogger("nick-memory");
+import { db } from "../lib/db-helper";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+const log = createLogger("nick-memory");
 
 export interface NickMemory {
   id: number;

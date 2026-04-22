@@ -19,10 +19,7 @@ import { handleAfterHoursCapture, isAfterHours } from "../services/afterHours";
 import { alertNewLead } from "../services/telegram";
 import { logAdminAction } from "../services/auditTrail";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+import { db } from "../lib/db-helper";
 
 export const leadRouter = router({
   submit: publicProcedure

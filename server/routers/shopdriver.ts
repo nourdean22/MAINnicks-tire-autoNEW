@@ -10,19 +10,8 @@ import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq, sql, desc, and, isNull } from "drizzle-orm";
 import { customers, shopSettings, customerImportLog, invoices, bookings } from "../../drizzle/schema";
-
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
-
-/** Normalize phone to E.164 format */
-function normalizePhone(raw: string): string | null {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length === 10) return `+1${digits}`;
-  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
-  return null;
-}
+import { db } from "../lib/db-helper";
+import { normalizePhone } from "../lib/phone";
 
 /** Classify customer segment based on last visit date */
 function classifySegment(lastVisitStr: string | null | undefined): "recent" | "lapsed" | "unknown" {

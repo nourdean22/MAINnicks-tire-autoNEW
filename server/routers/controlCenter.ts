@@ -11,10 +11,7 @@ import { bookings, leads, callbackRequests, smsMessages, dailyExecution, dailyHa
 import { getGatewayHealth, getAvailableModels } from "../lib/ai-gateway";
 import { z } from "zod";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+import { db } from "../lib/db-helper";
 
 /** Get today's date string (YYYY-MM-DD) in America/New_York timezone */
 function getTodayET(): string {

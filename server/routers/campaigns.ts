@@ -15,10 +15,7 @@ import { customers, smsCampaigns, smsCampaignSends } from "../../drizzle/schema"
 import { sendSms } from "../sms";
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+import { db } from "../lib/db-helper";
 
 // ─── CAMPAIGN TEMPLATES ────────────────────────────────
 

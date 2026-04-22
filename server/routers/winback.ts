@@ -15,10 +15,7 @@ import { winbackCampaigns, winbackMessages, winbackSends } from "../../drizzle/s
 import { sendSms } from "../sms";
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+import { db } from "../lib/db-helper";
 
 // ─── WIN-BACK MESSAGE TEMPLATES (8 segments, 22 total messages) ─────────────────────────
 // Each segment targets a different customer profile with personalized messaging.

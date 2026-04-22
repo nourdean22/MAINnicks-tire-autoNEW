@@ -12,12 +12,9 @@
 import { createLogger } from "../lib/logger";
 import { sql } from "drizzle-orm";
 
-const log = createLogger("feedback-loop");
+import { db } from "../lib/db-helper";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+const log = createLogger("feedback-loop");
 
 // ─── EVENT ANALYTICS (track patterns over time) ──────
 
