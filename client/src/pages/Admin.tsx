@@ -60,6 +60,8 @@ const WaitlistSection = lazy(() => import("./admin/WaitlistSection"));
 const SEOEngineSection = lazy(() => import("./admin/SEOEngineSection"));
 const DeclinedEstimatesSection = lazy(() => import("./admin/DeclinedEstimatesSection"));
 const ReEngagementSection = lazy(() => import("./admin/ReEngagementSection"));
+const NoShowRiskSection = lazy(() => import("./admin/NoShowRiskSection"));
+const ComplianceSection = lazy(() => import("./admin/ComplianceSection"));
 
 function SectionSpinner() {
   return (
@@ -116,6 +118,8 @@ function SectionContent({ section }: { section: AdminSection }) {
       {section === "seoEngine" && <SEOEngineSection />}
       {section === "declinedEstimates" && <DeclinedEstimatesSection />}
       {section === "reEngagement" && <ReEngagementSection />}
+      {section === "noShowRisk" && <NoShowRiskSection />}
+      {section === "compliance" && <ComplianceSection />}
     </Suspense>
   );
 }

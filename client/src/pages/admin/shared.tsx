@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch" | "intelligence" | "specials" | "warranty" | "inventory" | "waitlist" | "seoEngine" | "declinedEstimates" | "reEngagement";
+export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch" | "intelligence" | "specials" | "warranty" | "inventory" | "waitlist" | "seoEngine" | "declinedEstimates" | "reEngagement" | "noShowRisk" | "compliance";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -82,6 +82,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "leads", label: "Leads & Estimates", icon: <Users className="w-4 h-4" />, badge: "leads" },
       { id: "declinedEstimates", label: "Declined Work", icon: <AlertTriangle className="w-4 h-4" /> },
+      { id: "noShowRisk", label: "No-Show Risk", icon: <AlertTriangle className="w-4 h-4" /> },
       { id: "revenue", label: "Revenue & Shop", icon: <TrendingUp className="w-4 h-4" /> },
     ],
   },
@@ -98,6 +99,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "settings", label: "ShopDriver HQ", icon: <Settings className="w-4 h-4" /> },
       { id: "health", label: "System", icon: <Activity className="w-4 h-4" /> },
+      { id: "compliance", label: "Compliance", icon: <Shield className="w-4 h-4" /> },
     ],
   },
 ];
@@ -147,6 +149,8 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   seoEngine: "SEO Engine",
   declinedEstimates: "Declined Work",
   reEngagement: "Re-engagement",
+  noShowRisk: "No-Show Risk",
+  compliance: "Compliance",
 };
 
 // ─── PAGE HEADER ────────────────────────────────────────
