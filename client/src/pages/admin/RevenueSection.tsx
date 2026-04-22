@@ -183,16 +183,22 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
 
   return (
     <div className="space-y-6">
-      {/* ═══ TODAY AT A GLANCE ═══ */}
+      {/* ═══ AT A GLANCE — scope adapts to period ═══ */}
       <div className="bg-gradient-to-r from-primary/10 to-emerald-500/10 border border-primary/20 p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-lg text-foreground tracking-wider">TODAY</h2>
+          <h2 className="font-bold text-lg text-foreground tracking-wider">
+            {period === 1 ? "TODAY" : period === 7 ? "THIS WEEK" : `LAST ${period} DAYS`}
+          </h2>
           <span className="text-foreground/30 text-xs font-mono">{new Date().toLocaleDateString()}</span>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <p className="text-3xl font-bold text-primary">{formatDollars(period === 1 ? (stats?.totalRevenue ?? 0) : (intel?.weekOverWeek?.thisWeek ?? stats?.totalRevenue ?? 0))}</p>
-            <p className="text-[11px] text-foreground/50 mt-0.5">{period === 1 ? "Today's Revenue" : "This Week Revenue"}</p>
+            <p className="text-3xl font-bold text-primary">
+              {formatDollars(period === 1 ? (stats?.totalRevenue ?? 0) : (intel?.weekOverWeek?.thisWeek ?? stats?.totalRevenue ?? 0))}
+            </p>
+            <p className="text-[11px] text-foreground/50 mt-0.5">
+              {period === 1 ? "Today's Revenue" : period === 7 ? "This Week Revenue" : `${period}d Revenue`}
+            </p>
           </div>
           <div>
             <p className="text-3xl font-bold text-emerald-400">{kpi?.completedThisWeek ?? stats?.invoiceCount ?? 0}</p>
@@ -200,7 +206,7 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
           </div>
           <div>
             <p className="text-3xl font-bold text-blue-400">{kpi?.weekBookings ?? 0}</p>
-            <p className="text-[11px] text-foreground/50 mt-0.5">New Bookings</p>
+            <p className="text-[11px] text-foreground/50 mt-0.5">New Bookings (Week)</p>
           </div>
           <div>
             <p className="text-3xl font-bold text-amber-400">{shopFloor?.active ?? 0}</p>

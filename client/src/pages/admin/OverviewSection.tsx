@@ -545,8 +545,22 @@ export default function OverviewSection() {
 
   // ─── DERIVED DATA ────────────────────────────────────
   const shopFloor = (stats as typeof stats & { shopFloor?: ShopFloorData }).shopFloor;
-  const todayRevenue = shopFloor?.revenueToday ?? shopPulse?.today?.revenue ?? 0;
+  // Revenue sources unified on invoices.intelligence (same as RevenueSection)
+  // so the dashboard + revenue page never disagree on the same metric.
+  // shopFloor.revenueToday is work-order-derived and was showing $0 while
+  // invoices-derived was $4,822 — real discrepancy in the wild. Preferring
+  // the invoice number because invoice = money-in-hand (source of truth).
+  const todayRevenue =
+    (revIntel?.weekOverWeek as { today?: number } | undefined)?.today
+    ?? shopFloor?.revenueToday
+    ?? shopPulse?.today?.revenue
+    ?? 0;
+  const weekRevenue =
+    (revIntel?.weekOverWeek as { thisWeek?: number } | undefined)?.thisWeek
+    ?? shopFloor?.revenueThisWeek
+    ?? 0;
   const jobsClosed = shopFloor?.invoicesToday ?? shopPulse?.today?.jobsClosed ?? 0;
+  const weekInvoiceCount = shopFloor?.invoicesThisWeek ?? 0;
   const activeLeads = stats.leads.new + stats.leads.contacted;
   const urgentLeads = stats.leads.urgent ?? 0;
   const healthScore = masterReport?.summary?.score ?? null;
@@ -612,7 +626,7 @@ export default function OverviewSection() {
           icon={<TrendingUp className="w-4 h-4" />}
           color="text-emerald-400"
           trend={todayRevenue > 0 ? "up" : "neutral"}
-          trendLabel={shopFloor ? `$${Math.round(shopFloor.revenueThisWeek).toLocaleString()} this week` : undefined}
+          trendLabel={weekRevenue > 0 ? `$${Math.round(weekRevenue).toLocaleString()} this week` : "no invoices yet this week"}
         />
         <StatCard
           label="Jobs Closed Today"
@@ -620,7 +634,7 @@ export default function OverviewSection() {
           icon={<CheckCircle2 className="w-4 h-4" />}
           color={jobsClosed > 0 ? "text-emerald-400" : "text-muted-foreground"}
           trend={jobsClosed > 0 ? "up" : "neutral"}
-          trendLabel={shopFloor ? `${shopFloor.invoicesThisWeek} this week` : undefined}
+          trendLabel={`${weekInvoiceCount} this week`}
         />
         <StatCard
           label="Website Leads"
