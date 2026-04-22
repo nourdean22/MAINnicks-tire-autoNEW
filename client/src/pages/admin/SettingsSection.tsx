@@ -135,7 +135,7 @@ export default function SettingsSection() {
           label="INVOICES THIS WEEK"
           value={invoiceStats?.shopFloor?.invoicesThisWeek ?? "—"}
           icon={<FileText className="w-4 h-4" />}
-          sub={`$${Math.round((invoiceStats?.shopFloor?.revenueThisWeek ?? 0) / 100).toLocaleString()} revenue`}
+          sub={`$${Math.round(invoiceStats?.shopFloor?.revenueThisWeek ?? 0).toLocaleString()} revenue`}
         />
         <StatCard
           label="CUSTOMERS"

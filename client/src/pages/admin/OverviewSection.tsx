@@ -545,22 +545,25 @@ export default function OverviewSection() {
 
   // ─── DERIVED DATA ────────────────────────────────────
   const shopFloor = (stats as typeof stats & { shopFloor?: ShopFloorData }).shopFloor;
-  // Revenue sources unified on invoices.intelligence (same as RevenueSection)
-  // so the dashboard + revenue page never disagree on the same metric.
-  // shopFloor.revenueToday is work-order-derived and was showing $0 while
-  // invoices-derived was $4,822 — real discrepancy in the wild. Preferring
-  // the invoice number because invoice = money-in-hand (source of truth).
-  const todayRevenue =
-    (revIntel?.weekOverWeek as { today?: number } | undefined)?.today
-    ?? shopFloor?.revenueToday
-    ?? shopPulse?.today?.revenue
-    ?? 0;
+  // ALG RULES ALL — every money + invoice-count number descends from the
+  // ALG mirror (invoices table), surfaced via adminDashboard.stats.shopFloor.
+  // The work-orders shopFloor (nourOsBridge.shopFloor) and shopPulse are
+  // intentionally NOT used for revenue — they're shadow sources that
+  // caused the $0 / $4,822 mismatch. Those objects are only used for
+  // cars-in-bay state (active / blocked / overdue / readyForPickup).
+  //
+  // Unit note: admin-stats.ts already converts cents → dollars, so these
+  // fields are in USD already. DO NOT divide by 100 again.
+  const algFloor = stats?.shopFloor;
+  const todayRevenue = algFloor?.revenueToday ?? 0;
   const weekRevenue =
-    (revIntel?.weekOverWeek as { thisWeek?: number } | undefined)?.thisWeek
-    ?? shopFloor?.revenueThisWeek
+    algFloor?.revenueThisWeek
+    ?? (revIntel?.weekOverWeek?.thisWeek as number | undefined)
     ?? 0;
-  const jobsClosed = shopFloor?.invoicesToday ?? shopPulse?.today?.jobsClosed ?? 0;
-  const weekInvoiceCount = shopFloor?.invoicesThisWeek ?? 0;
+  const monthRevenue = algFloor?.revenueThisMonth ?? 0;
+  const jobsClosed = algFloor?.invoicesToday ?? 0;
+  const weekInvoiceCount = algFloor?.invoicesThisWeek ?? 0;
+  const monthInvoiceCount = algFloor?.invoicesThisMonth ?? 0;
   const activeLeads = stats.leads.new + stats.leads.contacted;
   const urgentLeads = stats.leads.urgent ?? 0;
   const healthScore = masterReport?.summary?.score ?? null;
@@ -714,13 +717,19 @@ export default function OverviewSection() {
               "bg-foreground/5 text-muted-foreground"
             }`}>{shopPulse.shopStatus.toUpperCase()}</div>
           </div>
+          {/*
+            Revenue + jobs numbers deliberately pulled from ALG (stats.shopFloor),
+            not from shopPulse's AI-computed fields. ALG rules all. Walked /
+            walk-rate are fine to keep from shopPulse since those are AI
+            observations, not money claims.
+          */}
           <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
             <div className="text-center">
-              <div className="text-lg font-bold text-primary revenue-glow">${shopPulse.today.revenue.toLocaleString()}</div>
+              <div className="text-lg font-bold text-primary revenue-glow">${Math.round(todayRevenue).toLocaleString()}</div>
               <div className="text-[9px] text-muted-foreground tracking-wider">TODAY REV</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-emerald-400">{shopPulse.today.jobsClosed}</div>
+              <div className="text-lg font-bold text-emerald-400">{jobsClosed}</div>
               <div className="text-[9px] text-muted-foreground tracking-wider">JOBS</div>
             </div>
             <div className="text-center">
@@ -728,7 +737,7 @@ export default function OverviewSection() {
               <div className="text-[9px] text-muted-foreground tracking-wider">WALKED</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-blue-400">${shopPulse.today.avgTicket}</div>
+              <div className="text-lg font-bold text-blue-400">${algFloor?.avgTicket ?? 0}</div>
               <div className="text-[9px] text-muted-foreground tracking-wider">AVG TICKET</div>
             </div>
             <div className="text-center">
@@ -736,7 +745,7 @@ export default function OverviewSection() {
               <div className="text-[9px] text-muted-foreground tracking-wider">WALK RATE</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-purple-400">${Math.round(shopPulse.thisWeek.revenue).toLocaleString()}</div>
+              <div className="text-lg font-bold text-purple-400">${Math.round(weekRevenue).toLocaleString()}</div>
               <div className="text-[9px] text-muted-foreground tracking-wider">WEEK REV</div>
             </div>
           </div>
@@ -745,43 +754,50 @@ export default function OverviewSection() {
       )}
 
       {/* ─── ALG SHOP FLOOR DATA — The Real Numbers ─── */}
-      {shopFloor && (
+      {/*
+        This block was mis-sourced for months: it claimed to show ALG data but
+        actually pulled from nourOsBridge.shopFloor (work_orders table — no
+        revenue fields at all, so everything rendered as undefined → 0).
+        Now correctly bound to algFloor (= adminDashboard.stats.shopFloor,
+        computed from the invoices table which IS the ALG mirror).
+      */}
+      {algFloor && (
         <div className="bg-card border border-emerald-500/20 rounded-lg p-4">
           <div className="flex items-center gap-3 mb-3">
             <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
             <span className="text-[10px] font-bold tracking-wider text-muted-foreground">AUTO LABOR GUIDE — SHOP FLOOR</span>
             <span className="ml-auto text-[9px] font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400">
-              {shopFloor.totalCustomers} CUSTOMERS · {shopFloor.vipCustomers} VIP
+              {algFloor.totalCustomers} CUSTOMERS · {algFloor.vipCustomers} VIP
             </span>
           </div>
           <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
             <div className="text-center">
-              <div className="text-lg font-bold text-primary">${Math.round(shopFloor.revenueToday).toLocaleString()}</div>
+              <div className="text-lg font-bold text-primary">${Math.round(todayRevenue).toLocaleString()}</div>
               <div className="text-[9px] text-muted-foreground tracking-wider">TODAY REV</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-emerald-400">{shopFloor.invoicesToday}</div>
+              <div className="text-lg font-bold text-emerald-400">{jobsClosed}</div>
               <div className="text-[9px] text-muted-foreground tracking-wider">INVOICES</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-amber-400">{shopFloor.estimatesToday}</div>
+              <div className="text-lg font-bold text-amber-400">{algFloor.estimatesToday}</div>
               <div className="text-[9px] text-muted-foreground tracking-wider">WALK-INS</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-blue-400">${shopFloor.avgTicket}</div>
+              <div className="text-lg font-bold text-blue-400">${algFloor.avgTicket}</div>
               <div className="text-[9px] text-muted-foreground tracking-wider">AVG TICKET</div>
             </div>
             <div className="text-center">
-              <div className={`text-lg font-bold ${shopFloor.conversionRate >= 50 ? "text-emerald-400" : shopFloor.conversionRate >= 30 ? "text-amber-400" : "text-red-400"}`}>{shopFloor.conversionRate}%</div>
+              <div className={`text-lg font-bold ${algFloor.conversionRate >= 50 ? "text-emerald-400" : algFloor.conversionRate >= 30 ? "text-amber-400" : "text-red-400"}`}>{algFloor.conversionRate}%</div>
               <div className="text-[9px] text-muted-foreground tracking-wider">CONVERSION</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-purple-400">${Math.round(shopFloor.revenueThisMonth).toLocaleString()}</div>
+              <div className="text-lg font-bold text-purple-400">${Math.round(monthRevenue).toLocaleString()}</div>
               <div className="text-[9px] text-muted-foreground tracking-wider">MONTH REV</div>
             </div>
           </div>
           <div className="mt-2 text-[10px] text-muted-foreground">
-            Week: {shopFloor.invoicesThisWeek} invoices · ${Math.round(shopFloor.revenueThisWeek).toLocaleString()} revenue · {shopFloor.estimatesThisWeek} walk-in estimates
+            Week: {weekInvoiceCount} invoices · ${Math.round(weekRevenue).toLocaleString()} revenue · {algFloor.estimatesThisWeek} walk-in estimates
           </div>
         </div>
       )}
