@@ -12,6 +12,9 @@
 
 import type { Express, Request, Response } from "express";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routes:psych-dominance");
 interface OpenAIChoice {
   message: {
     content: string;
@@ -95,7 +98,7 @@ export function registerPsychDominanceRoute(app: Express): void {
 
       res.json({ strategy });
     } catch (err: unknown) {
-      console.error("[psych-dominance] Agent failed:", err);
+      log.error("[psych-dominance] Agent failed:", err);
       res.status(500).json({
         error:
           err instanceof Error ? err.message : "Psych dominance agent failed",

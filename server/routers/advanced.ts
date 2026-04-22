@@ -15,6 +15,9 @@ import {
 
 import { db } from "../lib/db-helper";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:advanced");
 // ─── JOB ASSIGNMENTS ────────────────────────────────────
 export const jobAssignmentsRouter = router({
   /** Assign a technician to a booking — also auto-updates stage to inspecting */
@@ -229,7 +232,7 @@ export const invoicesRouter = router({
           totalAmount: (input.totalAmount || 0) / 100,
           source: input.source,
         })
-      ).catch((e) => { console.warn("[advanced] fire-and-forget failed:", e); });
+      ).catch((e) => { log.warn("[advanced] fire-and-forget failed:", e); });
 
       // Push to Auto Labor Guide (tries API first, falls back to Telegram)
       if (input.source !== "shopdriver") {
@@ -247,7 +250,7 @@ export const invoicesRouter = router({
             paymentStatus: input.paymentStatus,
             paymentMethod: input.paymentMethod,
           })
-        ).catch((e) => { console.warn("[advanced] fire-and-forget failed:", e); });
+        ).catch((e) => { log.warn("[advanced] fire-and-forget failed:", e); });
       }
 
       return { success: true, id: invoiceId };
@@ -283,7 +286,7 @@ export const invoicesRouter = router({
         try {
           const [current] = await d.select({ ps: invoices.paymentStatus }).from(invoices).where(eq(invoices.id, id)).limit(1);
           wasPaid = current?.ps === "paid";
-        } catch (e) { console.warn("[advanced:invoice] payment status check failed:", e); }
+        } catch (e) { log.warn("[advanced:invoice] payment status check failed:", e); }
       }
 
       await d.update(invoices).set(cleanUpdates).where(eq(invoices.id, id));
@@ -297,7 +300,7 @@ export const invoicesRouter = router({
             totalAmount: (input.totalAmount || 0) / 100,
             method: input.paymentMethod || "unknown",
           })
-        ).catch((e) => { console.warn("[advanced] fire-and-forget failed:", e); });
+        ).catch((e) => { log.warn("[advanced] fire-and-forget failed:", e); });
       }
 
       return { success: true };
@@ -638,7 +641,7 @@ export const invoicesRouter = router({
             if (slowDays.length > 0) {
               recs.push({ text: `${slowDays.map((d: RawRow) => d.dayName).join(', ')} are slow days — consider promotions or appointments-only`, type: "growth", priority: "medium" });
             }
-          } catch (e) { console.warn("[advanced:recommendations] analysis failed:", e); }
+          } catch (e) { log.warn("[advanced:recommendations] analysis failed:", e); }
           return recs;
         })(),
       };
@@ -843,12 +846,12 @@ export const portalRouter = router({
         const { sendSms } = await import("../sms");
         const result = await sendSms(normalized, `Your Nick's Tire & Auto verification code is: ${code}. Valid for 10 minutes.`);
         if (!result.success) {
-          console.warn(`[Portal] SMS failed for ${normalized}:`, result);
+          log.warn(`[Portal] SMS failed for ${normalized}:`, result);
         }
       } catch (err) {
         if (process.env.NODE_ENV !== "production") {
           // Only log last 4 digits of phone in dev — never leak OTPs
-          console.warn(`[Portal] Verification code sent to ...${normalized.slice(-4)}`);
+          log.warn(`[Portal] Verification code sent to ...${normalized.slice(-4)}`);
         }
       }
 

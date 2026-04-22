@@ -35,7 +35,7 @@ async function getSession(): Promise<string | null> {
     const cookie = cookies.map(c => c.split(";")[0]).join("; ");
     return cookie || null;
   } catch (e) {
-    console.warn("[services/shopDriverSync] operation failed:", e);
+    log.warn("[services/shopDriverSync] operation failed:", e);
     return null;
   }
 }
@@ -175,7 +175,7 @@ export async function pushInvoice(invoice: {
     );
     return { success: true, method: "telegram" };
   } catch (e) {
-    console.warn("[services/shopDriverSync] operation failed:", e);
+    log.warn("[services/shopDriverSync] operation failed:", e);
     return { success: false, method: "telegram" };
   }
 }
@@ -212,7 +212,7 @@ export async function pushEstimate(estimate: {
     );
     return { success: true, method: "telegram" };
   } catch (e) {
-    console.warn("[services/shopDriverSync] operation failed:", e);
+    log.warn("[services/shopDriverSync] operation failed:", e);
     return { success: false, method: "telegram" };
   }
 }
@@ -246,7 +246,7 @@ export async function pullRecentTickets(): Promise<Array<{
     if (tickets.length > 0) recordPull();
     return tickets;
   } catch (e) {
-    console.warn("[services/shopDriverSync] operation failed:", e);
+    log.warn("[services/shopDriverSync] operation failed:", e);
     return [];
   }
 }
@@ -260,13 +260,13 @@ let _lastPullAt: Date | null = null;
 /** Record a successful push */
 export function recordPush(): void {
   _lastPushAt = new Date();
-  persistSyncTimestamp("lastPushAt", _lastPushAt).catch((e) => { console.warn("[services/shopDriverSync] fire-and-forget failed:", e); });
+  persistSyncTimestamp("lastPushAt", _lastPushAt).catch((e) => { log.warn("[services/shopDriverSync] fire-and-forget failed:", e); });
 }
 
 /** Record a successful pull */
 export function recordPull(): void {
   _lastPullAt = new Date();
-  persistSyncTimestamp("lastPullAt", _lastPullAt).catch((e) => { console.warn("[services/shopDriverSync] fire-and-forget failed:", e); });
+  persistSyncTimestamp("lastPullAt", _lastPullAt).catch((e) => { log.warn("[services/shopDriverSync] fire-and-forget failed:", e); });
 }
 
 async function persistSyncTimestamp(key: string, value: Date): Promise<void> {
@@ -280,7 +280,7 @@ async function persistSyncTimestamp(key: string, value: Date): Promise<void> {
       VALUES (${`shopdriver_${key}`}, ${value.toISOString()}, NOW())
       ON DUPLICATE KEY UPDATE value = ${value.toISOString()}, updatedAt = NOW()
     `);
-  } catch (e) { console.warn("[services/shopDriverSync] operation failed:", e); } // Best-effort — table might not have right schema
+  } catch (e) { log.warn("[services/shopDriverSync] operation failed:", e); } // Best-effort — table might not have right schema
 }
 
 async function loadSyncTimestamps(): Promise<void> {
@@ -296,11 +296,11 @@ async function loadSyncTimestamps(): Promise<void> {
       if (row.key === "shopdriver_lastPushAt") _lastPushAt = new Date(row.value);
       if (row.key === "shopdriver_lastPullAt") _lastPullAt = new Date(row.value);
     }
-  } catch (e) { console.warn("[services/shopDriverSync] operation failed:", e); } // Best-effort
+  } catch (e) { log.warn("[services/shopDriverSync] operation failed:", e); } // Best-effort
 }
 
 // Load on module init
-loadSyncTimestamps().catch((e) => { console.warn("[services/shopDriverSync] fire-and-forget failed:", e); });
+loadSyncTimestamps().catch((e) => { log.warn("[services/shopDriverSync] fire-and-forget failed:", e); });
 
 export async function getSyncStatus(): Promise<{
   shopDriverConnected: boolean;

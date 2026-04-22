@@ -38,7 +38,7 @@ router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
     }
 
     // Log communication (fire-and-forget)
-    logInboundSms(from, body, parsed.intent).catch((e) => { console.warn("[webhooks/twilio] fire-and-forget failed:", e); });
+    logInboundSms(from, body, parsed.intent).catch((e) => { log.warn("[webhooks/twilio] fire-and-forget failed:", e); });
 
     // Send empty TwiML response (no auto-reply for now)
     res.type("text/xml").send("<Response></Response>");
@@ -96,7 +96,7 @@ async function logInboundSms(phone: string, body: string, intent: string): Promi
       metadata: { parsedIntent: intent },
     });
   } catch (err) {
-    console.warn("[twilio] Failed to log inbound SMS:", err instanceof Error ? err.message : err);
+    log.warn("[twilio] Failed to log inbound SMS:", err instanceof Error ? err.message : err);
   }
 }
 

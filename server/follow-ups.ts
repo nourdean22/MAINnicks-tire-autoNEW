@@ -14,6 +14,9 @@ import { createCustomerNotification, markNotificationSent } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { sendSms, thankYouSms, reviewRequestSms } from "./sms";
 
+import { createLogger } from "./lib/logger";
+
+const log = createLogger("follow-ups");
 async function getDb() {
   const { getDb: _getDb } = await import("./db");
   return _getDb();
@@ -61,7 +64,7 @@ export async function process24hFollowUps() {
       if (await isEnabled("sms_review_requests")) {
         const smsResult = await sendSms(booking.phone, thankYouSms(booking.name, booking.service)).catch(() => ({ success: false }));
         if (smsResult.success && notification.id) {
-          await markNotificationSent(notification.id).catch((e) => { console.warn("[follow-ups] fire-and-forget failed:", e); });
+          await markNotificationSent(notification.id).catch((e) => { log.warn("[follow-ups] fire-and-forget failed:", e); });
         }
       }
     }
@@ -112,7 +115,7 @@ export async function process7dReviewRequests() {
       if (await isEnabled("sms_review_requests")) {
         const smsResult = await sendSms(booking.phone, reviewRequestSms(booking.name)).catch(() => ({ success: false }));
         if (smsResult.success && notification.id) {
-          await markNotificationSent(notification.id).catch((e) => { console.warn("[follow-ups] fire-and-forget failed:", e); });
+          await markNotificationSent(notification.id).catch((e) => { log.warn("[follow-ups] fire-and-forget failed:", e); });
         }
       }
     }
@@ -137,12 +140,12 @@ export async function runFollowUps() {
       await notifyOwner({
         title: `Follow-Up Report: ${total} messages queued`,
         content: `24h Thank-You: ${thankYou.processed} queued\n7-Day Review Request: ${reviews.processed} queued\n\nView pending messages in the admin dashboard under Customer Notifications.`,
-      }).catch((e) => { console.warn("[follow-ups] fire-and-forget failed:", e); });
+      }).catch((e) => { log.warn("[follow-ups] fire-and-forget failed:", e); });
     }
 
     return { thankYou, reviews, total };
   } catch (error) {
-    console.error("[Follow-Ups] Error:", error);
+    log.error("[Follow-Ups] Error:", error);
     return { thankYou: { processed: 0 }, reviews: { processed: 0 }, total: 0, error: String(error) };
   }
 }

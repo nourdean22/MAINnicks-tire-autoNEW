@@ -281,7 +281,7 @@ export async function sendTelegramDocument(docUrl: string, caption?: string): Pr
     if (!res.ok) return false;
     stats.sent++;
     return true;
-  } catch (e) { console.warn("[services/telegram] operation failed:", e); return false; }
+  } catch (e) { log.warn("[services/telegram] operation failed:", e); return false; }
 }
 
 /**
@@ -308,7 +308,7 @@ export async function sendTelegramMediaGroup(
     if (!res.ok) return false;
     stats.sent++;
     return true;
-  } catch (e) { console.warn("[services/telegram] operation failed:", e); return false; }
+  } catch (e) { log.warn("[services/telegram] operation failed:", e); return false; }
 }
 
 // ─── Batch Flush (runs every 5 minutes) ─────────────

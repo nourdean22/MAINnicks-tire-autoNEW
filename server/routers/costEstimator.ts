@@ -10,6 +10,9 @@ import { eq } from "drizzle-orm";
 import { shopSettings } from "../../drizzle/schema";
 import { sanitizeText } from "../sanitize";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:costEstimator");
 const DEFAULT_LABOR_RATE = 115;
 
 // In-memory cache: key = "year-make-model-service", value = { result, timestamp }
@@ -89,7 +92,7 @@ async function getShopLaborRate(): Promise<number> {
       ? parseFloat(result[0].value) || DEFAULT_LABOR_RATE
       : DEFAULT_LABOR_RATE;
   } catch (err) {
-    console.warn("[CostEstimator] Failed to fetch labor rate, using default:", err instanceof Error ? err.message : err);
+    log.warn("[CostEstimator] Failed to fetch labor rate, using default:", err instanceof Error ? err.message : err);
     return DEFAULT_LABOR_RATE;
   }
 }
@@ -168,7 +171,7 @@ async function estimateWithAI(
       confidence: parsed.confidence || "medium",
     };
   } catch (err) {
-    console.error("[CostEstimator] AI estimation failed:", err);
+    log.error("[CostEstimator] AI estimation failed:", err);
     return null;
   }
 }
@@ -283,7 +286,7 @@ export const costEstimatorRouter = router({
 
         return result;
       } catch (err) {
-        console.error("[CostEstimator] Estimate failed:", err);
+        log.error("[CostEstimator] Estimate failed:", err);
         // Return graceful fallback
         return {
           service: input.serviceType,

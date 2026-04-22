@@ -8,6 +8,9 @@
 import * as fs from "fs";
 import * as path from "path";
 
+import { createLogger } from "./lib/logger";
+
+const log = createLogger("instagram");
 interface InstagramPost {
   id: string;
   type: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM";
@@ -59,7 +62,7 @@ function loadCache(): InstagramCache | null {
       return memoryCache;
     }
   } catch (err) {
-    console.error("[Instagram] Failed to read cache:", err);
+    log.error("[Instagram] Failed to read cache:", err);
   }
   return null;
 }

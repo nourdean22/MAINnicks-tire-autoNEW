@@ -12,6 +12,9 @@ import { SITE_URL } from "@shared/business";
 
 import { db } from "../lib/db-helper";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:shareCards");
 function generateToken(): string {
   return randomBytes(32).toString("hex");
 }
@@ -89,7 +92,7 @@ export const shareCardsRouter = router({
           .set({ views: (card[0].views || 0) + 1 })
           .where(eq(shareCards.token, input.token))
           .catch((err: unknown) => {
-            console.error("[ShareCards] Failed to increment views:", err);
+            log.error("[ShareCards] Failed to increment views:", err);
           });
       });
 

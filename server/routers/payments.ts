@@ -11,6 +11,9 @@ import { invoices } from "../../drizzle/schema";
 
 import { db } from "../lib/db-helper";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:payments");
 export const paymentsRouter = router({
   /** Get payment config (publishable key, available methods) */
   config: publicProcedure.query(async () => {
@@ -150,7 +153,7 @@ export const paymentsRouter = router({
           totalAmount: status.amountReceived / 100,
           method: input.paymentMethod,
         })
-      ).catch((e) => { console.warn("[routers/payments] fire-and-forget failed:", e); });
+      ).catch((e) => { log.warn("[routers/payments] fire-and-forget failed:", e); });
 
       return { success: true };
     }),

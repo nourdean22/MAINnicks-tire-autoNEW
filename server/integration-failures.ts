@@ -6,6 +6,9 @@ import { eq } from "drizzle-orm";
 import { getDb } from "./db";
 import { integrationFailures } from "../drizzle/schema";
 
+import { createLogger } from "./lib/logger";
+
+const log = createLogger("integration-failures");
 export type FailureType = "sheets_sync" | "email" | "sms" | "capi" | "review_request" | "reminders" | "invoice";
 
 interface LogFailureParams {
@@ -26,8 +29,8 @@ export async function logIntegrationFailure({
   try {
     const d = await getDb();
     if (!d) {
-      console.error(`[IntegrationFailures] DB unavailable; logging to console: ${failureType} on ${entityType}#${entityId}`);
-      console.error(`[IntegrationFailures] Error: ${errorMessage}`, errorDetails);
+      log.error(`[IntegrationFailures] DB unavailable; logging to console: ${failureType} on ${entityType}#${entityId}`);
+      log.error(`[IntegrationFailures] Error: ${errorMessage}`, errorDetails);
       return;
     }
 
@@ -41,10 +44,10 @@ export async function logIntegrationFailure({
       createdAt: new Date(),
     });
 
-    console.error(`[IntegrationFailures] Logged ${failureType} failure on ${entityType}#${entityId}: ${errorMessage}`);
+    log.error(`[IntegrationFailures] Logged ${failureType} failure on ${entityType}#${entityId}: ${errorMessage}`);
   } catch (logErr) {
     // Avoid infinite loops; if logging fails, just console.error
-    console.error("[IntegrationFailures] Failed to log failure:", {
+    log.error("[IntegrationFailures] Failed to log failure:", {
       failureType,
       entityId,
       entityType,
@@ -63,6 +66,6 @@ export async function resolveIntegrationFailure(id: number): Promise<void> {
       .set({ resolvedAt: new Date() })
       .where(eq(integrationFailures.id, id));
   } catch (err) {
-    console.error("[IntegrationFailures] Failed to resolve failure #" + id, err);
+    log.error("[IntegrationFailures] Failed to resolve failure #" + id, err);
   }
 }

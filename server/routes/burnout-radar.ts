@@ -15,6 +15,9 @@
 
 import type { Express, Request, Response } from "express";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routes:burnout-radar");
 interface Task {
   status: string;
   [key: string]: unknown;
@@ -59,7 +62,7 @@ export function registerBurnoutRadarRoute(app: Express): void {
 
       res.json({ status: "OPTIMAL" });
     } catch (err: unknown) {
-      console.error("[burnout-radar] Agent failed:", err);
+      log.error("[burnout-radar] Agent failed:", err);
       res.status(500).json({
         error:
           err instanceof Error ? err.message : "Burnout radar agent failed",

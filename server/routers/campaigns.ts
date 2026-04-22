@@ -17,6 +17,9 @@ import { STORE_PHONE, STORE_NAME } from "@shared/const";
 
 import { db } from "../lib/db-helper";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:campaigns");
 // ─── CAMPAIGN TEMPLATES ────────────────────────────────
 
 const CAMPAIGN_TEMPLATES: Record<string, (name: string, customMessage?: string) => string> = {
@@ -202,7 +205,7 @@ export const campaignsRouter = router({
 
       // Start async processing
       processCampaignSends(input.campaignId).catch(err => {
-        console.error(`[Campaigns] Error processing campaign ${input.campaignId}:`, err);
+        log.error(`[Campaigns] Error processing campaign ${input.campaignId}:`, err);
       });
 
       return { success: true, sentCount: 0, totalCount: targetCustomers.length };
@@ -368,7 +371,7 @@ async function processCampaignSends(campaignId: number, batchSize: number = 50):
           totalFailed++;
         }
       } catch (err) {
-        console.error(`[Campaigns] Failed to process send ${send.id}:`, err);
+        log.error(`[Campaigns] Failed to process send ${send.id}:`, err);
         await d.update(smsCampaignSends).set({
           status: "failed",
           errorMessage: String(err),
@@ -409,7 +412,7 @@ async function processCampaignSends(campaignId: number, batchSize: number = 50):
       failed: totalFailed,
       campaignType: campaign?.template || "unknown",
     })
-  ).catch((e) => { console.warn("[routers/campaigns] fire-and-forget failed:", e); });
+  ).catch((e) => { log.warn("[routers/campaigns] fire-and-forget failed:", e); });
 
   console.info(`[campaigns:done] Campaign ${campaignId} completed: ${totalSent} sent, ${totalFailed} failed`);
 }

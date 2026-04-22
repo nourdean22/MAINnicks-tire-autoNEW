@@ -13,6 +13,9 @@ import { eq } from "drizzle-orm";
 
 import { db } from "../lib/db-helper";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:autoLabor");
 const SHOPDRIVER_BASE = "https://secure.autolaborexperts.com";
 const SHOPDRIVER_API = "https://8DD0FCE9-80F9-4A9E-B0C3-CF76825AD9B7.autolaborexperts.com";
 
@@ -52,7 +55,7 @@ async function getShopDriverSession(): Promise<string | null> {
     const valid = await isTokenValid(shopDriverSession.token);
     if (valid) return shopDriverSession.token;
     // Token was kicked — invalidate and re-auth below
-    console.log("[ShopDriver] Token invalidated (likely shop login). Re-authenticating...");
+    log.info("[ShopDriver] Token invalidated (likely shop login). Re-authenticating...");
     shopDriverSession = null;
   }
 
@@ -67,7 +70,7 @@ async function getShopDriverSession(): Promise<string | null> {
   const password = process.env.AUTO_LABOR_PASSWORD || process.env.ALG_PASSWORD;
 
   if (!username || !password) {
-    console.error("[ShopDriver] Missing credentials (AUTO_LABOR_USERNAME/PASSWORD or ALG_USERNAME/PASSWORD)");
+    log.error("[ShopDriver] Missing credentials (AUTO_LABOR_USERNAME/PASSWORD or ALG_USERNAME/PASSWORD)");
     return null;
   }
 
@@ -90,7 +93,7 @@ async function getShopDriverSession(): Promise<string | null> {
     });
 
     if (!res.ok) {
-      console.error(`[ShopDriver] Login failed: HTTP ${res.status}`);
+      log.error(`[ShopDriver] Login failed: HTTP ${res.status}`);
       return null;
     }
 
@@ -122,10 +125,10 @@ async function getShopDriverSession(): Promise<string | null> {
       return `cookie:${cookieStr}`;
     }
 
-    console.error("[ShopDriver] Login OK but no token found", Object.keys(data));
+    log.error("[ShopDriver] Login OK but no token found", Object.keys(data));
     return null;
   } catch (err) {
-    console.error("[ShopDriver] Auth error:", err);
+    log.error("[ShopDriver] Auth error:", err);
     return null;
   }
 }

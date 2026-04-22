@@ -22,6 +22,9 @@ import { desc, eq, gte, sql, and, lte } from "drizzle-orm";
 
 import { db } from "../lib/db-helper";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("pipelines:gbp-reviews");
 // ─── TYPES ───────────────────────────────────────────────
 
 interface GooglePlacesReview {
@@ -99,7 +102,7 @@ export async function fetchRecentReviews(): Promise<RawReview[]> {
   );
 
   if (search.status !== "OK" || !search.results?.length) {
-    console.warn("[GBP Pipeline] Place search failed:", search.status);
+    log.warn("[GBP Pipeline] Place search failed:", search.status);
     return [];
   }
 
@@ -115,7 +118,7 @@ export async function fetchRecentReviews(): Promise<RawReview[]> {
   );
 
   if (details.status !== "OK" || !details.result?.reviews) {
-    console.warn("[GBP Pipeline] Place details failed:", details.status);
+    log.warn("[GBP Pipeline] Place details failed:", details.status);
     return [];
   }
 
@@ -169,7 +172,7 @@ async function fetchCompetitorReviews(query: string): Promise<{ name: string; pl
       totalReviews: ((details.result as unknown as { rating?: number; user_ratings_total?: number }))?.user_ratings_total || 0,
     };
   } catch (error) {
-    console.error(`[GBP Pipeline] Competitor fetch failed for "${query}":`, error);
+    log.error(`[GBP Pipeline] Competitor fetch failed for "${query}":`, error);
     return null;
   }
 }
@@ -244,7 +247,7 @@ Keep topics to 1-4 items. Keep keywords to 2-6 items from the actual text.`,
       };
     }
   } catch (error) {
-    console.error("[GBP Pipeline] Review analysis failed:", error);
+    log.error("[GBP Pipeline] Review analysis failed:", error);
   }
 
   // Fallback: derive from star rating
@@ -281,7 +284,7 @@ export async function suggestResponse(review: AnalyzedReview): Promise<string> {
         .map((r: { response?: string | null; rating: number; reviewText?: string | null }) => `[${r.rating}-star] "${r.reviewText?.slice(0, 80) || '(no text)'}" → Response: "${r.response!.slice(0, 150)}"`);
     }
   } catch (e) {
-    console.warn("[pipelines/gbp-reviews] operation failed:", e);
+    log.warn("[pipelines/gbp-reviews] operation failed:", e);
     // Non-critical — proceed without learning data
   }
 
@@ -317,7 +320,7 @@ Guidelines:
     const content = response.choices?.[0]?.message?.content;
     return (typeof content === "string" ? content : "") || "Unable to generate response.";
   } catch (error) {
-    console.error("[GBP Pipeline] Response generation failed:", error);
+    log.error("[GBP Pipeline] Response generation failed:", error);
     return "Unable to generate response.";
   }
 }
@@ -355,7 +358,7 @@ export async function extractKeywords(opts?: { limit?: number }): Promise<Array<
         if (review.sentiment) existing.sentiments.push(review.sentiment);
         keywordMap.set(key, existing);
       }
-    } catch (e) { /* skip malformed JSON */ console.warn("[pipelines/gbp-reviews] operation failed:", e); }
+    } catch (e) { /* skip malformed JSON */ log.warn("[pipelines/gbp-reviews] operation failed:", e); }
   }
 
   // Sort by frequency, determine dominant sentiment for each keyword
@@ -429,7 +432,7 @@ export async function detectTrends(): Promise<ReviewTrendSnapshot> {
         const key = t.toLowerCase().trim();
         keywordFreq.set(key, (keywordFreq.get(key) || 0) + 1);
       }
-    } catch (e) { /* skip */ console.warn("[pipelines/gbp-reviews] operation failed:", e); }
+    } catch (e) { /* skip */ log.warn("[pipelines/gbp-reviews] operation failed:", e); }
   }
   const topKeywords = [...keywordFreq.entries()]
     .sort((a, b) => b[1] - a[1])
@@ -619,7 +622,7 @@ Be specific. These are reviews for a competitor of Nick's Tire & Auto.`,
         });
       }
     } catch (error) {
-      console.error(`[GBP Pipeline] Competitor analysis failed for ${data.name}:`, error);
+      log.error(`[GBP Pipeline] Competitor analysis failed for ${data.name}:`, error);
       results.push({
         name: data.name,
         placeId: data.placeId,
@@ -691,7 +694,7 @@ export async function runReviewPipeline(): Promise<{
         urgentCount++;
       }
     } catch (error) {
-      console.error("[GBP Pipeline] Error processing review:", error);
+      log.error("[GBP Pipeline] Error processing review:", error);
       errors++;
     }
   }

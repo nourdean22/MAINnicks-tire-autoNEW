@@ -18,6 +18,9 @@ import { desc, eq, sql } from "drizzle-orm";
 
 import { db } from "../lib/db-helper";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("pipelines:orchestrator");
 // ─── TYPES ───────────────────────────────────────────────
 
 export interface PipelineConfig {
@@ -141,7 +144,7 @@ export async function runPipeline(pipelineName: string): Promise<{
       })
       .where(eq(pipelineRuns.id, runId));
 
-    console.error(`[Orchestrator] ${config.displayName} FAILED after ${durationMs}ms:`, errorMessage);
+    log.error(`[Orchestrator] ${config.displayName} FAILED after ${durationMs}ms:`, errorMessage);
     return { status: "error", durationMs, error: errorMessage };
   }
 }
@@ -288,7 +291,7 @@ export async function getPipelineStatuses(): Promise<PipelineStatus[]> {
     // Parse result JSON safely
     let resultParsed: Record<string, unknown> | null = null;
     if (lastRun?.resultJson) {
-      try { resultParsed = JSON.parse(lastRun.resultJson); } catch (e) { /* skip */ console.warn("[pipelines/orchestrator] operation failed:", e); }
+      try { resultParsed = JSON.parse(lastRun.resultJson); } catch (e) { /* skip */ log.warn("[pipelines/orchestrator] operation failed:", e); }
     }
 
     statuses.push({

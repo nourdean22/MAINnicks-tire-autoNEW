@@ -14,6 +14,9 @@ import { saveReviewStatsToDb } from "../google-reviews";
 
 import { db } from "../lib/db-helper";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:admin");
 export const adminDashboardRouter = router({
   stats: adminProcedure.query(async () => {
     return getDashboardStats();
@@ -226,7 +229,7 @@ export const weeklyReportRouter = router({
       category: "weekly_report",
       subject: `Weekly Report: ${weekBookings.length} bookings, ${weekLeads.length} leads`,
       body: `NICK'S TIRE & AUTO — WEEKLY INTELLIGENCE REPORT\n${"-".repeat(50)}\nPeriod: ${weekAgo.toLocaleDateString()} — ${now.toLocaleDateString()}\n\nBOOKINGS: ${report.bookings.total} total\n  Completed: ${report.bookings.completed}\n  Emergency: ${report.bookings.emergency}\n  Cancelled: ${report.bookings.cancelled}\n\nTop Services:\n${topServices || "  No bookings this week"}\n\nLEADS: ${report.leads.total} total\n  High Urgency: ${report.leads.highUrgency}\n  Converted to Booking: ${report.leads.converted}\n\nCALLBACKS: ${report.callbacks.total} total\n  Completed: ${report.callbacks.completed}\n  Still Pending: ${report.callbacks.pending}\n\nFOLLOW-UPS SENT: ${report.notifications.sent}\nFOLLOW-UPS PENDING: ${report.notifications.pending}`,
-    }).catch((e) => { console.warn("[routers/admin] fire-and-forget failed:", e); });
+    }).catch((e) => { log.warn("[routers/admin] fire-and-forget failed:", e); });
 
     return report;
   }),
@@ -309,12 +312,12 @@ export const callTrackingRouter = router({
         // Schedule review request SMS 2 hours after call CTA click
         // Gated behind sms_review_requests feature flag
         scheduleCallReviewRequest(input.phoneNumber).catch((err) => {
-          console.error("[CallTracking] Review request scheduling failed:", err);
+          log.error("[CallTracking] Review request scheduling failed:", err);
         });
 
         return { success: true };
       } catch (err) {
-        console.error("[CallTracking] Error logging call:", err);
+        log.error("[CallTracking] Error logging call:", err);
         return { success: false };
       }
     }),

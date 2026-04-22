@@ -19,7 +19,7 @@ let _pool: mysql.Pool | null = null;
 
 /** Reset the cached DB connection — used by self-healing to force reconnection */
 export function resetDbConnection(): void {
-  _pool?.end().catch((e) => { console.warn("[db] fire-and-forget failed:", e); });
+  _pool?.end().catch((e) => { log.warn("[db] fire-and-forget failed:", e); });
   _pool = null;
   _db = null;
 }
@@ -44,7 +44,7 @@ export async function getDb() {
       });
       _db = drizzle(_pool);
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      log.warn("[Database] Failed to connect:", error);
       _db = null;
       _pool = null;
     }
@@ -59,7 +59,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 
   const db = await getDb();
   if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
+    log.warn("[Database] Cannot upsert user: database not available");
     return;
   }
 
@@ -111,7 +111,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       set: updateSet,
     });
   } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
+    log.error("[Database] Failed to upsert user:", error);
     throw error;
   }
 }
@@ -119,7 +119,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
+    log.warn("[Database] Cannot get user: database not available");
     return undefined;
   }
 
@@ -1289,6 +1289,9 @@ export async function deleteTechnician(id: number) {
 // ─── INVOICE HELPERS ─────────────────────────────────────────
 import { invoices, type InsertInvoice } from "../drizzle/schema";
 
+import { createLogger } from "./lib/logger";
+
+const log = createLogger("db");
 /** Generate the next invoice number: INV-YYYYMMDD-NNN */
 export async function getNextInvoiceNumber(): Promise<string> {
   const db = await getDb();

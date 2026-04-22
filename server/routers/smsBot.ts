@@ -8,6 +8,9 @@ import { router, adminProcedure } from "../_core/trpc";
 import { sanitizePhone, sanitizeText, sanitizeName } from "../sanitize";
 import { sendSms } from "../sms";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:smsBot");
 const CONVERSATION_TTL = 30 * 60 * 1000; // 30 minutes
 const RATE_LIMIT = { max: 20, windowMs: 60 * 60 * 1000 }; // 20 msgs/hour
 
@@ -102,7 +105,7 @@ export async function handleIncomingSMS(from: string, body: string): Promise<str
         await db.update(customers).set({ smsOptOut: 1 }).where(like(customers.phone, `%${phone}`));
       }
     } catch (err) {
-      console.error("[SMSBot] Failed to persist opt-out to DB:", err instanceof Error ? err.message : err);
+      log.error("[SMSBot] Failed to persist opt-out to DB:", err instanceof Error ? err.message : err);
     }
     return "You've been opted out. Text START to re-enable.";
   }
@@ -119,7 +122,7 @@ export async function handleIncomingSMS(from: string, body: string): Promise<str
         await db.update(customers).set({ smsOptOut: 0 }).where(like(customers.phone, `%${phone}`));
       }
     } catch (err) {
-      console.error("[SMSBot] Failed to persist opt-in to DB:", err instanceof Error ? err.message : err);
+      log.error("[SMSBot] Failed to persist opt-in to DB:", err instanceof Error ? err.message : err);
     }
     return "You've been re-subscribed to messages from Nick's Tire & Auto!";
   }
@@ -176,7 +179,7 @@ export async function handleIncomingSMS(from: string, body: string): Promise<str
 
     // Save booking to DB (async, don't block response)
     saveBooking(phone, conv).catch(err => {
-      console.error("[SMS Bot] Failed to save booking:", err);
+      log.error("[SMS Bot] Failed to save booking:", err);
     });
 
     return "Thanks! We've received your booking request. We'll call you shortly to confirm. Call us at (216) 862-0005 for urgent issues.";
@@ -190,7 +193,7 @@ async function saveBooking(phone: string, conv: ConversationState) {
     const { getDb } = await import("../db");
     const db = await getDb();
     if (!db) {
-      console.error("[SMS Bot] Database not available");
+      log.error("[SMS Bot] Database not available");
       return;
     }
     const { bookings } = await import("../../drizzle/schema");
@@ -219,7 +222,7 @@ async function saveBooking(phone: string, conv: ConversationState) {
         service: conv.problemDescription?.split(" ")[0] || "general-repair",
         vehicle: conv.vehicleInfo || "",
       })
-    ).catch((e) => { console.warn("[routers/smsBot] fire-and-forget failed:", e); });
+    ).catch((e) => { log.warn("[routers/smsBot] fire-and-forget failed:", e); });
 
     // Sync to sheets (async, fire-and-forget)
     try {
@@ -235,7 +238,7 @@ async function saveBooking(phone: string, conv: ConversationState) {
         recommendedService: "general-repair",
       });
     } catch (err) {
-      console.error("[SMS Bot] Sheets sync failed:", err);
+      log.error("[SMS Bot] Sheets sync failed:", err);
     }
 
     // Notify owner via SMS
@@ -246,10 +249,10 @@ async function saveBooking(phone: string, conv: ConversationState) {
         await sendSms(ownerPhone, notifMsg, { skipOptOutCheck: true });
       }
     } catch (err) {
-      console.error("[SMS Bot] Owner notification failed:", err);
+      log.error("[SMS Bot] Owner notification failed:", err);
     }
   } catch (err) {
-    console.error("[SMS Bot] Booking save failed:", err);
+    log.error("[SMS Bot] Booking save failed:", err);
   }
 }
 

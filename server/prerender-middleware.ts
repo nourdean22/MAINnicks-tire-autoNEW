@@ -13,6 +13,9 @@ import type { Request, Response, NextFunction } from "express";
 import fs from "fs";
 import path from "path";
 
+import { createLogger } from "./lib/logger";
+
+const log = createLogger("prerender-middleware");
 // Bot User-Agent patterns (case-insensitive matching)
 const BOT_PATTERNS = [
   "googlebot",
@@ -111,6 +114,6 @@ function countHtmlFiles(dir: string): number {
     for (const entry of entries) {
       if (entry.isFile() && entry.name.endsWith(".html")) count++;
     }
-  } catch (e) { /* directory read for counting prerendered files — non-critical */ console.warn("[prerender-middleware] operation failed:", e); }
+  } catch (e) { /* directory read for counting prerendered files — non-critical */ log.warn("[prerender-middleware] operation failed:", e); }
   return count;
 }

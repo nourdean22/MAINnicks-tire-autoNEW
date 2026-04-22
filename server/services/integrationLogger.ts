@@ -1,3 +1,6 @@
+import { createLogger } from "../lib/logger";
+const log = createLogger("services:integrationLogger");
+
 /**
  * Integration Logger — In-memory event log for vendor integration activity.
  *
@@ -59,7 +62,7 @@ export function logIntegrationEvent(params: {
   const level = params.type.includes("error") || params.type.includes("failure") || params.type === "timeout" ? "error" : "info";
   const prefix = `[IntLog] [${params.vendor}]`;
   if (level === "error") {
-    console.error(`${prefix} ${params.type}: ${params.message}${params.error ? ` — ${params.error}` : ""}`);
+    log.error(`${prefix} ${params.type}: ${params.message}${params.error ? ` — ${params.error}` : ""}`);
   } else {
     console.info(`${prefix} ${params.type}: ${params.message}${params.latencyMs ? ` (${params.latencyMs}ms)` : ""}`);
   }

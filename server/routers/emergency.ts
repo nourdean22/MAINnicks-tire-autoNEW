@@ -17,6 +17,9 @@ import { TRPCError } from "@trpc/server";
 import { db } from "../lib/db-helper";
 
 import { BUSINESS } from "@shared/business";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:emergency");
 const STORE_OWNER_PHONE = process.env.OWNER_PHONE_NUMBER || process.env.ADMIN_PHONE || "";
 
 function getNextOpenTime(): string {
@@ -161,7 +164,7 @@ export const emergencyRouter = router({
             urgency: input.urgency,
           })
         ).catch(err => {
-          console.error("[EventBus] Emergency dispatch failed:", err);
+          log.error("[EventBus] Emergency dispatch failed:", err);
         });
 
         // Sync to Google Sheets asynchronously (fire and forget with retry)
@@ -179,7 +182,7 @@ export const emergencyRouter = router({
             }),
           { maxRetries: 2, baseDelayMs: 500, label: "emergency-sheets-sync" }
         ).catch((err) => {
-          console.error("[Emergency] Sheets sync failed:", err);
+          log.error("[Emergency] Sheets sync failed:", err);
           logIntegrationFailure({
             failureType: "sheets_sync",
             entityId: emergencyId,
@@ -200,7 +203,7 @@ export const emergencyRouter = router({
             `Urgency: ${input.urgency}\n\n` +
             `⚡ CALL THEM BACK ASAP`
           )
-        ).catch((e) => { console.warn("[routers/emergency] fire-and-forget failed:", e); });
+        ).catch((e) => { log.warn("[routers/emergency] fire-and-forget failed:", e); });
 
         // IMMEDIATE SMS to owner about the emergency request
         withRetry(
@@ -211,7 +214,7 @@ export const emergencyRouter = router({
             ),
           { maxRetries: 2, baseDelayMs: 500, label: "emergency-owner-sms" }
         ).catch((err) => {
-          console.error("[Emergency] Owner SMS failed:", err);
+          log.error("[Emergency] Owner SMS failed:", err);
           logIntegrationFailure({
             failureType: "sms",
             entityId: emergencyId,
@@ -230,7 +233,7 @@ export const emergencyRouter = router({
             ),
           { maxRetries: 2, baseDelayMs: 500, label: "emergency-customer-sms" }
         ).catch((err) => {
-          console.error("[Emergency] Customer SMS failed:", err);
+          log.error("[Emergency] Customer SMS failed:", err);
           logIntegrationFailure({
             failureType: "sms",
             entityId: emergencyId,
@@ -246,7 +249,7 @@ export const emergencyRouter = router({
           message: `We've received your emergency request and the owner has been notified. We'll be available ${nextOpenTime}.`,
         };
       } catch (err) {
-        console.error("[Emergency] Submit failed:", err);
+        log.error("[Emergency] Submit failed:", err);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message:

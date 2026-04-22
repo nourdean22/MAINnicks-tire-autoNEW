@@ -14,6 +14,9 @@ import { z } from "zod";
 import { db } from "../lib/db-helper";
 
 import { BUSINESS } from "@shared/business";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:controlCenter");
 /** Get today's date string (YYYY-MM-DD) in America/New_York timezone */
 function getTodayET(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
@@ -133,7 +136,7 @@ export const controlCenterRouter = router({
       };
     } catch (err) {
       // AI gateway unavailable — defaults are fine
-      console.warn("[ControlCenter] AI gateway stats unavailable:", err instanceof Error ? err.message : err);
+      log.warn("[ControlCenter] AI gateway stats unavailable:", err instanceof Error ? err.message : err);
     }
 
     // ─── System Health ───────────────────────────────
@@ -144,7 +147,7 @@ export const controlCenterRouter = router({
         dbStatus = "connected";
       } catch (err) {
         dbStatus = "degraded";
-        console.error("[ControlCenter] DB ping failed:", err instanceof Error ? err.message : err);
+        log.error("[ControlCenter] DB ping failed:", err instanceof Error ? err.message : err);
       }
     }
 
@@ -152,7 +155,7 @@ export const controlCenterRouter = router({
     let tunnelUrl: string | null = null;
     let tunnelMode = "none";
     try {
-      const tunnel = await import("../lib/tunnel-status").catch((e) => { console.warn("[routers/controlCenter] optional operation failed:", e); return null; });
+      const tunnel = await import("../lib/tunnel-status").catch((e) => { log.warn("[routers/controlCenter] optional operation failed:", e); return null; });
       if (tunnel && typeof tunnel.getTunnelStatus === "function") {
         const status = await tunnel.getTunnelStatus();
         tunnelUrl = status?.url ?? null;
@@ -309,7 +312,7 @@ export const controlCenterRouter = router({
           ageHours: Math.round((nowMs - new Date(o.createdAt).getTime()) / 3600000),
         }));
       } catch (e) {
-        console.error("[ControlCenter] Pipeline query failed:", e instanceof Error ? e.message : e);
+        log.error("[ControlCenter] Pipeline query failed:", e instanceof Error ? e.message : e);
       }
     }
 
@@ -459,7 +462,7 @@ export const controlCenterRouter = router({
           }
         } catch (err) {
           // SMS table might not exist yet
-          console.warn("[ControlCenter] SMS stats query failed:", err instanceof Error ? err.message : err);
+          log.warn("[ControlCenter] SMS stats query failed:", err instanceof Error ? err.message : err);
         }
       }
     }
@@ -534,7 +537,7 @@ export const controlCenterRouter = router({
         execution.streak = streak;
       } catch (err) {
         // Tables might not exist yet — return defaults
-        console.warn("[ControlCenter] Execution tracking query failed:", err instanceof Error ? err.message : err);
+        log.warn("[ControlCenter] Execution tracking query failed:", err instanceof Error ? err.message : err);
       }
     }
 
@@ -781,7 +784,7 @@ export const controlCenterRouter = router({
         uncommittedCount,
       };
     } catch (err) {
-      console.warn("[ControlCenter] Git pulse query failed:", err instanceof Error ? err.message : err);
+      log.warn("[ControlCenter] Git pulse query failed:", err instanceof Error ? err.message : err);
       return {
         branch: "unknown",
         commitsThisWeek: 0,
@@ -798,7 +801,7 @@ export const controlCenterRouter = router({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- gateway health shape varies between providers
     let health: Record<string, unknown> = { veniceHealthy: false, circuitBreaker: { open: false } };
     try { health = getGatewayHealth() as Record<string, unknown>; } catch (err) {
-      console.warn("[ControlCenter] Gateway health unavailable for twin:", err instanceof Error ? err.message : err);
+      log.warn("[ControlCenter] Gateway health unavailable for twin:", err instanceof Error ? err.message : err);
     }
 
     return {

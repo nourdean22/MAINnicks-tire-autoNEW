@@ -445,7 +445,7 @@ export async function checkDataSafety(): Promise<CheckResult<DataMetrics>> {
       await db.execute(sql`SELECT 1`);
       metrics.dbConnectionHealthy = true;
     } catch (e) {
-      console.warn("[services/safetyMonitor] operation failed:", e);
+      log.warn("[services/safetyMonitor] operation failed:", e);
       metrics.dbConnectionHealthy = false;
       alerts.push({ severity: "critical", message: "Database connection test failed" });
       return { alerts, metrics };

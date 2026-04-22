@@ -10,6 +10,9 @@ import { TRPCError } from "@trpc/server";
 import { leads } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:messengerBot");
 const STORE_PHONE = "(216) 862-0005";
 
 // Conversation state: keyed by senderId (PSID)
@@ -126,12 +129,12 @@ async function saveLeadToDb(
           source: "chat",
           urgencyScore: 3,
         })
-      ).catch((e) => { console.warn("[routers/messengerBot] fire-and-forget failed:", e); });
+      ).catch((e) => { log.warn("[routers/messengerBot] fire-and-forget failed:", e); });
     }
 
     return leadId;
   } catch (err) {
-    console.error("[MessengerBot] Lead save failed:", err);
+    log.error("[MessengerBot] Lead save failed:", err);
     return null;
   }
 }
@@ -143,7 +146,7 @@ export async function sendMessengerReply(
   try {
     const token = process.env.META_PAGE_ACCESS_TOKEN || process.env.FB_PAGE_ACCESS_TOKEN;
     if (!token) {
-      console.warn("[Messenger] META_PAGE_ACCESS_TOKEN not configured");
+      log.warn("[Messenger] META_PAGE_ACCESS_TOKEN not configured");
       return false;
     }
 
@@ -161,7 +164,7 @@ export async function sendMessengerReply(
 
     return response.ok;
   } catch (err) {
-    console.error("[Messenger] Send failed:", err);
+    log.error("[Messenger] Send failed:", err);
     return false;
   }
 }
@@ -283,7 +286,7 @@ export async function handleMessengerMessage(
       return;
     }
   } catch (err) {
-    console.error("[MessengerBot] Handler error:", err);
+    log.error("[MessengerBot] Handler error:", err);
     await sendMessengerReply(
       senderId,
       `Something went wrong. Please call us at ${STORE_PHONE}. Thanks!`

@@ -21,6 +21,9 @@ import { logAdminAction } from "../services/auditTrail";
 
 import { db } from "../lib/db-helper";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:lead");
 export const leadRouter = router({
   submit: publicProcedure
     .input(
@@ -111,7 +114,7 @@ export const leadRouter = router({
             source: input.source,
             urgencyScore: scoring.score,
           })
-        ).catch((e) => { console.warn("[routers/lead] fire-and-forget failed:", e); });
+        ).catch((e) => { log.warn("[routers/lead] fire-and-forget failed:", e); });
       }
 
       // TCPA-defensible opt-in record (implicit consent via lead form)
@@ -123,7 +126,7 @@ export const leadRouter = router({
           userAgent: ctx.req?.headers?.["user-agent"]?.toString() ?? null,
           context: { leadId },
         }),
-      ).catch((err) => console.warn("[lead] compliance log failed:", err));
+      ).catch((err) => log.warn("[lead] compliance log failed:", err));
 
       withRetry(
         () => syncLeadToSheet({
@@ -139,7 +142,7 @@ export const leadRouter = router({
         }),
         { maxRetries: 3, baseDelayMs: 1000, label: "syncLeadToSheet" }
       ).catch(err => {
-        console.error("[Sheets] Lead sync failed:", err);
+        log.error("[Sheets] Lead sync failed:", err);
         logIntegrationFailure({
           failureType: "sheets_sync",
           entityId: leadId,
@@ -167,7 +170,7 @@ export const leadRouter = router({
         }),
         { maxRetries: 3, baseDelayMs: 1000, label: "notifyNewLead" }
       ).catch(err => {
-        console.error("[Lead] Email notification failed:", err);
+        log.error("[Lead] Email notification failed:", err);
         logIntegrationFailure({
           failureType: "email",
           entityId: leadId,
@@ -194,7 +197,7 @@ export const leadRouter = router({
           }),
           { maxRetries: 3, baseDelayMs: 1000, label: "sendLeadEvent (lead)" }
         ).catch(err => {
-          console.error("[CAPI] Lead event failed:", err);
+          log.error("[CAPI] Lead event failed:", err);
           logIntegrationFailure({
             failureType: "capi",
             entityId: leadId,
@@ -212,7 +215,7 @@ export const leadRouter = router({
           () => sendSms(input.phone, financingSms),
           { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (financing preapproval)" }
         ).catch(err => {
-          console.error("[SMS] Financing preapproval SMS failed:", err);
+          log.error("[SMS] Financing preapproval SMS failed:", err);
           logIntegrationFailure({
             failureType: "sms",
             entityId: leadId,
@@ -222,13 +225,13 @@ export const leadRouter = router({
           });
         });
       } else if (isAfterHours()) {
-        handleAfterHoursCapture({ name, phone, type: "lead" }).catch((e) => { console.warn("[routers/lead] fire-and-forget failed:", e); });
+        handleAfterHoursCapture({ name, phone, type: "lead" }).catch((e) => { log.warn("[routers/lead] fire-and-forget failed:", e); });
       } else {
         withRetry(
           () => sendSms(input.phone, leadConfirmationSms(input.name)),
           { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (lead confirmation)" }
         ).catch(err => {
-          console.error("[SMS] Lead confirmation failed:", err);
+          log.error("[SMS] Lead confirmation failed:", err);
           logIntegrationFailure({
             failureType: "sms",
             entityId: leadId,
@@ -255,9 +258,9 @@ export const leadRouter = router({
             `\u23F0 ${new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone })}`,
           ];
           sendTelegramMessage(lines.filter(Boolean).join("\n"), "critical");
-        }).catch((e) => { console.warn("[routers/lead] fire-and-forget failed:", e); });
+        }).catch((e) => { log.warn("[routers/lead] fire-and-forget failed:", e); });
       } else {
-        alertNewLead({ name, phone, service: scoring.recommendedService, source: input.source }).catch((e) => { console.warn("[routers/lead] fire-and-forget failed:", e); });
+        alertNewLead({ name, phone, service: scoring.recommendedService, source: input.source }).catch((e) => { log.warn("[routers/lead] fire-and-forget failed:", e); });
       }
 
       return {
@@ -266,7 +269,7 @@ export const leadRouter = router({
         recommendedService: scoring.recommendedService,
       };
       } catch (err) {
-        console.error("[Lead] Submit failed:", err);
+        log.error("[Lead] Submit failed:", err);
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "We couldn't save your information. Please call us at (216) 862-0005." });
       }
     }),
@@ -326,7 +329,7 @@ export const leadRouter = router({
           details: `Status changed to ${updates.status}`,
           newValue: updates.status,
           metadata: lostReason ? { lostReason } : undefined,
-        }).catch((e) => { console.warn("[routers/lead] fire-and-forget failed:", e); });
+        }).catch((e) => { log.warn("[routers/lead] fire-and-forget failed:", e); });
       }
       if (updates.contactNotes !== undefined) {
         logAdminAction({
@@ -335,7 +338,7 @@ export const leadRouter = router({
           entityId: id,
           details: "Contact notes updated",
           newValue: updates.contactNotes,
-        }).catch((e) => { console.warn("[routers/lead] fire-and-forget failed:", e); });
+        }).catch((e) => { log.warn("[routers/lead] fire-and-forget failed:", e); });
       }
 
       return { success: true };
@@ -356,7 +359,7 @@ export const leadRouter = router({
         entityType: "lead",
         entityId: input.id,
         details: `Lead #${input.id} deleted`,
-      }).catch((e) => { console.warn("[routers/lead] fire-and-forget failed:", e); });
+      }).catch((e) => { log.warn("[routers/lead] fire-and-forget failed:", e); });
       return { success: true };
     }),
 

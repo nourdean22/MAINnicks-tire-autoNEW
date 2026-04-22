@@ -33,6 +33,9 @@ jobs:
       - name: Lint / format check
         run: pnpm lint 2>&1 | tee /tmp/lint-output.txt
 
+      - name: Source lint (no console in server, count anys & SQL)
+        run: pnpm lint:source 2>&1 | tee /tmp/lint-source-output.txt
+
       - name: Run tests with coverage
         run: pnpm test -- --reporter=verbose --coverage 2>&1 | tee /tmp/test-output.txt
         env:
@@ -54,6 +57,7 @@ jobs:
             /tmp/env-output.txt
             /tmp/check-output.txt
             /tmp/lint-output.txt
+            /tmp/lint-source-output.txt
             /tmp/test-output.txt
             /tmp/audit-output.txt
             /tmp/build-output.txt

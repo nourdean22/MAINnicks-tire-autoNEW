@@ -37,12 +37,12 @@ export async function generateDailyReport(): Promise<{ recordsProcessed: number;
       const { getShopPulse } = await import("../../services/nickIntelligence");
       const pulse = await getShopPulse();
       revenue = pulse.today.revenue;
-    } catch (e) { console.warn("[jobs/dailyReport] operation failed:", e); }
+    } catch (e) { log.warn("[jobs/dailyReport] operation failed:", e); }
     try {
       const rawLeads = await db.execute(sql`SELECT COUNT(*) as cnt FROM leads WHERE DATE(createdAt) = ${today}`);
       const leadRows = Array.isArray(rawLeads) && Array.isArray(rawLeads[0]) ? rawLeads[0] : rawLeads;
       leadCount = (leadRows as any)?.[0]?.cnt || 0;
-    } catch (e) { console.warn("[jobs/dailyReport] operation failed:", e); }
+    } catch (e) { log.warn("[jobs/dailyReport] operation failed:", e); }
 
     // Send rich Telegram summary instead of thin SMS
     try {
@@ -53,7 +53,7 @@ export async function generateDailyReport(): Promise<{ recordsProcessed: number;
         revenue,
         reviews: reviewCount,
       });
-    } catch (e) { console.warn("[jobs/dailyReport] operation failed:", e); }
+    } catch (e) { log.warn("[jobs/dailyReport] operation failed:", e); }
 
     // Still send SMS as backup
     const message = `Daily: ${bookingCount} bookings, ${leadCount} leads, $${revenue} revenue. — Nick's Tire & Auto`;

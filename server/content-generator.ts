@@ -11,6 +11,9 @@ import { getDb } from "./db";
 import { dynamicArticles, notificationMessages, contentGenerationLog } from "../drizzle/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 
+import { createLogger } from "./lib/logger";
+
+const log = createLogger("content-generator");
 // ─── SEASONAL CONTEXT ──────────────────────────────────
 
 export type Season = "spring" | "summer" | "fall" | "winter";
@@ -168,7 +171,7 @@ Respond with valid JSON only. No markdown, no code blocks, just raw JSON.`,
   try {
     article = JSON.parse(rawContent);
   } catch (e) {
-    console.warn("[content-generator] operation failed:", e);
+    log.warn("[content-generator] operation failed:", e);
     // Try to extract JSON from the response (LLM may wrap in markdown code blocks)
     const jsonMatch = rawContent.match(/\{[\s\S]*\}/)?.[0];
     if (!jsonMatch) throw new Error("LLM returned invalid JSON for article");
@@ -246,7 +249,7 @@ Respond with valid JSON only. No markdown, no code blocks, just raw JSON.`,
   try {
     parsed = JSON.parse(rawContent);
   } catch (e) {
-    console.warn("[content-generator] operation failed:", e);
+    log.warn("[content-generator] operation failed:", e);
     const jsonMatch = rawContent.match(/\{[\s\S]*\}/)?.[0];
     if (!jsonMatch) throw new Error("LLM returned invalid JSON for notifications");
     try {
@@ -298,7 +301,7 @@ export async function saveGeneratedArticle(article: GeneratedArticle): Promise<n
       contentType: "article",
       status: "failed",
       errorMessage: error.message,
-    }).catch((e: unknown) => { console.warn("[content-generator] fire-and-forget failed:", e); });
+    }).catch((e: unknown) => { log.warn("[content-generator] fire-and-forget failed:", e); });
 
     throw error;
   }
@@ -331,7 +334,7 @@ export async function saveGeneratedNotifications(notifications: GeneratedNotific
         contentType: "notification",
         status: "failed",
         errorMessage: error.message,
-      }).catch((e: unknown) => { console.warn("[content-generator] fire-and-forget failed:", e); });
+      }).catch((e: unknown) => { log.warn("[content-generator] fire-and-forget failed:", e); });
     }
   }
 }

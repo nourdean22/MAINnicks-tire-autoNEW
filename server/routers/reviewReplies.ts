@@ -13,6 +13,9 @@ import { buildPlaceDetailsUrl } from "@shared/const";
 
 import { db } from "../lib/db-helper";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:reviewReplies");
 async function fetchNewReviewsFromGoogle(): Promise<any[]> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
 
@@ -30,7 +33,7 @@ async function fetchNewReviewsFromGoogle(): Promise<any[]> {
     const data = await response.json();
     return data.result?.reviews || [];
   } catch (err) {
-    console.error("[ReviewReplies] Failed to fetch reviews from Google:", err);
+    log.error("[ReviewReplies] Failed to fetch reviews from Google:", err);
     return [];
   }
 }
@@ -63,7 +66,7 @@ Keep it under 160 characters (Google's limit).`;
     }
     throw new Error("Invalid LLM response");
   } catch (err) {
-    console.error("[ReviewReplies] AI draft generation failed:", err);
+    log.error("[ReviewReplies] AI draft generation failed:", err);
     return "Thank you for your review! We appreciate your feedback.";
   }
 }

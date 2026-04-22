@@ -72,7 +72,7 @@ async function getTelegramStatus(): Promise<IntegrationStatus> {
       },
     };
   } catch (e) {
-    console.warn("[services/integrationDashboard] operation failed:", e);
+    log.warn("[services/integrationDashboard] operation failed:", e);
     return unknownStatus("Telegram Notifications", "messaging");
   }
 }
@@ -104,7 +104,7 @@ async function getEmailStatus(): Promise<IntegrationStatus> {
       },
     };
   } catch (e) {
-    console.warn("[services/integrationDashboard] operation failed:", e);
+    log.warn("[services/integrationDashboard] operation failed:", e);
     return unknownStatus("Email (Gmail MCP)", "messaging");
   }
 }
@@ -137,7 +137,7 @@ async function getSmsStatus(): Promise<IntegrationStatus> {
       },
     };
   } catch (e) {
-    console.warn("[services/integrationDashboard] operation failed:", e);
+    log.warn("[services/integrationDashboard] operation failed:", e);
     return unknownStatus("SMS (Twilio)", "messaging");
   }
 }
@@ -172,7 +172,7 @@ async function getNourOsStatus(): Promise<IntegrationStatus> {
       },
     };
   } catch (e) {
-    console.warn("[services/integrationDashboard] operation failed:", e);
+    log.warn("[services/integrationDashboard] operation failed:", e);
     return unknownStatus("NOUR OS Bridge", "internal");
   }
 }
@@ -213,7 +213,7 @@ async function getVendorStatuses(): Promise<IntegrationStatus[]> {
       } as IntegrationStatus;
     });
   } catch (e) {
-    console.warn("[services/integrationDashboard] operation failed:", e);
+    log.warn("[services/integrationDashboard] operation failed:", e);
     return [];
   }
 }

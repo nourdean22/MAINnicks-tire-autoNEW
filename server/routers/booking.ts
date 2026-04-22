@@ -27,6 +27,9 @@ import { logAdminAction } from "../services/auditTrail";
 
 import { db } from "../lib/db-helper";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:booking");
 // ─── LABOR GUIDE REFERENCE (for auto-invoice labor estimation) ───
 const SERVICE_LABOR_MAP: Record<string, { hours: number; description: string }> = {
   "oil change": { hours: 0.3, description: "Oil Change Service" },
@@ -67,7 +70,7 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
     const [setting] = await d.select().from(shopSettings).where(eq(shopSettings.key, "laborRate")).limit(1);
     if (setting) laborRate = parseFloat(setting.value);
   } catch (err) {
-    console.error("[Booking] Failed to fetch labor rate, using default:", err instanceof Error ? err.message : err);
+    log.error("[Booking] Failed to fetch labor rate, using default:", err instanceof Error ? err.message : err);
   }
 
   const laborCost = Math.round(labor.hours * laborRate * 100); // cents
@@ -128,7 +131,7 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
       serviceDescription: labor.description,
     }),
     { maxRetries: 3, baseDelayMs: 1000, label: "notifyInvoiceCreated" }
-  ).catch(e => console.warn("[booking:autoInvoice] invoice email notification failed:", e));
+  ).catch(e => log.warn("[booking:autoInvoice] invoice email notification failed:", e));
 
   // Dispatch to event bus — makes auto-invoices visible to NOUR OS, Nick AI, ShopDriver, Statenour
   import("../services/eventBus").then(({ emit }) =>
@@ -138,7 +141,7 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
       totalAmount: totalAmount / 100,
       source: "booking",
     })
-  ).catch(e => console.warn("[booking:autoInvoice] event bus invoice dispatch failed:", e));
+  ).catch(e => log.warn("[booking:autoInvoice] event bus invoice dispatch failed:", e));
 
   // Link invoice to matching work order (WO created from same booking)
   try {
@@ -156,7 +159,7 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
       }).where(woEq(workOrders.id, matchingWo.id));
     }
   } catch (err) {
-    console.error("[Invoice] WO linkage failed:", err instanceof Error ? err.message : err);
+    log.error("[Invoice] WO linkage failed:", err instanceof Error ? err.message : err);
   }
 
   console.info(`[invoice:created] ${invoiceNumber} for booking #${booking.id} — $${(totalAmount / 100).toFixed(2)}`);
@@ -293,7 +296,7 @@ export const bookingRouter = router({
           userAgent: ctx.req?.headers?.["user-agent"]?.toString() ?? null,
           context: { bookingId: result.id, refCode },
         }),
-      ).catch((err) => console.warn("[booking] compliance log failed:", err));
+      ).catch((err) => log.warn("[booking] compliance log failed:", err));
 
       // Unified event bus (→ NOUR OS + ShopDriver + Telegram + learning)
       import("../services/eventBus").then(({ emit }) =>
@@ -307,7 +310,7 @@ export const bookingRouter = router({
           refCode,
         })
       ).catch(err => {
-        console.error("[NourOS] Booking event dispatch failed:", err);
+        log.error("[NourOS] Booking event dispatch failed:", err);
       });
 
       withRetry(
@@ -323,7 +326,7 @@ export const bookingRouter = router({
         }),
         { maxRetries: 3, baseDelayMs: 1000, label: "syncBookingToSheet" }
       ).catch(err => {
-        console.error("[Sheets] Booking sync failed:", err);
+        log.error("[Sheets] Booking sync failed:", err);
         logIntegrationFailure({
           failureType: "sheets_sync",
           entityId: result.id,
@@ -347,7 +350,7 @@ export const bookingRouter = router({
         }),
         { maxRetries: 3, baseDelayMs: 1000, label: "notifyNewBooking" }
       ).catch(err => {
-        console.error("[Booking] Email notification failed:", err);
+        log.error("[Booking] Email notification failed:", err);
         logIntegrationFailure({
           failureType: "email",
           entityId: result.id,
@@ -361,7 +364,7 @@ export const bookingRouter = router({
         () => sendSms(input.phone, bookingConfirmationSms(input.name, input.service, refCode)),
         { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (booking confirmation)" }
       ).catch(err => {
-        console.error("[SMS] Booking confirmation failed:", err);
+        log.error("[SMS] Booking confirmation failed:", err);
         logIntegrationFailure({
           failureType: "sms",
           entityId: result.id,
@@ -392,7 +395,7 @@ export const bookingRouter = router({
           }),
           { maxRetries: 3, baseDelayMs: 1000, label: "sendLeadEvent (booking)" }
         ).catch(err => {
-          console.error("[CAPI] Lead event failed:", err);
+          log.error("[CAPI] Lead event failed:", err);
           logIntegrationFailure({
             failureType: "capi",
             entityId: result.id,
@@ -411,7 +414,7 @@ export const bookingRouter = router({
           }),
           { maxRetries: 3, baseDelayMs: 1000, label: "sendScheduleEvent (booking)" }
         ).catch(err => {
-          console.error("[CAPI] Schedule event failed:", err);
+          log.error("[CAPI] Schedule event failed:", err);
           logIntegrationFailure({
             failureType: "capi",
             entityId: result.id,
@@ -424,7 +427,7 @@ export const bookingRouter = router({
 
       return { ...result, referenceCode: refCode };
       } catch (err) {
-        console.error("[Booking] Create failed:", err);
+        log.error("[Booking] Create failed:", err);
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "We couldn't save your booking. Please call us directly at (216) 862-0005." });
       }
     }),
@@ -462,7 +465,7 @@ export const bookingRouter = router({
         entityId: input.id,
         details: `Booking status changed to ${input.status}`,
         newValue: input.status,
-      }).catch(e => console.warn("[booking:updateStatus] audit trail logging failed:", e));
+      }).catch(e => log.warn("[booking:updateStatus] audit trail logging failed:", e));
 
       // Send confirmation SMS when booking is confirmed by admin
       if (input.status === "confirmed") {
@@ -501,7 +504,7 @@ export const bookingRouter = router({
                 // Review request handled
               })
               .catch(err => {
-                console.error(`[ReviewRequest] Error scheduling for booking #${booking.id}:`, err);
+                log.error(`[ReviewRequest] Error scheduling for booking #${booking.id}:`, err);
                 logIntegrationFailure({
                   failureType: "review_request",
                   entityId: booking.id,
@@ -523,7 +526,7 @@ export const bookingRouter = router({
                 // Reminders scheduled
               })
               .catch((err: unknown) => {
-                console.error(`[Reminders] Error scheduling for booking #${booking.id}:`, err);
+                log.error(`[Reminders] Error scheduling for booking #${booking.id}:`, err);
                 logIntegrationFailure({
                   failureType: "reminders",
                   entityId: booking.id,
@@ -540,11 +543,11 @@ export const bookingRouter = router({
                 name: booking.name,
                 service: booking.service,
               })
-            ).catch(e => console.warn("[booking:updateStatus] event bus booking completed dispatch failed:", e));
+            ).catch(e => log.warn("[booking:updateStatus] event bus booking completed dispatch failed:", e));
 
             // Auto-create invoice from completed booking
             autoCreateInvoiceFromBooking(d, booking).catch(err => {
-              console.error(`[Invoice] Error auto-creating for booking #${booking.id}:`, err);
+              log.error(`[Invoice] Error auto-creating for booking #${booking.id}:`, err);
               logIntegrationFailure({
                 failureType: "invoice",
                 entityId: booking.id,
@@ -572,7 +575,7 @@ export const bookingRouter = router({
         entityId: input.id,
         details: "Booking notes updated",
         newValue: input.notes,
-      }).catch(e => console.warn("[booking:updateNotes] audit trail logging failed:", e));
+      }).catch(e => log.warn("[booking:updateNotes] audit trail logging failed:", e));
 
       return result;
     }),
@@ -598,7 +601,7 @@ export const bookingRouter = router({
         entityId: input.id,
         details: `Booking stage changed to ${input.stage}`,
         newValue: input.stage,
-      }).catch(e => console.warn("[booking:updateStage] audit trail logging failed:", e));
+      }).catch(e => log.warn("[booking:updateStage] audit trail logging failed:", e));
 
       const d = await db();
       if (d) {
@@ -627,7 +630,7 @@ export const bookingRouter = router({
               () => sendSms(booking.phone, statusUpdateSms(booking.name, input.stage, booking.referenceCode || undefined)),
               { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (status update)" }
             ).catch(err => {
-              console.error("[SMS] Status update failed:", err);
+              log.error("[SMS] Status update failed:", err);
               logIntegrationFailure({
                 failureType: "sms",
                 entityId: booking.id,
@@ -647,7 +650,7 @@ export const bookingRouter = router({
               refCode: booking.referenceCode || null,
             })
           ).catch(err => {
-            console.error("[EventBus] Stage change dispatch failed:", err);
+            log.error("[EventBus] Stage change dispatch failed:", err);
           });
         }
       }
@@ -682,7 +685,7 @@ export const bookingRouter = router({
         entityType: "booking",
         entityId: input.id,
         details: `Booking #${input.id} deleted`,
-      }).catch(e => console.warn("[booking:delete] audit trail logging failed:", e));
+      }).catch(e => log.warn("[booking:delete] audit trail logging failed:", e));
       return { success: true };
     }),
 });

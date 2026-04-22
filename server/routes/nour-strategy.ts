@@ -13,6 +13,9 @@
 
 import type { Express, Request, Response } from "express";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routes:nour-strategy");
 interface Lead {
   name?: string;
   message?: string;
@@ -165,7 +168,7 @@ export function registerNourStrategyRoute(app: Express): void {
         timestamp: new Date().toISOString(),
       });
     } catch (err: unknown) {
-      console.error("[nour-strategy] Analysis failed:", err);
+      log.error("[nour-strategy] Analysis failed:", err);
       res.status(500).json({
         error:
           err instanceof Error ? err.message : "Lead analysis failed",

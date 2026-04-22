@@ -21,6 +21,9 @@ import { invoices, customers, customerMetrics, leads, bookings, chatSessions, ca
 import { sql, eq, gte, lte, and, asc } from "drizzle-orm";
 import { BUSINESS } from "@shared/business";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("services:intelligenceEngines");
 async function db() {
   const d = await getDb();
   if (!d) throw new Error("Database not available");
@@ -530,7 +533,7 @@ export async function predictCustomerLTV() {
           }
         }
       } catch (e) {
-        console.error("[intelligence:ltv] background metrics update failed:", e);
+        log.error("[intelligence:ltv] background metrics update failed:", e);
       }
     });
 
@@ -549,7 +552,7 @@ export async function predictCustomerLTV() {
       },
     };
   } catch (e) {
-    console.error("[intelligence:ltv] predictCustomerLTV failed:", e);
+    log.error("[intelligence:ltv] predictCustomerLTV failed:", e);
     return { topCustomers: [], atRiskHighValue: [], segments: { whales: 0, regulars: 0, occasional: 0, oneTimers: 0 } };
   }
 }
@@ -760,7 +763,7 @@ export async function analyzeDeclinedWork() {
           }
         }
       }
-    } catch (e) { console.warn("[services/intelligenceEngines] operation failed:", e); }
+    } catch (e) { log.warn("[services/intelligenceEngines] operation failed:", e); }
   }
 
   return {
@@ -1145,7 +1148,7 @@ export async function predictChurn(): Promise<{
     for (const m of metrics) {
       vipMap.set(m.customerId, m.isVip === 1);
     }
-  } catch (e) { console.warn("[services/intelligenceEngines] operation failed:", e); }
+  } catch (e) { log.warn("[services/intelligenceEngines] operation failed:", e); }
 
   // Get customers who had estimates but no paid invoice (declined work signal)
   const declinedSet = new Set<number>();
@@ -1160,7 +1163,7 @@ export async function predictChurn(): Promise<{
     for (const w of withDeclined) {
       if (w.customerId) declinedSet.add(w.customerId);
     }
-  } catch (e) { console.warn("[services/intelligenceEngines] operation failed:", e); }
+  } catch (e) { log.warn("[services/intelligenceEngines] operation failed:", e); }
 
   // Get customers who left reviews (review signal)
   const reviewedSet = new Set<string>();
@@ -1172,7 +1175,7 @@ export async function predictChurn(): Promise<{
     for (const r of reviewed) {
       if (r.phone) reviewedSet.add(r.phone.replace(/\D/g, "").slice(-10));
     }
-  } catch (e) { console.warn("[services/intelligenceEngines] operation failed:", e); }
+  } catch (e) { log.warn("[services/intelligenceEngines] operation failed:", e); }
 
   // Get ticket size trends per customer (last 3 invoices)
   const ticketTrends = new Map<number, number[]>();
@@ -1193,7 +1196,7 @@ export async function predictChurn(): Promise<{
       if (!ticketTrends.has(inv.customerId)) ticketTrends.set(inv.customerId, []);
       ticketTrends.get(inv.customerId)!.push(inv.totalAmount || 0);
     }
-  } catch (e) { console.warn("[services/intelligenceEngines] operation failed:", e); }
+  } catch (e) { log.warn("[services/intelligenceEngines] operation failed:", e); }
 
   const highRisk: ChurnCustomer[] = [];
   const mediumRisk: ChurnCustomer[] = [];
@@ -1289,7 +1292,7 @@ export async function predictChurn(): Promise<{
     mediumRisk: mediumRisk.slice(0, 25),
   };
   } catch (e) {
-    console.error("[intelligence:churn] predictChurn failed:", e);
+    log.error("[intelligence:churn] predictChurn failed:", e);
     return { highRisk: [], mediumRisk: [] };
   }
 }

@@ -7,6 +7,9 @@
 import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { logTransition } from "./workOrderService";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("services:qcService");
 async function getDbAndSchema() {
   const { getDb } = await import("../db");
   const schema = await import("../../drizzle/schema");
@@ -193,7 +196,7 @@ export async function passQc(params: {
         service: wo.serviceDescription || undefined,
       });
     } catch (err) {
-      console.error("[QC] NOUR OS bridge event failed:", err instanceof Error ? err.message : err);
+      log.error("[QC] NOUR OS bridge event failed:", err instanceof Error ? err.message : err);
     }
   }
 }

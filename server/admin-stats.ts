@@ -8,6 +8,9 @@ import { bookings, leads, chatSessions, dynamicArticles, notificationMessages, c
 import { eq, desc, gte, sql, and } from "drizzle-orm";
 
 import { BUSINESS } from "@shared/business";
+import { createLogger } from "./lib/logger";
+
+const log = createLogger("admin-stats");
 type Booking = typeof bookings.$inferSelect;
 type Lead = typeof leads.$inferSelect;
 type Article = typeof dynamicArticles.$inferSelect;
@@ -276,7 +279,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         });
       });
     } catch (err) {
-      console.error("[AdminStats] Work order activity failed:", err instanceof Error ? err.message : err);
+      log.error("[AdminStats] Work order activity failed:", err instanceof Error ? err.message : err);
     }
 
     // ─── SOURCE ATTRIBUTION ─────────────────────────
@@ -313,7 +316,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         byPage: Object.entries(callsByPage).map(([page, count]) => ({ page, count })).sort((a, b) => b.count - a.count),
       };
     } catch (err) {
-      console.error("[AdminStats] Call tracking stats failed:", err instanceof Error ? err.message : err);
+      log.error("[AdminStats] Call tracking stats failed:", err instanceof Error ? err.message : err);
     }
 
     // ─── CALLBACKS ─────────────────────────────────────
@@ -330,7 +333,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         thisWeek: allCallbacks.filter((c) => new Date(c.createdAt) >= weekAgo).length,
       };
     } catch (err) {
-      console.error("[AdminStats] Callback stats failed:", err instanceof Error ? err.message : err);
+      log.error("[AdminStats] Callback stats failed:", err instanceof Error ? err.message : err);
     }
 
     // Sort by timestamp descending
@@ -386,7 +389,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         vipCustomers: vipCustRes[0]?.count ?? 0,
       };
     } catch (err) {
-      console.error("[AdminStats] Shop floor stats error:", err instanceof Error ? err.message : err);
+      log.error("[AdminStats] Shop floor stats error:", err instanceof Error ? err.message : err);
     }
 
     return {
@@ -406,7 +409,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       shopFloor: shopFloorStats,
     };
   } catch (error) {
-    console.error("[AdminStats] Error fetching stats:", error);
+    log.error("[AdminStats] Error fetching stats:", error);
     return defaultStats;
   }
 }
@@ -436,7 +439,7 @@ export async function getSiteHealth(): Promise<SiteHealthInfo> {
       const published = await d.select().from(dynamicArticles).where(eq(dynamicArticles.status, "published"));
       dynamicBlogPosts = published.length;
     } catch (err) {
-      console.error("[AdminStats] Dynamic blog post count failed:", err instanceof Error ? err.message : err);
+      log.error("[AdminStats] Dynamic blog post count failed:", err instanceof Error ? err.message : err);
     }
   }
 

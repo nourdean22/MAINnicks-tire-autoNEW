@@ -1,5 +1,8 @@
 import { TRPCError } from "@trpc/server";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("_core:notification");
 export type NotificationPayload = {
   title: string;
   content: string;
@@ -57,7 +60,7 @@ export async function notifyOwner(
 
   const ceoEmail = process.env.CEO_EMAIL;
   if (!ceoEmail) {
-    console.warn("[Notification] CEO_EMAIL not configured, skipping notification");
+    log.warn("[Notification] CEO_EMAIL not configured, skipping notification");
     return false;
   }
 
@@ -75,7 +78,7 @@ export async function notifyOwner(
       });
       return response.ok;
     } catch (error) {
-      console.warn("[Notification] Webhook failed:", error);
+      log.warn("[Notification] Webhook failed:", error);
       return false;
     }
   }

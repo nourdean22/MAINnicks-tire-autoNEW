@@ -14,6 +14,9 @@ import { BUSINESS } from "@shared/business";
 
 import { db } from "../lib/db-helper";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:chat");
 /**
  * Try to extract a name from the chat messages (customer introduces themselves).
  * Looks for patterns like "I'm John", "My name is John", "This is John", etc.
@@ -57,7 +60,7 @@ async function createChatLead(
   if (info.problem) {
     try {
       scoring = await scoreLead(info.problem, info.vehicle);
-    } catch (err) { console.error("[Chat] Lead scoring failed, using defaults:", err instanceof Error ? (err as Error).message : err); }
+    } catch (err) { log.error("[Chat] Lead scoring failed, using defaults:", err instanceof Error ? (err as Error).message : err); }
   }
 
   const insertedRows = await d.insert(leads).values({
@@ -91,7 +94,7 @@ async function createChatLead(
         source: "chat",
         urgencyScore: scoring.score,
       })
-    ).catch((e) => { console.warn("[routers/chat] fire-and-forget failed:", e); });
+    ).catch((e) => { log.warn("[routers/chat] fire-and-forget failed:", e); });
   }
 
   // Telegram alert
@@ -100,7 +103,7 @@ async function createChatLead(
     phone: phone || undefined,
     service: scoring.recommendedService,
     source: "ai-chat",
-  }).catch((e) => { console.warn("[routers/chat] fire-and-forget failed:", e); });
+  }).catch((e) => { log.warn("[routers/chat] fire-and-forget failed:", e); });
 }
 
 /**
@@ -190,10 +193,10 @@ async function lookupMemories(
       memoriesToDelete.map(id =>
         d.delete(conversationMemory).where(eq(conversationMemory.id, id))
       )
-    ).catch((e) => { console.warn("[routers/chat] fire-and-forget failed:", e); });
+    ).catch((e) => { log.warn("[routers/chat] fire-and-forget failed:", e); });
   }
   if (decayUpdates.length > 0) {
-    Promise.all(decayUpdates).catch((e) => { console.warn("[routers/chat] fire-and-forget failed:", e); });
+    Promise.all(decayUpdates).catch((e) => { log.warn("[routers/chat] fire-and-forget failed:", e); });
   }
 
   // Filter out dead memories from the working set
@@ -214,7 +217,7 @@ async function lookupMemories(
         .set({ lastAccessed: new Date() })
         .where(eq(conversationMemory.id, id))
     )
-  ).catch((e) => { console.warn("[routers/chat] fire-and-forget failed:", e); });
+  ).catch((e) => { log.warn("[routers/chat] fire-and-forget failed:", e); });
 
   const formatted = scored
     .map((m: { category: string; content: string }) => `- [${m.category}] ${m.content}`)
@@ -528,7 +531,7 @@ export const chatRouter = router({
           try {
             sessionMessages = JSON.parse(existing[0].messagesJson);
           } catch (err) {
-            console.error("[Chat] Failed to parse session messages JSON:", err instanceof Error ? (err as Error).message : err);
+            log.error("[Chat] Failed to parse session messages JSON:", err instanceof Error ? (err as Error).message : err);
           }
         }
       }
@@ -549,7 +552,7 @@ export const chatRouter = router({
           memoryContext = memResult.formatted;
           activeMemoryIds = memResult.memoryIds;
         } catch (err) {
-          console.error("[Chat] Memory lookup failed:", err);
+          log.error("[Chat] Memory lookup failed:", err);
         }
       }
 
@@ -590,7 +593,7 @@ export const chatRouter = router({
 
           businessIntel = { todayBookings: todayBookings + activeWOs, estimatedWaitMinutes, availableSlots };
         }
-      } catch (e) { console.warn("[routers/chat] operation failed:", e); }
+      } catch (e) { log.warn("[routers/chat] operation failed:", e); }
 
       // --- CUSTOMER INTELLIGENCE: look up known customer by phone ---
       let customerContext: {
@@ -629,7 +632,7 @@ export const chatRouter = router({
             };
           }
         } catch (err) {
-          console.error("[Chat] Customer lookup failed:", err);
+          log.error("[Chat] Customer lookup failed:", err);
         }
       }
 
@@ -687,11 +690,11 @@ export const chatRouter = router({
             // Reinforce memories that were active during this conversion
             if (activeMemoryIds.length > 0 && d) {
               reinforceMemoriesOnConversion(d, activeMemoryIds).catch(err => {
-                console.error("[Chat] Memory reinforcement failed:", err);
+                log.error("[Chat] Memory reinforcement failed:", err);
               });
             }
           }).catch(err => {
-            console.error("[Chat] Auto-lead creation failed:", err);
+            log.error("[Chat] Auto-lead creation failed:", err);
           });
         }
       }
@@ -705,16 +708,16 @@ export const chatRouter = router({
                 .then(() => {
                   // After saving, consolidate if there are too many memories
                   consolidateMemories(d, visitorKey).catch(err => {
-                    console.error("[Chat] Memory consolidation failed:", err);
+                    log.error("[Chat] Memory consolidation failed:", err);
                   });
                 })
                 .catch(err => {
-                  console.error("[Chat] Memory save failed:", err);
+                  log.error("[Chat] Memory save failed:", err);
                 });
             }
           })
           .catch(err => {
-            console.error("[Chat] Memory extraction failed:", err);
+            log.error("[Chat] Memory extraction failed:", err);
           });
       }
 

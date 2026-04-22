@@ -377,7 +377,7 @@ async function fetchInvoices(token: string): Promise<RawInvoice[]> {
         }
       }
     }
-  } catch (e) { console.warn("[shopDriverMirror:fetchInvoices] SPA /recent scrape failed:", e); }
+  } catch (e) { log.warn("[shopDriverMirror:fetchInvoices] SPA /recent scrape failed:", e); }
 
   log.warn("No invoice data found from any endpoint");
   return [];
@@ -695,7 +695,7 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
             if (nameMatch.length === 1) customerId = nameMatch[0].id;
           }
         } catch (e) {
-          console.warn("[services/shopDriverMirror] operation failed:", e);
+          log.warn("[services/shopDriverMirror] operation failed:", e);
           // Name matching is best-effort, don't fail the import
         }
       }
@@ -865,7 +865,7 @@ export async function runFullMirror(): Promise<{
     try {
       const { sendTelegram } = await import("./telegram");
       await sendTelegram(`✅ ALG MIRROR RECOVERED: ${invResult.created} new invoices, ${custResult.created} new customers imported.`);
-    } catch (e) { console.warn("[shopDriverMirror:mirror] recovery telegram alert failed:", e); }
+    } catch (e) { log.warn("[shopDriverMirror:mirror] recovery telegram alert failed:", e); }
   }
 
   // ═══ PROPAGATE TO ALL SYSTEMS ═══
@@ -881,7 +881,7 @@ export async function runFullMirror(): Promise<{
         totalInvoicesFetched: rawInvoices.length,
         source: "shopdriver_alg",
       }, { priority: "normal", source: "shopdriver_mirror" });
-    } catch (e) { console.warn("[shopDriverMirror:mirror] event bus mirror_synced dispatch failed:", e); }
+    } catch (e) { log.warn("[shopDriverMirror:mirror] event bus mirror_synced dispatch failed:", e); }
 
     // 2. Admin dashboard SSE → live update for anyone viewing admin
     try {
@@ -895,7 +895,7 @@ export async function runFullMirror(): Promise<{
           timestamp: new Date().toISOString(),
         },
       });
-    } catch (e) { console.warn("[shopDriverMirror:mirror] admin SSE push failed:", e); }
+    } catch (e) { log.warn("[shopDriverMirror:mirror] admin SSE push failed:", e); }
 
     // 3. Realtime SSE revenue update → admin sees fresh numbers instantly
     try {
@@ -923,14 +923,14 @@ export async function runFullMirror(): Promise<{
         message: `ALG imported ${invResult.created} invoices, ${custResult.created} customers`,
         severity: "info",
       });
-    } catch (e) { console.warn("[shopDriverMirror:mirror] realtime SSE revenue update failed:", e); }
+    } catch (e) { log.warn("[shopDriverMirror:mirror] realtime SSE revenue update failed:", e); }
 
     // 4. Trigger immediate statenour sync → NOUR OS dashboard updates NOW
     try {
       const { syncToStatenour } = await import("../cron/jobs/statenourSync");
       // Fire and forget — don't block the mirror return
-      syncToStatenour().catch(e => console.warn("[shopDriverMirror:mirror] statenour sync fire-and-forget failed:", e));
-    } catch (e) { console.warn("[shopDriverMirror:mirror] statenour sync trigger failed:", e); }
+      syncToStatenour().catch(e => log.warn("[shopDriverMirror:mirror] statenour sync fire-and-forget failed:", e));
+    } catch (e) { log.warn("[shopDriverMirror:mirror] statenour sync trigger failed:", e); }
 
     // 5. Nick AI memory
     try {
@@ -943,7 +943,7 @@ export async function runFullMirror(): Promise<{
         source: "shopdriver_mirror",
         confidence: 0.9,
       });
-    } catch (e) { console.warn("[shopDriverMirror:mirror] memory save for mirror insight failed:", e); }
+    } catch (e) { log.warn("[shopDriverMirror:mirror] memory save for mirror insight failed:", e); }
   }
 
   return { recordsProcessed: total, details };
@@ -979,7 +979,7 @@ async function getDataStaleDays(): Promise<number | null> {
     if (!latest) return null;
     return Math.round((Date.now() - new Date(latest).getTime()) / (1000 * 60 * 60 * 24));
   } catch (e) {
-    console.warn("[services/shopDriverMirror] operation failed:", e);
+    log.warn("[services/shopDriverMirror] operation failed:", e);
     return null;
   }
 }
@@ -1123,12 +1123,12 @@ export async function runHistoricalBackfill(): Promise<{
                   allInvoices.push(...pageList.map(normalizeInvoiceJson));
                   if (pageList.length < 1000) break;
                   page++;
-                } catch (e) { console.warn("[shopDriverMirror:backfill] pagination fetch failed:", e); break; }
+                } catch (e) { log.warn("[shopDriverMirror:backfill] pagination fetch failed:", e); break; }
               }
             }
             break; // Found working date endpoint
           }
-        } catch (e) { console.warn("[shopDriverMirror:backfill] date endpoint probe failed:", e); }
+        } catch (e) { log.warn("[shopDriverMirror:backfill] date endpoint probe failed:", e); }
       }
       if (allInvoices.length > 100) break; // Found enough
     }
@@ -1169,7 +1169,7 @@ export async function runHistoricalBackfill(): Promise<{
         page++;
 
         if (list.length < 500) break;
-      } catch (e) { console.warn("[services/shopDriverMirror] customer page fetch failed:", e); break; }
+      } catch (e) { log.warn("[services/shopDriverMirror] customer page fetch failed:", e); break; }
     }
 
     if (totalCust > 0) {
@@ -1217,7 +1217,7 @@ export async function runHistoricalBackfill(): Promise<{
       const { enrichCustomerData } = await import("./dataPipelines");
       const enrichResult = await enrichCustomerData();
       log.info(`Post-backfill enrichment: ${enrichResult.details}`);
-    } catch (e) { console.warn("[shopDriverMirror:backfill] post-backfill customer enrichment failed:", e); }
+    } catch (e) { log.warn("[shopDriverMirror:backfill] post-backfill customer enrichment failed:", e); }
   }
 
   return { recordsProcessed: total, details };
@@ -1312,7 +1312,7 @@ export async function probeAlgEndpoints(): Promise<Record<string, ProbeResult>> 
       try {
         JSON.parse(body);
         isJson = true;
-      } catch (e) { /* expected for non-JSON responses */ console.warn("[services/shopDriverMirror] operation failed:", e); }
+      } catch (e) { /* expected for non-JSON responses */ log.warn("[services/shopDriverMirror] operation failed:", e); }
 
       const firstChars = body.substring(0, 200);
       log.info(`[probe] ${endpoint} → ${res.status} json=${isJson} len=${body.length}`, { firstChars });

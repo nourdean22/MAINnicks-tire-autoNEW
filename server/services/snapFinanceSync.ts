@@ -83,7 +83,7 @@ export async function recordSnapPayment(data: SnapPaymentRecord): Promise<{ succ
         name: data.customerName,
         phone: data.customerPhone,
       });
-    } catch (e) { console.warn("[snap-sync] event bus emit failed:", e); }
+    } catch (e) { log.warn("[snap-sync] event bus emit failed:", e); }
 
     return { success: true, invoiceId: result.id };
   } catch (err: unknown) {

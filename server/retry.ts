@@ -1,3 +1,6 @@
+import { createLogger } from "./lib/logger";
+const log = createLogger("retry");
+
 /**
  * Retry wrapper with exponential backoff for external API calls.
  * Used for non-critical integrations (Sheets, email, SMS, CAPI)
@@ -21,7 +24,7 @@ export async function withRetry<T>(
       lastError = err;
       if (attempt < maxRetries) {
         const delay = baseDelayMs * Math.pow(2, attempt);
-        console.warn(`[retry] ${label} attempt ${attempt + 1}/${maxRetries} failed, retrying in ${delay}ms`);
+        log.warn(`[retry] ${label} attempt ${attempt + 1}/${maxRetries} failed, retrying in ${delay}ms`);
         await new Promise(r => setTimeout(r, delay));
       }
     }

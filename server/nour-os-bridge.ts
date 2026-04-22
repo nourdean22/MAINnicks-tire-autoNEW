@@ -242,7 +242,7 @@ async function checkCloudHealth(): Promise<boolean> {
     cloudHealthy = res.ok || res.status === 404; // 404 is ok, endpoint might not exist
     return cloudHealthy;
   } catch (e) {
-    console.warn("[nour-os-bridge] operation failed:", e);
+    log.warn("[nour-os-bridge] operation failed:", e);
     cloudHealthy = false;
     return false;
   }
@@ -699,11 +699,11 @@ export async function dispatchVendorHealthSnapshot(results: Array<{
         const firstError = result.checks.find(c => !c.passed)?.error;
         alertVendorDown(result.vendor, firstError);
       } catch (e) {
-        console.warn("[nour-os-bridge] operation failed:", e);
+        log.warn("[nour-os-bridge] operation failed:", e);
         // Telegram alert is best-effort
       }
 
-      console.error(`[ALERT] Vendor ${result.vendor} degraded: ${prev} -> ${result.status}`);
+      log.error(`[ALERT] Vendor ${result.vendor} degraded: ${prev} -> ${result.status}`);
     }
 
     if (prev && (prev === "down" || prev === "degraded") && result.status === "healthy") {
@@ -718,7 +718,7 @@ export async function dispatchVendorHealthSnapshot(results: Array<{
         const { alertVendorRecovered } = await import("./services/telegram");
         alertVendorRecovered(result.vendor);
       } catch (e) {
-        console.warn("[nour-os-bridge] operation failed:", e);
+        log.warn("[nour-os-bridge] operation failed:", e);
         // Telegram alert is best-effort
       }
 
@@ -749,7 +749,7 @@ export async function dispatchShopFloorSnapshot(): Promise<void> {
       const freeBays = load.bays.filter((b: any) => !b.occupied).length;
       dispatchData = { techsClockedIn: clockedIn, freeBays: freeBays, totalBays: load.bays.length };
     } catch (err) {
-      console.error("[NourOSBridge] Dispatch load fetch failed:", err instanceof Error ? err.message : err);
+      log.error("[NourOSBridge] Dispatch load fetch failed:", err instanceof Error ? err.message : err);
     }
 
     let qcData: Record<string, unknown> = {};
@@ -758,7 +758,7 @@ export async function dispatchShopFloorSnapshot(): Promise<void> {
       const qc = await getQcStats();
       qcData = { qcPassRate: qc.passRate, qcPending: qc.qcPending, comebacks30d: qc.comebacks30d };
     } catch (err) {
-      console.error("[NourOSBridge] QC stats fetch failed:", err instanceof Error ? err.message : err);
+      log.error("[NourOSBridge] QC stats fetch failed:", err instanceof Error ? err.message : err);
     }
 
     let riskData: Record<string, unknown> = {};
@@ -767,7 +767,7 @@ export async function dispatchShopFloorSnapshot(): Promise<void> {
       const risk = await getPromiseRiskSummary();
       riskData = { atRisk: risk.atRisk, likelyLate: risk.likelyLate, overdue: risk.overdue };
     } catch (err) {
-      console.error("[NourOSBridge] Promise risk fetch failed:", err instanceof Error ? err.message : err);
+      log.error("[NourOSBridge] Promise risk fetch failed:", err instanceof Error ? err.message : err);
     }
 
     let declinedData: Record<string, unknown> = {};
@@ -776,7 +776,7 @@ export async function dispatchShopFloorSnapshot(): Promise<void> {
       const declined = await getDeclinedWorkStats();
       declinedData = { declinedValue30d: declined.totalDeclinedValue, declinedItems30d: declined.totalDeclinedItems };
     } catch (err) {
-      console.error("[NourOSBridge] Declined work stats fetch failed:", err instanceof Error ? err.message : err);
+      log.error("[NourOSBridge] Declined work stats fetch failed:", err instanceof Error ? err.message : err);
     }
 
     await dispatchEvent("nickstire:shop_floor", {

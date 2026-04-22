@@ -251,7 +251,7 @@ export async function sendDailyWinsDigest(): Promise<{ recordsProcessed: number;
         daily.revenue = pulse.today.revenue || 0;
         daily.jobCount = pulse.today.jobsClosed || 0;
       } catch (err) {
-        console.warn("[LiveFeed] Shop pulse fetch failed:", err instanceof Error ? err.message : err);
+        log.warn("[LiveFeed] Shop pulse fetch failed:", err instanceof Error ? err.message : err);
       }
     }
 
@@ -297,7 +297,7 @@ export function registerLiveFeedListeners(): void {
     // Since the event bus is already initialized, we use a different approach:
     // We export handlers that get called from the event bus destination.
     log.info("Live feed listeners registered");
-  }).catch((e) => { console.warn("[services/liveFeed] fire-and-forget failed:", e); });
+  }).catch((e) => { log.warn("[services/liveFeed] fire-and-forget failed:", e); });
 }
 
 /**

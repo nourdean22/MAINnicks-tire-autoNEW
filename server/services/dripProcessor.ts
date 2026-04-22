@@ -61,7 +61,7 @@ export async function checkExistingEnrollment(phone: string, campaignId: string)
     `);
     return ((rows as any[])?.length || 0) > 0;
   } catch (e) {
-    console.warn("[services/dripProcessor] operation failed:", e);
+    log.warn("[services/dripProcessor] operation failed:", e);
     return false;
   }
 }

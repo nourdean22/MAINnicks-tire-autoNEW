@@ -15,6 +15,9 @@
 import { invokeLLM } from "./_core/llm";
 
 import { BUSINESS } from "@shared/business";
+import { createLogger } from "./lib/logger";
+
+const log = createLogger("gemini");
 // ─── TEMPORAL HELPERS ────────────────────────────────────
 
 type DayOfWeek = "Sunday" | "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday";
@@ -382,7 +385,7 @@ Scoring guidelines:
       };
     }
   } catch (error) {
-    console.error("[NickAI] Lead scoring failed:", error);
+    log.error("[NickAI] Lead scoring failed:", error);
   }
 
   return {
@@ -531,13 +534,13 @@ export async function chatWithAssistant(
         }
       } catch (err) {
         // Extraction is optional — don't fail the chat
-        console.warn("[NickAI] Info extraction from chat failed:", err instanceof Error ? err.message : err);
+        log.warn("[NickAI] Info extraction from chat failed:", err instanceof Error ? err.message : err);
       }
     }
 
     return { reply, extractedInfo };
   } catch (error) {
-    console.error("[NickAI] Chat failed:", error);
+    log.error("[NickAI] Chat failed:", error);
     return {
       reply: "Sorry, I'm glitching out. Call us at (216) 862-0005 and we'll help you right away.",
     };
@@ -629,7 +632,7 @@ Rules:
       }));
     }
   } catch (error) {
-    console.error("[NickAI] Memory extraction failed:", error);
+    log.error("[NickAI] Memory extraction failed:", error);
   }
 
   return [];

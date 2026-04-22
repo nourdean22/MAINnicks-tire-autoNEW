@@ -6,6 +6,9 @@ import { eq, lte, and } from "drizzle-orm";
 import { router, adminProcedure, publicProcedure } from "../_core/trpc";
 import { randomUUID } from "crypto";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:warrantiesRouter");
 export const warrantiesRouter = router({
   getByCustomer: adminProcedure
     .input(z.object({ customerId: z.string() }))
@@ -103,7 +106,7 @@ export const warrantiesRouter = router({
         priority: r.isVip ? "high" : "normal",
       }));
     } catch (e) {
-      console.error("[Warranties] Expiring with value query failed:", e instanceof Error ? e.message : e);
+      log.error("[Warranties] Expiring with value query failed:", e instanceof Error ? e.message : e);
       return [];
     }
   }),

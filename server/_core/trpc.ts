@@ -4,6 +4,9 @@ import superjson from "superjson";
 import type { TrpcContext } from "./context";
 import { touchAdminActivity } from "../lib/adminActivity";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("_core:trpc");
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
   errorFormatter({ shape, error }) {
@@ -35,12 +38,12 @@ const loggerMiddleware = t.middleware(async ({ path, type, next }) => {
 
   // Log slow procedures (>2s) for performance monitoring
   if (duration > 2000) {
-    console.warn(`[tRPC SLOW] ${type} ${path} took ${duration}ms`);
+    log.warn(`[tRPC SLOW] ${type} ${path} took ${duration}ms`);
   }
 
   // Log errors with procedure context
   if (!result.ok) {
-    console.error(`[tRPC ERROR] ${type} ${path} (${duration}ms):`, result.error.message);
+    log.error(`[tRPC ERROR] ${type} ${path} (${duration}ms):`, result.error.message);
   }
 
   return result;

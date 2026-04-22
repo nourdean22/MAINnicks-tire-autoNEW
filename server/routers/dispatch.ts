@@ -4,6 +4,9 @@
 import { z } from "zod";
 import { router, adminProcedure, publicProcedure } from "../_core/trpc";
 
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:dispatch");
 export const dispatchRouter = router({
   // ─── Techs + Bays ────────────────────────────────
   availableTechs: adminProcedure.query(async () => {
@@ -71,7 +74,7 @@ export const dispatchRouter = router({
           name: "tech",
           service: input.techNotes || "Tech work completed",
         }, { priority: "normal", source: "dispatch" })
-      ).catch((e) => { console.warn("[routers/dispatch] fire-and-forget failed:", e); });
+      ).catch((e) => { log.warn("[routers/dispatch] fire-and-forget failed:", e); });
 
       return { success: true };
     }),
@@ -161,7 +164,7 @@ export const dispatchRouter = router({
           `Action: ${input.correctiveActions}\n` +
           `Reviewed by: ${input.reviewedBy}`
         )
-      ).catch((e) => { console.warn("[routers/dispatch] fire-and-forget failed:", e); });
+      ).catch((e) => { log.warn("[routers/dispatch] fire-and-forget failed:", e); });
 
       import("../services/nickMemory").then(({ remember }) =>
         remember({
@@ -170,7 +173,7 @@ export const dispatchRouter = router({
           source: "qc_feedback",
           confidence: 0.9,
         })
-      ).catch((e) => { console.warn("[routers/dispatch] fire-and-forget failed:", e); });
+      ).catch((e) => { log.warn("[routers/dispatch] fire-and-forget failed:", e); });
 
       return { success: true };
     }),
@@ -220,7 +223,7 @@ export const dispatchRouter = router({
           source: "comeback_feedback",
           confidence: 0.95,
         })
-      ).catch((e) => { console.warn("[routers/dispatch] fire-and-forget failed:", e); });
+      ).catch((e) => { log.warn("[routers/dispatch] fire-and-forget failed:", e); });
 
       import("../services/telegram").then(({ sendTelegram }) =>
         sendTelegram(
@@ -229,7 +232,7 @@ export const dispatchRouter = router({
           `Root cause: ${input.rootCause || "Unknown"}\n` +
           `Days since: ${input.daysSinceOriginal}`
         )
-      ).catch((e) => { console.warn("[routers/dispatch] fire-and-forget failed:", e); });
+      ).catch((e) => { log.warn("[routers/dispatch] fire-and-forget failed:", e); });
 
       return { id };
     }),

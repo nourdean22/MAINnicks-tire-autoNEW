@@ -11,7 +11,6 @@ import {
   QUOTE_SYSTEM_PROMPT,
   type ComputedService, type PricingData, type PriceRange, type WorkOrderRow,
 } from "./utils";
-
 // ─── Generate Multi-Tier Quote from Chat Session ────
 
 export async function handleGenerateQuote(input: {
@@ -112,7 +111,7 @@ export async function handleGenerateQuote(input: {
   try {
     quote = JSON.parse(rawContent) as Record<string, unknown>;
   } catch (e) {
-    console.warn("[routers/nickActions] operation failed:", e);
+    log.warn("[routers/nickActions] operation failed:", e);
     log.error("AI returned invalid JSON for quote", { preview: rawContent.slice(0, 200) });
     throw new Error("Failed to parse quote — AI returned invalid JSON");
   }

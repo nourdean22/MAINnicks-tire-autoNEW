@@ -1,0 +1,54 @@
+version: 2
+updates:
+  # npm / pnpm dependencies
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    labels:
+      - "deps"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      # Batch minor + patch updates into a single PR per ecosystem slice
+      radix-ui:
+        patterns:
+          - "@radix-ui/*"
+      tanstack:
+        patterns:
+          - "@tanstack/*"
+      trpc:
+        patterns:
+          - "@trpc/*"
+      aws-sdk:
+        patterns:
+          - "@aws-sdk/*"
+      types:
+        patterns:
+          - "@types/*"
+      dev-minor:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+      prod-minor:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+    ignore:
+      # Major-version bumps go through hand review
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "deps"
+      - "ci"
+    commit-message:
+      prefix: "ci"

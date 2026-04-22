@@ -85,7 +85,7 @@ export async function getPaymentStatus(paymentIntentId: string): Promise<{
       amountReceived: intent.amount_received || 0,
     };
   } catch (e) {
-    console.warn("[services/payments] operation failed:", e);
+    log.warn("[services/payments] operation failed:", e);
     return { status: "unknown", amountReceived: 0 };
   }
 }

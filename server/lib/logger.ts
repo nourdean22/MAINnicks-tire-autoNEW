@@ -61,33 +61,80 @@ function emit(entry: LogEntry): void {
   }
 }
 
+/**
+ * Logger interface is tolerant of any arg shape so we can rewrite
+ * `console.log(a, b, c)` straight to `log.info(a, b, c)` without
+ * every caller having to reshape. Normalization happens inside:
+ *   - Record<string, unknown>  → merged into structured meta
+ *   - Error                    → { error: msg, stack }
+ *   - string / number / bool   → appended to message (primitive args)
+ *   - anything else            → { arg{n}: serialized }
+ * A call with multiple extra args collects them under `args: [...]`.
+ */
 export interface Logger {
-  debug(message: string, meta?: Record<string, unknown>): void;
-  info(message: string, meta?: Record<string, unknown>): void;
-  warn(message: string, meta?: Record<string, unknown>): void;
-  error(message: string, meta?: Record<string, unknown>): void;
-  fatal(message: string, meta?: Record<string, unknown>): void;
+  debug(message: string, ...args: unknown[]): void;
+  info(message: string, ...args: unknown[]): void;
+  warn(message: string, ...args: unknown[]): void;
+  error(message: string, ...args: unknown[]): void;
+  fatal(message: string, ...args: unknown[]): void;
   child(extra: Record<string, unknown>): Logger;
 }
 
+function normalizeArgs(args: unknown[]): {
+  extraMessage: string;
+  meta: Record<string, unknown>;
+} {
+  const meta: Record<string, unknown> = {};
+  const extraStrings: string[] = [];
+  let miscIdx = 0;
+
+  for (const arg of args) {
+    if (arg === undefined) continue;
+    if (arg === null) {
+      extraStrings.push("null");
+    } else if (arg instanceof Error) {
+      meta.error = arg.message;
+      if (arg.stack) meta.stack = arg.stack;
+    } else if (typeof arg === "string") {
+      extraStrings.push(arg);
+    } else if (typeof arg === "number" || typeof arg === "boolean") {
+      extraStrings.push(String(arg));
+    } else if (typeof arg === "object" && !Array.isArray(arg)) {
+      // Merge plain objects into meta
+      Object.assign(meta, arg as Record<string, unknown>);
+    } else {
+      // Arrays, functions, etc.
+      try {
+        meta[`arg${miscIdx++}`] = arg;
+      } catch {
+        meta[`arg${miscIdx++}`] = String(arg);
+      }
+    }
+  }
+
+  return { extraMessage: extraStrings.join(" "), meta };
+}
+
 export function createLogger(module: string, defaults?: Record<string, unknown>): Logger {
-  function log(level: LogLevel, message: string, meta?: Record<string, unknown>): void {
+  function log(level: LogLevel, message: string, ...args: unknown[]): void {
+    const { extraMessage, meta } = normalizeArgs(args);
+    const finalMessage = extraMessage ? `${message} ${extraMessage}` : message;
     emit({
       level,
       timestamp: new Date().toISOString(),
       module,
-      message,
+      message: finalMessage,
       ...defaults,
       ...meta,
     });
   }
 
   return {
-    debug: (msg, meta) => log("debug", msg, meta),
-    info: (msg, meta) => log("info", msg, meta),
-    warn: (msg, meta) => log("warn", msg, meta),
-    error: (msg, meta) => log("error", msg, meta),
-    fatal: (msg, meta) => log("fatal", msg, meta),
+    debug: (msg, ...args) => log("debug", msg, ...args),
+    info: (msg, ...args) => log("info", msg, ...args),
+    warn: (msg, ...args) => log("warn", msg, ...args),
+    error: (msg, ...args) => log("error", msg, ...args),
+    fatal: (msg, ...args) => log("fatal", msg, ...args),
     child(extra) {
       return createLogger(module, { ...defaults, ...extra });
     },

@@ -6,6 +6,7 @@ import { eq, desc, like } from "drizzle-orm";
 import { chatSessions, leads, workOrders, bookings, customers } from "../../../drizzle/schema";
 import { createLogger } from "../../lib/logger";
 
+
 export const log = createLogger("nick-actions");
 
 // ─── Local type aliases for AI-parsed JSON and DB results ──
@@ -373,7 +374,7 @@ export async function findReturningCustomer(d: NonNullable<Awaited<ReturnType<ty
         .orderBy(desc(workOrders.createdAt))
         .limit(10);
     }
-  } catch (e) { console.warn("[nickActions:createQuote] past work order lookup failed:", e); }
+  } catch (e) { log.warn("[nickActions:createQuote] past work order lookup failed:", e); }
 
   // Check past bookings
   const pastBookings = await d.select().from(bookings)

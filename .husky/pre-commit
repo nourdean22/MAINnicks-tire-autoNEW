@@ -1,0 +1,20 @@
+#!/usr/bin/env sh
+# Husky pre-commit hook — runs fast checks before every commit.
+# To enable: run `pnpm add -D husky && pnpm exec husky init` once,
+# then this file is copied in and activated.
+#
+# We run in order of increasing cost: fast source lint → types → tests.
+# If any step fails, the commit is aborted with the failure output.
+
+set -e
+
+echo "[pre-commit] Source lint (console.* in server, etc)..."
+pnpm run lint:source
+
+echo "[pre-commit] TypeScript check..."
+pnpm run check
+
+echo "[pre-commit] Tests..."
+pnpm run test -- --bail=1
+
+echo "\u2713 pre-commit OK"
