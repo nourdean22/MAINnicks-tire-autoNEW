@@ -75,6 +75,7 @@ import {
   paymentsRouter,
   featureFlagsRouter,
   intelligenceRouter,
+  reEngagementRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -193,6 +194,10 @@ export const appRouter = router({
 
   // Intelligence Engines (forecast, cross-sell, lead scoring, attribution, LTV, data analyzers)
   intelligence: intelligenceRouter,
+
+  // Re-engagement — tire-life, brake reminders, oil-change nudges.
+  // Powers the dormant-revenue flywheel.
+  reEngagement: reEngagementRouter,
 });
 
 export type AppRouter = typeof appRouter;
