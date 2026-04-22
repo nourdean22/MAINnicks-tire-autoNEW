@@ -329,12 +329,12 @@ export async function syncToStatenour(): Promise<{ recordsProcessed: number; det
           const { sql } = await import("drizzle-orm");
           const d = await getDb();
           if (!d) return null;
-          const [thisWeekLeads] = await d.execute(sql`SELECT COUNT(*) as cnt FROM leads WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`);
-          const [lastWeekLeads] = await d.execute(sql`SELECT COUNT(*) as cnt FROM leads WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL 14 DAY) AND createdAt < DATE_SUB(CURDATE(), INTERVAL 7 DAY)`);
-          const [thisWeekRevenue] = await d.execute(sql`SELECT COALESCE(SUM(totalAmount),0) as rev FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND paymentStatus='paid'`);
-          const [lastWeekRevenue] = await d.execute(sql`SELECT COALESCE(SUM(totalAmount),0) as rev FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL 14 DAY) AND invoiceDate < DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND paymentStatus='paid'`);
-          const [thisWeekBookings] = await d.execute(sql`SELECT COUNT(*) as cnt FROM bookings WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`);
-          const [lastWeekBookings] = await d.execute(sql`SELECT COUNT(*) as cnt FROM bookings WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL 14 DAY) AND createdAt < DATE_SUB(CURDATE(), INTERVAL 7 DAY)`);
+          const [thisWeekLeads] = await d.execute(sql`SELECT COUNT(*) as unknown as cnt FROM leads WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`);
+          const [lastWeekLeads] = await d.execute(sql`SELECT COUNT(*) as unknown as cnt FROM leads WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL 14 DAY) AND createdAt < DATE_SUB(CURDATE(), INTERVAL 7 DAY)`);
+          const [thisWeekRevenue] = await d.execute(sql`SELECT COALESCE(SUM(totalAmount),0) as unknown as rev FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND paymentStatus='paid'`);
+          const [lastWeekRevenue] = await d.execute(sql`SELECT COALESCE(SUM(totalAmount),0) as unknown as rev FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL 14 DAY) AND invoiceDate < DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND paymentStatus='paid'`);
+          const [thisWeekBookings] = await d.execute(sql`SELECT COUNT(*) as unknown as cnt FROM bookings WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)`);
+          const [lastWeekBookings] = await d.execute(sql`SELECT COUNT(*) as unknown as cnt FROM bookings WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL 14 DAY) AND createdAt < DATE_SUB(CURDATE(), INTERVAL 7 DAY)`);
           const tw = (v: unknown) => Number((v as Record<string, unknown>[])?.[0]?.cnt || (v as Record<string, unknown>[])?.[0]?.rev || (v as Record<string, unknown>)?.cnt || (v as Record<string, unknown>)?.rev || 0);
           const twLeads = tw(thisWeekLeads), lwLeads = tw(lastWeekLeads);
           const twRev = tw(thisWeekRevenue), lwRev = tw(lastWeekRevenue);

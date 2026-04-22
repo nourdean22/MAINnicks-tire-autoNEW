@@ -910,7 +910,7 @@ export async function runFullMirror(): Promise<{
           FROM invoices
           WHERE DATE(invoiceDate) = CURDATE() AND source = 'shopdriver'
         `);
-        const rev = (todayRev as any[])?.[0];
+        const rev = (todayRev as unknown as any[])?.[0];
         if (rev) {
           emitRevenueUpdate({
             todayRevenue: Math.round(Number(rev.rev) / 100), // cents → dollars
@@ -974,8 +974,8 @@ async function getDataStaleDays(): Promise<number | null> {
     const d = await getDb();
     if (!d) return null;
     const { sql } = await import("drizzle-orm");
-    const [rows] = await d.execute(sql`SELECT MAX(invoiceDate) as latest FROM invoices WHERE source = 'shopdriver'`);
-    const latest = (rows as any[])?.[0]?.latest;
+    const [rows] = await d.execute(sql`SELECT MAX(invoiceDate) as unknown as latest FROM invoices WHERE source = 'shopdriver'`);
+    const latest = (rows as unknown as any[])?.[0]?.latest;
     if (!latest) return null;
     return Math.round((Date.now() - new Date(latest).getTime()) / (1000 * 60 * 60 * 24));
   } catch (e) {

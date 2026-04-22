@@ -123,36 +123,43 @@ export async function getLineOfCarsToday(): Promise<{
   try {
     const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
 
+    // Raw SQL helper — MySql2 .execute returns [rows, fields] as a tuple,
+    // but TS types it as MySqlRawQueryResult which is a union. Cast via
+    // unknown so we can pull typed row data out.
+    const exec = async (q: ReturnType<typeof sql>) => {
+      const result = (await d.execute(q)) as unknown;
+      const rows = Array.isArray(result) && Array.isArray(result[0])
+        ? (result[0] as Record<string, unknown>[])
+        : (Array.isArray(result) ? (result as Record<string, unknown>[]) : []);
+      return rows;
+    };
+
     // Today's bookings broken down by stage
-    const [bookingRow] = await d.execute(sql`
+    const bookingRows = await exec(sql`
       SELECT
         SUM(CASE WHEN stage IN ('inspecting','waiting-parts','in-progress','quality-check','ready') THEN 1 ELSE 0 END) AS droppedOff,
         SUM(CASE WHEN stage = 'received' AND status != 'cancelled' THEN 1 ELSE 0 END) AS booked
       FROM bookings
       WHERE DATE(createdAt) = ${todayStr} OR preferredDate = ${todayStr}
-    `) as Array<Record<string, unknown>[]>;
-
-    const row = (bookingRow as Record<string, unknown>[])?.[0] ??
-                (bookingRow as unknown as Record<string, unknown>) ?? {};
-    const droppedOff = Number((row as Record<string, unknown>).droppedOff ?? 0);
-    const booked = Number((row as Record<string, unknown>).booked ?? 0);
+    `);
+    const row = bookingRows[0] ?? {};
+    const droppedOff = Number(row.droppedOff ?? 0);
+    const booked = Number(row.booked ?? 0);
 
     // Today's invoices (real wins — money collected)
-    const [invRow] = await d.execute(sql`
+    const invRows = await exec(sql`
       SELECT COUNT(*) AS cnt FROM invoices WHERE DATE(invoiceDate) = ${todayStr}
-    `) as Array<Record<string, unknown>[]>;
-    const invoicedToday = Number(((invRow as Record<string, unknown>[])?.[0]
-      ?? (invRow as unknown as Record<string, unknown>) ?? {}).cnt ?? 0);
+    `);
+    const invoicedToday = Number(invRows[0]?.cnt ?? 0);
 
     // 7-day average (for trend arrow)
-    const [avgRow] = await d.execute(sql`
+    const avgRows = await exec(sql`
       SELECT COUNT(*) / 7 AS avg7
       FROM bookings
       WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
         AND createdAt < CURDATE()
-    `) as Array<Record<string, unknown>[]>;
-    const weekAverage = Math.round(Number(((avgRow as Record<string, unknown>[])?.[0]
-      ?? (avgRow as unknown as Record<string, unknown>) ?? {}).avg7 ?? 0));
+    `);
+    const weekAverage = Math.round(Number(avgRows[0]?.avg7 ?? 0));
 
     const total = droppedOff + booked;
     const trend: "up" | "down" | "flat" =

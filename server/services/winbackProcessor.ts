@@ -37,7 +37,7 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
       LIMIT 50
     `);
 
-    const pendingSends = rows as Array<Record<string, unknown>>;
+    const pendingSends = rows as unknown as Array<Record<string, unknown>>;
     if (!pendingSends || pendingSends.length === 0) {
       return { recordsProcessed: 0, details: "No pending winback sends" };
     }
