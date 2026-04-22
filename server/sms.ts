@@ -393,6 +393,10 @@ export function handleInboundSms(data: {
     smsStats.totalOptedOut++;
     addToThread(normalized, "inbound", data.Body, data.MessageSid);
     log.info("SMS opt-out received", { from: normalized.slice(-4) });
+    // TCPA-defensible compliance log entry
+    import("./services/complianceLog")
+      .then(({ logSmsOptOut }) => logSmsOptOut({ phone: normalized, via: "keyword", keyword: body }))
+      .catch(() => { /* log only, don't block */ });
     return {
       isOptOut: true,
       response: `You've been unsubscribed from ${STORE_NAME} messages. Text START to re-subscribe. Call ${STORE_PHONE} for assistance.`,
@@ -402,6 +406,10 @@ export function handleInboundSms(data: {
   if (optInKeywords.includes(body)) {
     addToThread(normalized, "inbound", data.Body, data.MessageSid);
     log.info("SMS opt-in received", { from: normalized.slice(-4) });
+    // TCPA-defensible compliance log entry
+    import("./services/complianceLog")
+      .then(({ logSmsOptIn }) => logSmsOptIn({ phone: normalized, source: `start_keyword:${body}` }))
+      .catch(() => { /* log only, don't block */ });
     return {
       isOptOut: false,
       response: `You've been re-subscribed to ${STORE_NAME} messages. Reply STOP to unsubscribe.`,

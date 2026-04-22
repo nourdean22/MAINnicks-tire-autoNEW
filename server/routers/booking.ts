@@ -212,7 +212,7 @@ export const bookingRouter = router({
         gclid: z.string().max(255).optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
       // Sanitize all user inputs
       const name = sanitizeText(input.name);
@@ -283,6 +283,17 @@ export const bookingRouter = router({
           throw err;
         }
       }
+
+      // TCPA-defensible opt-in record (implicit consent via booking form)
+      import("../services/complianceLog").then(({ logSmsOptIn }) =>
+        logSmsOptIn({
+          phone,
+          source: "booking_form",
+          ipAddress: ctx.req?.ip ?? null,
+          userAgent: ctx.req?.headers?.["user-agent"]?.toString() ?? null,
+          context: { bookingId: result.id, refCode },
+        }),
+      ).catch((err) => console.warn("[booking] compliance log failed:", err));
 
       // Unified event bus (→ NOUR OS + ShopDriver + Telegram + learning)
       import("../services/eventBus").then(({ emit }) =>

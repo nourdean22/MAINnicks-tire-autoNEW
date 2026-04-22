@@ -49,7 +49,7 @@ export const leadRouter = router({
         referrer: z.string().max(500).optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
       // Sanitize user inputs
       const name = sanitizeText(input.name);
@@ -113,6 +113,17 @@ export const leadRouter = router({
           })
         ).catch((e) => { console.warn("[routers/lead] fire-and-forget failed:", e); });
       }
+
+      // TCPA-defensible opt-in record (implicit consent via lead form)
+      import("../services/complianceLog").then(({ logSmsOptIn }) =>
+        logSmsOptIn({
+          phone,
+          source: `lead_form:${input.source}`,
+          ipAddress: ctx.req?.ip ?? null,
+          userAgent: ctx.req?.headers?.["user-agent"]?.toString() ?? null,
+          context: { leadId },
+        }),
+      ).catch((err) => console.warn("[lead] compliance log failed:", err));
 
       withRetry(
         () => syncLeadToSheet({
