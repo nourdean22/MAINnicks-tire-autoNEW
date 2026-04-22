@@ -17,6 +17,8 @@ import {
 } from "./admin/shared";
 import { CommandSearch } from "@/components/admin/CommandSearch";
 import ThemeToggle from "@/components/admin/ThemeToggle";
+import ActivityPulse from "@/components/admin/ActivityPulse";
+import WeatherAwareBanner from "@/components/admin/WeatherAwareBanner";
 import { CustomerDrawer } from "@/components/admin/CustomerDrawer";
 
 // Lazy-load each section for code splitting
@@ -405,6 +407,10 @@ export default function Admin() {
 
         {/* Section Content */}
         <div className="admin-content">
+          {/* Weather-aware nudge — dismissable per-condition per-day */}
+          <div className="px-4 pt-4">
+            <WeatherAwareBanner />
+          </div>
           <SectionContent section={section} />
         </div>
       </main>
@@ -415,6 +421,9 @@ export default function Admin() {
         onClose={() => setDrawerCustomerId(null)}
         onNavigateToSection={(s) => setSection(s as AdminSection)}
       />
+
+      {/* Live activity pulse — toast stream from SSE */}
+      <ActivityPulse />
     </div>
   );
 }
