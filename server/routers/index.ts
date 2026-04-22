@@ -57,3 +57,4 @@ export { nickActionsRouter } from "./nickActions";
 export { paymentsRouter } from "./payments";
 export { featureFlagsRouter } from "./featureFlags";
 export { intelligenceRouter } from "./intelligence";
+export { reEngagementRouter } from "./reEngagement";

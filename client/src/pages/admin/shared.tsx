@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch" | "intelligence" | "specials" | "warranty" | "inventory" | "waitlist" | "seoEngine" | "declinedEstimates";
+export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch" | "intelligence" | "specials" | "warranty" | "inventory" | "waitlist" | "seoEngine" | "declinedEstimates" | "reEngagement";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -89,6 +89,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "OUTREACH",
     items: [
       { id: "campaigns", label: "Outreach Hub", icon: <Send className="w-4 h-4" /> },
+      { id: "reEngagement", label: "Re-engagement", icon: <RotateCcw className="w-4 h-4" /> },
       { id: "content", label: "Content & AI", icon: <FileText className="w-4 h-4" /> },
     ],
   },
@@ -145,6 +146,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   waitlist: "Waitlist",
   seoEngine: "SEO Engine",
   declinedEstimates: "Declined Work",
+  reEngagement: "Re-engagement",
 };
 
 // ─── PAGE HEADER ────────────────────────────────────────
