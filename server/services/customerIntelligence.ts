@@ -14,12 +14,9 @@
 import { createLogger } from "../lib/logger";
 import { sql, eq, desc, gte, asc, and } from "drizzle-orm";
 
-const log = createLogger("customer-intelligence");
+import { db } from "../lib/db-helper";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+const log = createLogger("customer-intelligence");
 
 export interface CustomerInsight {
   totalCustomers: number;

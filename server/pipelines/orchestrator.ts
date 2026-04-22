@@ -16,10 +16,7 @@
 import { pipelineRuns } from "../../drizzle/schema";
 import { desc, eq, sql } from "drizzle-orm";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+import { db } from "../lib/db-helper";
 
 // ─── TYPES ───────────────────────────────────────────────
 

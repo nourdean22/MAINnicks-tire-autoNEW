@@ -20,10 +20,7 @@ import { z } from "zod";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { tireOrders, shopSettings, bookings } from "../../drizzle/schema";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+import { db } from "../lib/db-helper";
 
 /** Auto-create an invoice when a tire order is marked as installed */
 async function autoCreateInvoiceFromTireOrder(d: ReturnType<typeof import("drizzle-orm/mysql2").drizzle>, orderId: number): Promise<void> {

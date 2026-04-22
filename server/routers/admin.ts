@@ -9,24 +9,10 @@ import { getDashboardStats, getSiteHealth } from "../admin-stats";
 import { z } from "zod";
 import { eq, desc, gte, sql } from "drizzle-orm";
 import { bookings, leads, callbackRequests, customerNotifications, callEvents } from "../../drizzle/schema";
-import { sanitizeText, sanitizePhone } from "../sanitize";
+import { sanitizeText, sanitizePhone, csvSafe } from "../sanitize";
 import { saveReviewStatsToDb } from "../google-reviews";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
-
-/**
- * Sanitize a CSV cell value to prevent formula injection (CSV injection / DDE attacks).
- * If a cell starts with =, +, -, @, tab, or CR, prefix with a single quote to neutralize it.
- * These characters trigger formula execution when opened in Excel/Google Sheets.
- */
-function csvSafe(val: unknown): string {
-  const s = String(val ?? "");
-  if (/^[=+\-@\t\r]/.test(s)) return `'${s}`;
-  return s;
-}
+import { db } from "../lib/db-helper";
 
 export const adminDashboardRouter = router({
   stats: adminProcedure.query(async () => {

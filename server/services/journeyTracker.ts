@@ -7,6 +7,7 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { phoneRawDigits } from "../lib/phone";
 
 const log = createLogger("journey-tracker");
 
@@ -35,9 +36,8 @@ interface JourneyEntry {
 const journeyCache = new Map<string, JourneyEntry>();
 const MAX_CACHE = 300;
 
-function normalizePhone(phone: string): string {
-  return phone.replace(/\D/g, "").slice(-10);
-}
+/** Journey keys use 10-digit raw digits (not E.164) for fast map lookup. */
+const normalizePhone = phoneRawDigits;
 
 // ─── MAIN FUNCTION ───────────────────────────────────
 

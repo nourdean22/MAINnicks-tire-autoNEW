@@ -18,15 +18,12 @@
 import { createLogger } from "../lib/logger";
 import { eq, sql } from "drizzle-orm";
 
+import { db } from "../lib/db-helper";
+
 const STATENOUR_URL = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
 const SYNC_KEY = process.env.STATENOUR_SYNC_KEY || "";
 
 const log = createLogger("camera-proxy");
-
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
 
 export interface CameraConfig {
   id: string;

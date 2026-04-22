@@ -530,10 +530,14 @@ function stripHtml(str: string): string {
   return str.replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ");
 }
 
+/**
+ * ShopDriver uses 10-digit raw keys for customer dedup (no country code).
+ * Falls through to raw digits for already-partial or international numbers.
+ */
 function normalizePhone(raw: string): string {
-  const digits = (raw || "").replace(/\D/g, "");
+  if (!raw) return "";
+  const digits = raw.replace(/\D/g, "");
   if (digits.length === 11 && digits.startsWith("1")) return digits.slice(1);
-  if (digits.length === 10) return digits;
   return digits;
 }
 

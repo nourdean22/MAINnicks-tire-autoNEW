@@ -12,10 +12,7 @@ import { sanitizeText } from "../sanitize";
 import { alertNewLead } from "../services/telegram";
 import { BUSINESS } from "@shared/business";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+import { db } from "../lib/db-helper";
 
 /**
  * Try to extract a name from the chat messages (customer introduces themselves).

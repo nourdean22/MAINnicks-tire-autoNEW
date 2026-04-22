@@ -7,11 +7,9 @@ import { eq, like, or, sql, desc, asc } from "drizzle-orm";
 import { customers, customerMetrics, bookings, leads, callbackRequests, callEvents, invoices, workOrders } from "../../drizzle/schema";
 import { logAdminAction } from "../services/auditTrail";
 import { predictCustomerLTV, generateCrossSellRecommendations, forecastRevenue } from "../services/intelligenceEngines";
+import { csvSafe } from "../sanitize";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+import { db } from "../lib/db-helper";
 
 export const customersRouter = router({
   /** List customers with pagination, search, segment, date range filtering */
@@ -474,10 +472,7 @@ export const customersRouter = router({
       }
       const results = await query.orderBy(desc(customers.lastVisitDate));
 
-      // Sanitize CSV cell value to prevent formula injection (=, +, -, @, tab, CR)
-      const csvSafe = (val: string) => /^[=+\-@\t\r]/.test(val) ? `'${val}` : val;
-
-      // Build CSV
+      // Build CSV (csvSafe imported from ../sanitize)
       const headers = ["First Name", "Last Name", "Phone", "Email", "City", "State", "Segment", "Total Visits", "Last Visit", "Customer Type"];
       const rows = results.map((c: typeof results[number]) => [
         csvSafe(c.firstName || ""),

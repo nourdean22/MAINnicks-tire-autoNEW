@@ -18,6 +18,7 @@ import twilio from "twilio";
 
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
 import { createLogger } from "./lib/logger";
+import { normalizePhone } from "./lib/phone";
 import { getOrCreateBreaker } from "./lib/circuit-breaker";
 
 const log = createLogger("sms");
@@ -573,21 +574,7 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
   }
 }
 
-/**
- * Normalize a phone number to E.164 format for US numbers.
- */
-function normalizePhone(phone: string): string | null {
-  const digits = phone.replace(/[^\d+]/g, "");
-
-  if (digits.startsWith("+1") && digits.length === 12) return digits;
-  if (digits.startsWith("+") && digits.length >= 11) return digits;
-
-  const justDigits = digits.replace(/\D/g, "");
-  if (justDigits.length === 10) return `+1${justDigits}`;
-  if (justDigits.length === 11 && justDigits.startsWith("1")) return `+${justDigits}`;
-
-  return null;
-}
+// normalizePhone now lives in ./lib/phone — imported above, re-exported below.
 
 // ─── MESSAGE TEMPLATES ─────────────────────────────────
 

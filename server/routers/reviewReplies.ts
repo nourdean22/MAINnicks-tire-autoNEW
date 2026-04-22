@@ -11,10 +11,7 @@ import { sanitizeText } from "../sanitize";
 import { TRPCError } from "@trpc/server";
 import { buildPlaceDetailsUrl } from "@shared/const";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+import { db } from "../lib/db-helper";
 
 async function fetchNewReviewsFromGoogle(): Promise<any[]> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY;

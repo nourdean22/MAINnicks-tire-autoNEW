@@ -9,10 +9,7 @@ import { z } from "zod";
 import { eq, and } from "drizzle-orm";
 import { invoices } from "../../drizzle/schema";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+import { db } from "../lib/db-helper";
 
 export const paymentsRouter = router({
   /** Get payment config (publishable key, available methods) */

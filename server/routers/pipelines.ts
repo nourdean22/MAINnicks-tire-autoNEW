@@ -6,12 +6,9 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { reviewPipeline } from "../../drizzle/schema";
 
-// ─── Lazy imports to keep cold starts fast ──────────────
+import { db } from "../lib/db-helper";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+// ─── Lazy imports to keep cold starts fast ──────────────
 
 export const pipelinesRouter = router({
   // ═══════════════════════════════════════════════════════

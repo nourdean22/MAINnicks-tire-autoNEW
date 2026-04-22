@@ -16,12 +16,9 @@ import { createLogger } from "../lib/logger";
 import { eq, gte, sql, and, lte } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 
-const log = createLogger("nick-intelligence");
+import { db } from "../lib/db-helper";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+const log = createLogger("nick-intelligence");
 
 // ─── CROSS-PIPELINE ANALYTICS ─────────────────────────
 

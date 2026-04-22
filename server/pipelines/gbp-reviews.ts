@@ -20,10 +20,7 @@ import { invokeLLM } from "../_core/llm";
 import { reviewPipeline, reviewTrends } from "../../drizzle/schema";
 import { desc, eq, gte, sql, and, lte } from "drizzle-orm";
 
-async function db() {
-  const { getDb } = await import("../db");
-  return getDb();
-}
+import { db } from "../lib/db-helper";
 
 // ─── TYPES ───────────────────────────────────────────────
 
