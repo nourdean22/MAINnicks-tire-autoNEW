@@ -24,7 +24,6 @@ import FastPaths from "@/components/FastPaths";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
 import ShopStatusWidget from "@/components/ShopStatusWidget";
-import LineOfCarsCounter from "@/components/LineOfCarsCounter";
 import UberDropoffWidget from "@/components/UberDropoffWidget";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
@@ -521,10 +520,9 @@ export default function Home() {
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />
       <Hero />
-      {/* ── LIVE STATUS STRIP — Pillar 1 (Line of Cars) + Pillar 3 (Happy Wait) ─ */}
+      {/* ── LIVE STATUS STRIP — Pillar 3 (Happy Wait) ────────── */}
       <section className="bg-[oklch(0.055_0.004_260)] py-6 border-t border-b border-border/30">
-        <div className="container flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6">
-          <LineOfCarsCounter variant="hero" />
+        <div className="container flex items-center justify-center">
           <ShopStatusWidget compact />
         </div>
       </section>
