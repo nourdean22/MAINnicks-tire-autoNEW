@@ -64,6 +64,43 @@ async function exec(d: unknown, q: unknown): Promise<Record<string, unknown>[]> 
   return [];
 }
 
+/**
+ * Pull the ALG mirror's last-successful-sync timestamp WITHOUT triggering
+ * any network probe. This is a pure in-process getter — zero risk of
+ * kicking the shop's ShopDriver session.
+ *
+ * Returns:
+ *   - dataAsOf: ISO timestamp of the last successful ALG pull, or null
+ *   - staleness: "live" (<5min), "recent" (<30min), "stale" (<2h),
+ *                "very_stale" (>2h), or "uncollected" (null)
+ *
+ * Statenour uses this to render an "as of Xm ago" footer on each card
+ * so operators know how fresh the numbers are.
+ */
+async function getMirrorFreshness(): Promise<{
+  dataAsOf: string | null;
+  ageMinutes: number | null;
+  staleness: "live" | "recent" | "stale" | "very_stale" | "uncollected";
+}> {
+  try {
+    const { getLastSuccessfulSync } = await import("../services/shopDriverMirror");
+    const last = getLastSuccessfulSync();
+    if (!last) {
+      return { dataAsOf: null, ageMinutes: null, staleness: "uncollected" };
+    }
+    const ageMs = Date.now() - last.getTime();
+    const ageMinutes = Math.round(ageMs / 60000);
+    let staleness: "live" | "recent" | "stale" | "very_stale";
+    if (ageMinutes < 5) staleness = "live";
+    else if (ageMinutes < 30) staleness = "recent";
+    else if (ageMinutes < 120) staleness = "stale";
+    else staleness = "very_stale";
+    return { dataAsOf: last.toISOString(), ageMinutes, staleness };
+  } catch {
+    return { dataAsOf: null, ageMinutes: null, staleness: "uncollected" };
+  }
+}
+
 function rangeToDays(range: string | undefined): number {
   switch (range) {
     case "7d": return 7;
@@ -118,12 +155,41 @@ export function registerStatenourBridgeRoutes(app: Express): void {
       const openTickets = drop_off + in_progress + ready;
       const avgTicket = Math.round(Number(inv.avgCents ?? 0)) / 100;
 
+      // Split today's revenue by payment method so statenour can show
+      // "snap vs acima vs koalafi vs cash/card" breakout instead of a
+      // single blended "paid" number
+      const paymentBreakdown = await exec(d, sql`
+        SELECT paymentMethod, COUNT(*) AS cnt, COALESCE(SUM(totalAmount), 0) AS totalCents
+        FROM invoices
+        WHERE DATE(invoiceDate) = CURDATE() AND paymentStatus = 'paid'
+        GROUP BY paymentMethod
+      `);
+      const byPayment = Object.fromEntries(
+        paymentBreakdown.map((r) => [
+          String(r.paymentMethod ?? "unknown"),
+          {
+            count: Number(r.cnt ?? 0),
+            totalDollars: Math.round(Number(r.totalCents ?? 0)) / 100,
+          },
+        ]),
+      );
+
+      const freshness = await getMirrorFreshness();
       res.json({
         count,
         openTickets,
         avgTicket,
         byStatus: { drop_off, in_progress, ready, paid },
+        byPayment,
         generatedAt: new Date().toISOString(),
+        dataAsOf: freshness.dataAsOf,
+        ageMinutes: freshness.ageMinutes,
+        staleness: freshness.staleness,
+        source: {
+          bookings: "nickstire.org bookings table (DB-resident)",
+          invoices: "ALG mirror (see dataAsOf for freshness)",
+          note: "Counts reflect last-synced ALG state, not the live shop ShopDriver screen.",
+        },
       });
     } catch (err) {
       log.error("cars-today failed", { error: err instanceof Error ? err.message : String(err) });
@@ -184,6 +250,7 @@ export function registerStatenourBridgeRoutes(app: Express): void {
           : 0,
       }));
 
+      const freshness = await getMirrorFreshness();
       res.json({
         range: `${days}d`,
         given,
@@ -192,6 +259,15 @@ export function registerStatenourBridgeRoutes(app: Express): void {
         avgTimeToConvertHours,
         byService,
         generatedAt: new Date().toISOString(),
+        dataAsOf: freshness.dataAsOf,
+        ageMinutes: freshness.ageMinutes,
+        staleness: freshness.staleness,
+        scope: "online",
+        source: {
+          estimates: "estimates_log table — AI estimator + customer portal + ShopDriver-synced rows",
+          invoices: "ALG mirror (via shopDriverMirror)",
+          note: "Does NOT include counter-only quotes written by hand in ALG that never hit our systems. This is the ONLINE funnel.",
+        },
       });
     } catch (err) {
       log.error("estimates-conversion failed", { error: err instanceof Error ? err.message : String(err) });
@@ -240,6 +316,7 @@ export function registerStatenourBridgeRoutes(app: Express): void {
         amount: Number(stalestRow.estimatedAmountCents ?? 0) / 100,
       } : null;
 
+      const freshness = await getMirrorFreshness();
       res.json({
         total: Number(b.total ?? 0),
         bucket_lt24h: Number(b.bucket_lt24h ?? 0),
@@ -248,6 +325,13 @@ export function registerStatenourBridgeRoutes(app: Express): void {
         bucket_gt7d: Number(b.bucket_gt7d ?? 0),
         stalest,
         generatedAt: new Date().toISOString(),
+        dataAsOf: freshness.dataAsOf,
+        ageMinutes: freshness.ageMinutes,
+        staleness: freshness.staleness,
+        scope: "online",
+        source: {
+          estimates: "estimates_log WHERE converted = 0 — online funnel only.",
+        },
       });
     } catch (err) {
       log.error("estimates-aging failed", { error: err instanceof Error ? err.message : String(err) });
@@ -298,6 +382,7 @@ export function registerStatenourBridgeRoutes(app: Express): void {
       const ratio = total > 0 ? Math.round((dropOffs / total) * 1000) / 10 : 0;
       const uberBackCount = Number(uberRows[0]?.cnt ?? 0);
 
+      const freshness = await getMirrorFreshness();
       res.json({
         range: `${days}d`,
         dropOffs,
@@ -305,6 +390,14 @@ export function registerStatenourBridgeRoutes(app: Express): void {
         ratio,
         uberBackCount,
         generatedAt: new Date().toISOString(),
+        dataAsOf: freshness.dataAsOf,
+        ageMinutes: freshness.ageMinutes,
+        staleness: freshness.staleness,
+        source: {
+          bookings: "bookings table — preferredDate heuristic (drop-off if set, walk-in if null).",
+          uber: "audit_log customer.uber_requested — populated by /api/uber-code.",
+          note: "Heuristic only — our data model doesn't explicitly flag drop-off vs walk-in yet.",
+        },
       });
     } catch (err) {
       log.error("drop-off-ratio failed", { error: err instanceof Error ? err.message : String(err) });

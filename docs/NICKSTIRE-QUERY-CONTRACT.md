@@ -1,4 +1,4 @@
-# Nickstire Query Contract — v11.1 (2026-04-22)
+# Nickstire Query Contract — v11.2 (2026-04-22)
 
 > **This doc is the mirror.** It must match `docs/NICKSTIRE-QUERY-CONTRACT.md`
 > in the statenour-os repo byte-for-byte. When adding or changing an endpoint,
@@ -14,6 +14,39 @@ X-Statenour-Sync-Key: <STATENOUR_SYNC_KEY>
 
 The key lives in `env.STATENOUR_SYNC_KEY` on both rings. Mismatch → 401.
 Using `timingSafeEqual` so it's not timing-attackable.
+
+---
+
+## Data-freshness contract (every bridge response)
+
+Every endpoint response includes these fields so statenour can render
+an "as of Xm ago" footer on each card:
+
+```json
+{
+  "generatedAt": "2026-04-22T14:23:45.123Z",
+  "dataAsOf":    "2026-04-22T14:08:12.000Z",
+  "ageMinutes":  15,
+  "staleness":   "recent"
+}
+```
+
+- `generatedAt` — when THIS response was computed (always now).
+- `dataAsOf` — when the underlying ALG mirror last succeeded, null if
+  never this session.
+- `ageMinutes` — `now() - dataAsOf` in minutes, null if uncollected.
+- `staleness` — categorical band:
+  - `"live"`        — age < 5min
+  - `"recent"`      — age 5–30min
+  - `"stale"`       — age 30min–2h
+  - `"very_stale"`  — age > 2h (shop-protection probably active)
+  - `"uncollected"` — no successful sync yet this process (just booted,
+                     OR shop-protection has kept probes idle for hours)
+
+**Important:** these endpoints NEVER trigger a mirror refresh. They are
+pure DB reads. If you want fresh data you must hit
+`POST /api/trpc/shopdriver.forceSyncNow` (admin auth, NOT statenour-sync
+auth) which acknowledges it may kick the shop's ShopDriver session.
 
 ---
 
@@ -39,7 +72,20 @@ X-Statenour-Sync-Key: <key>
     "ready": 2,
     "paid": 5
   },
-  "generatedAt": "2026-04-22T14:23:45.123Z"
+  "byPayment": {
+    "card":      { "count": 3, "totalDollars": 632.00 },
+    "cash":      { "count": 1, "totalDollars": 85.00 },
+    "financing": { "count": 1, "totalDollars": 850.00 }
+  },
+  "generatedAt": "2026-04-22T14:23:45.123Z",
+  "dataAsOf":    "2026-04-22T14:08:12.000Z",
+  "ageMinutes":  15,
+  "staleness":   "recent",
+  "source": {
+    "bookings": "nickstire.org bookings table (DB-resident)",
+    "invoices": "ALG mirror (see dataAsOf for freshness)",
+    "note":     "Counts reflect last-synced ALG state, not the live shop ShopDriver screen."
+  }
 }
 ```
 
@@ -48,6 +94,11 @@ X-Statenour-Sync-Key: <key>
 - `avgTicket` — mean `totalAmount / 100` of today's paid invoices
 - `byStatus.paid` — count of invoices with paymentStatus=paid today
 - All other `byStatus.*` — bookings filtered by `stage` column
+- `byPayment` — today's paid invoices grouped by `paymentMethod` enum
+  value (`card | cash | check | financing | other`). Use to show a
+  split: card+cash = in-person-paid-today, `financing` = Snap/Acima/
+  Koalafi/AFF (mixed). Our Snap dashboard (admin section) is the
+  authoritative breakdown of WHICH financing provider.
 
 **Data source:**
 `bookings` table (today's `createdAt` or `preferredDate`) +
@@ -86,6 +137,11 @@ X-Statenour-Sync-Key: <key>
 - `avgTimeToConvertHours` — average elapsed hours between
   `estimates_log.createdAt` and `invoices.invoiceDate`.
 - `byService` — top 10 services by count of estimates in window.
+- **`scope: "online"`** — response always includes this field. It means
+  the funnel covers **online estimates only** (AI estimator, customer
+  portal requests, ShopDriver-synced rows). It does **NOT** include
+  counter-only quotes that Nour writes by hand in ALG and never make
+  it into our systems. Those exist but we can't see them.
 
 **Data source:** `estimates_log` table JOINed to `invoices` by `invoiceId`.
 
@@ -127,6 +183,9 @@ X-Statenour-Sync-Key: <key>
   - `3d_7d` : 73–168
   - `gt7d`  : > 168
 - `stalest` — oldest un-converted estimate (null if no un-converted estimates).
+- **`scope: "online"`** — same caveat as `estimates-conversion`: this
+  reflects the ONLINE funnel (what we captured) not every estimate
+  Nour ever wrote at the counter.
 
 ---
 
@@ -238,9 +297,48 @@ X-Snap-Signature: <hmac-sha256>
 
 ---
 
+## Notes on ALG / Auto Labor Experts coupling
+
+1. **ALG is still the source of truth for counter activity.** Our
+   `invoices` table is a mirror of ALG, populated by
+   `server/services/shopDriverMirror.ts`. The mirror only runs when
+   Nour is actively on `/admin` (shop-protection from v1.1 — probes
+   kick the shop's ShopDriver session). `dataAsOf` on every response
+   tells you how fresh the mirror is.
+
+2. **Never poll `/api/bridge/*` faster than 30 seconds** — it's cheap
+   DB reads, but spamming adds noise in request logs without ever
+   changing the answer (mirror refreshes every 15 min tops, gated).
+
+3. **Don't add bridge endpoints that trigger writes or mirror refresh.**
+   If statenour needs a "force sync" button, it should prompt the
+   operator to hit the admin UI's `forceSyncNow` button (admin-authed,
+   acknowledges the shop-kick cost). Not a bridge concern.
+
+4. **Estimates ≠ ALG quotes.** See `scope: "online"` caveats on
+   estimates-conversion + estimates-aging. If the number looks wrong
+   vs what Nour sees in ALG, it's because ALG's counter quotes aren't
+   in our `estimates_log`.
+
+5. **Financing in `paymentMethod="financing"` is a mixed bag.** Snap +
+   Acima + Koalafi + American First Finance all land there. The Snap
+   admin dashboard (`/admin` → "Snap Finance") is the single source of
+   truth for Snap-specific breakdowns. Other providers don't have
+   dedicated dashboards yet.
+
+6. **ALG endpoint surface may have more fields than we use.** There's
+   a weekly `alg-auto-discovery` cron that probes ShopDriver's API for
+   new/changed endpoints and Telegram-alerts if it finds any. If our
+   `byStatus` enum ever looks incomplete, that discovery run is what
+   should drive the expansion.
+
 ## Versioning
 
 - **v11.1** (2026-04-22) — initial 4 bridge endpoints + Snap Finance wiring.
+- **v11.2** (2026-04-22) — every response now carries dataAsOf +
+  staleness fields; estimates endpoints explicitly scoped to "online";
+  cars-today adds byPayment breakdown; documented ALG coupling caveats
+  (section above).
 
 When adding a new endpoint: bump version, document here + statenour repo,
 include the commit hash in the PR description so cross-ring wiring is
