@@ -1,0 +1,459 @@
+/**
+ * Statenour Bridge Routes — v11.1 cross-ring contract.
+ *
+ * Owner-auth endpoints for the statenour-os HQ to ticker live shop data.
+ * Contract is mirrored in this repo at docs/NICKSTIRE-QUERY-CONTRACT.md
+ * and in statenour-os at docs/NICKSTIRE-QUERY-CONTRACT.md — both files
+ * MUST match for cross-ring stability.
+ *
+ * Endpoints (all GET, all require X-Statenour-Sync-Key header):
+ *   GET /api/bridge/cars-today
+ *   GET /api/bridge/estimates-conversion?range=7d|30d|90d
+ *   GET /api/bridge/estimates-aging
+ *   GET /api/bridge/drop-off-ratio?range=7d|30d|90d
+ *
+ * Snap Finance endpoints (POST, auth varies):
+ *   POST /api/snap/application   — owner-auth, proxies to Snap's API
+ *   POST /api/snap/webhook       — public (signature-verified), status updates
+ */
+
+import type { Express, Request, Response, NextFunction } from "express";
+import express from "express";
+import { timingSafeEqual } from "crypto";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("statenour-bridge");
+
+function safeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  try {
+    return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  } catch {
+    return false;
+  }
+}
+
+// ─── Auth middleware ───────────────────────────────────
+function statenourAuth(req: Request, res: Response, next: NextFunction): void {
+  const key = process.env.STATENOUR_SYNC_KEY;
+  if (!key) {
+    res.status(503).json({ error: "Statenour bridge not configured" });
+    return;
+  }
+  const provided = req.headers["x-statenour-sync-key"];
+  if (typeof provided !== "string" || !safeCompare(provided, key)) {
+    log.warn("Statenour bridge auth failed", {
+      path: req.path,
+      ip: req.ip,
+      hasHeader: !!provided,
+    });
+    res.status(401).json({ error: "Invalid sync key" });
+    return;
+  }
+  next();
+}
+
+// ─── SQL exec helper that handles MySQL2's tuple return shape ───
+async function exec(d: unknown, q: unknown): Promise<Record<string, unknown>[]> {
+  // d.execute returns [rows, fields] tuple on mysql2; some code returns rows directly
+  const result = (await (d as { execute: (q: unknown) => Promise<unknown> }).execute(q)) as unknown;
+  if (Array.isArray(result) && Array.isArray(result[0])) {
+    return result[0] as Record<string, unknown>[];
+  }
+  if (Array.isArray(result)) return result as Record<string, unknown>[];
+  return [];
+}
+
+function rangeToDays(range: string | undefined): number {
+  switch (range) {
+    case "7d": return 7;
+    case "90d": return 90;
+    case "30d":
+    default: return 30;
+  }
+}
+
+// ─── Registration ──────────────────────────────────────
+export function registerStatenourBridgeRoutes(app: Express): void {
+
+  // ─── 1. GET /api/bridge/cars-today ────────────────────
+  app.get("/api/bridge/cars-today", statenourAuth, async (_req, res) => {
+    try {
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const d = await getDb();
+      if (!d) {
+        return res.status(503).json({ error: "DB unavailable" });
+      }
+
+      // Count bookings by stage where DATE(createdAt) = today OR preferredDate = today
+      // + total invoices today (paid)
+      const [bookingRows, invoiceRows] = await Promise.all([
+        exec(d, sql`
+          SELECT
+            SUM(CASE WHEN stage = 'received' AND status != 'cancelled' THEN 1 ELSE 0 END) AS drop_off,
+            SUM(CASE WHEN stage IN ('inspecting','waiting-parts','in-progress','quality-check') THEN 1 ELSE 0 END) AS in_progress,
+            SUM(CASE WHEN stage = 'ready' THEN 1 ELSE 0 END) AS ready,
+            COUNT(*) AS total_bookings
+          FROM bookings
+          WHERE (DATE(createdAt) = CURDATE() OR preferredDate = DATE_FORMAT(CURDATE(), '%Y-%m-%d'))
+            AND status != 'cancelled'
+        `),
+        exec(d, sql`
+          SELECT COUNT(*) AS paid, COALESCE(SUM(totalAmount), 0) AS totalCents, COALESCE(AVG(totalAmount), 0) AS avgCents
+          FROM invoices
+          WHERE DATE(invoiceDate) = CURDATE()
+            AND paymentStatus = 'paid'
+        `),
+      ]);
+
+      const b = bookingRows[0] ?? {};
+      const inv = invoiceRows[0] ?? {};
+      const drop_off = Number(b.drop_off ?? 0);
+      const in_progress = Number(b.in_progress ?? 0);
+      const ready = Number(b.ready ?? 0);
+      const paid = Number(inv.paid ?? 0);
+      const totalBookings = Number(b.total_bookings ?? 0);
+      const count = totalBookings + paid; // today's total cars touched
+      const openTickets = drop_off + in_progress + ready;
+      const avgTicket = Math.round(Number(inv.avgCents ?? 0)) / 100;
+
+      res.json({
+        count,
+        openTickets,
+        avgTicket,
+        byStatus: { drop_off, in_progress, ready, paid },
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      log.error("cars-today failed", { error: err instanceof Error ? err.message : String(err) });
+      res.status(500).json({ error: "Internal error" });
+    }
+  });
+
+  // ─── 2. GET /api/bridge/estimates-conversion ──────────
+  app.get("/api/bridge/estimates-conversion", statenourAuth, async (req, res) => {
+    try {
+      const days = rangeToDays(typeof req.query.range === "string" ? req.query.range : undefined);
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const d = await getDb();
+      if (!d) return res.status(503).json({ error: "DB unavailable" });
+
+      const [summary, byServiceRows] = await Promise.all([
+        exec(d, sql`
+          SELECT
+            COUNT(*) AS given,
+            SUM(CASE WHEN converted = 1 THEN 1 ELSE 0 END) AS converted,
+            AVG(CASE
+              WHEN converted = 1 AND invoiceId IS NOT NULL
+              THEN TIMESTAMPDIFF(
+                MINUTE,
+                estimates_log.createdAt,
+                (SELECT invoiceDate FROM invoices WHERE invoices.id = estimates_log.invoiceId)
+              )
+              ELSE NULL
+            END) / 60 AS avgHours
+          FROM estimates_log
+          WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY)
+        `),
+        exec(d, sql`
+          SELECT service,
+            COUNT(*) AS given,
+            SUM(CASE WHEN converted = 1 THEN 1 ELSE 0 END) AS converted
+          FROM estimates_log
+          WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY)
+          GROUP BY service
+          ORDER BY given DESC
+          LIMIT 10
+        `),
+      ]);
+
+      const s = summary[0] ?? {};
+      const given = Number(s.given ?? 0);
+      const converted = Number(s.converted ?? 0);
+      const rate = given > 0 ? Math.round((converted / given) * 1000) / 10 : 0;
+      const avgTimeToConvertHours = Math.round(Number(s.avgHours ?? 0) * 10) / 10;
+
+      const byService = byServiceRows.map((r) => ({
+        service: String(r.service ?? "unknown"),
+        given: Number(r.given ?? 0),
+        converted: Number(r.converted ?? 0),
+        rate: Number(r.given ?? 0) > 0
+          ? Math.round((Number(r.converted ?? 0) / Number(r.given ?? 1)) * 1000) / 10
+          : 0,
+      }));
+
+      res.json({
+        range: `${days}d`,
+        given,
+        converted,
+        rate,
+        avgTimeToConvertHours,
+        byService,
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      log.error("estimates-conversion failed", { error: err instanceof Error ? err.message : String(err) });
+      res.status(500).json({ error: "Internal error" });
+    }
+  });
+
+  // ─── 3. GET /api/bridge/estimates-aging ───────────────
+  app.get("/api/bridge/estimates-aging", statenourAuth, async (_req, res) => {
+    try {
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const d = await getDb();
+      if (!d) return res.status(503).json({ error: "DB unavailable" });
+
+      // Only unconverted estimates — aging buckets based on hours since createdAt
+      const [buckets, stalestRows] = await Promise.all([
+        exec(d, sql`
+          SELECT
+            SUM(CASE WHEN TIMESTAMPDIFF(HOUR, createdAt, NOW()) < 24 THEN 1 ELSE 0 END) AS bucket_lt24h,
+            SUM(CASE WHEN TIMESTAMPDIFF(HOUR, createdAt, NOW()) BETWEEN 24 AND 72 THEN 1 ELSE 0 END) AS bucket_1d_3d,
+            SUM(CASE WHEN TIMESTAMPDIFF(HOUR, createdAt, NOW()) BETWEEN 73 AND 168 THEN 1 ELSE 0 END) AS bucket_3d_7d,
+            SUM(CASE WHEN TIMESTAMPDIFF(HOUR, createdAt, NOW()) > 168 THEN 1 ELSE 0 END) AS bucket_gt7d,
+            COUNT(*) AS total
+          FROM estimates_log
+          WHERE converted = 0
+        `),
+        exec(d, sql`
+          SELECT id, name, phone, service,
+            estimatedAmountCents,
+            TIMESTAMPDIFF(DAY, createdAt, NOW()) AS days
+          FROM estimates_log
+          WHERE converted = 0
+          ORDER BY createdAt ASC
+          LIMIT 1
+        `),
+      ]);
+
+      const b = buckets[0] ?? {};
+      const stalestRow = stalestRows[0];
+      const stalest = stalestRow ? {
+        id: Number(stalestRow.id),
+        customer: String(stalestRow.name ?? "Unknown"),
+        service: String(stalestRow.service ?? ""),
+        days: Number(stalestRow.days ?? 0),
+        amount: Number(stalestRow.estimatedAmountCents ?? 0) / 100,
+      } : null;
+
+      res.json({
+        total: Number(b.total ?? 0),
+        bucket_lt24h: Number(b.bucket_lt24h ?? 0),
+        bucket_1d_3d: Number(b.bucket_1d_3d ?? 0),
+        bucket_3d_7d: Number(b.bucket_3d_7d ?? 0),
+        bucket_gt7d: Number(b.bucket_gt7d ?? 0),
+        stalest,
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      log.error("estimates-aging failed", { error: err instanceof Error ? err.message : String(err) });
+      res.status(500).json({ error: "Internal error" });
+    }
+  });
+
+  // ─── 4. GET /api/bridge/drop-off-ratio ────────────────
+  app.get("/api/bridge/drop-off-ratio", statenourAuth, async (req, res) => {
+    try {
+      const days = rangeToDays(typeof req.query.range === "string" ? req.query.range : undefined);
+      const { getDb } = await import("../db");
+      const { sql } = await import("drizzle-orm");
+      const d = await getDb();
+      if (!d) return res.status(503).json({ error: "DB unavailable" });
+
+      // Heuristic for drop-off vs walk-in:
+      //   drop-off = booking has preferredDate (customer planned ahead)
+      //   walk-in  = no preferredDate or came in same-day
+      // This is the best signal we have without adding a schema column.
+      const [rows, uberRows] = await Promise.all([
+        exec(d, sql`
+          SELECT
+            SUM(CASE
+              WHEN preferredDate IS NOT NULL AND preferredDate != ''
+              THEN 1 ELSE 0
+            END) AS drop_offs,
+            SUM(CASE
+              WHEN preferredDate IS NULL OR preferredDate = ''
+              THEN 1 ELSE 0
+            END) AS walk_ins
+          FROM bookings
+          WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY)
+            AND status != 'cancelled'
+        `),
+        // Count Uber-out trackings from audit_log (requires uber-code endpoint to log there)
+        exec(d, sql`
+          SELECT COUNT(*) AS cnt FROM audit_log
+          WHERE action = 'customer.uber_requested'
+            AND created_at >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY)
+        `),
+      ]);
+
+      const r = rows[0] ?? {};
+      const dropOffs = Number(r.drop_offs ?? 0);
+      const walkIns = Number(r.walk_ins ?? 0);
+      const total = dropOffs + walkIns;
+      const ratio = total > 0 ? Math.round((dropOffs / total) * 1000) / 10 : 0;
+      const uberBackCount = Number(uberRows[0]?.cnt ?? 0);
+
+      res.json({
+        range: `${days}d`,
+        dropOffs,
+        walkIns,
+        ratio,
+        uberBackCount,
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      log.error("drop-off-ratio failed", { error: err instanceof Error ? err.message : String(err) });
+      res.status(500).json({ error: "Internal error" });
+    }
+  });
+
+  // ─── 5a. POST /api/snap/application ───────────────────
+  //     Owner-authed proxy. Stashes result in audit_log.
+  app.post("/api/snap/application", statenourAuth, express.json(), async (req, res) => {
+    try {
+      const body = req.body as {
+        customerName?: string;
+        customerPhone?: string;
+        customerEmail?: string;
+        amount?: number;
+        vehicle?: string;
+        service?: string;
+      };
+
+      if (!body?.customerName || !body?.customerPhone) {
+        return res.status(400).json({ error: "customerName and customerPhone are required" });
+      }
+
+      // Proxy to Snap's API — if credentials not set, record-only mode
+      const snapApiKey = process.env.SNAP_FINANCE_API_KEY;
+      const snapMerchantId = process.env.SNAP_FINANCE_MERCHANT_ID;
+
+      let snapResponse: Record<string, unknown> | null = null;
+      let applicationId: string | null = null;
+      let status = "pending";
+
+      if (snapApiKey && snapMerchantId) {
+        // Attempt real Snap API call. If Snap's API surface changes, fail gracefully.
+        try {
+          const r = await fetch("https://api.snapfinance.com/v1/applications", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${snapApiKey}`,
+              "X-Merchant-Id": snapMerchantId,
+            },
+            body: JSON.stringify({
+              merchant_id: snapMerchantId,
+              customer: {
+                name: body.customerName,
+                phone: body.customerPhone,
+                email: body.customerEmail ?? null,
+              },
+              amount: body.amount ?? null,
+              vehicle: body.vehicle ?? null,
+              service_description: body.service ?? null,
+            }),
+            signal: AbortSignal.timeout(15_000),
+          });
+          snapResponse = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+          applicationId = (snapResponse.id ?? snapResponse.applicationId ?? null) as string | null;
+          status = (snapResponse.status as string) ?? "pending";
+        } catch (err) {
+          log.warn("Snap API proxy failed — recording in local log only", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      // Always record locally in audit_log for admin visibility
+      const { recordSnapApplication } = await import("../services/snapApplications");
+      const localId = await recordSnapApplication({
+        customerName: body.customerName,
+        customerPhone: body.customerPhone,
+        customerEmail: body.customerEmail,
+        amount: body.amount,
+        vehicle: body.vehicle,
+        service: body.service,
+        externalApplicationId: applicationId,
+        status,
+        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+      });
+
+      res.json({
+        success: true,
+        localId,
+        externalApplicationId: applicationId,
+        status,
+        proxyUsed: !!(snapApiKey && snapMerchantId),
+      });
+    } catch (err) {
+      log.error("snap/application failed", { error: err instanceof Error ? err.message : String(err) });
+      res.status(500).json({ error: "Internal error" });
+    }
+  });
+
+  // ─── 5b. POST /api/snap/webhook ───────────────────────
+  //     Snap-side status callback. Verifies an HMAC signature if
+  //     SNAP_FINANCE_WEBHOOK_SECRET is set. Otherwise accepts anonymously
+  //     for initial rollout — document this publicly.
+  app.post("/api/snap/webhook", express.json(), async (req, res) => {
+    try {
+      const secret = process.env.SNAP_FINANCE_WEBHOOK_SECRET;
+      if (secret) {
+        const signature = req.headers["x-snap-signature"];
+        if (typeof signature !== "string" || !signature) {
+          return res.status(401).json({ error: "Missing signature" });
+        }
+        const crypto = await import("crypto");
+        const expected = crypto.createHmac("sha256", secret)
+          .update(JSON.stringify(req.body))
+          .digest("hex");
+        if (!safeCompare(expected, signature)) {
+          log.warn("Snap webhook signature mismatch");
+          return res.status(401).json({ error: "Invalid signature" });
+        }
+      }
+
+      const body = req.body as {
+        applicationId?: string;
+        status?: string;
+        amount?: number;
+        customerName?: string;
+      };
+      if (!body?.applicationId || !body?.status) {
+        return res.status(400).json({ error: "applicationId and status required" });
+      }
+
+      const { updateSnapApplicationStatus } = await import("../services/snapApplications");
+      await updateSnapApplicationStatus({
+        externalApplicationId: body.applicationId,
+        status: body.status,
+        amount: body.amount,
+      });
+
+      // If approved + amount, also record the Stripe-style revenue row
+      if (body.status === "approved" && body.amount && body.customerName) {
+        const { recordSnapPayment } = await import("../services/snapFinanceSync");
+        await recordSnapPayment({
+          customerName: body.customerName,
+          customerPhone: "",
+          amount: body.amount,
+          snapApplicationId: body.applicationId,
+          approvalDate: new Date(),
+        });
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      log.error("snap/webhook failed", { error: err instanceof Error ? err.message : String(err) });
+      res.status(500).json({ error: "Internal error" });
+    }
+  });
+
+  log.info("Statenour bridge routes registered (5 endpoints)");
+}

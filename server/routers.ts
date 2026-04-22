@@ -77,6 +77,7 @@ import {
   intelligenceRouter,
   reEngagementRouter,
   noShowRouter,
+  snapRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -203,6 +204,9 @@ export const appRouter = router({
   // No-show prediction — scores upcoming bookings by skip-risk, suggests
   // admin actions + pre-draft confirmation SMS.
   noShow: noShowRouter,
+
+  // Snap Finance lease-to-own applications (submit + list + summary).
+  snap: snapRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -67,6 +67,7 @@ const NoShowRiskSection = lazy(() => import("./admin/NoShowRiskSection"));
 const ComplianceSection = lazy(() => import("./admin/ComplianceSection"));
 const ShopFloorMobile = lazy(() => import("./admin/ShopFloorMobile"));
 const WalkInCalculatorSection = lazy(() => import("./admin/WalkInCalculatorSection"));
+const SnapDashboardSection = lazy(() => import("./admin/SnapDashboardSection"));
 
 function SectionSpinner() {
   return (
@@ -127,6 +128,7 @@ function SectionContent({ section }: { section: AdminSection }) {
       {section === "compliance" && <ComplianceSection />}
       {section === "shopFloor" && <ShopFloorMobile />}
       {section === "walkInCalc" && <WalkInCalculatorSection />}
+      {section === "snapDashboard" && <SnapDashboardSection />}
     </Suspense>
   );
 }
