@@ -54,6 +54,7 @@ import { healthHandler, pingHandler, readyHandler, recoverHandler } from "../lib
 import { startSelfHealing, recordRequest } from "../lib/self-healing";
 import { createLogger } from "../lib/logger";
 import { errorTelemetry } from "../lib/error-telemetry";
+import { initSentry, flushSentry } from "../lib/sentry";
 import { getAllBreakerHealth, resetAllBreakers } from "../lib/circuit-breaker";
 import { AppError, isAppError, errorToHttpResponse } from "../lib/errors";
 import { appRouter } from "../routers";
@@ -236,6 +237,9 @@ async function startServer() {
 
   // ─── Self-Healing Monitor ─────────────────────────────
   startSelfHealing();
+
+  // ─── Sentry (opt-in via SENTRY_DSN) ───────────────────
+  initSentry().catch((err) => serverLog.warn("Sentry init failed", { err }));
 
   // ─── Event Bus (eagerly init so self-healing sees it ready) ──
   import("../services/eventBus").then(({ initEventBus }) => {

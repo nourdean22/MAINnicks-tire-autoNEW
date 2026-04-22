@@ -122,6 +122,7 @@ class ErrorTelemetry {
 
   /**
    * Record an error into telemetry. Call this from error middleware.
+   * Also forwards to Sentry if configured (no-op otherwise).
    */
   record(
     err: unknown,
@@ -130,6 +131,15 @@ class ErrorTelemetry {
     const entry = this.toEntry(err, meta);
     this.ring.push(entry);
     this.checkStorm(entry);
+
+    // Forward to Sentry (lazy-imported so zero cost when SENTRY_DSN not set)
+    if (!entry.isOperational) {
+      import("./sentry")
+        .then(({ captureException, isSentryEnabled }) => {
+          if (isSentryEnabled()) captureException(err, { tags: meta });
+        })
+        .catch(() => { /* Sentry optional — ignore import failures */ });
+    }
   }
 
   /**

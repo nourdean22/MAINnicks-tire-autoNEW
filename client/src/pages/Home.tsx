@@ -23,6 +23,9 @@ import TrustBadges from "@/components/TrustBadges";
 import FastPaths from "@/components/FastPaths";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
+import ShopStatusWidget from "@/components/ShopStatusWidget";
+import LineOfCarsCounter from "@/components/LineOfCarsCounter";
+import UberDropoffWidget from "@/components/UberDropoffWidget";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
@@ -518,6 +521,13 @@ export default function Home() {
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />
       <Hero />
+      {/* ── LIVE STATUS STRIP — Pillar 1 (Line of Cars) + Pillar 3 (Happy Wait) ─ */}
+      <section className="bg-[oklch(0.055_0.004_260)] py-6 border-t border-b border-border/30">
+        <div className="container flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6">
+          <LineOfCarsCounter variant="hero" />
+          <ShopStatusWidget compact />
+        </div>
+      </section>
       <TrustStrip />
       <TrustBadges />
       <FastPaths />
@@ -527,6 +537,24 @@ export default function Home() {
       <WhyUs />
       <Reviews />
       <ComparisonTable />
+      {/* ── DROP-OFF + UBER-OUT — Pillar 4, the killer flywheel ──────────── */}
+      <section className="bg-[oklch(0.055_0.004_260)] py-14 border-t border-border/30">
+        <div className="container">
+          <div className="max-w-2xl mx-auto text-center mb-8">
+            <div className="text-[#FDB913] text-[10px] font-mono uppercase tracking-widest mb-2">
+              The Drop-Off Flywheel
+            </div>
+            <h2 className="font-heading text-3xl sm:text-4xl font-black text-foreground uppercase tracking-tight">
+              Drop the car. Keep your day.
+            </h2>
+            <p className="text-foreground/60 text-sm mt-3 max-w-lg mx-auto">
+              Pull up, hand us the keys, tap the button below to call an Uber right
+              from here. We text you when it's done. No waiting room torture.
+            </p>
+          </div>
+          <UberDropoffWidget theme="gold" />
+        </div>
+      </section>
       <Contact />
       {/* SEO: Comprehensive internal link section for homepage link equity */}
       <section className="bg-[oklch(0.055_0.004_260)] py-16 border-t border-border/30">

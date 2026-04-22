@@ -4,6 +4,8 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { db } from "../lib/db-helper";
+import { sql } from "drizzle-orm";
 
 import { BUSINESS } from "@shared/business";
 const log = createLogger("shop-status");
@@ -92,6 +94,78 @@ export function getShopStatus(activeOrderCount?: number): ShopStatus {
     bays,
     statusMessage,
   };
+}
+
+/**
+ * LINE OF CARS — Today's real-time count.
+ *
+ * The Pillar 1 metric: bookings received today + invoices created today.
+ * Runs a single fast aggregate query. Uses today's local date in ET.
+ *
+ * Returns a decomposed breakdown so the UI can show momentum:
+ *   - droppedOff = already checked in / in progress
+ *   - booked     = scheduled-but-not-yet-there
+ *   - invoicedToday = money in the register today (wins)
+ */
+export async function getLineOfCarsToday(): Promise<{
+  total: number;
+  droppedOff: number;
+  booked: number;
+  invoicedToday: number;
+  weekAverage: number;
+  trend: "up" | "down" | "flat";
+}> {
+  const d = await db();
+  if (!d) {
+    return { total: 0, droppedOff: 0, booked: 0, invoicedToday: 0, weekAverage: 0, trend: "flat" };
+  }
+
+  try {
+    const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
+
+    // Today's bookings broken down by stage
+    const [bookingRow] = await d.execute(sql`
+      SELECT
+        SUM(CASE WHEN stage IN ('inspecting','waiting-parts','in-progress','quality-check','ready') THEN 1 ELSE 0 END) AS droppedOff,
+        SUM(CASE WHEN stage = 'received' AND status != 'cancelled' THEN 1 ELSE 0 END) AS booked
+      FROM bookings
+      WHERE DATE(createdAt) = ${todayStr} OR preferredDate = ${todayStr}
+    `) as Array<Record<string, unknown>[]>;
+
+    const row = (bookingRow as Record<string, unknown>[])?.[0] ??
+                (bookingRow as unknown as Record<string, unknown>) ?? {};
+    const droppedOff = Number((row as Record<string, unknown>).droppedOff ?? 0);
+    const booked = Number((row as Record<string, unknown>).booked ?? 0);
+
+    // Today's invoices (real wins — money collected)
+    const [invRow] = await d.execute(sql`
+      SELECT COUNT(*) AS cnt FROM invoices WHERE DATE(invoiceDate) = ${todayStr}
+    `) as Array<Record<string, unknown>[]>;
+    const invoicedToday = Number(((invRow as Record<string, unknown>[])?.[0]
+      ?? (invRow as unknown as Record<string, unknown>) ?? {}).cnt ?? 0);
+
+    // 7-day average (for trend arrow)
+    const [avgRow] = await d.execute(sql`
+      SELECT COUNT(*) / 7 AS avg7
+      FROM bookings
+      WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+        AND createdAt < CURDATE()
+    `) as Array<Record<string, unknown>[]>;
+    const weekAverage = Math.round(Number(((avgRow as Record<string, unknown>[])?.[0]
+      ?? (avgRow as unknown as Record<string, unknown>) ?? {}).avg7 ?? 0));
+
+    const total = droppedOff + booked;
+    const trend: "up" | "down" | "flat" =
+      total > weekAverage * 1.15 ? "up" :
+      total < weekAverage * 0.85 ? "down" : "flat";
+
+    return { total, droppedOff, booked, invoicedToday, weekAverage, trend };
+  } catch (err) {
+    log.warn("getLineOfCarsToday failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { total: 0, droppedOff: 0, booked: 0, invoicedToday: 0, weekAverage: 0, trend: "flat" };
+  }
 }
 
 /** Estimate current jobs based on time of day patterns */
