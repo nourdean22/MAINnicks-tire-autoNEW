@@ -16,6 +16,7 @@ import {
   AdminSection, NAV_GROUPS, SECTION_TITLES,
 } from "./admin/shared";
 import { CommandSearch } from "@/components/admin/CommandSearch";
+import ThemeToggle from "@/components/admin/ThemeToggle";
 import { CustomerDrawer } from "@/components/admin/CustomerDrawer";
 
 // Lazy-load each section for code splitting
@@ -62,6 +63,7 @@ const DeclinedEstimatesSection = lazy(() => import("./admin/DeclinedEstimatesSec
 const ReEngagementSection = lazy(() => import("./admin/ReEngagementSection"));
 const NoShowRiskSection = lazy(() => import("./admin/NoShowRiskSection"));
 const ComplianceSection = lazy(() => import("./admin/ComplianceSection"));
+const ShopFloorMobile = lazy(() => import("./admin/ShopFloorMobile"));
 
 function SectionSpinner() {
   return (
@@ -120,6 +122,7 @@ function SectionContent({ section }: { section: AdminSection }) {
       {section === "reEngagement" && <ReEngagementSection />}
       {section === "noShowRisk" && <NoShowRiskSection />}
       {section === "compliance" && <ComplianceSection />}
+      {section === "shopFloor" && <ShopFloorMobile />}
     </Suspense>
   );
 }
@@ -390,6 +393,7 @@ export default function Admin() {
             onNavigate={(s) => setSection(s)}
             onSelectCustomer={(id) => setDrawerCustomerId(id)}
           />
+          <ThemeToggle />
           <Link
             href="/admin/content"
             className="flex items-center gap-1.5 bg-muted/50 border border-border px-3 py-1.5 rounded-md text-muted-foreground hover:text-primary hover:border-primary/30 transition-all text-xs font-medium"
