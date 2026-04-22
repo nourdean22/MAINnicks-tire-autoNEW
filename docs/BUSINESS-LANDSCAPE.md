@@ -278,6 +278,7 @@ Shop cameras: V380, GeoVision 16ch DVR, Ring, Eufy.
 
 | Date | Change |
 |------|--------|
+| 2026-04-22 | **v1.1 mega-wave (6 commits)**: ShopDriver/ALG probes shop-protected; BUSINESS.timezone unhardcoded; shared db/phone/csvSafe helpers (+28 files cleaned); `docs/BUSINESS-LANDSCAPE.md` created (this doc); LineOfCars + ShopStatus widgets on public homepage; Uber/Lyft deep-link drop-off flywheel; main bundle 228 → 43KB gzip (5.3× smaller); Sentry opt-in via SENTRY_DSN; cron inventory + uptime monitoring docs; **Re-engagement Engine** — service memory + 12 categories + admin send UI; TCPA opt-in log + admin login audit trail. 0 tests broken. |
 | 2026-04-22 | Landscape doc created (T1.2 of v1.1 roadmap). Four pillars + covenant + philosophy layer codified. |
 | 2026-04-14 | Ollama fully removed. Venice + OpenAI the only providers. |
 | 2026-04-14 | GSC URL-prefix fix. 436 URLs indexed. |
