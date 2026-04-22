@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { captureUtmParams } from "@/lib/utm";
+import { initCwvCollector } from "@/lib/cwv";
 import { NEIGHBORHOODS } from "@shared/neighborhoods";
 import { TIRE_SIZE_PAGES } from "@shared/tireSizes";
 import { VEHICLE_SERVICE_PAGES } from "@shared/vehicleServicePages";
@@ -347,6 +348,8 @@ function App() {
   // Capture UTM params on first load for attribution
   useEffect(() => {
     captureUtmParams();
+    // Core Web Vitals real-user telemetry → /api/cwv → admin report
+    initCwvCollector();
   }, []);
 
   return (

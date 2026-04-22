@@ -908,4 +908,15 @@ export const controlCenterRouter = router({
       ]);
       return { optIns, optOuts, totalOptIns: optIns.length, totalOptOuts: optOuts.length };
     }),
+
+  /**
+   * Core Web Vitals report — p50/p75/p95 by metric + top slowest routes.
+   * Real-user data, not CrUX lab averages. 60-min default window.
+   */
+  webVitals: adminProcedure
+    .input(z.object({ windowMinutes: z.number().min(5).max(24 * 60).default(60) }).optional())
+    .query(async ({ input }) => {
+      const { getCwvReport } = await import("../lib/cwv-telemetry");
+      return getCwvReport(input?.windowMinutes ?? 60);
+    }),
 });
