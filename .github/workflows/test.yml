@@ -36,6 +36,9 @@ jobs:
       - name: Source lint (no console in server, count anys & SQL)
         run: pnpm lint:source 2>&1 | tee /tmp/lint-source-output.txt
 
+      - name: Route registry validation (no silent SEO drift)
+        run: pnpm validate:routes 2>&1 | tee /tmp/routes-output.txt
+
       - name: Run tests with coverage
         run: pnpm test -- --reporter=verbose --coverage 2>&1 | tee /tmp/test-output.txt
         env:

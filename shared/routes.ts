@@ -529,6 +529,26 @@ const SEASONAL_PAGES: RouteEntry[] = [
 // ─── UTILITY PAGES ───────────────────────────────────────
 const UTILITY_PAGES: RouteEntry[] = [
   {
+    path: "/guides",
+    priority: 0.7,
+    changefreq: "weekly",
+    title: "Car Care Guides — Nick's Tire & Auto Cleveland",
+    description: "Step-by-step car care guides for Cleveland drivers: oil change intervals, brake signs, tire rotation, winter prep, e-check prep, and more.",
+    group: "utility",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/womens-safety",
+    priority: 0.7,
+    changefreq: "monthly",
+    title: "Women's Safety & Drop-Off Experience — Nick's Tire & Auto",
+    description: "Drop off your car, call an Uber, get your day back. Built for busy moms and anyone who values time and safety. Cleveland's drop-off tire shop.",
+    group: "utility",
+    sitemap: true,
+    prerender: true,
+  },
+  {
     path: "/financing",
     priority: 0.8,
     changefreq: "weekly",
