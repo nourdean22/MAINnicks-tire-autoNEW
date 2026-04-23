@@ -1,15 +1,22 @@
 /**
- * Statenour Bridge Routes — v11.1 cross-ring contract.
+ * Statenour Bridge Routes — v11.3 cross-ring contract.
  *
  * Owner-auth endpoints for the statenour-os HQ to ticker live shop data.
  * Contract is mirrored in this repo at docs/NICKSTIRE-QUERY-CONTRACT.md
  * and in statenour-os at docs/NICKSTIRE-QUERY-CONTRACT.md — both files
  * MUST match for cross-ring stability.
  *
+ * v11.3 adds `scope=alg` option on the estimates endpoints:
+ *   - scope=online (default) — uses estimates_log table (AI estimator,
+ *     customer portal, website-sourced quotes — the ONLINE funnel).
+ *   - scope=alg — uses the new alg_estimates table (physical walk-in
+ *     quotes synced from ShopDriver Elite). An alg_estimates row without
+ *     a matchedInvoiceId = declined work = recovery target.
+ *
  * Endpoints (all GET, all require X-Statenour-Sync-Key header):
  *   GET /api/bridge/cars-today
- *   GET /api/bridge/estimates-conversion?range=7d|30d|90d
- *   GET /api/bridge/estimates-aging
+ *   GET /api/bridge/estimates-conversion?range=7d|30d|90d&scope=online|alg
+ *   GET /api/bridge/estimates-aging?scope=online|alg
  *   GET /api/bridge/drop-off-ratio?range=7d|30d|90d
  *
  * Snap Finance endpoints (POST, auth varies):
@@ -85,6 +92,36 @@ async function getMirrorFreshness(): Promise<{
   try {
     const { getLastSuccessfulSync } = await import("../services/shopDriverMirror");
     const last = getLastSuccessfulSync();
+    if (!last) {
+      return { dataAsOf: null, ageMinutes: null, staleness: "uncollected" };
+    }
+    const ageMs = Date.now() - last.getTime();
+    const ageMinutes = Math.round(ageMs / 60000);
+    let staleness: "live" | "recent" | "stale" | "very_stale";
+    if (ageMinutes < 5) staleness = "live";
+    else if (ageMinutes < 30) staleness = "recent";
+    else if (ageMinutes < 120) staleness = "stale";
+    else staleness = "very_stale";
+    return { dataAsOf: last.toISOString(), ageMinutes, staleness };
+  } catch {
+    return { dataAsOf: null, ageMinutes: null, staleness: "uncollected" };
+  }
+}
+
+/**
+ * Same shape as getMirrorFreshness() but sourced from the ALG ESTIMATE
+ * sync (shopDriverEstimateSync.ts). Used by scope=alg bridge endpoints
+ * so the "as of" footer reflects the estimate sync's own cadence, not
+ * the invoice mirror's.
+ */
+async function getEstimateMirrorFreshness(): Promise<{
+  dataAsOf: string | null;
+  ageMinutes: number | null;
+  staleness: "live" | "recent" | "stale" | "very_stale" | "uncollected";
+}> {
+  try {
+    const { getLastEstimateSync } = await import("../services/shopDriverEstimateSync");
+    const last = getLastEstimateSync();
     if (!last) {
       return { dataAsOf: null, ageMinutes: null, staleness: "uncollected" };
     }
@@ -201,11 +238,76 @@ export function registerStatenourBridgeRoutes(app: Express): void {
   app.get("/api/bridge/estimates-conversion", statenourAuth, async (req, res) => {
     try {
       const days = rangeToDays(typeof req.query.range === "string" ? req.query.range : undefined);
+      const scope = (typeof req.query.scope === "string" ? req.query.scope : "online").toLowerCase();
       const { getDb } = await import("../db");
       const { sql } = await import("drizzle-orm");
       const d = await getDb();
       if (!d) return res.status(503).json({ error: "DB unavailable" });
 
+      // scope=alg: walk-in quotes from ShopDriver Elite (alg_estimates table)
+      if (scope === "alg") {
+        const [algSummary, algUnmatched] = await Promise.all([
+          exec(d, sql`
+            SELECT
+              COUNT(*) AS given,
+              SUM(CASE WHEN matched_invoice_id IS NOT NULL THEN 1 ELSE 0 END) AS converted,
+              AVG(CASE
+                WHEN matched_invoice_id IS NOT NULL
+                THEN TIMESTAMPDIFF(MINUTE, estimate_date, matched_at)
+                ELSE NULL
+              END) / 60 AS avgHours,
+              COALESCE(SUM(CASE WHEN matched_invoice_id IS NULL THEN estimated_amount ELSE 0 END), 0) AS declinedCents
+            FROM alg_estimates
+            WHERE estimate_date >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY)
+          `),
+          exec(d, sql`
+            SELECT customer_name AS name, service_description AS service,
+              estimated_amount AS amountCents,
+              TIMESTAMPDIFF(DAY, estimate_date, NOW()) AS daysOld
+            FROM alg_estimates
+            WHERE matched_invoice_id IS NULL
+              AND estimate_date >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY)
+            ORDER BY estimated_amount DESC
+            LIMIT 5
+          `),
+        ]);
+        const s = algSummary[0] ?? {};
+        const given = Number(s.given ?? 0);
+        const converted = Number(s.converted ?? 0);
+        const rate = given > 0 ? Math.round((converted / given) * 1000) / 10 : 0;
+        const avgTimeToConvertHours = Math.round(Number(s.avgHours ?? 0) * 10) / 10;
+        const declinedValueDollars = Math.round(Number(s.declinedCents ?? 0)) / 100;
+        const topUnmatched = algUnmatched.map((r) => ({
+          name: String(r.name ?? "Unknown"),
+          service: String(r.service ?? ""),
+          amount: Math.round(Number(r.amountCents ?? 0)) / 100,
+          daysOld: Number(r.daysOld ?? 0),
+        }));
+
+        const freshness = await getEstimateMirrorFreshness();
+        return res.json({
+          range: `${days}d`,
+          given,
+          converted,
+          rate,
+          avgTimeToConvertHours,
+          declinedCount: given - converted,
+          declinedValue: declinedValueDollars,
+          topUnmatched,
+          generatedAt: new Date().toISOString(),
+          dataAsOf: freshness.dataAsOf,
+          ageMinutes: freshness.ageMinutes,
+          staleness: freshness.staleness,
+          scope: "alg",
+          source: {
+            estimates: "alg_estimates table — walk-in quotes synced from ShopDriver Elite via shopDriverEstimateSync.ts",
+            match: "phone + invoice amount within ±10% + invoiceDate within 30d of estimateDate",
+            note: "This is the OFFLINE/WALK-IN funnel. A row without matched_invoice_id = declined work, targeted by the declined-work-recovery cron.",
+          },
+        });
+      }
+
+      // scope=online (default): estimates_log (AI + portal + website-sourced)
       const [summary, byServiceRows] = await Promise.all([
         exec(d, sql`
           SELECT
@@ -266,7 +368,7 @@ export function registerStatenourBridgeRoutes(app: Express): void {
         source: {
           estimates: "estimates_log table — AI estimator + customer portal + ShopDriver-synced rows",
           invoices: "ALG mirror (via shopDriverMirror)",
-          note: "Does NOT include counter-only quotes written by hand in ALG that never hit our systems. This is the ONLINE funnel.",
+          note: "Does NOT include counter-only quotes written by hand in ALG that never hit our systems. This is the ONLINE funnel. Pass scope=alg for walk-in quotes.",
         },
       });
     } catch (err) {
@@ -276,14 +378,77 @@ export function registerStatenourBridgeRoutes(app: Express): void {
   });
 
   // ─── 3. GET /api/bridge/estimates-aging ───────────────
-  app.get("/api/bridge/estimates-aging", statenourAuth, async (_req, res) => {
+  app.get("/api/bridge/estimates-aging", statenourAuth, async (req, res) => {
     try {
+      const scope = (typeof req.query.scope === "string" ? req.query.scope : "online").toLowerCase();
       const { getDb } = await import("../db");
       const { sql } = await import("drizzle-orm");
       const d = await getDb();
       if (!d) return res.status(503).json({ error: "DB unavailable" });
 
-      // Only unconverted estimates — aging buckets based on hours since createdAt
+      // scope=alg: age unmatched ALG walk-in estimates (declined work)
+      if (scope === "alg") {
+        const [algBuckets, algStalestRows, algTotalValueRows] = await Promise.all([
+          exec(d, sql`
+            SELECT
+              SUM(CASE WHEN TIMESTAMPDIFF(HOUR, estimate_date, NOW()) < 24 THEN 1 ELSE 0 END) AS bucket_lt24h,
+              SUM(CASE WHEN TIMESTAMPDIFF(HOUR, estimate_date, NOW()) BETWEEN 24 AND 72 THEN 1 ELSE 0 END) AS bucket_1d_3d,
+              SUM(CASE WHEN TIMESTAMPDIFF(HOUR, estimate_date, NOW()) BETWEEN 73 AND 168 THEN 1 ELSE 0 END) AS bucket_3d_7d,
+              SUM(CASE WHEN TIMESTAMPDIFF(HOUR, estimate_date, NOW()) > 168 THEN 1 ELSE 0 END) AS bucket_gt7d,
+              COUNT(*) AS total
+            FROM alg_estimates
+            WHERE matched_invoice_id IS NULL
+          `),
+          exec(d, sql`
+            SELECT id, customer_name AS name, customer_phone AS phone, service_description AS service,
+              estimated_amount AS amountCents,
+              TIMESTAMPDIFF(DAY, estimate_date, NOW()) AS days
+            FROM alg_estimates
+            WHERE matched_invoice_id IS NULL
+            ORDER BY estimate_date ASC
+            LIMIT 1
+          `),
+          exec(d, sql`
+            SELECT COALESCE(SUM(estimated_amount), 0) AS totalDeclinedCents
+            FROM alg_estimates
+            WHERE matched_invoice_id IS NULL
+              AND estimate_date >= DATE_SUB(CURDATE(), INTERVAL 60 DAY)
+          `),
+        ]);
+
+        const b = algBuckets[0] ?? {};
+        const row = algStalestRows[0];
+        const stalest = row ? {
+          id: Number(row.id),
+          customer: String(row.name ?? "Unknown"),
+          service: String(row.service ?? ""),
+          days: Number(row.days ?? 0),
+          amount: Math.round(Number(row.amountCents ?? 0)) / 100,
+        } : null;
+        const totalDeclinedValue = Math.round(Number(algTotalValueRows[0]?.totalDeclinedCents ?? 0)) / 100;
+
+        const freshness = await getEstimateMirrorFreshness();
+        return res.json({
+          total: Number(b.total ?? 0),
+          bucket_lt24h: Number(b.bucket_lt24h ?? 0),
+          bucket_1d_3d: Number(b.bucket_1d_3d ?? 0),
+          bucket_3d_7d: Number(b.bucket_3d_7d ?? 0),
+          bucket_gt7d: Number(b.bucket_gt7d ?? 0),
+          stalest,
+          totalDeclinedValue,
+          generatedAt: new Date().toISOString(),
+          dataAsOf: freshness.dataAsOf,
+          ageMinutes: freshness.ageMinutes,
+          staleness: freshness.staleness,
+          scope: "alg",
+          source: {
+            estimates: "alg_estimates WHERE matched_invoice_id IS NULL — walked customers with no matching invoice.",
+            totalDeclinedValue: "Sum of estimated_amount for unmatched quotes in last 60d (dollars).",
+          },
+        });
+      }
+
+      // scope=online (default): estimates_log aging
       const [buckets, stalestRows] = await Promise.all([
         exec(d, sql`
           SELECT
@@ -330,7 +495,7 @@ export function registerStatenourBridgeRoutes(app: Express): void {
         staleness: freshness.staleness,
         scope: "online",
         source: {
-          estimates: "estimates_log WHERE converted = 0 — online funnel only.",
+          estimates: "estimates_log WHERE converted = 0 — online funnel only. Pass scope=alg for walk-in quotes.",
         },
       });
     } catch (err) {
@@ -548,5 +713,5 @@ export function registerStatenourBridgeRoutes(app: Express): void {
     }
   });
 
-  log.info("Statenour bridge routes registered (5 endpoints)");
+  log.info("Statenour bridge routes registered (5 endpoints, contract v11.3)");
 }

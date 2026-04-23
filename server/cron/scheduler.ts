@@ -257,6 +257,23 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        name: "shopdriver-estimate-mirror", // ALG walk-in estimates (declined work) — separate from invoices
+        businessHoursOnly: true,
+        handler: async () => {
+          // SHOP-PROTECT: same ALG session as invoice mirror — only probe while admin is active
+          const { runIfAdminActive } = await import("../lib/adminActivity");
+          const result = await runIfAdminActive(
+            async () => {
+              const { runEstimateMirror } = await import("../services/shopDriverEstimateSync");
+              return runEstimateMirror();
+            },
+            { jobName: "shopdriver-estimate-mirror" },
+          );
+          if ("skipped" in result) return { details: result.reason };
+          return result;
+        },
+      },
+      {
         name: "abandoned-forms",
         businessHoursOnly: true, // No customer outreach at 3am
         handler: async () => {
@@ -749,6 +766,13 @@ export function startTieredScheduler(): void {
         handler: async () => {
           const { processWarrantyAlerts } = await import("./jobs/warrantyAlerts");
           return processWarrantyAlerts();
+        },
+      },
+      {
+        name: "alg-declined-work-recovery", // NEW: ALG-sourced walk-in estimates SMS follow-ups
+        handler: async () => {
+          const { runDeclinedWorkRecovery } = await import("./jobs/declinedWorkRecovery");
+          return runDeclinedWorkRecovery();
         },
       },
       {
