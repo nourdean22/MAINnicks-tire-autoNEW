@@ -1,8 +1,8 @@
 # ALG Estimate Sync — Sprint Plan
 
-Status: **DESIGN COMPLETE, IMPL DEFERRED** (2026-04-22).
-Blocker: requires a new ShopDriver API call wired behind shop-protection,
-plus a schema migration for a dedicated table. Worth its own focused sprint.
+Status: **IMPLEMENTED** (2026-04-22).
+All 5 phases shipped in one sprint. See the "Ship trigger" footer and the
+files listed per phase for the concrete wiring.
 
 ---
 

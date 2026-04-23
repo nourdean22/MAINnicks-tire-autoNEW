@@ -1,4 +1,4 @@
-# Nickstire Query Contract — v11.2 (2026-04-22)
+# Nickstire Query Contract — v11.3 (2026-04-22)
 
 > **This doc is the mirror.** It must match `docs/NICKSTIRE-QUERY-CONTRACT.md`
 > in the statenour-os repo byte-for-byte. When adding or changing an endpoint,
@@ -106,17 +106,17 @@ X-Statenour-Sync-Key: <key>
 
 ---
 
-## 2. GET `/api/bridge/estimates-conversion?range=7d|30d|90d`
+## 2. GET `/api/bridge/estimates-conversion?range=7d|30d|90d&scope=online|alg`
 
 Lead → estimate → invoice funnel.
 
 **Request:**
 ```
-GET /api/bridge/estimates-conversion?range=30d
+GET /api/bridge/estimates-conversion?range=30d&scope=alg
 X-Statenour-Sync-Key: <key>
 ```
 
-**Response:**
+### scope=online (default) — ONLINE funnel
 ```json
 {
   "range": "30d",
@@ -128,6 +128,7 @@ X-Statenour-Sync-Key: <key>
     { "service": "Brake Service", "given": 24, "converted": 12, "rate": 50.0 },
     { "service": "Oil Change",    "given": 19, "converted": 9,  "rate": 47.4 }
   ],
+  "scope": "online",
   "generatedAt": "2026-04-22T14:23:45.123Z"
 }
 ```
@@ -137,27 +138,55 @@ X-Statenour-Sync-Key: <key>
 - `avgTimeToConvertHours` — average elapsed hours between
   `estimates_log.createdAt` and `invoices.invoiceDate`.
 - `byService` — top 10 services by count of estimates in window.
-- **`scope: "online"`** — response always includes this field. It means
-  the funnel covers **online estimates only** (AI estimator, customer
-  portal requests, ShopDriver-synced rows). It does **NOT** include
-  counter-only quotes that Nour writes by hand in ALG and never make
-  it into our systems. Those exist but we can't see them.
+- Source: `estimates_log` JOINed to `invoices` by `invoiceId` — AI estimator
+  + customer portal + ShopDriver-synced. This is the ONLINE funnel.
 
-**Data source:** `estimates_log` table JOINed to `invoices` by `invoiceId`.
+### scope=alg — ALG WALK-IN funnel (declined-work truth)
+```json
+{
+  "range": "30d",
+  "given": 84,
+  "converted": 61,
+  "rate": 72.6,
+  "avgTimeToConvertHours": 46.2,
+  "declinedCount": 23,
+  "declinedValue": 7420.00,
+  "topUnmatched": [
+    { "name": "SMITH, JOHN", "service": "Front struts + alignment", "amount": 1485.00, "daysOld": 9 },
+    { "name": "DOE, JANE", "service": "Brake pads + rotors", "amount": 560.00, "daysOld": 14 }
+  ],
+  "scope": "alg",
+  "generatedAt": "2026-04-22T14:23:45.123Z"
+}
+```
+
+- **This is the signal Nour cares about**: how many walk-ins with a physical
+  ALG quote actually converted into an invoice?
+- Source: `alg_estimates` table, synced from ShopDriver Elite via
+  `server/services/shopDriverEstimateSync.ts` (shop-protected, pulse-tier).
+- `converted` — count where `matched_invoice_id IS NOT NULL`.
+- Match heuristic: same `customerPhone` + invoice `totalAmount` within ±10%
+  of `estimatedAmount` + invoice date within 30d of the estimate date.
+- `declinedCount` / `declinedValue` — the recovery pool. Unmatched rows
+  are targeted by the `alg-declined-work-recovery` cron (daily tier) which
+  sends 7d + 30d SMS follow-ups when `FEATURE_DECLINED_RECOVERY=1`.
+- `topUnmatched` — top 5 unmatched quotes by dollar value in window.
+- `dataAsOf` / `staleness` here reflect the **estimate** sync cadence, not
+  the invoice mirror.
 
 ---
 
-## 3. GET `/api/bridge/estimates-aging`
+## 3. GET `/api/bridge/estimates-aging?scope=online|alg`
 
 Un-converted estimates aging buckets + stalest record.
 
 **Request:**
 ```
-GET /api/bridge/estimates-aging
+GET /api/bridge/estimates-aging?scope=alg
 X-Statenour-Sync-Key: <key>
 ```
 
-**Response:**
+### scope=online (default)
 ```json
 {
   "total": 43,
@@ -172,20 +201,43 @@ X-Statenour-Sync-Key: <key>
     "days": 23,
     "amount": 395.00
   },
+  "scope": "online",
   "generatedAt": "2026-04-22T14:23:45.123Z"
 }
 ```
 
-- Only counts rows where `converted = 0`.
-- Buckets by hours-since-createdAt:
-  - `lt24h` : < 24
-  - `1d_3d` : 24–72
-  - `3d_7d` : 73–168
-  - `gt7d`  : > 168
-- `stalest` — oldest un-converted estimate (null if no un-converted estimates).
-- **`scope: "online"`** — same caveat as `estimates-conversion`: this
-  reflects the ONLINE funnel (what we captured) not every estimate
-  Nour ever wrote at the counter.
+- Source: `estimates_log WHERE converted = 0` — AI/portal/website.
+
+### scope=alg — ALG WALK-IN aging (declined work)
+```json
+{
+  "total": 23,
+  "bucket_lt24h":  2,
+  "bucket_1d_3d":  6,
+  "bucket_3d_7d":  7,
+  "bucket_gt7d":   8,
+  "stalest": {
+    "id": 41,
+    "customer": "SMITH, JOHN",
+    "service": "Front struts + alignment",
+    "days": 47,
+    "amount": 1485.00
+  },
+  "totalDeclinedValue": 12840.00,
+  "scope": "alg",
+  "generatedAt": "2026-04-22T14:23:45.123Z"
+}
+```
+
+- Source: `alg_estimates WHERE matched_invoice_id IS NULL` — walked customers.
+- `totalDeclinedValue` — sum of unmatched `estimated_amount` in the last 60d,
+  in dollars. This is the live recovery pool.
+
+Bucket cutoffs (both scopes):
+- `lt24h` : < 24h
+- `1d_3d` : 24–72h
+- `3d_7d` : 73–168h
+- `gt7d`  : > 168h
 
 ---
 
@@ -339,6 +391,11 @@ X-Snap-Signature: <hmac-sha256>
   staleness fields; estimates endpoints explicitly scoped to "online";
   cars-today adds byPayment breakdown; documented ALG coupling caveats
   (section above).
+- **v11.3** (2026-04-22) — `scope=alg` option added on `estimates-conversion`
+  and `estimates-aging`. Backed by the new `alg_estimates` table and
+  `shopDriverEstimateSync.ts` service — exposes walk-in quote conversion
+  and the declined-work recovery pool. Own freshness source
+  (`getEstimateMirrorFreshness`) independent of the invoice mirror.
 
 When adding a new endpoint: bump version, document here + statenour repo,
 include the commit hash in the PR description so cross-ring wiring is

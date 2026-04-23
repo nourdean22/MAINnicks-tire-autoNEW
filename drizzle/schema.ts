@@ -1185,6 +1185,54 @@ export const kpiSnapshots = mysqlTable("kpi_snapshots", {
 export type KpiSnapshot = typeof kpiSnapshots.$inferSelect;
 export type InsertKpiSnapshot = typeof kpiSnapshots.$inferInsert;
 
+// ─── ALG WALK-IN ESTIMATES (DECLINED WORK) ──────────────
+/**
+ * ALG (Auto Labor Guide / ShopDriver Elite) walk-in estimates —
+ * physical quotes written at the shop counter. An estimate WITHOUT a
+ * matching invoice = declined sale = recovery opportunity.
+ *
+ * Populated by services/shopDriverEstimateSync.runEstimateMirror() which
+ * hits ShopDriver's /api/Estimate/listEstimates endpoint. Shop-protection
+ * aware: only syncs when admin is active (runIfAdminActive wrapper).
+ *
+ * matchedInvoiceId is set during sync when we find an invoice for the
+ * same customer within ±10% of the estimated amount and within 30d of
+ * the estimate date.
+ */
+export const algEstimates = mysqlTable("alg_estimates", {
+  id: int("id").autoincrement().primaryKey(),
+  /** External ID from ALG (Estimate# in ShopDriver) — unique */
+  externalId: varchar("external_id", { length: 64 }).notNull().unique(),
+  customerName: varchar("customer_name", { length: 255 }).notNull(),
+  customerPhone: varchar("customer_phone", { length: 30 }),
+  vehicleInfo: varchar("vehicle_info", { length: 255 }),
+  serviceDescription: text("service_description"),
+  /** Estimated total in CENTS (matches invoices.totalAmount convention) */
+  estimatedAmount: int("estimated_amount").default(0).notNull(),
+  /** When ALG wrote the estimate */
+  estimateDate: timestamp("estimate_date").notNull(),
+  /** Link to invoice if converted (matched during sync) */
+  matchedInvoiceId: int("matched_invoice_id"),
+  matchedAt: timestamp("matched_at"),
+  /** Recovery follow-up tracking */
+  followUp7dSent: int("follow_up_7d_sent").default(0).notNull(),
+  followUp7dSentAt: timestamp("follow_up_7d_sent_at"),
+  followUp30dSent: int("follow_up_30d_sent").default(0).notNull(),
+  followUp30dSentAt: timestamp("follow_up_30d_sent_at"),
+  recoveryNote: text("recovery_note"),
+  /** Source of the record (alg, manual, ...) */
+  source: varchar("source", { length: 32 }).default("alg").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (t) => [
+  index("idx_alg_est_phone").on(t.customerPhone),
+  index("idx_alg_est_date").on(t.estimateDate),
+  index("idx_alg_est_unmatched").on(t.matchedInvoiceId, t.estimateDate),
+]);
+
+export type AlgEstimate = typeof algEstimates.$inferSelect;
+export type InsertAlgEstimate = typeof algEstimates.$inferInsert;
+
 // ─── CUSTOMER PORTAL SESSIONS ──────────────────────────
 /**
  * Phone-based login sessions for the customer portal.

@@ -4,7 +4,7 @@
  */
 
 import { getDb } from "./db";
-import { bookings, leads, chatSessions, dynamicArticles, notificationMessages, contentGenerationLog, users, callbackRequests, callEvents, invoices, customers, workOrders } from "../drizzle/schema";
+import { bookings, leads, chatSessions, dynamicArticles, notificationMessages, contentGenerationLog, users, callbackRequests, callEvents, invoices, customers, workOrders, algEstimates } from "../drizzle/schema";
 import { eq, desc, gte, sql, and } from "drizzle-orm";
 
 import { BUSINESS } from "@shared/business";
@@ -93,31 +93,38 @@ export interface DashboardStats {
     /** Average ticket from invoices */
     avgTicket: number;
     /**
-     * ⚠️  WEBSITE-LEAD PROXY — NOT ALG ESTIMATES.
+     * Real ALG walk-in estimates (declined / pending work).
      *
-     * These count `leads WHERE recommendedService IS NOT NULL` (our AI
-     * classified the problem), NOT people who walked in and got an
-     * ALG quote. ALG estimate sync is NOT wired yet — see
-     * docs/operations/ALG-ESTIMATE-SYNC-PLAN.md.
+     * SOURCE: alg_estimates table — synced via
+     * server/services/shopDriverEstimateSync.ts (pulse tier, shop-protected).
      *
-     * In ALG's business model, an estimate WITHOUT a matching invoice
-     * = declined work = lost sale. We can't surface that signal today
-     * because we don't pull ALG estimates. The field name here is
-     * legacy + misleading; treat as "AI-classified website leads
-     * with a recommended service."
+     * An ALG estimate WITHOUT a matching invoice in the alg_estimates row
+     * = declined sale = recovery target. See `declinedWorkCount` /
+     * `declinedWorkValue` below for the recoverable dollar exposure.
      */
     estimatesToday: number;
     estimatesThisWeek: number;
     /**
-     * ⚠️  APPLES-TO-ORANGES — NOT A REAL ALG CONVERSION RATE.
+     * Real ALG conversion rate (percentage).
      *
-     * Computed as `invoices / (invoices + websiteLeads)` which compares
-     * two different populations (walk-in invoices vs website-lead AI
-     * classifications). Real ALG conversion = `matched_invoices /
-     * total_estimates_in_alg` and requires the ALG estimate sync (above).
-     * Kept for now as a rough trend indicator; do not treat as money.
+     * Formula: matched_invoices / total_alg_estimates_this_month * 100
+     * where a match = same customerPhone, invoice totalAmount within
+     * ±10% of estimatedAmount, and invoiceDate within 30d of the
+     * estimateDate. Returns 0 when the alg_estimates table is empty
+     * (sync hasn't run yet).
      */
     conversionRate: number;
+    /**
+     * Declined-work signal — count of ALG estimates this month with NO
+     * matching invoice (customer walked, didn't get the work done).
+     * These feed the 7d / 30d SMS recovery engine.
+     */
+    declinedWorkCount: number;
+    /**
+     * Total dollar value of the unmatched (declined) ALG estimates this
+     * month. In dollars (already /100'd from cents).
+     */
+    declinedWorkValue: number;
     /** Payment method breakdown */
     paymentMethods: { method: string; count: number; total: number }[];
     /** Total customers in DB */
@@ -149,7 +156,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     sourceAttribution: { bookingsBySource: [], leadsBySource: [], callsBySource: [] },
     callTracking: { totalCalls: 0, thisWeek: 0, byPage: [] },
     callbacks: { total: 0, new: 0, completed: 0, thisWeek: 0 },
-    shopFloor: { invoicesToday: 0, invoicesThisWeek: 0, invoicesThisMonth: 0, revenueToday: 0, revenueThisWeek: 0, revenueThisMonth: 0, avgTicket: 0, estimatesToday: 0, estimatesThisWeek: 0, conversionRate: 0, paymentMethods: [], totalCustomers: 0, vipCustomers: 0 },
+    shopFloor: { invoicesToday: 0, invoicesThisWeek: 0, invoicesThisMonth: 0, revenueToday: 0, revenueThisWeek: 0, revenueThisMonth: 0, avgTicket: 0, estimatesToday: 0, estimatesThisWeek: 0, conversionRate: 0, declinedWorkCount: 0, declinedWorkValue: 0, paymentMethods: [], totalCustomers: 0, vipCustomers: 0 },
   };
 
   if (!d) return defaultStats;
@@ -369,8 +376,11 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       const [
         invoicesTodayRes, invoicesWeekRes, invoicesMonthRes,
         revTodayRes, revWeekRes, revMonthRes,
-        estimatesTodayRes, estimatesWeekRes,
-        totalEstimatesMonth, totalInvoicesMonth,
+        // REAL ALG ESTIMATES — walk-in quotes synced from ShopDriver. These
+        // replace the previous leads-with-recommendedService hack. See
+        // server/services/shopDriverEstimateSync.ts.
+        algEstTodayRes, algEstWeekRes, algEstMonthRes,
+        algEstMatchedMonthRes, algEstUnmatchedMonthRes, algEstUnmatchedValueRes,
         paymentMethodsRes,
         totalCustRes, vipCustRes,
       ] = await Promise.all([
@@ -380,16 +390,13 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(gte(invoices.invoiceDate, todayStart), eq(invoices.paymentStatus, "paid"))),
         d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(gte(invoices.invoiceDate, weekAgo), eq(invoices.paymentStatus, "paid"))),
         d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(gte(invoices.invoiceDate, monthStart), eq(invoices.paymentStatus, "paid"))),
-        // ⚠️  NOT ALG ESTIMATES — this counts WEBSITE LEADS with an
-        // AI-classified recommendedService. Real ALG estimates (walk-in
-        // customers who got a physical quote and didn't convert) are NOT
-        // synced — see docs/operations/ALG-ESTIMATE-SYNC-PLAN.md.
-        // Field names kept for back-compat; label on the UI should say
-        // "AI-classified leads" until the real sync lands.
-        d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, todayStart), sql`${leads.recommendedService} IS NOT NULL`)),
-        d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, weekAgo), sql`${leads.recommendedService} IS NOT NULL`)),
-        d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, monthStart), sql`${leads.recommendedService} IS NOT NULL`)),
-        d.select({ count: sql<number>`count(*)` }).from(invoices).where(gte(invoices.invoiceDate, monthStart)),
+        d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(gte(algEstimates.estimateDate, todayStart)),
+        d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(gte(algEstimates.estimateDate, weekAgo)),
+        d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(gte(algEstimates.estimateDate, monthStart)),
+        // Conversion math inputs — matched vs unmatched ALG estimates this month
+        d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(and(gte(algEstimates.estimateDate, monthStart), sql`${algEstimates.matchedInvoiceId} IS NOT NULL`)),
+        d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(and(gte(algEstimates.estimateDate, monthStart), sql`${algEstimates.matchedInvoiceId} IS NULL`)),
+        d.select({ total: sql<number>`COALESCE(SUM(${algEstimates.estimatedAmount}), 0)` }).from(algEstimates).where(and(gte(algEstimates.estimateDate, monthStart), sql`${algEstimates.matchedInvoiceId} IS NULL`)),
         d.execute(sql`SELECT paymentMethod, COUNT(*) as unknown as cnt, SUM(totalAmount) as total FROM invoices WHERE invoiceDate >= ${monthStart.toISOString().slice(0, 10)} GROUP BY paymentMethod ORDER BY cnt DESC`).then(([rows]: [Record<string, unknown>[]]) => rows),
         d.select({ count: sql<number>`count(*)` }).from(customers),
         d.select({ count: sql<number>`count(*)` }).from(customers).where(gte(customers.totalVisits, 3)),
@@ -397,7 +404,16 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
       const invoiceCountMonth = invoicesMonthRes[0]?.count ?? 0;
       const revenueMonth = (revMonthRes[0]?.total ?? 0) / 100; // cents to dollars
-      const estCountMonth = totalEstimatesMonth[0]?.count ?? 0;
+      const algEstCountMonth = algEstMonthRes[0]?.count ?? 0;
+      const matchedCount = algEstMatchedMonthRes[0]?.count ?? 0;
+      const unmatchedCount = algEstUnmatchedMonthRes[0]?.count ?? 0;
+      const unmatchedValueDollars = (algEstUnmatchedValueRes[0]?.total ?? 0) / 100;
+      // Real conversion: matched ALG estimates / total ALG estimates in the month.
+      // If no ALG estimates (new table, empty), report 0 — UI labels this as
+      // "awaiting ALG sync" so it's not misread as a real 0% conversion.
+      const conversionRate = algEstCountMonth > 0
+        ? Math.round((matchedCount / algEstCountMonth) * 100)
+        : 0;
 
       shopFloorStats = {
         invoicesToday: invoicesTodayRes[0]?.count ?? 0,
@@ -407,9 +423,12 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         revenueThisWeek: (revWeekRes[0]?.total ?? 0) / 100,
         revenueThisMonth: revenueMonth,
         avgTicket: invoiceCountMonth > 0 ? Math.round(revenueMonth / invoiceCountMonth) : 0,
-        estimatesToday: estimatesTodayRes[0]?.count ?? 0,
-        estimatesThisWeek: estimatesWeekRes[0]?.count ?? 0,
-        conversionRate: estCountMonth > 0 ? Math.round((invoiceCountMonth / (invoiceCountMonth + estCountMonth)) * 100) : 0,
+        estimatesToday: algEstTodayRes[0]?.count ?? 0,
+        estimatesThisWeek: algEstWeekRes[0]?.count ?? 0,
+        conversionRate,
+        // NEW: declined-work signal — unmatched ALG estimates = walked customers
+        declinedWorkCount: unmatchedCount,
+        declinedWorkValue: unmatchedValueDollars,
         paymentMethods: (paymentMethodsRes as Record<string, unknown>[]).map((r) => ({ method: (r.paymentMethod as string) || "unknown", count: (r.cnt as number) ?? 0, total: ((r.total as number) ?? 0) / 100 })),
         totalCustomers: totalCustRes[0]?.count ?? 0,
         vipCustomers: vipCustRes[0]?.count ?? 0,
