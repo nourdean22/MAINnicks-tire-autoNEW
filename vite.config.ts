@@ -41,13 +41,12 @@ export default defineConfig({
             if (id.includes("@tanstack") || id.includes("@trpc") || id.includes("superjson")) {
               return "vendor-data";
             }
-            if (
-              id.includes("react-dom") ||
-              id.includes("/react/") ||
-              id.includes("/react-hook-form/") ||
-              id.includes("/wouter/") ||
-              id.includes("/sonner/")
-            ) {
+            // React 19 ecosystem — MUST be a single chunk. Splitting React
+            // from `scheduler` / `react-is` / `use-sync-external-store` causes
+            // "Cannot set properties of undefined (setting 'Activity')" at
+            // load time because vendor-misc evaluates before React exports
+            // its Activity API. Regex matches POSIX + Windows paths.
+            if (/[\\/](react|react-dom|react-hook-form|scheduler|react-is|use-sync-external-store|wouter|sonner)[\\/]/.test(id)) {
               return "vendor-react";
             }
             return "vendor-misc";
