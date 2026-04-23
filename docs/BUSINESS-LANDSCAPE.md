@@ -119,6 +119,30 @@ Lead → Estimate → INVOICE (the win)
 - The critical conversion metric is **estimate → invoice**, NOT lead →
   booking. Bookings are an early signal, not a sale.
 
+### Data gap as of 2026-04-22 — ALG estimates NOT YET synced
+
+What "estimate" means in ALG: customer **walked in**, shop wrote a
+physical quote, customer **did not** get the work done. That is a
+declined sale.
+
+What "estimate" counts in our current dashboards: **website leads** with
+an AI-classified `recommendedService` field. **Not the same thing.**
+
+The real ALG-conversion rate — `matched_invoices / total_alg_estimates`
+— cannot be computed today because the ALG estimate endpoint (`/api/
+Estimate/listEstimates`) is probed but never fetched. The declined-work
+recovery flywheel documented in the "Revenue Decay Points" table below
+is therefore **blocked on this sync**.
+
+Sprint plan (~7 hr): `docs/operations/ALG-ESTIMATE-SYNC-PLAN.md`.
+Ship trigger: endpoint shape confirmed + staging env exists.
+
+UI disclosure (2026-04-22): the admin "AUTO LABOR GUIDE — SHOP FLOOR"
+panel was renamed "INVOICES (WINS)". The "CONVERSION" pill is marked
+"Funnel (rough)" with a tooltip explaining it's not a true ALG
+conversion rate. A warning line appears when the ALG-estimate sync is
+offline so nobody confuses a 0 with "no declined work this week."
+
 ### Revenue Decay Points (known loss triggers)
 
 | Stage | Decay Trigger | Threshold |
