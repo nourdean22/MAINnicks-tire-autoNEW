@@ -82,20 +82,41 @@ export interface DashboardStats {
   };
   /** ALG invoice data — the real source of truth for completed sales */
   shopFloor: {
-    /** Completed sales (paid invoices) */
+    /** Completed sales (paid invoices) — SOURCE: invoices table (ALG mirror) */
     invoicesToday: number;
     invoicesThisWeek: number;
     invoicesThisMonth: number;
-    /** Revenue from invoices (in dollars) */
+    /** Revenue from invoices (in dollars) — SOURCE: invoices table (ALG mirror) */
     revenueToday: number;
     revenueThisWeek: number;
     revenueThisMonth: number;
     /** Average ticket from invoices */
     avgTicket: number;
-    /** Walk-in estimates (from ALG — customers who got quotes) */
+    /**
+     * ⚠️  WEBSITE-LEAD PROXY — NOT ALG ESTIMATES.
+     *
+     * These count `leads WHERE recommendedService IS NOT NULL` (our AI
+     * classified the problem), NOT people who walked in and got an
+     * ALG quote. ALG estimate sync is NOT wired yet — see
+     * docs/operations/ALG-ESTIMATE-SYNC-PLAN.md.
+     *
+     * In ALG's business model, an estimate WITHOUT a matching invoice
+     * = declined work = lost sale. We can't surface that signal today
+     * because we don't pull ALG estimates. The field name here is
+     * legacy + misleading; treat as "AI-classified website leads
+     * with a recommended service."
+     */
     estimatesToday: number;
     estimatesThisWeek: number;
-    /** Conversion: estimates that became invoices */
+    /**
+     * ⚠️  APPLES-TO-ORANGES — NOT A REAL ALG CONVERSION RATE.
+     *
+     * Computed as `invoices / (invoices + websiteLeads)` which compares
+     * two different populations (walk-in invoices vs website-lead AI
+     * classifications). Real ALG conversion = `matched_invoices /
+     * total_estimates_in_alg` and requires the ALG estimate sync (above).
+     * Kept for now as a rough trend indicator; do not treat as money.
+     */
     conversionRate: number;
     /** Payment method breakdown */
     paymentMethods: { method: string; count: number; total: number }[];
@@ -359,7 +380,12 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(gte(invoices.invoiceDate, todayStart), eq(invoices.paymentStatus, "paid"))),
         d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(gte(invoices.invoiceDate, weekAgo), eq(invoices.paymentStatus, "paid"))),
         d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(gte(invoices.invoiceDate, monthStart), eq(invoices.paymentStatus, "paid"))),
-        // Estimates = leads with a recommended service (AI-classified as needing specific work)
+        // ⚠️  NOT ALG ESTIMATES — this counts WEBSITE LEADS with an
+        // AI-classified recommendedService. Real ALG estimates (walk-in
+        // customers who got a physical quote and didn't convert) are NOT
+        // synced — see docs/operations/ALG-ESTIMATE-SYNC-PLAN.md.
+        // Field names kept for back-compat; label on the UI should say
+        // "AI-classified leads" until the real sync lands.
         d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, todayStart), sql`${leads.recommendedService} IS NOT NULL`)),
         d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, weekAgo), sql`${leads.recommendedService} IS NOT NULL`)),
         d.select({ count: sql<number>`count(*)` }).from(leads).where(and(gte(leads.createdAt, monthStart), sql`${leads.recommendedService} IS NOT NULL`)),
