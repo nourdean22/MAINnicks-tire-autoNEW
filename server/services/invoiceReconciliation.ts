@@ -147,8 +147,24 @@ export async function reconcileWorkOrder(workOrderId: string): Promise<WorkOrder
 }
 
 // ─── Daily revenue truth ────────────────────────────
+// SOURCE-OF-TRUTH shift 2026-04-24: this function used to query the
+// `work_orders` table, but work_orders is our internal state and is not
+// reliably marked `completedAt` — most invoices flow through ALG without
+// touching the WO workflow. Result: daily-revenue-truth reported $0
+// while ALG invoices showed $87k MTD. Fixed by querying the `invoices`
+// table (ALG mirror), which IS the revenue source-of-truth per the
+// 'ALG rules all' directive.
 export async function getDailyRevenueTruth(date?: string) {
-  const { db, workOrders } = await getDbAndSchema();
+  const { getDb } = await import("../db");
+  const { invoices } = await import("../../drizzle/schema");
+  const d = await getDb();
+  if (!d) {
+    return {
+      date: (date ? new Date(date) : new Date()).toISOString().split("T")[0],
+      completedJobs: 0, totalRevenue: 0, partsCost: 0, laborRevenue: 0,
+      grossMargin: 0, grossMarginPercent: 0, avgTicket: 0,
+    };
+  }
 
   const targetDate = date ? new Date(date) : new Date();
   const startOfDay = new Date(targetDate);
@@ -156,32 +172,35 @@ export async function getDailyRevenueTruth(date?: string) {
   const endOfDay = new Date(targetDate);
   endOfDay.setHours(23, 59, 59, 999);
 
-  const [stats] = await db.select({
+  // invoices.totalAmount/partsCost/laborCost/taxAmount are stored in CENTS
+  // (see drizzle/schema.ts line 1086+). Convert to dollars at the end.
+  const [stats] = await d.select({
     completed: sql<number>`count(*)`,
-    totalRevenue: sql<number>`coalesce(sum(cast(${workOrders.total} as decimal(10,2))), 0)`,
-    totalParts: sql<number>`coalesce(sum(cast(${workOrders.partsCost} as decimal(10,2))), 0)`,
-    totalLabor: sql<number>`coalesce(sum(cast(${workOrders.laborCost} as decimal(10,2))), 0)`,
-    avgTicket: sql<number>`coalesce(avg(cast(${workOrders.total} as decimal(10,2))), 0)`,
-  }).from(workOrders)
+    totalRevenueCents: sql<number>`coalesce(sum(${invoices.totalAmount}), 0)`,
+    totalPartsCents: sql<number>`coalesce(sum(${invoices.partsCost}), 0)`,
+    totalLaborCents: sql<number>`coalesce(sum(${invoices.laborCost}), 0)`,
+    avgTicketCents: sql<number>`coalesce(avg(${invoices.totalAmount}), 0)`,
+  }).from(invoices)
     .where(and(
-      gte(workOrders.completedAt, startOfDay),
-      sql`${workOrders.completedAt} <= ${endOfDay}`,
+      gte(invoices.invoiceDate, startOfDay),
+      sql`${invoices.invoiceDate} <= ${endOfDay}`,
+      sql`${invoices.paymentStatus} = 'paid'`,
     ));
 
-  const revenue = Number(stats?.totalRevenue) || 0;
-  const parts = Number(stats?.totalParts) || 0;
-  const labor = Number(stats?.totalLabor) || 0;
+  const revenue = (Number(stats?.totalRevenueCents) || 0) / 100;
+  const parts = (Number(stats?.totalPartsCents) || 0) / 100;
+  const labor = (Number(stats?.totalLaborCents) || 0) / 100;
   const grossMargin = revenue - parts;
 
   return {
     date: targetDate.toISOString().split("T")[0],
-    completedJobs: stats?.completed || 0,
-    totalRevenue: revenue,
-    partsCost: parts,
-    laborRevenue: labor,
-    grossMargin,
+    completedJobs: Number(stats?.completed) || 0,
+    totalRevenue: Math.round(revenue * 100) / 100,
+    partsCost: Math.round(parts * 100) / 100,
+    laborRevenue: Math.round(labor * 100) / 100,
+    grossMargin: Math.round(grossMargin * 100) / 100,
     grossMarginPercent: revenue > 0 ? Math.round((grossMargin / revenue) * 1000) / 10 : 0,
-    avgTicket: Math.round((Number(stats?.avgTicket) || 0) * 100) / 100,
+    avgTicket: Math.round((Number(stats?.avgTicketCents) || 0) / 100 * 100) / 100,
   };
 }
 
