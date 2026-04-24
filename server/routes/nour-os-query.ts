@@ -149,7 +149,7 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     const d = await getDb();
     if (!d) return { error: "No DB" };
     const [rows] = await d.execute(sql`
-      SELECT id, name, phone, reason, status, createdAt
+      SELECT id, name, phone, context AS reason, status, createdAt
       FROM callback_requests WHERE status = 'new'
       ORDER BY createdAt ASC LIMIT 20
     `);

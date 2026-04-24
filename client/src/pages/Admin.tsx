@@ -133,11 +133,48 @@ function SectionContent({ section }: { section: AdminSection }) {
   );
 }
 
+// Deep-link aliases — human-typed URL params map to real AdminSection names.
+// Nour reaches for `?tab=callbacks` but the section is `callTrackingView`;
+// rather than rename internals, accept both.
+const TAB_ALIASES: Record<string, AdminSection> = {
+  callbacks: "callTrackingView",
+  calls: "callTrackingView",
+  calltracking: "callTrackingView",
+  dashboard: "overview",
+  home: "overview",
+  wo: "workOrders",
+  "work-orders": "workOrders",
+  declined: "declinedEstimates",
+  reviews: "reviewRequests",
+  alg: "shopdriver",
+  shop: "shopFloor",
+};
+
+function resolveInitialSection(): AdminSection {
+  if (typeof window === "undefined") return "overview";
+  const params = new URLSearchParams(window.location.search);
+  const raw = (params.get("tab") || params.get("section") || "").toLowerCase().trim();
+  if (!raw) return "overview";
+  if (raw in TAB_ALIASES) return TAB_ALIASES[raw];
+  // Accept exact AdminSection names too (e.g. ?section=workOrders)
+  return raw as AdminSection;
+}
+
 export default function Admin() {
   const { user, loading: authLoading } = useAuth();
-  const [section, setSection] = useState<AdminSection>("overview");
+  const [section, setSection] = useState<AdminSection>(resolveInitialSection);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [drawerCustomerId, setDrawerCustomerId] = useState<number | null>(null);
+
+  // Keep URL in sync with section so deep links + browser back/forward work.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const current = new URLSearchParams(window.location.search).get("tab");
+    if (current === section) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", section);
+    window.history.replaceState({}, "", url.toString());
+  }, [section]);
 
   const utils = trpc.useUtils();
 
