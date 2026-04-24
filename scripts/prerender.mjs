@@ -147,23 +147,28 @@ async function main() {
           // Set a reasonable viewport
           await page.setViewport({ width: 1280, height: 800 });
 
+          // ── CRITICAL: identify as Googlebot so the server's prerender
+          //    middleware serves the rich pre-rendered HTML (if one exists
+          //    for this route) instead of the bare SPA shell. Without this
+          //    the server's UA-sniffing check served 19KB shells to
+          //    Puppeteer, which captured them as 'prerendered' output and
+          //    overwrote the real 140KB files. Also bumps hydration wait
+          //    from 2.5s → 6s to survive heavy-cron CPU load on the server.
+          await page.setUserAgent(
+            "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+          );
+
           // Navigate and wait for the page to fully render
           const url = `http://localhost:${port}${routePath}`;
           await page.goto(url, {
             waitUntil: "networkidle0",
-            timeout: 30000,
+            timeout: 45000,
           });
 
           // Wait for React effects (SEOHead useEffect sets title, meta, canonical)
-          // The SEOHead component runs in useEffect which fires after render
-          await page.evaluate(() => new Promise((r) => setTimeout(r, 2500)));
+          await page.evaluate(() => new Promise((r) => setTimeout(r, 6000)));
 
           // Wait for title to change AWAY from any of the known defaults.
-          // Multiple defaults have leaked from different builds:
-          //   - "Cleveland Auto Repair & Tire Shop" (original)
-          //   - "NOUR OS" (came from an admin component bleed or mismatched build)
-          //   - "Nick's Tire & Auto — Cleveland's #1 ..." (current client/index.html)
-          // If title never changes, we fall back to the registry-based injection below.
           await page.waitForFunction(
             () => {
               const t = document.title || "";
@@ -171,7 +176,7 @@ async function main() {
                      !t.includes("Cleveland Auto Repair & Tire Shop") &&
                      !t.includes("Cleveland&#x27;s #1 New &amp; Used Tire Shop");
             },
-            { timeout: 5000 }
+            { timeout: 8000 }
           ).catch(() => {});
 
           // Get the full HTML
