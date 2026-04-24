@@ -191,14 +191,33 @@ const SERVICE_PAGES: RouteEntry[] = [
     prerender: true,
   },
   {
-    // New SEO landing — GSC shows 3,333 imps/mo for "synthetic oil change"
-    // at position #64. No dedicated page before. Priority 0.9 to signal
-    // this is a high-intent service page.
     path: "/synthetic-oil-change",
     priority: 0.9,
     changefreq: "monthly",
     title: "Synthetic Oil Change Cleveland | From $69 | Same Day | Nick's Tire & Auto",
     description: "Full synthetic oil change in Cleveland/Euclid from $69. Mobil 1, Pennzoil, Valvoline. 30-minute service, walk-ins 7 days. 10,000 mile intervals. (216) 862-0005",
+    group: "service",
+    sitemap: true,
+    prerender: true,
+  },
+  // 2026-04-24 SEO push — new focused landing pages for high-impression
+  // zero-click queries. See TrafficFunnel dashboard for the underlying data.
+  {
+    path: "/tire-shop-near-me",
+    priority: 0.95,
+    changefreq: "weekly",
+    title: "Tire Shop Near Me — Open Now in Cleveland | New & Used | Nick's Tire & Auto",
+    description: "Local tire shop in Cleveland/Euclid — open 7 days, walk-ins welcome. New & used tires from $60. Free install, balance, alignment check. 4.9 stars. (216) 862-0005",
+    group: "service",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/auto-repair-near-me",
+    priority: 0.95,
+    changefreq: "weekly",
+    title: "Auto Repair Near Me — Cleveland's Local Mechanic | Nick's Tire & Auto",
+    description: "Local auto repair shop in Cleveland/Euclid. Honest mechanics, 4.9 stars on 1,700+ reviews, walk-ins 7 days. Brakes, tires, diagnostics, general repair. Free estimates. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,

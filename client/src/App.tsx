@@ -67,6 +67,10 @@ const TireFinder = lazy(() => import("./pages/TireFinder"));
 const ServicesOverview = lazy(() => import("./pages/ServicesOverview"));
 const AlignmentPage = lazy(() => import("./pages/AlignmentPage"));
 const SyntheticOilChangePage = lazy(() => import("./pages/SyntheticOilChangePage"));
+const BrakeRepairPage = lazy(() => import("./pages/BrakeRepairPage"));
+const DiagnosticsPage = lazy(() => import("./pages/DiagnosticsPage"));
+const TireShopNearMePage = lazy(() => import("./pages/TireShopNearMePage"));
+const AutoRepairNearMePage = lazy(() => import("./pages/AutoRepairNearMePage"));
 const TrackJob = lazy(() => import("./pages/TrackJob"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const Terms = lazy(() => import("./pages/Terms"));
@@ -117,11 +121,15 @@ function Router() {
             <Route path={"/services"} component={ServicesOverview} />
             {/* Individual service pages for SEO */}
             <Route path={"/tires"} component={TireFinder} />
-            <Route path={"/brakes"} component={ServicePage} />
-            <Route path={"/diagnostics"} component={ServicePage} />
+            {/* NEW focused pages (2026-04-24 audit) — override generic
+                ServicePage with tighter, price-anchored, FAQ-schema variants */}
+            <Route path={"/brakes"} component={BrakeRepairPage} />
+            <Route path={"/diagnostics"} component={DiagnosticsPage} />
+            <Route path={"/tire-shop-near-me"} component={TireShopNearMePage} />
+            <Route path={"/auto-repair-near-me"} component={AutoRepairNearMePage} />
             <Route path={"/emissions"} component={ServicePage} />
             <Route path={"/oil-change"} component={ServicePage} />
-            <Route path={"/general-repair"} component={ServicePage} />
+            <Route path={"/general-repair"} component={AutoRepairNearMePage} />
             <Route path={"/ac-repair"} component={ServicePage} />
             <Route path={"/transmission"} component={ServicePage} />
             <Route path={"/electrical"} component={ServicePage} />
