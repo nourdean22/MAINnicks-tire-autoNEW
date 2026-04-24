@@ -66,15 +66,23 @@ function Hero() {
       <div className="relative container">
         <div className="max-w-[60%] max-lg:max-w-full">
           {/* Headline */}
+          {/* H1 copy 2026-04-24: expanded per Nour to include "new and used
+              tire" — the single highest-value keyword cluster for the shop.
+              "tire shops near me" gets 3,387 imps/mo; combined with
+              "auto repair near me" (1,103 imps/mo #24.5) this H1 targets
+              the whole of the shop's core discovery queries. Font sizes
+              scaled down (2rem/4xl/4.5rem vs 2.5/5/5.5) to accommodate the
+              longer phrase without overflow. Yellow gradient covers the
+              full SEO phrase for prominence. */}
           <motion.h1
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
-            className="font-heading text-[2.5rem] sm:text-5xl lg:text-[5.5rem] font-extrabold uppercase text-[#F5F5F5] leading-[0.95] tracking-tight"
+            className="font-heading text-[2rem] sm:text-4xl lg:text-[4.5rem] font-extrabold uppercase text-[#F5F5F5] leading-[0.95] tracking-tight"
           >
             Your Trusted Mechanic
             <br />
-            <span className="text-[#FDB913] text-gradient-yellow">& Auto Repair Near Me</span>
+            <span className="text-[#FDB913] text-gradient-yellow">&amp; New and Used Tire &amp; Auto Repair Near Me</span>
           </motion.h1>
 
           {/* Subheadline */}
