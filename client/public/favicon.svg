@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Nick's Tire & Auto">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a1628"/>
+      <stop offset="50%" stop-color="#142338"/>
+      <stop offset="100%" stop-color="#051020"/>
+    </linearGradient>
+    <linearGradient id="yellow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFD447"/>
+      <stop offset="100%" stop-color="#FDB913"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="112" height="112" rx="16" fill="url(#bg)" stroke="#1f2d45" stroke-width="2"/>
+  <circle cx="60" cy="50" r="40" fill="none" stroke="#0d1a2e" stroke-width="7"/>
+  <circle cx="60" cy="50" r="40" fill="none" stroke="#2a3a55" stroke-width="1" stroke-dasharray="3 3"/>
+  <circle cx="60" cy="50" r="32" fill="#05101f"/>
+  <text x="60" y="60" text-anchor="middle" font-family="Arial Black, Helvetica, sans-serif" font-size="42" font-weight="900" fill="url(#yellow)" style="letter-spacing:-1.5px">N</text>
+  <rect x="18" y="96" width="84" height="14" rx="2" fill="#0f2345" stroke="#1a3460" stroke-width="0.5"/>
+  <text x="60" y="106" text-anchor="middle" font-family="Arial Black, Helvetica, sans-serif" font-size="7" font-weight="800" fill="#ffffff" style="letter-spacing:1.5px">CLEVELAND TOUGH</text>
+</svg>
