@@ -80,8 +80,15 @@ function CityNavbar({ city }: { city: CityData }) {
 }
 
 // ─── CITY SCHEMA ──────────────────────────────────────
+// Outputs three JSON-LD blocks:
+//   1. AutoRepair LocalBusiness — establishes the entity + reviews
+//   2. BreadcrumbList — gives Google a structural trail (rich snippet)
+//   3. FAQPage — surfaces FAQ answers as expandable rich snippets in SERP
+//
+// Three separate <script> tags is preferred over @graph; Google parses each
+// independently and one failing won't tank the others.
 function CitySchema({ city }: { city: CityData }) {
-  const schema = {
+  const businessSchema = {
     "@context": "https://schema.org",
     "@type": "AutoRepair",
     name: `Nick's Tire & Auto — Serving ${city.name}`,
@@ -113,8 +120,54 @@ function CitySchema({ city }: { city: CityData }) {
     sameAs: [...BUSINESS.sameAs],
   };
 
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://nickstire.org/" },
+      { "@type": "ListItem", position: 2, name: "Areas Served", item: "https://nickstire.org/areas-served" },
+      { "@type": "ListItem", position: 3, name: city.name, item: `https://nickstire.org/${city.slug}` },
+    ],
+  };
+
+  // FAQs — answer the most-likely SERP queries for "[city] auto repair":
+  // location/distance, services, pricing, walk-in policy. These appear as
+  // expandable Q&A boxes under the listing in Google search results.
+  const cityFaqs = [
+    {
+      q: `Do you serve ${city.name}?`,
+      a: `Yes — ${city.name} is one of our core service areas. Nick's Tire & Auto is at ${BUSINESS.address.street}, Cleveland OH${city.driveTime ? `, ${city.driveTime} from ${city.name}` : ""}. Walk-ins welcome 7 days a week. Call ${BUSINESS.phone.display}.`,
+    },
+    {
+      q: `What auto repair services do you offer near ${city.name}?`,
+      a: `Tires (new and used from $60), brake repair (from $149/axle), oil changes (from $39), wheel alignment, engine diagnostics, Ohio E-Check repair, AC repair, batteries, exhaust, transmission, and full general repair. ★4.9 from 1,700+ reviews.`,
+    },
+    {
+      q: `Is Nick's Tire & Auto reliable for ${city.name} drivers?`,
+      a: `★4.9 stars from 1,700+ Google reviews. We've served Cleveland-area drivers since 2018, including ${city.name}. Honest diagnosis, up-front pricing, 12-month warranty on most repairs, and we show you the worn part before we replace it.`,
+    },
+    {
+      q: `Do I need an appointment, or can I walk in?`,
+      a: `Walk-ins welcome 7 days a week. Most services completed same day. Calling ahead at ${BUSINESS.phone.display} lets us prep parts and minimize your wait, but it's not required.`,
+    },
+  ];
+
+  const faqPageSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: cityFaqs.map((f) => ({
+      "@type": "Question",
+      name: f.q,
+      acceptedAnswer: { "@type": "Answer", text: f.a },
+    })),
+  };
+
   return (
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(businessSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqPageSchema) }} />
+    </>
   );
 }
 
