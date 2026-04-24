@@ -11,7 +11,7 @@
  * 5. Declined work (ALG estimates that didn't convert) = recovery revenue
  * 6. Free inspections tracking (keeps shop busy, no charge on quick ones)
  */
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -19,7 +19,24 @@ import {
   Users, FileText, TrendingUp, Search, Upload, Zap,
   AlertTriangle, Clock, DollarSign, Wrench, ArrowRight,
   ToggleLeft, ToggleRight,
+  Activity, Shield, Plug,
 } from "lucide-react";
+
+// Lazy-loaded system tabs — Nour's request: "move all system stuff to the settings page"
+// Consolidates System Health, Compliance, and Integrations into this hub so
+// the sidebar stays focused on business work, not admin plumbing.
+const SiteHealthSection = lazy(() => import("./SiteHealthSection"));
+const ComplianceSection = lazy(() => import("./ComplianceSection"));
+const IntegrationsSection = lazy(() => import("./IntegrationsSection"));
+
+type SettingsTab = "shopdriver" | "health" | "compliance" | "integrations";
+
+const SETTINGS_TABS: Array<{ id: SettingsTab; label: string; icon: React.ReactNode; subtitle: string }> = [
+  { id: "shopdriver", label: "ShopDriver HQ", icon: <Wrench className="w-3.5 h-3.5" />, subtitle: "ALG sync + probe + backfill" },
+  { id: "health", label: "System Health", icon: <Activity className="w-3.5 h-3.5" />, subtitle: "Uptime, DB, vendor status" },
+  { id: "compliance", label: "Compliance", icon: <Shield className="w-3.5 h-3.5" />, subtitle: "Audit log + TCPA + admin logins" },
+  { id: "integrations", label: "Integrations", icon: <Plug className="w-3.5 h-3.5" />, subtitle: "Twilio, Google, Snap, Gateway" },
+];
 
 function StatCard({ label, value, icon, color = "text-foreground", sub }: {
   label: string; value: string | number; icon: React.ReactNode; color?: string; sub?: string;
@@ -37,6 +54,32 @@ function StatCard({ label, value, icon, color = "text-foreground", sub }: {
 }
 
 export default function SettingsSection() {
+  // Initial tab from ?settingsTab=X OR ?tab=X (legacy-route support).
+  // Default: ShopDriver HQ. If Nour deep-links ?tab=health, Admin.tsx routes
+  // him to this Settings page — and this resolver picks up `health` as the
+  // inner tab so he lands exactly where he expected.
+  const initialTab = (() => {
+    if (typeof window === "undefined") return "shopdriver" as SettingsTab;
+    const qp = new URLSearchParams(window.location.search);
+    const raw = (qp.get("settingsTab") || qp.get("tab") || "").toLowerCase();
+    const valid: SettingsTab[] = ["shopdriver", "health", "compliance", "integrations"];
+    if (valid.includes(raw as SettingsTab)) return raw as SettingsTab;
+    // Legacy aliases that matched AdminSection names
+    if (raw === "integrations") return "integrations";
+    if (raw === "settings") return "shopdriver";
+    return "shopdriver";
+  })();
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+
+  const handleTabChange = (tab: SettingsTab) => {
+    setActiveTab(tab);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("settingsTab", tab);
+      window.history.replaceState({}, "", url.toString());
+    }
+  };
+
   const [syncing, setSyncing] = useState<string | null>(null);
   const [probeResults, setProbeResults] = useState<any>(null);
   const [syncResult, setSyncResult] = useState<{ type: string; data: any } | null>(null);
@@ -94,9 +137,59 @@ export default function SettingsSection() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header + Tab switcher */}
       <div>
-        <h2 className="font-bold text-2xl text-foreground tracking-wider">SHOPDRIVER COMMAND CENTER</h2>
+        <h2 className="font-bold text-2xl text-foreground tracking-wider">SETTINGS & SYSTEM</h2>
+        <p className="text-foreground/50 text-[12px] mt-1">
+          One hub for ShopDriver sync, system health, compliance audit, and vendor integrations.
+        </p>
+      </div>
+
+      {/* Tab bar — survives page reloads via ?settingsTab URL param */}
+      <div className="flex items-center gap-1 border-b border-border/30 overflow-x-auto">
+        {SETTINGS_TABS.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => handleTabChange(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2.5 text-[12px] font-medium tracking-wide border-b-2 transition-all whitespace-nowrap ${
+                isActive
+                  ? "border-primary text-primary bg-primary/5"
+                  : "border-transparent text-foreground/50 hover:text-foreground hover:bg-foreground/5"
+              }`}
+              title={tab.subtitle}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Lazy-loaded tabs — these are the former sidebar sections */}
+      {activeTab === "health" && (
+        <Suspense fallback={<div className="flex items-center justify-center py-32"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
+          <SiteHealthSection />
+        </Suspense>
+      )}
+      {activeTab === "compliance" && (
+        <Suspense fallback={<div className="flex items-center justify-center py-32"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
+          <ComplianceSection />
+        </Suspense>
+      )}
+      {activeTab === "integrations" && (
+        <Suspense fallback={<div className="flex items-center justify-center py-32"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
+          <IntegrationsSection />
+        </Suspense>
+      )}
+
+      {/* ─── ShopDriver HQ tab (default) ──────────────────── */}
+      {activeTab === "shopdriver" && (
+      <div className="space-y-6">
+      <div>
+        <h3 className="font-bold text-xl text-foreground tracking-wider">SHOPDRIVER COMMAND CENTER</h3>
         <p className="text-foreground/50 text-[12px] mt-1">
           ALG is the source of truth. Invoices = closed jobs. No website booking = walk-in. Estimates = declined work.
         </p>
@@ -305,6 +398,8 @@ export default function SettingsSection() {
 
       {/* Feature Flags */}
       <FeatureFlagsPanel />
+      </div>
+      )}
     </div>
   );
 }

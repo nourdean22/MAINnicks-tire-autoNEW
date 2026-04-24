@@ -148,6 +148,16 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   reviews: "reviewRequests",
   alg: "shopdriver",
   shop: "shopFloor",
+  // System-tab aliases — these used to be standalone sidebar sections, now
+  // they live inside Settings as tabs. Route the old URLs to Settings so
+  // bookmarks + external links still land in the right place. The Settings
+  // page reads `?settingsTab=...` to pick the right inner tab; for exact
+  // match on legacy paths we accept their raw names here.
+  health: "settings",
+  sysHealth: "settings",
+  compliance: "settings",
+  integrations: "settings",
+  system: "settings",
 };
 
 function resolveInitialSection(): AdminSection {

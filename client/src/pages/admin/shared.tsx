@@ -100,9 +100,11 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "SYSTEM",
     items: [
-      { id: "settings", label: "ShopDriver HQ", icon: <Settings className="w-4 h-4" /> },
-      { id: "health", label: "System", icon: <Activity className="w-4 h-4" /> },
-      { id: "compliance", label: "Compliance", icon: <Shield className="w-4 h-4" /> },
+      // One entry — ShopDriver HQ, System Health, Compliance, and Integrations
+      // are now tabs INSIDE the Settings page (SettingsSection.tsx) per
+      // "move all system stuff to the settings page". Deep links still work
+      // via ?tab=settings&settingsTab=health (or compliance/integrations).
+      { id: "settings", label: "Settings", icon: <Settings className="w-4 h-4" /> },
     ],
   },
 ];
@@ -131,7 +133,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   winback: "Win-Back",
   campaigns: "Outreach Hub",
   autoFollowUp: "Auto Follow-Up",
-  settings: "ShopDriver HQ",
+  settings: "Settings & System",
   shopdriver: "ShopDriver Sync",
   estimates: "Walk-In Estimates",
   activity: "Activity",
