@@ -343,8 +343,8 @@ export const intelligenceRouter = router({
     const { sql: rawSql } = await import("drizzle-orm");
     const d = await getDb();
     if (!d) return { activeWOs: 0, todayBookings: 0, estimatedWait: 0 };
-    const [woRows] = await d.execute(rawSql`SELECT COUNT(*) as unknown as cnt FROM work_orders WHERE status IN ('in_progress', 'approved', 'waiting_parts', 'quality_check')`);
-    const [bkRows] = await d.execute(rawSql`SELECT COUNT(*) as unknown as cnt FROM bookings WHERE createdAt >= CURDATE() AND status IN ('new', 'confirmed')`);
+    const [woRows] = await d.execute(rawSql`SELECT COUNT(*) as cnt FROM work_orders WHERE status IN ('in_progress', 'approved', 'waiting_parts', 'quality_check')`);
+    const [bkRows] = await d.execute(rawSql`SELECT COUNT(*) as cnt FROM bookings WHERE createdAt >= CURDATE() AND status IN ('new', 'confirmed')`);
     const activeWOs = Number((woRows as any)?.[0]?.cnt || 0);
     const todayBookings = Number((bkRows as any)?.[0]?.cnt || 0);
     return { activeWOs, todayBookings, estimatedWait: activeWOs === 0 ? 0 : Math.min(180, activeWOs * 45) };
