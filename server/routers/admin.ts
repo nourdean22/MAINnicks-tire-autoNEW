@@ -282,16 +282,20 @@ async function scheduleCallReviewRequest(phoneNumber: string): Promise<void> {
 export const callTrackingRouter = router({
   /** Log a phone click event from the frontend */
   logCall: publicProcedure
+    // NULLISH fields — frontend sends `null` when UTM is absent.
+    // Previous `.optional()` only allowed missing keys, not `null` values,
+    // which made the whole payload fail validation and meant we had
+    // ZERO rows in call_events despite active phone-click instrumentation.
     .input(z.object({
       phoneNumber: z.string().max(20),
-      sourcePage: z.string().max(500).optional(),
-      clickElement: z.string().max(200).optional(),
-      utmSource: z.string().max(100).optional(),
-      utmMedium: z.string().max(100).optional(),
-      utmCampaign: z.string().max(255).optional(),
-      landingPage: z.string().max(500).optional(),
-      referrer: z.string().max(500).optional(),
-      userAgent: z.string().max(500).optional(),
+      sourcePage: z.string().max(500).nullish(),
+      clickElement: z.string().max(200).nullish(),
+      utmSource: z.string().max(100).nullish(),
+      utmMedium: z.string().max(100).nullish(),
+      utmCampaign: z.string().max(255).nullish(),
+      landingPage: z.string().max(500).nullish(),
+      referrer: z.string().max(500).nullish(),
+      userAgent: z.string().max(500).nullish(),
     }))
     .mutation(async ({ input }) => {
       const d = await db();

@@ -66,6 +66,7 @@ const CustomerPortal = lazy(() => import("./pages/CustomerPortal"));
 const TireFinder = lazy(() => import("./pages/TireFinder"));
 const ServicesOverview = lazy(() => import("./pages/ServicesOverview"));
 const AlignmentPage = lazy(() => import("./pages/AlignmentPage"));
+const SyntheticOilChangePage = lazy(() => import("./pages/SyntheticOilChangePage"));
 const TrackJob = lazy(() => import("./pages/TrackJob"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const Terms = lazy(() => import("./pages/Terms"));
@@ -131,6 +132,7 @@ function Router() {
             <Route path={"/belts-hoses"} component={ServicePage} />
             <Route path={"/starter-alternator"} component={ServicePage} />
             <Route path={"/alignment"} component={AlignmentPage} />
+            <Route path={"/synthetic-oil-change"} component={SyntheticOilChangePage} />
             {/* Booking / Appointment */}
             <Route path={"/appointment"} component={BookingPage} />
             <Route path={"/booking"} component={BookingPage} />

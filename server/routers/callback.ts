@@ -22,24 +22,26 @@ import { createLogger } from "../lib/logger";
 const log = createLogger("routers:callback");
 export const callbackRouter = router({
   submit: publicProcedure
+    // NULLISH on UTM/tracking fields — frontends send `null` when values
+    // are absent. Using `.optional()` alone rejects null and silently kills
+    // submissions. This bug cost us ~99% of form conversions (see commit
+    // log for call tracking fix).
     .input(z.object({
       name: z.string().min(1).max(200),
       phone: z.string().min(7).max(20),
-      context: z.string().max(1000).optional(),
-      sourcePage: z.string().max(500).optional(),
-      // Meta Pixel event ID for server-side CAPI deduplication
-      pixelEventId: z.string().max(100).optional(),
+      context: z.string().max(1000).nullish(),
+      sourcePage: z.string().max(500).nullish(),
+      pixelEventId: z.string().max(100).nullish(),
       pixelUserData: z.object({
         client_user_agent: z.string().max(500),
-        fbc: z.string().max(500).optional(),
-        fbp: z.string().max(500).optional(),
-      }).optional(),
-      // UTM source attribution
-      utmSource: z.string().max(100).optional(),
-      utmMedium: z.string().max(100).optional(),
-      utmCampaign: z.string().max(255).optional(),
-      landingPage: z.string().max(500).optional(),
-      referrer: z.string().max(500).optional(),
+        fbc: z.string().max(500).nullish(),
+        fbp: z.string().max(500).nullish(),
+      }).nullish(),
+      utmSource: z.string().max(100).nullish(),
+      utmMedium: z.string().max(100).nullish(),
+      utmCampaign: z.string().max(255).nullish(),
+      landingPage: z.string().max(500).nullish(),
+      referrer: z.string().max(500).nullish(),
     }))
     .mutation(async ({ input }) => {
       try {

@@ -177,41 +177,42 @@ function generateRefCode(): string {
 export const bookingRouter = router({
   create: publicProcedure
     .input(
+      // NULLISH on optional fields — same fix as callback.ts / lead.ts.
+      // Frontend sends null for missing UTM/tracking; `.optional()` alone
+      // rejected them with BAD_REQUEST and silently killed submissions.
       z.object({
         name: z.string().min(1, "Name is required").max(200),
         phone: z.string().min(7, "Phone number is required").max(20, "Phone number too long"),
-        email: z.string().email().max(254).optional().or(z.literal("")),
+        email: z.string().email().max(254).nullish().or(z.literal("")),
         service: z.string().min(1, "Service is required").max(500),
-        vehicle: z.string().max(200).optional(),
-        vehicleYear: z.string().max(4).optional(),
-        vehicleMake: z.string().max(50).optional(),
-        vehicleModel: z.string().max(50).optional(),
-        preferredDate: z.string().max(30).optional().refine(
+        vehicle: z.string().max(200).nullish(),
+        vehicleYear: z.string().max(4).nullish(),
+        vehicleMake: z.string().max(50).nullish(),
+        vehicleModel: z.string().max(50).nullish(),
+        preferredDate: z.string().max(30).nullish().refine(
           (val) => !val || /^\d{4}-\d{2}-\d{2}$/.test(val),
           { message: "preferredDate must be YYYY-MM-DD format" }
         ),
         preferredTime: z.enum(["morning", "afternoon", "no-preference"]).default("no-preference"),
-        message: z.string().max(2000, "Message too long").optional(),
-        photoUrls: z.array(z.string().max(2048)).max(10).optional(),
+        message: z.string().max(2000, "Message too long").nullish(),
+        photoUrls: z.array(z.string().max(2048)).max(10).nullish(),
         urgency: z.enum(["emergency", "this-week", "whenever"]).default("whenever"),
-        // Meta Pixel event IDs for server-side CAPI deduplication
         pixelEventIds: z.object({
           leadEventId: z.string().max(100),
           scheduleEventId: z.string().max(100),
-        }).optional(),
+        }).nullish(),
         pixelUserData: z.object({
           client_user_agent: z.string().max(500),
-          fbc: z.string().max(500).optional(),
-          fbp: z.string().max(500).optional(),
-        }).optional(),
-        // UTM source attribution
-        utmSource: z.string().max(100).optional(),
-        utmMedium: z.string().max(100).optional(),
-        utmCampaign: z.string().max(255).optional(),
-        utmTerm: z.string().max(255).optional(),
-        utmContent: z.string().max(255).optional(),
-        landingPage: z.string().max(500).optional(),
-        referrer: z.string().max(500).optional(),
+          fbc: z.string().max(500).nullish(),
+          fbp: z.string().max(500).nullish(),
+        }).nullish(),
+        utmSource: z.string().max(100).nullish(),
+        utmMedium: z.string().max(100).nullish(),
+        utmCampaign: z.string().max(255).nullish(),
+        utmTerm: z.string().max(255).nullish(),
+        utmContent: z.string().max(255).nullish(),
+        landingPage: z.string().max(500).nullish(),
+        referrer: z.string().max(500).nullish(),
         gclid: z.string().max(255).optional(),
       })
     )
