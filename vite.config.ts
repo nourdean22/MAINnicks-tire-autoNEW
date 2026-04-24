@@ -24,49 +24,33 @@ export default defineConfig({
     sourcemap: false,
     // Raise the warning ceiling — our main bundle is intentionally larger due
     // to the admin shell. Real target for homepage FCP is the chunks below.
-    chunkSizeWarningLimit: 600,
+    chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
+        // Split ONLY our own page shells into separate chunks so customer
+        // pages don't drag in admin/blog/guide JS. Leave vendor chunking
+        // entirely up to Rollup — manual vendor splitting was causing
+        // module-init order bugs (e.g. "Cannot set properties of undefined
+        // (setting 'Activity')", "Cannot read properties of undefined
+        // (reading 'createContext')") because React-dependent libs in
+        // vendor-misc evaluated before vendor-react finished initializing.
+        // Rollup's default vendor chunking respects module graph order.
         manualChunks(id: string) {
-          // Vendor splits — keep big deps isolated so customer pages don't
-          // drag them in. Order matters: most specific first.
-          if (id.includes("node_modules")) {
-            if (id.includes("recharts") || id.includes("d3-") || id.includes("victory-vendor")) {
-              return "vendor-charts";
-            }
-            if (id.includes("framer-motion")) return "vendor-motion";
-            if (id.includes("lucide-react")) return "vendor-icons";
-            if (id.includes("@radix-ui")) return "vendor-radix";
-            if (id.includes("date-fns")) return "vendor-date";
-            if (id.includes("@tanstack") || id.includes("@trpc") || id.includes("superjson")) {
-              return "vendor-data";
-            }
-            // React 19 ecosystem — MUST be a single chunk. Splitting React
-            // from `scheduler` / `react-is` / `use-sync-external-store` causes
-            // "Cannot set properties of undefined (setting 'Activity')" at
-            // load time because vendor-misc evaluates before React exports
-            // its Activity API. Regex matches POSIX + Windows paths.
-            if (/[\\/](react|react-dom|react-hook-form|scheduler|react-is|use-sync-external-store|wouter|sonner)[\\/]/.test(id)) {
-              return "vendor-react";
-            }
-            return "vendor-misc";
-          }
+          // Let all node_modules fall through to Rollup's default chunker.
+          if (id.includes("node_modules")) return undefined;
           // Admin shell — all admin sections land in a single chunk, lazy-loaded
           if (id.includes("/pages/admin/") || id.includes("\\pages\\admin\\")) {
             return "admin";
           }
-          // Blog + long-form content
           if (id.includes("/pages/Blog") || id.includes("\\pages\\Blog")) {
             return "blog";
           }
           if (id.includes("/pages/Guide") || id.includes("\\pages\\Guide")) {
             return "guides";
           }
-          // Large per-route pages that don't belong in the main bundle
           if (/pages\/(TireFinder|ServicePage|DiagnosePage|CostEstimator|LaborEstimator)/.test(id)) {
             return "seo-pages";
           }
-          // everything else falls through to the default chunking
           return undefined;
         },
       },
