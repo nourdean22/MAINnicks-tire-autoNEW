@@ -522,18 +522,12 @@ const SEO_SERVICE_PAGES: RouteEntry[] = [
 ];
 
 // ─── VEHICLE MAKE PAGES ──────────────────────────────────
-const VEHICLE_PAGES: RouteEntry[] = [
-  { path: "/toyota-repair-cleveland", priority: 0.7, changefreq: "monthly", title: "Toyota Repair Cleveland OH — Nick's Tire & Auto", description: "Toyota repair specialists in Cleveland. Camry, Corolla, RAV4, Highlander. Factory-level diagnostics. 4.9 stars. Walk-ins welcome.", group: "vehicle", sitemap: true, prerender: true },
-  { path: "/honda-repair-cleveland", priority: 0.7, changefreq: "monthly", title: "Honda Repair Cleveland OH — Nick's Tire & Auto", description: "Honda repair specialists in Cleveland. Civic, Accord, CR-V, Pilot. Expert diagnostics. 4.9 stars, 1,700+ reviews. Walk-ins welcome.", group: "vehicle", sitemap: true, prerender: true },
-  { path: "/ford-repair-cleveland", priority: 0.7, changefreq: "monthly", title: "Ford Repair Cleveland OH — Nick's Tire & Auto", description: "Ford repair specialists in Cleveland, OH. F-150, Explorer, Escape, Focus service, diagnostics, and maintenance. 4.9 stars. Walk-ins welcome.", group: "vehicle", sitemap: true, prerender: true },
-  { path: "/chevy-repair-cleveland", priority: 0.7, changefreq: "monthly", title: "Chevy Repair Cleveland OH — Nick's Tire & Auto", description: "Chevrolet repair specialists in Cleveland, OH. Silverado, Equinox, Malibu, Traverse service and diagnostics. 4.9 stars. Walk-ins welcome.", group: "vehicle", sitemap: true, prerender: true },
-  { path: "/nissan-repair-cleveland", priority: 0.7, changefreq: "monthly", title: "Nissan Repair Cleveland OH — Nick's Tire & Auto", description: "Nissan repair specialists in Cleveland. Altima, Rogue, Sentra, Pathfinder. Expert diagnostics. 4.9 stars. Walk-ins welcome.", group: "vehicle", sitemap: true, prerender: true },
-  { path: "/hyundai-repair-cleveland", priority: 0.7, changefreq: "monthly", title: "Hyundai Repair Cleveland OH — Nick's Tire & Auto", description: "Hyundai repair specialists in Cleveland. Elantra, Tucson, Sonata, Santa Fe. Expert diagnostics. 4.9 stars. Walk-ins welcome.", group: "vehicle", sitemap: true, prerender: true },
-  { path: "/kia-repair-cleveland", priority: 0.7, changefreq: "monthly", title: "Kia Repair Cleveland OH — Nick's Tire & Auto", description: "Kia repair specialists in Cleveland, OH. Forte, Sportage, Sorento, Soul service, diagnostics, and maintenance. 4.9 stars. Walk-ins welcome.", group: "vehicle", sitemap: true, prerender: true },
-  { path: "/jeep-repair-cleveland", priority: 0.7, changefreq: "monthly", title: "Jeep Repair Cleveland OH — Nick's Tire & Auto", description: "Jeep repair specialists in Cleveland, OH. Wrangler, Cherokee, Grand Cherokee, Compass service and diagnostics. 4.9 stars. Walk-ins welcome.", group: "vehicle", sitemap: true, prerender: true },
-  { path: "/bmw-repair-cleveland", priority: 0.7, changefreq: "monthly", title: "BMW Repair Cleveland OH — Nick's Tire & Auto", description: "BMW repair specialists in Cleveland, OH. 3 Series, 5 Series, X3, X5 service and diagnostics. European car experts. 4.9 stars, 1,700+ reviews.", group: "vehicle", sitemap: true, prerender: true },
-  { path: "/dodge-ram-repair-cleveland", priority: 0.7, changefreq: "monthly", title: "Dodge & Ram Repair Cleveland — Nick's Tire & Auto", description: "Dodge and Ram repair specialists in Cleveland, OH. Charger, Challenger, Ram 1500 service and diagnostics. 4.9 stars, 1,700+ reviews.", group: "vehicle", sitemap: true, prerender: true },
-];
+// VEHICLE_PAGES removed 2026-04-24 per T5 audit — 10 pages × 0 imps × 0 clicks
+// over 30 days. Pattern was /{make}-repair-cleveland. Google treats brand-
+// specific queries as the same intent as the base service query, so these
+// add zero incremental traffic. Existing /brakes, /oil-change, /diagnostics
+// cover all makes. Revive via git revert if specific make-level SEO ever
+// matters (e.g., targeting BMW/Audi European-only niches).
 
 // ─── PROBLEM PAGES ───────────────────────────────────────
 const PROBLEM_PAGES: RouteEntry[] = [
@@ -802,18 +796,10 @@ const TIRE_SIZE_ROUTE_PAGES: RouteEntry[] = TIRE_SIZE_PAGES.map(t => ({
 }));
 
 // ─── VEHICLE + SERVICE COMBO PAGES (50 programmatic SEO pages) ──
-import { VEHICLE_SERVICE_PAGES } from "./vehicleServicePages";
-
-const VEHICLE_SERVICE_ROUTE_PAGES: RouteEntry[] = VEHICLE_SERVICE_PAGES.map(p => ({
-  path: `/${p.slug}`,
-  priority: 0.6,
-  changefreq: "monthly" as const,
-  title: p.metaTitle,
-  description: p.metaDescription,
-  group: "vehicle-service" as const,
-  sitemap: true,
-  prerender: true,
-}));
+// Vehicle+service pages (honda-brake-repair, toyota-oil-change, etc.)
+// removed 2026-04-24 per T5 audit — 50 auto-generated pages × 0 imps × 0
+// clicks. Pure template bloat. Revive shared/vehicleServicePages.ts +
+// this import via git revert if the make+service intent gets rediscovered.
 
 // ─── COMBINED REGISTRY ───────────────────────────────────
 
@@ -823,11 +809,9 @@ export const ALL_ROUTES: RouteEntry[] = [
   ...CITY_PAGES,
   ...NEIGHBORHOOD_PAGES,
   ...SEO_SERVICE_PAGES,
-  ...VEHICLE_PAGES,
   ...PROBLEM_PAGES,
   ...SEASONAL_PAGES,
   ...TIRE_SIZE_ROUTE_PAGES,
-  ...VEHICLE_SERVICE_ROUTE_PAGES,
   ...UTILITY_PAGES,
   ...LEGAL_PAGES,
   ...EXCLUDED_PAGES,
