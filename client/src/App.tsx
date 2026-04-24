@@ -91,6 +91,7 @@ const BookingPage = lazy(() => import("./pages/BookingPage"));
 const GuidesIndex = lazy(() => import("./pages/GuidesIndex"));
 const GuidePage = lazy(() => import("./pages/GuidePage"));
 const AreasServed = lazy(() => import("./pages/AreasServed"));
+const SiteMap = lazy(() => import("./pages/SiteMap"));
 const PayInvoice = lazy(() => import("./pages/PayInvoice"));
 const TireSizePage = lazy(() => import("./pages/TireSizePage"));
 // VehicleServicePage removed 2026-04-24 per T5 audit
@@ -277,6 +278,7 @@ function Router() {
             <Route path={"/share/:token"} component={SharePage} />
             {/* Areas Served hub — links to all city/neighborhood/intersection pages */}
             <Route path={"/areas-served"} component={AreasServed} />
+            <Route path={"/site-map"} component={SiteMap} />
             <Route path={"/pay"} component={PayInvoice} />
             {/* Vehicle+service combo pages removed 2026-04-24 per T5 audit */}
             {/* Neighborhood micro-pages — dynamic from NEIGHBORHOODS data (61 pages) */}
