@@ -13,7 +13,13 @@ import {
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch" | "intelligence" | "specials" | "warranty" | "inventory" | "waitlist" | "seoEngine" | "declinedEstimates" | "reEngagement" | "noShowRisk" | "compliance" | "walkInCalc" | "snapDashboard" | "trafficFunnel";
+// 2026-04-24 admin audit: down from 45 sections to 16 active routes.
+// Deleted 27 dead/redundant sections. See commit log for rationale.
+export type AdminSection =
+  | "commandCenter" | "overview" | "leads" | "content" | "customers"
+  | "campaigns" | "settings" | "revenue" | "callTrackingView" | "intelligence"
+  | "declinedEstimates" | "reEngagement" | "noShowRisk" | "walkInCalc"
+  | "snapDashboard" | "trafficFunnel";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -83,6 +89,8 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "PIPELINE",
     items: [
       { id: "leads", label: "Leads & Estimates", icon: <Users className="w-4 h-4" />, badge: "leads" },
+      { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
+      { id: "callTrackingView", label: "Call Tracking", icon: <PhoneCall className="w-4 h-4" />, badge: "callbacks" },
       { id: "declinedEstimates", label: "Declined Work", icon: <AlertTriangle className="w-4 h-4" /> },
       { id: "noShowRisk", label: "No-Show Risk", icon: <AlertTriangle className="w-4 h-4" /> },
       { id: "snapDashboard", label: "Snap Finance", icon: <CreditCard className="w-4 h-4" /> },
@@ -115,47 +123,17 @@ export const NAV_ITEMS = NAV_GROUPS.flatMap(g => g.items);
 export const SECTION_TITLES: Record<AdminSection, string> = {
   commandCenter: "NOUR OS Bridge",
   overview: "Shop Dashboard",
-  bookings: "Online Bookings",
   leads: "Leads & Estimates",
   content: "Content & AI",
-  chats: "Chat Sessions",
-  health: "System",
-  coupons: "Coupons",
-  qa: "Q&A",
-  referrals: "Referrals",
-  jobs: "Job Board",
-  inspections: "Inspections",
-  loyalty: "Loyalty",
-  followups: "Follow-Ups",
-  sms: "SMS",
-  reviewRequests: "Reviews",
   customers: "Customers",
-  winback: "Win-Back",
   campaigns: "Outreach Hub",
-  autoFollowUp: "Auto Follow-Up",
   settings: "Settings & System",
-  shopdriver: "ShopDriver Sync",
-  estimates: "Walk-In Estimates",
-  activity: "Activity",
   revenue: "Revenue & Shop",
-  integrations: "Integrations",
-  tireOrders: "Tire Orders",
-  analyticsView: "Analytics",
   callTrackingView: "Call Tracking",
-  exportView: "Export",
-  financing: "Financing",
-  workOrders: "Shop Pulse",
-  dispatch: "Shop Status",
   intelligence: "Intelligence",
-  specials: "Specials",
-  warranty: "Warranties",
-  inventory: "Inventory",
-  waitlist: "Waitlist",
-  seoEngine: "SEO Engine",
   declinedEstimates: "Declined Work",
   reEngagement: "Re-engagement",
   noShowRisk: "No-Show Risk",
-  compliance: "Compliance",
   walkInCalc: "Walk-In Quote",
   snapDashboard: "Snap Finance",
   trafficFunnel: "Traffic → Revenue",
