@@ -10,7 +10,7 @@ import { captureUtmParams } from "@/lib/utm";
 import { initCwvCollector } from "@/lib/cwv";
 import { NEIGHBORHOODS } from "@shared/neighborhoods";
 import { TIRE_SIZE_PAGES } from "@shared/tireSizes";
-import { VEHICLE_SERVICE_PAGES } from "@shared/vehicleServicePages";
+// VEHICLE_SERVICE_PAGES removed 2026-04-24 per T5 audit
 import { SkipToContent } from "@/components/SEO";
 import QuickAccessDock from "@/components/QuickAccessDock";
 // @vercel/analytics removed — this runs on Railway, not Vercel
@@ -45,7 +45,7 @@ const CityPage = lazy(() => import("./pages/CityPage"));
 const FAQ = lazy(() => import("./pages/FAQ"));
 const SeasonalPage = lazy(() => import("./pages/SeasonalPage"));
 const SEOServicePage = lazy(() => import("./pages/SEOServicePage"));
-const VehicleMakePage = lazy(() => import("./pages/VehicleMakePage"));
+// VehicleMakePage removed 2026-04-24 per T5 audit
 const ProblemPage = lazy(() => import("./pages/ProblemPage"));
 const ReviewsPage = lazy(() => import("./pages/ReviewsPage"));
 const DiagnosePage = lazy(() => import("./pages/DiagnosePage"));
@@ -89,7 +89,7 @@ const GuidePage = lazy(() => import("./pages/GuidePage"));
 const AreasServed = lazy(() => import("./pages/AreasServed"));
 const PayInvoice = lazy(() => import("./pages/PayInvoice"));
 const TireSizePage = lazy(() => import("./pages/TireSizePage"));
-const VehicleServicePage = lazy(() => import("./pages/VehicleServicePage"));
+// VehicleServicePage removed 2026-04-24 per T5 audit
 const WomensSafetyPage = lazy(() => import("./pages/WomensSafetyPage"));
 
 function Router() {
@@ -205,41 +205,7 @@ function Router() {
             />
             <Route path={"/ac-repair-cleveland"} component={SEOServicePage} />
             <Route path={"/diagnostics-cleveland"} component={SEOServicePage} />
-            {/* Vehicle make pages */}
-            <Route
-              path={"/toyota-repair-cleveland"}
-              component={VehicleMakePage}
-            />
-            <Route
-              path={"/honda-repair-cleveland"}
-              component={VehicleMakePage}
-            />
-            <Route
-              path={"/ford-repair-cleveland"}
-              component={VehicleMakePage}
-            />
-            <Route
-              path={"/chevy-repair-cleveland"}
-              component={VehicleMakePage}
-            />
-            <Route
-              path={"/nissan-repair-cleveland"}
-              component={VehicleMakePage}
-            />
-            <Route
-              path={"/hyundai-repair-cleveland"}
-              component={VehicleMakePage}
-            />
-            <Route path={"/kia-repair-cleveland"} component={VehicleMakePage} />
-            <Route
-              path={"/jeep-repair-cleveland"}
-              component={VehicleMakePage}
-            />
-            <Route path={"/bmw-repair-cleveland"} component={VehicleMakePage} />
-            <Route
-              path={"/dodge-ram-repair-cleveland"}
-              component={VehicleMakePage}
-            />
+            {/* Vehicle make pages removed 2026-04-24 per T5 audit */}
             {/* Problem-specific pages */}
             <Route
               path={"/car-shaking-while-driving"}
@@ -319,14 +285,7 @@ function Router() {
             {/* Areas Served hub — links to all city/neighborhood/intersection pages */}
             <Route path={"/areas-served"} component={AreasServed} />
             <Route path={"/pay"} component={PayInvoice} />
-            {/* Vehicle + Service combo pages (50 pages — programmatic SEO) */}
-            {VEHICLE_SERVICE_PAGES.map(p => (
-              <Route
-                key={p.slug}
-                path={`/${p.slug}`}
-                component={VehicleServicePage}
-              />
-            ))}
+            {/* Vehicle+service combo pages removed 2026-04-24 per T5 audit */}
             {/* Neighborhood micro-pages — dynamic from NEIGHBORHOODS data (61 pages) */}
             {NEIGHBORHOODS.map(n => (
               <Route

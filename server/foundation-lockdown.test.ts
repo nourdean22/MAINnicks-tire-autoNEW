@@ -110,13 +110,12 @@ describe("Route Coverage", () => {
     }
   });
 
-  it("should have routes for all vehicle make pages", () => {
-    const appTsxPath = path.join(__dirname, "../client/src/App.tsx");
-    const content = fs.readFileSync(appTsxPath, "utf-8");
-    for (const vehicle of VEHICLE_MAKE_PAGES) {
-      expect(content).toContain(`/${vehicle.slug}`);
-    }
-  });
+  // Vehicle make page route check removed 2026-04-24 per T5 audit.
+  // The VEHICLE_MAKE_PAGES data array still exists in shared/seo-pages.ts
+  // (keeps data consistency tests above green) but the corresponding
+  // App.tsx routes + VehicleMakePage component were removed because 30d
+  // GSC showed zero impressions across all 10 make pages. Revive via
+  // git revert if make-level SEO becomes relevant again.
 });
 
 describe("Review Count Consistency", () => {
