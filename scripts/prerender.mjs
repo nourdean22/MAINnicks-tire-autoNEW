@@ -156,12 +156,22 @@ async function main() {
 
           // Wait for React effects (SEOHead useEffect sets title, meta, canonical)
           // The SEOHead component runs in useEffect which fires after render
-          await page.evaluate(() => new Promise((r) => setTimeout(r, 1500)));
+          await page.evaluate(() => new Promise((r) => setTimeout(r, 2500)));
 
-          // Wait for title to change from the default (indicates SEOHead ran)
+          // Wait for title to change AWAY from any of the known defaults.
+          // Multiple defaults have leaked from different builds:
+          //   - "Cleveland Auto Repair & Tire Shop" (original)
+          //   - "NOUR OS" (came from an admin component bleed or mismatched build)
+          //   - "Nick's Tire & Auto — Cleveland's #1 ..." (current client/index.html)
+          // If title never changes, we fall back to the registry-based injection below.
           await page.waitForFunction(
-            () => !document.title.includes("Cleveland Auto Repair & Tire Shop"),
-            { timeout: 3000 }
+            () => {
+              const t = document.title || "";
+              return !t.startsWith("NOUR OS") &&
+                     !t.includes("Cleveland Auto Repair & Tire Shop") &&
+                     !t.includes("Cleveland&#x27;s #1 New &amp; Used Tire Shop");
+            },
+            { timeout: 5000 }
           ).catch(() => {});
 
           // Get the full HTML
@@ -173,8 +183,16 @@ async function main() {
             const BASE_URL = "https://nickstire.org";
             const canonicalUrl = `${BASE_URL}${routePath === "/" ? "" : routePath}`;
 
-            // Fix title if it's still the default
-            if (html.includes("Cleveland Auto Repair &amp; Tire Shop") || html.includes("Cleveland&#x27;s #1")) {
+            // Fix title if it's any known default (expanded detection)
+            const currentTitleMatch = html.match(/<title>([^<]*)<\/title>/);
+            const currentTitle = currentTitleMatch ? currentTitleMatch[1] : "";
+            const isDefaultTitle =
+              currentTitle.startsWith("NOUR OS") ||
+              currentTitle.includes("Cleveland Auto Repair &amp; Tire Shop") ||
+              currentTitle.includes("Cleveland&#x27;s #1") ||
+              currentTitle.includes("Cleveland's #1 New & Used") ||
+              currentTitle.trim() === "";
+            if (isDefaultTitle) {
               html = html.replace(/<title>[^<]*<\/title>/, `<title>${routeInfo.title}</title>`);
             }
 
