@@ -21,53 +21,28 @@ import ActivityPulse from "@/components/admin/ActivityPulse";
 import WeatherAwareBanner from "@/components/admin/WeatherAwareBanner";
 import { CustomerDrawer } from "@/components/admin/CustomerDrawer";
 
-// Lazy-load each section for code splitting
+// Lazy-load each section for code splitting.
+// Post-audit (2026-04-24): removed 27 dead/redundant sections that had
+// empty DB tables or overlapped with consolidated pages. See commit log.
 const OverviewSection = lazy(() => import("./admin/OverviewSection"));
-const BookingsSection = lazy(() => import("./admin/BookingsSection"));
 const LeadsSection = lazy(() => import("./admin/LeadsSection"));
 const ContentSection = lazy(() => import("./admin/ContentSection"));
-const ChatSessionsSection = lazy(() => import("./admin/ChatSessionsSection"));
-const SiteHealthSection = lazy(() => import("./admin/SiteHealthSection"));
-const CouponsSection = lazy(() => import("./admin/CouponsSection"));
-const QASection = lazy(() => import("./admin/QASection"));
-const ReferralsSection = lazy(() => import("./admin/ReferralsSection"));
-const JobBoardSection = lazy(() => import("./admin/JobBoardSection"));
-const InspectionsSection = lazy(() => import("./admin/InspectionsSection"));
-const LoyaltyAdminSection = lazy(() => import("./admin/LoyaltyAdminSection"));
-const FollowUpsSection = lazy(() => import("./admin/FollowUpsSection"));
-const SmsSection = lazy(() => import("./admin/SmsSection"));
-const ReviewRequestsSection = lazy(() => import("./admin/ReviewRequestsSection"));
 const CustomersSection = lazy(() => import("./admin/CustomersSection"));
-const WinBackSection = lazy(() => import("./admin/WinBackSection"));
-const AutoFollowUpSection = lazy(() => import("./admin/AutoFollowUpSection"));
-const ShopDriverSection = lazy(() => import("./admin/ShopDriverSection"));
 const SettingsSection = lazy(() => import("./admin/SettingsSection"));
-const EstimatesSection = lazy(() => import("./admin/EstimatesSection"));
-const ActivitySection = lazy(() => import("./admin/ActivitySection"));
 const RevenueSection = lazy(() => import("./admin/RevenueSection"));
-const IntegrationsSection = lazy(() => import("./admin/IntegrationsSection"));
-const TireOrdersSection = lazy(() => import("./admin/TireOrdersSection"));
-const AnalyticsSection = lazy(() => import("./admin/AnalyticsSection"));
 const CallTrackingSection = lazy(() => import("./admin/CallTrackingSection"));
-const ExportSection = lazy(() => import("./admin/ExportSection"));
 const CampaignsSection = lazy(() => import("./admin/OutreachHubSection"));
-const FinancingSection = lazy(() => import("./admin/FinancingSection"));
-const WorkOrdersSection = lazy(() => import("./admin/WorkOrdersSection"));
-const DispatchSection = lazy(() => import("./admin/DispatchSection"));
 const CommandCenterSection = lazy(() => import("./admin/CommandCenterSection"));
 const IntelligenceSection = lazy(() => import("./admin/IntelligenceSection"));
-const SpecialsSection = lazy(() => import("./admin/SpecialsSection"));
-const WarrantySection = lazy(() => import("./admin/WarrantySection"));
-const InventorySection = lazy(() => import("./admin/InventorySection"));
-const WaitlistSection = lazy(() => import("./admin/WaitlistSection"));
-const SEOEngineSection = lazy(() => import("./admin/SEOEngineSection"));
 const DeclinedEstimatesSection = lazy(() => import("./admin/DeclinedEstimatesSection"));
 const ReEngagementSection = lazy(() => import("./admin/ReEngagementSection"));
 const NoShowRiskSection = lazy(() => import("./admin/NoShowRiskSection"));
-const ComplianceSection = lazy(() => import("./admin/ComplianceSection"));
 const WalkInCalculatorSection = lazy(() => import("./admin/WalkInCalculatorSection"));
 const SnapDashboardSection = lazy(() => import("./admin/SnapDashboardSection"));
 const TrafficFunnelSection = lazy(() => import("./admin/TrafficFunnelSection"));
+// Settings tab sub-sections — kept because they're consumed INSIDE SettingsSection,
+// but not rendered as top-level routes anymore (Settings page handles them).
+// AdminContent.tsx still routes here for /admin/content.
 
 function SectionSpinner() {
   return (
@@ -85,47 +60,17 @@ function SectionContent({ section }: { section: AdminSection }) {
     <Suspense fallback={<SectionSpinner />}>
       {section === "commandCenter" && <CommandCenterSection />}
       {section === "overview" && <OverviewSection />}
-      {section === "bookings" && <BookingsSection />}
       {section === "leads" && <LeadsSection />}
       {section === "content" && <ContentSection />}
-      {section === "chats" && <ChatSessionsSection />}
-      {section === "health" && <SiteHealthSection />}
-      {section === "coupons" && <CouponsSection />}
-      {section === "qa" && <QASection />}
-      {section === "referrals" && <ReferralsSection />}
-      {section === "jobs" && <JobBoardSection />}
-      {section === "inspections" && <InspectionsSection />}
-      {section === "loyalty" && <LoyaltyAdminSection />}
-      {section === "followups" && <FollowUpsSection />}
-      {section === "sms" && <SmsSection />}
-      {section === "reviewRequests" && <ReviewRequestsSection />}
       {section === "customers" && <CustomersSection />}
-      {section === "winback" && <WinBackSection />}
       {section === "campaigns" && <CampaignsSection />}
-      {section === "financing" && <FinancingSection />}
-      {section === "autoFollowUp" && <AutoFollowUpSection />}
-      {section === "shopdriver" && <ShopDriverSection />}
       {section === "settings" && <SettingsSection />}
-      {section === "estimates" && <EstimatesSection />}
-      {section === "activity" && <ActivitySection />}
       {section === "revenue" && <RevenueSection />}
-      {section === "integrations" && <IntegrationsSection />}
-      {section === "tireOrders" && <TireOrdersSection />}
-      {section === "analyticsView" && <AnalyticsSection />}
       {section === "callTrackingView" && <CallTrackingSection />}
-      {section === "exportView" && <ExportSection />}
-      {section === "workOrders" && <WorkOrdersSection />}
-      {section === "dispatch" && <DispatchSection />}
       {section === "intelligence" && <IntelligenceSection />}
-      {section === "specials" && <SpecialsSection />}
-      {section === "warranty" && <WarrantySection />}
-      {section === "inventory" && <InventorySection />}
-      {section === "waitlist" && <WaitlistSection />}
-      {section === "seoEngine" && <SEOEngineSection />}
       {section === "declinedEstimates" && <DeclinedEstimatesSection />}
       {section === "reEngagement" && <ReEngagementSection />}
       {section === "noShowRisk" && <NoShowRiskSection />}
-      {section === "compliance" && <ComplianceSection />}
       {section === "walkInCalc" && <WalkInCalculatorSection />}
       {section === "snapDashboard" && <SnapDashboardSection />}
       {section === "trafficFunnel" && <TrafficFunnelSection />}
@@ -137,28 +82,58 @@ function SectionContent({ section }: { section: AdminSection }) {
 // Nour reaches for `?tab=callbacks` but the section is `callTrackingView`;
 // rather than rename internals, accept both.
 const TAB_ALIASES: Record<string, AdminSection> = {
+  // Active aliases
   callbacks: "callTrackingView",
   calls: "callTrackingView",
   calltracking: "callTrackingView",
   dashboard: "overview",
   home: "overview",
-  wo: "workOrders",
-  "work-orders": "workOrders",
   declined: "declinedEstimates",
-  reviews: "reviewRequests",
-  alg: "shopdriver",
   funnel: "trafficFunnel",
   traffic: "trafficFunnel",
-  // System-tab aliases — these used to be standalone sidebar sections, now
-  // they live inside Settings as tabs. Route the old URLs to Settings so
-  // bookmarks + external links still land in the right place. The Settings
-  // page reads `?settingsTab=...` to pick the right inner tab; for exact
-  // match on legacy paths we accept their raw names here.
+
+  // Settings sub-tabs (the old standalone sections are now Settings tabs)
   health: "settings",
   sysHealth: "settings",
   compliance: "settings",
   integrations: "settings",
   system: "settings",
+  shopdriver: "settings",
+  alg: "settings",
+
+  // Deleted sections (2026-04-24 admin audit) — redirect old bookmarks
+  // to the closest live section so no one hits a broken deep-link.
+  bookings: "overview",
+  chats: "overview",
+  workorders: "overview",
+  wo: "overview",
+  "work-orders": "overview",
+  dispatch: "overview",
+  estimates: "declinedEstimates",
+  activity: "overview",
+  analytics: "trafficFunnel",
+  analyticsview: "trafficFunnel",
+  exports: "overview",
+  exportview: "overview",
+  financing: "snapDashboard",
+  autofollowup: "reEngagement",
+  reviewrequests: "reEngagement",
+  reviews: "reEngagement",
+  winback: "reEngagement",
+  sms: "reEngagement",
+  specials: "content",
+  coupons: "content",
+  qa: "content",
+  referrals: "customers",
+  jobs: "customers",
+  inspections: "overview",
+  loyalty: "customers",
+  followups: "reEngagement",
+  tireorders: "overview",
+  warranty: "customers",
+  inventory: "overview",
+  waitlist: "customers",
+  seoengine: "content",
 };
 
 function resolveInitialSection(): AdminSection {
@@ -361,8 +336,10 @@ export default function Admin() {
                 {group.items.map(item => {
                   const isActive = section === item.id;
                   let badge = 0;
-                  if (item.id === "bookings") badge = newBookings;
-                  if (item.id === "leads") badge = urgentLeads + newLeads;
+                  // `bookings` is no longer a sidebar entry; urgent + new leads
+                  // surface on the `leads` row. Bookings count still appears
+                  // on the Overview page itself.
+                  if (item.id === "leads") badge = urgentLeads + newLeads + newBookings;
                   if (item.id === "callTrackingView") badge = pendingCallbacks;
                   if (item.id === "revenue") badge = woStats?.active ?? 0;
 

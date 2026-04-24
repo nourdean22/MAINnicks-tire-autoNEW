@@ -56,15 +56,15 @@ export default function AdminCommandBar({ onNavigate }: Props) {
 
         {/* Quick Actions */}
         <CommandGroup heading="Quick Actions">
-          <CommandItem onSelect={() => go("bookings")}>
+          <CommandItem onSelect={() => go("leads")}>
             <Search className="w-4 h-4" />
-            <span>New Booking</span>
-            <CommandShortcut>Bookings</CommandShortcut>
+            <span>New Lead</span>
+            <CommandShortcut>Leads</CommandShortcut>
           </CommandItem>
-          <CommandItem onSelect={() => go("sms")}>
+          <CommandItem onSelect={() => go("campaigns")}>
             <Search className="w-4 h-4" />
-            <span>Send SMS</span>
-            <CommandShortcut>SMS</CommandShortcut>
+            <span>Send Outreach</span>
+            <CommandShortcut>Outreach</CommandShortcut>
           </CommandItem>
           <CommandItem onSelect={() => {
             window.open("https://autonicks.com", "_blank");
