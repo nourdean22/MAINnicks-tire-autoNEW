@@ -26,7 +26,7 @@ export async function generateDailyReport(): Promise<{ recordsProcessed: number;
 
     // Gather full intelligence for a rich daily report
     const today = new Date().toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
-    const rawBookings = await db.execute(sql`SELECT COUNT(*) as unknown as cnt FROM bookings WHERE DATE(createdAt) = ${today}`);
+    const rawBookings = await db.execute(sql`SELECT COUNT(*) as cnt FROM bookings WHERE DATE(createdAt) = ${today}`);
     const bookingRows = Array.isArray(rawBookings) && Array.isArray(rawBookings[0]) ? rawBookings[0] : rawBookings;
     const bookingCount = (bookingRows as any)?.[0]?.cnt || 0;
 
@@ -39,7 +39,7 @@ export async function generateDailyReport(): Promise<{ recordsProcessed: number;
       revenue = pulse.today.revenue;
     } catch (e) { log.warn("[jobs/dailyReport] operation failed:", e); }
     try {
-      const rawLeads = await db.execute(sql`SELECT COUNT(*) as unknown as cnt FROM leads WHERE DATE(createdAt) = ${today}`);
+      const rawLeads = await db.execute(sql`SELECT COUNT(*) as cnt FROM leads WHERE DATE(createdAt) = ${today}`);
       const leadRows = Array.isArray(rawLeads) && Array.isArray(rawLeads[0]) ? rawLeads[0] : rawLeads;
       leadCount = (leadRows as any)?.[0]?.cnt || 0;
     } catch (e) { log.warn("[jobs/dailyReport] operation failed:", e); }

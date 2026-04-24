@@ -177,17 +177,17 @@ export function startTieredScheduler(): void {
             if (!d) return { details: "No DB" };
 
             // Check for orphaned invoices (no matching customer phone)
-            const [orphanedInvoices] = await d.execute(sql`SELECT COUNT(*) as unknown as cnt FROM invoices WHERE customerPhone IS NULL OR customerPhone = ''`);
+            const [orphanedInvoices] = await d.execute(sql`SELECT COUNT(*) as cnt FROM invoices WHERE customerPhone IS NULL OR customerPhone = ''`);
             const orphanCount = (orphanedInvoices as Record<string, unknown>[])?.[0]?.cnt || (orphanedInvoices as Record<string, unknown>)?.cnt || 0;
             if (Number(orphanCount) > 0) issues.push(`${orphanCount} invoices missing customer phone`);
 
             // Check for stale leads (new status > 7 days old)
-            const [staleLeads] = await d.execute(sql`SELECT COUNT(*) as unknown as cnt FROM leads WHERE status = 'new' AND createdAt < DATE_SUB(NOW(), INTERVAL 7 DAY)`);
+            const [staleLeads] = await d.execute(sql`SELECT COUNT(*) as cnt FROM leads WHERE status = 'new' AND createdAt < DATE_SUB(NOW(), INTERVAL 7 DAY)`);
             const staleCount = (staleLeads as Record<string, unknown>[])?.[0]?.cnt || (staleLeads as Record<string, unknown>)?.cnt || 0;
             if (Number(staleCount) > 3) issues.push(`${staleCount} stale leads (>7d untouched)`);
 
             // Check for callbacks stuck in "new" > 24h
-            const [staleCallbacks] = await d.execute(sql`SELECT COUNT(*) as unknown as cnt FROM callback_requests WHERE status = 'new' AND createdAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)`);
+            const [staleCallbacks] = await d.execute(sql`SELECT COUNT(*) as cnt FROM callback_requests WHERE status = 'new' AND createdAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)`);
             const cbCount = (staleCallbacks as Record<string, unknown>[])?.[0]?.cnt || (staleCallbacks as Record<string, unknown>)?.cnt || 0;
             if (Number(cbCount) > 0) issues.push(`${cbCount} callbacks unanswered >24h`);
 
