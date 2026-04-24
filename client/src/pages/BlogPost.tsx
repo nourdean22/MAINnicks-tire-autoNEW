@@ -1,12 +1,22 @@
 /*
  * BLOG POST — Individual article page for Nick's Tire & Auto
- * SEO-optimized with JSON-LD Article schema markup
+ *
+ * SEO-optimized with JSON-LD Article + BreadcrumbList schema markup.
+ *
+ * Two content sources:
+ *   1. Static registry — @shared/blog (hand-authored, instant render)
+ *   2. Dynamic articles — trpc.content.articleBySlug (DB-seeded, fallback)
+ *
+ * Lookup order: static first (zero network), then tRPC dynamic fallback.
+ * Dynamic articles are normalized into the same shape the renderer expects
+ * so the rest of the page stays source-agnostic.
  */
 
 import PageLayout from "@/components/PageLayout";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useMemo } from "react";
 import { useRoute, Link, useLocation } from "wouter";
-import { getArticleBySlug, BLOG_ARTICLES } from "@shared/blog";
+import { getArticleBySlug, BLOG_ARTICLES, type BlogArticle } from "@shared/blog";
+import { trpc } from "@/lib/trpc";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { Phone, Clock, ChevronRight, ArrowLeft, ArrowRight, Tag } from "lucide-react";
 import { motion, useInView } from "framer-motion";
@@ -29,17 +39,111 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
   );
 }
 
+// Shape used by the renderer. Both static and dynamic articles get normalized here.
+type NormalizedArticle = Pick<
+  BlogArticle,
+  "slug" | "title" | "category" | "readTime" | "publishDate" | "excerpt" |
+  "heroImage" | "metaTitle" | "metaDescription" | "tags" | "relatedServices" | "sections"
+>;
+
+/**
+ * Safely parse a JSON string from the DB. Returns fallback if parse fails
+ * or the result doesn't match the expected shape.
+ */
+function safeJsonArray<T>(raw: string | null | undefined, fallback: T[]): T[] {
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as T[]) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Normalize a dynamic_articles row into the same shape as static BLOG_ARTICLES.
+ * Handles both `{heading, body}` (old seed scripts) and `{heading, content}` (schema).
+ */
+function normalizeDynamic(row: {
+  slug: string;
+  title: string;
+  metaTitle: string;
+  metaDescription: string;
+  category: string;
+  readTime: string;
+  heroImage: string;
+  excerpt: string;
+  sectionsJson: string;
+  relatedServicesJson: string;
+  tagsJson: string;
+  publishDate: string;
+}): NormalizedArticle {
+  const rawSections = safeJsonArray<{ heading?: string; content?: string; body?: string }>(
+    row.sectionsJson,
+    []
+  );
+  return {
+    slug: row.slug,
+    title: row.title,
+    category: row.category,
+    readTime: row.readTime,
+    publishDate: row.publishDate,
+    excerpt: row.excerpt,
+    heroImage: row.heroImage,
+    metaTitle: row.metaTitle,
+    metaDescription: row.metaDescription,
+    tags: safeJsonArray<string>(row.tagsJson, []),
+    relatedServices: safeJsonArray<string>(row.relatedServicesJson, []),
+    sections: rawSections.map((s) => ({
+      heading: s.heading ?? "",
+      // Support both shapes so older seeded rows still render.
+      content: s.content ?? s.body ?? "",
+    })),
+  };
+}
+
 export default function BlogPost() {
   const [, params] = useRoute("/blog/:slug");
   const [, _setLocation] = useLocation();
   const slug = params?.slug || "";
-  const article = getArticleBySlug(slug);
+
+  // Static first — zero-network, SSR-friendly.
+  const staticArticle = getArticleBySlug(slug);
+
+  // Dynamic fallback — only fires when static miss. Keeps payload small.
+  const dynamicQuery = trpc.content.articleBySlug.useQuery(
+    { slug },
+    {
+      enabled: !staticArticle && slug.length > 0,
+      staleTime: 30 * 60 * 1000, // 30 min — blog posts rarely change
+      retry: 1,
+    }
+  );
+
+  // Unified article object. useMemo avoids re-normalizing on every re-render.
+  const article: NormalizedArticle | null = useMemo(() => {
+    if (staticArticle) return staticArticle;
+    const row = dynamicQuery.data;
+    if (!row) return null;
+    return normalizeDynamic(row);
+  }, [staticArticle, dynamicQuery.data]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [slug]);
 
-  // 404 for unknown articles
+  // Loading state — only shows if tRPC query is in flight (static hit renders instantly).
+  if (!article && dynamicQuery.isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-foreground/50 text-sm font-mono tracking-wide">LOADING ARTICLE...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // 404 — neither static nor dynamic found this slug.
   if (!article) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -55,15 +159,16 @@ export default function BlogPost() {
     );
   }
 
-  // Get related articles (same category, different slug)
+  // Related articles — pull from static registry. Keeps cross-linking predictable
+  // and ensures the reader is nudged toward hand-tuned content.
   const related = BLOG_ARTICLES.filter(a => a.slug !== article.slug && a.category === article.category).slice(0, 2);
-  // If not enough same-category, fill with others
   const moreRelated = related.length < 2
     ? [...related, ...BLOG_ARTICLES.filter(a => a.slug !== article.slug && a.category !== article.category).slice(0, 2 - related.length)]
     : related;
 
-  // JSON-LD Article schema
-  const jsonLd = {
+  // JSON-LD Article schema — tells Google this is a news/blog article with proper
+  // metadata (author, publisher, dates). Big factor in rich-result eligibility.
+  const articleJsonLd = {
     "@context": "https://schema.org",
     "@type": "Article",
     headline: article.title,
@@ -93,6 +198,39 @@ export default function BlogPost() {
       },
       sameAs: [...BUSINESS.sameAs],
     },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": `https://nickstire.org/blog/${article.slug}`,
+    },
+    articleSection: article.category,
+    keywords: article.tags.join(", "),
+  };
+
+  // BreadcrumbList schema — helps Google show the breadcrumb trail in SERPs,
+  // which boosts click-through rate and signals site structure.
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: "https://nickstire.org/",
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Blog",
+        item: "https://nickstire.org/blog",
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: article.title,
+        item: `https://nickstire.org/blog/${article.slug}`,
+      },
+    ],
   };
 
   return (
@@ -104,12 +242,17 @@ export default function BlogPost() {
         ogImage={article.heroImage}
       />
       <Breadcrumbs items={[{ label: "Blog", href: "/blog" }, { label: "Article" }]} />
-      
-      
-      {/* JSON-LD */}
+
+
+      {/* JSON-LD — Article + BreadcrumbList. Two separate script tags is preferred
+          over combining into @graph; Google parses both reliably. */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
       {/* Hero */}
@@ -174,18 +317,20 @@ export default function BlogPost() {
             ))}
 
             {/* Tags */}
-            <FadeIn>
-              <div className="border-t border-border/30 pt-8 mt-12">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Tag className="w-4 h-4 text-foreground/40" />
-                  {article.tags.map(tag => (
-                    <span key={tag} className="px-3 py-1 bg-card border border-border/30 text-[12px] text-foreground/50">
-                      {tag}
-                    </span>
-                  ))}
+            {article.tags.length > 0 && (
+              <FadeIn>
+                <div className="border-t border-border/30 pt-8 mt-12">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Tag className="w-4 h-4 text-foreground/40" />
+                    {article.tags.map(tag => (
+                      <span key={tag} className="px-3 py-1 bg-card border border-border/30 text-[12px] text-foreground/50">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </FadeIn>
+              </FadeIn>
+            )}
 
             {/* Related Service Links */}
             {article.relatedServices.length > 0 && (
@@ -283,9 +428,6 @@ export default function BlogPost() {
         </section>
       )}
 
-      {/* Mini Footer */}
-      
-    
       <InternalLinks />
 </PageLayout>
   );
