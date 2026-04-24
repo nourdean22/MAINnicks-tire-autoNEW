@@ -2,11 +2,12 @@
  * Call Intelligence Section — source tracking, missed call queue, peak hours analysis.
  */
 import { useMemo } from "react";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { StatCard, CHART_COLORS, CHART_THEME } from "./shared";
 import {
   Phone, PhoneCall, MapPin, Loader2, Clock, AlertTriangle,
-  TrendingUp, BarChart3, Users, CheckCircle2,
+  TrendingUp, BarChart3, Users, CheckCircle2, XCircle, MessageSquare,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
@@ -26,6 +27,24 @@ export default function CallTrackingSection() {
   const { data: stats, isLoading: statsLoading } = trpc.adminDashboard.stats.useQuery();
   const { data: calls, isLoading: callsLoading } = trpc.callTracking.list.useQuery();
   const { data: callbacks } = trpc.callback.list.useQuery();
+  const utils = trpc.useUtils();
+
+  const callbackUpdateStatus = trpc.callback.updateStatus.useMutation({
+    onSuccess: () => {
+      toast.success("Callback updated");
+      utils.callback.list.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  function handleMarkCalled(id: number, name: string) {
+    if (!confirm(`Mark callback for ${name} as completed?`)) return;
+    callbackUpdateStatus.mutate({ id, status: "completed" });
+  }
+  function handleMarkNoAnswer(id: number, name: string) {
+    if (!confirm(`Mark callback for ${name} as no-answer?`)) return;
+    callbackUpdateStatus.mutate({ id, status: "no-answer" });
+  }
 
   // Peak hours analysis
   const peakHours = useMemo(() => {
@@ -132,30 +151,69 @@ export default function CallTrackingSection() {
             </span>
           </h3>
           <div className="space-y-2">
-            {pendingCallbacks.slice(0, 10).map((cb: any) => (
-              <div key={cb.id} className="flex items-center gap-3 px-3 py-2.5 bg-background/50 border border-border/20 hover:border-red-500/30 transition-colors">
-                <PhoneCall className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-foreground truncate">{cb.name || "Unknown"}</span>
-                    <span className="text-[10px] text-muted-foreground font-mono">{cb.phone}</span>
+            {pendingCallbacks.slice(0, 10).map((cb: any) => {
+              const ageMs = Date.now() - new Date(cb.createdAt).getTime();
+              const ageHours = Math.floor(ageMs / (60 * 60 * 1000));
+              const ageLabel = ageHours < 24
+                ? `${ageHours}h ago`
+                : `${Math.floor(ageHours / 24)}d ${ageHours % 24}h ago`;
+              return (
+                <div key={cb.id} className="flex items-center gap-3 px-3 py-2.5 bg-background/50 border border-border/20 hover:border-red-500/30 transition-colors">
+                  <PhoneCall className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-foreground truncate">{cb.name || "Unknown"}</span>
+                      <span className="text-[10px] text-muted-foreground font-mono">{cb.phone}</span>
+                      <span className="text-[10px] text-red-400 font-semibold">· {ageLabel}</span>
+                    </div>
+                    {cb.context && (
+                      <span className="text-[11px] text-foreground/40 truncate block">{cb.context}</span>
+                    )}
+                    <span className="text-[10px] text-foreground/30">
+                      {new Date(cb.createdAt).toLocaleString()}
+                    </span>
                   </div>
-                  {cb.context && (
-                    <span className="text-[11px] text-foreground/40 truncate block">{cb.context}</span>
-                  )}
-                  <span className="text-[10px] text-foreground/30">
-                    {new Date(cb.createdAt).toLocaleString()}
-                  </span>
+                  <div className="shrink-0 flex items-center gap-1.5">
+                    <a
+                      href={`tel:${cb.phone}`}
+                      className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-medium hover:bg-emerald-500/20 rounded transition-all"
+                      title="Dial this number"
+                    >
+                      <Phone className="w-3 h-3" /> Call
+                    </a>
+                    <a
+                      href={`sms:${cb.phone}?body=${encodeURIComponent(`Hi ${(cb.name || "there").split(" ")[0]}, it's Nick's Tire. Returning your call — give us a ring back when you can: (216) 862-0005.`)}`}
+                      className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-500/10 text-blue-400 text-[10px] font-medium hover:bg-blue-500/20 rounded transition-all"
+                      title="Send SMS"
+                    >
+                      <MessageSquare className="w-3 h-3" /> SMS
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => handleMarkCalled(cb.id, cb.name || "customer")}
+                      disabled={callbackUpdateStatus.isPending}
+                      className="flex items-center gap-1 px-2.5 py-1.5 bg-primary/10 text-primary text-[10px] font-medium hover:bg-primary/20 rounded transition-all disabled:opacity-40"
+                      title="Mark as completed (called successfully)"
+                    >
+                      <CheckCircle2 className="w-3 h-3" /> Done
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleMarkNoAnswer(cb.id, cb.name || "customer")}
+                      disabled={callbackUpdateStatus.isPending}
+                      className="flex items-center gap-1 px-2 py-1.5 bg-foreground/5 text-foreground/60 text-[10px] font-medium hover:bg-foreground/10 rounded transition-all disabled:opacity-40"
+                      title="No answer"
+                    >
+                      <XCircle className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
-                <a
-                  href={`tel:${cb.phone}`}
-                  className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-medium hover:bg-emerald-500/20 rounded transition-all"
-                >
-                  <Phone className="w-3 h-3" /> Call Back
-                </a>
-              </div>
-            ))}
+              );
+            })}
           </div>
+          <p className="mt-3 text-[10px] text-foreground/30 leading-relaxed">
+            <span className="text-primary">Done</span> = called successfully · <span className="text-foreground/60">✕</span> = no answer (removes from queue, stays in history).
+          </p>
         </div>
       )}
 
