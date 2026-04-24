@@ -84,7 +84,7 @@ function Hero() {
             transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
             className="mt-6 text-lg sm:text-xl lg:text-2xl font-sans text-[#A0A0A0] max-w-lg"
           >
-            Cleveland&rsquo;s #1 rated auto shop. We show you the problem before we fix it.
+            Cleveland&rsquo;s #1 tire and auto shop. We show you the problem before we fix it.
           </motion.p>
 
           {/* CTA buttons */}
