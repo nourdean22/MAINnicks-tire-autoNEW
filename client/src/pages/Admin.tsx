@@ -65,7 +65,6 @@ const DeclinedEstimatesSection = lazy(() => import("./admin/DeclinedEstimatesSec
 const ReEngagementSection = lazy(() => import("./admin/ReEngagementSection"));
 const NoShowRiskSection = lazy(() => import("./admin/NoShowRiskSection"));
 const ComplianceSection = lazy(() => import("./admin/ComplianceSection"));
-const ShopFloorMobile = lazy(() => import("./admin/ShopFloorMobile"));
 const WalkInCalculatorSection = lazy(() => import("./admin/WalkInCalculatorSection"));
 const SnapDashboardSection = lazy(() => import("./admin/SnapDashboardSection"));
 
@@ -126,7 +125,6 @@ function SectionContent({ section }: { section: AdminSection }) {
       {section === "reEngagement" && <ReEngagementSection />}
       {section === "noShowRisk" && <NoShowRiskSection />}
       {section === "compliance" && <ComplianceSection />}
-      {section === "shopFloor" && <ShopFloorMobile />}
       {section === "walkInCalc" && <WalkInCalculatorSection />}
       {section === "snapDashboard" && <SnapDashboardSection />}
     </Suspense>
@@ -147,7 +145,6 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   declined: "declinedEstimates",
   reviews: "reviewRequests",
   alg: "shopdriver",
-  shop: "shopFloor",
   // System-tab aliases — these used to be standalone sidebar sections, now
   // they live inside Settings as tabs. Route the old URLs to Settings so
   // bookmarks + external links still land in the right place. The Settings
