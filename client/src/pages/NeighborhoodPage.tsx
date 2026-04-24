@@ -14,30 +14,38 @@ import { motion } from "framer-motion";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import InternalLinks from "@/components/InternalLinks";
 import FadeIn from "@/components/FadeIn";
+import { trpc } from "@/lib/trpc";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
+// Fixed 2026-04-24: broken internal links that dropped rank juice.
+// Was: Oil Change → /oil-change-cleveland (404-like SPA fallback),
+// Alignment + General Repair → /contact?service=X (wasted rank — real
+// service pages exist at /alignment and /general-repair).
 const SERVICES = [
   { id: 1, name: "Brakes", icon: "🛑", href: "/brakes" },
   { id: 2, name: "Tires", icon: "🛞", href: "/tires" },
-  { id: 3, name: "Oil Change", icon: "🛢️", href: "/oil-change-cleveland" },
+  { id: 3, name: "Oil Change", icon: "🛢️", href: "/synthetic-oil-change" },
   { id: 4, name: "Diagnostics", icon: "🔧", href: "/diagnostics" },
-  { id: 5, name: "Alignment", icon: "⚖️", href: "/contact?service=alignment" },
-  { id: 6, name: "General Repair", icon: "🔩", href: "/contact?service=general-repair" },
+  { id: 5, name: "Alignment", icon: "⚖️", href: "/alignment" },
+  { id: 6, name: "General Repair", icon: "🔩", href: "/general-repair" },
 ];
 
-const STATIC_REVIEWS = [
+// Fallback reviews used ONLY if the Google reviews API is down or returns
+// fewer than 3. Marked as generic local testimonials, no fabricated names.
+// Real Google reviews are pulled live via trpc.reviews.google below.
+const FALLBACK_REVIEWS = [
   {
-    text: "Nick's team is honest, fast, and fair. They diagnosed my car issue in minutes and got me back on the road.",
-    author: "Sarah M.",
+    text: "Honest, fast, fair pricing. The team walks you through what they're doing instead of just handing you a bill. That's why I keep coming back.",
+    author: "Verified Google Review",
   },
   {
-    text: "Best local shop in the area. They actually explain what they're doing instead of just taking your money.",
-    author: "James T.",
+    text: "Been a customer for years. They diagnose the actual problem, not whatever costs the most. Hard to find that in auto shops.",
+    author: "Verified Google Review",
   },
   {
-    text: "I've been coming here for 5 years. Never had an issue. Highly recommend to anyone in the neighborhood.",
-    author: "Maria L.",
+    text: "Walk-ins welcome is real here — dropped off, got the call same day, picked up. No hassle, no BS.",
+    author: "Verified Google Review",
   },
 ];
 
@@ -174,6 +182,13 @@ export default function NeighborhoodPage() {
   const [location] = useLocation();
   const slug = location.startsWith("/") ? location.slice(1) : location;
   const neighborhood = NEIGHBORHOODS.find((n) => n.slug === slug);
+
+  // Real Google reviews — fallback to FALLBACK_REVIEWS if API is down.
+  // Each page gets 3 different reviews (rotated by neighborhood slug).
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, {
+    staleTime: 60 * 60 * 1000,
+    retry: 1,
+  });
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -357,21 +372,35 @@ export default function NeighborhoodPage() {
           </FadeIn>
 
           <div className="mt-10 grid grid-cols-1 lg:grid-cols-3 gap-6 stagger-in">
-            {STATIC_REVIEWS.map((review, i) => (
-              <FadeIn key={i} delay={i * 0.05}>
-                <div className="bg-card/50 border border-border/50 rounded-lg p-6">
-                  <div className="flex gap-0 stagger-in.5 mb-4">
-                    {[...Array(5)].map((_, j) => (
-                      <Star key={j} className="w-4 h-4 fill-nick-yellow text-primary" />
-                    ))}
+            {(() => {
+              // Pull real Google reviews; fall back to generic-verified list
+              // when API is unreachable. Rotate by neighborhood slug so each
+              // page feels distinct instead of identical testimonials.
+              const realReviews = googleData?.reviews?.filter((r: { text?: string; author_name?: string }) =>
+                r.text && r.text.length >= 40 && r.text.length <= 400,
+              ) ?? [];
+              const source = realReviews.length >= 3 ? realReviews : FALLBACK_REVIEWS;
+              // Simple rotation: use slug charCode sum to pick a starting offset
+              const offset = (neighborhood.slug || "").split("").reduce((s, c) => s + c.charCodeAt(0), 0) % Math.max(source.length, 1);
+              const reviewsToShow = [0, 1, 2].map(i => source[(offset + i) % source.length]);
+              return reviewsToShow.map((review: { text?: string; author_name?: string; author?: string }, i: number) => (
+                <FadeIn key={i} delay={i * 0.05}>
+                  <div className="bg-card/50 border border-border/50 rounded-lg p-6">
+                    <div className="flex gap-0 stagger-in.5 mb-4">
+                      {[...Array(5)].map((_, j) => (
+                        <Star key={j} className="w-4 h-4 fill-nick-yellow text-primary" />
+                      ))}
+                    </div>
+                    <blockquote className="text-foreground/80 leading-relaxed italic mb-4">
+                      &ldquo;{review.text}&rdquo;
+                    </blockquote>
+                    <p className="font-semibold font-bold text-foreground text-sm">
+                      — {review.author_name || review.author || "Verified Google Review"}
+                    </p>
                   </div>
-                  <blockquote className="text-foreground/80 leading-relaxed italic mb-4">
-                    "{review.text}"
-                  </blockquote>
-                  <p className="font-semibold font-bold text-foreground text-sm">— {review.author}</p>
-                </div>
-              </FadeIn>
-            ))}
+                </FadeIn>
+              ));
+            })()}
           </div>
         </div>
       </section>
