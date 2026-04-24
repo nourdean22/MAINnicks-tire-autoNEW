@@ -78,6 +78,7 @@ import {
   reEngagementRouter,
   noShowRouter,
   snapRouter,
+  trafficFunnelRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -207,6 +208,11 @@ export const appRouter = router({
 
   // Snap Finance lease-to-own applications (submit + list + summary).
   snap: snapRouter,
+
+  // Traffic → Revenue funnel diagnostic. Single-screen overview of every
+  // stage from Google impressions to paid invoices, with conversion math
+  // + leak alerts. See server/routers/trafficFunnel.ts.
+  trafficFunnel: trafficFunnelRouter,
 });
 
 export type AppRouter = typeof appRouter;

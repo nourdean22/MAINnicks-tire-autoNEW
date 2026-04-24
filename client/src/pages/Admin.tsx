@@ -67,6 +67,7 @@ const NoShowRiskSection = lazy(() => import("./admin/NoShowRiskSection"));
 const ComplianceSection = lazy(() => import("./admin/ComplianceSection"));
 const WalkInCalculatorSection = lazy(() => import("./admin/WalkInCalculatorSection"));
 const SnapDashboardSection = lazy(() => import("./admin/SnapDashboardSection"));
+const TrafficFunnelSection = lazy(() => import("./admin/TrafficFunnelSection"));
 
 function SectionSpinner() {
   return (
@@ -127,6 +128,7 @@ function SectionContent({ section }: { section: AdminSection }) {
       {section === "compliance" && <ComplianceSection />}
       {section === "walkInCalc" && <WalkInCalculatorSection />}
       {section === "snapDashboard" && <SnapDashboardSection />}
+      {section === "trafficFunnel" && <TrafficFunnelSection />}
     </Suspense>
   );
 }
@@ -145,6 +147,8 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   declined: "declinedEstimates",
   reviews: "reviewRequests",
   alg: "shopdriver",
+  funnel: "trafficFunnel",
+  traffic: "trafficFunnel",
   // System-tab aliases — these used to be standalone sidebar sections, now
   // they live inside Settings as tabs. Route the old URLs to Settings so
   // bookmarks + external links still land in the right place. The Settings

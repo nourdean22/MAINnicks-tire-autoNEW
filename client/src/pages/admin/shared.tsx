@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
-export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch" | "intelligence" | "specials" | "warranty" | "inventory" | "waitlist" | "seoEngine" | "declinedEstimates" | "reEngagement" | "noShowRisk" | "compliance" | "walkInCalc" | "snapDashboard";
+export type AdminSection = "commandCenter" | "overview" | "bookings" | "leads" | "content" | "chats" | "health" | "coupons" | "qa" | "referrals" | "jobs" | "inspections" | "loyalty" | "followups" | "sms" | "reviewRequests" | "customers" | "winback" | "campaigns" | "autoFollowUp" | "settings" | "shopdriver" | "estimates" | "activity" | "revenue" | "integrations" | "tireOrders" | "analyticsView" | "callTrackingView" | "exportView" | "financing" | "workOrders" | "dispatch" | "intelligence" | "specials" | "warranty" | "inventory" | "waitlist" | "seoEngine" | "declinedEstimates" | "reEngagement" | "noShowRisk" | "compliance" | "walkInCalc" | "snapDashboard" | "trafficFunnel";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -72,9 +72,10 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "COMMAND",
     items: [
+      { id: "overview", label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
+      { id: "trafficFunnel", label: "Traffic → Revenue", icon: <TrendingUp className="w-4 h-4" /> },
       { id: "walkInCalc", label: "Walk-In Quote", icon: <DollarSign className="w-4 h-4" /> },
       { id: "commandCenter", label: "NOUR OS Bridge", icon: <Zap className="w-4 h-4" /> },
-      { id: "overview", label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
       { id: "intelligence", label: "Intelligence", icon: <Brain className="w-4 h-4" /> },
     ],
   },
@@ -157,6 +158,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   compliance: "Compliance",
   walkInCalc: "Walk-In Quote",
   snapDashboard: "Snap Finance",
+  trafficFunnel: "Traffic → Revenue",
 };
 
 // ─── PAGE HEADER ────────────────────────────────────────
