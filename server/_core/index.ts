@@ -801,6 +801,14 @@ Sitemap: ${SITE_URL}/sitemap-locations.xml
     res.sendStatus(200);
   });
 
+  // URL canonicalization — 301 redirects for duplicate SEO aliases.
+  // Must run BEFORE prerender middleware so bots hitting alias URLs get
+  // redirected to the canonical URL immediately (no stale prerender served).
+  {
+    const { installRedirects } = await import("./redirects");
+    installRedirects(app);
+  }
+
   // Prerender middleware — serve static HTML to bots for SEO
   // In production, prerendered files live in dist/prerendered/
   // In development, they may exist in dist/prerendered/ from a prior build

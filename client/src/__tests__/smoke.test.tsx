@@ -120,9 +120,11 @@ describe("Smoke Tests — Critical Page Renders", () => {
     expect(container.innerHTML.length).toBeGreaterThan(0);
   });
 
-  it("ServicePage renders without crashing", async () => {
-    const { default: ServicePage } = await import("../pages/ServicePage");
-    const { container } = render(React.createElement(ServicePage));
+  it("GenericServicePage renders without crashing", async () => {
+    // Replaces old ServicePage smoke (deleted 2026-04-24 in service-page
+    // consolidation). GenericServicePage is the new long-tail wrapper.
+    const { default: GenericServicePage } = await import("../pages/GenericServicePage");
+    const { container } = render(React.createElement(GenericServicePage));
     expect(container).toBeTruthy();
     expect(container.innerHTML.length).toBeGreaterThan(0);
   });
