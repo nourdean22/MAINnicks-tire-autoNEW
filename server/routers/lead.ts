@@ -27,29 +27,29 @@ const log = createLogger("routers:lead");
 export const leadRouter = router({
   submit: publicProcedure
     .input(
+      // NULLISH on UTM/tracking fields — same fix as callback.ts.
+      // Frontend sends null for missing UTM; `.optional()` alone rejected them.
       z.object({
         name: z.string().min(1).max(200),
         phone: z.string().min(7).max(20),
-        email: z.string().email().max(254).optional().or(z.literal("")),
-        vehicle: z.string().max(200).optional(),
-        problem: z.string().max(2000).optional(),
+        email: z.string().email().max(254).nullish().or(z.literal("")),
+        vehicle: z.string().max(200).nullish(),
+        problem: z.string().max(2000).nullish(),
         source: z.enum(["popup", "chat", "booking", "manual", "callback", "fleet", "financing_preapproval", "careers"]).default("popup"),
-        companyName: z.string().max(200).optional(),
-        fleetSize: z.number().optional(),
-        vehicleTypes: z.string().max(500).optional(),
-        // Meta Pixel event ID for server-side CAPI deduplication
-        pixelEventId: z.string().max(100).optional(),
+        companyName: z.string().max(200).nullish(),
+        fleetSize: z.number().nullish(),
+        vehicleTypes: z.string().max(500).nullish(),
+        pixelEventId: z.string().max(100).nullish(),
         pixelUserData: z.object({
           client_user_agent: z.string().max(500),
-          fbc: z.string().max(500).optional(),
-          fbp: z.string().max(500).optional(),
-        }).optional(),
-        // UTM source attribution
-        utmSource: z.string().max(100).optional(),
-        utmMedium: z.string().max(100).optional(),
-        utmCampaign: z.string().max(255).optional(),
-        landingPage: z.string().max(500).optional(),
-        referrer: z.string().max(500).optional(),
+          fbc: z.string().max(500).nullish(),
+          fbp: z.string().max(500).nullish(),
+        }).nullish(),
+        utmSource: z.string().max(100).nullish(),
+        utmMedium: z.string().max(100).nullish(),
+        utmCampaign: z.string().max(255).nullish(),
+        landingPage: z.string().max(500).nullish(),
+        referrer: z.string().max(500).nullish(),
       })
     )
     .mutation(async ({ input, ctx }) => {

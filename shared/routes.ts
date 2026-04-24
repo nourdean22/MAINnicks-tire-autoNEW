@@ -191,6 +191,19 @@ const SERVICE_PAGES: RouteEntry[] = [
     prerender: true,
   },
   {
+    // New SEO landing — GSC shows 3,333 imps/mo for "synthetic oil change"
+    // at position #64. No dedicated page before. Priority 0.9 to signal
+    // this is a high-intent service page.
+    path: "/synthetic-oil-change",
+    priority: 0.9,
+    changefreq: "monthly",
+    title: "Synthetic Oil Change Cleveland | From $69 | Same Day | Nick's Tire & Auto",
+    description: "Full synthetic oil change in Cleveland/Euclid from $69. Mobil 1, Pennzoil, Valvoline. 30-minute service, walk-ins 7 days. 10,000 mile intervals. (216) 862-0005",
+    group: "service",
+    sitemap: true,
+    prerender: true,
+  },
+  {
     path: "/tires/info",
     priority: 0.8,
     changefreq: "monthly",
