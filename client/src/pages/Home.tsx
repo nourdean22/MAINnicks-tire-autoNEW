@@ -23,6 +23,7 @@ import TrustBadges from "@/components/TrustBadges";
 import FastPaths from "@/components/FastPaths";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
+import BrandMark from "@/components/BrandMark";
 import ShopStatusWidget from "@/components/ShopStatusWidget";
 import UberDropoffWidget from "@/components/UberDropoffWidget";
 
@@ -66,14 +67,20 @@ function Hero() {
       <div className="relative container">
         <div className="max-w-[60%] max-lg:max-w-full">
           {/* Headline */}
-          {/* H1 copy 2026-04-24: pulled from the shop's brand tagline
-              ("Cleveland Tough" on the hangtag logo). Two words, massive
-              type, maximum impact. The earlier keyword-stuffed H1 was
-              word-salad and wrapped to 5 lines on mobile. This version
-              leans on visual authority; SEO keywords live in the subhead
-              (tire + auto shop) which still hits Google just as hard.
-              TODO: when logo file lands, swap H1 for the logo image.
-              Placeholder image slot below the H1 eyebrow is ready. */}
+          {/* Brand pendant above the H1 — inline SVG, no image file needed.
+              Hides on very small screens to leave room for the massive H1. */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.15, ease: "easeOut" }}
+            className="hidden sm:block mb-6"
+            aria-hidden="true"
+          >
+            <BrandMark variant="full" size={88} background="#0a1628" />
+          </motion.div>
+
+          {/* H1: 'CLEVELAND TOUGH.' — short, confident, matches the pendant
+              tagline. SEO keywords live in the subhead below. */}
           <motion.h1
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}

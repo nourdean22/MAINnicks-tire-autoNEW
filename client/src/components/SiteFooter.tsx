@@ -5,6 +5,7 @@ import { Link } from "wouter";
 import { Star } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { GBP_REVIEW_URL } from "@shared/const";
+import BrandMark from "@/components/BrandMark";
 
 const LINK_CLASS = "block text-[13px] text-foreground/60 hover:text-foreground/90 transition-colors duration-200";
 const HEADING_CLASS = "text-[11px] font-semibold uppercase tracking-[0.1em] text-foreground/70 mb-5";
@@ -40,9 +41,12 @@ export default function SiteFooter() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-10 lg:gap-8">
             {/* ─── COL 1: BRAND ─── */}
             <div className="col-span-2 md:col-span-1">
-              <span className="text-[#FDB913] font-bold text-[17px] tracking-[-0.02em]">
-                Nick's Tire & Auto
-              </span>
+              <div className="flex items-start gap-3 mb-2">
+                <BrandMark variant="full" size={64} />
+                <span className="text-[#FDB913] font-bold text-[17px] tracking-[-0.02em] pt-1">
+                  Nick&apos;s Tire &amp; Auto
+                </span>
+              </div>
               <p className="mt-3 text-foreground/60 text-[13px] leading-relaxed max-w-[240px]">
                 {BUSINESS.taglines.meme} Honest auto repair for Cleveland since 2018.
               </p>

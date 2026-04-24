@@ -9,6 +9,7 @@ import { Phone, Menu, X, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BUSINESS } from "@shared/business";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
+import BrandMark from "@/components/BrandMark";
 
 const NAV_LINKS = [
   { label: "Services", href: "/services" },
@@ -52,10 +53,11 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
       }`}
     >
       <div className="container flex items-center justify-between h-[60px]">
-        {/* ─── WORDMARK ─── */}
-        <Link href="/" className="flex items-center gap-2 group">
-          <span className="text-primary font-bold text-[17px] tracking-[-0.02em] group-hover:opacity-80 transition-opacity">
-            Nick's Tire & Auto
+        {/* ─── BRAND MARK + WORDMARK ─── */}
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <BrandMark variant="compact" size={36} className="shrink-0 group-hover:opacity-90 transition-opacity" />
+          <span className="text-primary font-bold text-[17px] tracking-[-0.02em] group-hover:opacity-80 transition-opacity hidden sm:inline">
+            Nick&apos;s Tire &amp; Auto
           </span>
         </Link>
 
