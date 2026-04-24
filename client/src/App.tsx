@@ -34,7 +34,10 @@ function PageLoader() {
 import Home from "./pages/Home";
 
 // All other pages load on demand
-const ServicePage = lazy(() => import("./pages/ServicePage"));
+// ServicePage (1,173 LOC generic template) deleted 2026-04-24 per
+// service-page consolidation. Long-tail services now use GenericServicePage
+// which reads shared/services.ts and renders via FocusedServicePage.
+const GenericServicePage = lazy(() => import("./pages/GenericServicePage"));
 const Admin = lazy(() => import("./pages/Admin"));
 const AdminContent = lazy(() => import("./pages/AdminContent"));
 const Blog = lazy(() => import("./pages/Blog"));
@@ -44,7 +47,8 @@ const About = lazy(() => import("./pages/About"));
 const CityPage = lazy(() => import("./pages/CityPage"));
 const FAQ = lazy(() => import("./pages/FAQ"));
 const SeasonalPage = lazy(() => import("./pages/SeasonalPage"));
-const SEOServicePage = lazy(() => import("./pages/SEOServicePage"));
+// SEOServicePage deleted 2026-04-24 — /*-cleveland alias URLs now
+// 301-redirect server-side to canonical service URLs. See redirects.ts.
 // VehicleMakePage removed 2026-04-24 per T5 audit
 const ProblemPage = lazy(() => import("./pages/ProblemPage"));
 const ReviewsPage = lazy(() => import("./pages/ReviewsPage"));
@@ -121,24 +125,24 @@ function Router() {
             <Route path={"/services"} component={ServicesOverview} />
             {/* Individual service pages for SEO */}
             <Route path={"/tires"} component={TireFinder} />
-            {/* NEW focused pages (2026-04-24 audit) — override generic
-                ServicePage with tighter, price-anchored, FAQ-schema variants */}
+            {/* High-traffic / bespoke pages (hand-written copy + config) */}
             <Route path={"/brakes"} component={BrakeRepairPage} />
             <Route path={"/diagnostics"} component={DiagnosticsPage} />
             <Route path={"/tire-shop-near-me"} component={TireShopNearMePage} />
             <Route path={"/auto-repair-near-me"} component={AutoRepairNearMePage} />
-            <Route path={"/emissions"} component={ServicePage} />
-            <Route path={"/oil-change"} component={ServicePage} />
             <Route path={"/general-repair"} component={AutoRepairNearMePage} />
-            <Route path={"/ac-repair"} component={ServicePage} />
-            <Route path={"/transmission"} component={ServicePage} />
-            <Route path={"/electrical"} component={ServicePage} />
-            <Route path={"/battery"} component={ServicePage} />
-            <Route path={"/exhaust"} component={ServicePage} />
-            <Route path={"/cooling"} component={ServicePage} />
-            <Route path={"/pre-purchase-inspection"} component={ServicePage} />
-            <Route path={"/belts-hoses"} component={ServicePage} />
-            <Route path={"/starter-alternator"} component={ServicePage} />
+            {/* Long-tail services — GenericServicePage reads shared/services.ts */}
+            <Route path={"/oil-change"} component={GenericServicePage} />
+            <Route path={"/emissions"} component={GenericServicePage} />
+            <Route path={"/ac-repair"} component={GenericServicePage} />
+            <Route path={"/transmission"} component={GenericServicePage} />
+            <Route path={"/electrical"} component={GenericServicePage} />
+            <Route path={"/battery"} component={GenericServicePage} />
+            <Route path={"/exhaust"} component={GenericServicePage} />
+            <Route path={"/cooling"} component={GenericServicePage} />
+            <Route path={"/pre-purchase-inspection"} component={GenericServicePage} />
+            <Route path={"/belts-hoses"} component={GenericServicePage} />
+            <Route path={"/starter-alternator"} component={GenericServicePage} />
             <Route path={"/alignment"} component={AlignmentPage} />
             <Route path={"/synthetic-oil-change"} component={SyntheticOilChangePage} />
             {/* Booking / Appointment */}
@@ -189,22 +193,11 @@ function Router() {
               path={"/summer-car-care-cleveland"}
               component={SeasonalPage}
             />
-            {/* Dedicated SEO service pages (long-tail keywords) */}
-            <Route
-              path={"/brake-repair-cleveland"}
-              component={SEOServicePage}
-            />
-            <Route
-              path={"/check-engine-light-cleveland"}
-              component={SEOServicePage}
-            />
-            <Route path={"/tire-repair-cleveland"} component={SEOServicePage} />
-            <Route
-              path={"/suspension-repair-cleveland"}
-              component={SEOServicePage}
-            />
-            <Route path={"/ac-repair-cleveland"} component={SEOServicePage} />
-            <Route path={"/diagnostics-cleveland"} component={SEOServicePage} />
+            {/* /*-cleveland SEO aliases now 301-redirect server-side to
+                canonical URLs. See server/_core/redirects.ts for the full
+                list. Previously each rendered a slight variant of the
+                service page, splitting Google rank juice. Consolidation
+                now means /brakes etc. get the full rank signal. */}
             {/* Vehicle make pages removed 2026-04-24 per T5 audit */}
             {/* Problem-specific pages */}
             <Route
@@ -262,7 +255,7 @@ function Router() {
             {/* Customer Portal */}
             <Route path={"/portal"} component={CustomerPortal} />
             {/* Tire Info (service page) */}
-            <Route path={"/tires/info"} component={ServicePage} />
+            <Route path={"/tires/info"} component={GenericServicePage} />
             {/* Tire size pages (30 pages — programmatic SEO) */}
             <Route path={"/tires/:size"} component={TireSizePage} />
             {/* FAQ page */}
