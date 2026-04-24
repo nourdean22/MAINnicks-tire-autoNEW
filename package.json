@@ -12,6 +12,8 @@
     "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "build:prerender": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && node scripts/prerender.mjs",
     "prerender": "node scripts/prerender.mjs",
+    "regen": "node scripts/regen-prerender.mjs",
+    "audit:prerender": "node scripts/audit-prerender.mjs",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
