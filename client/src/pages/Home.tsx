@@ -617,8 +617,8 @@ function TriageGrid() {
             tone="danger"
             icon={<Disc className="w-5 h-5" />}
             symptom="Grinding or squealing brakes?"
-            consequence="Worn pads eat rotors at $3.50 per stop. Wait too long, the rotor needs replacing — turning $149 into $329+."
-            relief="Same-day fix from $149/axle. Free inspection — we measure before we touch anything."
+            consequence="Worn pads eat rotors with every stop. Wait too long, a pads-only job becomes pads + rotors + caliper — multiplying the bill."
+            relief="Free brake inspection. Written estimate before we touch anything."
             ctaLabel="STOP THE DAMAGE"
             ctaHref="/brakes"
           />
@@ -626,8 +626,8 @@ function TriageGrid() {
             tone="warning"
             icon={<Activity className="w-5 h-5" />}
             symptom="Check engine light on?"
-            consequence="$200 oxygen sensor today becomes a $4,000 catalytic converter in 30 days. Damage compounds every mile."
-            relief="Free 5-minute code scan. Full diagnostic $95 — credited toward the repair."
+            consequence="A $200 oxygen sensor untreated typically becomes a $4,000 catalytic converter in 30 days. Damage compounds every mile."
+            relief="Free 5-minute code scan. Deeper diagnostic gets a written estimate before any work."
             ctaLabel="DIAGNOSE NOW"
             ctaHref="/diagnostics"
           />
@@ -636,7 +636,7 @@ function TriageGrid() {
             icon={<Wrench className="w-5 h-5" />}
             symptom="Tires bald, low, or vibrating?"
             consequence="Stopping distance doubles in rain. Cleveland potholes shred unmatched treads in weeks."
-            relief="Used tires from $60 installed in 20 minutes — stay in your car. New from $89."
+            relief="New & used tires installed with free mount, balance, and alignment check. Walk in or call for a live quote on your size."
             ctaLabel="GET TIRES TODAY"
             ctaHref="/tires"
           />
@@ -644,8 +644,8 @@ function TriageGrid() {
             tone="warning"
             icon={<Zap className="w-5 h-5" />}
             symptom="AC weak or not cold?"
-            consequence="Once it stops working, repairs run $400-$1,500. A $40 recharge today might be all you need."
-            relief="Free AC inspection. Same-day diagnostics + recharge if that's all it needs."
+            consequence="Once it stops working, repairs typically run $400-$1,500 industry-wide. Catching it early often means a simple recharge."
+            relief="Free AC inspection. Written estimate before any work."
             ctaLabel="FIX AC NOW"
             ctaHref="/ac-repair"
           />
@@ -663,7 +663,7 @@ function TriageGrid() {
             icon={<Wrench className="w-5 h-5" />}
             symptom="Just need the basics?"
             consequence="Routine oil + filter prevents engine sludge that destroys engines after 60K miles."
-            relief="Conventional from $39 · Synthetic from $69. Multi-point inspection included. Walk-ins welcome."
+            relief="Free 27-point inspection on every oil change. Walk-ins welcome 7 days."
             ctaLabel="BOOK MAINTENANCE"
             ctaHref="/oil-change"
           />
@@ -705,9 +705,9 @@ function PriceCompareSection() {
               rows={[
                 { label: "Cleveland-area dealer", price: "$800" },
                 { label: "National chain shop", price: "$600" },
-                { label: "Nick's", price: "$149", ours: true },
+                { label: "Nick's", price: "Free estimate", ours: true },
               ]}
-              source="Avg quote, Cleveland metro 2026."
+              source="Avg quote, Cleveland metro 2026. Your exact number comes from a free written estimate after we look at the car."
             />
           </FadeIn>
           <FadeIn delay={0.1}>
@@ -716,9 +716,9 @@ function PriceCompareSection() {
               rows={[
                 { label: "Dealer", price: "$110" },
                 { label: "Chain shop", price: "$89" },
-                { label: "Nick's", price: "$69", ours: true },
+                { label: "Nick's", price: "Free quote", ours: true },
               ]}
-              source="Includes filter + multi-point inspection."
+              source="Free 27-point inspection included on every oil change. Call or walk in for your live quote."
             />
           </FadeIn>
           <FadeIn delay={0.15}>
@@ -729,7 +729,7 @@ function PriceCompareSection() {
                 { label: "Chain shop", price: "$120" },
                 { label: "Nick's", price: "Free*", ours: true },
               ]}
-              source="*Free 5-min scan; $95 full diagnostic credited toward repair."
+              source="*Free 5-min scan. Anything beyond that gets a written estimate before we start, credited toward repair if you have us fix it."
             />
           </FadeIn>
         </div>
@@ -847,8 +847,8 @@ export default function Home() {
   return (
     <PageLayout activeHref="/" showChat={true}>
       <SEOHead
-        title="Mechanic Near Me | Auto Repair Cleveland OH | Nick's Tire & Auto"
-        description="Looking for a mechanic near me or auto repair near me in Cleveland? 4.9 stars, 1700+ reviews. Brakes, tires, diagnostics, oil changes. Walk-ins 7 days. (216) 862-0005"
+        title="Tire Shop & Auto Repair Cleveland · Walk-Ins 7 Days | Nick's"
+        description="Cleveland's top tire shop + auto repair. New & used tires with free install. Brakes, diagnostics, oil. Free estimates. 4.9★ from 1,700+ reviews. Walk-ins 7 days. (216) 862-0005"
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />

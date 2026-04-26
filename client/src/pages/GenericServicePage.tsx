@@ -31,20 +31,25 @@ import { getConversionDataForSlug } from "@/data/serviceConversionData";
 
 // ─── SERVICE DATA → PAGE CONFIG ADAPTER ─────────────────────
 function serviceDataToConfig(service: ServiceData): ServicePageConfig {
-  // Pricing tiers — fall back to a single "Starting from" card when the
-  // service has no tiers (most long-tail services).
+  // Pricing tiers — Nick's policy (2026-04-26): we close in person, not on
+  // the website. Show the tier structure (3-tier visual hierarchy stays for
+  // conversion architecture), but every tier reads "Free estimate" so the
+  // visitor calls / walks in instead of self-closing on a public number.
   const tiers: ServicePricingTier[] = (service.pricingTiers && service.pricingTiers.length > 0)
     ? service.pricingTiers.map((t, i) => ({
         name: t.label,
-        price: t.range.startsWith("$") ? t.range.split("–")[0].split("-")[0].trim() : `$${t.range.replace(/[^0-9.]/g, "").split(".")[0]}`,
-        sub: t.range.includes("–") || t.range.includes("-") ? t.range : undefined,
+        price: "Free estimate",
+        // sub is intentionally not set to t.range — that field carried explicit
+        // dollar ranges ("$60–$120") which we no longer expose. Tier `name`
+        // and `use` carry enough context.
+        sub: undefined,
         use: i === 0 ? "Standard service for most vehicles" : i === 1 ? "Recommended for most customers" : "Extensive service when needed",
         featured: i === 1, // middle tier featured
       }))
     : [
         {
           name: service.title,
-          price: service.startingPrice || service.priceRange || "Call for quote",
+          price: "Free estimate",
           sub: service.duration ? `Typically ${service.duration}` : undefined,
           use: service.shortDesc || "Professional service at Nick's Tire & Auto",
           featured: true,
@@ -69,9 +74,13 @@ function serviceDataToConfig(service: ServiceData): ServicePageConfig {
     eyebrow: service.title,
     h1: service.heroHeadline.replace(/\n/g, " "),
     sub: service.heroSubline,
-    startingPrice: service.startingPrice || service.priceRange,
-    pricingTitle: `${service.title.toUpperCase()} PRICING`,
-    pricingSub: service.pricingNote || "Up-front pricing. No surprise add-ons.",
+    // 2026-04-26 close-in-person policy: hero startingPrice no longer
+    // surfaces explicit dollar amounts. Hero shows "Free estimate" badge
+    // instead — the tier section + free written estimate carries the
+    // commitment without exposing a self-close price.
+    startingPrice: "Free estimate",
+    pricingTitle: `${service.title.toUpperCase()} — FREE ESTIMATE`,
+    pricingSub: "Free written estimate before any work. We show you what's needed before you commit.",
     tiers,
     includedTitle: "WHAT'S INCLUDED",
     includedSub: service.whyChooseUs || `Every ${service.title.toLowerCase()} at Nick's comes with this — no games.`,

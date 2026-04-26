@@ -768,8 +768,8 @@ export default function TireFinder() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title="Buy Tires Online Cleveland | Free Install | Nick's Tire"
-        description="Order tires online with free installation ($289 value). New and used tires for every budget. Walk-ins 7 days. Financing from $10 down. (216) 862-0005"
+        title="Tire Shop Near Me · New & Used · Free Install | Cleveland | Nick's"
+        description="Cleveland's tire shop — new & used tires installed with free mount, balance, valve stem, and disposal. Walk-ins 7 days. Flat repair available. Free quote on your size. (216) 862-0005"
         canonicalPath="/tires"
       />
       <LocalBusinessSchema includeServices />
