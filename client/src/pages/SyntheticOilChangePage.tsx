@@ -225,7 +225,7 @@ function BookingSection() {
       <div className="container max-w-4xl">
         <FadeIn>
           <h2 className="font-bold text-3xl text-foreground tracking-tight">BOOK YOUR OIL CHANGE</h2>
-          <p className="text-foreground/60 mt-2">Fill out below, we&apos;ll confirm by text. Or walk in — 530 E 185th St, Euclid OH.</p>
+          <p className="text-foreground/60 mt-2">Fill out below, we&apos;ll confirm by text. Or walk in — 17625 Euclid Ave, Cleveland OH.</p>
         </FadeIn>
         <FadeIn delay={0.1}>
           <div className="mt-6 bg-card border border-border/30 rounded-lg p-6">
