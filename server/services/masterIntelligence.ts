@@ -174,49 +174,141 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
   const portfolioLTV  = settled(r[27]) as EngineResult;
 
   // ── Compute Business Health Score (0-100) ──────────────
-  // Weighted composite: revenue pacing (30%), churn (20%), reviews (15%), customer growth (15%), margins (20%)
+  //
+  // Weighted composite of MANY business signals. Each component contributes
+  // a small ± weight; the sum (clamped to 0-100) is the score. Adding more
+  // components increases sophistication without changing the simple
+  // single-number contract that dashboards consume.
+  //
+  // Total maximum upside: +50 / Total maximum downside: -50
+  // Realistic range: 30-95 for an actively running shop.
 
   let score = 50; // baseline
 
-  // Revenue pacing component (30 pts)
+  // ═══ CORE COMPONENTS (original 5, weights tuned down to fit new ones) ═══
+
+  // 1. Revenue pacing (±12) — vs DYNAMIC trailing-average target.
+  //    Old code compared to a fixed $20K monthly goal that quickly went
+  //    stale. Now: pace vs. trailing 90-day daily average × 1.1 (10%
+  //    growth target). This auto-scales as the business grows.
   if (pacing) {
-    const monthTarget = BUSINESS.revenueTarget.monthly;
-    const dayOfMonth = new Date().getDate();
-    const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-    const expectedPace = (dayOfMonth / daysInMonth) * monthTarget;
     const monthObj = pacing.month as Record<string, unknown> | undefined;
     const monthSoFar = typeof monthObj?.soFar === "number" ? monthObj.soFar : 0;
+    const dayOfMonth = new Date().getDate();
+    // Use trailing 90-day average daily revenue × days-elapsed × 1.1 growth target
+    const trailingDaily = num(pacing, "trailing90DayAvgDaily") || (monthSoFar / Math.max(1, dayOfMonth)); // fallback
+    const expectedPace = trailingDaily * dayOfMonth * 1.1;
     const pacePct = expectedPace > 0 ? monthSoFar / expectedPace : 1;
-    // 100% pace = 30pts, 80% = 24pts, 120% = 36pts (capped at 30)
-    score += clamp(Math.round(pacePct * 30) - 30, -15, 15);
+    score += clamp(Math.round(pacePct * 24) - 24, -12, 12);
   }
 
-  // Churn risk component (20 pts) — fewer high-risk = better
+  // 2. Churn risk (±8) — fewer high-risk customers = healthier
   if (churnRisk) {
     const highRiskCount = arr(churnRisk, "highRisk").length;
-    // 0 high-risk = +10, 5+ = -10
-    score += clamp(10 - highRiskCount * 2, -10, 10);
+    score += clamp(8 - highRiskCount * 2, -8, 8);
   }
 
-  // Review velocity component (15 pts) — velocity is % change month-over-month
+  // 3. Review velocity (±10) — growing reviews = future customer flow
   if (reviewVel) {
     const velocity = num(reviewVel, "velocity");
-    // Positive velocity = growing reviews = good; negative = losing momentum
-    score += velocity > 0 ? 15 : velocity > -10 ? 10 : 5;
+    score += velocity > 5 ? 10 : velocity > 0 ? 7 : velocity > -10 ? 3 : -5;
   }
 
-  // Customer growth component (15 pts)
+  // 4. Customer growth (±6) — new customers/month
   if (custVelocity) {
     const monthlyNew = num(custVelocity, "thisMonth", "newThisMonth");
-    // 10+ new customers/month = +8, 0 = -5
-    score += clamp(Math.round(monthlyNew * 0.8) - 5, -8, 8);
+    score += clamp(Math.round(monthlyNew * 0.6) - 4, -6, 6);
   }
 
-  // Margin health component (20 pts)
+  // 5. Margin health (±8)
   if (margins) {
     const avgMargin = num(margins, "averageMargin", "overallMargin") || 50;
-    // 50%+ margin = +10, 30% = 0, <20% = -10
-    score += clamp(Math.round((avgMargin - 30) * 0.5), -10, 10);
+    score += clamp(Math.round((avgMargin - 30) * 0.4), -8, 8);
+  }
+
+  // ═══ NEW: ADVANCED SIGNALS (8 more components) ═══
+
+  // 6. Revenue anomalies (±4) — unexplained dips/spikes hurt confidence.
+  //    A dip is worse than a spike (spikes might be one-off big jobs).
+  if (anomalies) {
+    const list = arr(anomalies, "anomalies");
+    const dips = list.filter((a: any) => a?.type === "dip").length;
+    const spikes = list.filter((a: any) => a?.type === "spike").length;
+    // Each dip -1 (capped), each spike +0.5 (rare positive surprise)
+    score += clamp(spikes * 0.5 - dips * 1.5, -4, 2);
+  }
+
+  // 7. Cash flow direction (±5) — projected 30d > 7d × 4 means accelerating.
+  //    Healthy AR: outstanding < 10% of monthly revenue.
+  if (cashFlow) {
+    const next7 = num(cashFlow, "next7days", "projectedCash");
+    const next30 = num(cashFlow, "next30days", "projectedCash");
+    const outstandingAR = num(cashFlow, "outstandingAR");
+    const monthSoFar = num(pacing as any, "month", "soFar") || 1;
+    // Accelerating: 30d > 7d × 4.5 = +3, decelerating: < 3 = -3
+    if (next7 > 0 && next30 > 0) {
+      const ratio = next30 / next7;
+      score += clamp(Math.round((ratio - 4) * 1.5), -3, 3);
+    }
+    // AR drag: > 15% of MTD = -2
+    if (monthSoFar > 0 && outstandingAR / monthSoFar > 0.15) score -= 2;
+  }
+
+  // 8. Bay utilization (±5) — operational efficiency.
+  //    50-80% = healthy. <30% = underused (overhead drag), >90% = bottleneck.
+  //    Skip penalty when data missing (utilization === 0 usually means
+  //    bay-tracking isn't wired up yet, NOT that bays are idle).
+  if (bayUtil) {
+    const utilization = num(bayUtil, "utilizationPct", "averageUtilization");
+    if (utilization === 0) {
+      // No data — neutral, don't penalize.
+    } else if (utilization >= 50 && utilization <= 80) score += 5;
+    else if (utilization >= 30 && utilization < 50) score += 1;
+    else if (utilization > 80 && utilization <= 95) score += 2; // busy but coping
+    else score -= 3; // way under or way over
+  }
+
+  // 9. Lead response time (±4) — fast response = higher conversion.
+  //    Industry: <5min = 100x conversion vs. 30+ min.
+  //    Skip when no leads sampled (avgMin = 0 → data missing).
+  if (leadResp) {
+    const avgMin = num(leadResp, "avgResponseMinutes", "averageResponseMinutes");
+    if (avgMin > 0 && avgMin < 5) score += 4;
+    else if (avgMin > 0 && avgMin < 15) score += 2;
+    else if (avgMin > 0 && avgMin < 60) score += 0;
+    else if (avgMin >= 60 && avgMin < 240) score -= 2;
+    else if (avgMin >= 240) score -= 4;
+    // avgMin === 0: no data, skip
+  }
+
+  // 10. Average ticket trend (±4) — growing ticket = healthier mix
+  if (ticketTrend) {
+    const pctChange = num(ticketTrend, "percentChange");
+    // +10% growth = +3, +20% = +4 (capped), -10% = -3
+    score += clamp(Math.round(pctChange * 0.2), -4, 4);
+  }
+
+  // 11. Revenue concentration (±3) — too few customers driving revenue = risky
+  if (concentration) {
+    const top10Pct = num(concentration, "top10PercentRevenue", "concentrationRatio");
+    // Healthy: top 10% of customers drive 30-50% of revenue
+    if (top10Pct > 70) score -= 3;       // dangerous concentration
+    else if (top10Pct > 60) score -= 1;
+    else if (top10Pct >= 30 && top10Pct <= 50) score += 2;
+  }
+
+  // 12. Chat funnel conversion (±3) — site chat → booking rate
+  if (chatFunnel) {
+    const conversionPct = num(chatFunnel, "conversionRate", "chatToBookingRate");
+    if (conversionPct > 30) score += 3;
+    else if (conversionPct > 15) score += 1;
+    else if (conversionPct < 5 && num(chatFunnel, "totalSessions") > 5) score -= 2;
+  }
+
+  // 13. Customer value trend (±3) — are customers spending MORE over time?
+  if (valueTrend) {
+    const trend = num(valueTrend, "trendPct", "growthPct");
+    score += clamp(Math.round(trend * 0.15), -3, 3);
   }
 
   score = clamp(Math.round(score), 0, 100);

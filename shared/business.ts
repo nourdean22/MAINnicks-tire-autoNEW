@@ -159,9 +159,14 @@ export const BUSINESS = {
   },
 
   // ─── REVENUE TARGETS ────────────────────────────────
+  // Bumped from old $20k floor (set when shop was younger). Now a soft
+  // floor — the real "target" used in scoring is computed dynamically from
+  // the trailing 90-day average × 1.1 in masterIntelligence.ts. This static
+  // number is just a fallback used by older code paths and the progress-bar
+  // visual; it's no longer the single goal.
   revenueTarget: {
-    monthly: 20_000,
-    display: "$20,000",
+    monthly: 100_000,
+    display: "Run-rate",
   },
 
   // ─── SEO ─────────────────────────────────────────
