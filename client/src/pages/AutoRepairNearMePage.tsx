@@ -19,7 +19,7 @@ const CONFIG: ServicePageConfig = {
   description: "Local auto repair shop in Cleveland/Euclid. Honest mechanics, 4.9★ on 1,700+ reviews, walk-ins 7 days. Brakes, tires, diagnostics, general repair. Free estimates. (216) 862-0005",
   eyebrow: "LOCAL AUTO REPAIR",
   h1: "AUTO REPAIR NEAR YOU — CLEVELAND",
-  sub: "Looking for a mechanic near me in Cleveland? Nick's Tire & Auto at 17625 Euclid Ave, Cleveland is your neighborhood auto repair shop. Brakes, tires, diagnostics, engine, suspension, exhaust — we fix it. 4.9 stars from 1,700+ Google reviews, walk-ins 7 days a week.",
+  sub: "Looking for a mechanic near me in Cleveland? Nick's Tire & Auto at 530 E 185th St, Euclid is your neighborhood auto repair shop. Brakes, tires, diagnostics, engine, suspension, exhaust — we fix it. 4.9 stars from 1,700+ Google reviews, walk-ins 7 days a week.",
   startingPrice: "Free estimates",
   pricingTitle: "COMMON REPAIR PRICING",
   pricingSub: "Labor rates comparable to local shops, lower than dealerships. Parts at fair markup — no games.",
@@ -53,7 +53,7 @@ const CONFIG: ServicePageConfig = {
   bookingService: "general-repair",
   serviceType: "Auto Repair",
   ctaHeadline: "BOOK A REPAIR OR GET AN ESTIMATE",
-  ctaSub: "Walk in 7 days, or fill out below — we'll confirm by text. 17625 Euclid Ave, Cleveland OH.",
+  ctaSub: "Walk in 7 days, or fill out below — we'll confirm by text. 530 E 185th St, Euclid OH.",
 };
 
 export default function AutoRepairNearMePage() {
