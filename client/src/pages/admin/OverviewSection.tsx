@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Link } from "wouter";
 import {
   StatCard, ActivityIcon, StatusDot, CHART_COLORS, CHART_THEME, BOOKING_STATUS_CONFIG,
-  PageHeader, LoadingState,
+  PageHeader, LoadingState, navigateToAdminSection,
   type BookingStatus,
 } from "./shared";
 import {
@@ -615,6 +615,10 @@ export default function OverviewSection() {
     <div className="space-y-6">
       {/* ─── TOP ROW: 6 COMMAND STAT CARDS ─── */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        {/* Each card has an `href` so the whole card surface is a clickable
+            link to the detail view. `?tab=` deep-links match Admin.tsx's
+            TAB_ALIASES + valid AdminSection names. Settings sub-tabs use
+            `&settingsTab=...` (see SettingsSection.tsx). */}
         <StatCard
           label="Cars in Shop"
           value={carsInShop}
@@ -622,6 +626,7 @@ export default function OverviewSection() {
           color={carsInShop > 0 ? "text-primary" : "text-muted-foreground"}
           trend={carsInShop > 5 ? "up" : "neutral"}
           trendLabel={shopLoad ? `~${Math.round(shopLoad.estimatedWait / 60)}h wait` : undefined}
+          targetSection="customers"
         />
         <StatCard
           label="Today's Revenue"
@@ -630,6 +635,7 @@ export default function OverviewSection() {
           color="text-emerald-400"
           trend={todayRevenue > 0 ? "up" : "neutral"}
           trendLabel={weekRevenue > 0 ? `$${Math.round(weekRevenue).toLocaleString()} this week` : "no invoices yet this week"}
+          targetSection="revenue"
         />
         <StatCard
           label="Jobs Closed Today"
@@ -638,6 +644,7 @@ export default function OverviewSection() {
           color={jobsClosed > 0 ? "text-emerald-400" : "text-muted-foreground"}
           trend={jobsClosed > 0 ? "up" : "neutral"}
           trendLabel={`${weekInvoiceCount} this week`}
+          targetSection="customers"
         />
         <StatCard
           label="Website Leads"
@@ -646,6 +653,7 @@ export default function OverviewSection() {
           color="text-blue-400"
           trend={urgentLeads > 0 ? "up" : "neutral"}
           trendLabel={urgentLeads > 0 ? `${urgentLeads} urgent` : `${stats.leads.thisWeek} this week`}
+          targetSection="leads"
         />
         <StatCard
           label="Health Score"
@@ -664,6 +672,8 @@ export default function OverviewSection() {
             healthScore === null ? "Loading..." :
             healthScore >= 70 ? "Healthy" : healthScore >= 40 ? "Needs work" : "Critical"
           }
+          targetSection="settings"
+          settingsTab="health"
         />
         <StatCard
           label="ALG Status"
@@ -675,6 +685,8 @@ export default function OverviewSection() {
           }
           trend={algConnected ? "up" : algConnected === false ? "down" : "neutral"}
           trendLabel={algStatus?.usingFallback ? "Using fallback" : algStatus?.totalLookups ? `${algStatus.totalLookups} lookups` : undefined}
+          targetSection="settings"
+          settingsTab="integrations"
         />
       </div>
 
@@ -704,9 +716,16 @@ export default function OverviewSection() {
       {/* ─── WHAT TO DO NOW — Server-Driven Priority Queue ─── */}
       <NextBestActions />
 
-      {/* ─── NICK AI LIVE PULSE ─── */}
+      {/* ─── NICK AI LIVE PULSE ─── (clickable → revenue intelligence) */}
       {shopPulse && (
-        <div className="bg-card border border-border/30 rounded-lg p-4">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => navigateToAdminSection("revenue")}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigateToAdminSection("revenue"); }}
+          className="bg-card border border-border/30 rounded-lg p-4 cursor-pointer hover:ring-1 hover:ring-primary/40 transition-shadow"
+          aria-label="Open revenue dashboard"
+        >
           <div className="flex items-center gap-3 mb-3">
             <Sparkles className="w-4 h-4 text-primary" />
             <span className="text-[10px] font-bold tracking-wider text-muted-foreground">NICK AI LIVE PULSE</span>
@@ -762,7 +781,14 @@ export default function OverviewSection() {
         computed from the invoices table which IS the ALG mirror).
       */}
       {algFloor && (
-        <div className="bg-card border border-emerald-500/20 rounded-lg p-4">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => navigateToAdminSection("settings", { settingsTab: "shopdriver" })}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigateToAdminSection("settings", { settingsTab: "shopdriver" }); }}
+          className="bg-card border border-emerald-500/20 rounded-lg p-4 cursor-pointer hover:ring-1 hover:ring-emerald-500/40 transition-shadow"
+          aria-label="Open ShopDriver / ALG settings"
+        >
           <div className="flex items-center gap-3 mb-3">
             <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
             <span className="text-[10px] font-bold tracking-wider text-muted-foreground">AUTO LABOR GUIDE — SHOP FLOOR</span>
@@ -802,9 +828,16 @@ export default function OverviewSection() {
         </div>
       )}
 
-      {/* ─── WORK ORDERS — Revenue in Motion ─── */}
+      {/* ─── WORK ORDERS — Revenue in Motion (click → customers) ─── */}
       {workOrderStats && (workOrderStats.active > 0 || workOrderStats.readyForPickup > 0) && (
-        <div className="bg-card border border-primary/20 rounded-lg p-4">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => navigateToAdminSection("customers")}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigateToAdminSection("customers"); }}
+          className="bg-card border border-primary/20 rounded-lg p-4 cursor-pointer hover:ring-1 hover:ring-primary/40 transition-shadow"
+          aria-label="Open customers / work orders"
+        >
           <div className="flex items-center gap-3 mb-3">
             <Wrench className="w-4 h-4 text-primary" />
             <span className="text-[10px] font-bold tracking-wider text-muted-foreground">WORK ORDERS — REVENUE IN MOTION</span>
@@ -854,16 +887,19 @@ export default function OverviewSection() {
           color={priorityQueue.length > 0 ? "text-red-400" : "text-emerald-400"}
           trend={priorityQueue.length > 0 ? "up" : "neutral"}
           trendLabel={priorityQueue.length > 0 ? "Needs attention" : "All clear"}
+          targetSection="commandCenter"
         />
         <StatCard
           label="Today's Bookings" value={todaysBookings.length}
           icon={<CalendarClock className="w-4 h-4" />} color="text-foreground"
           trend={todaysBookings.length > 0 ? "up" : "neutral"}
           trendLabel={`${stats.bookings.thisWeek} this week`}
+          targetSection="commandCenter"
         />
         <StatCard
           label="Chat Sessions" value={stats.chat.totalSessions}
           icon={<MessageSquare className="w-4 h-4" />} color="text-purple-400"
+          targetSection="commandCenter"
         />
         <StatCard
           label="Callbacks Pending" value={stats.callbacks?.new ?? 0}
@@ -871,10 +907,12 @@ export default function OverviewSection() {
           color={(stats.callbacks?.new ?? 0) > 0 ? "text-amber-400" : "text-muted-foreground"}
           trend={(stats.callbacks?.new ?? 0) > 0 ? "up" : "neutral"}
           trendLabel={`${stats.callbacks?.total ?? 0} total`}
+          targetSection="callTrackingView"
         />
         <StatCard
           label="Calls from Site" value={stats.callTracking?.totalCalls ?? 0}
           icon={<Phone className="w-4 h-4" />} color="text-cyan-400"
+          targetSection="callTrackingView"
         />
       </div>
 
@@ -899,9 +937,16 @@ export default function OverviewSection() {
         </div>
       )}
 
-      {/* ─── MASTER INTELLIGENCE SUMMARY ─── */}
+      {/* ─── MASTER INTELLIGENCE SUMMARY (click → intelligence engines) ─── */}
       {masterReport?.summary && (
-        <div className="bg-card border border-violet-500/20 rounded-lg p-4">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => navigateToAdminSection("intelligence")}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigateToAdminSection("intelligence"); }}
+          className="bg-card border border-violet-500/20 rounded-lg p-4 cursor-pointer hover:ring-1 hover:ring-violet-500/40 transition-shadow"
+          aria-label="Open intelligence dashboard"
+        >
           <div className="flex items-center gap-3 mb-3">
             <Brain className="w-4 h-4 text-violet-400" />
             <span className="text-[10px] font-bold tracking-wider text-muted-foreground">INTELLIGENCE SUMMARY</span>
@@ -945,9 +990,16 @@ export default function OverviewSection() {
         </div>
       )}
 
-      {/* ─── CUSTOMER INTELLIGENCE ─── */}
+      {/* ─── CUSTOMER INTELLIGENCE (click → customers) ─── */}
       {custIntel && (
-        <div className="stat-card !p-4">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => navigateToAdminSection("customers")}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigateToAdminSection("customers"); }}
+          className="stat-card !p-4 cursor-pointer hover:ring-1 hover:ring-primary/40 transition-shadow"
+          aria-label="Open customers"
+        >
           <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase flex items-center gap-2 mb-3">
             <Users className="w-3.5 h-3.5 text-blue-400" /> Customer Intelligence
           </h3>
