@@ -355,12 +355,9 @@ export default function AlignmentPage() {
     ],
   };
 
-  // Service schema — gives Google explicit signals that this page IS the
-  // wheel-alignment service offering. Note: `aggregateRating` was removed
-  // because schema.org Service does NOT support it as a direct property
-  // (it belongs on LocalBusiness/Product). LocalBusinessSchema component
-  // already emits the AggregateRating on the AutoRepair node, so Google
-  // gets the rating signal from there.
+  // Service schema with offer + aggregate rating — gives Google explicit
+  // signals that this page IS the wheel-alignment service offering, with
+  // pricing context and review trust.
   const serviceSchema = {
     "@context": "https://schema.org",
     "@type": "Service",
@@ -379,6 +376,11 @@ export default function AlignmentPage() {
     },
     areaServed: { "@type": "City", name: "Cleveland" },
     description: "Computerized wheel alignment service. Fix pulling, uneven tire wear, and crooked steering. Same-day service, walk-ins welcome 7 days a week.",
+    aggregateRating: {
+      "@type": "AggregateRating",
+      ratingValue: String(BUSINESS.reviews.rating),
+      reviewCount: String(BUSINESS.reviews.count),
+    },
   };
 
   return (
