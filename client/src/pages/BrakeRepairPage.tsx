@@ -7,6 +7,7 @@
  */
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
+import { Disc, Activity, Wrench } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/brakes",
@@ -48,6 +49,78 @@ const CONFIG: ServicePageConfig = {
   serviceType: "Brake Repair",
   ctaHeadline: "BOOK YOUR BRAKE SERVICE",
   ctaSub: "Free inspection, up-front pricing, same-day service. Call or walk in — 17625 Euclid Ave, Cleveland OH.",
+
+  // ─── CONVERSION ARCHITECTURE ──────────────────────────
+  anchorTable: {
+    serviceName: "Brake repair, per axle — Cleveland market quotes",
+    rows: [
+      { label: "Cleveland-area dealer (avg quote)", price: "$800" },
+      { label: "National chain (Firestone / Midas tier)", price: "$600" },
+      { label: "Nick's Tire & Auto", price: "$149", ours: true },
+    ],
+    source: "Source: representative dealer + chain quotes for pad replacement, Cleveland metro 2026. Final price varies by vehicle.",
+  },
+  fearStats: {
+    heading: "What worn brakes actually do — the math you don't want to learn at 60 mph.",
+    stats: [
+      {
+        value: "287",
+        unit: "feet",
+        consequence: "Added stopping distance at 60 mph with metal-on-metal brakes vs. fresh pads. That's roughly two football fields beyond where you thought you'd stop.",
+        source: "NHTSA stopping-distance data; pad-thickness vs. friction-coefficient curves.",
+      },
+      {
+        value: "400°F",
+        consequence: "Boiling point of fresh DOT-3 brake fluid. Old (1-year+) fluid drops to ~280°F — heavy braking on Cleveland hills boils it, you get a pedal that goes to the floor with zero stopping power.",
+      },
+      {
+        value: "$3,800",
+        consequence: "Average bill when grinding brakes are ignored long enough to ruin the rotor + caliper + master cylinder. The $149 fix becomes a 25× problem in 90 days.",
+      },
+    ],
+  },
+  lossStats: [
+    {
+      amount: 8.5,
+      unit: "per day",
+      label: "in compounding rotor damage",
+      reason: "Worn pads grind 0.001\" of rotor surface per stop. The shop average: $8.50/day of rotor-replacement cost gets baked in. Pads + rotors together ($329) instead of pads alone ($149) is a $180 penalty for waiting two weeks.",
+      ctaHref: "#booking",
+      ctaLabel: "STOP THE DAMAGE TODAY",
+    },
+  ],
+  crossSell: {
+    heading: "While you're here — what else might your car need?",
+    items: [
+      {
+        tone: "warning",
+        icon: <Wrench className="w-5 h-5" />,
+        symptom: "Steering wheel shaking when you brake?",
+        consequence: "Warped rotor — same family of problem, often shows up next to worn pads.",
+        relief: "Resurface or replace, $0 add-on if we're already in there.",
+        ctaLabel: "WHEEL ALIGNMENT",
+        ctaHref: "/alignment",
+      },
+      {
+        tone: "info",
+        icon: <Activity className="w-5 h-5" />,
+        symptom: "Check-engine light on at the same time?",
+        consequence: "ABS module faults can trigger both — worth scanning together.",
+        relief: "Free 5-min code scan. Rolled into the brake-job visit.",
+        ctaLabel: "RUN DIAGNOSTICS",
+        ctaHref: "/diagnostics",
+      },
+      {
+        tone: "info",
+        icon: <Disc className="w-5 h-5" />,
+        symptom: "Tires bald or wearing uneven?",
+        consequence: "Worn brakes + worn tires = doubled stopping distance. Both at once is a real risk.",
+        relief: "Used tires from $60 installed in 20 minutes — done while we do brakes.",
+        ctaLabel: "GET TIRES",
+        ctaHref: "/tires",
+      },
+    ],
+  },
 };
 
 export default function BrakeRepairPage() {

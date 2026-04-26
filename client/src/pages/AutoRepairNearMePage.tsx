@@ -12,6 +12,7 @@
  */
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
+import { Disc, Activity, Wrench, AlertTriangle } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/auto-repair-near-me",
@@ -54,6 +55,78 @@ const CONFIG: ServicePageConfig = {
   serviceType: "Auto Repair",
   ctaHeadline: "BOOK A REPAIR OR GET AN ESTIMATE",
   ctaSub: "Walk in 7 days, or fill out below — we'll confirm by text. 17625 Euclid Ave, Cleveland OH.",
+
+  // ─── CONVERSION ARCHITECTURE ──────────────────────────
+  anchorTable: {
+    serviceName: "Mid-tier auto repair (alternator replacement) — Cleveland market",
+    rows: [
+      { label: "Cleveland-area dealer", price: "$675" },
+      { label: "National chain shop", price: "$485" },
+      { label: "Nick's Tire & Auto", price: "$295", ours: true },
+    ],
+    source: "Representative quote, alternator replacement on a typical Cleveland-fleet sedan. Labor at Nick's: $130/hr (vs dealer $200/hr). Parts at fair markup, OEM-quality.",
+  },
+  fearStats: {
+    heading: "Why \"I'll get to it next month\" is the most expensive sentence in car ownership.",
+    stats: [
+      {
+        value: "$1,400",
+        consequence: "Average cascade cost when a $200 repair is postponed 60+ days. Sensors fail, parts seize, labor multiplies. The part doesn't get smaller, the bill does — in the wrong direction.",
+        source: "AAA repair-cost benchmarks; component-failure cascade studies.",
+      },
+      {
+        value: "37%",
+        consequence: "Of breakdowns can be traced to a known issue the owner knew about for 30+ days. Most weren't \"surprise\" failures — they were postponed ones.",
+        source: "AAA Roadside-assistance / breakdown data, US 2023-24.",
+      },
+      {
+        value: "5×",
+        consequence: "How much more a major repair costs vs. catching the same problem on a multi-point inspection. The free inspection at every oil change exists exactly to avoid this multiplier.",
+      },
+    ],
+  },
+  lossStats: [
+    {
+      amount: 12,
+      unit: "per day",
+      label: "of compounding wear from a known unaddressed issue",
+      reason: "Whatever's broken now is wearing other things while you wait. A weak alternator overworks the battery; worn ball joints accelerate tire wear; a slipping belt cooks the water pump bearings. Every system is connected.",
+      ctaHref: "#booking",
+      ctaLabel: "GET AN ESTIMATE",
+    },
+  ],
+  crossSell: {
+    heading: "What kind of fix do you need? Pick the right entry point.",
+    items: [
+      {
+        tone: "danger",
+        icon: <Disc className="w-5 h-5" />,
+        symptom: "Brakes squealing or grinding?",
+        consequence: "Highest-priority safety system. Don't drive on metal-on-metal.",
+        relief: "From $149/axle. Free brake inspection.",
+        ctaLabel: "BRAKE REPAIR",
+        ctaHref: "/brakes",
+      },
+      {
+        tone: "warning",
+        icon: <Activity className="w-5 h-5" />,
+        symptom: "Check engine light on?",
+        consequence: "Compounding damage if ignored. Cheaper to fix early.",
+        relief: "Free 5-min code scan, $95 full diagnostic credited toward repair.",
+        ctaLabel: "DIAGNOSTICS",
+        ctaHref: "/diagnostics",
+      },
+      {
+        tone: "info",
+        icon: <Wrench className="w-5 h-5" />,
+        symptom: "Just need maintenance?",
+        consequence: "Skipping intervals causes the failures we're warning about above.",
+        relief: "Oil from $39, full tune-up from $129.",
+        ctaLabel: "OIL CHANGE",
+        ctaHref: "/oil-change",
+      },
+    ],
+  },
 };
 
 export default function AutoRepairNearMePage() {

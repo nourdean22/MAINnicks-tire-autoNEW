@@ -30,6 +30,13 @@ import { BUSINESS } from "@shared/business";
 import { Phone, CheckCircle, Clock, ShieldCheck, DollarSign, ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+// Conversion-architecture overlays (Batch 1 components, plumbed in Batch 3
+// of the v1.1 spec). All fields are OPTIONAL so existing services keep
+// rendering unchanged unless they opt in.
+import AnchorAdjustmentTable, { type Row as AnchorRow } from "./conversion/AnchorAdjustmentTable";
+import FearCalibrationBlock, { type FearStat } from "./conversion/FearCalibrationBlock";
+import LossAversionStat from "./conversion/LossAversionStat";
+import ServiceTriageCard from "./conversion/ServiceTriageCard";
 
 const HERO_IMAGE_DEFAULT = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
@@ -81,6 +88,47 @@ export interface ServicePageConfig {
   ctaHeadline?: string;
   /** Bottom-of-page CTA sub */
   ctaSub?: string;
+
+  // ─── CONVERSION ARCHITECTURE (v1.1) ──────────────────────
+  // All optional. When provided, renders the corresponding conversion
+  // section in the right place on the page. When omitted, page renders
+  // exactly like before. Per docs/CONVERSION-OVERHAUL-V1.1.md.
+
+  /** Anchor & adjustment table shown ABOVE pricing — dealer / chain / Nick's. */
+  anchorTable?: {
+    serviceName: string;
+    rows: AnchorRow[];
+    source?: string;
+  };
+  /** Fear-calibration block (3 stats) shown BETWEEN pricing and "what's included". */
+  fearStats?: {
+    heading: string;
+    stats: FearStat[];
+  };
+  /** Loss-aversion stat shown BEFORE the FAQ. Animates in on scroll. */
+  lossStats?: Array<{
+    amount: number;
+    unit: string;
+    label: string;
+    reason?: string;
+    ctaHref?: string;
+    ctaLabel?: string;
+  }>;
+  /** Optional cross-sell block — links to OTHER services using ServiceTriageCard pattern.
+   *  Rendered after the FAQ. Useful to keep visitors converting if this
+   *  service page didn't match their actual symptom. */
+  crossSell?: {
+    heading: string;
+    items: Array<{
+      tone?: "danger" | "warning" | "info";
+      symptom: string;
+      consequence: string;
+      relief: string;
+      ctaLabel: string;
+      ctaHref: string;
+      icon?: React.ReactNode;
+    }>;
+  };
 }
 
 function Hero({ config }: { config: ServicePageConfig }) {
@@ -262,6 +310,94 @@ function BookingSection({ config }: { config: ServicePageConfig }) {
   );
 }
 
+// ─── CONVERSION OVERLAYS ─────────────────────────────────
+// Optional sections that only render when config opts in. Keep them
+// inside this file so service-page configs are the single contract;
+// no caller needs to import 5 components.
+
+function AnchorSection({ config }: { config: ServicePageConfig }) {
+  if (!config.anchorTable) return null;
+  return (
+    <section className="bg-background border-t border-border/30 py-12">
+      <div className="container max-w-3xl">
+        <FadeIn>
+          <AnchorAdjustmentTable
+            serviceName={config.anchorTable.serviceName}
+            rows={config.anchorTable.rows}
+            source={config.anchorTable.source}
+          />
+        </FadeIn>
+      </div>
+    </section>
+  );
+}
+
+function FearStatsSection({ config }: { config: ServicePageConfig }) {
+  if (!config.fearStats || config.fearStats.stats.length === 0) return null;
+  return (
+    <section className="bg-[oklch(0.055_0.004_260)] border-y border-border/30 py-12">
+      <div className="container">
+        <FearCalibrationBlock
+          heading={config.fearStats.heading}
+          stats={config.fearStats.stats}
+        />
+      </div>
+    </section>
+  );
+}
+
+function LossSection({ config }: { config: ServicePageConfig }) {
+  if (!config.lossStats || config.lossStats.length === 0) return null;
+  return (
+    <section className="bg-background border-t border-border/30 py-12">
+      <div className="container max-w-5xl">
+        <div className={`grid gap-4 ${config.lossStats.length > 1 ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"}`}>
+          {config.lossStats.map((s, i) => (
+            <LossAversionStat
+              key={i}
+              amount={s.amount}
+              unit={s.unit}
+              label={s.label}
+              reason={s.reason}
+              ctaHref={s.ctaHref}
+              ctaLabel={s.ctaLabel}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CrossSellSection({ config }: { config: ServicePageConfig }) {
+  if (!config.crossSell || config.crossSell.items.length === 0) return null;
+  return (
+    <section className="bg-card/20 border-t border-border/30 py-12">
+      <div className="container">
+        <FadeIn>
+          <h2 className="font-bold text-2xl sm:text-3xl text-foreground tracking-tight mb-6">
+            {config.crossSell.heading}
+          </h2>
+        </FadeIn>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {config.crossSell.items.map((item, i) => (
+            <ServiceTriageCard
+              key={i}
+              tone={item.tone}
+              icon={item.icon ?? <CheckCircle className="w-5 h-5" />}
+              symptom={item.symptom}
+              consequence={item.consequence}
+              relief={item.relief}
+              ctaLabel={item.ctaLabel}
+              ctaHref={item.ctaHref}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function FocusedServicePage({ config }: { config: ServicePageConfig }) {
   return (
     <PageLayout showChat={true}>
@@ -293,9 +429,21 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
         }}
       />
       <Hero config={config} />
+      {/* Anchor table renders ABOVE pricing — sets the dealer/chain
+          reference frame so Nick's price feels like rescue. */}
+      <AnchorSection config={config} />
       <PricingSection config={config} />
+      {/* Fear-calibration AFTER pricing — readers who saw the price are now
+          asking "is it worth it?" The fear stats answer with quantified risk. */}
+      <FearStatsSection config={config} />
       <IncludedSection config={config} />
+      {/* Loss-aversion BEFORE FAQ — animated on scroll-in, last conversion
+          push before the cooldown FAQ section. */}
+      <LossSection config={config} />
       <FAQSection faqs={config.faqs} />
+      {/* Cross-sell renders AFTER FAQ — catches visitors whose actual
+          symptom didn't match this page's service. */}
+      <CrossSellSection config={config} />
       <BookingSection config={config} />
       <InternalLinks />
     </PageLayout>
