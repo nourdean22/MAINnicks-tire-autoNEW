@@ -53,10 +53,15 @@ export default defineConfig({
             // top-level go in the same chunk. Splitting these into separate
             // chunks creates TDZ ("Cannot access 'X' before initialization")
             // and createContext-undefined errors when Rollup orders chunks
-            // unfavorably. Bundling them together costs ~50KB but eliminates
+            // unfavorably. Bundling them together costs ~70KB but eliminates
             // the entire class of init-order bugs.
+            //
+            // Also covered (added 2026-04-26 after audit): sonner, vaul,
+            // recharts, react-day-picker, embla-carousel-react. Each calls
+            // React.createContext at module load and was at risk of landing
+            // in a separate chunk that evaluates before vendor-react.
             if (
-              /[\\/]node_modules[\\/](react|react-dom|scheduler|react-is|use-sync-external-store|@radix-ui|framer-motion|@tanstack[\\/]react-query|@trpc[\\/]client|@trpc[\\/]react-query|wouter|lucide-react)[\\/]/.test(id)
+              /[\\/]node_modules[\\/](react|react-dom|scheduler|react-is|use-sync-external-store|@radix-ui|framer-motion|@tanstack[\\/]react-query|@trpc[\\/]client|@trpc[\\/]react-query|wouter|lucide-react|sonner|vaul|recharts|react-day-picker|embla-carousel-react|react-hot-toast|react-helmet|cmdk|class-variance-authority|tailwind-merge)[\\/]/.test(id)
             ) {
               return "vendor-react";
             }

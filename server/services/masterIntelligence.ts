@@ -264,11 +264,18 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
   }
 
   // 7. Cash flow direction (±5)
+  //
+  // BUG FIX: `num(pacing, "month", "soFar")` doesn't reach nested fields —
+  // num() does a top-level `obj[k]` lookup, so it would check pacing.month
+  // (object, fails typeof) and pacing.soFar (undefined). Result was always
+  // 0, falling back to `|| 1`, which made the AR-drag check fire for ANY
+  // outstanding balance >= $0.15. Switched to a proper nested read.
   if (cashFlow) {
     const next7 = num(cashFlow, "next7days", "projectedCash");
     const next30 = num(cashFlow, "next30days", "projectedCash");
     const outstandingAR = num(cashFlow, "outstandingAR");
-    const monthSoFar = num(pacing as any, "month", "soFar") || 1;
+    const pacingMonthObj = (pacing as any)?.month as Record<string, unknown> | undefined;
+    const monthSoFar = typeof pacingMonthObj?.soFar === "number" ? pacingMonthObj.soFar : 0;
     let pts = 0;
     let reason = "";
     if (next7 > 0 && next30 > 0) {
@@ -276,9 +283,11 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
       pts = clamp(Math.round((ratio - 4) * 1.5), -3, 3);
       reason = `Projecting $${Math.round(next30).toLocaleString()} (30d) vs $${Math.round(next7).toLocaleString()} (7d) — ratio ${ratio.toFixed(1)}x`;
     }
+    // Only check AR drag against revenue once we have non-zero MTD revenue
+    // (otherwise dividing by 0 / 1 produces a false penalty).
     if (monthSoFar > 0 && outstandingAR / monthSoFar > 0.15) {
       pts -= 2;
-      reason += ` · AR drag: $${Math.round(outstandingAR).toLocaleString()} outstanding`;
+      reason += ` · AR drag: $${Math.round(outstandingAR).toLocaleString()} outstanding (>15% of MTD)`;
     }
     record("Cash flow direction", pts, 5, reason || "Cash flow analyzed");
   }

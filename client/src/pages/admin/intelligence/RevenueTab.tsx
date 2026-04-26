@@ -56,29 +56,53 @@ export default function RevenueTab() {
             />
           </div>
 
-          {/* MTD progress bar — replaced the old "$20K goal" version with a
-              simple month-to-date display. The goal-based progress bar was
-              comparing to a stale fixed target; now it just shows what
-              you've earned this month with the projection beside it. */}
-          <div className="bg-card border border-border/30 p-5">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-medium text-foreground/50 tracking-wide">MONTH-TO-DATE</span>
-              <span className="text-[12px] font-mono text-foreground/70">
-                {fmt(forecast.data.month?.soFar ?? 0)}
-                {forecast.data.month?.projection ? <> · projecting {fmt(forecast.data.month.projection)}</> : null}
-              </span>
-            </div>
-            <div className="w-full h-3 bg-background rounded-sm overflow-hidden">
-              <div
-                className="h-full transition-all duration-700 rounded-sm bg-emerald-500"
-                style={{
-                  // Bar fills based on day-of-month progress, not a fixed $ goal.
-                  // Visual reads as "how far through the month are we?"
-                  width: `${Math.min(100, Math.round((new Date().getDate() / new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()) * 100))}%`,
-                }}
-              />
-            </div>
-          </div>
+          {/* MTD progress bar — shows REVENUE earned vs the dynamic target
+              (trailing 90d × 1.1, computed server-side in forecastRevenue).
+              Bar color reflects whether we're on pace for the day, not just
+              "how far through the month are we?". Yellow → green crossover
+              at 100% of expected pace. */}
+          {(() => {
+            const monthSoFar = Number(forecast.data.month?.soFar ?? 0);
+            const target = Number(forecast.data.month?.target ?? 0);
+            // What we'd EXPECT to have earned by today if pacing on target.
+            const day = new Date().getDate();
+            const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+            const expectedByNow = target * (day / daysInMonth);
+            const pacePct = expectedByNow > 0 ? Math.round((monthSoFar / expectedByNow) * 100) : 0;
+            const barFill = target > 0 ? Math.min(100, Math.round((monthSoFar / target) * 100)) : 0;
+            const onPace = pacePct >= 90;
+            const aheadOfPace = pacePct >= 110;
+            return (
+              <div className="bg-card border border-border/30 p-5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-medium text-foreground/50 tracking-wide">
+                    MONTH-TO-DATE · {pacePct}% OF PACE
+                  </span>
+                  <span className="text-[12px] font-mono text-foreground/70">
+                    {fmt(monthSoFar)}
+                    {forecast.data.month?.projection ? <> · projecting {fmt(forecast.data.month.projection)}</> : null}
+                    {target > 0 ? <> · target {fmt(target)}</> : null}
+                  </span>
+                </div>
+                <div className="w-full h-3 bg-background rounded-sm overflow-hidden relative">
+                  {/* Reference tick at "where we should be by today" */}
+                  {target > 0 && (
+                    <div
+                      className="absolute top-0 bottom-0 w-px bg-foreground/40"
+                      style={{ left: `${Math.min(100, Math.round((expectedByNow / target) * 100))}%` }}
+                      title={`Expected by today: ${fmt(expectedByNow)}`}
+                    />
+                  )}
+                  <div
+                    className={`h-full transition-all duration-700 rounded-sm ${
+                      aheadOfPace ? "bg-emerald-500" : onPace ? "bg-emerald-500/80" : "bg-amber-500"
+                    }`}
+                    style={{ width: `${barFill}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })()}
         </>
       ) : <NoData />}
 
