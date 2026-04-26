@@ -93,12 +93,7 @@ function normalizeDynamic(row: {
     metaTitle: row.metaTitle,
     metaDescription: row.metaDescription,
     tags: safeJsonArray<string>(row.tagsJson, []),
-    // Normalize relatedServices to start with `/` so they resolve as absolute
-    // routes from any blog post path. Static BLOG_ARTICLES stores these with
-    // leading slashes; dynamic seed scripts wrote without. This unifies both.
-    relatedServices: safeJsonArray<string>(row.relatedServicesJson, []).map((s) =>
-      s.startsWith("/") ? s : `/${s}`
-    ),
+    relatedServices: safeJsonArray<string>(row.relatedServicesJson, []),
     sections: rawSections.map((s) => ({
       heading: s.heading ?? "",
       // Support both shapes so older seeded rows still render.

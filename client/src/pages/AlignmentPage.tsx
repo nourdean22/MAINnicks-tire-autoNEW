@@ -22,39 +22,6 @@ import { AnimatePresence, motion } from "framer-motion";
 // Hero image URL
 const HERO_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
-// FAQ data — lifted to module scope so it can power BOTH the visual accordion
-// and the JSON-LD FAQPage schema (which becomes Google rich snippets).
-const ALIGNMENT_FAQS = [
-  {
-    question: "How much does a wheel alignment cost?",
-    answer: "Alignment pricing depends on your vehicle and whether you need a two-wheel or four-wheel alignment. We provide a free alignment inspection so you know exactly what your vehicle needs before any work begins.",
-  },
-  {
-    question: "How long does an alignment take?",
-    answer: "Most alignments take 45 minutes to an hour. We use computerized alignment equipment to precisely adjust all wheels to manufacturer specifications. You can wait in our comfortable lounge or grab a coffee nearby.",
-  },
-  {
-    question: "When should I get an alignment?",
-    answer: "Get an alignment whenever you notice pulling, uneven tire wear, or a crooked steering wheel. We also recommend alignments after new tires, suspension work, or hitting a pothole. Many drivers align twice yearly given Cleveland's tough road conditions.",
-  },
-  {
-    question: "Is a two-wheel or four-wheel alignment better?",
-    answer: "Four-wheel alignments are more precise and correct all four wheels. However, most front-wheel-drive vehicles only need a two-wheel (front) alignment. We'll inspect your vehicle and recommend what's best for your make and model.",
-  },
-  {
-    question: "Can alignment affect my gas mileage?",
-    answer: "Yes. Misaligned wheels create rolling resistance and drag. Proper alignment can improve fuel economy by 3-5%, which adds up to real savings over time.",
-  },
-  {
-    question: "Where can I get wheel alignment near me in Cleveland?",
-    answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 offers professional wheel alignment at competitive prices. We use computerized alignment equipment and adjust all wheels to manufacturer specifications. Walk-ins welcome 7 days a week, same-day service on most alignments. Call (216) 862-0005.",
-  },
-  {
-    question: "How much does wheel alignment cost in Cleveland?",
-    answer: "Alignment pricing depends on your vehicle type and whether you need two-wheel or four-wheel service. We offer free alignment checks at Nick's Tire & Auto in Cleveland so you know if your vehicle actually needs adjustment before paying anything.",
-  },
-];
-
 // ─── HERO SECTION ──────────────────────────────────────
 function AlignmentHero() {
   return (
@@ -233,7 +200,37 @@ function BenefitsSection() {
 // ─── FAQ SECTION ───────────────────────────────────────
 function FAQSection() {
   const [open, setOpen] = useState<number | null>(0);
-  const faqs = ALIGNMENT_FAQS;
+
+  const faqs = [
+    {
+      question: "How much does a wheel alignment cost?",
+      answer: "Alignment pricing depends on your vehicle and whether you need a two-wheel or four-wheel alignment. We provide a free alignment inspection so you know exactly what your vehicle needs before any work begins.",
+    },
+    {
+      question: "How long does an alignment take?",
+      answer: "Most alignments take 45 minutes to an hour. We use computerized alignment equipment to precisely adjust all wheels to manufacturer specifications. You can wait in our comfortable lounge or grab a coffee nearby.",
+    },
+    {
+      question: "When should I get an alignment?",
+      answer: "Get an alignment whenever you notice pulling, uneven tire wear, or a crooked steering wheel. We also recommend alignments after new tires, suspension work, or hitting a pothole. Many drivers align twice yearly given Cleveland's tough road conditions.",
+    },
+    {
+      question: "Is a two-wheel or four-wheel alignment better?",
+      answer: "Four-wheel alignments are more precise and correct all four wheels. However, most front-wheel-drive vehicles only need a two-wheel (front) alignment. We'll inspect your vehicle and recommend what's best for your make and model.",
+    },
+    {
+      question: "Can alignment affect my gas mileage?",
+      answer: "Yes. Misaligned wheels create rolling resistance and drag. Proper alignment can improve fuel economy by 3-5%, which adds up to real savings over time.",
+    },
+    {
+      question: "Where can I get wheel alignment near me in Cleveland?",
+      answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 offers professional wheel alignment at competitive prices. We use computerized alignment equipment and adjust all wheels to manufacturer specifications. Walk-ins welcome 7 days a week, same-day service on most alignments. Call (216) 862-0005.",
+    },
+    {
+      question: "How much does wheel alignment cost in Cleveland?",
+      answer: "Alignment pricing depends on your vehicle type and whether you need two-wheel or four-wheel service. We offer free alignment checks at Nick's Tire & Auto in Cleveland so you know if your vehicle actually needs adjustment before paying anything.",
+    },
+  ];
 
   return (
     <section className="bg-[oklch(0.055_0.004_260)] py-20 lg:py-28">
@@ -328,61 +325,6 @@ function BookingSection() {
 
 // ─── MAIN PAGE ─────────────────────────────────────────
 export default function AlignmentPage() {
-  // FAQPage schema — turns the FAQ section into a Google rich snippet that
-  // can show as expandable answers in SERP, dramatically boosting CTR.
-  const faqPageSchema = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: ALIGNMENT_FAQS.map((f) => ({
-      "@type": "Question",
-      name: f.question,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: f.answer,
-      },
-    })),
-  };
-
-  // BreadcrumbList schema — shows the breadcrumb trail in SERP listings,
-  // which signals site structure to Google and boosts visual prominence.
-  const breadcrumbSchema = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Home", item: "https://nickstire.org/" },
-      { "@type": "ListItem", position: 2, name: "Services", item: "https://nickstire.org/services" },
-      { "@type": "ListItem", position: 3, name: "Wheel Alignment", item: "https://nickstire.org/alignment" },
-    ],
-  };
-
-  // Service schema with offer + aggregate rating — gives Google explicit
-  // signals that this page IS the wheel-alignment service offering, with
-  // pricing context and review trust.
-  const serviceSchema = {
-    "@context": "https://schema.org",
-    "@type": "Service",
-    serviceType: "Wheel Alignment",
-    provider: {
-      "@type": "AutoRepair",
-      name: BUSINESS.name,
-      telephone: `+1-${BUSINESS.phone.dashed}`,
-      address: {
-        "@type": "PostalAddress",
-        streetAddress: BUSINESS.address.street,
-        addressLocality: BUSINESS.address.city,
-        addressRegion: BUSINESS.address.state,
-        postalCode: BUSINESS.address.zip,
-      },
-    },
-    areaServed: { "@type": "City", name: "Cleveland" },
-    description: "Computerized wheel alignment service. Fix pulling, uneven tire wear, and crooked steering. Same-day service, walk-ins welcome 7 days a week.",
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: String(BUSINESS.reviews.rating),
-      reviewCount: String(BUSINESS.reviews.count),
-    },
-  };
-
   return (
     <PageLayout showChat={true}>
       <SEOHead
@@ -391,12 +333,6 @@ export default function AlignmentPage() {
         canonicalPath="/alignment"
       />
       <LocalBusinessSchema additionalSchema={{ "hasOfferCatalog": { "@type": "OfferCatalog", "name": "Wheel Alignment", "itemListElement": [{ "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Wheel Alignment", "serviceType": "Wheel Alignment" } }] } }} />
-
-      {/* JSON-LD: FAQPage + BreadcrumbList + Service. Three separate tags is
-          preferred over @graph — Google parses each independently. */}
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqPageSchema) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceSchema) }} />
 
       <AlignmentHero />
       <SignsSection />
