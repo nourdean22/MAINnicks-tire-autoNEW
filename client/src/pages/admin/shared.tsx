@@ -219,16 +219,44 @@ export function ErrorState({ message = "Something went wrong", onRetry }: {
 }
 
 // ─── SMALL UTILITY COMPONENTS ───────────────────────────
-export function StatCard({ label, value, icon, color = "text-foreground", trend, trendLabel }: {
+/**
+ * Section-navigation helper \u2014 fires the same `admin:navigate-section` event
+ * that Admin.tsx listens for (see line 220-233). Optionally also writes
+ * `settingsTab` to the URL so SettingsSection lands on the right inner tab.
+ *
+ * Why an event + URL write instead of a wouter <Link>: Admin.tsx is a
+ * single-page component; clicking a Link to /admin?tab=X doesn't actually
+ * remount Admin or re-resolve the section state. The event bridge is the
+ * existing mechanism the codebase uses for cross-section nav.
+ */
+export function navigateToAdminSection(section: AdminSection, opts?: { settingsTab?: string }) {
+  if (typeof window === "undefined") return;
+  if (opts?.settingsTab) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("settingsTab", opts.settingsTab);
+    window.history.replaceState({}, "", url.toString());
+  }
+  window.dispatchEvent(
+    new CustomEvent("admin:navigate-section", { detail: { section } })
+  );
+}
+
+export function StatCard({ label, value, icon, color = "text-foreground", trend, trendLabel, onClick, targetSection, settingsTab }: {
   label: string;
   value: string | number;
   icon: React.ReactNode;
   color?: string;
   trend?: "up" | "down" | "neutral";
   trendLabel?: string;
+  /** Optional generic click handler. Use this OR targetSection, not both. */
+  onClick?: () => void;
+  /** Optional shortcut: clicking the card jumps to this admin section. */
+  targetSection?: AdminSection;
+  /** Optional sub-tab for Settings section (health, integrations, etc.) */
+  settingsTab?: string;
 }) {
-  return (
-    <div className="stat-card stat-card-interactive group glow-on-hover card-enter">
+  const inner = (
+    <>
       <div className="flex items-start justify-between mb-2.5">
         <span className="text-[11px] font-medium text-muted-foreground tracking-wide">{label}</span>
         <div className="text-muted-foreground/30 group-hover:text-primary/50 transition-colors">{icon}</div>
@@ -241,6 +269,29 @@ export function StatCard({ label, value, icon, color = "text-foreground", trend,
           {trend === "up" && "\u2191"}{trend === "down" && "\u2193"} {trendLabel}
         </div>
       )}
+    </>
+  );
+
+  const handleClick = onClick || (targetSection ? () => navigateToAdminSection(targetSection, { settingsTab }) : undefined);
+
+  // When `handleClick` is set, the entire card is a clickable button. Cursor
+  // pointer + a primary hover ring give clear affordance.
+  if (handleClick) {
+    return (
+      <button
+        type="button"
+        onClick={handleClick}
+        className="stat-card stat-card-interactive group glow-on-hover card-enter cursor-pointer hover:ring-1 hover:ring-primary/40 transition-shadow text-left w-full"
+        aria-label={`${label} \u2014 open detail`}
+      >
+        {inner}
+      </button>
+    );
+  }
+
+  return (
+    <div className="stat-card stat-card-interactive group glow-on-hover card-enter">
+      {inner}
     </div>
   );
 }
