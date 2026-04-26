@@ -13,12 +13,15 @@
  */
 
 import PageLayout from "@/components/PageLayout";
-import { useRef, useEffect, useMemo } from "react";
+import { useRef, useEffect, useMemo, useState } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { getArticleBySlug, BLOG_ARTICLES, type BlogArticle } from "@shared/blog";
 import { trpc } from "@/lib/trpc";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
-import { Phone, Clock, ChevronRight, ArrowLeft, ArrowRight, Tag } from "lucide-react";
+import {
+  Phone, Clock, ChevronRight, ArrowLeft, ArrowRight, Tag,
+  ListTree, AlertTriangle, ShieldCheck, MessageSquare, CreditCard,
+} from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
@@ -36,6 +39,210 @@ function FadeIn({ children, className = "", delay = 0 }: { children: React.React
     >
       {children}
     </motion.div>
+  );
+}
+
+/**
+ * Slugify a heading for in-page anchors. Used by TableOfContents + section IDs.
+ * Lowercase, alphanumeric+dash, trimmed.
+ */
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 60);
+}
+
+/**
+ * TableOfContents — sticky-on-desktop sidebar for posts with 3+ sections.
+ * Highlights the active section as the user scrolls.
+ */
+function TableOfContents({ sections }: { sections: { heading: string }[] }) {
+  const [activeId, setActiveId] = useState<string>("");
+
+  useEffect(() => {
+    const ids = sections.map((s) => slugify(s.heading)).filter(Boolean);
+    if (ids.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]) setActiveId(visible[0].target.id);
+      },
+      { rootMargin: "-20% 0px -60% 0px", threshold: 0 }
+    );
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, [sections]);
+
+  if (sections.length < 3) return null;
+
+  return (
+    <nav className="sticky top-24 hidden lg:block">
+      <div className="bg-card/40 border border-border/30 rounded-xl p-4">
+        <div className="flex items-center gap-2 text-foreground/40 text-xs uppercase tracking-[0.18em] font-bold mb-3">
+          <ListTree className="w-3.5 h-3.5" />
+          On this page
+        </div>
+        <ul className="space-y-1.5 text-sm">
+          {sections.map((s, i) => {
+            const id = slugify(s.heading);
+            const active = activeId === id;
+            return (
+              <li key={i}>
+                <a
+                  href={`#${id}`}
+                  className={`block py-1 px-2 rounded transition-colors leading-snug border-l-2 ${
+                    active
+                      ? "border-primary text-primary bg-primary/5"
+                      : "border-transparent text-foreground/55 hover:text-foreground hover:bg-card/60"
+                  }`}
+                >
+                  {s.heading}
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </nav>
+  );
+}
+
+/**
+ * Map a blog category → the most relevant service slug for CTAs and the
+ * cost-of-waiting/anchor copy. Keeps the in-content CTA contextual.
+ */
+const CATEGORY_TO_SERVICE: Record<string, { slug: string; label: string; pitch: string }> = {
+  Brakes: { slug: "brakes", label: "Brake Service", pitch: "Free brake inspection. Pads from $129/axle. Pictures of worn parts before any replacement." },
+  Tires: { slug: "tires", label: "Tires & Wheels", pitch: "Free mount + balance + valve stems. New + quality used tires from $60/installed. Walk-ins welcome." },
+  Diagnostics: { slug: "diagnostics", label: "Diagnostics", pitch: "Free OBD-II code scan. $95 full diagnostic credited to repair. We test before we replace." },
+  Maintenance: { slug: "oil-change", label: "Oil Change & Maintenance", pitch: "Full conventional oil change from $29.99. Free 27-point inspection every visit." },
+  Emissions: { slug: "emissions", label: "Emissions / E-Check", pitch: "Free pre-test before you waste a state appointment. We catch the actual cause, not just the code." },
+  Electrical: { slug: "diagnostics", label: "Electrical Diagnostics", pitch: "Battery, alternator, starter testing free with any repair. Wiring + parasitic-draw work at $120/hr." },
+  Transmission: { slug: "transmission", label: "Transmission Service", pitch: "Fluid + filter from $179. Full diagnostic before any major work — we tell you if a rebuild beats a repair." },
+};
+
+/**
+ * MidArticleCTA — a single, contextual conversion block injected after
+ * the second section. Tied to the post's category so the offer is relevant.
+ */
+function MidArticleCTA({ category }: { category: string }) {
+  const svc = CATEGORY_TO_SERVICE[category] || {
+    slug: "general-repair",
+    label: "Cleveland's Local Mechanic",
+    pitch: "Free written estimate. 12-month warranty. $0-down financing. Walk-ins welcome 7 days.",
+  };
+  return (
+    <FadeIn>
+      <div className="my-10 bg-gradient-to-br from-primary/[0.07] via-primary/[0.03] to-transparent border border-primary/30 rounded-2xl p-6 lg:p-7">
+        <div className="flex items-start gap-4">
+          <div className="w-11 h-11 rounded-xl bg-primary/15 text-primary flex items-center justify-center flex-shrink-0">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-primary font-bold mb-1">
+              While you're here
+            </div>
+            <h3 className="font-semibold text-foreground text-lg leading-tight mb-2">
+              Need {svc.label.toLowerCase()}? Read the rest later.
+            </h3>
+            <p className="text-foreground/65 text-sm leading-relaxed mb-4">
+              {svc.pitch}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={`/booking?service=${encodeURIComponent(svc.slug)}`}
+                className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-4 py-2 rounded-md font-semibold text-xs uppercase tracking-wider hover:opacity-90 transition-opacity"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                Book {svc.label}
+              </Link>
+              <Link
+                href={`/${svc.slug}`}
+                className="inline-flex items-center gap-1.5 border border-primary/40 text-primary px-4 py-2 rounded-md font-semibold text-xs uppercase tracking-wider hover:bg-primary/10 transition-colors"
+              >
+                Learn more
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+              <a
+                href={BUSINESS.phone.href}
+                className="inline-flex items-center gap-1.5 text-foreground/55 px-3 py-2 text-xs font-semibold hover:text-primary transition-colors"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                {BUSINESS.phone.display}
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </FadeIn>
+  );
+}
+
+/**
+ * UpgradedBottomCTA — replaces the generic "Need this repair?" footer with
+ * the same conversion frame used elsewhere: anchor (price), trust (warranty),
+ * dual CTA, and a financing fallback. Category-aware copy.
+ */
+function UpgradedBottomCTA({ category }: { category: string }) {
+  const svc = CATEGORY_TO_SERVICE[category] || {
+    slug: "general-repair",
+    label: "this repair",
+    pitch: "Free written estimate before any work. 12-month warranty on parts and labor.",
+  };
+  return (
+    <div className="mt-12 bg-card border border-primary/30 rounded-2xl p-7 lg:p-9">
+      <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-8 items-center">
+        <div>
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-rose-500/40 bg-rose-500/5 text-rose-300 text-[10px] font-bold tracking-widest uppercase mb-3">
+            <AlertTriangle className="w-3 h-3" />
+            Don't postpone — it gets bigger
+          </div>
+          <h3 className="font-heading text-2xl lg:text-3xl font-bold text-foreground tracking-tight uppercase leading-tight mb-2">
+            Bring it in. We'll show you the problem before we fix it.
+          </h3>
+          <p className="text-foreground/65 text-sm leading-relaxed">
+            {svc.pitch} Free Uber within 5 miles if you drop off. Walk-ins welcome 7 days a week.
+          </p>
+          <ul className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-y-1.5 gap-x-4 text-[13px] text-foreground/70">
+            <li className="flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5 text-primary" /> 12-mo / 12,000-mi warranty</li>
+            <li className="flex items-center gap-2"><CreditCard className="w-3.5 h-3.5 text-primary" /> $0-down financing available</li>
+            <li className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-primary" /> Most repairs same/next day</li>
+            <li className="flex items-center gap-2"><MessageSquare className="w-3.5 h-3.5 text-primary" /> Text updates throughout</li>
+          </ul>
+        </div>
+        <div className="space-y-2.5">
+          <Link
+            href={`/booking?service=${encodeURIComponent(svc.slug)}`}
+            className="w-full inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-4 rounded-md font-bold text-sm tracking-widest uppercase hover:opacity-90 transition-opacity"
+          >
+            <MessageSquare className="w-4 h-4" />
+            Book {svc.label}
+          </Link>
+          <a
+            href={BUSINESS.phone.href}
+            className="w-full inline-flex items-center justify-center gap-2 border-2 border-foreground/25 text-foreground px-6 py-4 rounded-md font-bold text-sm tracking-widest uppercase hover:border-primary hover:text-primary transition-colors"
+          >
+            <Phone className="w-4 h-4" />
+            Call {BUSINESS.phone.display}
+          </a>
+          <Link
+            href="/financing"
+            className="block text-center text-foreground/50 hover:text-primary text-[12px] uppercase tracking-wider font-semibold pt-2 transition-colors"
+          >
+            Or check $0-down financing →
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -315,85 +522,85 @@ export default function BlogPost() {
         </div>
       </section>
 
-      {/* Article Content */}
+      {/* Article Content — 2-column on lg with sticky TOC sidebar */}
       <section className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-20">
         <div className="container">
-          <div className="max-w-3xl mx-auto">
-            {article.sections.map((section, i) => (
-              <FadeIn key={i} delay={i * 0.05}>
-                <div className="mb-12">
-                  <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-[-0.01em] mb-4">
-                    {section.heading}
-                  </h2>
-                  <p className="text-foreground/70 text-lg leading-relaxed">
-                    {section.content}
-                  </p>
-                </div>
-              </FadeIn>
-            ))}
+          <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-10 max-w-5xl mx-auto">
+            {/* Left rail — sticky TOC (auto-hides under 3 sections) */}
+            <aside>
+              <TableOfContents sections={article.sections} />
+            </aside>
 
-            {/* Tags */}
-            {article.tags.length > 0 && (
-              <FadeIn>
-                <div className="border-t border-border/30 pt-8 mt-12">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Tag className="w-4 h-4 text-foreground/40" />
-                    {article.tags.map(tag => (
-                      <span key={tag} className="px-3 py-1 bg-card border border-border/30 text-[12px] text-foreground/50">
-                        {tag}
-                      </span>
-                    ))}
+            {/* Article body */}
+            <div className="max-w-3xl">
+              {article.sections.map((section, i) => (
+                <FadeIn key={i} delay={i * 0.05}>
+                  <div className="mb-12">
+                    <h2
+                      id={slugify(section.heading)}
+                      className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-[-0.01em] mb-4 scroll-mt-24"
+                    >
+                      {section.heading}
+                    </h2>
+                    <p className="text-foreground/70 text-lg leading-relaxed">
+                      {section.content}
+                    </p>
                   </div>
-                </div>
-              </FadeIn>
-            )}
 
-            {/* Related Service Links */}
-            {article.relatedServices.length > 0 && (
-              <FadeIn>
-                <div className="mt-8 bg-card border border-primary/20 p-6">
-                  <h3 className="font-semibold font-bold text-lg text-foreground tracking-[-0.01em] mb-3">RELATED SERVICES</h3>
-                  <div className="flex flex-wrap gap-3">
-                    {article.relatedServices.map(svc => (
-                      <Link
-                        key={svc}
-                        href={svc}
-                        className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary px-4 py-2 font-semibold font-bold text-xs tracking-wide hover:bg-primary/20 transition-colors"
-                      >
-                        {/* Strip leading slash + replace ALL hyphens with spaces.
-                            Was `.replace("-", " ")` which only replaced the FIRST
-                            hyphen — `/synthetic-oil-change` rendered as
-                            "synthetic oil-change", `/pre-purchase-inspection` as
-                            "pre purchase-inspection". */}
-                        {svc.replace(/^\//, "").replace(/-/g, " ")}
-                        <ArrowRight className="w-3 h-3" />
-                      </Link>
-                    ))}
+                  {/* Mid-article CTA after 2nd section, only on posts with 4+ sections */}
+                  {i === 1 && article.sections.length >= 4 && (
+                    <MidArticleCTA category={article.category} />
+                  )}
+                </FadeIn>
+              ))}
+
+              {/* Tags */}
+              {article.tags.length > 0 && (
+                <FadeIn>
+                  <div className="border-t border-border/30 pt-8 mt-12">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Tag className="w-4 h-4 text-foreground/40" />
+                      {article.tags.map(tag => (
+                        <span key={tag} className="px-3 py-1 bg-card border border-border/30 text-[12px] text-foreground/50">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </FadeIn>
-            )}
+                </FadeIn>
+              )}
 
-            {/* CTA */}
-            <FadeIn>
-              <div className="mt-12 bg-primary/10 border border-primary/30 p-8 text-center">
-                <h3 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-3">
-                  NEED THIS REPAIR?
-                </h3>
-                <p className="text-foreground/60 mb-6">
-                  Our technicians are ready to help. Call or schedule a drop-off online.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <a href={BUSINESS.phone.href} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-semibold font-bold text-sm tracking-wide hover:bg-primary/90 transition-colors">
-                    <Phone className="w-4 h-4" />
-                    CALL {BUSINESS.phone.display}
-                  </a>
-                  <Link href="/booking" className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
-                    BOOK ONLINE
-                  </Link>
-                </div>
-              </div>
-            </FadeIn>
+              {/* Related Service Links */}
+              {article.relatedServices.length > 0 && (
+                <FadeIn>
+                  <div className="mt-8 bg-card border border-primary/20 p-6">
+                    <h3 className="font-semibold font-bold text-lg text-foreground tracking-[-0.01em] mb-3">RELATED SERVICES</h3>
+                    <div className="flex flex-wrap gap-3">
+                      {article.relatedServices.map(svc => (
+                        <Link
+                          key={svc}
+                          href={svc}
+                          className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary px-4 py-2 font-semibold font-bold text-xs tracking-wide hover:bg-primary/20 transition-colors"
+                        >
+                          {/* Strip leading slash + replace ALL hyphens with spaces.
+                              Was `.replace("-", " ")` which only replaced the FIRST
+                              hyphen — `/synthetic-oil-change` rendered as
+                              "synthetic oil-change", `/pre-purchase-inspection` as
+                              "pre purchase-inspection". */}
+                          {svc.replace(/^\//, "").replace(/-/g, " ")}
+                          <ArrowRight className="w-3 h-3" />
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                </FadeIn>
+              )}
+
+              {/* Upgraded bottom CTA — anchor + trust + dual button + financing */}
+              <FadeIn>
+                <UpgradedBottomCTA category={article.category} />
+              </FadeIn>
+            </div>
           </div>
         </div>
       </section>
