@@ -27,21 +27,33 @@ export interface RouteEntry {
 // ─── CORE PAGES ──────────────────────────────────────────
 const CORE_PAGES: RouteEntry[] = [
   {
+    // 2026-04-26 GSC tune: was "Nick's Tire & Auto — Cleveland's #1 Tire
+    // Shop & Auto Repair". Brand-led titles get clicked when users SEARCH
+    // for the brand. For non-brand queries (228 impr/mo "tire shops near
+    // me" pos 7.2 / 1.3% CTR) we need an intent-led title. Switching to
+    // "Tire Shop & Auto Repair Cleveland" front-loads the search-intent
+    // phrase, preserves Nick's brand, fits 60-char SERP truncation.
     path: "/",
     priority: 1.0,
     changefreq: "weekly",
-    title: "Nick's Tire & Auto — Cleveland's #1 Tire Shop & Auto Repair",
-    description: "Cleveland's top-rated new & used tire specialist + full-service auto repair. 1,700+ reviews, 4.9 stars. Free installation package ($289 value). Walk-ins 7 days. Financing.",
+    title: "Tire Shop & Auto Repair Cleveland · Walk-Ins 7 Days | Nick's",
+    description: "Cleveland's top tire shop + auto repair. New & used tires with free install. Brakes, diagnostics, oil. Free written estimates. 4.9★ from 1,700+ reviews. Walk-ins 7 days. (216) 862-0005",
     group: "core",
     sitemap: true,
     prerender: true,
   },
   {
+    // 2026-04-26 GSC tune: was "Auto Repair Services — Nick's Tire & Auto".
+    // Page ranks pos 2.8 for tail queries (775 imp / 0.9% CTR / 7 clicks).
+    // CTR for pos 2-3 should be ~12-15%. Title was generic + brand-led.
+    // New title front-loads action-oriented "near me" intent, includes the
+    // top three services Google sees us ranking for, signals walk-in
+    // friendliness. Should multiply CTR at the existing rank.
     path: "/services",
     priority: 0.9,
     changefreq: "weekly",
-    title: "Auto Repair Services — Nick's Tire & Auto",
-    description: "Full-service auto repair in Cleveland. Tires, brakes, diagnostics, emissions, oil changes, suspension, alignment. Walk-ins welcome. Financing available.",
+    title: "Auto Repair Near Me · Tires Brakes Diagnostics | Cleveland | Nick's",
+    description: "Cleveland auto repair near you — tires, brakes, diagnostics, emissions, oil. Walk-ins welcome 7 days. Free written estimates. 4.9★ from 1,700+ reviews. (216) 862-0005",
     group: "core",
     sitemap: true,
     prerender: true,
@@ -121,11 +133,16 @@ const CORE_PAGES: RouteEntry[] = [
 // ─── SERVICE PAGES ───────────────────────────────────────
 const SERVICE_PAGES: RouteEntry[] = [
   {
+    // 2026-04-26 GSC tune: was generic "Tire Shop Cleveland OH" + price hooks
+    // we no longer expose. Front-loading "Tire Shop Near Me" because that's
+    // the highest-impression query in our window (228 imp/mo, pos 7.2).
+    // /tire-shop-near-me is the dedicated landing — but /tires is the
+    // canonical product page and gets crawled more often. Both should win.
     path: "/tires",
     priority: 1.0,
     changefreq: "weekly",
-    title: "Tire Shop Cleveland OH — New & Used Tires | Nick's Tire",
-    description: "Cleveland's #1 new & used tire shop. Buy tires online — free premium installation ($289 value). Flat repair $15. Every tire inspected. Walk-ins 7 days. $10 down financing.",
+    title: "Tire Shop Near Me · New & Used · Free Install | Cleveland | Nick's",
+    description: "Cleveland's tire shop — new & used tires installed with free mount, balance, valve stem, and disposal. Walk-ins 7 days. Flat repair available. Free quote on your size. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -751,13 +768,18 @@ const UTILITY_PAGES: RouteEntry[] = [
     prerender: true,
   },
   {
+    // 2026-04-26 GSC audit: was sitemap:false (treated as auth-gated /
+    // landing). After v1.4-1.5 conversion overhaul, /booking is now a
+    // primary indexable surface (rich SEO content + LocalBusiness schema +
+    // capacity banner + reservation language). Flipping to sitemap:true
+    // so Google can crawl + index it for "book auto repair near me" intent.
     path: "/booking",
     priority: 0.8,
-    changefreq: "monthly",
-    title: "Book Online — Nick's Tire & Auto Cleveland",
-    description: "Book your auto repair appointment online at Nick's Tire & Auto. Tires, brakes, oil changes, diagnostics. Walk-ins also welcome 7 days a week.",
+    changefreq: "weekly",
+    title: "Hold Your Spot · Book Auto Repair Online | Cleveland OH | Nick's Tire & Auto",
+    description: "Reserve your drop-off in 60 seconds at Nick's Tire & Auto Cleveland. No credit card. No commitment to fix. A master tech calls back within 15 minutes. Walk-ins welcome 7 days. (216) 862-0005",
     group: "utility",
-    sitemap: false,
+    sitemap: true,
     prerender: true,
   },
 ];
