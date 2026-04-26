@@ -14,7 +14,7 @@ import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { Phone, Star, ExternalLink, MessageSquare, ChevronDown } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
-import { GBP_REVIEW_URL, GBP_PLACE_URL } from "@shared/const";
+import { GBP_REVIEW_URL } from "@shared/const";
 import { BUSINESS } from "@shared/business";
 import { QueryError } from "@/components/QueryState";
 
