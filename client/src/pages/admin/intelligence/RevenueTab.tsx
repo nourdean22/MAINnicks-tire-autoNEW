@@ -56,16 +56,26 @@ export default function RevenueTab() {
             />
           </div>
 
-          {/* Progress bar */}
+          {/* MTD progress bar — replaced the old "$20K goal" version with a
+              simple month-to-date display. The goal-based progress bar was
+              comparing to a stale fixed target; now it just shows what
+              you've earned this month with the projection beside it. */}
           <div className="bg-card border border-border/30 p-5">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-medium text-foreground/50 tracking-wide">MONTH VS {BUSINESS.revenueTarget.display} TARGET</span>
-              <span className="text-[12px] font-mono text-foreground/70">{fmt(forecast.data.month?.soFar ?? 0)} / {BUSINESS.revenueTarget.display}</span>
+              <span className="text-[11px] font-medium text-foreground/50 tracking-wide">MONTH-TO-DATE</span>
+              <span className="text-[12px] font-mono text-foreground/70">
+                {fmt(forecast.data.month?.soFar ?? 0)}
+                {forecast.data.month?.projection ? <> · projecting {fmt(forecast.data.month.projection)}</> : null}
+              </span>
             </div>
             <div className="w-full h-3 bg-background rounded-sm overflow-hidden">
               <div
-                className={`h-full transition-all duration-700 rounded-sm ${forecast.data.month?.onPace ? "bg-emerald-500" : "bg-red-500"}`}
-                style={{ width: `${Math.min(100, Math.round(((forecast.data.month?.soFar ?? 0) / MONTHLY_TARGET) * 100))}%` }}
+                className="h-full transition-all duration-700 rounded-sm bg-emerald-500"
+                style={{
+                  // Bar fills based on day-of-month progress, not a fixed $ goal.
+                  // Visual reads as "how far through the month are we?"
+                  width: `${Math.min(100, Math.round((new Date().getDate() / new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()) * 100))}%`,
+                }}
               />
             </div>
           </div>

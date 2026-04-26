@@ -781,10 +781,13 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
                 <p className="text-[9px] text-foreground/40 mt-1">Daily Target (26 days)</p>
               </div>
               <div className="text-center p-3 rounded border border-border/20">
-                <p className={`text-2xl font-bold ${intel.projections.monthlyAvg >= MONTHLY_TARGET ? "text-emerald-400" : "text-red-400"}`}>
-                  {intel.projections.monthlyAvg >= MONTHLY_TARGET ? "ON TRACK" : `$${(MONTHLY_TARGET - intel.projections.monthlyAvg).toLocaleString()} GAP`}
+                {/* Replaced the old "$20K goal gap" tile. Now shows monthly
+                    average run-rate as a contextual figure — no fixed goal,
+                    just current trajectory. */}
+                <p className="text-2xl font-bold text-emerald-400">
+                  ${Math.round(intel.projections.monthlyAvg).toLocaleString()}
                 </p>
-                <p className="text-[9px] text-foreground/40 mt-1">vs {BUSINESS.revenueTarget.display} Target</p>
+                <p className="text-[9px] text-foreground/40 mt-1">monthly avg run-rate</p>
               </div>
             </div>
           </div>

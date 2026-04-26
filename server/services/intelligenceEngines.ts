@@ -139,17 +139,29 @@ export async function forecastRevenue() {
     ? weeks[weeks.length - 1] > weeks[weeks.length - 2] ? "up" : weeks[weeks.length - 1] < weeks[weeks.length - 2] ? "down" : "flat"
     : "flat";
 
-  const TARGET = BUSINESS.revenueTarget.monthly;
-  const onPace = monthProjection >= TARGET;
-  const gap = TARGET - monthProjection;
+  // Trailing 90-day daily average — used as the DYNAMIC target floor in
+  // health-score pacing. Auto-scales as the business grows so we don't have
+  // to bump a fixed goal every 6 months.
+  const totalRev90 = dailyRevenue.reduce((s, r) => s + (Number(r.total) || 0), 0) / 100;
+  const trailing90DayAvgDaily = dailyRevenue.length > 0 ? totalRev90 / dailyRevenue.length : 0;
+
+  // Dynamic monthly target: trailing daily avg × ~30 days × 1.1 growth target.
+  // Fallback to the static config value as a floor (handles cold-start case).
+  const dynamicTarget = Math.max(
+    Math.round(trailing90DayAvgDaily * 30 * 1.1),
+    BUSINESS.revenueTarget.monthly,
+  );
+  const onPace = monthProjection >= dynamicTarget;
+  const gap = dynamicTarget - monthProjection;
 
   return {
     today: { soFar: todaySoFar, expected: todayExpected, pct: todayExpected > 0 ? Math.round((todaySoFar / todayExpected) * 100) : 0 },
     week: { soFar: weekSoFar, projection: Math.round(weekProjection) },
-    month: { soFar: monthSoFar, projection: monthProjection, target: TARGET, onPace, gap: Math.round(gap) },
+    month: { soFar: monthSoFar, projection: monthProjection, target: dynamicTarget, onPace, gap: Math.round(gap) },
     trend,
     dowAverages: Object.fromEntries(Object.entries(dowAvg).map(([k, v]) => [k, Math.round(v.avg / 100)])),
     weeklyTrend: weeks,
+    trailing90DayAvgDaily: Math.round(trailing90DayAvgDaily),
   };
 }
 
