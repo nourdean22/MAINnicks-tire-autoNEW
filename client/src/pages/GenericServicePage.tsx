@@ -79,7 +79,7 @@ function serviceDataToConfig(service: ServiceData): ServicePageConfig {
     bookingService: service.slug,
     serviceType: service.title,
     ctaHeadline: `BOOK YOUR ${service.title.toUpperCase()}`,
-    ctaSub: service.turnaround || "Walk-ins welcome 7 days a week — 17625 Euclid Ave, Cleveland OH.",
+    ctaSub: service.turnaround || "Walk-ins welcome 7 days a week — 530 E 185th St, Euclid OH.",
   };
 }
 
