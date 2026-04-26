@@ -8,7 +8,7 @@ import PageLayout from "@/components/PageLayout";
 import { Link } from "wouter";
 import { BLOG_ARTICLES } from "@shared/blog";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
-import { Phone, Clock, ArrowRight } from "lucide-react";
+import { Phone, Clock, ArrowRight, Star } from "lucide-react";
 import { useMemo, useState } from "react";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
@@ -19,7 +19,8 @@ export default function Blog() {
   const [activeCategory, setActiveCategory] = useState("All");
   const { data: dbArticles } = trpc.content.publishedArticles.useQuery(undefined, { staleTime: 120_000 });
 
-  // Merge DB-generated articles with static blog articles
+  // Merge DB-generated articles with static blog articles. Both shapes get
+  // normalized so the grid + featured-post card can read `heroImage` uniformly.
   const allArticles = useMemo(() => {
     const fromDb = (dbArticles || []).map((a: any) => ({
       slug: a.slug || `article-${a.id}`,
@@ -28,7 +29,9 @@ export default function Blog() {
       category: a.category || "Maintenance",
       readTime: `${Math.max(3, Math.round((a.body || "").split(" ").length / 200))} min read`,
       date: a.publishedAt ? new Date(a.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Recent",
-      image: a.imageUrl || undefined,
+      // BLOG_ARTICLES uses `heroImage`; DB rows use `imageUrl`. Normalize so
+      // both render correctly in the grid and the featured-post hero.
+      heroImage: a.imageUrl || "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
       generated: true,
     }));
     // DB articles first (newest content), then static fallbacks
@@ -40,9 +43,24 @@ export default function Blog() {
     [allArticles]
   );
 
+  // Counts per category — gives readers a sense of depth before they click.
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { All: allArticles.length };
+    for (const a of allArticles) {
+      const cat = (a as any).category as string;
+      counts[cat] = (counts[cat] || 0) + 1;
+    }
+    return counts;
+  }, [allArticles]);
+
   const filtered = activeCategory === "All"
     ? allArticles
     : allArticles.filter((a: any) => a.category === activeCategory);
+
+  // Featured post — first article in the "All" view. Skips when filtering, so
+  // category views aren't visually skewed by a hero that doesn't match.
+  const featured = activeCategory === "All" ? allArticles[0] : null;
+  const gridArticles = featured ? filtered.slice(1) : filtered;
 
   return (
     <PageLayout activeHref="/blog" showChat={true}>
@@ -85,24 +103,76 @@ export default function Blog() {
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
-                className={`px-4 py-2 text-[12px] tracking-wide whitespace-nowrap rounded-md transition-colors ${
+                className={`px-4 py-2 text-[12px] tracking-wide whitespace-nowrap rounded-md transition-colors flex items-center gap-2 ${
                   activeCategory === cat
                     ? "bg-primary text-primary-foreground btn-premium font-bold"
                     : "bg-card/80 border border-nick-blue/15 text-foreground/60 hover:text-primary hover:border-primary/30"
                 }`}
               >
-                {cat}
+                <span>{cat}</span>
+                <span className={`text-[10px] font-bold tabular-nums ${activeCategory === cat ? "opacity-80" : "text-foreground/35"}`}>
+                  {categoryCounts[cat] || 0}
+                </span>
               </button>
             ))}
           </div>
         </div>
       </section>
 
+      {/* Featured Post — only shown on "All" view */}
+      {featured && (
+        <section className="bg-[oklch(0.065_0.004_260)] pt-10 lg:pt-14">
+          <div className="container">
+            <FadeIn>
+              <div className="flex items-center gap-2 mb-4 text-foreground/40 text-[11px] uppercase tracking-[0.2em] font-bold">
+                <Star className="w-3.5 h-3.5 text-primary" />
+                Featured · most recent
+              </div>
+              <Link
+                href={`/blog/${featured.slug}`}
+                className="group block bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-3xl overflow-hidden hover:border-primary/40 transition-colors"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2">
+                  <div className="aspect-[16/10] md:aspect-auto overflow-hidden">
+                    <img
+                      src={(featured as any).heroImage || (featured as any).image}
+                      alt={featured.title}
+                      className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+                      loading="eager"
+                    />
+                  </div>
+                  <div className="p-7 lg:p-10 flex flex-col justify-center">
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="text-[12px] text-primary tracking-wide uppercase font-bold">{featured.category}</span>
+                      <span className="text-foreground/20">|</span>
+                      <span className="text-[12px] text-foreground/40 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {featured.readTime}
+                      </span>
+                    </div>
+                    <h2 className="font-heading font-bold text-2xl lg:text-4xl text-foreground tracking-tight uppercase leading-[1.1] mb-3 group-hover:text-primary transition-colors">
+                      {featured.title}
+                    </h2>
+                    <p className="text-foreground/65 text-base leading-relaxed line-clamp-3 mb-5">
+                      {featured.excerpt}
+                    </p>
+                    <span className="inline-flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider">
+                      Read the full article
+                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            </FadeIn>
+          </div>
+        </section>
+      )}
+
       {/* Articles Grid */}
-      <section className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-20 flex-1">
+      <section className="bg-[oklch(0.065_0.004_260)] py-12 lg:py-16 flex-1">
         <div className="container">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 stagger-in">
-            {filtered.map((article, i) => (
+            {gridArticles.map((article, i) => (
               <FadeIn key={article.slug} delay={i * 0.08}>
                 <Link href={`/blog/${article.slug}`} className="group block bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl overflow-hidden h-full">
                   <div className="aspect-[16/9] overflow-hidden">
