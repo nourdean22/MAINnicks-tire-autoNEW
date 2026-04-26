@@ -63,12 +63,19 @@ export async function forecastRevenue() {
     cnt: number;
   }>;
 
-  // Day-of-week averages
+  // Day-of-week averages.
+  //
+  // BUG FIX: mysql2's `.execute()` returns BIGINT/DECIMAL columns as STRINGS
+  // (for precision safety). Prior code did `dowAvg[d].avg += r.total` which
+  // is string concatenation when r.total is "1500" — producing absurd numbers
+  // like $48,300,279,697,500,690,000,000,000,000,000 in the dashboard. The
+  // huge string then cast to a number when divided in the projections.
+  // Number(r.total) forces numeric addition. Same fix applied to .dow.
   const dowAvg: Record<number, { avg: number; count: number }> = {};
   for (const r of dailyRevenue) {
-    const d = r.dow;
+    const d = Number(r.dow);
     if (!dowAvg[d]) dowAvg[d] = { avg: 0, count: 0 };
-    dowAvg[d].avg += r.total;
+    dowAvg[d].avg += Number(r.total) || 0;
     dowAvg[d].count += 1;
   }
   for (const d in dowAvg) dowAvg[d].avg = Math.round(dowAvg[d].avg / dowAvg[d].count);
@@ -80,7 +87,10 @@ export async function forecastRevenue() {
   }).from(invoices)
     .where(and(gte(invoices.invoiceDate, sql`CURDATE()`), eq(invoices.paymentStatus, "paid")));
 
-  const todaySoFar = (todayRev[0]?.total || 0) / 100; // cents → dollars
+  // Number() guards: mysql2 returns SUM(BIGINT) as a string for precision
+  // safety. Division coerces to number, but explicit Number() makes intent
+  // clear and prevents string-concat regressions if the math is reordered.
+  const todaySoFar = (Number(todayRev[0]?.total) || 0) / 100; // cents → dollars
   const todayExpected = (dowAvg[dayOfWeek + 1]?.avg || 0) / 100; // MySQL DAYOFWEEK is 1-indexed
 
   // This week so far (paid invoices only)
@@ -89,7 +99,7 @@ export async function forecastRevenue() {
   }).from(invoices)
     .where(and(gte(invoices.invoiceDate, sql`DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)`), eq(invoices.paymentStatus, "paid")));
 
-  const weekSoFar = (weekRev[0]?.total || 0) / 100;
+  const weekSoFar = (Number(weekRev[0]?.total) || 0) / 100;
 
   // Project remaining week days
   let weekProjection = weekSoFar;
@@ -103,7 +113,7 @@ export async function forecastRevenue() {
   }).from(invoices)
     .where(and(gte(invoices.invoiceDate, sql`DATE_FORMAT(CURDATE(), '%Y-%m-01')`), eq(invoices.paymentStatus, "paid")));
 
-  const monthSoFar = (monthRev[0]?.total || 0) / 100;
+  const monthSoFar = (Number(monthRev[0]?.total) || 0) / 100;
   const dayOfMonth = etNow.getDate();
   const daysInMonth = new Date(etNow.getFullYear(), etNow.getMonth() + 1, 0).getDate();
   const monthProjection = dayOfMonth > 0 ? Math.round(monthSoFar * (daysInMonth / dayOfMonth)) : 0;
@@ -124,7 +134,7 @@ export async function forecastRevenue() {
     total: number;
   }>;
 
-  const weeks = weeklyTrend.map((w: typeof weeklyTrend[number]) => w.total / 100);
+  const weeks = weeklyTrend.map((w: typeof weeklyTrend[number]) => Number(w.total) / 100);
   const trend = weeks.length >= 2
     ? weeks[weeks.length - 1] > weeks[weeks.length - 2] ? "up" : weeks[weeks.length - 1] < weeks[weeks.length - 2] ? "down" : "flat"
     : "flat";
@@ -832,8 +842,10 @@ export async function forecastSeasonalDemand(): Promise<{
       if (!monthCategoryTotals[row.monthNum][cat]) {
         monthCategoryTotals[row.monthNum][cat] = { count: 0, years: new Set() };
       }
-      monthCategoryTotals[row.monthNum][cat].count += row.cnt;
-      monthCategoryTotals[row.monthNum][cat].years.add(row.yearNum);
+      // Number() cast — mysql2 raw .execute() returns COUNT/BIGINT as strings.
+      // Without this, += does string concat producing junk seasonal counts.
+      monthCategoryTotals[row.monthNum][cat].count += Number(row.cnt) || 0;
+      monthCategoryTotals[row.monthNum][cat].years.add(Number(row.yearNum));
     }
   }
 
