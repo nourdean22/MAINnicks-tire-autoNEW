@@ -338,12 +338,29 @@ export const intelligenceRouter = router({
   }),
 
   // ── Shop Load (real-time) ──
+  //
+  // "Cars in Shop" = work orders that are ACTUALLY being worked on right
+  // now. Two filters protect against phantom counts:
+  //
+  //  1. Status: only `in_progress`, `waiting_parts`, `quality_check` count.
+  //     `approved` was previously included but it's a QUOTE-stage status —
+  //     a quote can sit in `approved` for weeks without the car ever being
+  //     in the shop. Including it produced phantoms (e.g. WO-2026-105165
+  //     was "approved" for 18 days with no vehicle info, never started).
+  //
+  //  2. Freshness: ignore anything whose updated_at is older than 7 days.
+  //     A WO that hasn't been touched in a week is dead, not active.
+  //     If a job genuinely takes a week+, the tech updates it.
   shopLoad: adminProcedure.query(async () => {
     const { getDb } = await import("../db");
     const { sql: rawSql } = await import("drizzle-orm");
     const d = await getDb();
     if (!d) return { activeWOs: 0, todayBookings: 0, estimatedWait: 0 };
-    const [woRows] = await d.execute(rawSql`SELECT COUNT(*) as cnt FROM work_orders WHERE status IN ('in_progress', 'approved', 'waiting_parts', 'quality_check')`);
+    const [woRows] = await d.execute(rawSql`
+      SELECT COUNT(*) as cnt FROM work_orders
+      WHERE status IN ('in_progress', 'waiting_parts', 'quality_check')
+        AND COALESCE(updated_at, created_at) >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    `);
     const [bkRows] = await d.execute(rawSql`SELECT COUNT(*) as cnt FROM bookings WHERE createdAt >= CURDATE() AND status IN ('new', 'confirmed')`);
     const activeWOs = Number((woRows as any)?.[0]?.cnt || 0);
     const todayBookings = Number((bkRows as any)?.[0]?.cnt || 0);

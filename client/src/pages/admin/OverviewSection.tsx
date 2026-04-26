@@ -568,7 +568,12 @@ export default function OverviewSection() {
   const urgentLeads = stats.leads.urgent ?? 0;
   const healthScore = masterReport?.summary?.score ?? null;
   const algConnected = algStatus?.connected ?? null;
-  const carsInShop = shopLoad?.activeWOs ?? workOrderStats?.active ?? 0;
+  // Prefer shopLoad.activeWOs — it's the strict "physically in shop right now"
+  // count (in_progress / waiting_parts / quality_check, fresh in last 7d).
+  // Fallback uses workOrderStats.inProgress (NOT .active) because .active
+  // includes 13 statuses like draft/approved/parts_ordered which aren't cars
+  // physically present in the bay.
+  const carsInShop = shopLoad?.activeWOs ?? workOrderStats?.inProgress ?? 0;
 
   const serviceChartData = stats.bookings.byService.slice(0, 6).map((s, i) => ({
     name: s.service.length > 15 ? s.service.substring(0, 15) + "\u2026" : s.service,
