@@ -15,7 +15,7 @@ const CONFIG: ServicePageConfig = {
   description: "Local tire shop in Cleveland/Euclid — open 7 days, walk-ins welcome. New & used tires from $60. Free install, balance, alignment check. 4.9★ · 1,700+ reviews. (216) 862-0005",
   eyebrow: "LOCAL TIRE SHOP",
   h1: "TIRE SHOP NEAR YOU — CLEVELAND / EUCLID",
-  sub: "Searching for a tire shop near me? Nick's Tire & Auto at 530 E 185th St, Euclid is open 7 days a week with walk-ins welcome. New & used tires from $60 with free mounting, balancing, and alignment check. Most installs in 30-45 minutes.",
+  sub: "Searching for a tire shop near me? Nick's Tire & Auto at 17625 Euclid Ave, Cleveland is open 7 days a week with walk-ins welcome. New & used tires from $60 with free mounting, balancing, and alignment check. Most installs in 30-45 minutes.",
   startingPrice: "New tires from $60",
   pricingTitle: "TIRE PRICING",
   pricingSub: "Buy one or all four. Free installation package included — no hidden fees.",
@@ -49,7 +49,7 @@ const CONFIG: ServicePageConfig = {
   bookingService: "tires",
   serviceType: "Tire Installation",
   ctaHeadline: "WALK IN OR BOOK ONLINE",
-  ctaSub: "Open 7 days, walk-ins welcome. Call ahead at (216) 862-0005 and we'll have your size ready. 530 E 185th St, Euclid OH.",
+  ctaSub: "Open 7 days, walk-ins welcome. Call ahead at (216) 862-0005 and we'll have your size ready. 17625 Euclid Ave, Cleveland OH.",
 };
 
 export default function TireShopNearMePage() {

@@ -46,7 +46,7 @@ const CONFIG: ServicePageConfig = {
   bookingService: "diagnostics",
   serviceType: "Vehicle Diagnostics",
   ctaHeadline: "BOOK A DIAGNOSTIC",
-  ctaSub: "Free code scan, honest diagnosis. Walk in or book below — 530 E 185th St, Euclid OH.",
+  ctaSub: "Free code scan, honest diagnosis. Walk in or book below — 17625 Euclid Ave, Cleveland OH.",
 };
 
 export default function DiagnosticsPage() {
