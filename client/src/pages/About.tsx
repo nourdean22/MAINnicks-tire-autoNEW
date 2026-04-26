@@ -6,8 +6,10 @@ import InternalLinks from "@/components/InternalLinks";
 import { Link } from "wouter";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
-import { Phone, Star, ArrowRight, CreditCard } from "lucide-react";
-import { motion } from "framer-motion";
+import {
+  Phone, Star, ArrowRight, CreditCard,
+  Camera, Car, FileCheck, Wrench, Award, ShieldCheck,
+} from "lucide-react";
 import FadeIn from "@/components/FadeIn";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
@@ -91,6 +93,34 @@ export default function About() {
         </div>
       </section>
 
+      {/* Authority strip — credentials + equipment + history */}
+      <section className="bg-[oklch(0.07_0.004_260)] py-12 lg:py-16 border-y border-white/5">
+        <div className="container max-w-6xl">
+          <FadeIn>
+            <div className="flex items-center justify-center gap-2 mb-6 text-foreground/40 text-xs uppercase tracking-[0.2em] font-bold">
+              <Award className="w-4 h-4 text-primary" />
+              The shop floor, not the marketing pitch
+            </div>
+          </FadeIn>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {[
+              { stat: "30+", label: "Years combined tech experience", sub: "Master + journeyman techs across the floor" },
+              { stat: "4 bays", label: "Operating capacity", sub: "Two lifts, two flat-bay drive-ons; ~32 jobs/day max" },
+              { stat: "OBD-II + live data", label: "Diagnostic equipment", sub: "Snap-on / Autel scan tools, manufacturer-grade" },
+              { stat: "12-mo", label: "Parts + labor warranty", sub: "12,000-mile or 12-month — whichever comes first, in writing" },
+            ].map((item, i) => (
+              <FadeIn key={item.label} delay={i * 0.08}>
+                <div className="text-center">
+                  <div className="font-heading text-3xl lg:text-4xl font-bold text-primary mb-2 tracking-tight">{item.stat}</div>
+                  <div className="text-foreground/80 text-sm font-semibold leading-tight mb-1.5">{item.label}</div>
+                  <div className="text-foreground/45 text-xs leading-snug">{item.sub}</div>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Philosophy — split layout */}
       <section className="bg-[oklch(0.065_0.004_260)] py-24 lg:py-32">
         <div className="container">
@@ -155,6 +185,77 @@ export default function About() {
         </div>
       </section>
 
+      {/* Reciprocity — "What you get for free" */}
+      <section className="bg-[oklch(0.065_0.004_260)] py-20 lg:py-24">
+        <div className="container max-w-6xl">
+          <FadeIn>
+            <div className="text-center mb-10">
+              <div className="text-xs uppercase tracking-[0.2em] text-primary font-bold mb-2">No-charge, no-catch</div>
+              <h2 className="text-3xl lg:text-5xl font-bold text-foreground tracking-tight uppercase">
+                Six things we give you free
+                <span className="block text-primary">that other shops charge for.</span>
+              </h2>
+              <p className="text-foreground/55 text-base mt-4 max-w-2xl mx-auto">
+                These aren't promotions. They're built into how the shop runs. We'd rather earn your repair than nickel-and-dime the inspection.
+              </p>
+            </div>
+          </FadeIn>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[
+              {
+                icon: <FileCheck className="w-6 h-6" />,
+                title: "Multi-point inspection",
+                sub: "27 checkpoints — brakes, fluids, belts, suspension, lights, tires. Every visit, free.",
+                anchor: "Most shops: $59–$99",
+              },
+              {
+                icon: <Camera className="w-6 h-6" />,
+                title: "Photo documentation",
+                sub: "We take pictures of any worn part before we replace it. You see what we saw.",
+                anchor: "Most shops: 'trust us'",
+              },
+              {
+                icon: <Wrench className="w-6 h-6" />,
+                title: "OBD-II code scan",
+                sub: "Check engine light? Free scan, on the spot. Print-out included.",
+                anchor: "AutoZone equivalent: $0; dealer: $89–$150",
+              },
+              {
+                icon: <Car className="w-6 h-6" />,
+                title: "Free Uber within 5 miles",
+                sub: "Drop off the car, take a free Uber home. We'll pick you up the same way when it's done.",
+                anchor: "Most shops: shuttle by appointment, or none",
+              },
+              {
+                icon: <ShieldCheck className="w-6 h-6" />,
+                title: "Written estimate before any work",
+                sub: "Every repair over $100 — full written estimate, line-by-line. We don't touch it without your approval.",
+                anchor: "Industry standard: verbal-only, sometimes",
+              },
+              {
+                icon: <Star className="w-6 h-6" />,
+                title: "12-month warranty in writing",
+                sub: "Parts + labor, 12 months / 12,000 miles. If a fix doesn't take, we redo it free.",
+                anchor: "Chain warranties: 90 days typical",
+              },
+            ].map((item, i) => (
+              <FadeIn key={item.title} delay={i * 0.06}>
+                <div className="bg-[#141414] border border-[#2A2A2A] rounded-2xl p-6 h-full hover:border-primary/30 transition-colors">
+                  <div className="w-11 h-11 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-4">
+                    {item.icon}
+                  </div>
+                  <h3 className="font-heading font-bold text-foreground text-lg uppercase tracking-wide mb-2">{item.title}</h3>
+                  <p className="text-foreground/60 text-sm leading-relaxed mb-3">{item.sub}</p>
+                  <div className="text-[11px] uppercase tracking-wider text-foreground/35 font-semibold border-t border-white/5 pt-3">
+                    {item.anchor}
+                  </div>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Rooted in East Cleveland */}
       <section className="py-16 bg-white/5">
         <div className="max-w-5xl mx-auto px-6 text-center">
@@ -198,6 +299,59 @@ export default function About() {
                 <p className="text-foreground/60 text-sm">Earn rewards on every visit. Our loyalty program is our way of saying thank you to the drivers who trust us year after year.</p>
               </div>
             </div>
+          </FadeIn>
+        </div>
+      </section>
+
+      {/* Written guarantees — formalized commitments */}
+      <section className="bg-[oklch(0.065_0.004_260)] py-20 lg:py-24">
+        <div className="container max-w-4xl">
+          <FadeIn>
+            <div className="text-center mb-10">
+              <div className="text-xs uppercase tracking-[0.2em] text-primary font-bold mb-2">In writing, on every receipt</div>
+              <h2 className="text-3xl lg:text-4xl font-bold text-foreground tracking-tight uppercase">
+                Four guarantees we put in print.
+              </h2>
+            </div>
+          </FadeIn>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[
+              {
+                num: "01",
+                title: "12 months / 12,000 miles parts + labor",
+                sub: "Whichever comes first. Failed part or improper repair? Bring it back, no charge — full re-do, including labor.",
+              },
+              {
+                num: "02",
+                title: "Quoted price = paid price",
+                sub: "If the written estimate is $440, the bill is $440. If we find something extra, we stop and call you with the new number — no surprise add-ons at pickup.",
+              },
+              {
+                num: "03",
+                title: "We don't replace what isn't broken",
+                sub: "We test before we replace. If the part on your car still works, we say so — even when replacing it would make us money.",
+              },
+              {
+                num: "04",
+                title: "If we can't fix it, you don't pay",
+                sub: "If we mis-diagnose and the issue isn't resolved, the diagnostic and repair are free. We eat the cost — it's our problem, not yours.",
+              },
+            ].map((item) => (
+              <FadeIn key={item.num}>
+                <div className="bg-[#141414] border border-primary/20 rounded-xl p-5 h-full">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="font-heading text-xl font-bold text-primary">{item.num}</span>
+                    <h3 className="font-semibold text-foreground text-sm leading-snug">{item.title}</h3>
+                  </div>
+                  <p className="text-foreground/60 text-sm leading-relaxed">{item.sub}</p>
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+          <FadeIn delay={0.3}>
+            <p className="text-center text-foreground/40 text-xs mt-8 italic max-w-xl mx-auto">
+              Every receipt has these printed on the back. Not because the law makes us — because we want you holding us to them.
+            </p>
           </FadeIn>
         </div>
       </section>

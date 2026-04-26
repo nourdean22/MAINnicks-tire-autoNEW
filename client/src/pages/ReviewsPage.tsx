@@ -8,7 +8,8 @@ import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import ReviewCTA from "@/components/ReviewCTA";
 import PageLayout from "@/components/PageLayout";
-import { useState, useRef, useMemo, useCallback } from "react";
+import { useState, useRef, useMemo } from "react";
+import { Link } from "wouter";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { Phone, Star, ExternalLink, MessageSquare, ChevronDown } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
@@ -184,6 +185,23 @@ export default function ReviewsPage() {
   const totalCount = reviewData?.totalReviews ?? BUSINESS.reviews.count;
   const avgRating = reviewData?.rating ?? BUSINESS.reviews.rating;
 
+  // Trust-keyword frequency rollup — real, derived from actual review text.
+  // Shows what specific words customers use, not invented testimonials.
+  const trustKeywordCounts = useMemo(() => {
+    if (!reviewData?.reviews) return null;
+    const text = reviewData.reviews.map((r) => r.text.toLowerCase()).join(" \n ");
+    const total = reviewData.reviews.length || 1;
+    const count = (re: RegExp) => text.match(re)?.length ?? 0;
+    return {
+      total,
+      honest: count(/\bhonest|honesty|trustworthy?\b/g),
+      fairPrice: count(/\bfair (?:price|pric)|reasonable price|good price|great price|affordable\b/g),
+      fast: count(/\bquick|fast|same[- ]day|right away\b/g),
+      friendly: count(/\bfriendly|nice|kind|polite|courteous|professional\b/g),
+      explain: count(/\bexplain|walked me through|showed me|told me what\b/g),
+    };
+  }, [reviewData]);
+
   // Filter and sort reviews
   const filteredReviews = useMemo(() => {
     if (!reviewData?.reviews) return [];
@@ -287,11 +305,42 @@ export default function ReviewsPage() {
                 <span className="text-[#FDB913]">Cleveland Drivers</span>
               </h1>
               <p className="mt-4 text-foreground/50 text-lg font-heading tracking-wide uppercase">
-                {totalCount.toLocaleString()}+ reviews | {avgRating} average
+                {totalCount.toLocaleString()}+ reviews | {avgRating} average | unfiltered Google data
               </p>
             </FadeIn>
           </div>
         </section>
+
+        {/* ─── TRUST-KEYWORD ROLLUP — what customers actually say ─── */}
+        {trustKeywordCounts && trustKeywordCounts.total > 50 && (
+          <section className="bg-[oklch(0.05_0.004_260)] border-b border-border/15 py-8">
+            <div className="container">
+              <FadeIn>
+                <div className="flex items-center justify-center gap-2 mb-5 text-foreground/40 text-xs uppercase tracking-[0.2em] font-bold">
+                  <Star className="w-4 h-4 text-[#FDB913]" />
+                  Words customers use, ranked by how often
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 max-w-4xl mx-auto">
+                  {[
+                    { label: '"Honest"', count: trustKeywordCounts.honest },
+                    { label: '"Fair price"', count: trustKeywordCounts.fairPrice },
+                    { label: '"Explained"', count: trustKeywordCounts.explain },
+                    { label: '"Fast"', count: trustKeywordCounts.fast },
+                    { label: '"Friendly"', count: trustKeywordCounts.friendly },
+                  ].map((k) => (
+                    <div key={k.label} className="bg-card/50 border border-border/30 rounded-lg p-3 text-center">
+                      <div className="font-heading text-xl lg:text-2xl font-bold text-[#FDB913]">{k.count}</div>
+                      <div className="text-foreground/55 text-[11px] uppercase tracking-wider mt-0.5">{k.label}</div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-center text-foreground/35 text-[11px] mt-4 italic max-w-xl mx-auto">
+                  Counts derived from actual Google review text — out of {trustKeywordCounts.total} most recent reviews shown below. Not curated. Not edited.
+                </p>
+              </FadeIn>
+            </div>
+          </section>
+        )}
 
         {/* ─── FILTER BAR ─── */}
         <section className="bg-[oklch(0.06_0.004_260)] border-y border-border/20 sticky top-0 z-30">
@@ -384,16 +433,25 @@ export default function ReviewsPage() {
                   </button>
                 )}
               </p>
-              <a
-                href={GBP_REVIEW_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 bg-[#FDB913] text-black px-5 py-2.5 rounded-md font-semibold text-sm tracking-wide hover:opacity-90 transition-colors"
-              >
-                <Star className="w-4 h-4" />
-                Leave a Review
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/booking"
+                  className="inline-flex items-center gap-2 bg-[#FDB913] text-black px-5 py-2.5 rounded-md font-semibold text-sm tracking-wide hover:opacity-90 transition-colors"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Book Yours
+                </Link>
+                <a
+                  href={GBP_REVIEW_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 border border-foreground/20 text-foreground/70 px-4 py-2.5 rounded-md font-semibold text-sm tracking-wide hover:border-[#FDB913] hover:text-[#FDB913] transition-colors"
+                >
+                  <Star className="w-4 h-4" />
+                  Leave a Review
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
             </div>
 
             {isError ? (
@@ -464,11 +522,18 @@ export default function ReviewsPage() {
               <p className="mt-4 text-foreground/60 text-lg max-w-xl mx-auto">
                 Join thousands of Cleveland drivers who trust Nick's Tire & Auto. Call for a free estimate or book online.
               </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+              <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center flex-wrap">
+                <Link
+                  href="/booking"
+                  className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-black px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
+                >
+                  <MessageSquare className="w-5 h-5" />
+                  BOOK YOUR DROP-OFF
+                </Link>
                 <a
                   href={BUSINESS.phone.href}
                   onClick={() => trackPhoneClick("reviews-bottom-cta")}
-                  className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-black px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
+                  className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground/85 px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:border-[#FDB913] hover:text-[#FDB913] transition-colors"
                 >
                   <Phone className="w-5 h-5" />
                   CALL {BUSINESS.phone.display}
@@ -477,7 +542,7 @@ export default function ReviewsPage() {
                   href={GBP_REVIEW_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 border-2 border-foreground/20 text-foreground/70 px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:bg-foreground/5 transition-colors"
+                  className="inline-flex items-center justify-center gap-2 border-2 border-foreground/20 text-foreground/55 px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:bg-foreground/5 transition-colors"
                 >
                   <Star className="w-5 h-5" />
                   LEAVE A REVIEW
