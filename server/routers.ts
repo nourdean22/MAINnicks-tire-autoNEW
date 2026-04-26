@@ -79,6 +79,7 @@ import {
   noShowRouter,
   snapRouter,
   trafficFunnelRouter,
+  conversionRouter,
 } from "./routers/index";
 
 export const appRouter = router({
@@ -213,6 +214,13 @@ export const appRouter = router({
   // stage from Google impressions to paid invoices, with conversion math
   // + leak alerts. See server/routers/trafficFunnel.ts.
   trafficFunnel: trafficFunnelRouter,
+
+  // Public-facing live data for the conversion-architecture components
+  // (LiveVisitorCounter, FomoTicker, UrgencyWidget, etc.). Pulls real
+  // session/booking/invoice data with aggressive caching. Per the
+  // conversion-overhaul spec, NEVER fakes numbers — components decide
+  // whether to render based on whether real data is persuasive.
+  conversion: conversionRouter,
 });
 
 export type AppRouter = typeof appRouter;

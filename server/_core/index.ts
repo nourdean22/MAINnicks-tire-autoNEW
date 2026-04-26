@@ -215,6 +215,40 @@ async function startServer() {
 
   // ─── Abandoned Form Tracking ──────────────────────────
   // Receives navigator.sendBeacon from BookingWizard on page unload
+  // ─── Conversion-event sink ─────────────────────────────
+  // The `useConversionTracking` hook on the client fans every CTA / form
+  // / capture event here. We log to the standard logger (so logs/grep
+  // can audit) AND push into an in-memory ring buffer (`conversionEvents`)
+  // so the admin Conversion Preview tab can show a live feed without a
+  // DB migration.
+  //
+  // Batch 9 of the conversion overhaul will move this to a dedicated
+  // table for proper funnel analytics. For now, ring buffer + logger is
+  // enough to validate the wiring end-to-end.
+  app.post("/api/analytics/conversion", express.json({ limit: "8kb" }), async (req, res) => {
+    try {
+      const body = req.body as Record<string, unknown> | null;
+      if (!body || typeof body !== "object" || typeof body.type !== "string") {
+        return res.sendStatus(204);
+      }
+      const { recordConversionEvent } = await import("../services/conversionEvents");
+      recordConversionEvent({
+        type: String(body.type).slice(0, 80),
+        page: typeof body.page === "string" ? body.page.slice(0, 200) : undefined,
+        element: typeof body.element === "string" ? body.element.slice(0, 200) : undefined,
+        value: typeof body.value === "number" ? body.value : undefined,
+        props: typeof body.props === "object" && body.props !== null ? body.props as Record<string, unknown> : undefined,
+        ip: req.ip,
+        ua: req.get("user-agent")?.slice(0, 300),
+      });
+      res.sendStatus(204);
+    } catch (e) {
+      // Conversion analytics never blocks UX — swallow errors.
+      console.warn("[server:conversionEvent] failed:", e);
+      res.sendStatus(204);
+    }
+  });
+
   app.post("/api/track-abandoned", express.json(), async (req, res) => {
     try {
       const { name, phone, service, vehicle, step: formStep } = req.body || {};
