@@ -12,6 +12,8 @@ import ChatWidget from "@/components/ChatWidget";
 import CallbackModal from "@/components/CallbackModal";
 import NotificationBar from "@/components/NotificationBar";
 import ReviewCTA from "@/components/ReviewCTA";
+import UrgencyWidget from "@/components/conversion/UrgencyWidget";
+import ExitIntentModal from "@/components/conversion/ExitIntentModal";
 
 interface PageLayoutProps {
   children: React.ReactNode;
@@ -41,6 +43,11 @@ export default function PageLayout({
       <SiteMobileCTA />
       <FomoTicker />
       <CallbackModal />
+      {/* Conversion-architecture wiring (Batch 1 of v1.1 spec).
+          Both components self-suppress on /admin /booking /contact and
+          have their own localStorage TTLs so they don't double-prompt. */}
+      <UrgencyWidget />
+      <ExitIntentModal />
       {showChat && <ChatWidget />}
     </div>
   );

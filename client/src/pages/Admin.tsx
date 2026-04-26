@@ -40,6 +40,7 @@ const NoShowRiskSection = lazy(() => import("./admin/NoShowRiskSection"));
 const WalkInCalculatorSection = lazy(() => import("./admin/WalkInCalculatorSection"));
 const SnapDashboardSection = lazy(() => import("./admin/SnapDashboardSection"));
 const TrafficFunnelSection = lazy(() => import("./admin/TrafficFunnelSection"));
+const ConversionPreviewSection = lazy(() => import("./admin/ConversionPreviewSection"));
 // Settings tab sub-sections — kept because they're consumed INSIDE SettingsSection,
 // but not rendered as top-level routes anymore (Settings page handles them).
 // AdminContent.tsx still routes here for /admin/content.
@@ -74,6 +75,7 @@ function SectionContent({ section }: { section: AdminSection }) {
       {section === "walkInCalc" && <WalkInCalculatorSection />}
       {section === "snapDashboard" && <SnapDashboardSection />}
       {section === "trafficFunnel" && <TrafficFunnelSection />}
+      {section === "conversionPreview" && <ConversionPreviewSection />}
     </Suspense>
   );
 }

@@ -9,7 +9,7 @@ import {
   ClipboardList, Trophy, Gift, Send, Star, UserCheck, RotateCcw, Timer,
   Settings, Upload, DollarSign, Activity, TrendingUp, Plug, ShoppingCart,
   BarChart3, PhoneCall, Download, CreditCard, Zap, Brain, Tag,
-  Shield, Package, ListOrdered, Search,
+  Shield, Package, ListOrdered, Search, Sparkles,
 } from "lucide-react";
 
 // ─── TYPES ──────────────────────────────────────────────
@@ -19,7 +19,7 @@ export type AdminSection =
   | "commandCenter" | "overview" | "leads" | "content" | "customers"
   | "campaigns" | "settings" | "revenue" | "callTrackingView" | "intelligence"
   | "declinedEstimates" | "reEngagement" | "noShowRisk" | "walkInCalc"
-  | "snapDashboard" | "trafficFunnel";
+  | "snapDashboard" | "trafficFunnel" | "conversionPreview";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -83,6 +83,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "walkInCalc", label: "Walk-In Quote", icon: <DollarSign className="w-4 h-4" /> },
       { id: "commandCenter", label: "NOUR OS Bridge", icon: <Zap className="w-4 h-4" /> },
       { id: "intelligence", label: "Intelligence", icon: <Brain className="w-4 h-4" /> },
+      { id: "conversionPreview", label: "Conversion Preview", icon: <Sparkles className="w-4 h-4" /> },
     ],
   },
   {
@@ -137,6 +138,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   walkInCalc: "Walk-In Quote",
   snapDashboard: "Snap Finance",
   trafficFunnel: "Traffic → Revenue",
+  conversionPreview: "Conversion Preview",
 };
 
 // ─── PAGE HEADER ────────────────────────────────────────

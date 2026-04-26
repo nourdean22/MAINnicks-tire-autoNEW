@@ -1,0 +1,235 @@
+/**
+ * UrgencyWidget — floating bottom-right callout with REAL shop capacity data.
+ *
+ * Behavior:
+ *   - Hidden until user scrolls past 35% of the page (signals real intent).
+ *   - Slides in from bottom-right with subtle attention.
+ *   - Shows: slots remaining today, next available time.
+ *   - Optional 1-tap "Hold my spot" → captures phone via existing CallbackModal.
+ *   - Auto-collapses after 8s if not interacted; re-expandable on hover.
+ *   - LocalStorage flag suppresses for 24h after dismiss.
+ *
+ * Per the conversion-overhaul spec (`docs/CONVERSION-OVERHAUL-V1.1.md`):
+ *   - All numbers are REAL (from `trpc.conversion.shopCapacity`).
+ *   - Hides outside business hours rather than fake an open status.
+ *   - Doesn't show on /admin or /booking (don't double-prompt the user
+ *     who's already converting).
+ */
+import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Clock, X, Phone, Check, Loader2 } from "lucide-react";
+import { useLocation } from "wouter";
+import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
+import { BUSINESS } from "@shared/business";
+
+const STORAGE_KEY = "urgency-widget-dismissed-until";
+const SCROLL_THRESHOLD = 0.35;
+const AUTO_COLLAPSE_MS = 8000;
+const DISMISS_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+const SUPPRESS_PATHS = ["/admin", "/booking", "/contact"];
+
+export default function UrgencyWidget() {
+  const [location] = useLocation();
+  const [visible, setVisible] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [captureOpen, setCaptureOpen] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  const submit = trpc.callback.submit.useMutation({
+    onSuccess: () => {
+      setSubmitted(true);
+      setTimeout(() => {
+        setCaptureOpen(false);
+        setSubmitted(false);
+        setPhone("");
+      }, 2500);
+    },
+    onError: () => toast.error("Couldn't reserve. Call (216) 862-0005."),
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length < 10) { toast.error("Enter a 10-digit phone."); return; }
+    submit.mutate({
+      name: "Urgency-widget visitor",
+      phone: phone.trim(),
+      sourcePage: window.location.pathname + "?capture=urgency-widget",
+    });
+  }
+
+  const { data: capacity } = trpc.conversion.shopCapacity.useQuery(undefined, {
+    refetchInterval: 60_000,
+    staleTime: 50_000,
+  });
+
+  // Path-level suppression
+  const onSuppressedPath = SUPPRESS_PATHS.some((p) => location.startsWith(p));
+
+  // Local-storage dismissal check
+  useEffect(() => {
+    if (typeof window === "undefined" || onSuppressedPath) return;
+    try {
+      const dismissedUntil = Number(localStorage.getItem(STORAGE_KEY) || 0);
+      if (dismissedUntil > Date.now()) return; // still suppressed
+    } catch {
+      // localStorage may be blocked — proceed.
+    }
+
+    const onScroll = () => {
+      const scrolled = window.scrollY / Math.max(1, document.body.scrollHeight - window.innerHeight);
+      if (scrolled > SCROLL_THRESHOLD) {
+        setVisible(true);
+        window.removeEventListener("scroll", onScroll);
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [onSuppressedPath]);
+
+  // Auto-collapse after first appearance
+  useEffect(() => {
+    if (!visible || collapsed) return;
+    const t = setTimeout(() => setCollapsed(true), AUTO_COLLAPSE_MS);
+    return () => clearTimeout(t);
+  }, [visible, collapsed]);
+
+  function dismiss() {
+    setVisible(false);
+    try {
+      localStorage.setItem(STORAGE_KEY, String(Date.now() + DISMISS_TTL_MS));
+    } catch {
+      // ignore
+    }
+  }
+
+  // Hide cases:
+  //   - on suppressed path
+  //   - shop closed (don't lie about availability)
+  //   - no capacity data yet (cold start)
+  if (onSuppressedPath || !visible || !capacity || capacity.isOpen === false) return null;
+
+  const slots = capacity.slotsRemainingToday;
+  const waitMin = capacity.estimatedWaitMinutes ?? 0;
+  const nextAt = capacity.nextAvailableAt ? new Date(capacity.nextAvailableAt) : null;
+  const nextLabel = nextAt
+    ? nextAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+    : null;
+
+  // If real numbers aren't persuasive, don't show.
+  if (slots == null || slots > 25) return null;
+
+  return (
+    <>
+      <AnimatePresence>
+        {visible && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.95 }}
+            transition={{ duration: 0.35, ease: "easeOut" }}
+            onMouseEnter={() => setCollapsed(false)}
+            className="fixed bottom-4 right-4 z-50 max-w-sm shadow-2xl"
+          >
+            {collapsed ? (
+              <button
+                onClick={() => setCollapsed(false)}
+                className="flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-primary-foreground shadow-xl ring-1 ring-primary/30 hover:scale-105 transition-transform"
+                aria-label="Expand availability widget"
+              >
+                <Clock className="w-4 h-4" />
+                <span className="text-xs font-bold tracking-wide">
+                  {slots > 0 ? `${slots} slots left today` : "No slots — call now"}
+                </span>
+              </button>
+            ) : (
+              <div className="rounded-lg border border-primary/40 bg-card/95 backdrop-blur-md p-4 ring-1 ring-primary/20">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/60" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                    </span>
+                    <span className="text-[10px] font-bold tracking-wider text-emerald-400 uppercase">Live</span>
+                  </div>
+                  <button
+                    onClick={dismiss}
+                    aria-label="Dismiss"
+                    className="text-foreground/40 hover:text-foreground/70 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="text-sm font-bold text-foreground mb-1">
+                  {slots > 0 ? (
+                    <>Only <span className="text-primary">{slots}</span> slot{slots !== 1 ? "s" : ""} left today</>
+                  ) : (
+                    <>Today is full — first-come tomorrow</>
+                  )}
+                </div>
+
+                <div className="text-[11px] text-foreground/60 mb-3 space-y-0.5">
+                  {nextLabel && slots > 0 && (
+                    <div>Next available: <span className="font-mono font-semibold text-foreground/80">{nextLabel}</span></div>
+                  )}
+                  {waitMin > 0 && (
+                    <div>Current wait: ~{Math.round(waitMin / 60 * 10) / 10}h</div>
+                  )}
+                  {capacity.activeJobs != null && (
+                    <div>{capacity.activeJobs} car{capacity.activeJobs !== 1 ? "s" : ""} in shop right now</div>
+                  )}
+                </div>
+
+                {!captureOpen ? (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setCaptureOpen(true)}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded bg-primary text-primary-foreground py-2 text-xs font-bold tracking-wide hover:bg-primary/90 transition-colors"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      HOLD MY SPOT
+                    </button>
+                    <a
+                      href={BUSINESS.phone.href}
+                      className="flex items-center justify-center gap-1.5 rounded border border-foreground/30 text-foreground/80 px-3 py-2 text-xs font-semibold hover:border-primary hover:text-primary transition-colors"
+                    >
+                      Call
+                    </a>
+                  </div>
+                ) : submitted ? (
+                  <div className="flex items-center gap-2 rounded bg-emerald-500/10 border border-emerald-500/30 px-3 py-2 text-xs font-semibold text-emerald-400">
+                    <Check className="w-3.5 h-3.5" /> Spot reserved — we'll text you in 5 min
+                  </div>
+                ) : (
+                  <form onSubmit={handleSubmit} className="flex gap-2">
+                    <input
+                      type="tel"
+                      autoFocus
+                      placeholder="(216) 555-1234"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="flex-1 rounded border border-foreground/20 bg-background/60 px-2.5 py-1.5 text-xs text-foreground placeholder:text-foreground/30 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/40"
+                      disabled={submit.isPending}
+                    />
+                    <button
+                      type="submit"
+                      disabled={submit.isPending}
+                      className="rounded bg-primary text-primary-foreground px-3 py-1.5 text-xs font-bold tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-60 flex items-center gap-1"
+                    >
+                      {submit.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                      RESERVE
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
