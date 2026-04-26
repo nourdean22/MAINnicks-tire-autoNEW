@@ -23,10 +23,7 @@ import AnchorAdjustmentTable from "@/components/conversion/AnchorAdjustmentTable
 import ServiceTriageCard from "@/components/conversion/ServiceTriageCard";
 import { useWeatherCTA } from "@/hooks/useWeatherCTA";
 import { useConversionTracking } from "@/hooks/useConversionTracking";
-import {
-  Wrench, Clock, AlertTriangle, Disc, Activity, Zap, Sparkles,
-  TrendingUp, Users, MessageSquare, ChevronRight, ArrowUpRight,
-} from "lucide-react";
+import { Wrench, Disc, Activity, TrendingUp, Users } from "lucide-react";
 
 // ─── Source labels — keep in sync with leadRouter source enum ──────
 const SOURCE_LABELS: Record<string, string> = {

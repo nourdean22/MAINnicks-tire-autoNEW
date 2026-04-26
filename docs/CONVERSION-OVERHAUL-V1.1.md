@@ -1,5 +1,26 @@
 # Conversion Overhaul Spec — v1.1
 > Source: Nour's PROMPTS V 1.1 dated 4/8/26 · Logged 2026-04-26
+> **STATUS: SHIPPED 2026-04-26** · all 9 batches deployed to `main`
+
+> ## Shipped commits (chronological)
+> 1. `c88e2ef` — Batch 1 · cross-cutting infra (8 conversion components, conversion router, GTM/Pixel hook, weather hook)
+> 2. `db783ea` — Batch 2 · homepage layered with weather banner / triage / price compare / safety facts / loss opp
+> 3. `35c469c` — Batch 3 · 8 service pages enriched (anchor + fear + loss + cross-sell)
+> 4. `00993ab` — Batch 4 · booking page (live capacity + reservation language + NICKS150 + timeline)
+> 5. `1ea92b9` — Batch 5 · financing rewrite (lender hierarchy + cost-of-waiting + approval trap)
+> 6. `98d533b` — Batch 6 · about + reviews + specials enriched
+> 7. `f667f07` — Batch 7 · blog (TOC sidebar + mid-article CTA + featured-post hero)
+> 8. `7979ce9` — Batch 8 · multi-channel (TextMeQuote + EmailNewsletter + chat polish)
+> 9. `1ea1882` — Batch 9 · admin conversion dashboard + leadFunnel query
+> + post-ship hardening: `/booking?service=` deeplink fix, audit-pass unused-imports cleanup
+>
+> Every claim is sourced or honestly hedged (AAA / NHTSA / EPA / NOAA Cleveland).
+> No fake counters. No fabricated testimonials.
+>
+> **This document is now historical.** For future overhauls, fork into a new
+> v1.2 spec rather than editing this file in-place.
+
+---
 
 **This is the working spec for the site-wide copy + UX rewrite.** Treat it as the
 contract: every page, every CTA, every microcopy element must trace back to one

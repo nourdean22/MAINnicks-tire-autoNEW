@@ -16,7 +16,7 @@
  * the component decides whether to show them or hide.
  */
 import { router, publicProcedure, adminProcedure } from "../_core/trpc";
-import { sql, gte, and, desc, isNotNull } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { createLogger } from "../lib/logger";

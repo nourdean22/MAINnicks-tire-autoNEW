@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { trackBookingSubmission, getUserDataForCAPI } from "@/lib/metaPixel";
@@ -6,8 +6,7 @@ import { getUtmData } from "@/lib/utm";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Phone, Calendar, Clock, Car, Wrench, CheckCircle, AlertCircle,
-  Loader2, ChevronRight, ChevronLeft, User, Mail, Users,
-  AlertTriangle, Zap, Check,
+  Loader2, ChevronRight, ChevronLeft, User, Mail, Users, Check,
   CircleDot, Thermometer, Gauge, Droplets, Settings,
 } from "lucide-react";
 import { BUSINESS } from "@shared/business";

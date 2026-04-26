@@ -29,6 +29,53 @@ import InternalLinks from "@/components/InternalLinks";
 import { BUSINESS } from "@shared/business";
 import { trpc } from "@/lib/trpc";
 
+/**
+ * Slug → BookingWizard SERVICE_CARDS key mapping.
+ *
+ * SpecialsPage cards, blog mid-article CTAs, and FocusedServicePage links
+ * all deep-link via `/booking?service=<slug>` using URL-friendly slugs
+ * ("brakes", "oil-change", etc.). The wizard's SERVICE_CARDS use full
+ * label strings ("Brake Repair", "Oil Change", etc.). This map bridges
+ * the two so the wizard renders pre-selected.
+ *
+ * Keep in sync with SERVICE_CARDS in BookingWizard.tsx.
+ */
+const SLUG_TO_SERVICE: Record<string, string> = {
+  tires: "Tires — New, Used, Repair",
+  brakes: "Brake Repair",
+  "brake-repair": "Brake Repair",
+  diagnostics: "Check Engine Light / Diagnostics",
+  "check-engine-light": "Check Engine Light / Diagnostics",
+  emissions: "Ohio E-Check / Emissions Repair",
+  "e-check": "Ohio E-Check / Emissions Repair",
+  "oil-change": "Oil Change",
+  "synthetic-oil-change": "Oil Change",
+  suspension: "Suspension & Steering",
+  alignment: "Suspension & Steering",
+  "ac-repair": "AC Repair",
+  "ac": "AC Repair",
+  transmission: "General Repair / Other",
+  electrical: "General Repair / Other",
+  exhaust: "General Repair / Other",
+  battery: "General Repair / Other",
+  "general-repair": "General Repair / Other",
+};
+
+/**
+ * Read `?service=<slug>` from the URL on render and translate it to the
+ * full SERVICE_CARDS label the wizard understands. Returns undefined for
+ * unknown slugs so the wizard falls back to its default empty state.
+ */
+function useServiceFromQuery(): string | undefined {
+  return useMemo(() => {
+    if (typeof window === "undefined") return undefined;
+    const params = new URLSearchParams(window.location.search);
+    const slug = (params.get("service") || "").toLowerCase().trim();
+    if (!slug) return undefined;
+    return SLUG_TO_SERVICE[slug];
+  }, []);
+}
+
 /* ─── CapacityBanner ────────────────────────────────────────────────── */
 function CapacityBanner() {
   const { data } = trpc.conversion.shopCapacity.useQuery(undefined, {
@@ -212,6 +259,11 @@ function TrustMicrocopy() {
 
 /* ─── BookingPage ────────────────────────────────────────────────────── */
 export default function BookingPage() {
+  // Translate `?service=<slug>` (from SpecialsPage cards, blog CTAs, etc.)
+  // into the full service-key the wizard recognizes. Undefined when absent
+  // or unknown — wizard falls back to its empty state.
+  const prefilledService = useServiceFromQuery();
+
   return (
     <PageLayout activeHref="/booking">
       <SEOHead
@@ -239,8 +291,8 @@ export default function BookingPage() {
         {/* Live capacity banner — real data */}
         <CapacityBanner />
 
-        {/* The actual booking wizard */}
-        <BookingWizard />
+        {/* The actual booking wizard — pre-fills service from URL when present */}
+        <BookingWizard defaultService={prefilledService} />
 
         {/* Trust microcopy under the form */}
         <TrustMicrocopy />
