@@ -12,7 +12,7 @@ import ComparisonTable from "@/components/ComparisonTable";
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, trackPhoneClick } from "@/components/SEO";
-import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight } from "lucide-react";
+import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight, Disc, Activity, Wrench, Zap, AlertTriangle, Snowflake } from "lucide-react";
 import { motion } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import React from "react";
@@ -26,6 +26,14 @@ import FadeIn from "@/components/FadeIn";
 import BrandMark from "@/components/BrandMark";
 import ShopStatusWidget from "@/components/ShopStatusWidget";
 import UberDropoffWidget from "@/components/UberDropoffWidget";
+// Conversion-architecture components (Batch 1 of v1.1 spec)
+import LiveVisitorCounter from "@/components/conversion/LiveVisitorCounter";
+import ServiceTriageCard from "@/components/conversion/ServiceTriageCard";
+import AnchorAdjustmentTable from "@/components/conversion/AnchorAdjustmentTable";
+import FearCalibrationBlock from "@/components/conversion/FearCalibrationBlock";
+import LossAversionStat from "@/components/conversion/LossAversionStat";
+import { useWeatherCTA } from "@/hooks/useWeatherCTA";
+import { useConversionTracking } from "@/hooks/useConversionTracking";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
@@ -126,7 +134,8 @@ function Hero() {
             </a>
           </motion.div>
 
-          {/* Social proof strip */}
+          {/* Social proof strip — review stars + LiveVisitorCounter (real-time
+              from tRPC, hides automatically when fewer than 3 active sessions). */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -144,6 +153,14 @@ function Hero() {
             <span className="text-[#A0A0A0]">&bull; Same-day service</span>
             <span className="text-[#A0A0A0]">&bull; Walk-ins welcome</span>
             <span className="text-[#A0A0A0]">&bull; Open 7 days</span>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 1.1, ease: "easeOut" }}
+            className="mt-3"
+          >
+            <LiveVisitorCounter minToShow={3} />
           </motion.div>
         </div>
       </div>
@@ -524,6 +541,307 @@ function Contact() {
   );
 }
 
+// ─── WEATHER BANNER — dynamic top-of-page CTA driven by useWeatherCTA ────
+//
+// Renders only when weather genuinely matters (snow / heat / rain / surge).
+// On calm days the hook returns null and this section disappears entirely
+// — no manufactured urgency on a 70°F day.
+function WeatherBanner() {
+  const cta = useWeatherCTA();
+  const track = useConversionTracking();
+  if (!cta) return null;
+
+  const tone =
+    cta.urgency === "high"
+      ? "bg-red-500/10 border-red-500/30 text-red-300"
+      : cta.urgency === "medium"
+        ? "bg-amber-500/10 border-amber-500/30 text-amber-300"
+        : "bg-foreground/[0.04] border-border/30 text-foreground/80";
+
+  return (
+    <section className={`border-b ${tone} px-4 py-2.5`}>
+      <div className="container flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="flex items-center gap-2.5">
+          {cta.urgency === "high" ? (
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+          ) : (
+            <Snowflake className="w-4 h-4 shrink-0" />
+          )}
+          <div className="text-sm">
+            <span className="font-bold">{cta.message}</span>
+            <span className="opacity-80"> — {cta.sub}</span>
+          </div>
+        </div>
+        <Link
+          href={cta.ctaHref}
+          onClick={() => track({ type: "weather_cta_clicked", element: cta.ctaHref, props: { urgency: cta.urgency } })}
+          className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded bg-foreground/10 hover:bg-foreground/20 px-3 py-1.5 text-xs font-bold tracking-wide whitespace-nowrap"
+        >
+          {cta.ctaLabel}
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+// ─── TRIAGE GRID — Cialdini-architected service entry points ──
+//
+// Replaces the generic "service tiles" pattern with a triage decision:
+// each card asks the visitor "do you have THIS symptom?" → quantifies
+// the consequence → offers the immediate-relief CTA.
+//
+// Per the conversion-overhaul spec, ICON → SYMPTOM → CONSEQUENCE → CTA.
+// Tone gradient: danger (red) for urgent / warning (amber) / info (yellow).
+function TriageGrid() {
+  return (
+    <section className="bg-[oklch(0.055_0.004_260)] py-16 lg:py-20 border-t border-border/30">
+      <div className="container">
+        <FadeIn>
+          <div className="text-center mb-10">
+            <div className="text-[#FDB913] text-[10px] font-mono uppercase tracking-widest mb-2">
+              What's your car telling you?
+            </div>
+            <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-black text-foreground uppercase tracking-tight">
+              Pick your symptom — we'll fix it today.
+            </h2>
+            <p className="mt-3 text-foreground/50 text-sm sm:text-base max-w-2xl mx-auto">
+              Honest diagnosis before any work. Free inspection under 1 hour. Most
+              repairs done same day.
+            </p>
+          </div>
+        </FadeIn>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <ServiceTriageCard
+            tone="danger"
+            icon={<Disc className="w-5 h-5" />}
+            symptom="Grinding or squealing brakes?"
+            consequence="Worn pads eat rotors at $3.50 per stop. Wait too long, the rotor needs replacing — turning $149 into $329+."
+            relief="Same-day fix from $149/axle. Free inspection — we measure before we touch anything."
+            ctaLabel="STOP THE DAMAGE"
+            ctaHref="/brakes"
+          />
+          <ServiceTriageCard
+            tone="warning"
+            icon={<Activity className="w-5 h-5" />}
+            symptom="Check engine light on?"
+            consequence="$200 oxygen sensor today becomes a $4,000 catalytic converter in 30 days. Damage compounds every mile."
+            relief="Free 5-minute code scan. Full diagnostic $95 — credited toward the repair."
+            ctaLabel="DIAGNOSE NOW"
+            ctaHref="/diagnostics"
+          />
+          <ServiceTriageCard
+            tone="info"
+            icon={<Wrench className="w-5 h-5" />}
+            symptom="Tires bald, low, or vibrating?"
+            consequence="Stopping distance doubles in rain. Cleveland potholes shred unmatched treads in weeks."
+            relief="Used tires from $60 installed in 20 minutes — stay in your car. New from $89."
+            ctaLabel="GET TIRES TODAY"
+            ctaHref="/tires"
+          />
+          <ServiceTriageCard
+            tone="warning"
+            icon={<Zap className="w-5 h-5" />}
+            symptom="AC weak or not cold?"
+            consequence="Once it stops working, repairs run $400-$1,500. A $40 recharge today might be all you need."
+            relief="Free AC inspection. Same-day diagnostics + recharge if that's all it needs."
+            ctaLabel="FIX AC NOW"
+            ctaHref="/ac-repair"
+          />
+          <ServiceTriageCard
+            tone="warning"
+            icon={<Clock className="w-5 h-5" />}
+            symptom="Failed Ohio E-Check?"
+            consequence="30-day deadline. Day 31 = parking tickets, impound risk, criminal charges for expired registration."
+            relief="State-certified emissions repair. Same-day fix — pass guaranteed or we keep working."
+            ctaLabel="GET LEGAL"
+            ctaHref="/emissions"
+          />
+          <ServiceTriageCard
+            tone="info"
+            icon={<Wrench className="w-5 h-5" />}
+            symptom="Just need the basics?"
+            consequence="Routine oil + filter prevents engine sludge that destroys engines after 60K miles."
+            relief="Conventional from $39 · Synthetic from $69. Multi-point inspection included. Walk-ins welcome."
+            ctaLabel="BOOK MAINTENANCE"
+            ctaHref="/oil-change"
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── PRICE COMPARE — Anchor & adjustment table ──────────────
+//
+// Three-row anchor table ("Dealer / Chain / Nick's") for the three highest-
+// volume services. Anchor + adjustment is one of the most reliable CRO
+// patterns — first number you see sets your reference frame, ours feels
+// like rescue.
+function PriceCompareSection() {
+  return (
+    <section className="bg-background py-16 border-t border-border/30">
+      <div className="container">
+        <FadeIn>
+          <div className="text-center mb-10 max-w-2xl mx-auto">
+            <div className="text-[#FDB913] text-[10px] font-mono uppercase tracking-widest mb-2">
+              The honest math
+            </div>
+            <h2 className="font-heading text-3xl sm:text-4xl font-black text-foreground uppercase tracking-tight">
+              Same job. A fraction of the price.
+            </h2>
+            <p className="mt-3 text-foreground/50 text-sm sm:text-base">
+              Cleveland-area dealer + national-chain quotes vs. ours, on the three
+              services we do most.
+            </p>
+          </div>
+        </FadeIn>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <FadeIn delay={0.05}>
+            <AnchorAdjustmentTable
+              serviceName="Brake repair, per axle"
+              rows={[
+                { label: "Cleveland-area dealer", price: "$800" },
+                { label: "National chain shop", price: "$600" },
+                { label: "Nick's", price: "$149", ours: true },
+              ]}
+              source="Avg quote, Cleveland metro 2026."
+            />
+          </FadeIn>
+          <FadeIn delay={0.1}>
+            <AnchorAdjustmentTable
+              serviceName="Synthetic oil change"
+              rows={[
+                { label: "Dealer", price: "$110" },
+                { label: "Chain shop", price: "$89" },
+                { label: "Nick's", price: "$69", ours: true },
+              ]}
+              source="Includes filter + multi-point inspection."
+            />
+          </FadeIn>
+          <FadeIn delay={0.15}>
+            <AnchorAdjustmentTable
+              serviceName="OBD-II diagnostic"
+              rows={[
+                { label: "Dealer", price: "$185" },
+                { label: "Chain shop", price: "$120" },
+                { label: "Nick's", price: "Free*", ours: true },
+              ]}
+              source="*Free 5-min scan; $95 full diagnostic credited toward repair."
+            />
+          </FadeIn>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── SAFETY FACTS — Fear-calibration block ──────────────────
+//
+// Three big numbers + grim consequences that make abstract risk visceral.
+// These are the kind of stats that turn a "maybe later" into "right now."
+function SafetyFactsSection() {
+  return (
+    <section className="bg-[oklch(0.055_0.004_260)] py-12 border-t border-b border-border/30">
+      <div className="container">
+        <FearCalibrationBlock
+          heading="What waiting actually costs"
+          stats={[
+            {
+              value: "287",
+              unit: "feet",
+              consequence:
+                "Added stopping distance at 60 mph with worn brake pads. That's two football fields into an intersection.",
+              source: "NHTSA stopping-distance benchmarks.",
+            },
+            {
+              value: "$3,800",
+              consequence:
+                "Average compounded cost when a $89 fix gets postponed for 90+ days. Sensors fail, parts seize, labor multiplies.",
+            },
+            {
+              value: "30",
+              unit: "days",
+              consequence:
+                "Ohio E-Check deadline. Day 31: parking tickets, impound risk, expired registration. Drive at your own risk.",
+            },
+          ]}
+        />
+      </div>
+    </section>
+  );
+}
+
+// ─── LOSS OPPORTUNITY — financing-led urgency ──────────────
+//
+// Two LossAversionStat cards framed as "ongoing daily loss" — leads
+// directly into the financing CTA.
+function LossOpportunitySection() {
+  return (
+    <section className="bg-background py-16 border-t border-border/30">
+      <div className="container">
+        <FadeIn>
+          <div className="text-center mb-10 max-w-2xl mx-auto">
+            <div className="text-red-400 text-[10px] font-mono uppercase tracking-widest mb-2">
+              The cost of waiting
+            </div>
+            <h2 className="font-heading text-3xl sm:text-4xl font-black text-foreground uppercase tracking-tight">
+              Every day your car gets sicker.
+            </h2>
+            <p className="mt-3 text-foreground/50 text-sm sm:text-base">
+              Don't have the cash today? $0 down financing approved in 90 seconds —
+              4 lenders, no hard credit pull, drive away protected.
+            </p>
+          </div>
+        </FadeIn>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          <LossAversionStat
+            amount={8.5}
+            unit="per day"
+            label="lost in preventable damage"
+            reason="Worn brake pads eat rotors faster every mile. The longer you wait, the bigger the bill."
+            ctaHref="/brakes"
+            ctaLabel="STOP THE DAMAGE"
+          />
+          <LossAversionStat
+            amount={47}
+            unit="per day"
+            label="of compounding engine damage"
+            reason="Ignored check-engine light = $1,400 in additional repairs after 30 days, on average."
+            ctaHref="/diagnostics"
+            ctaLabel="DIAGNOSE NOW"
+          />
+        </div>
+
+        <FadeIn delay={0.2}>
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-6 text-center">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 mb-2">
+              Can't afford NOT to fix it
+            </div>
+            <h3 className="font-bold text-2xl text-foreground mb-3">
+              $0 down · approved in 90 seconds · 4 lenders
+            </h3>
+            <p className="text-sm text-foreground/60 max-w-xl mx-auto mb-5">
+              Acima · Snap · Koalafi · American First. No hard credit pull. Most
+              customers approved $500–$5,000. Drive away today, pay over time.
+            </p>
+            <Link
+              href="/financing"
+              className="inline-flex items-center gap-2 rounded-full bg-emerald-500 text-emerald-950 px-6 py-3 text-sm font-bold tracking-wide hover:bg-emerald-400 transition-colors"
+            >
+              SEE FINANCING OPTIONS
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </FadeIn>
+      </div>
+    </section>
+  );
+}
+
 // ─── PAGE ────────────────────────────────────────────────
 export default function Home() {
   return (
@@ -534,6 +852,10 @@ export default function Home() {
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />
+      {/* Weather-driven banner — only renders when conditions warrant
+          (snow / heat / rain / surge demand). Per the conversion spec:
+          no manufactured urgency on a calm 70°F day. */}
+      <WeatherBanner />
       <Hero />
       {/* ── LIVE STATUS STRIP — Pillar 3 (Happy Wait) ────────── */}
       <section className="bg-[oklch(0.055_0.004_260)] py-6 border-t border-b border-border/30">
@@ -546,8 +868,16 @@ export default function Home() {
       <FastPaths />
       <UsedTiresCallout />
       <TrustNumbers />
+      {/* CONVERSION ARCHITECTURE (v1.1 spec) — TriageGrid replaces the
+          generic service-tile decision flow with a Cialdini-architected
+          "pick your symptom" pattern. PriceCompare anchors against
+          dealer/chain quotes. SafetyFacts makes risk visceral. */}
+      <TriageGrid />
+      <PriceCompareSection />
+      <SafetyFactsSection />
       <Services />
       <WhyUs />
+      <LossOpportunitySection />
       <Reviews />
       <ComparisonTable />
       {/* ── DROP-OFF + UBER-OUT — Pillar 4, the killer flywheel ──────────── */}
