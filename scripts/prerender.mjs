@@ -36,63 +36,25 @@ if (portIdx !== -1 && args[portIdx + 1]) {
 // For the prerender script, we read the routes directly via a simple approach.
 async function loadRoutes() {
   const { execSync } = await import("child_process");
-  const routes = [];
   try {
     // Load full route data (path + title + description) for SEO injection
     const result = execSync(
       `node --import tsx/esm -e "import { PRERENDER_ROUTES } from './shared/routes.ts'; console.log(JSON.stringify(PRERENDER_ROUTES.map(r => ({ path: r.path, title: r.title, description: r.description }))));"`,
       { cwd: ROOT, encoding: "utf-8", timeout: 15000 }
     );
-    routes.push(...JSON.parse(result.trim()));
+    return JSON.parse(result.trim());
   } catch {
     // Fallback: read the file and extract paths with regex
     console.log("[prerender] Falling back to regex route extraction...");
     const content = fs.readFileSync(path.join(ROOT, "shared", "routes.ts"), "utf-8");
+    const paths = [];
     const re = /path:\s*"([^"]+)".*?prerender:\s*true/gs;
     let match;
     while ((match = re.exec(content)) !== null) {
-      routes.push(match[1]);
+      paths.push(match[1]);
     }
+    return paths;
   }
-
-  // ── Pull dynamic blog slugs + per-post SEO metadata from the DB so
-  //    DB-seeded articles get prerendered with their REAL title/description,
-  //    not a generic placeholder. Without per-post meta, Google sees every
-  //    dynamic blog post with the same title → cannibalization + zero ranking.
-  //
-  //    We also merge in static BLOG_ARTICLES from @shared/blog (their real
-  //    metaTitle/metaDescription) so legacy posts get proper SEO injection too.
-  try {
-    // Note: dotenv/config MUST be imported before content-generator so
-    // DATABASE_URL is populated before getDb() reads it.
-    const result = execSync(
-      `node --import tsx/esm -e "` +
-      `import 'dotenv/config'; ` +
-      `import { BLOG_SLUGS } from './shared/routes.ts'; ` +
-      `import { BLOG_ARTICLES } from './shared/blog.ts'; ` +
-      `import { getPublishedArticles } from './server/content-generator.ts'; ` +
-      `const dynRows = await getPublishedArticles().catch(() => []); ` +
-      `const staticMap = new Map(BLOG_ARTICLES.map(a => [a.slug, { title: a.metaTitle, description: a.metaDescription }])); ` +
-      `const dynMap = new Map(dynRows.map(a => [a.slug, { title: a.metaTitle, description: a.metaDescription }])); ` +
-      `const slugs = Array.from(new Set([...BLOG_SLUGS, ...dynRows.map(r => r.slug)])); ` +
-      `const out = slugs.map(s => { const meta = staticMap.get(s) || dynMap.get(s) || { title: 'Blog | Nick\\'s Tire & Auto', description: 'Auto repair tips from Cleveland.' }; return { path: '/blog/' + s, title: meta.title, description: meta.description }; }); ` +
-      `console.log(JSON.stringify(out));` +
-      `process.exit(0);` +
-      `"`,
-      { cwd: ROOT, encoding: "utf-8", timeout: 45000 }
-    );
-    const blogRoutes = JSON.parse(result.trim());
-    // De-dupe against existing routes
-    const existing = new Set(routes.map(r => typeof r === "string" ? r : r.path));
-    for (const b of blogRoutes) {
-      if (!existing.has(b.path)) routes.push(b);
-    }
-    console.log(`[prerender] Added ${blogRoutes.length} blog routes with per-post SEO metadata`);
-  } catch (err) {
-    console.warn("[prerender] Could not load dynamic blog slugs from DB:", err.message);
-  }
-
-  return routes;
 }
 
 // ─── Start production server if needed ───────────────────
@@ -226,21 +188,6 @@ async function main() {
             const BASE_URL = "https://nickstire.org";
             const canonicalUrl = `${BASE_URL}${routePath === "/" ? "" : routePath}`;
 
-            // Escape HTML attribute chars in injected values (titles/descriptions
-            // may contain &, ", <, > that would break the rendered tag).
-            const esc = (s) => String(s)
-              .replace(/&/g, "&amp;")
-              .replace(/"/g, "&quot;")
-              .replace(/</g, "&lt;")
-              .replace(/>/g, "&gt;");
-            // Escape literal $ in the replacement VALUE — String.replace treats $n
-            // as a capture-group backreference, so titles/descs containing `$149`
-            // (common for pricing) would get mangled into garbage without this.
-            const escReplace = (s) => esc(s).replace(/\$/g, "$$$$");
-
-            const safeTitle = escReplace(routeInfo.title);
-            const safeDesc = routeInfo.description ? escReplace(routeInfo.description) : "";
-
             // Fix title if it's any known default (expanded detection)
             const currentTitleMatch = html.match(/<title>([^<]*)<\/title>/);
             const currentTitle = currentTitleMatch ? currentTitleMatch[1] : "";
@@ -249,20 +196,16 @@ async function main() {
               currentTitle.includes("Cleveland Auto Repair &amp; Tire Shop") ||
               currentTitle.includes("Cleveland&#x27;s #1") ||
               currentTitle.includes("Cleveland's #1 New & Used") ||
-              // Also catch the default template title that Puppeteer serializes
-              // with HTML-entity-encoded & (so `&` → `&amp;`).
-              currentTitle.includes("Cleveland's #1 New &amp; Used") ||
-              currentTitle.includes("Nick's Tire &amp; Auto — Cleveland") ||
               currentTitle.trim() === "";
             if (isDefaultTitle) {
-              html = html.replace(/<title>[^<]*<\/title>/, `<title>${safeTitle}</title>`);
+              html = html.replace(/<title>[^<]*<\/title>/, `<title>${routeInfo.title}</title>`);
             }
 
             // Fix meta description if it's still the default
             if (routeInfo.description) {
               html = html.replace(
                 /(<meta\s+name="description"\s+content=")[^"]*(")/,
-                `$1${safeDesc}$2`
+                `$1${routeInfo.description}$2`
               );
             }
 
@@ -278,17 +221,17 @@ async function main() {
 
             // INSERT meta description if missing
             if (!html.includes('name="description"') && routeInfo.description) {
-              html = html.replace("</head>", `  <meta name="description" content="${esc(routeInfo.description)}" />\n  </head>`);
+              html = html.replace("</head>", `  <meta name="description" content="${routeInfo.description}" />\n  </head>`);
             }
 
             // Fix OG tags
             html = html.replace(
               /(<meta\s+property="og:title"\s+content=")[^"]*(")/,
-              `$1${safeTitle}$2`
+              `$1${routeInfo.title}$2`
             );
             html = html.replace(
               /(<meta\s+property="og:description"\s+content=")[^"]*(")/,
-              `$1${safeDesc}$2`
+              `$1${routeInfo.description}$2`
             );
             html = html.replace(
               /(<meta\s+property="og:url"\s+content=")[^"]*(")/,
@@ -298,11 +241,11 @@ async function main() {
             // Fix Twitter tags
             html = html.replace(
               /(<meta\s+name="twitter:title"\s+content=")[^"]*(")/,
-              `$1${safeTitle}$2`
+              `$1${routeInfo.title}$2`
             );
             html = html.replace(
               /(<meta\s+name="twitter:description"\s+content=")[^"]*(")/,
-              `$1${safeDesc}$2`
+              `$1${routeInfo.description}$2`
             );
           }
 

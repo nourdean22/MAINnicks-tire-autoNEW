@@ -200,19 +200,6 @@ const SERVICE_PAGES: RouteEntry[] = [
     sitemap: true,
     prerender: true,
   },
-  {
-    // Customer-facing full site directory. SEO benefit: one page linking
-    // to every other page, giving Google a single-hop discovery of the
-    // full site structure + boosting deep-page link equity.
-    path: "/site-map",
-    priority: 0.8,
-    changefreq: "weekly",
-    title: "Site Map | Nick's Tire & Auto — All Pages, Cleveland OH",
-    description: "Full directory of services, city pages, problem guides, blog posts, and customer tools on Nick's Tire & Auto. Find anything in one click.",
-    group: "utility",
-    sitemap: true,
-    prerender: true,
-  },
   // 2026-04-24 SEO push — new focused landing pages for high-impression
   // zero-click queries. See TrafficFunnel dashboard for the underlying data.
   {

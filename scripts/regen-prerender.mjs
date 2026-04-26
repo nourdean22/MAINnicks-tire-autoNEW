@@ -51,9 +51,7 @@ async function waitForHealth(port, maxSec = 30) {
 
 // ─── Step 1: build ────────────────────────────────────
 console.log("[regen] Step 1/4 — rebuilding client + server…");
-// Use `npm run build` instead of `pnpm run build` — npm is always on PATH on
-// Windows where corepack's pnpm shim can be broken after Node upgrades.
-execSync("npm run build", { cwd: ROOT, stdio: "inherit" });
+execSync("pnpm run build", { cwd: ROOT, stdio: "inherit" });
 
 // ─── Step 2: launch server ────────────────────────────
 const port = await findFreePort();
