@@ -23,7 +23,191 @@ import AnchorAdjustmentTable from "@/components/conversion/AnchorAdjustmentTable
 import ServiceTriageCard from "@/components/conversion/ServiceTriageCard";
 import { useWeatherCTA } from "@/hooks/useWeatherCTA";
 import { useConversionTracking } from "@/hooks/useConversionTracking";
-import { Wrench, Clock, AlertTriangle, Disc, Activity, Zap, Sparkles } from "lucide-react";
+import {
+  Wrench, Clock, AlertTriangle, Disc, Activity, Zap, Sparkles,
+  TrendingUp, Users, MessageSquare, ChevronRight, ArrowUpRight,
+} from "lucide-react";
+
+// ─── Source labels — keep in sync with leadRouter source enum ──────
+const SOURCE_LABELS: Record<string, string> = {
+  popup: "Popup form",
+  chat: "Chat widget",
+  booking: "Booking page",
+  manual: "Manual entry",
+  callback: "Callback request",
+  fleet: "Fleet inquiry",
+  financing_preapproval: "Financing pre-qual",
+  careers: "Careers page",
+  sms_capture: "Text-me-quote",
+  newsletter: "Newsletter signup",
+};
+
+/**
+ * ConversionDashboard — the Batch 9 component. Renders at the top of the
+ * Conversion tab in admin. Real metrics from the lead/booking/invoice tables
+ * via the new `trpc.conversion.leadFunnel` admin-only query.
+ */
+function ConversionDashboard() {
+  const { data, isLoading } = trpc.conversion.leadFunnel.useQuery(undefined, {
+    refetchInterval: 60_000,
+    staleTime: 45_000,
+  });
+
+  if (isLoading || !data) {
+    return (
+      <section className="rounded-2xl border border-border/30 bg-card/40 p-8 text-center text-foreground/40 text-sm">
+        Loading conversion funnel...
+      </section>
+    );
+  }
+
+  const t = data.totals;
+  const bookingToInvoice = t.bookings30d > 0
+    ? Math.round((t.invoices30d / t.bookings30d) * 1000) / 10
+    : 0;
+
+  // Sparkline rendering — pure SVG, no chart lib needed for 14 points.
+  const trend = data.dailyTrend;
+  const maxLeads = Math.max(1, ...trend.map((d) => d.leads));
+  const maxBookings = Math.max(1, ...trend.map((d) => d.bookings));
+  const sparkW = 280;
+  const sparkH = 60;
+
+  const linePoints = (vals: number[], max: number) => {
+    if (vals.length === 0) return "";
+    const stepX = sparkW / Math.max(1, vals.length - 1);
+    return vals
+      .map((v, i) => `${i * stepX},${sparkH - (v / max) * sparkH}`)
+      .join(" ");
+  };
+
+  return (
+    <section className="space-y-5">
+      <header className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="font-bold text-2xl text-foreground tracking-tight flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-primary" />
+            Conversion Dashboard
+          </h2>
+          <p className="text-foreground/55 text-sm mt-1">
+            30-day funnel rollup from leads → bookings → paid invoices. Updated every 60s.
+          </p>
+        </div>
+        <div className="text-foreground/40 text-[11px] font-mono">
+          As of {new Date(data.asOf).toLocaleTimeString()}
+        </div>
+      </header>
+
+      {/* ─── TOP STATS ─── */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        {[
+          { label: "Leads · 7d", value: t.leads7d, sub: `${t.leads30d} · 30d` },
+          { label: "Bookings · 7d", value: t.bookings7d, sub: `${t.bookings30d} · 30d` },
+          { label: "Lead → Book", value: `${data.leadToBookingRate}%`, sub: "30d phone-match" },
+          { label: "Book → Paid", value: `${bookingToInvoice}%`, sub: `${t.invoices30d} paid · 30d` },
+          { label: "Sources active", value: data.sources.length, sub: "Distinct channels" },
+        ].map((s) => (
+          <div key={s.label} className="rounded-xl border border-border/30 bg-card/50 p-4">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-foreground/45 font-bold mb-1.5">
+              {s.label}
+            </div>
+            <div className="font-heading text-2xl lg:text-3xl font-bold text-foreground tabular-nums">
+              {s.value}
+            </div>
+            <div className="text-[11px] text-foreground/45 mt-0.5">{s.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ─── 14-DAY TREND + SOURCE BREAKDOWN ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-5">
+        {/* Trend sparkline */}
+        <div className="rounded-xl border border-border/30 bg-card/50 p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-foreground/55">
+              14-day trend
+            </h3>
+            <div className="flex items-center gap-3 text-[10px] uppercase tracking-wider">
+              <span className="flex items-center gap-1.5 text-primary">
+                <span className="w-3 h-0.5 bg-primary" />
+                Leads
+              </span>
+              <span className="flex items-center gap-1.5 text-emerald-400">
+                <span className="w-3 h-0.5 bg-emerald-400" />
+                Bookings
+              </span>
+            </div>
+          </div>
+          {trend.length === 0 ? (
+            <div className="text-foreground/40 text-xs italic py-8 text-center">
+              No daily activity yet — sparkline will populate as leads come in.
+            </div>
+          ) : (
+            <svg viewBox={`0 0 ${sparkW} ${sparkH}`} preserveAspectRatio="none" className="w-full h-16">
+              <polyline
+                fill="none"
+                stroke="hsl(var(--primary))"
+                strokeWidth="1.6"
+                points={linePoints(trend.map((d) => d.leads), Math.max(maxLeads, maxBookings))}
+              />
+              <polyline
+                fill="none"
+                stroke="rgb(52 211 153)"
+                strokeWidth="1.6"
+                points={linePoints(trend.map((d) => d.bookings), Math.max(maxLeads, maxBookings))}
+              />
+            </svg>
+          )}
+          <div className="grid grid-cols-7 gap-1 mt-2 text-[9px] text-foreground/35 font-mono">
+            {trend.slice(-7).map((d) => (
+              <div key={d.date} className="text-center">
+                {d.date.slice(5).replace("-", "/")}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Source breakdown */}
+        <div className="rounded-xl border border-border/30 bg-card/50 p-5">
+          <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-foreground/55 mb-3 flex items-center gap-2">
+            <Users className="w-3.5 h-3.5" />
+            Lead sources · 30d
+          </h3>
+          {data.sources.length === 0 ? (
+            <div className="text-foreground/40 text-xs italic py-6 text-center">
+              No leads in the last 30 days.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {data.sources.map((s) => {
+                const total = data.sources.reduce((sum, x) => sum + x.count, 0);
+                const pct = total > 0 ? Math.round((s.count / total) * 100) : 0;
+                const label = SOURCE_LABELS[s.source] || s.source;
+                return (
+                  <div key={s.source}>
+                    <div className="flex items-center justify-between text-[12px] mb-0.5">
+                      <span className="text-foreground/75">{label}</span>
+                      <span className="text-foreground/55 tabular-nums">
+                        <span className="font-semibold text-foreground">{s.count}</span>
+                        <span className="text-foreground/35"> · {pct}%</span>
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-foreground/[0.05] overflow-hidden">
+                      <div
+                        className="h-full bg-primary/70"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export default function ConversionPreviewSection() {
   const [showExitModal, setShowExitModal] = useState(false);
@@ -37,9 +221,12 @@ export default function ConversionPreviewSection() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Conversion Preview"
-        subtitle="Sandbox for the conversion-architecture components. Every block here is the SAME component the public site renders — change it once, it lands everywhere."
+        title="Conversion Dashboard"
+        subtitle="Funnel rollup at the top, live event feed in the middle, component sandbox below. The same components shipped to the public site render here for verification."
       />
+
+      {/* ─── BATCH 9: CONVERSION DASHBOARD ─── */}
+      <ConversionDashboard />
 
       {/* ─── LIVE EVENTS FEED ─── */}
       <section>
