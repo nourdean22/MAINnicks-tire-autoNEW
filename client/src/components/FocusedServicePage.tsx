@@ -249,7 +249,7 @@ function BookingSection({ config }: { config: ServicePageConfig }) {
             {config.ctaHeadline || "BOOK YOUR SERVICE"}
           </h2>
           <p className="text-foreground/60 mt-2">
-            {config.ctaSub || "Fill out below, we'll confirm by text. Or walk in — 530 E 185th St, Euclid OH."}
+            {config.ctaSub || "Fill out below, we'll confirm by text. Or walk in — 17625 Euclid Ave, Cleveland OH."}
           </p>
         </FadeIn>
         <FadeIn delay={0.1}>

@@ -47,7 +47,7 @@ const CONFIG: ServicePageConfig = {
   bookingService: "brakes",
   serviceType: "Brake Repair",
   ctaHeadline: "BOOK YOUR BRAKE SERVICE",
-  ctaSub: "Free inspection, up-front pricing, same-day service. Call or walk in — 530 E 185th St, Euclid OH.",
+  ctaSub: "Free inspection, up-front pricing, same-day service. Call or walk in — 17625 Euclid Ave, Cleveland OH.",
 };
 
 export default function BrakeRepairPage() {
