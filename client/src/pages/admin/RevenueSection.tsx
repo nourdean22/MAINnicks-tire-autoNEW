@@ -762,10 +762,11 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
             </div>
           )}
 
-          {/* Projections + Target */}
+          {/* Projections + Target — heading reads from BUSINESS so it stays
+              in sync with the dynamic target. Hardcoded "$20K" was stale. */}
           <div className="bg-card border border-primary/20 p-5">
             <h3 className="font-bold text-sm text-foreground tracking-wider mb-4 flex items-center gap-2">
-              <Target className="w-4 h-4 text-primary" /> $20K MONTHLY TARGET
+              <Target className="w-4 h-4 text-primary" /> ${(MONTHLY_TARGET / 1000).toFixed(0)}K MONTHLY RUN-RATE
             </h3>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="text-center p-3 rounded border border-border/20">

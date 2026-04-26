@@ -137,8 +137,10 @@ export default function BlogPost() {
     window.scrollTo(0, 0);
   }, [slug]);
 
-  // Loading state — only shows if tRPC query is in flight (static hit renders instantly).
-  if (!article && dynamicQuery.isLoading) {
+  // Loading state — also covers `isFetching` so we don't briefly flash 404
+  // while the query is in its initial fetch window (`enabled` just flipped
+  // true, isLoading is false but data hasn't returned yet).
+  if (!article && (dynamicQuery.isLoading || dynamicQuery.isFetching)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -173,12 +175,21 @@ export default function BlogPost() {
 
   // JSON-LD Article schema — tells Google this is a news/blog article with proper
   // metadata (author, publisher, dates). Big factor in rich-result eligibility.
+  //
+  // `image` MUST be an absolute URL per Google's Article schema spec. Static
+  // articles use CloudFront URLs (already absolute), but dynamic articles
+  // could store a relative path — prefix with the canonical origin in that
+  // case so the rich result doesn't get dropped.
+  const heroImageAbsolute = /^https?:\/\//.test(article.heroImage)
+    ? article.heroImage
+    : `https://nickstire.org${article.heroImage.startsWith("/") ? "" : "/"}${article.heroImage}`;
+
   const articleJsonLd = {
     "@context": "https://schema.org",
     "@type": "Article",
     headline: article.title,
     description: article.metaDescription,
-    image: article.heroImage,
+    image: heroImageAbsolute,
     datePublished: article.publishDate,
     dateModified: article.publishDate,
     author: {

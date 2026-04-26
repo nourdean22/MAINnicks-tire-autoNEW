@@ -79,10 +79,16 @@ describe("Google Ads Conversion", () => {
 });
 
 describe("Revenue Tracking", () => {
-  it("daily revenue target is $20K/month", () => {
-    const MONTHLY_TARGET = 20000;
-    const avgDailyTarget = MONTHLY_TARGET / 30;
-    expect(avgDailyTarget).toBeCloseTo(666.67, 1);
+  it("monthly target floor is set in BUSINESS constant", async () => {
+    // Was previously a literal $20K assertion. After the floor moved to
+    // $100K (and the real target is dynamic via trailing 90d × 1.1 in
+    // forecastRevenue), this test now sources from BUSINESS so it can't
+    // drift again. If the floor changes, the test reflects the change
+    // instead of failing or being wrong.
+    const { BUSINESS } = await import("@shared/business");
+    expect(BUSINESS.revenueTarget.monthly).toBeGreaterThan(0);
+    // Sanity: never let it regress below realistic shop-scale numbers.
+    expect(BUSINESS.revenueTarget.monthly).toBeGreaterThanOrEqual(20_000);
   });
 
   it("avg ticket range is $150-250", () => {

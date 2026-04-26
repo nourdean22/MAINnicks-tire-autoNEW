@@ -4,6 +4,7 @@
  */
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { BUSINESS } from "@shared/business";
 import {
   Wrench, Clock, AlertTriangle, User, ChevronRight, Plus, RefreshCw,
   Package, Truck, CheckCircle2, XCircle, Timer, Phone, MapPin,
@@ -721,8 +722,11 @@ function ShopPulseMood() {
 
   const revenueToday = Math.round(Number(shopFloor.revenueToday || 0));
   const jobsClosed = Number(shopFloor.invoicesToday || 0);
-  // Monthly target $20K / ~22 working days = ~$909/day
-  const dailyTarget = 909;
+  // Daily target = monthly run-rate target / 26 working days (M–Sat).
+  // Was hardcoded $909/day from when monthly target was $20K. After the
+  // bump to $100K (or whatever the dynamic floor is), this needs to track
+  // the current target so the BUSY/NORMAL/SLOW mood signal stays useful.
+  const dailyTarget = Math.max(1, Math.round(BUSINESS.revenueTarget.monthly / 26));
   const pacePercent = dailyTarget > 0 ? Math.round((revenueToday / dailyTarget) * 100) : 0;
 
   let mood: "busy" | "normal" | "slow";

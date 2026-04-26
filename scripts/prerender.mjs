@@ -60,25 +60,42 @@ async function loadRoutes() {
   //    not a generic placeholder. Without per-post meta, Google sees every
   //    dynamic blog post with the same title → cannibalization + zero ranking.
   //
-  //    We also merge in static BLOG_ARTICLES from @shared/blog (their real
-  //    metaTitle/metaDescription) so legacy posts get proper SEO injection too.
+  //    Implementation: write a temp file and execute it. The previous
+  //    approach used `node --import tsx/esm -e "..."` with single-quotes
+  //    inside a double-quoted shell argument. Windows cmd.exe doesn't
+  //    honor single-quote escaping inside double-quoted strings, so the
+  //    `Nick\\'s` literal in the fallback title broke the inline script
+  //    parse and the entire blog-metadata fetch silently failed on
+  //    Windows.
   try {
-    // Note: dotenv/config MUST be imported before content-generator so
-    // DATABASE_URL is populated before getDb() reads it.
+    const tempScript = path.join(ROOT, "tmp", "load-blog-routes.mjs");
+    fs.mkdirSync(path.dirname(tempScript), { recursive: true });
+    fs.writeFileSync(
+      tempScript,
+      `import "dotenv/config";
+import { BLOG_SLUGS } from "./shared/routes.ts";
+import { BLOG_ARTICLES } from "./shared/blog.ts";
+import { getPublishedArticles } from "./server/content-generator.ts";
+
+const dynRows = await getPublishedArticles().catch(() => []);
+const staticMap = new Map(BLOG_ARTICLES.map(a => [a.slug, { title: a.metaTitle, description: a.metaDescription }]));
+const dynMap = new Map(dynRows.map(a => [a.slug, { title: a.metaTitle, description: a.metaDescription }]));
+const slugs = Array.from(new Set([...BLOG_SLUGS, ...dynRows.map(r => r.slug)]));
+const out = slugs.map(s => {
+  const meta = staticMap.get(s) || dynMap.get(s) || {
+    title: "Blog \\u2014 Nick's Tire & Auto",
+    description: "Auto repair tips from Cleveland.",
+  };
+  return { path: "/blog/" + s, title: meta.title, description: meta.description };
+});
+console.log(JSON.stringify(out));
+process.exit(0);
+`,
+      "utf-8"
+    );
+    // Run the temp script via tsx — works identically on Windows + POSIX.
     const result = execSync(
-      `node --import tsx/esm -e "` +
-      `import 'dotenv/config'; ` +
-      `import { BLOG_SLUGS } from './shared/routes.ts'; ` +
-      `import { BLOG_ARTICLES } from './shared/blog.ts'; ` +
-      `import { getPublishedArticles } from './server/content-generator.ts'; ` +
-      `const dynRows = await getPublishedArticles().catch(() => []); ` +
-      `const staticMap = new Map(BLOG_ARTICLES.map(a => [a.slug, { title: a.metaTitle, description: a.metaDescription }])); ` +
-      `const dynMap = new Map(dynRows.map(a => [a.slug, { title: a.metaTitle, description: a.metaDescription }])); ` +
-      `const slugs = Array.from(new Set([...BLOG_SLUGS, ...dynRows.map(r => r.slug)])); ` +
-      `const out = slugs.map(s => { const meta = staticMap.get(s) || dynMap.get(s) || { title: 'Blog | Nick\\'s Tire & Auto', description: 'Auto repair tips from Cleveland.' }; return { path: '/blog/' + s, title: meta.title, description: meta.description }; }); ` +
-      `console.log(JSON.stringify(out));` +
-      `process.exit(0);` +
-      `"`,
+      `node --import tsx/esm "${path.relative(ROOT, tempScript).replace(/\\/g, "/")}"`,
       { cwd: ROOT, encoding: "utf-8", timeout: 45000 }
     );
     const blogRoutes = JSON.parse(result.trim());
@@ -276,9 +293,12 @@ async function main() {
               html = html.replace("</head>", `  <link rel="canonical" href="${routePath === "/" ? BASE_URL + "/" : canonicalUrl}" />\n  </head>`);
             }
 
-            // INSERT meta description if missing
+            // INSERT meta description if missing.
+            // Use escReplace (not just esc) — the value lands inside
+            // String.replace's replacement parameter, so `$149` would be
+            // interpreted as a backreference without the $-escape.
             if (!html.includes('name="description"') && routeInfo.description) {
-              html = html.replace("</head>", `  <meta name="description" content="${esc(routeInfo.description)}" />\n  </head>`);
+              html = html.replace("</head>", `  <meta name="description" content="${escReplace(routeInfo.description)}" />\n  </head>`);
             }
 
             // Fix OG tags

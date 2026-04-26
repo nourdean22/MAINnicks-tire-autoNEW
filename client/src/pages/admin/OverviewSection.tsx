@@ -10,7 +10,7 @@ import { Link } from "wouter";
 import {
   StatCard, ActivityIcon, StatusDot, CHART_COLORS, CHART_THEME, BOOKING_STATUS_CONFIG,
   PageHeader, LoadingState, navigateToAdminSection,
-  type BookingStatus,
+  type BookingStatus, type AdminSection,
 } from "./shared";
 import {
   Activity, AlertTriangle, BarChart3, Bell, CalendarClock, CheckCircle2,
@@ -342,14 +342,19 @@ export default function OverviewSection() {
     }
   }
   function handleOpenSection(item: ActionItem) {
-    const sectionMap: Record<ActionItem["type"], string> = {
-      booking: "bookings",
+    // BUG FIX: prior map used "bookings" and "workOrders" — neither exists
+    // in the AdminSection union (Admin.tsx line ~84 lists 16 valid values
+    // and TAB_ALIASES routes those legacy names to "overview"/"customers").
+    // The event-bridge listener does `setSection(detail.section)` directly
+    // without going through alias resolution, so junk values silently
+    // failed to navigate. Now mapped to real section names.
+    const sectionMap: Record<ActionItem["type"], AdminSection> = {
+      booking: "overview",     // bookings live in overview's queue
       lead: "leads",
-      callback: "overview", // callbacks live inside overview
-      workOrder: "workOrders",
+      callback: "callTrackingView",
+      workOrder: "customers",  // work orders live under customers
     };
     const target = sectionMap[item.type];
-    // Admin.tsx listens for this event and swaps the section
     window.dispatchEvent(new CustomEvent("admin:navigate-section", {
       detail: { section: target, highlightId: item.entityId },
     }));
@@ -888,25 +893,29 @@ export default function OverviewSection() {
 
       {/* ─── SECONDARY METRICS ─── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* commandCenter = NOUR OS Bridge panel, NOT a queue/list view.
+            Routing the "Action Queue", "Bookings", and "Chat Sessions"
+            cards there was wrong — fixed to land on the actual section
+            where each entity lives. */}
         <StatCard
           label="Action Queue" value={priorityQueue.length}
           icon={<AlertTriangle className="w-4 h-4" />}
           color={priorityQueue.length > 0 ? "text-red-400" : "text-emerald-400"}
           trend={priorityQueue.length > 0 ? "up" : "neutral"}
           trendLabel={priorityQueue.length > 0 ? "Needs attention" : "All clear"}
-          targetSection="commandCenter"
+          targetSection="leads"
         />
         <StatCard
           label="Today's Bookings" value={todaysBookings.length}
           icon={<CalendarClock className="w-4 h-4" />} color="text-foreground"
           trend={todaysBookings.length > 0 ? "up" : "neutral"}
           trendLabel={`${stats.bookings.thisWeek} this week`}
-          targetSection="commandCenter"
+          targetSection="leads"
         />
         <StatCard
           label="Chat Sessions" value={stats.chat.totalSessions}
           icon={<MessageSquare className="w-4 h-4" />} color="text-purple-400"
-          targetSection="commandCenter"
+          targetSection="leads"
         />
         <StatCard
           label="Callbacks Pending" value={stats.callbacks?.new ?? 0}

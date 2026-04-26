@@ -20,7 +20,12 @@ import { createLogger } from "../lib/logger";
 import { BUSINESS } from "@shared/business";
 const log = createLogger("live-feed");
 
-const MONTHLY_TARGET = 20_000; // $20K monthly target (matches intelligenceEngines.ts)
+// Pull from BUSINESS constant so we stay in sync with everywhere else.
+// Was hardcoded 20_000 from when the goal was $20K — now the goal is
+// dynamic (trailing 90d × 1.1) with this constant as the floor. Hardcoding
+// caused the Telegram feed to show 5x off-pace numbers vs the rest of
+// the system after the bump from 20K → 100K.
+const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
 
 // ─── Daily Accumulators (reset at midnight ET) ──────
 interface DailyState {
