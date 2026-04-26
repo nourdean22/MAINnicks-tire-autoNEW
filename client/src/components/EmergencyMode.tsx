@@ -65,25 +65,30 @@ export function EmergencyMode() {
 
   return (
     <>
-      {/* Emergency Banner */}
+      {/* Closed-banner — slim, single-line, non-intrusive.
+          Was a 90px tall block taking the entire top of the page above
+          the hero (ate brand real estate). Now: compact 36-40px strip
+          with truncated copy and a small CTA pill so the hero can
+          breathe. On mobile, only the headline + button render. */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-red-950 to-orange-900 border-b border-red-500/50 backdrop-blur-md"
+        className="fixed top-0 left-0 right-0 z-[60] bg-red-950/95 border-b border-red-500/40 backdrop-blur-md"
       >
-        <div className="container flex items-center justify-between py-4 px-4">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="font-semibold text-red-200 text-sm tracking-wide">WE'RE CLOSED RIGHT NOW</p>
-              <p className="text-red-300/80 text-xs mt-1">Submit an emergency request and be FIRST in line when we open at {nextOpenTime}</p>
-            </div>
+        <div className="container flex items-center justify-between gap-3 py-1.5 px-4">
+          <div className="flex items-center gap-2 min-w-0">
+            <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" aria-hidden />
+            <p className="text-[12px] sm:text-[13px] text-red-100 truncate">
+              <span className="font-bold tracking-wide">Closed</span>
+              <span className="hidden sm:inline text-red-300/80"> · re-opens {nextOpenTime} · file an emergency request to be first in line</span>
+              <span className="sm:hidden text-red-300/80"> · re-opens {nextOpenTime}</span>
+            </p>
           </div>
           <button
             onClick={() => setShowForm(true)}
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded font-semibold font-bold text-sm tracking-wide transition-colors flex-shrink-0 ml-4"
+            className="shrink-0 rounded bg-red-500 hover:bg-red-400 text-white text-[11px] font-bold tracking-wider px-2.5 py-1 transition-colors"
           >
-            EMERGENCY REQUEST
+            EMERGENCY
           </button>
         </div>
       </motion.div>
