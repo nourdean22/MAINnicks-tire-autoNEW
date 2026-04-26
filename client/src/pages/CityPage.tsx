@@ -140,11 +140,14 @@ function CitySchema({ city }: { city: CityData }) {
     },
     {
       q: `What auto repair services do you offer near ${city.name}?`,
-      a: `Tires (new and used from $60), brake repair (from $149/axle), oil changes (from $39), wheel alignment, engine diagnostics, Ohio E-Check repair, AC repair, batteries, exhaust, transmission, and full general repair. ★4.9 from 1,700+ reviews.`,
+      // Use BUSINESS constants instead of hardcoded values so JSON-LD stays in
+      // sync with the businessSchema's aggregateRating. Hardcoding was creating
+      // a discrepancy Google could detect and use to suppress the rich result.
+      a: `Tires (new and used from $60), brake repair (from $149/axle), oil changes (from $39), wheel alignment, engine diagnostics, Ohio E-Check repair, AC repair, batteries, exhaust, transmission, and full general repair. ★${BUSINESS.reviews.rating} from ${BUSINESS.reviews.countDisplay} reviews.`,
     },
     {
       q: `Is Nick's Tire & Auto reliable for ${city.name} drivers?`,
-      a: `★4.9 stars from 1,700+ Google reviews. We've served Cleveland-area drivers since 2018, including ${city.name}. Honest diagnosis, up-front pricing, 12-month warranty on most repairs, and we show you the worn part before we replace it.`,
+      a: `★${BUSINESS.reviews.rating} stars from ${BUSINESS.reviews.countDisplay} Google reviews. We've served Cleveland-area drivers since 2018, including ${city.name}. Honest diagnosis, up-front pricing, 12-month warranty on most repairs, and we show you the worn part before we replace it.`,
     },
     {
       q: `Do I need an appointment, or can I walk in?`,
