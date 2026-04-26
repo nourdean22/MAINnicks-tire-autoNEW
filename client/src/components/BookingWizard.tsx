@@ -101,7 +101,11 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
     preferredDate: "",
     preferredTime: "" as string,
     message: "",
-    urgency: "whenever" as "emergency" | "this-week" | "whenever",
+    // Pre-selected to "this-week" per the conversion-overhaul spec
+    // (commitment-consistency / forced prioritization). Visitors who
+    // genuinely don't care still self-select "whenever" — we just don't
+    // make "no urgency" the path of least resistance.
+    urgency: "this-week" as "emergency" | "this-week" | "whenever",
     textUpdates: true,
     referredBy: "",
   });
@@ -209,7 +213,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
           transition={{ delay: 0.2 }}
           className="font-bold text-[28px] text-foreground tracking-[-0.02em] mb-2"
         >
-          You're all set, {formData.name.split(" ")[0]}!
+          Your spot is reserved, {formData.name.split(" ")[0]}.
         </motion.h3>
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -217,23 +221,55 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
           transition={{ delay: 0.35 }}
           className="space-y-3"
         >
-          <p className="text-foreground/60 text-sm">
-            {formData.service} appointment requested
-            {formData.vehicleYear && formData.vehicleMake
-              ? ` for your ${formData.vehicleYear} ${formData.vehicleMake} ${formData.vehicleModel}`
-              : ""}
-            .
-          </p>
-          <p className="text-foreground/70 text-sm">
-            We'll text you a confirmation shortly at {formData.phone}.
-          </p>
-          <div className="pt-4">
+          {/* Reservation block — per conversion-overhaul spec: "Your spot is
+              RESERVED for 4 hours." Sets a real concrete window that signals
+              we treat the booking seriously. */}
+          <div className="mx-auto max-w-md rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 text-left">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+              </span>
+              <span className="text-[10px] font-bold tracking-widest text-emerald-400 uppercase">Slot held · 4 hr</span>
+            </div>
+            <p className="text-sm text-foreground/80 leading-relaxed">
+              <span className="font-semibold">{formData.service}</span>
+              {formData.vehicleYear && formData.vehicleMake
+                ? <> for your <span className="font-semibold">{formData.vehicleYear} {formData.vehicleMake} {formData.vehicleModel}</span></>
+                : ""}.
+            </p>
+            <p className="text-[12px] text-foreground/60 mt-1.5">
+              We'll text {formData.phone} within 15 minutes to confirm exact time + parts availability.
+              Walk in any time during business hours — your spot is held.
+            </p>
+          </div>
+
+          {/* Referral incentive — per spec: "Share NICKS150 with a friend,
+              you both save $25." Compounds the booking into another lead. */}
+          <div className="mx-auto max-w-md rounded-lg border border-primary/30 bg-primary/5 p-3.5 text-left">
+            <div className="text-[10px] font-bold tracking-widest text-primary uppercase mb-1">
+              Bonus
+            </div>
+            <p className="text-[13px] text-foreground/80 leading-relaxed">
+              Share code <span className="font-mono font-bold text-primary">NICKS150</span> with a friend —
+              you both save $25 on your next service. Valid 30 days.
+            </p>
+          </div>
+
+          {/* CTAs — call (most committed) + Uber drop-off if drop-off-eligible */}
+          <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
             <a
               href={BUSINESS.phone.href}
-              className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-3.5 rounded-lg font-semibold text-[14px] hover:opacity-90 transition-opacity"
+              className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-lg font-semibold text-[13px] hover:opacity-90 transition-opacity"
             >
               <Phone className="w-4 h-4" />
               Call {BUSINESS.phone.display}
+            </a>
+            <a
+              href="/financing"
+              className="inline-flex items-center gap-2 border border-foreground/30 text-foreground/80 px-5 py-3 rounded-lg font-semibold text-[13px] hover:border-primary hover:text-primary transition-colors"
+            >
+              See $0-down financing
             </a>
           </div>
         </motion.div>
