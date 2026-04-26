@@ -250,4 +250,123 @@ export const conversionRouter = router({
       }
     });
   }),
+
+  /**
+   * Admin-only — full conversion-funnel rollup for the dashboard.
+   *
+   * Returns:
+   *   - totals (7d / 30d) for leads + bookings + paid invoices
+   *   - source breakdown for leads (popup / chat / sms_capture / newsletter / etc.)
+   *   - lead → booking conversion rate (rough, phone-matched within 30d)
+   *   - daily trend (last 14 days) — for the sparkline
+   *
+   * Cached 60s. Pure SELECTs, no writes. Falls back gracefully on any
+   * missing-table error so the dashboard renders even on a fresh DB.
+   */
+  leadFunnel: adminProcedure.query(async () => {
+    const { cached } = await import("../lib/cache");
+    return cached("conv:lead-funnel", 60, async () => {
+      try {
+        const { getDb } = await import("../db");
+        const d = await getDb();
+        if (!d) {
+          return {
+            totals: { leads7d: 0, leads30d: 0, bookings7d: 0, bookings30d: 0, invoices30d: 0 },
+            sources: [] as Array<{ source: string; count: number }>,
+            leadToBookingRate: 0,
+            dailyTrend: [] as Array<{ date: string; leads: number; bookings: number }>,
+            asOf: new Date().toISOString(),
+          };
+        }
+
+        // 7d / 30d totals — leads + bookings + paid invoices.
+        const [totalsRow] = await d.execute(sql`
+          SELECT
+            (SELECT COUNT(*) FROM leads WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 7 DAY))   AS leads7d,
+            (SELECT COUNT(*) FROM leads WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 30 DAY))  AS leads30d,
+            (SELECT COUNT(*) FROM bookings WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS bookings7d,
+            (SELECT COUNT(*) FROM bookings WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS bookings30d,
+            (SELECT COUNT(*) FROM invoices WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL 30 DAY) AND paymentStatus = 'paid') AS invoices30d
+        `).catch(() => [[]] as any);
+
+        const t = (totalsRow as any)?.[0] || {};
+        const totals = {
+          leads7d: Number(t.leads7d) || 0,
+          leads30d: Number(t.leads30d) || 0,
+          bookings7d: Number(t.bookings7d) || 0,
+          bookings30d: Number(t.bookings30d) || 0,
+          invoices30d: Number(t.invoices30d) || 0,
+        };
+
+        // Source breakdown — last 30 days.
+        const [sourceRows] = await d.execute(sql`
+          SELECT source, COUNT(*) AS count
+          FROM leads
+          WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            AND source IS NOT NULL AND source <> ''
+          GROUP BY source
+          ORDER BY count DESC
+        `).catch(() => [[]] as any);
+        const sources = ((sourceRows as any[]) || []).map((r: any) => ({
+          source: String(r.source || "unknown"),
+          count: Number(r.count) || 0,
+        }));
+
+        // Lead → booking conversion. Phone-matched within 30 days.
+        // Directional, not exact — but the simplest stable signal we have.
+        const [convRow] = await d.execute(sql`
+          SELECT COUNT(DISTINCT l.phone) AS converted
+          FROM leads l
+          INNER JOIN bookings b ON b.phone = l.phone
+            AND b.createdAt >= l.createdAt
+            AND b.createdAt <= DATE_ADD(l.createdAt, INTERVAL 30 DAY)
+          WHERE l.createdAt >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+        `).catch(() => [[]] as any);
+        const converted = Number((convRow as any)?.[0]?.converted) || 0;
+        const leadToBookingRate = totals.leads30d > 0
+          ? Math.round((converted / totals.leads30d) * 1000) / 10
+          : 0;
+
+        // Daily trend — last 14 days. Lead and booking counts merged by date.
+        const [trendRows] = await d.execute(sql`
+          SELECT d AS date, SUM(leads) AS leads, SUM(bookings) AS bookings
+          FROM (
+            SELECT DATE(createdAt) AS d, COUNT(*) AS leads, 0 AS bookings
+            FROM leads
+            WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 14 DAY)
+            GROUP BY DATE(createdAt)
+            UNION ALL
+            SELECT DATE(createdAt) AS d, 0 AS leads, COUNT(*) AS bookings
+            FROM bookings
+            WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 14 DAY)
+            GROUP BY DATE(createdAt)
+          ) merged
+          GROUP BY d
+          ORDER BY d ASC
+        `).catch(() => [[]] as any);
+        const dailyTrend = ((trendRows as any[]) || []).map((row: any) => ({
+          date: String(row.date).slice(0, 10),
+          leads: Number(row.leads) || 0,
+          bookings: Number(row.bookings) || 0,
+        }));
+
+        return {
+          totals,
+          sources,
+          leadToBookingRate,
+          dailyTrend,
+          asOf: new Date().toISOString(),
+        };
+      } catch (err) {
+        log.warn("[conversion.leadFunnel] failed:", err);
+        return {
+          totals: { leads7d: 0, leads30d: 0, bookings7d: 0, bookings30d: 0, invoices30d: 0 },
+          sources: [],
+          leadToBookingRate: 0,
+          dailyTrend: [],
+          asOf: new Date().toISOString(),
+        };
+      }
+    });
+  }),
 });
