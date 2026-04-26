@@ -349,7 +349,12 @@ export default function BlogPost() {
                         href={svc}
                         className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary px-4 py-2 font-semibold font-bold text-xs tracking-wide hover:bg-primary/20 transition-colors"
                       >
-                        {svc.replace("/", "").replace("-", " ")}
+                        {/* Strip leading slash + replace ALL hyphens with spaces.
+                            Was `.replace("-", " ")` which only replaced the FIRST
+                            hyphen — `/synthetic-oil-change` rendered as
+                            "synthetic oil-change", `/pre-purchase-inspection` as
+                            "pre purchase-inspection". */}
+                        {svc.replace(/^\//, "").replace(/-/g, " ")}
                         <ArrowRight className="w-3 h-3" />
                       </Link>
                     ))}
