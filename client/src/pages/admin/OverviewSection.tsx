@@ -677,8 +677,10 @@ export default function OverviewSection() {
             healthScore === null ? "Loading..." :
             healthScore >= 70 ? "Healthy" : healthScore >= 40 ? "Needs work" : "Critical"
           }
-          targetSection="settings"
-          settingsTab="health"
+          // Routes to Intelligence Overview where the 13-component breakdown
+          // lives. Was previously routing to Settings → Site Health which is
+          // system uptime / DB / vendor status — different concept entirely.
+          targetSection="intelligence"
         />
         <StatCard
           label="ALG Status"

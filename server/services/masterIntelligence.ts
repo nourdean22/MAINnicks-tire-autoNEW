@@ -71,7 +71,23 @@ export interface MasterIntelligenceReport {
     topOpportunity: string;
     topRisk: string;
     score: number;
+    /** Per-component breakdown so the dashboard can show WHY the score is what it is. */
+    scoreBreakdown: ScoreComponent[];
   };
+}
+
+/** A single contributor to the Health Score. */
+export interface ScoreComponent {
+  /** Display label for the component (e.g. "Revenue pacing", "Bay utilization"). */
+  label: string;
+  /** Points contributed (signed; can be negative or positive). */
+  points: number;
+  /** Maximum possible magnitude for this component (e.g. 12 means range is ±12). */
+  maxPoints: number;
+  /** Human-readable explanation of why it scored this way. */
+  reason: string;
+  /** Whether the engine had data; helps the UI distinguish "0 because neutral" from "skipped". */
+  hasData: boolean;
 }
 
 // ── Main Function ────────────────────────────────────────
@@ -184,131 +200,156 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
   // Realistic range: 30-95 for an actively running shop.
 
   let score = 50; // baseline
+  const scoreBreakdown: ScoreComponent[] = [
+    { label: "Baseline", points: 50, maxPoints: 50, reason: "Starting point — every shop begins here", hasData: true },
+  ];
+
+  // Helper to record a component contribution.
+  const record = (label: string, points: number, maxPoints: number, reason: string, hasData = true) => {
+    score += points;
+    scoreBreakdown.push({ label, points: Math.round(points * 10) / 10, maxPoints, reason, hasData });
+  };
 
   // ═══ CORE COMPONENTS (original 5, weights tuned down to fit new ones) ═══
 
   // 1. Revenue pacing (±12) — vs DYNAMIC trailing-average target.
-  //    Old code compared to a fixed $20K monthly goal that quickly went
-  //    stale. Now: pace vs. trailing 90-day daily average × 1.1 (10%
-  //    growth target). This auto-scales as the business grows.
   if (pacing) {
     const monthObj = pacing.month as Record<string, unknown> | undefined;
     const monthSoFar = typeof monthObj?.soFar === "number" ? monthObj.soFar : 0;
     const dayOfMonth = new Date().getDate();
-    // Use trailing 90-day average daily revenue × days-elapsed × 1.1 growth target
-    const trailingDaily = num(pacing, "trailing90DayAvgDaily") || (monthSoFar / Math.max(1, dayOfMonth)); // fallback
+    const trailingDaily = num(pacing, "trailing90DayAvgDaily") || (monthSoFar / Math.max(1, dayOfMonth));
     const expectedPace = trailingDaily * dayOfMonth * 1.1;
     const pacePct = expectedPace > 0 ? monthSoFar / expectedPace : 1;
-    score += clamp(Math.round(pacePct * 24) - 24, -12, 12);
+    const pts = clamp(Math.round(pacePct * 24) - 24, -12, 12);
+    record("Revenue pacing", pts, 12, `MTD $${Math.round(monthSoFar).toLocaleString()} vs $${Math.round(expectedPace).toLocaleString()} expected (${Math.round(pacePct * 100)}% of pace, 10% growth target)`);
   }
 
-  // 2. Churn risk (±8) — fewer high-risk customers = healthier
+  // 2. Churn risk (±8)
   if (churnRisk) {
     const highRiskCount = arr(churnRisk, "highRisk").length;
-    score += clamp(8 - highRiskCount * 2, -8, 8);
+    const pts = clamp(8 - highRiskCount * 2, -8, 8);
+    record("Churn risk", pts, 8, `${highRiskCount} high-risk customers detected`);
   }
 
-  // 3. Review velocity (±10) — growing reviews = future customer flow
+  // 3. Review velocity (±10)
   if (reviewVel) {
     const velocity = num(reviewVel, "velocity");
-    score += velocity > 5 ? 10 : velocity > 0 ? 7 : velocity > -10 ? 3 : -5;
+    const pts = velocity > 5 ? 10 : velocity > 0 ? 7 : velocity > -10 ? 3 : -5;
+    record("Review velocity", pts, 10, `${velocity > 0 ? "+" : ""}${velocity}% month-over-month`);
   }
 
-  // 4. Customer growth (±6) — new customers/month
+  // 4. Customer growth (±6)
   if (custVelocity) {
     const monthlyNew = num(custVelocity, "thisMonth", "newThisMonth");
-    score += clamp(Math.round(monthlyNew * 0.6) - 4, -6, 6);
+    const pts = clamp(Math.round(monthlyNew * 0.6) - 4, -6, 6);
+    record("Customer growth", pts, 6, `${monthlyNew} new customers this month`);
   }
 
   // 5. Margin health (±8)
   if (margins) {
     const avgMargin = num(margins, "averageMargin", "overallMargin") || 50;
-    score += clamp(Math.round((avgMargin - 30) * 0.4), -8, 8);
+    const pts = clamp(Math.round((avgMargin - 30) * 0.4), -8, 8);
+    record("Margin health", pts, 8, `${avgMargin}% average margin (target 30%+)`);
   }
 
   // ═══ NEW: ADVANCED SIGNALS (8 more components) ═══
 
-  // 6. Revenue anomalies (±4) — unexplained dips/spikes hurt confidence.
-  //    A dip is worse than a spike (spikes might be one-off big jobs).
+  // 6. Revenue anomalies (±4)
   if (anomalies) {
     const list = arr(anomalies, "anomalies");
     const dips = list.filter((a: any) => a?.type === "dip").length;
     const spikes = list.filter((a: any) => a?.type === "spike").length;
-    // Each dip -1 (capped), each spike +0.5 (rare positive surprise)
-    score += clamp(spikes * 0.5 - dips * 1.5, -4, 2);
+    const pts = clamp(spikes * 0.5 - dips * 1.5, -4, 2);
+    record("Revenue anomalies", pts, 4, `${dips} dip${dips !== 1 ? "s" : ""}, ${spikes} spike${spikes !== 1 ? "s" : ""} detected (last 90d)`);
   }
 
-  // 7. Cash flow direction (±5) — projected 30d > 7d × 4 means accelerating.
-  //    Healthy AR: outstanding < 10% of monthly revenue.
+  // 7. Cash flow direction (±5)
   if (cashFlow) {
     const next7 = num(cashFlow, "next7days", "projectedCash");
     const next30 = num(cashFlow, "next30days", "projectedCash");
     const outstandingAR = num(cashFlow, "outstandingAR");
     const monthSoFar = num(pacing as any, "month", "soFar") || 1;
-    // Accelerating: 30d > 7d × 4.5 = +3, decelerating: < 3 = -3
+    let pts = 0;
+    let reason = "";
     if (next7 > 0 && next30 > 0) {
       const ratio = next30 / next7;
-      score += clamp(Math.round((ratio - 4) * 1.5), -3, 3);
+      pts = clamp(Math.round((ratio - 4) * 1.5), -3, 3);
+      reason = `Projecting $${Math.round(next30).toLocaleString()} (30d) vs $${Math.round(next7).toLocaleString()} (7d) — ratio ${ratio.toFixed(1)}x`;
     }
-    // AR drag: > 15% of MTD = -2
-    if (monthSoFar > 0 && outstandingAR / monthSoFar > 0.15) score -= 2;
+    if (monthSoFar > 0 && outstandingAR / monthSoFar > 0.15) {
+      pts -= 2;
+      reason += ` · AR drag: $${Math.round(outstandingAR).toLocaleString()} outstanding`;
+    }
+    record("Cash flow direction", pts, 5, reason || "Cash flow analyzed");
   }
 
-  // 8. Bay utilization (±5) — operational efficiency.
-  //    50-80% = healthy. <30% = underused (overhead drag), >90% = bottleneck.
-  //    Skip penalty when data missing (utilization === 0 usually means
-  //    bay-tracking isn't wired up yet, NOT that bays are idle).
+  // 8. Bay utilization (±5)
   if (bayUtil) {
     const utilization = num(bayUtil, "utilizationPct", "averageUtilization");
+    let pts = 0;
+    let reason = "";
+    let hasData = true;
     if (utilization === 0) {
-      // No data — neutral, don't penalize.
-    } else if (utilization >= 50 && utilization <= 80) score += 5;
-    else if (utilization >= 30 && utilization < 50) score += 1;
-    else if (utilization > 80 && utilization <= 95) score += 2; // busy but coping
-    else score -= 3; // way under or way over
+      reason = "Bay tracking not wired (skipped — no penalty)";
+      hasData = false;
+    } else if (utilization >= 50 && utilization <= 80) { pts = 5; reason = `${utilization}% — healthy range`; }
+    else if (utilization >= 30 && utilization < 50) { pts = 1; reason = `${utilization}% — slightly underused`; }
+    else if (utilization > 80 && utilization <= 95) { pts = 2; reason = `${utilization}% — busy but coping`; }
+    else { pts = -3; reason = `${utilization}% — far from healthy 50-80% range`; }
+    record("Bay utilization", pts, 5, reason, hasData);
   }
 
-  // 9. Lead response time (±4) — fast response = higher conversion.
-  //    Industry: <5min = 100x conversion vs. 30+ min.
-  //    Skip when no leads sampled (avgMin = 0 → data missing).
+  // 9. Lead response time (±4)
   if (leadResp) {
     const avgMin = num(leadResp, "avgResponseMinutes", "averageResponseMinutes");
-    if (avgMin > 0 && avgMin < 5) score += 4;
-    else if (avgMin > 0 && avgMin < 15) score += 2;
-    else if (avgMin > 0 && avgMin < 60) score += 0;
-    else if (avgMin >= 60 && avgMin < 240) score -= 2;
-    else if (avgMin >= 240) score -= 4;
-    // avgMin === 0: no data, skip
+    let pts = 0;
+    let reason = "";
+    let hasData = true;
+    if (avgMin === 0) { reason = "No recent leads sampled (skipped)"; hasData = false; }
+    else if (avgMin < 5) { pts = 4; reason = `Avg ${avgMin.toFixed(1)} min — excellent`; }
+    else if (avgMin < 15) { pts = 2; reason = `Avg ${avgMin.toFixed(1)} min — good`; }
+    else if (avgMin < 60) { pts = 0; reason = `Avg ${avgMin.toFixed(1)} min — acceptable`; }
+    else if (avgMin < 240) { pts = -2; reason = `Avg ${avgMin.toFixed(1)} min — slow`; }
+    else { pts = -4; reason = `Avg ${avgMin.toFixed(1)} min — way too slow (industry: <5 min = 100x conversion)`; }
+    record("Lead response time", pts, 4, reason, hasData);
   }
 
-  // 10. Average ticket trend (±4) — growing ticket = healthier mix
+  // 10. Average ticket trend (±4)
   if (ticketTrend) {
     const pctChange = num(ticketTrend, "percentChange");
-    // +10% growth = +3, +20% = +4 (capped), -10% = -3
-    score += clamp(Math.round(pctChange * 0.2), -4, 4);
+    const pts = clamp(Math.round(pctChange * 0.2), -4, 4);
+    record("Avg ticket trend", pts, 4, `${pctChange > 0 ? "+" : ""}${pctChange}% change in average invoice`);
   }
 
-  // 11. Revenue concentration (±3) — too few customers driving revenue = risky
+  // 11. Revenue concentration (±3) — `concentrationRatio` is the percentage
+  //    (e.g. 45 means top 10% drive 45% of revenue). `top10PercentRevenue`
+  //    is the dollar amount, NOT a percentage — using it here would produce
+  //    nonsense like "196487%" in the breakdown.
   if (concentration) {
-    const top10Pct = num(concentration, "top10PercentRevenue", "concentrationRatio");
-    // Healthy: top 10% of customers drive 30-50% of revenue
-    if (top10Pct > 70) score -= 3;       // dangerous concentration
-    else if (top10Pct > 60) score -= 1;
-    else if (top10Pct >= 30 && top10Pct <= 50) score += 2;
+    const top10Pct = num(concentration, "concentrationRatio");
+    let pts = 0;
+    if (top10Pct > 70) pts = -3;
+    else if (top10Pct > 60) pts = -1;
+    else if (top10Pct >= 30 && top10Pct <= 50) pts = 2;
+    record("Revenue concentration", pts, 3, `Top 10% of customers drive ${top10Pct}% of revenue (healthy: 30-50%)`);
   }
 
-  // 12. Chat funnel conversion (±3) — site chat → booking rate
+  // 12. Chat funnel conversion (±3)
   if (chatFunnel) {
     const conversionPct = num(chatFunnel, "conversionRate", "chatToBookingRate");
-    if (conversionPct > 30) score += 3;
-    else if (conversionPct > 15) score += 1;
-    else if (conversionPct < 5 && num(chatFunnel, "totalSessions") > 5) score -= 2;
+    const totalSessions = num(chatFunnel, "totalSessions");
+    let pts = 0;
+    if (conversionPct > 30) pts = 3;
+    else if (conversionPct > 15) pts = 1;
+    else if (conversionPct < 5 && totalSessions > 5) pts = -2;
+    record("Chat funnel", pts, 3, `${conversionPct}% chat→booking conversion (${totalSessions} sessions)`);
   }
 
-  // 13. Customer value trend (±3) — are customers spending MORE over time?
+  // 13. Customer value trend (±3)
   if (valueTrend) {
     const trend = num(valueTrend, "trendPct", "growthPct");
-    score += clamp(Math.round(trend * 0.15), -3, 3);
+    const pts = clamp(Math.round(trend * 0.15), -3, 3);
+    record("Customer value trend", pts, 3, `${trend > 0 ? "+" : ""}${trend}% per-customer spend trend`);
   }
 
   score = clamp(Math.round(score), 0, 100);
@@ -429,6 +470,6 @@ export async function generateMasterIntelligenceReport(): Promise<MasterIntellig
     marketing: { channelROI, reviewVelocity: reviewVel, smsEngagement: smsEng, leadResponse: leadResp, contentPerformance: contentPerf },
     growth: { newCustomerVelocity: custVelocity, referralNetwork: referralNet, portfolioLTV, marketShare, seasonalDemand: seasonal },
     competitive: { competitorGap: compGap, chatFunnel, reviewSentiment: reviewSent },
-    summary: { topAlert, topOpportunity, topRisk, score },
+    summary: { topAlert, topOpportunity, topRisk, score, scoreBreakdown },
   };
 }

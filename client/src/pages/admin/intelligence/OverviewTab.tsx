@@ -21,9 +21,12 @@ export default function OverviewTab() {
   const scoreColor = score >= 70 ? "text-emerald-400" : score >= 40 ? "text-amber-400" : "text-red-400";
 
   // Derived stats from sub-reports — engine results are Record<string, unknown>
+  // Use the dynamic target the backend computes (trailing 90d × 1.1 growth)
+  // instead of the stale $20K constant. Falls back to constant for cold start.
   const pacingMonth = data.revenue.pacing?.month as Record<string, unknown> | undefined;
+  const dynamicTarget = typeof pacingMonth?.target === "number" ? pacingMonth.target : MONTHLY_TARGET;
   const revenuePace = typeof pacingMonth?.soFar === "number"
-    ? Math.round((pacingMonth.soFar / MONTHLY_TARGET) * 100)
+    ? Math.round((pacingMonth.soFar / dynamicTarget) * 100)
     : null;
   const highRiskArr = data.customers.churnRisk?.highRisk;
   const churnCount = Array.isArray(highRiskArr) ? highRiskArr.length : null;
@@ -32,25 +35,47 @@ export default function OverviewTab() {
 
   return (
     <div className="space-y-6">
-      {/* Health Score */}
-      <div className="bg-card border border-border/30 p-6 flex items-center gap-6">
-        <div className="flex-shrink-0">
-          <div className={`text-5xl font-bold font-mono ${scoreColor}`}>{score}</div>
-          <div className="text-[10px] text-foreground/40 tracking-wide mt-1">BUSINESS HEALTH</div>
-        </div>
-        <div className="flex-1 space-y-2">
-          <div className="w-full h-3 bg-background rounded-sm overflow-hidden">
-            <div
-              className={`h-full transition-all duration-700 rounded-sm ${score >= 70 ? "bg-emerald-500" : score >= 40 ? "bg-amber-500" : "bg-red-500"}`}
-              style={{ width: `${Math.min(100, score)}%` }}
-            />
+      {/* Health Score + per-component breakdown.
+          Shows EXACTLY which signals are pulling the score up vs. down so
+          you know what to fix. Each row maps to one of the 13 components
+          in masterIntelligence.ts. */}
+      <div className="bg-card border border-border/30 p-6">
+        <div className="flex items-center gap-6 mb-5">
+          <div className="flex-shrink-0">
+            <div className={`text-5xl font-bold font-mono ${scoreColor}`}>{score}</div>
+            <div className="text-[10px] text-foreground/40 tracking-wide mt-1">BUSINESS HEALTH</div>
           </div>
-          <div className="flex justify-between text-[10px] text-foreground/30">
-            <span>0</span>
-            <span>50</span>
-            <span>100</span>
+          <div className="flex-1 space-y-2">
+            <div className="w-full h-3 bg-background rounded-sm overflow-hidden">
+              <div
+                className={`h-full transition-all duration-700 rounded-sm ${score >= 70 ? "bg-emerald-500" : score >= 40 ? "bg-amber-500" : "bg-red-500"}`}
+                style={{ width: `${Math.min(100, score)}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[10px] text-foreground/30">
+              <span>0</span>
+              <span>50</span>
+              <span>100</span>
+            </div>
           </div>
         </div>
+
+        {/* Per-component breakdown — only renders if backend provided one */}
+        {Array.isArray(data.summary.scoreBreakdown) && data.summary.scoreBreakdown.length > 0 && (
+          <div className="border-t border-border/20 pt-4">
+            <div className="text-[10px] font-bold text-foreground/40 tracking-wider uppercase mb-3">
+              Score Breakdown — 13 signals
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5">
+              {data.summary.scoreBreakdown.map((c: any, i: number) => (
+                <ScoreComponentRow key={i} component={c} />
+              ))}
+            </div>
+            <div className="mt-3 text-[10px] text-foreground/40 italic">
+              Each component contributes ± points within its max range. Missing-data signals are skipped (no penalty).
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Top Alert / Opportunity / Risk */}
@@ -82,7 +107,7 @@ export default function OverviewTab() {
           value={revenuePace != null ? `${revenuePace}%` : "--"}
           icon={<TrendingUp className="w-4 h-4" />}
           color={revenuePace != null && revenuePace >= 80 ? "text-emerald-400" : "text-amber-400"}
-          trendLabel="vs $20K target"
+          trendLabel="vs dynamic target"
           trend={revenuePace != null && revenuePace >= 80 ? "up" : "down"}
         />
         <StatCard
@@ -190,6 +215,29 @@ function CustomerJourneyFunnel({ data }: { data: any }) {
         Lead → Retained: <span className="font-bold text-foreground/60">
           {leads > 0 ? Math.round((retained / leads) * 100) : 0}%
         </span>
+      </div>
+    </div>
+  );
+}
+
+function ScoreComponentRow({ component: c }: { component: { label: string; points: number; maxPoints: number; reason: string; hasData: boolean } }) {
+  const isPositive = c.points > 0;
+  const isNegative = c.points < 0;
+  const isSkipped = !c.hasData;
+  const sign = c.points > 0 ? "+" : "";
+  const color = isSkipped ? "text-foreground/30" : isPositive ? "text-emerald-400" : isNegative ? "text-red-400" : "text-foreground/50";
+
+  return (
+    <div className="flex items-start gap-3 py-1.5 group">
+      <div className={`font-mono font-bold text-xs w-12 text-right shrink-0 ${color}`}>
+        {isSkipped ? "—" : `${sign}${c.points}`}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline gap-2">
+          <span className="text-[12px] font-medium text-foreground/80">{c.label}</span>
+          <span className="text-[9px] text-foreground/30 font-mono">±{c.maxPoints}</span>
+        </div>
+        <div className="text-[10px] text-foreground/40 leading-tight truncate group-hover:whitespace-normal">{c.reason}</div>
       </div>
     </div>
   );
