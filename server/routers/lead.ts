@@ -35,7 +35,21 @@ export const leadRouter = router({
         email: z.string().email().max(254).nullish().or(z.literal("")),
         vehicle: z.string().max(200).nullish(),
         problem: z.string().max(2000).nullish(),
-        source: z.enum(["popup", "chat", "booking", "manual", "callback", "fleet", "financing_preapproval", "careers"]).default("popup"),
+        // Conversion-overhaul Batch 8 added "sms_capture" and "newsletter"
+        // so multi-channel capture sources route through the same lead pipe
+        // but stay distinguishable in admin / analytics rollups.
+        source: z.enum([
+          "popup",
+          "chat",
+          "booking",
+          "manual",
+          "callback",
+          "fleet",
+          "financing_preapproval",
+          "careers",
+          "sms_capture",
+          "newsletter",
+        ]).default("popup"),
         companyName: z.string().max(200).nullish(),
         fleetSize: z.number().nullish(),
         vehicleTypes: z.string().max(500).nullish(),

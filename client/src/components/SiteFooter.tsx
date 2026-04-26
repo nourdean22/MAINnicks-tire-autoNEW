@@ -6,6 +6,7 @@ import { Star } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { GBP_REVIEW_URL } from "@shared/const";
 import BrandMark from "@/components/BrandMark";
+import EmailNewsletterCapture from "@/components/conversion/EmailNewsletterCapture";
 
 const LINK_CLASS = "block text-[13px] text-foreground/60 hover:text-foreground/90 transition-colors duration-200";
 const HEADING_CLASS = "text-[11px] font-semibold uppercase tracking-[0.1em] text-foreground/70 mb-5";
@@ -32,6 +33,15 @@ export default function SiteFooter() {
               Book Online
             </Link>
           </p>
+        </div>
+      </div>
+
+      {/* ─── NEWSLETTER BAND — soft email capture ─── */}
+      <div className="bg-[#0B0B0B] border-t border-[#1F1F1F]">
+        <div className="container py-10">
+          <div className="max-w-3xl mx-auto">
+            <EmailNewsletterCapture />
+          </div>
         </div>
       </div>
 

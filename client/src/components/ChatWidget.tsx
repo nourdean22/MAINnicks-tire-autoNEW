@@ -14,6 +14,11 @@ interface Message {
   content: string;
 }
 
+// Session-key for the "tap-to-chat" pulse nudge — once per browser session
+// the floating bubble pulses after 45s of dwell, signaling availability
+// without forcing the chat open. Clicking the bubble dismisses the pulse.
+const PULSE_KEY = "nicks_chat_pulse_seen";
+
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -22,7 +27,33 @@ export default function ChatWidget() {
   const [showLeadCapture, setShowLeadCapture] = useState(false);
   const [leadForm, setLeadForm] = useState({ name: "", phone: "" });
   const [leadSubmitted, setLeadSubmitted] = useState(false);
+  const [pulseActive, setPulseActive] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Pulse-nudge: triggers 45s into the session, only if user hasn't seen it
+  // and the chat isn't already open. Fully session-scoped (sessionStorage).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (open) return;
+    try {
+      if (sessionStorage.getItem(PULSE_KEY)) return;
+    } catch {
+      /* storage blocked */
+    }
+    const t = setTimeout(() => setPulseActive(true), 45_000);
+    return () => clearTimeout(t);
+  }, [open]);
+
+  // Dismiss the pulse the moment the user opens the chat or clicks the
+  // bubble — record in sessionStorage so it doesn't repeat this session.
+  useEffect(() => {
+    if (!pulseActive && !open) return;
+    try {
+      sessionStorage.setItem(PULSE_KEY, "1");
+    } catch {
+      /* storage blocked */
+    }
+  }, [pulseActive, open]);
 
   const sendMessage = trpc.chat.message.useMutation({
     onSuccess: (data) => {
@@ -81,11 +112,21 @@ export default function ChatWidget() {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             exit={{ scale: 0 }}
-            onClick={() => setOpen(true)}
+            onClick={() => {
+              setOpen(true);
+              setPulseActive(false);
+            }}
             className="fixed bottom-20 lg:bottom-6 right-4 z-[90] w-13 h-13 bg-primary text-primary-foreground rounded-full shadow-lg shadow-primary/20 flex items-center justify-center hover:opacity-90 transition-opacity"
             aria-label="Chat with Nick's AI mechanic"
           >
-            <MessageCircle className="w-5 h-5" />
+            {/* Pulse ring — fires after 45s of dwell, once per session */}
+            {pulseActive && (
+              <span
+                aria-hidden="true"
+                className="absolute inset-0 rounded-full border-2 border-primary/70 animate-ping"
+              />
+            )}
+            <MessageCircle className="w-5 h-5 relative" />
           </motion.button>
         )}
       </AnimatePresence>
@@ -179,6 +220,15 @@ export default function ChatWidget() {
                       className="w-full text-left text-[12px] text-foreground/60 hover:text-foreground border border-[oklch(0.17_0.004_260)] rounded-lg px-3 py-3 hover:border-foreground/15 hover:bg-foreground/[0.03] transition-all"
                     >
                       ❓ Answer a question
+                    </button>
+                    {/* "Just price me" shortcut — bypasses chat entirely.
+                        Surfaces the lead-capture form so users who don't
+                        want to type symptoms can drop their number. */}
+                    <button
+                      onClick={() => setShowLeadCapture(true)}
+                      className="w-full text-left text-[12px] text-primary border border-primary/30 rounded-lg px-3 py-3 hover:bg-primary/10 transition-all font-semibold"
+                    >
+                      💬 Just text me a price
                     </button>
                   </div>
                 </div>

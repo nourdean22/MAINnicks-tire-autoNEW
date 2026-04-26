@@ -37,6 +37,7 @@ import AnchorAdjustmentTable, { type Row as AnchorRow } from "./conversion/Ancho
 import FearCalibrationBlock, { type FearStat } from "./conversion/FearCalibrationBlock";
 import LossAversionStat from "./conversion/LossAversionStat";
 import ServiceTriageCard from "./conversion/ServiceTriageCard";
+import TextMeQuote from "./conversion/TextMeQuote";
 
 const HERO_IMAGE_DEFAULT = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
@@ -369,6 +370,20 @@ function LossSection({ config }: { config: ServicePageConfig }) {
   );
 }
 
+function TextMeSection({ config }: { config: ServicePageConfig }) {
+  // Drops the SMS-back capture between the FAQ and the booking form.
+  // Phone-only path for visitors not ready to fill the full booking.
+  return (
+    <section className="bg-background border-t border-border/30 py-12">
+      <div className="container max-w-3xl">
+        <FadeIn>
+          <TextMeQuote serviceLabel={config.serviceType || config.h1} />
+        </FadeIn>
+      </div>
+    </section>
+  );
+}
+
 function CrossSellSection({ config }: { config: ServicePageConfig }) {
   if (!config.crossSell || config.crossSell.items.length === 0) return null;
   return (
@@ -441,6 +456,9 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
           push before the cooldown FAQ section. */}
       <LossSection config={config} />
       <FAQSection faqs={config.faqs} />
+      {/* SMS-back capture — phone-only, low-friction path for visitors
+          who scrolled the FAQ but aren't ready for the full booking. */}
+      <TextMeSection config={config} />
       {/* Cross-sell renders AFTER FAQ — catches visitors whose actual
           symptom didn't match this page's service. */}
       <CrossSellSection config={config} />
