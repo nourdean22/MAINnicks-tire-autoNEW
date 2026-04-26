@@ -244,9 +244,14 @@ export async function computeCustomerRiskScores(): Promise<{
     const highRisk: Array<{ name: string; phone: string; riskScore: number; factors: string[] }> = [];
 
     for (const c of allCust) {
+      // BUG FIX (matches intelligenceEngines.ts): skip records with no
+      // lastVisitDate. They're imported customers with missing visit
+      // history, not churners. Prior code defaulted to 999 days and
+      // gave them max churn risk.
+      if (!c.lastVisitDate) continue;
       let risk = 0;
       const factors: string[] = [];
-      const daysSince = c.lastVisitDate ? Math.floor((Date.now() - new Date(c.lastVisitDate).getTime()) / 86400000) : 999;
+      const daysSince = Math.floor((Date.now() - new Date(c.lastVisitDate).getTime()) / 86400000);
 
       // Churn: 0-40 points based on days since last visit
       if (daysSince > 180) { risk += 40; factors.push("No visit in 6+ months"); }

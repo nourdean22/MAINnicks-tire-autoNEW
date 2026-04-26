@@ -1218,10 +1218,15 @@ export async function predictChurn(): Promise<{
     const phone = c.phone || "";
     const phone10 = phone.replace(/\D/g, "").slice(-10);
 
-    // Base: days since last visit
-    const daysSince = c.lastVisitDate
-      ? Math.floor((Date.now() - new Date(c.lastVisitDate).getTime()) / (24 * 60 * 60 * 1000))
-      : 999;
+    // BUG FIX: customers with no `lastVisitDate` are DATA-INCOMPLETE, not
+    // churners. Common pattern: imported from ALG/ShopDriver without visit
+    // history populated, OR a record created on first phone-call but the
+    // visit was never invoiced. Prior code defaulted these to 999 days,
+    // which falsely flagged them at 90% churn probability and produced a
+    // bogus "25 customers at high risk" on the dashboard. Verified: every
+    // such row has 0 invoices in the DB.
+    if (!c.lastVisitDate) continue;
+    const daysSince = Math.floor((Date.now() - new Date(c.lastVisitDate).getTime()) / (24 * 60 * 60 * 1000));
 
     // Skip very recent customers (no churn risk)
     if (daysSince <= 30) continue;
