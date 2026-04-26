@@ -17,8 +17,28 @@ const log = createLogger("_core:vite");
  * causing soft 404s and duplicate content issues across the entire site.
  */
 function injectRouteMeta(html: string, url: string): string {
-  const route = getRouteByPath(url.split("?")[0]);
-  if (!route) return html;
+  const path = url.split("?")[0];
+  const route = getRouteByPath(path);
+
+  // Critical SEO fix: if the path isn't in the route registry (e.g. dynamic
+  // /blog/:slug, /:city neighborhood pages), DON'T return early — at minimum
+  // we MUST overwrite the canonical to point to the requested URL. Otherwise
+  // every dynamic page inherits index.html's canonical (`https://nickstire.org/`),
+  // which Google interprets as "this is a duplicate of the homepage" and drops
+  // the URL from the index. That bug killed indexing for 21 of 24 blog posts.
+  if (!route) {
+    const baseUrl = SITE_URL;
+    const fullUrl = `${baseUrl}${path === "/" ? "/" : path}`;
+    html = html.replace(
+      /<link rel="canonical" href="[^"]*" \/>/,
+      `<link rel="canonical" href="${fullUrl}" />`
+    );
+    html = html.replace(
+      /<meta property="og:url" content="[^"]*" \/>/,
+      `<meta property="og:url" content="${fullUrl}" />`
+    );
+    return html;
+  }
 
   const baseUrl = SITE_URL;
   const fullUrl = `${baseUrl}${route.path}`;
