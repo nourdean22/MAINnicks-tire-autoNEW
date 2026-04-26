@@ -27,6 +27,7 @@ import PageLayout from "@/components/PageLayout";
 import { SEOHead } from "@/components/SEO";
 import { Link } from "wouter";
 import { ArrowLeft } from "lucide-react";
+import { getConversionDataForSlug } from "@/data/serviceConversionData";
 
 // ─── SERVICE DATA → PAGE CONFIG ADAPTER ─────────────────────
 function serviceDataToConfig(service: ServiceData): ServicePageConfig {
@@ -117,6 +118,12 @@ export default function GenericServicePage() {
     );
   }
 
-  const config = serviceDataToConfig(service);
+  // Merge in per-slug conversion-architecture data (anchor table, fear
+  // stats, loss-aversion stats, cross-sell). Pulled from
+  // client/src/data/serviceConversionData.tsx so business data
+  // (shared/services.ts) stays free of marketing copy.
+  const baseConfig = serviceDataToConfig(service);
+  const conversionData = getConversionDataForSlug(service.slug);
+  const config: ServicePageConfig = { ...baseConfig, ...conversionData };
   return <FocusedServicePage config={config} />;
 }

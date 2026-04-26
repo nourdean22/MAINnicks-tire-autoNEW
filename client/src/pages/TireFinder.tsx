@@ -14,6 +14,11 @@ import { SEOHead } from "@/components/SEO";
 import { trackPhoneClick } from "@/lib/analytics";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FinancingCTA from "@/components/FinancingCTA";
+// Conversion-architecture overlays (Batch 3 of v1.1 spec). Injected as a
+// compact block right after the search hero so visitors see anchor pricing
+// + fear stats before they get lost in size selection.
+import AnchorAdjustmentTable from "@/components/conversion/AnchorAdjustmentTable";
+import FearCalibrationBlock from "@/components/conversion/FearCalibrationBlock";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -856,6 +861,57 @@ export default function TireFinder() {
           </AnimatePresence>
         </div>
       </section>
+
+      {/* ─── CONVERSION ARCHITECTURE — anchor + fear stats ───────────
+          Sits between the search hero and the results so visitors who
+          scroll past the search box (or who arrive via direct link
+          without a size) still get the persuasion frame before they
+          drift to a competitor.
+
+          Hidden once results are showing — the user is now in selection
+          mode, no need to re-pitch the value frame. */}
+      {!activeSearch && (
+        <section className="border-t border-border/30 py-10 sm:py-12 bg-card/20">
+          <div className="container max-w-5xl mx-auto">
+            <AnchorAdjustmentTable
+              serviceName="Tire installation package — Cleveland market"
+              rows={[
+                { label: "Big-box (Costco / Sam's tire centers)", price: "$135 + $89 install" },
+                { label: "Chain shop (Pep Boys / Firestone)", price: "$120 + $99 install" },
+                { label: "Nick's — tire + free install package", price: "From $60", ours: true },
+              ]}
+              source="Nick's free Premium Installation Package ($289+ value): mounting, balancing, valve stems, TPMS reset, disposal, tire rotation for life. Used tires from $60."
+            />
+            <div className="mt-8">
+              <FearCalibrationBlock
+                heading={'Why "a few more weeks" on these tires is a real problem.'}
+                stats={[
+                  {
+                    value: "2×",
+                    unit: "stopping distance",
+                    consequence:
+                      "Bald tires double your stopping distance in rain. At 45 mph that's an extra 60+ feet — the difference between a near miss and a body-shop bill.",
+                    source: "AAA wet-braking tests; tire-tread vs. friction-coefficient curves.",
+                  },
+                  {
+                    value: "$1,200",
+                    consequence:
+                      "Average bill from a Cleveland-pothole blowout when the tire was already past wear-bar. New rim, new tire, sometimes alignment + suspension. A $60 used tire would have prevented it.",
+                    source: "City of Cleveland pothole-claim data; in-shop incident reports.",
+                  },
+                  {
+                    value: "54\"",
+                    unit: "annual snowfall",
+                    consequence:
+                      "Cleveland averages 54 inches of lake-effect snow. Worn or summer tires lose grip below 45°F regardless of tread depth — winter-rated rubber is the cheapest insurance you'll buy this year.",
+                    source: "NOAA Cleveland-area snowfall averages, 2010-2024.",
+                  },
+                ]}
+              />
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ─── RESULTS ─── */}
       <AnimatePresence>

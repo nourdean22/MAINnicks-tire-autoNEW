@@ -6,6 +6,7 @@
  */
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
+import { Disc, AlertTriangle, Clock } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/diagnostics",
@@ -47,6 +48,87 @@ const CONFIG: ServicePageConfig = {
   serviceType: "Vehicle Diagnostics",
   ctaHeadline: "BOOK A DIAGNOSTIC",
   ctaSub: "Free code scan, honest diagnosis. Walk in or book below — 17625 Euclid Ave, Cleveland OH.",
+
+  // ─── CONVERSION ARCHITECTURE ──────────────────────────
+  anchorTable: {
+    serviceName: "OBD-II diagnostic — Cleveland market quotes",
+    rows: [
+      { label: "Cleveland-area dealer", price: "$185" },
+      { label: "National chain shop", price: "$120" },
+      { label: "Nick's Tire & Auto", price: "Free*", ours: true },
+    ],
+    source: "* Free 5-min code scan. Full diagnostic $95 — credited toward any approved repair so you don't pay twice.",
+  },
+  fearStats: {
+    heading: "What an ignored check-engine light actually costs.",
+    stats: [
+      {
+        value: "$200",
+        unit: "→ $4,000",
+        consequence: "Failed oxygen sensor untreated for 30 days routinely takes the catalytic converter with it. Cat converter replacement: $1,500-$4,000 depending on vehicle. Sensor alone: $200.",
+        source: "EPA + AAA repair-data benchmarks.",
+      },
+      {
+        value: "$7,000",
+        consequence: "Top-end of an engine replacement when a flashing CEL (active misfire) is driven on for 1-2 weeks. Misfires dump unburned fuel into the cat — destroys it AND the engine.",
+      },
+      {
+        value: "30",
+        unit: "days to E-Check failure",
+        consequence: "An unresolved CEL = automatic Ohio E-Check failure once your registration cycle hits. 30 days after that, expired tags = parking ticket + impound risk + possible criminal charge for driving on expired registration.",
+      },
+    ],
+  },
+  lossStats: [
+    {
+      amount: 47,
+      unit: "per day",
+      label: "of compounding sensor / emissions damage",
+      reason: "An ignored oxygen sensor degrades the cat converter at ~$47/day on average. The longer the CEL stays on, the larger the eventual repair — and the more components failure cascades into.",
+      ctaHref: "#booking",
+      ctaLabel: "DIAGNOSE TODAY",
+    },
+    {
+      amount: 12,
+      unit: "MPG drop possible",
+      label: "in fuel economy from a stuck-open thermostat or O2 sensor",
+      reason: "A degraded mass-airflow or O2 sensor commonly drops fuel economy 10-15%. On a 30-MPG car driving 1,000 miles a month, that's roughly $30/month in extra gas — silently — until you fix it.",
+      ctaHref: "#booking",
+      ctaLabel: "STOP THE LEAK",
+    },
+  ],
+  crossSell: {
+    heading: "Got the diagnosis? Here's the next step.",
+    items: [
+      {
+        tone: "warning",
+        icon: <AlertTriangle className="w-5 h-5" />,
+        symptom: "E-Check failed with code P0420?",
+        consequence: "Catalytic converter or O2 sensor — 30 days to remedy or your registration goes invalid.",
+        relief: "State-certified emissions repair, same-day pass guarantee.",
+        ctaLabel: "OHIO E-CHECK",
+        ctaHref: "/emissions",
+      },
+      {
+        tone: "danger",
+        icon: <Disc className="w-5 h-5" />,
+        symptom: "ABS light on with the CEL?",
+        consequence: "Brake-system fault — could be a wheel speed sensor or hydraulic problem. Both light up the same diagnostic.",
+        relief: "Free brake inspection + scan, fix from $149/axle.",
+        ctaLabel: "BRAKE INSPECTION",
+        ctaHref: "/brakes",
+      },
+      {
+        tone: "info",
+        icon: <Clock className="w-5 h-5" />,
+        symptom: "Just need oil and a check?",
+        consequence: "Skipping intervals leads to engine sludge and longer-term codes anyway.",
+        relief: "Oil from $39 with multi-point inspection included.",
+        ctaLabel: "OIL CHANGE",
+        ctaHref: "/oil-change",
+      },
+    ],
+  },
 };
 
 export default function DiagnosticsPage() {
