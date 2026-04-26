@@ -345,24 +345,30 @@ export default function SpecialsPage() {
   const { data: dbSpecials } = trpc.specials.getActive.useQuery(undefined, { staleTime: 60_000 });
 
   const specials = useMemo(() => {
-    // Filter out expired hardcoded specials
+    // Filter out expired hardcoded specials.
     const now = new Date();
     const activeHardcoded = SPECIALS.filter((s) => {
       const expires = new Date(s.validThrough);
       return isNaN(expires.getTime()) || expires >= now;
     });
 
-    if (dbSpecials && dbSpecials.length >= 3) {
-      // DB has enough specials — use ONLY DB (admin controls everything)
-      return dbSpecials.map((s: any, i: number) => mapDbSpecial(s, i));
-    }
-
-    if (dbSpecials && dbSpecials.length > 0) {
-      // Merge: DB specials first, then active hardcoded fallbacks
-      const fromDb = dbSpecials.map((s: any, i: number) => mapDbSpecial(s, i));
-      return [...fromDb, ...activeHardcoded];
-    }
-    return activeHardcoded;
+    // Conversion-overhaul note: previously, when the DB had ≥3 active rows,
+    // we replaced the hardcoded list entirely. That suppressed the rich
+    // anchor / reasonWhy / waitingCost / serviceSlug / code data baked into
+    // the hardcoded SPECIALS — the entire Batch 6 conversion frame.
+    //
+    // New rule: ALWAYS show the hardcoded conversion-framed offers, then
+    // append any DB rows whose serviceCategory we don't already cover.
+    // Admin keeps the power to add new offers, the visual hierarchy is
+    // preserved, and the conversion architecture stays in front.
+    const fromDb = (dbSpecials || []).map((s: any, i: number) => mapDbSpecial(s, i));
+    const coveredServices = new Set(
+      activeHardcoded.map((s) => s.service.toLowerCase())
+    );
+    const dbExtras = fromDb.filter(
+      (s: Special) => !coveredServices.has(String(s.service).toLowerCase())
+    );
+    return [...activeHardcoded, ...dbExtras];
   }, [dbSpecials]);
 
   useEffect(() => {
