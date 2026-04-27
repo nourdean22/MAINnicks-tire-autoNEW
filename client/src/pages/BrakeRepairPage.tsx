@@ -75,7 +75,7 @@ const CONFIG: ServicePageConfig = {
       },
       {
         value: "$3,800",
-        consequence: "Average bill when grinding brakes are ignored long enough to ruin the rotor + caliper + master cylinder. The $149 fix becomes a 25× problem in 90 days.",
+        consequence: "Average bill when grinding brakes are ignored long enough to ruin the rotor + caliper + master cylinder. A simple pad replacement caught early can balloon roughly 25× when the cascade finishes — every postponed week makes the eventual repair bigger.",
       },
     ],
   },
