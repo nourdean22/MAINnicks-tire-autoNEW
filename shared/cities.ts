@@ -75,12 +75,19 @@ export const CITIES: CityData[] = [
     }
   },
   {
+    // 2026-04-26 GSC tune: page had 499 impr at pos 34 / 0.2% CTR — Parma
+    // searchers don't reach page 4 (where pos 34 sits) for "auto repair
+    // Parma". Title rewritten to target the niche searcher who'd actually
+    // drive 25 min — Parma drivers fed up with local shops, looking for
+    // an honest second opinion. Emphasizes the differentiators a local
+    // shop can't match (4.9★, free Uber drop-off-and-back) and is
+    // honest about distance up front.
     slug: "parma-auto-repair",
     name: "Parma",
-    metaTitle: "Auto Repair Near Parma, OH | Nick's Tire | 25 Min Away",
-    metaDescription: "Parma drivers choose Nick's Tire & Auto for honest auto repair. Brakes, tires, diagnostics, emissions. 1700+ five-star reviews. Call (216) 862-0005.",
-    heroHeadline: "TRUSTED AUTO REPAIR\nFOR PARMA DRIVERS",
-    heroSubline: "Parma drivers choose Nick's Tire & Auto for expert diagnostics, quality repairs, and fair pricing. Our technicians treat every vehicle like their own.",
+    metaTitle: "Parma → Cleveland Auto Repair · 4.9★ · Free Uber Both Ways | Nick's",
+    metaDescription: "Parma drivers fed up with local shops? Drive 25 min to Cleveland's most trusted mechanic. 4.9★ from 1,700+ reviews. Free Uber drop-off + pick-up. Free written estimates. (216) 862-0005",
+    heroHeadline: "AUTO REPAIR\nWORTH THE DRIVE FROM PARMA",
+    heroSubline: "Parma drivers tired of local shops missing the diagnosis come to Nick's Tire & Auto for honest answers. 25 minutes up the road — and we Uber you home and back so you don't lose your day. 4.9 stars from 1,700+ Cleveland-area reviews.",
     distance: "15 miles",
     driveTime: "25 minutes",
     neighborhoods: ["Parma Heights", "Parmatown", "Ridgewood", "Pleasant Valley", "Snow Road"],
