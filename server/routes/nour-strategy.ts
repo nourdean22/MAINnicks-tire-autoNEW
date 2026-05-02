@@ -14,6 +14,7 @@
 import type { Express, Request, Response } from "express";
 
 import { createLogger } from "../lib/logger";
+import { statenourAuth } from "../middleware/statenourAuth";
 
 const log = createLogger("routes:nour-strategy");
 interface Lead {
@@ -139,7 +140,8 @@ Return JSON with exactly these fields:
 }
 
 export function registerNourStrategyRoute(app: Express): void {
-  app.post("/api/nour-strategy", async (req: Request, res: Response) => {
+  // v1.7 audit fix · was unauthenticated; anyone could burn OpenAI tokens.
+  app.post("/api/nour-strategy", statenourAuth, async (req: Request, res: Response) => {
     try {
       const { leads } = req.body as { leads?: unknown };
 

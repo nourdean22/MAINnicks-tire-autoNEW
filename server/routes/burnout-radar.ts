@@ -16,6 +16,7 @@
 import type { Express, Request, Response } from "express";
 
 import { createLogger } from "../lib/logger";
+import { statenourAuth } from "../middleware/statenourAuth";
 
 const log = createLogger("routes:burnout-radar");
 interface Task {
@@ -24,7 +25,8 @@ interface Task {
 }
 
 export function registerBurnoutRadarRoute(app: Express): void {
-  app.post("/api/agents/burnout-radar", (req: Request, res: Response) => {
+  // v1.7 audit fix · was unauthenticated; exposes operator behavioral logic.
+  app.post("/api/agents/burnout-radar", statenourAuth, (req: Request, res: Response) => {
     try {
       const { taskHistory, lastAction } = req.body as {
         taskHistory?: unknown;

@@ -134,6 +134,12 @@ async function logTierJob(jobName: string, status: string, durationMs: number, r
  * Register all tiers and start the consolidated scheduler.
  */
 export function startTieredScheduler(): void {
+  // v1.7 audit fix · set a global flag so the legacy startAllJobs()
+  // in cron/index.ts can detect we're active and refuse to
+  // double-schedule. Mutex against duplicate SMS sends.
+  (globalThis as { __nicksTieredSchedulerActive?: boolean })
+    .__nicksTieredSchedulerActive = true;
+
   // ═══ TIER 1: HEARTBEAT (every 5 min) ═══
   // Critical monitoring + SMS processing
   tiers.push({

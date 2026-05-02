@@ -24,10 +24,16 @@ import { ENV } from "./_core/env";
 import { notifyOwner } from "./_core/notification";
 import { createLogger } from "./lib/logger";
 import { getOrCreateBreaker } from "./lib/circuit-breaker";
-import { exec } from "child_process";
+import { exec, execFile } from "child_process";
 import { promisify } from "util";
 import { BUSINESS } from "@shared/business";
 const execAsync = promisify(exec);
+// v1.7 SECURITY · execFile bypasses the shell entirely — argv elements
+// are passed verbatim, so attacker-supplied JSON subject can no longer
+// be interpreted as `$()`/backtick shell expansion. Used for the
+// gmail-MCP CLI invocations below where the subject flows from booking
+// requests.
+const execFileAsync = promisify(execFile);
 const log = createLogger("email-notify");
 
 // ─── Circuit Breaker ────────────────────────────────
@@ -358,11 +364,16 @@ async function applyGmailLabel(messageIds: string[], labelId: string): Promise<v
       label_id: labelId,
       message_ids: messageIds,
     });
-    const escapedInput = input.replace(/'/g, "'\\''");
 
-    await execAsync(
-      `manus-mcp-cli tool call gmail_manage_labels --server gmail --input '${escapedInput}'`,
-      { timeout: 15000 }
+    // v1.7 SECURITY (RCE fix) · pre-fix used execAsync with shell
+    // interpolation of `escapedInput` (single-quote escape only).
+    // A label_id or message_id containing backticks / $() / "; rm -rf"
+    // would execute on the Railway container. execFile passes argv
+    // directly to the binary with NO shell parsing.
+    await execFileAsync(
+      "manus-mcp-cli",
+      ["tool", "call", "gmail_manage_labels", "--server", "gmail", "--input", input],
+      { timeout: 15000 },
     );
     log.debug(`Applied label ${labelId} to ${messageIds.length} message(s)`);
   } catch (error) {
@@ -459,14 +470,20 @@ export async function sendNotification(input: NotifyInput): Promise<{
     // Apply Gmail label to the sent message for organization
     if (result.sent && route.gmailLabel) {
       try {
+        // v1.7 SECURITY (RCE fix) · same execFile rewrite as
+        // applyGmailLabel above. input.subject is user-controlled
+        // (booking subject, lead subject, etc) — pre-fix it flowed
+        // straight into a shell command via single-quote-only escape.
+        // Now the entire JSON payload is one argv element; subject can
+        // contain any characters without shell interpretation.
         const searchInput = JSON.stringify({
           query: `subject:"${input.subject.slice(0, 50)}" newer_than:1m`,
           max_results: 1,
         });
-        const escapedSearch = searchInput.replace(/'/g, "'\\''");
-        const { stdout } = await execAsync(
-          `manus-mcp-cli tool call gmail_search_messages --server gmail --input '${escapedSearch}'`,
-          { timeout: 15000 }
+        const { stdout } = await execFileAsync(
+          "manus-mcp-cli",
+          ["tool", "call", "gmail_search_messages", "--server", "gmail", "--input", searchInput],
+          { timeout: 15000 },
         );
 
         const msgIdMatch = stdout.match(/"id"\s*:\s*"([^"]+)"/);

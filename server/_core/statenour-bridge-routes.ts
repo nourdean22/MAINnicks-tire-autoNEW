@@ -661,20 +661,27 @@ export function registerStatenourBridgeRoutes(app: Express): void {
   //     for initial rollout — document this publicly.
   app.post("/api/snap/webhook", express.json(), async (req, res) => {
     try {
+      // v1.7 audit fix · pre-fix: when SNAP_FINANCE_WEBHOOK_SECRET was
+      // unset the verify block was skipped and any caller could POST
+      // forged "approved" application status / payment events into the
+      // DB. The header-comment said "for initial rollout — document
+      // this publicly" but there was no expiry. Fail-closed now.
       const secret = process.env.SNAP_FINANCE_WEBHOOK_SECRET;
-      if (secret) {
-        const signature = req.headers["x-snap-signature"];
-        if (typeof signature !== "string" || !signature) {
-          return res.status(401).json({ error: "Missing signature" });
-        }
-        const crypto = await import("crypto");
-        const expected = crypto.createHmac("sha256", secret)
-          .update(JSON.stringify(req.body))
-          .digest("hex");
-        if (!safeCompare(expected, signature)) {
-          log.warn("Snap webhook signature mismatch");
-          return res.status(401).json({ error: "Invalid signature" });
-        }
+      if (!secret) {
+        log.warn("Snap webhook called but SNAP_FINANCE_WEBHOOK_SECRET unset — rejecting");
+        return res.status(503).json({ error: "Snap webhook not configured" });
+      }
+      const signature = req.headers["x-snap-signature"];
+      if (typeof signature !== "string" || !signature) {
+        return res.status(401).json({ error: "Missing signature" });
+      }
+      const crypto = await import("crypto");
+      const expected = crypto.createHmac("sha256", secret)
+        .update(JSON.stringify(req.body))
+        .digest("hex");
+      if (!safeCompare(expected, signature)) {
+        log.warn("Snap webhook signature mismatch");
+        return res.status(401).json({ error: "Invalid signature" });
       }
 
       const body = req.body as {
