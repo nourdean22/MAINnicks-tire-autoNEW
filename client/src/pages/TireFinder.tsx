@@ -769,7 +769,7 @@ export default function TireFinder() {
     <PageLayout showChat={true}>
       <SEOHead
         title="Tire Shop Near Me · New & Used · Free Install | Cleveland | Nick's"
-        description="Cleveland's tire shop — new & used tires installed with free mount, balance, valve stem, and disposal. Walk-ins 7 days. Flat repair available. Free quote on your size. (216) 862-0005"
+        description="Cleveland tire shop — new & used tires installed, free mount/balance/valve/disposal. Flat repair. Walk-ins 7 days. (216) 862-0005"
         canonicalPath="/tires"
       />
       {/* v1.7 SEO · BreadcrumbList JSON-LD + visible nav */}

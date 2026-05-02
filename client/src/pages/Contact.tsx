@@ -90,8 +90,11 @@ export default function Contact() {
           <div className="container">
             <FadeIn>
               <span className="font-mono text-nick-blue-light text-sm tracking-wide">Get In Touch</span>
+              {/* SEO/a11y · keep visual line break via <br> but include a
+                  literal space so text extraction (Google, screen readers)
+                  doesn't render this as "OURCLEVELAND". */}
               <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground mt-3 tracking-tight leading-[0.95]">
-                CONTACT OUR<br />
+                CONTACT OUR{" "}<br />
                 <span className="text-primary">CLEVELAND</span> SHOP
               </h1>
               <p className="mt-6 text-lg sm:text-xl text-foreground/70 max-w-2xl leading-relaxed">
