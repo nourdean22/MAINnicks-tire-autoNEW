@@ -108,10 +108,15 @@ export async function postToFacebook(params: {
       }
     }
 
+    // v1.7 audit fix · added 15s timeout. Pre-fix Meta Graph slow-fail
+    // would pin the awaiting Express thread for the default Node socket
+    // timeout (~2 min on Railway). 15s is well over Meta's typical
+    // p99 + leaves headroom for slow uploads.
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000),
     });
 
     const data = await res.json();

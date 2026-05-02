@@ -48,7 +48,11 @@ function isBusinessHours(): boolean {
     new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }),
     10,
   );
-  return etHour >= 7 && etHour <= 21;
+  // v1.7 audit fix · was `<= 21` which lets businessHoursOnly SMS jobs
+  // fire 9:00-9:59 PM ET. Customer-facing reminder/cross-sell SMS at
+  // 9:30 PM is bad. Now caps at < 21 (= 8:59 PM hard stop). Aligns
+  // with retentionSequences.ts:77 which already uses < 18.
+  return etHour >= 7 && etHour < 21;
 }
 
 /**
@@ -1270,11 +1274,37 @@ export function startTieredScheduler(): void {
     // Run heartbeat, pulse, and daily on startup. Daily must run on boot because
     // Railway restarts can prevent the 24h interval from ever firing (Bug: 999h no backup).
     // Hourly (idx=2) and briefings (idx=4) can wait for their interval.
-    const runOnStartup = idx <= 1 || tier.name === "daily"; // heartbeat + pulse + daily
-    const stagger = idx * 30_000; // 30s between tiers (was 10s)
+    //
+    // v1.7 audit fix · daily-tier-on-every-boot was sending duplicate
+    // outbound SMS (retention, cross-sell, warranty, declined-work,
+    // churn) on every Railway restart. Now we persist a process-local
+    // marker so the daily tier only fires on startup if the last run
+    // is older than 20h. The setInterval still owns the canonical
+    // 24h cadence; this guard only governs the boot-time fire.
+    const runOnStartup = idx <= 1 || tier.name === "daily";
+    const stagger = idx * 30_000;
 
     if (runOnStartup) {
-      setTimeout(() => {
+      setTimeout(async () => {
+        if (tier.name === "daily") {
+          try {
+            const { getDb } = await import("../db");
+            const { sql } = await import("drizzle-orm");
+            const d = await getDb();
+            if (d) {
+              const [rows] = await d.execute(sql`SELECT MAX(startedAt) AS lastRun FROM cron_log WHERE jobName = 'tier:daily'`);
+              const last = (rows as Array<{ lastRun: Date | null }>)[0]?.lastRun;
+              if (last && Date.now() - new Date(last).getTime() < 20 * 3600_000) {
+                log.info("daily tier: last run < 20h ago, skipping startup fire");
+                return;
+              }
+            }
+          } catch (e) {
+            log.warn("daily tier boot guard query failed, proceeding", {
+              error: e instanceof Error ? e.message : String(e),
+            });
+          }
+        }
         runTier(tier).catch(err => log.error(`Tier ${tier.name} startup failed:`, { error: err instanceof Error ? err.message : String(err) }));
       }, stagger);
     }
