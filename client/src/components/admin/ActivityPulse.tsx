@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { useAdminSSE } from "./AdminSSEContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CarFront, MessageSquare, DollarSign, Star, Phone, Users,
@@ -98,14 +99,17 @@ interface Props {
 
 export default function ActivityPulse({ disabled = false, className = "" }: Props) {
   const [pulses, setPulses] = useState<Pulse[]>([]);
-  const esRef = useRef<EventSource | null>(null);
   const idCounter = useRef(0);
 
-  useEffect(() => {
-    if (disabled) return;
+  // v1.7 audit follow-up · consumes the SHARED EventSource owned by
+  // AdminSSEProvider. Pre-fix this component opened its own
+  // EventSource("/api/admin/events"), giving every admin page TWO
+  // SSE connections to the same endpoint. Now both Admin's listeners
+  // and these pulse listeners ride a single connection.
+  const es = useAdminSSE();
 
-    const es = new EventSource("/api/admin/events");
-    esRef.current = es;
+  useEffect(() => {
+    if (disabled || !es) return;
 
     function pushPulse(p: Omit<Pulse, "id" | "timestamp">) {
       const pulse: Pulse = {
@@ -120,7 +124,7 @@ export default function ActivityPulse({ disabled = false, className = "" }: Prop
       }, DWELL_MS);
     }
 
-    es.onmessage = (ev) => {
+    const messageHandler = (ev: MessageEvent) => {
       try {
         const parsed = JSON.parse(ev.data);
         const evType = typeof parsed.type === "string" ? parsed.type : "generic";
@@ -132,15 +136,12 @@ export default function ActivityPulse({ disabled = false, className = "" }: Prop
       }
     };
 
-    es.onerror = () => {
-      // Don't spam — SSE will auto-reconnect
-    };
+    es.addEventListener("message", messageHandler);
 
     return () => {
-      es.close();
-      esRef.current = null;
+      es.removeEventListener("message", messageHandler);
     };
-  }, [disabled]);
+  }, [disabled, es]);
 
   if (disabled || pulses.length === 0) return null;
 

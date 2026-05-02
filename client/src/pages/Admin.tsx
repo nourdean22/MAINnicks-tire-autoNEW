@@ -20,6 +20,7 @@ import ThemeToggle from "@/components/admin/ThemeToggle";
 import ActivityPulse from "@/components/admin/ActivityPulse";
 import WeatherAwareBanner from "@/components/admin/WeatherAwareBanner";
 import { CustomerDrawer } from "@/components/admin/CustomerDrawer";
+import { AdminSSEProvider, useAdminSSE } from "@/components/admin/AdminSSEContext";
 
 // Lazy-load each section for code splitting.
 // Post-audit (2026-04-24): removed 27 dead/redundant sections that had
@@ -181,40 +182,13 @@ export default function Admin() {
     refetchInterval: 30000,
   });
 
-  // ─── GLOBAL SSE: instant updates across ALL admin tabs ──────
-  useEffect(() => {
-    if (!user || user.role !== "admin") return;
-    let es: EventSource | null = null;
-    try {
-      es = new EventSource("/api/admin/events");
-
-      // On ANY event, invalidate all queries so every tab refreshes instantly
-      const invalidateAll = () => {
-        utils.adminDashboard.stats.invalidate();
-        utils.callback.list.invalidate();
-        utils.booking.list.invalidate();
-        utils.lead.list.invalidate();
-        utils.nickActions.shopPulse.invalidate();
-        utils.customers.campaignStats.invalidate();
-        utils.nourOsBridge.shopFloor.invalidate();
-      };
-
-      es.onmessage = invalidateAll;
-      es.addEventListener("lead_captured", () => { invalidateAll(); toast.info("New lead captured"); });
-      es.addEventListener("booking_created", () => { invalidateAll(); toast.info("New booking"); });
-      es.addEventListener("tire_order_placed", () => { invalidateAll(); toast.info("Tire order placed"); });
-      es.addEventListener("invoice_created", () => { invalidateAll(); toast.info("Invoice created"); });
-      es.addEventListener("invoice_paid", () => { invalidateAll(); toast.success("Payment received"); });
-      es.addEventListener("payment_received", () => { invalidateAll(); toast.success("Payment received"); });
-      es.addEventListener("emergency_request", () => { invalidateAll(); toast.error("EMERGENCY request!"); });
-      es.addEventListener("callback_requested", () => { invalidateAll(); toast.info("Callback requested"); });
-      es.addEventListener("review_detected", () => { invalidateAll(); toast.info("New review detected"); });
-      es.addEventListener("work_order_updated", () => { invalidateAll(); });
-      es.addEventListener("work_order_created", () => { invalidateAll(); toast.info("New work order created"); });
-      es.onerror = () => { /* EventSource auto-reconnects */ };
-    } catch {}
-    return () => { es?.close(); };
-  }, [user, utils]);
+  // v1.7 audit follow-up · SSE listener registration moved into the
+  // AdminSSEListeners sub-component below (rendered inside the
+  // AdminSSEProvider). The provider owns the single shared EventSource
+  // so ActivityPulse can read the same connection — closes the
+  // double-SSE bug. Switched from `es.onmessage = ...` to
+  // addEventListener("message", ...) so multiple consumers can stack
+  // listeners on the shared instance without overwriting.
 
   // ─── Section-navigation bridge ──────────────────────
   // Any admin component (e.g. OverviewSection rows) can fire this event
@@ -297,7 +271,9 @@ export default function Admin() {
   const newLeads = stats?.leads.new ?? 0;
 
   return (
-    <div className="admin-shell min-h-screen bg-background flex">
+    <AdminSSEProvider enabled={!!user && user.role === "admin"}>
+      <AdminSSEListeners />
+      <div className="admin-shell min-h-screen bg-background flex">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -473,6 +449,58 @@ export default function Admin() {
 
       {/* Live activity pulse — toast stream from SSE */}
       <ActivityPulse />
-    </div>
+      </div>
+    </AdminSSEProvider>
   );
+}
+
+/**
+ * v1.7 audit follow-up · sub-component that lives inside AdminSSEProvider
+ * and registers the global query-invalidation + toast listeners on the
+ * SHARED EventSource. Pre-fix, the registration happened in Admin's
+ * top-level useEffect against its OWN private EventSource. ActivityPulse
+ * also held its own. Now both attach to one connection.
+ */
+function AdminSSEListeners() {
+  const utils = trpc.useUtils();
+  const es = useAdminSSE();
+
+  useEffect(() => {
+    if (!es) return;
+    const invalidateAll = () => {
+      utils.adminDashboard.stats.invalidate();
+      utils.callback.list.invalidate();
+      utils.booking.list.invalidate();
+      utils.lead.list.invalidate();
+      utils.nickActions.shopPulse.invalidate();
+      utils.customers.campaignStats.invalidate();
+      utils.nourOsBridge.shopFloor.invalidate();
+    };
+
+    const handlers: Array<[string, (e: Event) => void]> = [
+      ["message", () => invalidateAll()],
+      ["lead_captured", () => { invalidateAll(); toast.info("New lead captured"); }],
+      ["booking_created", () => { invalidateAll(); toast.info("New booking"); }],
+      ["tire_order_placed", () => { invalidateAll(); toast.info("Tire order placed"); }],
+      ["invoice_created", () => { invalidateAll(); toast.info("Invoice created"); }],
+      ["invoice_paid", () => { invalidateAll(); toast.success("Payment received"); }],
+      ["payment_received", () => { invalidateAll(); toast.success("Payment received"); }],
+      ["emergency_request", () => { invalidateAll(); toast.error("EMERGENCY request!"); }],
+      ["callback_requested", () => { invalidateAll(); toast.info("Callback requested"); }],
+      ["review_detected", () => { invalidateAll(); toast.info("New review detected"); }],
+      ["work_order_updated", () => { invalidateAll(); }],
+      ["work_order_created", () => { invalidateAll(); toast.info("New work order created"); }],
+    ];
+
+    for (const [type, fn] of handlers) {
+      es.addEventListener(type, fn);
+    }
+    return () => {
+      for (const [type, fn] of handlers) {
+        es.removeEventListener(type, fn);
+      }
+    };
+  }, [es, utils]);
+
+  return null;
 }
