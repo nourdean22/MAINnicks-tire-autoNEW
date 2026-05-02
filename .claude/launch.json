@@ -2,29 +2,26 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "nickstire",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev"],
-      "port": 3000
-    },
-    {
       "name": "Nick's Tire Dev Server",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev"],
-      "port": 3000,
-      "autoPort": false
+      "port": 3500,
+      "autoPort": false,
+      "cwd": "C:\\Users\\nourd\\OneDrive\\Desktop\\nickstire-repo-staging"
     },
     {
       "name": "Nick's Tire Production",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["start"],
-      "port": 3000
+      "port": 3500,
+      "cwd": "C:\\Users\\nourd\\OneDrive\\Desktop\\nickstire-repo-staging"
     },
     {
       "name": "Prerender (after build)",
       "runtimeExecutable": "node",
       "runtimeArgs": ["scripts/prerender.mjs"],
-      "port": 4173
+      "port": 4173,
+      "cwd": "C:\\Users\\nourd\\OneDrive\\Desktop\\nickstire-repo-staging"
     }
   ]
 }
