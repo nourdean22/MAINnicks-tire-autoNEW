@@ -73,6 +73,7 @@ const AlignmentPage = lazy(() => import("./pages/AlignmentPage"));
 const SyntheticOilChangePage = lazy(() => import("./pages/SyntheticOilChangePage"));
 const BrakeRepairPage = lazy(() => import("./pages/BrakeRepairPage"));
 const DiagnosticsPage = lazy(() => import("./pages/DiagnosticsPage"));
+const CheckEngineLightDiagnosticPage = lazy(() => import("./pages/CheckEngineLightDiagnosticPage"));
 const TireShopNearMePage = lazy(() => import("./pages/TireShopNearMePage"));
 const AutoRepairNearMePage = lazy(() => import("./pages/AutoRepairNearMePage"));
 const TrackJob = lazy(() => import("./pages/TrackJob"));
@@ -129,6 +130,8 @@ function Router() {
             {/* High-traffic / bespoke pages (hand-written copy + config) */}
             <Route path={"/brakes"} component={BrakeRepairPage} />
             <Route path={"/diagnostics"} component={DiagnosticsPage} />
+            {/* v1.7 Grounded&Reliable strategy · diagnostic-authority silo */}
+            <Route path={"/check-engine-light-diagnostic"} component={CheckEngineLightDiagnosticPage} />
             <Route path={"/tire-shop-near-me"} component={TireShopNearMePage} />
             <Route path={"/auto-repair-near-me"} component={AutoRepairNearMePage} />
             <Route path={"/general-repair"} component={AutoRepairNearMePage} />

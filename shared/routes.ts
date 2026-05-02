@@ -170,6 +170,20 @@ const SERVICE_PAGES: RouteEntry[] = [
     prerender: true,
   },
   {
+    // v1.7 Grounded & Reliable silo · positions Nick's as the diagnostic
+    // authority that ends the parts-swap cycle. Distinct from /diagnostics
+    // (broader free-scan framing) — this targets the customer who's been
+    // burned by other shops.
+    path: "/check-engine-light-diagnostic",
+    priority: 0.85,
+    changefreq: "monthly",
+    title: "Check Engine Light Diagnostic Cleveland | Real Diagnosis, No Parts-Swap | Nick's",
+    description: "Tired of shops replacing parts hoping to fix it? Nick's Tire & Auto runs proper diagnostic tests in Cleveland — live data, root-cause analysis, written estimate. Stop paying for guesses. (216) 862-0005",
+    group: "service",
+    sitemap: true,
+    prerender: true,
+  },
+  {
     path: "/emissions",
     priority: 0.9,
     changefreq: "monthly",
