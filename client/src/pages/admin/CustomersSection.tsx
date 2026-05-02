@@ -880,21 +880,30 @@ function CustomersList() {
 
         <button
           onClick={async () => {
+            // v1.7 audit follow-up · was raw fetch() of the manually-
+            // constructed tRPC URL + hand-unwrapped envelope. Bypassed
+            // type-safety, the auth interceptor, and the error
+            // transformer; a session expiring mid-export returned 401
+            // inside an envelope that was silently swallowed into
+            // "Export failed" with no re-auth flow. Now uses the
+            // typed tRPC client via utils.fetch.
             setExporting(true);
             try {
-              const result = await fetch(`/api/trpc/customers.exportCsv?input=${encodeURIComponent(JSON.stringify({ segment }))}`, { credentials: "include" }).then(r => r.json());
-              const data = result?.result?.data?.json ?? result?.result?.data;
-              const csvData = data?.csv;
-              if (!csvData) { toast.error("Export failed"); return; }
-              const blob = new Blob([csvData], { type: "text/csv" });
+              const data = await utils.customers.exportCsv.fetch({ segment });
+              if (!data?.csv) { toast.error("Export failed"); return; }
+              const blob = new Blob([data.csv], { type: "text/csv" });
               const url = URL.createObjectURL(blob);
               const a = document.createElement("a");
               a.href = url;
               a.download = `customers-${segment}-${new Date().toISOString().split("T")[0]}.csv`;
               a.click();
               URL.revokeObjectURL(url);
-              toast.success(`Exported ${data?.count ?? 0} customers`);
-            } catch { toast.error("Export failed"); } finally { setExporting(false); }
+              toast.success(`Exported ${data.count ?? 0} customers`);
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "Export failed");
+            } finally {
+              setExporting(false);
+            }
           }}
           disabled={exporting}
           className="flex items-center gap-2 bg-card border border-border/30 px-4 py-2.5 text-sm text-foreground/60 hover:text-primary hover:border-primary/30 transition-colors whitespace-nowrap"
