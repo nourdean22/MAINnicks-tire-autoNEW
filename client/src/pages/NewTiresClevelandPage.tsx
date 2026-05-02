@@ -18,8 +18,8 @@ import { Award, ShieldCheck, Gauge } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/new-tires-cleveland",
-  title: "New Tires Cleveland | Free $289 Install Package | Nick's Tire & Auto",
-  description: "New tires in Cleveland from major brands — Michelin, Goodyear, Bridgestone, Continental, Firestone. FREE premium install package ($289 value): mount, balance, valve stems, TPMS, alignment check, 20-pt inspection. Walk-ins welcome. (216) 862-0005",
+  title: "New Tires Cleveland | Free $289 Install | Nick's",
+  description: "New tires in Cleveland — Michelin, Goodyear, Bridgestone, Continental, Firestone. FREE $289 install package: mount, balance, valve stems, TPMS, alignment check.",
   eyebrow: "NEW TIRES — CLEVELAND",
   h1: "NEW TIRES CLEVELAND — FREE $289 INSTALL PACKAGE",
   sub: "Buying new tires? At Nick's the install package isn't an upsell — it's included. Mount, balance, valve stems, TPMS reset, alignment check, and a 20-point safety inspection on every set. Same-day install on most sizes. Major brands stocked, special-order in 24 hours for the rest.",

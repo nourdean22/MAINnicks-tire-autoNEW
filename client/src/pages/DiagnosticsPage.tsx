@@ -10,7 +10,7 @@ import { Disc, AlertTriangle, Clock } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/diagnostics",
-  title: "Check Engine Light & Car Diagnostics Cleveland | Free Scan | Nick's Tire & Auto",
+  title: "Check Engine Light Cleveland | Free Scan | Nick's Tire & Auto",
   description: "Check engine light on? Free code scan at Nick's Tire & Auto in Cleveland/Euclid. Honest diagnosis, no upsell. Most scans in 15 min. Walk-ins 7 days. (216) 862-0005",
   eyebrow: "DIAGNOSTICS",
   h1: "CHECK ENGINE LIGHT CLEVELAND",

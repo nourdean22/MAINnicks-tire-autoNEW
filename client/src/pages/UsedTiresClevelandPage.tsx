@@ -18,8 +18,8 @@ import { DollarSign, ShieldCheck, Gauge } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/used-tires-cleveland",
-  title: "Used Tires Cleveland | Quality-Inspected, From $60 Installed | Nick's",
-  description: "Used tires in Cleveland from $60, fully installed. Every tire passes 4 inspection points — tread, sidewall, DOT date, plug history — before it goes on your car. Walk-ins welcome. (216) 862-0005",
+  title: "Used Tires Cleveland | From $60 Installed | Nick's Tire & Auto",
+  description: "Used tires in Cleveland from $60, fully installed. Every tire passes a 4-point inspection — tread, sidewall, DOT date, plug history. (216) 862-0005",
   eyebrow: "USED TIRES — CLEVELAND",
   h1: "USED TIRES CLEVELAND — INSPECTED, INSTALLED, FROM $60",
   sub: "Need a tire today, not a payment plan? We carry quality-inspected used tires in most popular sizes — from $60 fully installed. Every tire passes a 4-point check before it goes on your car: tread depth measured, sidewall walked, DOT date verified, plug history reviewed. Walk in or call your size to confirm stock.",

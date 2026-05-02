@@ -848,7 +848,7 @@ export default function Home() {
     <PageLayout activeHref="/" showChat={true}>
       <SEOHead
         title="Tire Shop & Auto Repair Cleveland · Walk-Ins 7 Days | Nick's"
-        description="Cleveland's top tire shop + auto repair. New & used tires with free install. Brakes, diagnostics, oil. Free estimates. 4.9★ from 1,700+ reviews. Walk-ins 7 days. (216) 862-0005"
+        description="Cleveland tire shop + auto repair. New & used tires, free install. Brakes, diagnostics, oil. 4.9★ · 1,700+ reviews. Walk-ins 7 days. (216) 862-0005"
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />

@@ -16,8 +16,8 @@ import { Disc, Activity, Wrench, AlertTriangle } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/auto-repair-near-me",
-  title: "Auto Repair Near Me — Cleveland's Local Mechanic | Nick's Tire & Auto",
-  description: "Local auto repair shop in Cleveland/Euclid. Honest mechanics, 4.9★ on 1,700+ reviews, walk-ins 7 days. Brakes, tires, diagnostics, general repair. Free estimates. (216) 862-0005",
+  title: "Auto Repair Near Me — Cleveland Mechanic | Nick's Tire & Auto",
+  description: "Cleveland/Euclid auto repair. Honest mechanics, 4.9★ · 1,700+ reviews, walk-ins 7 days. Brakes, tires, diagnostics. (216) 862-0005",
   eyebrow: "LOCAL AUTO REPAIR",
   h1: "AUTO REPAIR NEAR YOU — CLEVELAND",
   sub: "Looking for a mechanic near me in Cleveland? Nick's Tire & Auto at 17625 Euclid Ave, Cleveland is your neighborhood auto repair shop. Brakes, tires, diagnostics, engine, suspension, exhaust — we fix it. 4.9 stars from 1,700+ Google reviews, walk-ins 7 days a week.",
