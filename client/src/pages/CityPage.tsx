@@ -17,8 +17,7 @@ import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
 import FadeIn from "@/components/FadeIn";
 
-// v1.7 Grounded & Reliable · exterior signage shot for all city silos
-const HERO_IMG = "/photos/exterior-signage-approach.webp";
+const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
 // ─── NAVBAR ───────────────────────────────────────────
 function CityNavbar({ city }: { city: CityData }) {
@@ -218,7 +217,7 @@ export default function CityPage() {
         {/* Hero */}
         <section className="relative min-h-[60vh] lg:min-h-[70vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
-            <img loading="lazy" src={HERO_IMG} alt={`Nick's Tire & Auto storefront at 17625 Euclid Ave Cleveland — serving ${city.name} Ohio drivers`} className="w-full h-full object-cover" />
+            <img loading="lazy" src={HERO_IMG} alt={`Nick's Tire and Auto serving ${city.name} Ohio drivers`} className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/30" />
           </div>
 

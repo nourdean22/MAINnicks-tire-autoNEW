@@ -70,7 +70,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Diagnostics",
     publishDate: "2026-02-15",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "A check engine light can mean anything from a loose gas cap to a serious engine problem. Understanding the common causes helps you know what to expect when you bring your car in.",
     sections: [
       {
@@ -113,7 +113,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Emissions",
     publishDate: "2026-02-01",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Ohio E-Check is required for vehicle registration in Cuyahoga County and surrounding areas. Here is what causes failures and how to make sure your vehicle passes.",
     sections: [
       {
@@ -152,7 +152,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2026-01-15",
     readTime: "4 min read",
-    heroImage: "/photos/tire-stacks-overhead.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp",
     excerpt: "Worn tires are dangerous, especially on Cleveland's winter roads. Here is how to know when it is time for new tires and what to look for.",
     sections: [
       {
@@ -191,7 +191,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Seasonal Tips",
     publishDate: "2026-03-10",
     readTime: "4 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Cleveland winters are hard on vehicles. Here is what to check and service as temperatures warm up to keep your car running safely all spring and summer.",
     sections: [
       {
@@ -230,7 +230,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Oil Change",
     publishDate: "2026-01-01",
     readTime: "3 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Understanding the difference between synthetic and conventional oil helps you make the right choice for your vehicle and driving conditions.",
     sections: [
       {
@@ -266,7 +266,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Emissions",
     publishDate: "2026-03-20",
     readTime: "8 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "If you live in Cuyahoga County or one of Ohio's other E-Check counties, you need to pass an emissions test to register your vehicle. Here is everything you need to know about Ohio E-Check in 2026.",
     sections: [
       {
@@ -309,7 +309,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2026-03-18",
     readTime: "6 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Cleveland gets 54 inches of snow per year. Should you invest in winter tires? Here is the honest answer from a mechanic who sees what happens when Cleveland drivers skip them.",
     sections: [
       {
@@ -391,7 +391,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2026-03-12",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Used tires can save you 50-70% compared to new — but only if you know what to look for. Here is a mechanic's guide to buying safe, quality used tires in Cleveland.",
     sections: [
       {
@@ -426,7 +426,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Transmission",
     publishDate: "2026-03-10",
     readTime: "6 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Transmission repair is one of the most expensive fixes in auto repair. Catching problems early can mean the difference between a $200 fluid service and a $3,000 rebuild.",
     sections: [
       {
@@ -473,7 +473,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Electrical",
     publishDate: "2026-03-08",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "A no-start condition is one of the most common reasons drivers call for help. The good news: most causes are fixable the same day once diagnosed. Here are the top 6 reasons your car won't start.",
     sections: [
       {
@@ -563,7 +563,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tire Care",
     publishDate: "2026-03-15",
     readTime: "7 min read",
-    heroImage: "/photos/tire-stacks-overhead.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp",
     excerpt: "Regular tire rotation is one of the simplest ways to extend tire life and save money. This guide covers rotation intervals, patterns, and how to know when your tires need rotating.",
     sections: [
       {
@@ -606,7 +606,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "General Repair",
     publishDate: "2026-03-10",
     readTime: "7 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "The term tune-up has changed a lot over the years, but the concept remains the same: replacing wear items and checking systems to keep your engine running efficiently. Here is what a modern tune-up actually includes.",
     sections: [
       {
@@ -653,7 +653,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Seasonal Tips",
     publishDate: "2026-03-05",
     readTime: "9 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Cleveland winters test both drivers and vehicles. Lake-effect snow, freezing temperatures, and road salt create harsh conditions that require proper preparation. This guide covers everything you need to do to keep your car safe and reliable through an Ohio winter.",
     sections: [
       {
@@ -705,7 +705,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2025-10-15",
     readTime: "6 min read",
-    heroImage: "/photos/tire-stacks-overhead.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp",
     excerpt: "After mounting thousands of winter tires for Cleveland drivers, we know which ones actually perform when lake-effect snow dumps 8 inches overnight. Here are our top picks.",
     sections: [
       {
@@ -744,7 +744,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2025-11-05",
     readTime: "5 min read",
-    heroImage: "/photos/tire-stacks-overhead.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp",
     excerpt: "Used tires can save you hundreds, but not all used tire shops in Cleveland are equal. Here is how to find quality used tires without getting ripped off or putting your family at risk.",
     sections: [
       {
@@ -783,7 +783,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2025-12-01",
     readTime: "4 min read",
-    heroImage: "/photos/tire-stacks-overhead.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp",
     excerpt: "Tire rotation is the cheapest way to extend tire life, yet most Cleveland drivers skip it. Here is what it costs and why putting it off is a bad deal.",
     sections: [
       {
@@ -818,7 +818,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2026-01-10",
     readTime: "5 min read",
-    heroImage: "/photos/tire-stacks-overhead.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp",
     excerpt: "That orange tire pressure light on your dash means your TPMS system detected a problem. Here is what it costs to fix and when you actually need new sensors.",
     sections: [
       {
@@ -857,7 +857,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2025-09-20",
     readTime: "5 min read",
-    heroImage: "/photos/tire-stacks-overhead.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp",
     excerpt: "Your BMW, Mini, or Chevy came with run-flat tires and now they need replacing. Should you stick with run-flats or switch to regular tires? Here is the honest answer.",
     sections: [
       {
@@ -1067,7 +1067,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Maintenance",
     publishDate: "2025-10-01",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Some manufacturers say 'lifetime fluid.' We say there is no such thing. We see the transmissions that believed that claim — they come in on flatbeds.",
     sections: [
       {
@@ -1102,7 +1102,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Maintenance",
     publishDate: "2025-12-15",
     readTime: "4 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Coolant flush is not glamorous, but skipping it leads to overheating, head gasket failure, and engine death. Here is what it costs and when you need it.",
     sections: [
       {
@@ -1137,7 +1137,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Maintenance",
     publishDate: "2026-01-25",
     readTime: "4 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "One belt drives your alternator, power steering, AC, and water pump. When it snaps, everything stops working at once. Here is what replacement costs and when to do it.",
     sections: [
       {
@@ -1172,7 +1172,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Maintenance",
     publishDate: "2025-09-10",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "A vibration that starts at 55-65 mph and gets worse with speed is trying to tell you something. Here are the five most likely causes and how we fix each one.",
     sections: [
       {
@@ -1246,7 +1246,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Cleveland Tips",
     publishDate: "2026-03-25",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Finding a good mechanic on the East Side is not easy. Too many shops quote low, upsell hard, or hold your car hostage. Here is what to look for and why our customers keep coming back.",
     sections: [
       {
@@ -1281,7 +1281,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Cleveland Tips",
     publishDate: "2026-03-01",
     readTime: "5 min read",
-    heroImage: "/photos/tire-stacks-overhead.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp",
     excerpt: "Cleveland pothole season is open and your tires are the first casualty. After every big hit, check for these four types of damage before it gets worse.",
     sections: [
       {
@@ -1320,7 +1320,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Cleveland Tips",
     publishDate: "2026-02-05",
     readTime: "4 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Need to get your E-Check done near Euclid? Here are the closest testing stations, what to bring, and what to do if your car fails.",
     sections: [
       {
@@ -1355,7 +1355,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Cleveland Tips",
     publishDate: "2025-08-01",
     readTime: "4 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "A cheap oil change does not have to mean a bad oil change. It just means skipping the dealership markup and the chain shop upsell. Here is where to go in Cleveland.",
     sections: [
       {
@@ -1390,7 +1390,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Cleveland Tips",
     publishDate: "2026-01-05",
     readTime: "4 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Flat tire on a Sunday. Dead battery Saturday night. Brakes grinding and you have to be at work Monday. Most shops are closed. Nick's is not.",
     sections: [
       {
@@ -1425,7 +1425,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Electrical",
     publishDate: "2026-04-01",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Your car will not start and you are stuck in the driveway. Is it the battery or the alternator? Here is how to tell the difference and what each repair actually costs in Cleveland.",
     sections: [
       {
@@ -1460,7 +1460,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Steering",
     publishDate: "2026-04-02",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Stiff steering, whining noises, and puddles of fluid under your car all point to power steering trouble. Here is what causes it and what it costs to fix in Cleveland.",
     sections: [
       {
@@ -1495,7 +1495,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Seasonal Maintenance",
     publishDate: "2026-04-03",
     readTime: "6 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Cleveland winters are brutal on vehicles. Here is your post-winter recovery checklist to undo the damage from road salt, potholes, and freezing temperatures.",
     sections: [
       {
@@ -1530,7 +1530,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Seasonal Maintenance",
     publishDate: "2026-04-04",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Cleveland summers bring heat, humidity, and road trips. Here is how to prep your car so it does not leave you stranded on I-90 in July.",
     sections: [
       {
@@ -1565,7 +1565,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Seasonal Maintenance",
     publishDate: "2026-04-05",
     readTime: "6 min read",
-    heroImage: "/photos/tire-stacks-overhead.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp",
     excerpt: "Cleveland winter is coming. Do not wait until the first snowstorm to find out your battery is dead and your tires are bald. Here is your fall prep checklist.",
     sections: [
       {
@@ -1600,7 +1600,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Seasonal Maintenance",
     publishDate: "2026-04-06",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Cleveland dumps thousands of tons of road salt every winter. That salt is eating your car from the bottom up. Here is what it costs and how to fight back.",
     sections: [
       {
@@ -1635,7 +1635,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Seasonal Maintenance",
     publishDate: "2026-04-07",
     readTime: "5 min read",
-    heroImage: "/photos/tire-stacks-overhead.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp",
     excerpt: "Cleveland winter driving is not like winter driving anywhere else. Lake effect snow, I-90 ice, and sudden whiteouts demand real preparation.",
     sections: [
       {
@@ -1670,7 +1670,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2026-04-08",
     readTime: "4 min read",
-    heroImage: "/photos/tire-stacks-overhead.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp",
     excerpt: "Cleveland gets over 38 inches of rain per year. Worn tires on wet roads are a hydroplaning accident waiting to happen. Here is how to stay safe.",
     sections: [
       {
@@ -1705,7 +1705,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Cost Guide",
     publishDate: "2026-04-09",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Your AC is blowing warm air and summer is coming. Here is what the different levels of AC repair actually cost so you know what to expect.",
     sections: [
       {
@@ -1740,7 +1740,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Cost Guide",
     publishDate: "2026-04-10",
     readTime: "6 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Transmission repair is one of the most expensive fixes a car can need. Here is how to decide between repair, replacement, and walking away.",
     sections: [
       {
@@ -1775,7 +1775,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Cost Guide",
     publishDate: "2026-04-11",
     readTime: "6 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "A used car looks great on the lot but hides thousands in problems underneath. A pre-purchase inspection costs a fraction of a bad purchase.",
     sections: [
       {
@@ -1810,7 +1810,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Cost Guide",
     publishDate: "2026-04-12",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Car repairs are expensive. But the biggest costs come from skipping maintenance and ignoring warning signs. Here is how to keep repair bills low the smart way.",
     sections: [
       {
@@ -1845,7 +1845,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Cost Guide",
     publishDate: "2026-04-13",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "A repair is only as good as the warranty behind it. Here is what Nick's 36-month, 36,000-mile warranty covers and why it matters.",
     sections: [
       {
@@ -1880,7 +1880,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Cost Guide",
     publishDate: "2026-04-14",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Bad credit should not mean unsafe brakes. We offer $10 down financing through four providers so Cleveland drivers can get repairs done now and pay over time.",
     sections: [
       {
@@ -1915,7 +1915,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Cost Guide",
     publishDate: "2026-04-15",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Your mechanic says the repair is $2,500 and the car is worth $5,000. Do you fix it or buy something else? Here is the formula that gives you the real answer.",
     sections: [
       {
@@ -1950,7 +1950,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Cost Guide",
     publishDate: "2026-04-16",
     readTime: "7 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "The most expensive car repairs are almost always preventable. Here are the top 10 and what you can do to avoid each one.",
     sections: [
       {
@@ -1989,7 +1989,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Diagnostics",
     publishDate: "2026-04-17",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Your car pulls to the right on Lakeshore Blvd and you are constantly correcting the steering wheel. Here are the three most common causes and what to do.",
     sections: [
       {
@@ -2024,7 +2024,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Diagnostics",
     publishDate: "2026-04-18",
     readTime: "6 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "A light just came on in your dashboard and you do not know what it means or how serious it is. Here is every common warning light, what it means, and what to do.",
     sections: [
       {
@@ -2059,7 +2059,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Diagnostics",
     publishDate: "2026-04-19",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Your nose is a diagnostic tool. Strange smells from your car almost always indicate a specific mechanical problem. Here is what each smell means.",
     sections: [
       {
@@ -2094,7 +2094,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Diagnostics",
     publishDate: "2026-04-20",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Click, click, click. Your car is making a new noise and you are not sure if it is serious. The answer depends entirely on when the clicking happens.",
     sections: [
       {
@@ -2619,7 +2619,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "General Repair",
     publishDate: "2025-11-20",
     readTime: "6 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Catalytic converter theft in Cleveland has exploded. Replacement is expensive. Here is what it actually costs and what your real options are.",
     sections: [
       {
@@ -2654,7 +2654,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Diagnostics",
     publishDate: "2025-12-20",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "An oxygen sensor is one of the most common check engine light causes and E-Check failures. Replacement is straightforward and not as expensive as you think.",
     sections: [
       {
@@ -2689,7 +2689,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "General Repair",
     publishDate: "2026-01-15",
     readTime: "6 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "A timing belt failure can destroy your engine in one second. A timing chain failure is slower but just as expensive. Knowing which one you have matters.",
     sections: [
       {
@@ -2724,7 +2724,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Diagnostics",
     publishDate: "2026-02-25",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "You press the gas and nothing happens. Or the car hesitates, bogs down, or barely moves. Here are the most likely causes and what to check first.",
     sections: [
       {
@@ -2759,7 +2759,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Diagnostics",
     publishDate: "2026-03-05",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "White smoke on a cold Cleveland morning is usually nothing. White smoke that does not stop after the car warms up is a serious engine problem.",
     sections: [
       {
@@ -2794,7 +2794,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Diagnostics",
     publishDate: "2026-03-15",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Your car should idle smooth and quiet. If it is shaking, vibrating, or rocking when you are stopped at a red light, something is off. Here are the usual suspects.",
     sections: [
       {
@@ -2829,7 +2829,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2026-04-01",
     readTime: "5 min read",
-    heroImage: "/photos/tire-stacks-overhead.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp",
     excerpt: "A flat tire does not have to ruin your day. Here is what to do, what it costs, and where to get it fixed fast in Cleveland.",
     sections: [
       {
@@ -2864,7 +2864,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Emergency",
     publishDate: "2026-04-02",
     readTime: "5 min read",
-    heroImage: "/photos/tire-stacks-overhead.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp",
     excerpt: "Stuck on the side of the road wondering if you should change the spare yourself or call a tow? Here is the honest breakdown.",
     sections: [
       {
@@ -2899,7 +2899,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Emergency",
     publishDate: "2026-04-03",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Breaking down on I-90 is stressful and dangerous. Here are the exact steps to follow, who to call, and how to avoid predatory tow trucks.",
     sections: [
       {
@@ -2934,7 +2934,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Emergency",
     publishDate: "2026-04-04",
     readTime: "4 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "It happens to everyone. You are standing in a parking lot in 20-degree Cleveland weather staring at your keys on the seat. Here is what to do.",
     sections: [
       {
@@ -2969,7 +2969,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2026-04-05",
     readTime: "5 min read",
-    heroImage: "/photos/tire-stacks-overhead.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp",
     excerpt: "Every spring, Cleveland drivers discover what winter potholes did to their alignment. Here is why a spring alignment check saves you hundreds.",
     sections: [
       {
@@ -3004,7 +3004,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Seasonal",
     publishDate: "2026-04-06",
     readTime: "6 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Before you pack the car for Cedar Point, Put-in-Bay, or the Hocking Hills, make sure it is actually ready for the trip. Here is the checklist.",
     sections: [
       {
@@ -3043,7 +3043,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Seasonal",
     publishDate: "2026-04-07",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "School is about to start. Your car is about to work double duty with drop-offs, pickups, and activities. Make sure it is safe and ready.",
     sections: [
       {
@@ -3113,7 +3113,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Vehicle-Specific",
     publishDate: "2026-04-09",
     readTime: "6 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "The Honda Civic is the most common car we see at our shop. Great car, but it has predictable problem areas. Here is what to watch for.",
     sections: [
       {
@@ -3148,7 +3148,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Vehicle-Specific",
     publishDate: "2026-04-10",
     readTime: "6 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "The Chevy Silverado is built tough but Ohio roads, salt, and weather test it hard. Here is what to maintain and what to watch for.",
     sections: [
       {
@@ -3253,7 +3253,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Money-Saving",
     publishDate: "2026-04-13",
     readTime: "6 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Not every car problem needs a mechanic. But some DIY jobs make things worse and cost more in the long run. Here is the honest breakdown.",
     sections: [
       {
@@ -3288,7 +3288,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Money-Saving",
     publishDate: "2026-04-14",
     readTime: "6 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Not every mechanic is out to rip you off. But some are. Here is how to tell the difference and protect yourself from unnecessary repairs.",
     sections: [
       {
@@ -3323,7 +3323,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Money-Saving",
     publishDate: "2026-04-15",
     readTime: "5 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "The check engine light does not always mean an expensive repair. Here is the smart triage approach to fixing it without wasting money.",
     sections: [
       {
@@ -3358,7 +3358,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Money-Saving",
     publishDate: "2026-04-16",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Not everything at an auto shop costs money. Here are the free services most Cleveland drivers do not know they can get.",
     sections: [
       {
@@ -3393,7 +3393,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Trust",
     publishDate: "2026-04-17",
     readTime: "6 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "You do not need to go to the dealership for maintenance or repairs. Here is the honest comparison with real numbers from Cleveland.",
     sections: [
       {
@@ -3463,7 +3463,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Trust",
     publishDate: "2026-04-19",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "You see the ASE sign at auto shops everywhere. But what does ASE certification actually mean, and why should you care?",
     sections: [
       {
@@ -3498,7 +3498,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Trust",
     publishDate: "2026-04-20",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Every shop has a story. Here is ours — how Nick's Tire and Auto started, what we believe in, and why we do things differently.",
     sections: [
       {
@@ -3533,7 +3533,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "AC & Heating",
     publishDate: "2026-03-08",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Cleveland summers are humid and hot. When your AC stops working, driving becomes miserable. Here are the most common causes and what to expect for repairs.",
     sections: [
       { heading: "Low Refrigerant (Most Common)", content: "The most frequent cause of weak AC is low refrigerant. AC systems are sealed, so if refrigerant is low, there is a leak somewhere. Simply recharging the system without finding the leak is a temporary fix — the refrigerant will escape again. At Nick's Tire & Auto, we use UV dye and electronic leak detectors to find the exact leak location before recommending any repair." },
@@ -3553,7 +3553,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Suspension & Steering",
     publishDate: "2026-03-10",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "A shaking steering wheel is more than annoying — it often signals a problem that gets worse over time. Here are the most common causes and when to worry.",
     sections: [
       { heading: "Unbalanced Tires (Most Common at Highway Speed)", content: "If the shaking starts or gets worse at 55-70 mph, the most likely cause is unbalanced tires. When a tire is out of balance, it wobbles at speed, and that vibration transfers through the steering components to the wheel. Tire balancing costs $15-$25 per tire and takes about 30 minutes for all four. This should be done every time tires are mounted or rotated." },
@@ -3573,7 +3573,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tire Care",
     publishDate: "2026-03-12",
     readTime: "6 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Tires are one of the most important safety components on your vehicle and one of the most expensive to replace. Understanding tire lifespan helps you budget and stay safe.",
     sections: [
       { heading: "Average Tire Lifespan by Type", content: "Budget tires: 30,000-40,000 miles. Mid-range all-season: 50,000-65,000 miles. Premium touring: 65,000-80,000 miles. Performance tires: 25,000-40,000 miles. Winter tires: 25,000-40,000 miles (3-4 seasons). These are averages — actual life depends heavily on driving habits, road conditions, and maintenance." },
@@ -3593,7 +3593,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Suspension & Steering",
     publishDate: "2026-03-14",
     readTime: "4 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Power steering makes turning effortless. When the fluid leaks, steering becomes heavy and the pump can be destroyed. Catching leaks early saves expensive repairs.",
     sections: [
       { heading: "Signs of a Power Steering Leak", content: "Whining or groaning noise when turning the steering wheel (gets louder the harder you turn). Difficulty turning the wheel, especially at low speeds or when parking. Red, brown, or amber fluid puddle on the driver side of the vehicle. Low fluid level in the power steering reservoir (check it like you check oil — there is a dipstick in the reservoir cap). Foamy or bubbly fluid when you check the reservoir (air getting into the system through the leak)." },
@@ -3612,7 +3612,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Electrical",
     publishDate: "2026-03-16",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "The average car battery lasts 3-5 years, but Cleveland's extreme temperatures can shorten that. Here is how to get the most out of your battery.",
     sections: [
       { heading: "Why Cleveland Is Hard on Batteries", content: "Extreme cold reduces battery capacity by up to 50%. Extreme heat (which Cleveland gets in summer) actually causes more long-term battery damage than cold — it accelerates the chemical degradation inside the battery. The combination of hot summers weakening the battery and cold winters demanding maximum power is why Cleveland drivers replace batteries more often than drivers in mild climates." },
@@ -3631,7 +3631,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tire Care",
     publishDate: "2026-03-18",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "A wheel alignment keeps your tires wearing evenly, your steering straight, and your vehicle tracking properly. It is one of the most overlooked maintenance items.",
     sections: [
       { heading: "Signs You Need an Alignment", content: "Vehicle pulls to the left or right on a straight, flat road. Steering wheel is off-center when driving straight. Uneven tire wear — one edge of the tire is significantly more worn than the other. Steering wheel vibrates or the vehicle feels unstable. The vehicle drifts when you let go of the steering wheel momentarily. You recently hit a major pothole, curb, or road debris." },
@@ -3650,7 +3650,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Engine & Cooling",
     publishDate: "2026-03-19",
     readTime: "4 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "A coolant leak left unaddressed leads to overheating, which can warp heads, blow gaskets, and destroy engines. Catching it early is critical.",
     sections: [
       { heading: "Warning Signs of a Coolant Leak", content: "Sweet, maple-syrup-like smell inside or outside the vehicle. Green, orange, pink, or yellow puddle under the vehicle (color depends on coolant type). Temperature gauge rising above normal. Low coolant warning light. Heater blowing cool air when it should be warm (the heater uses coolant for heat). White smoke from the exhaust (may indicate an internal leak — head gasket). Steam from under the hood." },
@@ -3669,7 +3669,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Suspension & Steering",
     publishDate: "2026-03-20",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Your suspension absorbs Cleveland's rough roads silently when it is healthy. When components wear out, they start talking. Here is what the noises mean.",
     sections: [
       { heading: "Clunking Over Bumps", content: "A solid clunk when hitting bumps or dips usually means a worn sway bar link, ball joint, or strut mount. Sway bar links are the most common and least expensive ($100-$200 per side). Ball joints are more serious — a failed ball joint can cause loss of steering. We check for play in all these joints during a free suspension inspection." },
@@ -3689,7 +3689,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Maintenance",
     publishDate: "2026-03-21",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "The old 3,000-mile rule is outdated. Modern engines and oils last much longer between changes. But driving in Cleveland conditions can shorten the interval.",
     sections: [
       { heading: "The 3,000-Mile Myth", content: "The 3,000-mile oil change interval dates back to the 1970s when engines used conventional oil with shorter additive packages. Modern engines with modern oils can go significantly longer. Following the 3,000-mile rule wastes money and oil. Your owner's manual has the correct interval for your specific engine — that is the number to follow, not a sticker on your windshield." },
@@ -3709,7 +3709,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Diagnostics",
     publishDate: "2026-03-22",
     readTime: "4 min read",
-    heroImage: "/photos/service-bay-clean.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
     excerpt: "Exhaust smoke is your engine trying to tell you something. The color of the smoke points directly to the type of problem.",
     sections: [
       { heading: "White Smoke (Thin Wisps on Cold Starts)", content: "Thin white smoke or vapor on cold mornings is completely normal — it is condensation in the exhaust system evaporating as the engine warms up. It should disappear within a few minutes of driving. This is especially common in Cleveland's cold weather. No repair needed." },
@@ -3729,7 +3729,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Suspension & Steering",
     publishDate: "2026-03-23",
     readTime: "4 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Shocks and struts wear gradually, so you may not notice the decline. But they directly affect stopping distance, handling, and tire life.",
     sections: [
       { heading: "Shocks vs Struts — What Is the Difference?", content: "Shocks (shock absorbers) are standalone components that dampen spring oscillation. Struts are structural components that combine a shock absorber with a coil spring and strut mount — they are part of the vehicle's structure. Most modern vehicles have struts in the front and either struts or shocks in the rear. The distinction matters because strut replacement is more involved and more expensive." },
@@ -3748,7 +3748,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Electrical",
     publishDate: "2026-03-24",
     readTime: "4 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "A failing alternator is often misdiagnosed as a bad battery. If you just replaced your battery and it keeps dying, the alternator is the likely culprit.",
     sections: [
       { heading: "What the Alternator Does", content: "The alternator charges the battery and powers all electrical systems while the engine is running. Without it, the battery drains in 20-30 minutes and the vehicle dies. The alternator converts mechanical energy (from the serpentine belt) into electrical energy. A typical alternator outputs 12-14.5 volts and 80-150 amps." },
@@ -3767,7 +3767,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Seasonal Tips",
     publishDate: "2026-03-25",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Cleveland potholes damage thousands of vehicles every spring. Knowing what to check after a bad hit can prevent expensive secondary damage.",
     sections: [
       { heading: "Immediate Signs of Pothole Damage", content: "Tire going flat or losing air slowly. New vibration in the steering wheel. Vehicle pulling to one side. Visible bulge or bubble in the tire sidewall. Steering wheel off-center. Clunking or rattling noise that was not there before. If you hit a large pothole at speed, pull over safely and inspect the tires visually before continuing to drive." },
@@ -3787,7 +3787,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Maintenance",
     publishDate: "2026-03-26",
     readTime: "4 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "One belt drives your alternator, AC compressor, power steering pump, and water pump. When it breaks, everything stops. Here is what to know.",
     sections: [
       { heading: "What the Serpentine Belt Drives", content: "The serpentine belt is a single long belt that snakes around multiple pulleys, driving the alternator (electrical power), water pump (engine cooling), AC compressor (air conditioning), power steering pump (steering assist), and sometimes the air pump. If this belt breaks, you lose all of these systems simultaneously. The engine will overheat within minutes without the water pump running." },
@@ -3806,7 +3806,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tire Care",
     publishDate: "2026-03-27",
     readTime: "4 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "The TPMS light is one of the most common dashboard warnings Cleveland drivers see, especially when temperatures drop. Here is when to worry and when not to.",
     sections: [
       { heading: "How TPMS Works", content: "Your vehicle has a pressure sensor inside each tire (mounted on the valve stem or wheel rim). These sensors transmit real-time pressure readings to the vehicle's computer. When any tire drops below 25% of the recommended pressure, the TPMS warning light illuminates. Some vehicles show individual tire pressures on the dashboard, while others just show a warning light." },
@@ -3825,7 +3825,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Safety & Security",
     publishDate: "2026-03-28",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Catalytic converter theft has exploded nationwide, and Cleveland is a hotspot. Here is what you need to know to protect your vehicle and what to do if it happens.",
     sections: [
       { heading: "Why Thieves Target Catalytic Converters", content: "Catalytic converters contain precious metals — platinum, palladium, and rhodium — worth up to $500 per converter at scrap. A thief with a battery-powered saw can remove one in under 2 minutes. The metals are nearly impossible to trace once recycled. Ohio passed a law requiring scrap dealers to record seller information, but enforcement is difficult." },
@@ -3844,7 +3844,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Maintenance",
     publishDate: "2026-03-29",
     readTime: "4 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "If you drive an AWD, 4WD, or rear-wheel-drive vehicle, your differential fluid needs periodic replacement. Neglecting it leads to expensive drivetrain damage.",
     sections: [
       { heading: "What the Differential Does", content: "The differential is a gearbox that allows your wheels to rotate at different speeds when turning corners. Without it, the inside wheel would skip and the vehicle would handle terribly. The differential contains thick gear oil that lubricates and cools the ring and pinion gears. AWD vehicles have both a front and rear differential, plus a transfer case — all with their own fluid." },
@@ -3863,7 +3863,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Seasonal Tips",
     publishDate: "2026-03-30",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Cleveland summers bring heat, humidity, and road construction. This checklist covers everything your vehicle needs to stay reliable through the warm months.",
     sections: [
       { heading: "AC System Check", content: "Test your AC before the first hot day — waiting until it is 90 degrees means longer wait times for repairs. Run the AC on max cold and check that the air from the center vents reaches at least 40 degrees below the outside temperature. If the air is not cold enough, the system may need refrigerant, have a leak, or have a component issue. AC service is faster and often less expensive in spring than mid-summer." },
@@ -3883,7 +3883,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Fleet Services",
     publishDate: "2026-03-31",
     readTime: "5 min read",
-    heroImage: "/photos/exterior-signage-approach.webp",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
     excerpt: "Downtime costs money. Our fleet maintenance program keeps your vehicles on the road with priority scheduling, preventive maintenance plans, and transparent reporting.",
     sections: [
       { heading: "Why Fleet Maintenance Matters", content: "Every day a fleet vehicle sits in a shop is lost revenue. Reactive maintenance (fixing things when they break) costs 5-10 times more than preventive maintenance because breakdowns cause cascading problems: tow bills, rental vehicles, missed appointments, overtime for other drivers, and lost customers. A structured maintenance program catches problems early and schedules repairs around your business needs." },

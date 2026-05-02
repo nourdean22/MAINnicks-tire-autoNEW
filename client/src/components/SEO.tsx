@@ -61,10 +61,7 @@ export function SEOHead({
 }: SEOHeadProps) {
   useEffect(() => {
     const canonicalUrl = ogUrl || `${BASE_URL}${canonicalPath}`;
-    // v1.7 Grounded & Reliable · OG default uses local exterior shot. Must be
-    // an absolute URL for OG meta tags (Facebook/Twitter scrapers won't
-    // resolve relative paths).
-    const defaultOgImage = ogImage || `${BASE_URL}/photos/exterior-signage-approach.webp`;
+    const defaultOgImage = ogImage || `https://d2xsxph8kpxj0f.cloudfront.net/nickstire/og-default.jpg`;
 
     // Title
     document.title = title;

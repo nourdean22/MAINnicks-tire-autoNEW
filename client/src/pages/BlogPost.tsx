@@ -410,8 +410,7 @@ export default function BlogPost() {
       url: "https://nickstire.org",
       logo: {
         "@type": "ImageObject",
-        // v1.7 Grounded & Reliable · local exterior shot for org schema
-        url: "https://nickstire.org/photos/exterior-signage-approach.webp",
+        url: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
       },
       address: {
         "@type": "PostalAddress",

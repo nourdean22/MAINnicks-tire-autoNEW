@@ -18,8 +18,7 @@ import { GBP_REVIEW_URL } from "@shared/const";
 import { BUSINESS } from "@shared/business";
 import { QueryError } from "@/components/QueryState";
 
-// v1.7 Grounded & Reliable · exterior signage shot
-const HERO_IMG = "/photos/exterior-signage-approach.webp";
+const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
 // Service-related keywords to highlight in gold
 const SERVICE_KEYWORDS = [
@@ -309,40 +308,6 @@ export default function ReviewsPage() {
                 {totalCount.toLocaleString()}+ reviews | {avgRating} average | unfiltered Google data
               </p>
             </FadeIn>
-          </div>
-        </section>
-
-        {/* v1.7 Grounded & Reliable · "Visible trust" band. Parking-lot
-            shot lands right under the hero as physical social proof
-            — every car in frame is a customer who chose to come back.
-            Sits before the keyword rollup so the visual proof primes
-            the data that follows. */}
-        <section className="bg-[oklch(0.058_0.004_260)] border-b border-border/15 py-10 lg:py-14">
-          <div className="container">
-            <div className="grid gap-8 lg:grid-cols-[7fr_5fr] items-center max-w-5xl mx-auto">
-              <FadeIn>
-                <div className="relative aspect-[16/10] rounded-lg overflow-hidden border border-border/40">
-                  <img
-                    src="/photos/parking-lot-cars.webp"
-                    alt={`${totalCount.toLocaleString()}+ Cleveland drivers chose Nick's Tire & Auto — customer vehicles in our Euclid Ave lot`}
-                    className="absolute inset-0 w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                </div>
-              </FadeIn>
-              <FadeIn delay={0.1}>
-                <p className="text-xs font-semibold tracking-[0.18em] text-[#FDB913] mb-2">WHAT TRUST LOOKS LIKE</p>
-                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3">
-                  Every car here belongs to someone who came back.
-                </h2>
-                <p className="text-foreground/70 leading-relaxed">
-                  The reviews below are unfiltered Google data — but the
-                  lot is the simpler version of the same proof. {totalCount.toLocaleString()}+ Cleveland
-                  drivers, {avgRating}★ average, and a parking lot that
-                  fills daily because the work holds up.
-                </p>
-              </FadeIn>
-            </div>
           </div>
         </section>
 

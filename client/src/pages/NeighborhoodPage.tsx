@@ -16,8 +16,7 @@ import InternalLinks from "@/components/InternalLinks";
 import FadeIn from "@/components/FadeIn";
 import { trpc } from "@/lib/trpc";
 
-// v1.7 Grounded & Reliable · exterior signage shot for all neighborhood silos
-const HERO_IMG = "/photos/exterior-signage-approach.webp";
+const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
 // Fixed 2026-04-24: broken internal links that dropped rank juice.
 // Was: Oil Change → /oil-change-cleveland (404-like SPA fallback),
@@ -226,7 +225,7 @@ export default function NeighborhoodPage() {
       {/* Hero */}
       <section className="relative min-h-[60vh] lg:min-h-[70vh] flex items-end overflow-hidden">
         <div className="absolute inset-0">
-          <img loading="lazy" src={HERO_IMG} alt={`${BUSINESS.name} storefront on Euclid Ave — serving ${neighborhood.name}`} className="w-full h-full object-cover" />
+          <img loading="lazy" src={HERO_IMG} alt={`${BUSINESS.name} serving ${neighborhood.name}`} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/30" />
         </div>
 

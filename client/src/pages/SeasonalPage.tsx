@@ -15,9 +15,7 @@ import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
-// v1.7 Grounded & Reliable · winter/seasonal pages get the all-weather
-// exterior shot to reinforce "open, plowed, ready" trust signal.
-const HERO_IMG = "/photos/exterior-winter-allweather.webp";
+const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -140,7 +138,7 @@ export default function SeasonalPage() {
         {/* Hero */}
         <section className="relative min-h-[55vh] lg:min-h-[65vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
-            <img loading="lazy" src={HERO_IMG} alt={`Nick's Tire & Auto open in all weather — ${page.season} car care Cleveland`} className="w-full h-full object-cover" />
+            <img loading="lazy" src={HERO_IMG} alt={`${page.season} car care at Nick's Tire and Auto Cleveland`} className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/30" />
           </div>
 

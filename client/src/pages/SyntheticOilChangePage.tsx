@@ -29,8 +29,7 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
-// v1.7 Grounded & Reliable · service bay shot for oil change page
-const HERO_IMAGE = "/photos/service-bay-clean.webp";
+const HERO_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
 // ─── HERO ──────────────────────────────────────────────
 function Hero() {
