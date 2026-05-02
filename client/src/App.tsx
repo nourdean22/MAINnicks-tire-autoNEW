@@ -74,6 +74,8 @@ const SyntheticOilChangePage = lazy(() => import("./pages/SyntheticOilChangePage
 const BrakeRepairPage = lazy(() => import("./pages/BrakeRepairPage"));
 const DiagnosticsPage = lazy(() => import("./pages/DiagnosticsPage"));
 const CheckEngineLightDiagnosticPage = lazy(() => import("./pages/CheckEngineLightDiagnosticPage"));
+const UsedTiresClevelandPage = lazy(() => import("./pages/UsedTiresClevelandPage"));
+const NewTiresClevelandPage = lazy(() => import("./pages/NewTiresClevelandPage"));
 const TireShopNearMePage = lazy(() => import("./pages/TireShopNearMePage"));
 const AutoRepairNearMePage = lazy(() => import("./pages/AutoRepairNearMePage"));
 const TrackJob = lazy(() => import("./pages/TrackJob"));
@@ -132,6 +134,9 @@ function Router() {
             <Route path={"/diagnostics"} component={DiagnosticsPage} />
             {/* v1.7 Grounded&Reliable strategy · diagnostic-authority silo */}
             <Route path={"/check-engine-light-diagnostic"} component={CheckEngineLightDiagnosticPage} />
+            {/* High-volume tire-intent silos — used vs new buyer journeys */}
+            <Route path={"/used-tires-cleveland"} component={UsedTiresClevelandPage} />
+            <Route path={"/new-tires-cleveland"} component={NewTiresClevelandPage} />
             <Route path={"/tire-shop-near-me"} component={TireShopNearMePage} />
             <Route path={"/auto-repair-near-me"} component={AutoRepairNearMePage} />
             <Route path={"/general-repair"} component={AutoRepairNearMePage} />
