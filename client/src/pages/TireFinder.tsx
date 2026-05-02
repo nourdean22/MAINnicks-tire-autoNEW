@@ -1393,6 +1393,93 @@ export default function TireFinder() {
         </section>
       )}
 
+      {/* ─── ALIGNMENT BUNDLE (v1.7 · Grounded & Reliable strategy) ───
+          Per the 2026-05-02 silo decision: route /wheel-alignment-
+          cleveland intent into /tires (here). Alignment is bundled
+          with tire install — this section lands customers searching
+          "wheel alignment cleveland" / "wheel alignment near me" on
+          the canonical tire+alignment surface and gives them a direct
+          Schedule Alignment CTA that pre-fills the booking form
+          (skipping the general inquiry queue). */}
+      <section id="wheel-alignment-cleveland" className="container py-12 sm:py-16 border-t border-border/30">
+        <div className="grid gap-8 lg:grid-cols-2 items-start">
+          {/* Visual anchor — replace placeholder with real alignment-bay
+              shot per the photo-capture checklist. Image alt + dim
+              placeholder prevent CLS while the real asset lands. */}
+          <div className="relative aspect-[4/3] rounded-md border border-border/40 bg-card/60 overflow-hidden">
+            <img
+              src="/photos/alignment-bay.webp"
+              alt="Nick's Tire & Auto wheel alignment bay in Cleveland — precision Hunter alignment rack"
+              className="absolute inset-0 w-full h-full object-cover"
+              loading="lazy"
+              onError={(e) => {
+                // Gracefully hide on missing asset until Nour uploads
+                // the real shot. The copy still lands.
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm pointer-events-none">
+              <Gauge className="w-12 h-12 opacity-30" />
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold tracking-[0.18em] text-primary mb-2">ALIGNMENT INCLUDED</p>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4">
+              Wheel Alignment Cleveland — Same Day, Walk-Ins
+            </h2>
+            <p className="text-foreground/70 leading-relaxed mb-6">
+              Cleveland potholes pull alignment out faster than any spec sheet
+              admits. We run every new-tire install across the alignment rack
+              before you leave — and offer a free alignment check anytime
+              you swing in. Skip the dealer wait.
+            </p>
+
+            <ul className="space-y-3 mb-6">
+              <li className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="text-foreground">Steering vibration / pull</strong>
+                  <span className="text-foreground/60"> — your hands fight the wheel on the highway. That's worn or off-spec alignment, not "the road."</span>
+                </div>
+              </li>
+              <li className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="text-foreground">Uneven tire wear</strong>
+                  <span className="text-foreground/60"> — a bad camber or toe burns one shoulder of a $200 tire 60% faster than the other. New tires + bad alignment = $200 on the floor in 8,000 miles.</span>
+                </div>
+              </li>
+              <li className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="text-foreground">Safety + stopping distance</strong>
+                  <span className="text-foreground/60"> — misaligned wheels reduce contact patch and lengthen wet-stop distance. This isn't comfort. It's brakes-don't-grip-the-way-you-think.</span>
+                </div>
+              </li>
+            </ul>
+
+            <div className="flex flex-wrap gap-3">
+              <a
+                href="/booking?service=wheel-alignment"
+                className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-3 rounded-md font-semibold text-sm tracking-wide hover:opacity-90 transition-opacity"
+              >
+                <Wrench className="w-4 h-4" />
+                Schedule Alignment
+              </a>
+              <a
+                href="tel:2168620005"
+                onClick={() => trackPhoneClick("tire-finder-alignment")}
+                className="inline-flex items-center gap-2 border border-border/60 px-5 py-3 rounded-md font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary hover:border-primary/40 transition-colors"
+              >
+                <Phone className="w-4 h-4" />
+                Call (216) 862-0005
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ─── FINANCING CTA ─── */}
       <section className="container py-8">
         <FinancingCTA variant="banner" />

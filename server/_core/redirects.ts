@@ -47,7 +47,12 @@ const REDIRECTS: RedirectRule[] = [
   { from: "/oil-change-cleveland",            to: "/oil-change",   reason: "duplicate of /oil-change" },
   { from: "/oil-change-service-station",      to: "/oil-change",   reason: "intent variant alias — bundle services framing → canonical /oil-change" },
   { from: "/wheel-alignment",                 to: "/alignment",    reason: "keyword alias → /alignment (which already ranks for 'wheel alignment cleveland')" },
-  { from: "/wheel-alignment-cleveland",       to: "/alignment",    reason: "geo-suffixed variant → /alignment" },
+  // 2026-05-02 update · Nour redirected the geo-suffixed alignment
+  // query into /tires per the Grounded & Reliable strategy. The
+  // /tires page hosts the alignment-bay visual + Schedule Alignment
+  // CTA in-page; one consolidated tire+alignment landing converts
+  // better than splitting the customer down two paths.
+  { from: "/wheel-alignment-cleveland",       to: "/tires",        reason: "alignment-cleveland geo query routes into /tires per 2026-05-02 silo decision (alignment is bundled with tire install)" },
 
   // General-repair cluster
   { from: "/general-repair-cleveland",        to: "/auto-repair-near-me", reason: "general-repair got merged into /auto-repair-near-me" },
