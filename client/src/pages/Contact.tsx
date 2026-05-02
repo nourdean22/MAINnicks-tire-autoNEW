@@ -102,7 +102,40 @@ export default function Contact() {
           </div>
         </section>
 
-        
+        {/* v1.7 Grounded & Reliable · "What you walk into" band.
+            Front-desk visual sits between the hero and the form to lower
+            walk-in friction — first-time customers see exactly what
+            greets them before they commit to typing a phone number. */}
+        <section className="bg-[oklch(0.06_0.004_260)] border-y border-border/20 py-10 lg:py-14">
+          <div className="container">
+            <div className="grid gap-8 lg:grid-cols-[5fr_7fr] items-center max-w-5xl mx-auto">
+              <FadeIn>
+                <div className="relative aspect-[4/3] rounded-lg overflow-hidden border border-border/40">
+                  <img
+                    src="/photos/front-desk.webp"
+                    alt="Nick's Tire & Auto front desk and waiting area on Euclid Avenue Cleveland"
+                    className="absolute inset-0 w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              </FadeIn>
+              <FadeIn delay={0.1}>
+                <p className="text-xs font-semibold tracking-[0.18em] text-primary mb-2">WHEN YOU WALK IN</p>
+                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3">
+                  Real desk. Real people. No call-center runaround.
+                </h2>
+                <p className="text-foreground/70 leading-relaxed">
+                  Pull up at <span className="font-mono text-foreground">17625 Euclid Ave</span> and you'll be greeted at the
+                  desk by someone who can actually answer the question.
+                  Quotes happen face-to-face. Decisions get made before you
+                  leave. Most jobs go straight to the bay — no "we'll call
+                  you back" purgatory.
+                </p>
+              </FadeIn>
+            </div>
+          </div>
+        </section>
+
         {/* Contact Info + Booking Form */}
         <section className="bg-[oklch(0.055_0.004_260)] py-16 lg:py-24">
           <div className="container">
