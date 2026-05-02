@@ -20,17 +20,26 @@
 | FAQ | `/faq` | 20+ categorized FAQs |
 | Blog | `/blog` | Auto care articles, SEO content |
 
-### Service Pages (15+ pages)
+### Service Pages (24+ pages)
 Each service has its own dedicated page with SEO optimization:
 
 | Service | URL |
 |---------|-----|
-| Tires (main shop) | `/tires` |
+| Tires (main shop / hub) | `/tires` |
 | Tire Info/Details | `/tires/info` |
+| **Used Tires Cleveland** (silo) | `/used-tires-cleveland` |
+| **New Tires Cleveland** (silo) | `/new-tires-cleveland` |
+| **Michelin Tires Cleveland** (brand silo) | `/michelin-tires-cleveland` |
+| **Goodyear Tires Cleveland** (brand silo) | `/goodyear-tires-cleveland` |
+| **Bridgestone Tires Cleveland** (brand silo) | `/bridgestone-tires-cleveland` |
+| **Firestone Tires Cleveland** (brand silo) | `/firestone-tires-cleveland` |
+| **Continental Tires Cleveland** (brand silo) | `/continental-tires-cleveland` |
 | Brakes | `/brakes` |
 | Diagnostics | `/diagnostics` |
+| Check Engine Light Diagnostic (silo) | `/check-engine-light-diagnostic` |
 | Emissions / E-Check | `/emissions` |
 | Oil Change | `/oil-change` |
+| Synthetic Oil Change | `/synthetic-oil-change` |
 | General Repair | `/general-repair` |
 | Alignment | `/alignment` |
 | AC Repair | `/ac-repair` |
@@ -42,6 +51,8 @@ Each service has its own dedicated page with SEO optimization:
 | Pre-Purchase Inspection | `/pre-purchase-inspection` |
 | Belts & Hoses | `/belts-hoses` |
 | Starter & Alternator | `/starter-alternator` |
+| Tire Shop Near Me (intent silo) | `/tire-shop-near-me` |
+| Auto Repair Near Me (intent silo) | `/auto-repair-near-me` |
 
 ### Customer Tools
 | Tool | URL | What It Does |
@@ -225,14 +236,18 @@ SEO pages for local search — each targets "[city] auto repair":
 
 ## 5. SEO FEATURES
 
-- **139 URLs** in sitemap (`/sitemap.xml`)
+- **196 URLs** in main sitemap (`/sitemap.xml`) + 35 in sitemap-services + 80 in sitemap-locations = **311 total**
+- **182 prerendered HTML files** in `/prerendered/` served to bot User-Agents via `prerender-middleware.ts`
 - **JSON-LD schemas:** LocalBusiness, AutoRepair, TireShop, FAQPage, Article, BreadcrumbList
-- **Dynamic meta tags:** Every page has unique title, description, OG/Twitter cards
-- **City landing pages:** 15+ targeting "[city] auto repair" searches
-- **Neighborhood pages:** Targeting hyperlocal search terms
+- **Dynamic meta tags:** Every page has unique title, description, OG/Twitter cards (all within Google's truncation budget — titles ≤70ch, metas ≤160ch as of v1.7.5)
+- **City landing pages:** 20 targeting "[city] auto repair" searches
+- **Neighborhood pages:** 121 targeting hyperlocal search terms
+- **Tire intent silos (v1.7.5):** `/used-tires-cleveland`, `/new-tires-cleveland`, plus 5 brand silos (Michelin/Goodyear/Bridgestone/Firestone/Continental) all at `/{brand}-tires-cleveland`
 - **Service+City pages:** Cross-product pages like "brakes in Euclid OH"
 - **Blog:** SEO-optimized articles for long-tail keywords
-- **Prerender middleware:** Serves static HTML to search engine bots
+- **Hero LCP optimized (v1.7.5):** All 10 high-traffic page heroes use `loading="eager"` + `fetchPriority="high"`
+- **GSC programmatic access:** Service-account JWT (`teezy-491218`) with full webmasters scope. Run `pnpm tsx scripts/gsc-submit-sitemap.ts` to ping Google to re-crawl.
+- **Weather-reactive notification bar:** Open-Meteo API → `trpc.weather.current` → highest-priority NotificationBar override at thresholds (cold ≤45°F, snow, freezing rain, high wind, etc.)
 
 ---
 
