@@ -36,8 +36,18 @@ const REDIRECTS: RedirectRule[] = [
   { from: "/check-engine-light-cleveland",    to: "/diagnostics",  reason: "symptom alias → canonical service page" },
   { from: "/suspension-repair-cleveland",     to: "/auto-repair-near-me", reason: "no standalone suspension page; routes to general repair hub" },
 
+  // v1.7 audit · keyword-in-URL captures for direct typers, consolidating
+  // link equity into the canonical service pages that already rank for
+  // the underlying intent.
+  { from: "/check-engine-light",              to: "/diagnostics",        reason: "bare keyword alias → canonical /diagnostics (which already targets check-engine-light intent in title + content)" },
+  { from: "/tire-shops-near-me",              to: "/tire-shop-near-me",  reason: "plural variant — canonical is singular per existing rank" },
+  { from: "/mechanic-near-me",                to: "/auto-repair-near-me", reason: "AutoRepairNearMePage already targets mechanic-near-me query (per its docstring); consolidate, don't cannibalize" },
+
   // Tire-shop queries — all flow into the tire-shop landing page
   { from: "/oil-change-cleveland",            to: "/oil-change",   reason: "duplicate of /oil-change" },
+  { from: "/oil-change-service-station",      to: "/oil-change",   reason: "intent variant alias — bundle services framing → canonical /oil-change" },
+  { from: "/wheel-alignment",                 to: "/alignment",    reason: "keyword alias → /alignment (which already ranks for 'wheel alignment cleveland')" },
+  { from: "/wheel-alignment-cleveland",       to: "/alignment",    reason: "geo-suffixed variant → /alignment" },
 
   // General-repair cluster
   { from: "/general-repair-cleveland",        to: "/auto-repair-near-me", reason: "general-repair got merged into /auto-repair-near-me" },
