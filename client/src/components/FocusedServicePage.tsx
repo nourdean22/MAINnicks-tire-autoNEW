@@ -24,6 +24,8 @@ import InternalLinks from "./InternalLinks";
 import PageLayout from "./PageLayout";
 import { SEOHead, Breadcrumbs } from "./SEO";
 import LocalBusinessSchema from "./LocalBusinessSchema";
+import { Link } from "wouter";
+import { CITIES } from "@shared/cities";
 
 // v1.7 SEO · breadcrumb label auto-derived from canonicalPath slug.
 // "/auto-repair-near-me" → "Auto Repair Near Me". Always works, no
@@ -482,6 +484,26 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
       <CrossSellSection config={config} />
       <BookingSection config={config} />
       <InternalLinks />
+      {/* v1.7 Q9 (W2) · city cross-link block on every FocusedServicePage.
+          Single edit gives 5+ service pages a topical authority lift +
+          deeper crawl reach to the city cluster. Mirrors the "ALSO
+          SERVING" pattern from CityPage.tsx:560 so styling is consistent. */}
+      <section className="py-12 lg:py-16 bg-[oklch(0.065_0.004_260)] border-t border-border/50">
+        <div className="container">
+          <h3 className="font-semibold font-bold text-lg text-foreground/60 tracking-[-0.01em] mb-6">CITIES WE SERVE</h3>
+          <div className="flex flex-wrap gap-3">
+            {CITIES.slice(0, 8).map((c) => (
+              <Link
+                key={c.slug}
+                href={`/${c.slug}`}
+                className="px-4 py-2 bg-card/50 border border-border/50 rounded-md text-sm text-foreground/70 hover:text-primary hover:border-primary/30 transition-colors"
+              >
+                {c.name} Auto Repair
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
     </PageLayout>
   );
 }
