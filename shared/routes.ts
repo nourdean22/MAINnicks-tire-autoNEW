@@ -184,6 +184,31 @@ const SERVICE_PAGES: RouteEntry[] = [
     prerender: true,
   },
   {
+    // High-volume tire-intent silos. Distinct buyer journeys:
+    //   /tires                  — broad finder + brand grid
+    //   /tire-shop-near-me      — proximity intent
+    //   /used-tires-cleveland   — value-conscious, "$60 from" framing
+    //   /new-tires-cleveland    — premium buyer, "free $289 install" framing
+    path: "/used-tires-cleveland",
+    priority: 0.85,
+    changefreq: "monthly",
+    title: "Used Tires Cleveland | Quality-Inspected, From $60 Installed | Nick's",
+    description: "Used tires in Cleveland from $60, fully installed. Every tire passes 4 inspection points — tread, sidewall, DOT date, plug history — before it goes on your car. Walk-ins welcome. (216) 862-0005",
+    group: "service",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/new-tires-cleveland",
+    priority: 0.85,
+    changefreq: "monthly",
+    title: "New Tires Cleveland | Free $289 Install Package | Nick's Tire & Auto",
+    description: "New tires in Cleveland from major brands — Michelin, Goodyear, Bridgestone, Continental, Firestone. FREE premium install package ($289 value): mount, balance, valve stems, TPMS, alignment check, 20-pt inspection. Walk-ins welcome. (216) 862-0005",
+    group: "service",
+    sitemap: true,
+    prerender: true,
+  },
+  {
     path: "/emissions",
     priority: 0.9,
     changefreq: "monthly",
