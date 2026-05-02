@@ -290,13 +290,19 @@ function AssignmentPanel({ workOrderId, bays }: { workOrderId: string; bays: any
   const [selectedBay, setSelectedBay] = useState<number | null>(null);
   const utils = trpc.useUtils();
 
+  // v1.7 audit fix · pre-fix this mutation had no onError handler and
+  // no onSuccess toast. A failed dispatch silently re-enabled the
+  // button with zero feedback — blocking real-time shop ops if the
+  // network blipped or the server rejected. Now both paths surface.
   const assignMut = trpc.dispatch.assign.useMutation({
     onSuccess: () => {
+      toast.success("Dispatched");
       utils.dispatch.load.invalidate();
       utils.workOrders.list.invalidate();
       setSelectedTech(null);
       setSelectedBay(null);
     },
+    onError: (e) => toast.error(e.message || "Dispatch failed"),
   });
 
   return (

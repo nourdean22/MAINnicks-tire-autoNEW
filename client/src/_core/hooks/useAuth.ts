@@ -41,24 +41,34 @@ export function useAuth(options?: UseAuthOptions) {
     }
   }, [logoutMutation, utils]);
 
-  const state = useMemo(() => {
-    localStorage.setItem(
-      "nickstire-user-info",
-      JSON.stringify(meQuery.data)
-    );
-    return {
-      user: meQuery.data ?? null,
-      loading: meQuery.isLoading || logoutMutation.isPending,
-      error: meQuery.error ?? logoutMutation.error ?? null,
-      isAuthenticated: Boolean(meQuery.data),
-    };
-  }, [
+  // v1.7 audit fix · pre-fix this useMemo ALSO did localStorage.setItem,
+  // which is a render-phase side effect that throws "localStorage is
+  // not defined" on SSR/test paths and runs on every memoized recompute.
+  // Side effects belong in useEffect; the memo is now pure.
+  const state = useMemo(() => ({
+    user: meQuery.data ?? null,
+    loading: meQuery.isLoading || logoutMutation.isPending,
+    error: meQuery.error ?? logoutMutation.error ?? null,
+    isAuthenticated: Boolean(meQuery.data),
+  }), [
     meQuery.data,
     meQuery.error,
     meQuery.isLoading,
     logoutMutation.error,
     logoutMutation.isPending,
   ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem(
+        "nickstire-user-info",
+        JSON.stringify(meQuery.data),
+      );
+    } catch {
+      // ignore — quota exceeded / storage disabled
+    }
+  }, [meQuery.data]);
 
   useEffect(() => {
     if (!redirectOnUnauthenticated) return;

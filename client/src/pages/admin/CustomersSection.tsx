@@ -4,7 +4,7 @@
  * Now with: VIP badges, churn risk indicators, lifetime value sorting,
  * call buttons, total spent, days since last visit.
  */
-import React, { useState, lazy, Suspense } from "react";
+import React, { useEffect, useState, lazy, Suspense } from "react";
 import { trpc } from "@/lib/trpc";
 import { StatCard, PageHeader, LoadingState, EmptyState } from "./shared";
 import {
@@ -147,12 +147,16 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
   const [smsText, setSmsText] = useState("");
   const [notesOpen, setNotesOpen] = useState(false);
   const [notesText, setNotesText] = useState("");
-  const [notesInitialized, setNotesInitialized] = useState(false);
 
-  if (customer && !notesInitialized) {
-    setNotesText(customer.notes || "");
-    setNotesInitialized(true);
-  }
+  // v1.7 audit fix · pre-fix used `if (customer && !notesInitialized)`
+  // setState-during-render pattern, which triggers React 18+ "Cannot
+  // update a component while rendering a different component" warnings
+  // and double-renders under React 19 strict mode. Plus the
+  // notesInitialized guard prevented re-sync when customer switched.
+  // Now syncs on customer.id change via useEffect.
+  useEffect(() => {
+    if (customer) setNotesText(customer.notes || "");
+  }, [customer?.id, customer?.notes]);
 
   const quickSms = trpc.customers.quickSms.useMutation({
     onSuccess: (result) => {
