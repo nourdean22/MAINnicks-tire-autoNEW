@@ -277,8 +277,10 @@ export function getWeatherAlert(weather: WeatherData): WeatherAlert {
     };
   }
 
-  // Cold morning
-  if (temp <= 35) {
+  // Cold morning \u2014 Cleveland fall/winter typically hits 36-45\u00B0F overnight,
+  // and that's when TPMS lights start triggering. 45\u00B0F catches the "cold
+  // morning, light just came on" walk-in window that 35\u00B0F misses.
+  if (temp <= 45) {
     return {
       active: true,
       severity: "info",
