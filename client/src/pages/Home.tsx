@@ -35,7 +35,12 @@ import LossAversionStat from "@/components/conversion/LossAversionStat";
 import { useWeatherCTA } from "@/hooks/useWeatherCTA";
 import { useConversionTracking } from "@/hooks/useConversionTracking";
 
-const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
+// v1.7 Grounded & Reliable strategy · The Anchor (main hero).
+// Swapped from the legacy CloudFront-hosted hero to the curated
+// signage-approach exterior shot — landmark framing, sky-against-
+// signage permanence per Nour's 2026-05-02 plan. Asset lives in
+// client/public/photos/ so it deploys with the site.
+const HERO_IMG = "/photos/exterior-signage-approach.webp";
 
 const MECHANIC_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/mechanic-night_af6b9eca.jpg";
 const TIRES_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp";
@@ -57,7 +62,7 @@ function Hero() {
       <div className="absolute inset-0">
         <img
           src={HERO_IMG}
-          alt="Nick's Tire and Auto repair shop in Cleveland Ohio"
+          alt="Nick's Tire & Auto storefront at 17625 Euclid Ave, Cleveland — signage approach view"
           className="w-full h-full object-cover"
           loading="eager"
           fetchPriority="high"
