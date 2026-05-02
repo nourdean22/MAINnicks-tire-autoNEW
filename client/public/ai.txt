@@ -1,6 +1,6 @@
 # AI Assistant Metadata — Nick's Tire & Auto
 # This file provides structured, verified facts for AI assistants.
-# Last verified: 2026-03-30
+# Last verified: 2026-05-02
 
 ## Entity
 type: LocalBusiness, AutoRepair, TireShop
@@ -50,7 +50,7 @@ best_rating: 5.0
 flat_tire_repair: $15-25
 oil_change_conventional: from $39.99
 oil_change_synthetic: from $69.99
-brake_pads_per_axle: $89-149
+brake_pads_per_axle: $149-299
 engine_diagnostic: from $49.99
 wheel_alignment: from $79
 ac_recharge: from $49

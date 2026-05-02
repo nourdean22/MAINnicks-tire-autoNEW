@@ -185,6 +185,23 @@ function Router() {
               path={"/warrensville-heights-auto-repair"}
               component={CityPage}
             />
+            {/* v1.7 audit fix · these 3 city URLs were declared in
+                shared/routes.ts (priority 0.8, prerender:true) and have
+                full data in shared/cities.ts, but App.tsx had no Route
+                wiring — they fell through to <Route component={NotFound}>
+                and rendered "Page Not Found" titles. Production was
+                serving 404 to Google + customers for these high-intent
+                URLs. CityPage uses useRoute("/:slug") to look up
+                cities.ts so no other changes needed. */}
+            <Route path={"/beachwood-auto-repair"} component={CityPage} />
+            <Route
+              path={"/mayfield-heights-auto-repair"}
+              component={CityPage}
+            />
+            <Route
+              path={"/university-heights-auto-repair"}
+              component={CityPage}
+            />
             {/* Seasonal landing pages */}
             <Route
               path={"/winter-car-care-cleveland"}
