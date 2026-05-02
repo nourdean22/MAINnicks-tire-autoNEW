@@ -94,27 +94,29 @@ export async function postToFacebook(params: {
       body = {
         url: params.imageUrl,
         caption: params.message,
-        access_token: token,
       };
     } else {
       // Text/link post
       endpoint = `${GRAPH_URL}/${pageId}/feed`;
       body = {
         message: params.message,
-        access_token: token,
       };
       if (params.link) {
         body.link = params.link;
       }
     }
 
-    // v1.7 audit fix · added 15s timeout. Pre-fix Meta Graph slow-fail
-    // would pin the awaiting Express thread for the default Node socket
-    // timeout (~2 min on Railway). 15s is well over Meta's typical
-    // p99 + leaves headroom for slow uploads.
+    // v1.7 audit fix · 15s timeout (was 2min Node default).
+    // v1.7 follow-up · token migrated from JSON body to Authorization
+    // Bearer header. Meta Graph supports both; header is preferred per
+    // Meta docs and keeps the token out of any future request-body
+    // logging path on Railway / proxies.
     const res = await fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(15000),
     });
@@ -151,15 +153,21 @@ export async function postToInstagram(params: {
   }
 
   try {
+    // v1.7 follow-up · token via Authorization header (was in body).
+    const authHeaders = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    };
+
     // Step 1: Create media container
     const containerRes = await fetch(`${GRAPH_URL}/${igUserId}/media`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders,
       body: JSON.stringify({
         image_url: params.imageUrl,
         caption: params.caption,
-        access_token: token,
       }),
+      signal: AbortSignal.timeout(15000),
     });
 
     const containerData = await containerRes.json();
@@ -178,11 +186,11 @@ export async function postToInstagram(params: {
     // Step 2: Publish the container
     const publishRes = await fetch(`${GRAPH_URL}/${igUserId}/media_publish`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders,
       body: JSON.stringify({
         creation_id: creationId,
-        access_token: token,
       }),
+      signal: AbortSignal.timeout(15000),
     });
 
     const publishData = await publishRes.json();
@@ -221,17 +229,23 @@ export async function postInstagramCarousel(params: {
   }
 
   try {
+    // v1.7 follow-up · token via Authorization header (was in body).
+    const authHeaders = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    };
+
     // Step 1: Create child containers for each image
     const childIds: string[] = [];
     for (const url of params.imageUrls) {
       const res = await fetch(`${GRAPH_URL}/${igUserId}/media`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders,
         body: JSON.stringify({
           image_url: url,
           is_carousel_item: true,
-          access_token: token,
         }),
+        signal: AbortSignal.timeout(15000),
       });
       const data = await res.json();
       if (!res.ok || !data.id) {
@@ -243,13 +257,13 @@ export async function postInstagramCarousel(params: {
     // Step 2: Create carousel container
     const containerRes = await fetch(`${GRAPH_URL}/${igUserId}/media`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders,
       body: JSON.stringify({
         media_type: "CAROUSEL",
         children: childIds.join(","),
         caption: params.caption,
-        access_token: token,
       }),
+      signal: AbortSignal.timeout(15000),
     });
     const containerData = await containerRes.json();
     if (!containerRes.ok || !containerData.id) {
@@ -259,11 +273,11 @@ export async function postInstagramCarousel(params: {
     // Step 3: Publish
     const publishRes = await fetch(`${GRAPH_URL}/${igUserId}/media_publish`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders,
       body: JSON.stringify({
         creation_id: containerData.id,
-        access_token: token,
       }),
+      signal: AbortSignal.timeout(15000),
     });
     const publishData = await publishRes.json();
     if (!publishRes.ok) {
