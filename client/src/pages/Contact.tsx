@@ -57,7 +57,8 @@ function ContactSchema() {
       reviewCount: String(BUSINESS.reviews.count),
       bestRating: "5",
     },
-    image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    // v1.7 Grounded & Reliable · local exterior shot for LocalBusiness schema
+    image: "https://nickstire.org/photos/exterior-signage-approach.webp",
     priceRange: "$$",
   };
 

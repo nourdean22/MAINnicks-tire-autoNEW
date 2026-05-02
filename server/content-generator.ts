@@ -71,11 +71,15 @@ const SEASONAL_TOPICS: Record<Season, string[]> = {
 
 // ─── ARTICLE HERO IMAGES (by category) ─────────────────
 
+// v1.7 Grounded & Reliable · auto-generated articles now reference local
+// curated shop photos. brakes still on CloudFront pending a real captured
+// brake-bay shot. Relative paths — BlogPost.tsx + Article-schema layer
+// resolve to absolute origin at render time.
 const HERO_IMAGES: Record<string, string> = {
-  tires: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp",
+  tires: "/photos/tire-stacks-overhead.webp",
   brakes: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-brakes-nKAKuxmW2WAmNrbCFRD9zL.webp",
-  diagnostics: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
-  general: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+  diagnostics: "/photos/service-bay-clean.webp",
+  general: "/photos/exterior-signage-approach.webp",
 };
 
 function getHeroImage(category: string): string {

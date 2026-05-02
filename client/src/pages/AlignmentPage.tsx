@@ -19,8 +19,10 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
-// Hero image URL
-const HERO_IMAGE = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
+// v1.7 Grounded & Reliable · local alignment-bay shot. Note: this page is
+// 301-redirected to /tires per the 2026-05-02 silo decision, but kept
+// hero current in case the redirect is ever revisited.
+const HERO_IMAGE = "/photos/alignment-bay.webp";
 
 // FAQ data — lifted to module scope so it can power BOTH the visual accordion
 // and the JSON-LD FAQPage schema (which becomes Google rich snippets).

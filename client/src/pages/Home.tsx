@@ -42,9 +42,12 @@ import { useConversionTracking } from "@/hooks/useConversionTracking";
 // client/public/photos/ so it deploys with the site.
 const HERO_IMG = "/photos/exterior-signage-approach.webp";
 
-const MECHANIC_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/mechanic-night_af6b9eca.jpg";
-const TIRES_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp";
-const DIAG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp";
+// v1.7 Grounded & Reliable · service tile thumbnails now use local curated
+// shop photos. BRAKES_IMG kept on CloudFront pending a captured brake-bay
+// shot (no current local stand-in matches the visual brief).
+const MECHANIC_IMG = "/photos/service-bay-busy.webp";
+const TIRES_IMG = "/photos/tire-stacks-overhead.webp";
+const DIAG_IMG = "/photos/service-bay-clean.webp";
 const BRAKES_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-brakes-nKAKuxmW2WAmNrbCFRD9zL.webp";
 
 // ─── HERO — Full-viewport cinematic with left content ────
