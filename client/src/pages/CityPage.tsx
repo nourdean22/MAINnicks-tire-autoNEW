@@ -17,7 +17,8 @@ import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
 import FadeIn from "@/components/FadeIn";
 
-const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
+// v1.7 Grounded & Reliable · exterior signage shot for all city silos
+const HERO_IMG = "/photos/exterior-signage-approach.webp";
 
 // ─── NAVBAR ───────────────────────────────────────────
 function CityNavbar({ city }: { city: CityData }) {

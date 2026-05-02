@@ -15,7 +15,9 @@ import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
-const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
+// v1.7 Grounded & Reliable · winter/seasonal pages get the all-weather
+// exterior shot to reinforce "open, plowed, ready" trust signal.
+const HERO_IMG = "/photos/exterior-winter-allweather.webp";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);

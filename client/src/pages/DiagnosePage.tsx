@@ -21,7 +21,8 @@ import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FinancingCTA from "@/components/FinancingCTA";
 
-const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp";
+// v1.7 Grounded & Reliable · service bay shot for diagnostic page
+const HERO_IMG = "/photos/service-bay-clean.webp";
 
 // ─── CAR ZONES ────────────────────────────────────────
 type CarZone = {

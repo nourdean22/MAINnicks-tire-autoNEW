@@ -18,7 +18,8 @@ import { GBP_REVIEW_URL } from "@shared/const";
 import { BUSINESS } from "@shared/business";
 import { QueryError } from "@/components/QueryState";
 
-const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
+// v1.7 Grounded & Reliable · exterior signage shot
+const HERO_IMG = "/photos/exterior-signage-approach.webp";
 
 // Service-related keywords to highlight in gold
 const SERVICE_KEYWORDS = [
