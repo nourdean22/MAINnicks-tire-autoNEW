@@ -59,11 +59,37 @@ function isBusinessHours(): boolean {
  * Run all jobs in a tier sequentially (not in parallel).
  * Sequential prevents DB connection stampedes on small servers.
  */
+// v1.7 audit follow-up · track consecutive skip counts per tier so
+// we can fire a Telegram alert when a tier degrades silently. Tier 3
+// (hourly, 22 jobs × 4min worst-case = 88min sequential) can creep
+// past its 2-hour cadence and skip silently if any job runs slow
+// repeatedly. Without this, the only visible signal is gaps in
+// cron_log — which nobody watches in real time.
+const tierSkipCounts = new Map<string, number>();
+
 async function runTier(tier: Tier): Promise<void> {
   if (tier.running) {
-    log.info(`Tier ${tier.name} still running, skipping`);
+    const skips = (tierSkipCounts.get(tier.name) ?? 0) + 1;
+    tierSkipCounts.set(tier.name, skips);
+    log.info(`Tier ${tier.name} still running, skipping`, { consecutiveSkips: skips });
+    // Alert at 2 consecutive skips on hourly+ tiers — that means the
+    // tier has been overrunning its interval for 2 firings in a row.
+    // Heartbeat tier skips are normal under load and not alert-worthy.
+    if (skips >= 2 && tier.intervalMs >= 30 * 60 * 1000) {
+      try {
+        const { sendTelegram } = await import("../services/telegram");
+        await sendTelegram(
+          `⚠ CRON tier "${tier.name}" skipped ${skips}x in a row. ` +
+            `Interval ${Math.round(tier.intervalMs / 60000)}min, jobs ${tier.jobs.length}. ` +
+            `One job is hanging near its timeout — check /system/cron-diagnostics.`,
+        );
+      } catch {
+        // best-effort; don't break the scheduler if Telegram is down
+      }
+    }
     return;
   }
+  tierSkipCounts.set(tier.name, 0);
 
   tier.running = true;
   const start = Date.now();

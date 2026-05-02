@@ -198,6 +198,17 @@ async function startServer() {
   app.use("/api/trpc/nourOsQuote.createQuote", formLimiter);
   app.use("/api/trpc/fleet.submit", formLimiter);
 
+  // v1.7 audit follow-up · defense-in-depth on the 4 statenour-gated
+  // AI endpoints. v1.7 added statenourAuth middleware (closing the
+  // unauth hole that let anyone burn OpenAI tokens). This adds a
+  // rate-limit floor on top: even with a leaked sync key, an attacker
+  // is capped at the aiLimiter window.
+  app.use("/api/nour-strategy", aiLimiter);
+  app.use("/api/agents/psych-dominance", aiLimiter);
+  app.use("/api/nour-chief-strategist", aiLimiter);
+  app.use("/api/agents/simulator", aiLimiter);
+  app.use("/api/agents/burnout-radar", aiLimiter);
+
   // ─── Deploy Version Endpoint ──────────────────────────
   // Proves which commit is actually running on Railway
   app.get("/api/version", (_req, res) => {
