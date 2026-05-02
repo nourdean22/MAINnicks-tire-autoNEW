@@ -10,7 +10,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
-import { SEOHead } from "@/components/SEO";
+import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { trackPhoneClick } from "@/lib/analytics";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FinancingCTA from "@/components/FinancingCTA";
@@ -772,6 +772,8 @@ export default function TireFinder() {
         description="Cleveland's tire shop — new & used tires installed with free mount, balance, valve stem, and disposal. Walk-ins 7 days. Flat repair available. Free quote on your size. (216) 862-0005"
         canonicalPath="/tires"
       />
+      {/* v1.7 SEO · BreadcrumbList JSON-LD + visible nav */}
+      <Breadcrumbs items={[{ label: "Tires" }]} />
       <LocalBusinessSchema includeServices />
       <div className="min-h-screen bg-background text-foreground">
 

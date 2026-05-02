@@ -5,7 +5,7 @@
  */
 
 import PageLayout from "@/components/PageLayout";
-import { SEOHead } from "@/components/SEO";
+import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import UberDropoffWidget from "@/components/UberDropoffWidget";
 import { Shield, X, Check } from "lucide-react";
 
@@ -77,6 +77,8 @@ export default function WomensSafetyPage() {
         description="Stay in your car or drop off and go. Nick's Tire & Auto in Cleveland is built around your comfort and safety — no pressure, full transparency, Uber drop-off available."
         canonicalPath="/womens-safety"
       />
+      {/* v1.7 SEO · BreadcrumbList */}
+      <Breadcrumbs items={[{ label: "Women's Safety" }]} />
 
       {/* ── Hero ─────────────────────────────────────────── */}
       <section className="bg-gray-900 pt-24 pb-16 px-4 text-center">

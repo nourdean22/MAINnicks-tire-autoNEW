@@ -24,7 +24,7 @@ import { Clock, Phone, Wrench, ShieldCheck, MessageSquare, AlertCircle } from "l
 import BookingWizard from "@/components/BookingWizard";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import PageLayout from "@/components/PageLayout";
-import { SEOHead } from "@/components/SEO";
+import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import InternalLinks from "@/components/InternalLinks";
 import { BUSINESS } from "@shared/business";
 import { trpc } from "@/lib/trpc";
@@ -271,6 +271,8 @@ export default function BookingPage() {
         description="Reserve your drop-off in 60 seconds at Nick's Tire & Auto Cleveland. No credit card. No commitment to fix. A master tech calls back within 15 minutes. (216) 862-0005"
         canonicalPath="/booking"
       />
+      {/* v1.7 SEO · BreadcrumbList */}
+      <Breadcrumbs items={[{ label: "Book Appointment" }]} />
       <LocalBusinessSchema />
 
       <main className="max-w-3xl mx-auto px-4 py-10 sm:py-14">
