@@ -422,9 +422,14 @@ async function startServer() {
   }).catch(e => console.warn("[server:init] NOUR OS bridge retry processor startup failed:", e));
 
   // ─── Real-time SSE for admin dashboards ─────────────────
+  // v1.7 audit fix · pre-fix this SSE stream of admin activity was
+  // publicly readable. Every other /api/admin/* route in this file
+  // applies requireAdminApiKey; the SSE registration was the lone
+  // exception. requireAdminApiKey is a hoisted function declaration
+  // (defined ~30 lines below), so the forward reference is safe.
   import("../services/realtimePush").then(({ sseHandler }) => {
-    app.get("/api/admin/events", sseHandler);
-    serverLog.info("SSE endpoint registered: /api/admin/events");
+    app.get("/api/admin/events", requireAdminApiKey, sseHandler);
+    serverLog.info("SSE endpoint registered: /api/admin/events (auth-gated)");
   }).catch(e => console.warn("[server:init] SSE endpoint registration failed:", e));
 
   // ─── Admin API Key middleware (shared by all admin REST endpoints) ───
@@ -485,6 +490,28 @@ async function startServer() {
         res.status(400).json({ error: "Missing subscription data" });
         return;
       }
+
+      // v1.7 audit fix · pre-fix any anonymous caller could POST
+      // { isAdmin: true, ... } and create an admin-flagged push
+      // subscription, then receive admin push notifications. Now
+      // isAdmin=true requires an admin API key on the request.
+      let isAdminVerified = false;
+      if (isAdmin) {
+        const auth = req.headers.authorization;
+        const expected = process.env.ADMIN_API_KEY;
+        if (expected && typeof auth === "string") {
+          const expectedFull = `Bearer ${expected}`;
+          if (auth.length === expectedFull.length &&
+              timingSafeEqual(Buffer.from(auth), Buffer.from(expectedFull))) {
+            isAdminVerified = true;
+          }
+        }
+        if (!isAdminVerified) {
+          res.status(401).json({ error: "isAdmin requires admin API key" });
+          return;
+        }
+      }
+
       const { getDb } = await import("../db");
       const { pushSubscriptions } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
@@ -498,7 +525,7 @@ async function startServer() {
         await db.update(pushSubscriptions).set({ p256dh: keys.p256dh, auth: keys.auth }).where(eq(pushSubscriptions.id, existing[0].id));
         res.json({ success: true, action: "updated" });
       } else {
-        await db.insert(pushSubscriptions).values({ id: nanoid(), endpoint, p256dh: keys.p256dh, auth: keys.auth, isAdmin: !!isAdmin, customerId: customerId || null });
+        await db.insert(pushSubscriptions).values({ id: nanoid(), endpoint, p256dh: keys.p256dh, auth: keys.auth, isAdmin: isAdminVerified, customerId: customerId || null });
         res.json({ success: true, action: "created" });
       }
     } catch (err) {
@@ -803,18 +830,24 @@ Sitemap: ${SITE_URL}/sitemap-locations.xml
     const signature = req.headers["x-hub-signature-256"] as string | undefined;
     const appSecret = process.env.FB_APP_SECRET;
 
-    // Verify signature if FB_APP_SECRET is configured
-    if (appSecret) {
-      if (!signature) {
-        console.warn("[Messenger] Missing X-Hub-Signature-256 header");
-        return res.sendStatus(403);
-      }
-      const { createHmac } = await import("crypto");
-      const expectedSig = "sha256=" + createHmac("sha256", appSecret).update(req.body).digest("hex");
-      if (signature.length !== expectedSig.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) {
-        console.warn("[Messenger] Invalid signature — possible forged request");
-        return res.sendStatus(403);
-      }
+    // v1.7 audit fix · pre-fix the verify block was conditional on
+    // appSecret being set; if it wasn't set, ANY caller could send
+    // forged Messenger events that triggered handleMessengerMessage.
+    // Stripe/Twilio/Snap webhooks all hard-fail when their secret is
+    // unset; Messenger was the lone outlier. Now consistent.
+    if (!appSecret) {
+      console.warn("[Messenger] Webhook called but FB_APP_SECRET unset — rejecting");
+      return res.status(503).json({ error: "Messenger webhook not configured" });
+    }
+    if (!signature) {
+      console.warn("[Messenger] Missing X-Hub-Signature-256 header");
+      return res.sendStatus(403);
+    }
+    const { createHmac } = await import("crypto");
+    const expectedSig = "sha256=" + createHmac("sha256", appSecret).update(req.body).digest("hex");
+    if (signature.length !== expectedSig.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) {
+      console.warn("[Messenger] Invalid signature — possible forged request");
+      return res.sendStatus(403);
     }
 
     const body = JSON.parse(req.body.toString());

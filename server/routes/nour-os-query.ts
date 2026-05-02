@@ -10,9 +10,22 @@
  */
 
 import type { Express, Request, Response } from "express";
+import { timingSafeEqual } from "crypto";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("nour-os-query");
+
+// v1.7 audit fix · was using `provided !== syncKey` non-timing-safe.
+// Sibling routes use timingSafeEqual via safeCompare; this one was the
+// outlier. Aligned with the rest of the codebase.
+function safeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  try {
+    return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  } catch {
+    return false;
+  }
+}
 
 interface QueryRequest {
   query: string;
@@ -235,7 +248,7 @@ export function registerNourOsQueryRoute(app: Express): void {
     const syncKey = process.env.STATENOUR_SYNC_KEY || "";
     const provided = req.headers["x-sync-key"] as string;
 
-    if (!syncKey || provided !== syncKey) {
+    if (!syncKey || !provided || !safeCompare(provided, syncKey)) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 

@@ -13,6 +13,7 @@
 import type { Express, Request, Response } from "express";
 
 import { createLogger } from "../lib/logger";
+import { statenourAuth } from "../middleware/statenourAuth";
 
 const log = createLogger("routes:psych-dominance");
 interface OpenAIChoice {
@@ -77,7 +78,8 @@ async function callPsychDominance(
 }
 
 export function registerPsychDominanceRoute(app: Express): void {
-  app.post("/api/agents/psych-dominance", async (req: Request, res: Response) => {
+  // v1.7 audit fix · was unauthenticated; anyone could burn OpenAI tokens.
+  app.post("/api/agents/psych-dominance", statenourAuth, async (req: Request, res: Response) => {
     try {
       const { input, context } = req.body as {
         input?: unknown;

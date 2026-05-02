@@ -13,6 +13,7 @@
 import type { Express, Request, Response } from "express";
 
 import { createLogger } from "../lib/logger";
+import { statenourAuth } from "../middleware/statenourAuth";
 
 const log = createLogger("routes:simulator");
 interface OpenAIChoice {
@@ -72,7 +73,8 @@ async function simulateScenario(scenario: string): Promise<string> {
 }
 
 export function registerSimulatorRoute(app: Express): void {
-  app.post("/api/agents/simulator", async (req: Request, res: Response) => {
+  // v1.7 audit fix · was unauthenticated; anyone could burn OpenAI tokens.
+  app.post("/api/agents/simulator", statenourAuth, async (req: Request, res: Response) => {
     try {
       const { scenario } = req.body as { scenario?: unknown };
 

@@ -56,10 +56,18 @@ export async function detectNoShows(): Promise<{ recordsProcessed: number; detai
     const noShows = rows as RawRow[];
     if (noShows.length === 0) return { recordsProcessed: 0, details: "No no-shows" };
 
-    // Batch-cancel all no-shows in one query (eliminates N+1 loop)
-    const noShowIds = noShows.map((b) => b.id);
-    if (noShowIds.length > 0) {
-      await d.execute(sql`UPDATE bookings SET status = 'cancelled', adminNotes = CONCAT(COALESCE(adminNotes, ''), '\n[AUTO] No-show: past preferred date, auto-cancelled') WHERE id IN (${sql.raw(noShowIds.join(","))}) AND status IN ('new', 'confirmed')`);
+    // Batch-cancel all no-shows in one query (eliminates N+1 loop).
+    // v1.7 audit fix · pre-fix used `sql.raw(noShowIds.join(","))`
+    // with values from a `RawRow` typed as `unknown` — any non-integer
+    // value would either crash the query or open a future injection
+    // path. Now we hard-coerce to integers and discard anything that
+    // doesn't pass Number.isInteger before interpolating, so the
+    // sql.raw() call only ever sees a comma-separated integer list.
+    const numericIds = noShows
+      .map((b) => Number(b.id))
+      .filter((n): n is number => Number.isFinite(n) && Number.isInteger(n));
+    if (numericIds.length > 0) {
+      await d.execute(sql`UPDATE bookings SET status = 'cancelled', adminNotes = CONCAT(COALESCE(adminNotes, ''), '\n[AUTO] No-show: past preferred date, auto-cancelled') WHERE id IN (${sql.raw(numericIds.join(","))}) AND status IN ('new', 'confirmed')`);
     }
 
     // Send follow-up SMS to those with phone numbers (gated by feature flag)
