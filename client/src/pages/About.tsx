@@ -128,7 +128,7 @@ export default function About() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
             <FadeIn>
               <div className="relative rounded-2xl overflow-hidden aspect-[4/3]">
-                <img loading="lazy" src={DIAG_IMG} alt="Technician performing diagnostics" className="w-full h-full object-cover" />
+                <img loading="lazy" src={DIAG_IMG} alt="Auto diagnostics in progress at Nick's Tire & Auto Cleveland — engine bay testing" className="w-full h-full object-cover" />
                 <div className="absolute bottom-4 right-4 bg-primary px-4 py-3 rounded-xl">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-2xl text-primary-foreground">{rating.toFixed(1)}</span>
