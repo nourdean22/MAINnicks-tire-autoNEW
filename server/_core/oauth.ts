@@ -138,7 +138,13 @@ export function registerOAuthRoutes(app: Express) {
           ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
           userAgent: req.headers["user-agent"] ?? null,
         }),
-      ).catch(() => { /* silent */ });
+      ).catch((logErr) => {
+        // v1.7 audit fix · pre-fix this swallowed the compliance log
+        // failure entirely. If the DB is down or the schema drifted,
+        // a failed admin login was never recorded — security audit
+        // gap. Now logs the failure (without breaking the auth flow).
+        log.warn("[OAuth] logAdminLoginFail failed:", logErr);
+      });
       res.redirect(302, "/admin?error=auth_failed");
     }
   });

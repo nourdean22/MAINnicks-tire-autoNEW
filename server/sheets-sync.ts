@@ -78,6 +78,15 @@ async function appendRow(sheetName: string, values: string[], retried = false): 
       _sheets = null;
       return appendRow(sheetName, values, true);
     }
+    // v1.7 audit fix · 429 (quota exceeded) used to fall through to
+    // log.error and return false — silent CRM data drops at scale.
+    // Now: backoff retry once with a short jitter sleep. Google's
+    // per-minute quota bucket clears in ~60s.
+    if (!retried && error?.code === 429) {
+      log.warn("Sheets quota exceeded (429), backing off 30s + retry once");
+      await new Promise((r) => setTimeout(r, 30_000 + Math.random() * 5_000));
+      return appendRow(sheetName, values, true);
+    }
     log.error(`Failed to append row to ${sheetName}:`, {
       error: error?.message || String(error),
       code: error?.code,
