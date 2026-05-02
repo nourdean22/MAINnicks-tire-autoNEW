@@ -36,10 +36,12 @@ function Hero() {
   return (
     <section className="relative min-h-[55vh] flex items-end overflow-hidden">
       <div className="absolute inset-0">
+        {/* LCP fix · above-the-fold hero */}
         <img
-          loading="lazy"
+          loading="eager"
+          fetchPriority="high"
           src={HERO_IMAGE}
-          alt="Synthetic oil change at Nick's Tire and Auto in Cleveland Ohio"
+          alt="Full synthetic oil change Cleveland — Nick's Tire & Auto Euclid Ave"
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/40" />

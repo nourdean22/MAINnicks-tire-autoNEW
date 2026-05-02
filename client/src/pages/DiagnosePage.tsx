@@ -456,7 +456,8 @@ export default function DiagnosePage() {
         {/* Hero */}
         <section className="relative pt-32 pb-12 overflow-hidden">
           <div className="absolute inset-0">
-            <img loading="lazy" src={HERO_IMG} alt="Technician performing vehicle diagnostics" className="w-full h-full object-cover opacity-20" />
+            {/* LCP fix · hero image (rendered at 20% opacity as bg, but still LCP candidate) */}
+            <img loading="eager" fetchPriority="high" src={HERO_IMG} alt="Auto diagnostics at Nick's Tire & Auto Cleveland — check engine light + warning light testing" className="w-full h-full object-cover opacity-20" />
             <div className="absolute inset-0 bg-gradient-to-b from-[#0A0A0A]/80 via-[#0A0A0A]/95 to-[#0A0A0A]" />
           </div>
 

@@ -151,10 +151,12 @@ function Hero({ config }: { config: ServicePageConfig }) {
   return (
     <section className="relative min-h-[55vh] flex items-end overflow-hidden">
       <div className="absolute inset-0">
+        {/* LCP fix · above-the-fold hero on every FocusedServicePage instance */}
         <img
-          loading="lazy"
+          loading="eager"
+          fetchPriority="high"
           src={config.heroImage || HERO_IMAGE_DEFAULT}
-          alt={`${config.h1} at Nick's Tire and Auto`}
+          alt={`${config.h1} at Nick's Tire & Auto Cleveland`}
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/40" />

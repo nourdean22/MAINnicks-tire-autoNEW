@@ -60,10 +60,12 @@ function AlignmentHero() {
   return (
     <section className="relative min-h-[60vh] lg:min-h-[70vh] flex items-end overflow-hidden">
       <div className="absolute inset-0">
+        {/* LCP fix · above-the-fold hero */}
         <img
-          loading="lazy"
+          loading="eager"
+          fetchPriority="high"
           src={HERO_IMAGE}
-          alt="Professional wheel alignment service at Nick's Tire and Auto in Cleveland Ohio"
+          alt="Wheel alignment Cleveland — precision Hunter alignment at Nick's Tire & Auto Euclid Ave"
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/40" />
