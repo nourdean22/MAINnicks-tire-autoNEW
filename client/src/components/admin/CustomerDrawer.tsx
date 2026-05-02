@@ -162,7 +162,13 @@ export function CustomerDrawer({ customerId, onClose, onNavigateToSection }: Pro
               )}
               {onNavigateToSection && (
                 <button
-                  onClick={() => { onClose(); onNavigateToSection("workOrders"); }}
+                  // v1.7 audit fix · "workOrders" was deleted from the
+                  // AdminSection union in the 2026-04-24 audit. The
+                  // event-bridge bypassed TAB_ALIASES so this silently
+                  // no-op'd (drawer closed, no navigation). Now points
+                  // to the existing customers section as the closest
+                  // analog.
+                  onClick={() => { onClose(); onNavigateToSection("customers"); }}
                   className="flex items-center gap-2 px-3 py-2 bg-blue-500/10 text-blue-400 text-xs font-medium hover:bg-blue-500/20 transition-colors"
                 >
                   <Wrench className="w-3.5 h-3.5" /> Work Orders
@@ -236,7 +242,12 @@ export function CustomerDrawer({ customerId, onClose, onNavigateToSection }: Pro
           {onNavigateToSection && (
             <div className="pt-3 border-t border-border/20 space-y-2">
               <button
-                onClick={() => { onClose(); onNavigateToSection("bookings"); }}
+                // v1.7 audit fix · "bookings" is not a valid AdminSection
+                // (alias resolves to "overview" via TAB_ALIASES, but the
+                // event-bridge skips alias resolution). Pointing to
+                // "leads" — the canonical section that owns booking-
+                // adjacent records (new lead → booking funnel).
+                onClick={() => { onClose(); onNavigateToSection("leads"); }}
                 className="text-xs text-primary hover:underline"
               >
                 View Bookings &rarr;
