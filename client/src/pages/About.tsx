@@ -15,9 +15,8 @@ import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
-// v1.7 Grounded & Reliable · local curated shop photos
-const HERO_IMG = "/photos/exterior-signage-approach.webp";
-const DIAG_IMG = "/photos/service-bay-clean.webp";
+const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
+const DIAG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp";
 
 export default function About() {
   const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
@@ -35,7 +34,7 @@ export default function About() {
       {/* Hero */}
       <section className="relative min-h-[60vh] flex items-end overflow-hidden">
         <div className="absolute inset-0">
-          <img loading="lazy" src={HERO_IMG} alt="Nick's Tire & Auto storefront at 17625 Euclid Ave, Cleveland Ohio" className="w-full h-full object-cover" />
+          <img loading="lazy" src={HERO_IMG} alt="Inside Nick's Tire and Auto" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
         </div>
         <div className="relative container pb-16 pt-32">

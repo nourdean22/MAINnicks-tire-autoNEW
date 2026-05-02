@@ -1480,37 +1480,6 @@ export default function TireFinder() {
         </div>
       </section>
 
-      {/* v1.7 Grounded & Reliable · tire detail / "what gets installed"
-          anchor. Lands AFTER alignment, BEFORE financing — closes the
-          quality loop on the page. Tire-tread closeup gives buyers a
-          tangible read on tread quality before they commit; ties the
-          "Quality Inspected" claim in the homepage Used-Tires offer
-          schema to a concrete visual on the canonical tire page. */}
-      <section className="container py-12 sm:py-16 border-t border-border/30">
-        <div className="grid gap-8 lg:grid-cols-2 items-center">
-          <div>
-            <p className="text-xs font-semibold tracking-[0.18em] text-primary mb-2">WHAT GETS INSTALLED</p>
-            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4">
-              Every tire passes 4 checks before it leaves on your car.
-            </h2>
-            <ul className="space-y-3 text-foreground/70 leading-relaxed">
-              <li><strong className="text-foreground">Tread depth measured</strong> — new or used, you see the gauge reading before mount.</li>
-              <li><strong className="text-foreground">Sidewall walked</strong> — we check for cracks, bulges, plug history. No surprises after install.</li>
-              <li><strong className="text-foreground">DOT date verified</strong> — rubber older than 6 years gets flagged. Not all "new" tires are actually new.</li>
-              <li><strong className="text-foreground">Mount + balance + TPMS reset</strong> — included in every install. No nickel-and-dime add-ons at checkout.</li>
-            </ul>
-          </div>
-          <div className="relative aspect-[4/3] rounded-md border border-border/40 overflow-hidden">
-            <img
-              src="/photos/tire-tread-closeup.webp"
-              alt="Premium tire tread closeup at Nick's Tire & Auto Cleveland — quality-inspected before install"
-              className="absolute inset-0 w-full h-full object-cover"
-              loading="lazy"
-            />
-          </div>
-        </div>
-      </section>
-
       {/* ─── FINANCING CTA ─── */}
       <section className="container py-8">
         <FinancingCTA variant="banner" />

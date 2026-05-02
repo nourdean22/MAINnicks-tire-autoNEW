@@ -31,8 +31,7 @@ export default function Blog() {
       date: a.publishedAt ? new Date(a.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Recent",
       // BLOG_ARTICLES uses `heroImage`; DB rows use `imageUrl`. Normalize so
       // both render correctly in the grid and the featured-post hero.
-      // v1.7 Grounded & Reliable · local exterior fallback when DB row has no imageUrl
-      heroImage: a.imageUrl || "/photos/exterior-signage-approach.webp",
+      heroImage: a.imageUrl || "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
       generated: true,
     }));
     // DB articles first (newest content), then static fallbacks

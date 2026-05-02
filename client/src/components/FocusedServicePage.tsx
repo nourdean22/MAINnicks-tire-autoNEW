@@ -54,11 +54,7 @@ import LossAversionStat from "./conversion/LossAversionStat";
 import ServiceTriageCard from "./conversion/ServiceTriageCard";
 import TextMeQuote from "./conversion/TextMeQuote";
 
-// v1.7 Grounded & Reliable strategy · default hero for all service silos
-// that don't override. Local asset, exterior signage approach — landmark
-// permanence per Nour's 2026-05-02 directive. Per-page configs can still
-// override via heroImage in their config object.
-const HERO_IMAGE_DEFAULT = "/photos/exterior-signage-approach.webp";
+const HERO_IMAGE_DEFAULT = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
 
 export interface ServicePricingTier {
   name: string;
