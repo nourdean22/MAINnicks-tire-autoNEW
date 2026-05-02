@@ -76,6 +76,7 @@ const DiagnosticsPage = lazy(() => import("./pages/DiagnosticsPage"));
 const CheckEngineLightDiagnosticPage = lazy(() => import("./pages/CheckEngineLightDiagnosticPage"));
 const UsedTiresClevelandPage = lazy(() => import("./pages/UsedTiresClevelandPage"));
 const NewTiresClevelandPage = lazy(() => import("./pages/NewTiresClevelandPage"));
+const TireBrandPage = lazy(() => import("./pages/TireBrandPage"));
 const TireShopNearMePage = lazy(() => import("./pages/TireShopNearMePage"));
 const AutoRepairNearMePage = lazy(() => import("./pages/AutoRepairNearMePage"));
 const TrackJob = lazy(() => import("./pages/TrackJob"));
@@ -137,6 +138,12 @@ function Router() {
             {/* High-volume tire-intent silos — used vs new buyer journeys */}
             <Route path={"/used-tires-cleveland"} component={UsedTiresClevelandPage} />
             <Route path={"/new-tires-cleveland"} component={NewTiresClevelandPage} />
+            {/* Tire-brand silos — single template (TireBrandPage) reading shared/tireBrands.ts */}
+            <Route path={"/michelin-tires-cleveland"} component={TireBrandPage} />
+            <Route path={"/goodyear-tires-cleveland"} component={TireBrandPage} />
+            <Route path={"/bridgestone-tires-cleveland"} component={TireBrandPage} />
+            <Route path={"/firestone-tires-cleveland"} component={TireBrandPage} />
+            <Route path={"/continental-tires-cleveland"} component={TireBrandPage} />
             <Route path={"/tire-shop-near-me"} component={TireShopNearMePage} />
             <Route path={"/auto-repair-near-me"} component={AutoRepairNearMePage} />
             <Route path={"/general-repair"} component={AutoRepairNearMePage} />
