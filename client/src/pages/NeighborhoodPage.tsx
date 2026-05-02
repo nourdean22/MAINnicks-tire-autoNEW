@@ -225,7 +225,8 @@ export default function NeighborhoodPage() {
       {/* Hero */}
       <section className="relative min-h-[60vh] lg:min-h-[70vh] flex items-end overflow-hidden">
         <div className="absolute inset-0">
-          <img loading="lazy" src={HERO_IMG} alt={`${BUSINESS.name} serving ${neighborhood.name}`} className="w-full h-full object-cover" />
+          {/* LCP fix · above-the-fold hero */}
+          <img loading="eager" fetchPriority="high" src={HERO_IMG} alt={`${BUSINESS.name} on Euclid Ave — auto repair near ${neighborhood.name}`} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/30" />
         </div>
 
