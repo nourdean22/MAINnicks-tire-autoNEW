@@ -7,7 +7,7 @@ import { useState } from "react";
 import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import PageLayout from "@/components/PageLayout";
-import { SEOHead } from "@/components/SEO";
+import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { Link } from "wouter";
 import { BUSINESS, SITE_URL } from "@shared/business";
 import { trpc } from "@/lib/trpc";
@@ -488,6 +488,8 @@ export default function Careers() {
         description="We're hiring automotive technicians, service advisors, and tire techs in Cleveland, Ohio. Family-owned shop. Honest work environment. No flat-rate grind. Apply now."
         canonicalPath="/careers"
       />
+      {/* v1.7 SEO · BreadcrumbList */}
+      <Breadcrumbs items={[{ label: "Careers" }]} />
       <JobPostingSchemas />
       <LocalBusinessSchema />
 

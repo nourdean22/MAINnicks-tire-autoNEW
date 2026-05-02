@@ -22,8 +22,21 @@
 
 import InternalLinks from "./InternalLinks";
 import PageLayout from "./PageLayout";
-import { SEOHead } from "./SEO";
+import { SEOHead, Breadcrumbs } from "./SEO";
 import LocalBusinessSchema from "./LocalBusinessSchema";
+
+// v1.7 SEO · breadcrumb label auto-derived from canonicalPath slug.
+// "/auto-repair-near-me" → "Auto Repair Near Me". Always works, no
+// per-page config knob needed. The Breadcrumbs component prepends
+// "Home" automatically, so we only pass the leaf.
+function slugToTitle(path: string): string {
+  return path
+    .replace(/^\//, "")
+    .split(/[-/]/)
+    .map((s) => (s ? s[0].toUpperCase() + s.slice(1) : ""))
+    .join(" ")
+    .trim();
+}
 import BookingForm from "./BookingForm";
 import FadeIn from "./FadeIn";
 import { BUSINESS } from "@shared/business";
@@ -443,6 +456,11 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
           },
         }}
       />
+      {/* v1.7 SEO · BreadcrumbList JSON-LD + visible nav. Single edit
+          here covers all 5 FocusedServicePage consumers (BrakeRepairPage,
+          DiagnosticsPage, AutoRepairNearMePage, TireShopNearMePage,
+          GenericServicePage). Rich-snippet eligibility = +CTR in SERP. */}
+      <Breadcrumbs items={[{ label: slugToTitle(config.canonicalPath) }]} />
       <Hero config={config} />
       {/* Anchor table renders ABOVE pricing — sets the dealer/chain
           reference frame so Nick's price feels like rescue. */}

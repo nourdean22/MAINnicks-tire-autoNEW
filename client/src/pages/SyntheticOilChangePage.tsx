@@ -19,7 +19,7 @@
 
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
-import { SEOHead } from "@/components/SEO";
+import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import BookingForm from "@/components/BookingForm";
 import FadeIn from "@/components/FadeIn";
@@ -246,6 +246,8 @@ export default function SyntheticOilChangePage() {
         description="Full synthetic oil change in Cleveland/Euclid from $69. Mobil 1, Pennzoil, Valvoline. 30-minute service, walk-ins 7 days. 10,000 mile intervals. (216) 862-0005"
         canonicalPath="/synthetic-oil-change"
       />
+      {/* v1.7 SEO · BreadcrumbList */}
+      <Breadcrumbs items={[{ label: "Synthetic Oil Change" }]} />
       <LocalBusinessSchema
         additionalSchema={{
           "hasOfferCatalog": {
