@@ -2129,7 +2129,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2025-10-15",
     readTime: "6 min read",
-    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-DE7GKwfCThaBL66r78QWkU.webp",
+    heroImage: "/photos/tire-stacks-overhead.webp",
     excerpt: "Cleveland gets lake effect snow that most cities never see. The tire you choose matters more here than almost anywhere else in the country.",
     sections: [
       {
@@ -2164,7 +2164,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2025-11-01",
     readTime: "5 min read",
-    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-DE7GKwfCThaBL66r78QWkU.webp",
+    heroImage: "/photos/tire-stacks-overhead.webp",
     excerpt: "You do not need special tools to check if your tires are safe. A penny, a quarter, and two minutes in your driveway tell you everything.",
     sections: [
       {
@@ -2199,7 +2199,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2025-11-15",
     readTime: "5 min read",
-    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-DE7GKwfCThaBL66r78QWkU.webp",
+    heroImage: "/photos/tire-stacks-overhead.webp",
     excerpt: "Every Cleveland driver knows the routine — TPMS light comes on the first cold morning of fall. Here is why it happens and what to actually do about it.",
     sections: [
       {
@@ -2234,7 +2234,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2025-12-01",
     readTime: "5 min read",
-    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-DE7GKwfCThaBL66r78QWkU.webp",
+    heroImage: "/photos/tire-stacks-overhead.webp",
     excerpt: "Tires should wear evenly across the tread. If yours are not, something is wrong — and Cleveland potholes are usually involved.",
     sections: [
       {
@@ -2269,7 +2269,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2025-12-15",
     readTime: "6 min read",
-    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-DE7GKwfCThaBL66r78QWkU.webp",
+    heroImage: "/photos/tire-stacks-overhead.webp",
     excerpt: "You do not need $200 per tire to drive safely in Cleveland. Budget brands have gotten much better. Here is what is actually worth buying.",
     sections: [
       {
@@ -2304,7 +2304,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2026-01-10",
     readTime: "5 min read",
-    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-DE7GKwfCThaBL66r78QWkU.webp",
+    heroImage: "/photos/tire-stacks-overhead.webp",
     excerpt: "Your tires might have plenty of tread left but still be unsafe. In Cleveland, age kills tires just as fast as miles do.",
     sections: [
       {
@@ -2339,7 +2339,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2026-01-20",
     readTime: "5 min read",
-    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-DE7GKwfCThaBL66r78QWkU.webp",
+    heroImage: "/photos/tire-stacks-overhead.webp",
     excerpt: "A blowout on I-90 at 65 mph is one of the scariest things that can happen behind the wheel. What you do in the first three seconds determines the outcome.",
     sections: [
       {
@@ -2374,7 +2374,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Tires",
     publishDate: "2026-02-01",
     readTime: "5 min read",
-    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-DE7GKwfCThaBL66r78QWkU.webp",
+    heroImage: "/photos/tire-stacks-overhead.webp",
     excerpt: "Bad alignment eats tires alive. In Cleveland, where potholes knock things out of spec every spring, alignment is not optional — it is tire insurance.",
     sections: [
       {
@@ -3078,7 +3078,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Seasonal",
     publishDate: "2026-04-08",
     readTime: "5 min read",
-    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-DE7GKwfCThaBL66r78QWkU.webp",
+    heroImage: "/photos/tire-stacks-overhead.webp",
     excerpt: "You just saw the first snowflake. Every Cleveland driver is thinking the same thing — are my tires ready? Here is the honest answer.",
     sections: [
       {
@@ -3218,7 +3218,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Vehicle-Specific",
     publishDate: "2026-04-12",
     readTime: "6 min read",
-    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-DE7GKwfCThaBL66r78QWkU.webp",
+    heroImage: "/photos/tire-stacks-overhead.webp",
     excerpt: "The Ford F-150 is the best-selling vehicle in America. Here is everything Cleveland F-150 owners need to know about tires — sizes, types, prices, and when to replace.",
     sections: [
       {
@@ -3428,7 +3428,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: "Trust",
     publishDate: "2026-04-18",
     readTime: "5 min read",
-    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-DE7GKwfCThaBL66r78QWkU.webp",
+    heroImage: "/photos/tire-stacks-overhead.webp",
     excerpt: "We sell a lot of used tires. Every single one goes through a thorough inspection process before it touches your car. Here is exactly what we check.",
     sections: [
       {
