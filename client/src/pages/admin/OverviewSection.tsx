@@ -530,19 +530,26 @@ export default function OverviewSection() {
   const filteredQueue = actionFilter === "all" ? priorityQueue : priorityQueue.filter(i => i.type === actionFilter);
 
   // Today's bookings
+  // v1.7 audit fix · pre-fix `new Date().toISOString()` was inside
+  // useMemo's compute and only re-ran when allBookings changed. If
+  // the admin tab stayed mounted across midnight, "today" stuck on
+  // yesterday's date and the timeline went blank until remount.
+  // Hoisting wouldn't help (memo wouldn't re-run); switching to a
+  // non-memoized computation per render is acceptable since the
+  // input is small (today's bookings, never thousands).
+  const todayKey = new Date().toISOString().split("T")[0];
   const todaysBookings = useMemo(() => {
     if (!allBookings) return [];
-    const today = new Date().toISOString().split("T")[0];
     return allBookings
       .filter((b: BookingItem) => {
         const d = typeof b.createdAt === "string" ? b.createdAt : new Date(b.createdAt).toISOString();
-        return b.preferredDate === today || d.startsWith(today);
+        return b.preferredDate === todayKey || d.startsWith(todayKey);
       })
       .sort((a: BookingItem, b: BookingItem) => {
         const timeOrder: Record<string, number> = { morning: 0, afternoon: 1, "no-preference": 2 };
         return (timeOrder[a.preferredTime || ""] ?? 2) - (timeOrder[b.preferredTime || ""] ?? 2);
       });
-  }, [allBookings]);
+  }, [allBookings, todayKey]);
 
   if (isLoading || !stats) {
     return <LoadingState label="Loading dashboard..." />;
@@ -1173,7 +1180,16 @@ export default function OverviewSection() {
                   <button
                     type="button"
                     onClick={() => handleMarkDone(item)}
-                    disabled={bookingUpdateStatus.isPending || leadUpdate.isPending || callbackUpdateStatus.isPending}
+                    // v1.7 audit fix · was OR'd across all 3 mutations,
+                    // freezing every row's button when ANY single
+                    // booking/lead/callback was being updated. Now
+                    // checks whether THIS specific item is the in-flight
+                    // mutation target via mutation.variables.id.
+                    disabled={
+                      (bookingUpdateStatus.isPending && bookingUpdateStatus.variables?.id === item.entityId) ||
+                      (leadUpdate.isPending && leadUpdate.variables?.id === item.entityId) ||
+                      (callbackUpdateStatus.isPending && callbackUpdateStatus.variables?.id === item.entityId)
+                    }
                     className="p-1.5 text-foreground/40 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-all disabled:opacity-30"
                     title="Mark contacted / done"
                   >

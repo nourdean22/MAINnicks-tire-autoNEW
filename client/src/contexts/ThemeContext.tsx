@@ -22,9 +22,16 @@ export function ThemeProvider({
   switchable = false,
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(() => {
-    if (switchable) {
-      const stored = localStorage.getItem("theme");
-      return (stored as Theme) || defaultTheme;
+    // v1.7 audit fix · pre-fix called localStorage.getItem in the
+    // useState lazy initializer. SSR / test environments throw
+    // ReferenceError. Now guarded with typeof window check.
+    if (switchable && typeof window !== "undefined") {
+      try {
+        const stored = window.localStorage.getItem("theme");
+        return (stored as Theme) || defaultTheme;
+      } catch {
+        // ignore — storage disabled / quota
+      }
     }
     return defaultTheme;
   });
