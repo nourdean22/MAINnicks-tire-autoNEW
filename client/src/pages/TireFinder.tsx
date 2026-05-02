@@ -1480,6 +1480,59 @@ export default function TireFinder() {
         </div>
       </section>
 
+      {/* ─── BROWSE BY INTENT — internal linking to silos ───
+          Critical for SEO: the dedicated tire silos (/used-tires-cleveland,
+          /new-tires-cleveland, brand pages) need crawl equity from the
+          /tires hub. Without these in-page links, the silos exist but
+          have no internal pagerank flowing into them. */}
+      <section className="container py-12 sm:py-16 border-t border-border/30">
+        <div className="grid gap-8 lg:grid-cols-[1fr_2fr] items-start">
+          <div>
+            <p className="text-xs font-semibold tracking-[0.18em] text-primary mb-2">BROWSE BY INTENT</p>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3">
+              Shopping for tires? Pick your starting point.
+            </h2>
+            <p className="text-foreground/65 leading-relaxed text-sm">
+              Each path below has its own dedicated guide — pricing, what's included, common questions.
+              Or call <a href="tel:2168620005" onClick={() => trackPhoneClick("tire-finder-browse-by")} className="text-primary hover:underline">(216) 862-0005</a> with
+              your tire size and we'll quote it on the phone.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <a href="/used-tires-cleveland" className="group block bg-card/60 border border-border/30 rounded-lg p-5 hover:border-primary/40 transition-colors">
+              <p className="text-xs font-mono text-primary tracking-wider mb-1">USED TIRES</p>
+              <h3 className="text-base font-bold text-foreground mb-1.5 group-hover:text-primary transition-colors">From $60 installed</h3>
+              <p className="text-foreground/60 text-xs leading-relaxed">Quality-inspected. Tread, sidewall, DOT date verified before install.</p>
+            </a>
+            <a href="/new-tires-cleveland" className="group block bg-card/60 border border-border/30 rounded-lg p-5 hover:border-primary/40 transition-colors">
+              <p className="text-xs font-mono text-primary tracking-wider mb-1">NEW TIRES</p>
+              <h3 className="text-base font-bold text-foreground mb-1.5 group-hover:text-primary transition-colors">Free $289 install package</h3>
+              <p className="text-foreground/60 text-xs leading-relaxed">Mount, balance, valve stems, TPMS, alignment check — included on every set.</p>
+            </a>
+            <a href="/michelin-tires-cleveland" className="group block bg-card/60 border border-border/30 rounded-lg p-4 hover:border-primary/40 transition-colors">
+              <p className="text-xs font-mono text-primary tracking-wider">BRAND</p>
+              <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">Michelin</h3>
+            </a>
+            <a href="/goodyear-tires-cleveland" className="group block bg-card/60 border border-border/30 rounded-lg p-4 hover:border-primary/40 transition-colors">
+              <p className="text-xs font-mono text-primary tracking-wider">BRAND</p>
+              <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">Goodyear</h3>
+            </a>
+            <a href="/bridgestone-tires-cleveland" className="group block bg-card/60 border border-border/30 rounded-lg p-4 hover:border-primary/40 transition-colors">
+              <p className="text-xs font-mono text-primary tracking-wider">BRAND</p>
+              <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">Bridgestone</h3>
+            </a>
+            <a href="/firestone-tires-cleveland" className="group block bg-card/60 border border-border/30 rounded-lg p-4 hover:border-primary/40 transition-colors">
+              <p className="text-xs font-mono text-primary tracking-wider">BRAND</p>
+              <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">Firestone</h3>
+            </a>
+            <a href="/continental-tires-cleveland" className="group block bg-card/60 border border-border/30 rounded-lg p-4 hover:border-primary/40 transition-colors">
+              <p className="text-xs font-mono text-primary tracking-wider">BRAND</p>
+              <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">Continental</h3>
+            </a>
+          </div>
+        </div>
+      </section>
+
       {/* ─── FINANCING CTA ─── */}
       <section className="container py-8">
         <FinancingCTA variant="banner" />
