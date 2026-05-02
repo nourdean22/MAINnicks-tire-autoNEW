@@ -326,12 +326,18 @@ async function main() {
             );
           }
 
-          // INSERT H1 if missing (critical for SEO — fixes "H1 tag missing" errors)
+          // INSERT H1 if missing (critical for SEO — fixes "H1 tag missing" errors).
+          // Use escReplace on title because route titles contain `$` for pricing
+          // (e.g. "$149/Axle") and would otherwise be interpreted as
+          // capture-group backreferences in the replacement string.
           if (routeInfo && !/<h1[\s>]/i.test(html)) {
-            // Inject a visually-hidden H1 into <main> or <body>
-            const h1Tag = `<h1 style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0">${routeInfo.title}</h1>`;
-            if (html.includes('id="main-content"')) {
-              html = html.replace('id="main-content">', `id="main-content">${h1Tag}`);
+            const h1Title = routeInfo.title ? escReplace(routeInfo.title) : "";
+            const h1Tag = `<h1 style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0">${h1Title}</h1>`;
+            // Match <main ...id="main-content"...> with ANY attributes/order
+            // (PageLayout renders <main id="main-content" className="flex-1">,
+            // so the literal string "id=\"main-content\">" never matched).
+            if (/<main[^>]*id="main-content"[^>]*>/i.test(html)) {
+              html = html.replace(/(<main[^>]*id="main-content"[^>]*>)/i, `$1${h1Tag}`);
             } else if (html.includes('<main')) {
               html = html.replace(/<main([^>]*)>/, `<main$1>${h1Tag}`);
             }

@@ -165,95 +165,11 @@
     }
     </script>
 
-    <!-- Structured Data: FAQPage -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "FAQPage",
-      "mainEntity": [
-        {
-          "@type": "Question",
-          "name": "Do I need an appointment at Nick's Tire & Auto?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "No. Walk-ins are welcome 7 days a week. For faster service, you can book online at nickstire.org/booking."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "How much does a flat tire repair cost in Cleveland?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Flat tire repair at Nick's Tire & Auto is one of our cheapest line items. Most repairs are completed in about 15 minutes using the professional plug-and-patch method. Free quote on inspection — call (216) 862-0005 or walk in."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "What are Nick's Tire & Auto's hours?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Monday through Saturday 8:00 AM to 6:00 PM, Sunday 9:00 AM to 4:00 PM. Open 7 days a week, walk-ins welcome."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Does Nick's Tire & Auto offer financing with no credit check?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes. Four no-credit-check financing providers: Acima (up to $5,000), Snap Finance (up to $5,000), Koalafi (up to $7,500), and American First Finance (up to $5,000). Apply online or at the counter in minutes."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "How much does an oil change cost at Nick's Tire & Auto?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Pricing depends on your vehicle's oil specification (conventional, synthetic blend, or full synthetic). Every oil change includes new filter, free 27-point multi-point inspection, and tire pressure check. Walk in or call (216) 862-0005 for a live quote on your vehicle."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Does Nick's Tire & Auto do Ohio E-Check emissions testing?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes. Nick's is a certified Ohio E-Check emissions testing station. Walk-ins welcome, usually completed in 20-30 minutes. They also perform emissions repair if your vehicle fails."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "How much does brake repair cost in Cleveland?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "It depends on what's worn — pads only is the cheapest fix; pads + rotors is the most common; full brake jobs (calipers, lines) run highest. Free brake inspection plus a written estimate before any work — they show you the worn parts before anything gets replaced. Same-day service available."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Does Nick's sell used tires?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Yes. Quality-inspected used tires installed with free mount, balance, and disposal. Every used tire is checked for tread depth, sidewall condition, and dry rot before it goes on. Walk in or call (216) 862-0005 for a live quote on your size."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "How does Nick's Tire & Auto pricing compare to dealerships?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Nick's typically runs 30-50% less than dealerships across the board. We give a free written estimate before any work so you can compare side-by-side with a dealer quote — same brand pads and rotors, same warranty, lower bill. Plus Nick's offers a 12-month / 12,000-mile warranty in writing on every repair."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "What should I do if my check engine light is on?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "If the check engine light is solid, you can drive to the shop safely but get it checked soon. If the light is flashing, pull over and do not drive — this indicates a severe misfire that can damage the catalytic converter. Nick's offers a free 5-minute code scan on the spot; deeper diagnostic gets a written estimate before any work, credited toward the repair if we fix it."
-          }
-        }
-      ]
-    }
-    </script>
+    <!-- FAQPage schema removed from index.html in 2026-04 to prevent
+         "duplicate FAQPage" structured data errors across the site. Each page
+         that has FAQ content (Home, ServicePage, FAQ, BrakeRepair, etc.)
+         renders its OWN FAQPage schema scoped to that page's questions. The
+         shop-wide FAQ now lives only on the dedicated /faq route. -->
 
     <!-- Structured Data: WebSite with SearchAction -->
     <script type="application/ld+json">
