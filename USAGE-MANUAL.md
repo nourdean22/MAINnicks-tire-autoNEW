@@ -209,7 +209,7 @@ SEO pages for local search — each targets "[city] auto repair":
 | Database | TiDB Cloud (MySQL) | gateway01.us-east-1.prod.aws.tidbcloud.com |
 | SMS | Twilio | Via API |
 | Analytics | Umami + GA4 + Meta Pixel | Built-in |
-| OG Images | CloudFront CDN | d2xsxph8kpxj0f.cloudfront.net |
+| OG Images | Self-hosted (v1.7+) | client/public/photos/*.webp served from /photos/ |
 | NOUR OS | Vercel | autonicks.com |
 
 ### Tech Stack

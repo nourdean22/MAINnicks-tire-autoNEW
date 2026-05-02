@@ -55,6 +55,24 @@ console.log("[regen] Step 1/4 — rebuilding client + server…");
 // Windows where corepack's pnpm shim can be broken after Node upgrades.
 execSync("npm run build", { cwd: ROOT, stdio: "inherit" });
 
+// ─── Step 1.5: nuke stale prerendered/ so middleware can't short-circuit ─
+//
+// The prerender-middleware serves prerendered/<route>/index.html to bot
+// UAs. Puppeteer identifies as Googlebot to avoid the bare-SPA-shell
+// path. Without this delete, Puppeteer would just receive the OLD
+// prerendered HTML and copy it back, defeating the whole regen.
+//
+// We keep the prod tree intact during the regen window (server reads
+// from project root /prerendered which we just removed) — when nothing
+// is found, the middleware's "no prerendered directory found" branch
+// fires and falls through to the SPA, which hydrates and renders the
+// fresh DOM that Puppeteer captures.
+console.log(`\n[regen] Step 1.5/4 — clearing stale prerendered/ so middleware can't short-circuit…`);
+if (fs.existsSync(PRERENDER_DIR_FINAL)) {
+  fs.rmSync(PRERENDER_DIR_FINAL, { recursive: true, force: true });
+  console.log(`[regen] Cleared ${PRERENDER_DIR_FINAL}`);
+}
+
 // ─── Step 2: launch server ────────────────────────────
 const port = await findFreePort();
 console.log(`\n[regen] Step 2/4 — launching server on :${port}…`);
