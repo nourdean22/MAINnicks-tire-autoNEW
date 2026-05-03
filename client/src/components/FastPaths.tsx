@@ -51,7 +51,7 @@ const PATHS = [
   {
     icon: DollarSign,
     label: "I can't afford the repair right now",
-    sub: "$10 down · All credit · Approved in minutes",
+    sub: "Approved on the spot · All credit welcome",
     href: "/financing",
     accent: "border-emerald-500/30 hover:border-emerald-500/60 hover:bg-emerald-950/15",
     iconClass: "text-emerald-400",

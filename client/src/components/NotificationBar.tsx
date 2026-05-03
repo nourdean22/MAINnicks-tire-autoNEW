@@ -217,7 +217,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
   {
     id: "acima-1",
     strategy: "loss_aversion",
-    text: "Unexpected repair? $10 down with Acima lease-to-own — drive today, pay over time.",
+    text: "Unexpected repair? Acima lease-to-own approved on the spot — drive today, pay over time.",
     disclosure: ACIMA_COMPACT_DISCLOSURE,
     cta: "Learn More",
     ctaHref: "/financing?utm_source=notification_bar",
@@ -226,7 +226,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
   {
     id: "acima-2",
     strategy: "value_anchor",
-    text: "Need tires? $10 initial payment with Acima — no credit history needed.",
+    text: "Need tires? Acima approves you on the spot — no credit history needed.",
     disclosure: ACIMA_COMPACT_DISCLOSURE,
     cta: "Learn More",
     ctaHref: "/financing?utm_source=notification_bar",

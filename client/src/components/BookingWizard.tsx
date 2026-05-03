@@ -13,7 +13,7 @@ import { BUSINESS } from "@shared/business";
 
 // ─── SERVICE CARDS ────────────────────────────────────
 const SERVICE_CARDS = [
-  { key: "Tires — New, Used, Repair", label: "Tires", price: "Used from $60", icon: CircleDot },
+  { key: "Tires — New, Used, Repair", label: "Tires", price: "Free install on every set", icon: CircleDot },
   { key: "Brake Repair", label: "Brakes", price: "Free inspection", icon: AlertCircle },
   { key: "Check Engine Light / Diagnostics", label: "Diagnostics", price: "Written estimate", icon: Gauge },
   { key: "Ohio E-Check / Emissions Repair", label: "Emissions", price: "Walk-in today", icon: Thermometer },
@@ -268,7 +268,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
               href="/financing"
               className="inline-flex items-center gap-2 border border-foreground/30 text-foreground/80 px-5 py-3 rounded-lg font-semibold text-[13px] hover:border-primary hover:text-primary transition-colors"
             >
-              See $0-down financing
+              See Financing Options
             </a>
           </div>
         </motion.div>

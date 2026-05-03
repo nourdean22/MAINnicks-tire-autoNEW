@@ -189,7 +189,7 @@ export default function LeadPopup() {
                     Describe your vehicle problem and we'll call you with an honest assessment. No obligation.
                   </p>
                   <p className="text-[11px] text-emerald-400/70 mt-1">
-                    Payment options available including lease-to-own from $10 down.
+                    Lease-to-own and financing approved on the spot — no credit check.
                   </p>
 
                   <form onSubmit={handleSubmit} className="mt-5 space-y-3">

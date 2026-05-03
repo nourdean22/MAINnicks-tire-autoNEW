@@ -90,7 +90,7 @@ export default function StickyTrustBar() {
         {/* Right: Financing */}
         <div className="flex items-center gap-1.5 shrink-0">
           <DollarSign className="w-3.5 h-3.5 text-[#FDB913]" />
-          <span>$0 Down Financing Available</span>
+          <span>Financing approved on the spot</span>
         </div>
       </div>
 
@@ -128,7 +128,7 @@ export default function StickyTrustBar() {
         <span className="w-px h-3.5 bg-[#F5F5F5]/10 shrink-0" />
 
         {/* Financing */}
-        <span className="shrink-0">$0 Down Financing</span>
+        <span className="shrink-0">Financing on the spot</span>
       </div>
     </motion.div>
   );

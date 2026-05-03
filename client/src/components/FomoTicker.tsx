@@ -28,7 +28,7 @@ const FALLBACK_ENTRIES: FomoEntry[] = [
   { type: "booking", message: "Someone in Parma just scheduled a drop-off for diagnostics", minutesAgo: 4 },
   { type: "review", message: "\u2605\u2605\u2605\u2605\u2605 \"Didn't even get out of my car. They came out, fixed it, brought the receipt. Amazing.\"", minutesAgo: 25 },
   { type: "completed", message: "A 2021 Toyota Camry just got brakes done — dropped off this morning", minutesAgo: 15 },
-  { type: "review", message: "\u2605\u2605\u2605\u2605\u2605 \"Best tire shop in Cleveland. Used tire for $60, in and out in 15 min.\"", minutesAgo: 40 },
+  { type: "review", message: "\u2605\u2605\u2605\u2605\u2605 \"Best tire shop in Cleveland. Used tire mounted, in and out before my coffee got cold.\"", minutesAgo: 40 },
   { type: "booking", message: "Someone in Cleveland Heights just booked online — skipped the line", minutesAgo: 18 },
   { type: "review", message: "\u2605\u2605\u2605\u2605\u2605 \"Nick and his team are the real deal. Fair prices, honest work.\"", minutesAgo: 55 },
   { type: "completed", message: "A 2022 Ford Escape just got an oil change — same day drop-off", minutesAgo: 22 },
