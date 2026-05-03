@@ -41,9 +41,18 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     const { sql } = await import("drizzle-orm");
     const d = await getDb();
     if (!d) return { error: "No DB" };
+    // v1.7.6 · ET-anchored "today". Prior code used CURDATE() which
+    // runs in the DB server's timezone (UTC). Cleveland is ET — late
+    // evening ET, UTC has already rolled to the next day, so the
+    // query missed all of "today's" invoices and Nour's daily-driver
+    // showed $0. CONVERT_TZ pins the comparison to America/New_York
+    // for both sides of the equation; matches the controlCenter.ts
+    // getTodayET() pattern used elsewhere in the codebase.
     const [rows] = await d.execute(sql`
       SELECT COALESCE(SUM(totalAmount), 0) as totalCents, COUNT(*) as invoiceCount
-      FROM invoices WHERE DATE(invoiceDate) = CURDATE()
+      FROM invoices
+      WHERE DATE(CONVERT_TZ(invoiceDate, '+00:00', 'America/New_York'))
+          = DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))
     `);
     const r = (rows as Record<string, unknown>[])?.[0] || rows as Record<string, unknown>;
     return { totalCents: Number(r.totalCents || 0), totalDollars: Number(r.totalCents || 0) / 100, invoiceCount: Number(r.invoiceCount || 0) };
@@ -76,9 +85,12 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     const { sql } = await import("drizzle-orm");
     const d = await getDb();
     if (!d) return { error: "No DB" };
+    // v1.7.6 · ET-anchored "today" — same fix as revenue_today.
     const [rows] = await d.execute(sql`
       SELECT id, name, phone, source, status, urgencyScore, createdAt
-      FROM leads WHERE DATE(createdAt) = CURDATE()
+      FROM leads
+      WHERE DATE(CONVERT_TZ(createdAt, '+00:00', 'America/New_York'))
+          = DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))
       ORDER BY createdAt DESC LIMIT 50
     `);
     return { leads: rows, count: (rows as unknown[]).length };
@@ -116,9 +128,15 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     const { sql } = await import("drizzle-orm");
     const d = await getDb();
     if (!d) return { error: "No DB" };
+    // v1.7.6 · ET-anchored "today" — same fix as revenue_today.
+    // preferredDate is a DATE column (no time), compared against the
+    // ET-anchored current date string directly.
     const [rows] = await d.execute(sql`
       SELECT id, name, phone, service, vehicle, status, preferredDate, urgency, referenceCode, createdAt
-      FROM bookings WHERE DATE(createdAt) = CURDATE() OR preferredDate = CURDATE()
+      FROM bookings
+      WHERE DATE(CONVERT_TZ(createdAt, '+00:00', 'America/New_York'))
+          = DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))
+        OR preferredDate = DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))
       ORDER BY createdAt DESC LIMIT 50
     `);
     return { bookings: rows, count: (rows as unknown[]).length };
