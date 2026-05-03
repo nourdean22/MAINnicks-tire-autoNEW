@@ -128,6 +128,22 @@ export default function ServicesOverview() {
       />
       <Breadcrumbs items={[{ label: "Services", href: "/services" }]} />
 
+      {/* Panoramic shop banner — real photo of the lot, full breadth of operation */}
+      <section className="relative h-[280px] sm:h-[340px] lg:h-[420px] overflow-hidden">
+        <img
+          src="/services-panoramic.webp"
+          alt="Panoramic view of Nick's Tire & Auto on Euclid Ave Cleveland — full lot, multiple bays, real working shop"
+          className="absolute inset-0 w-full h-full object-cover"
+          loading="eager"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/60 to-background/40" />
+        <div className="absolute inset-0 flex items-end pb-10">
+          <div className="container">
+            <span className="font-mono text-primary text-xs tracking-[0.2em] uppercase">17625 Euclid Ave · One Shop · Every Repair</span>
+          </div>
+        </div>
+      </section>
+
       {/* Hero Section */}
       <section className="relative py-16 lg:py-24 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-nick-yellow/5 to-transparent" />
@@ -139,7 +155,7 @@ export default function ServicesOverview() {
               <span className="text-primary">SERVICES</span>
             </h1>
             <p className="mt-6 text-foreground/70 text-lg leading-relaxed max-w-2xl">
-              From routine oil changes to complex engine diagnostics, our experienced technicians handle every repair with honest communication and fair pricing. We explain the problem, show you the worn parts, and let you decide — no pressure, no upselling.
+              From routine oil changes to complex engine diagnostics, our crew handles every repair the same way: explain the problem, show you the worn parts on a lift, let you decide. No pressure, no upsells, no mystery line items at checkout. We're a real shop with real bays — pull up any day of the week.
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
               <a

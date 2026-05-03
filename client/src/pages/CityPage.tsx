@@ -17,7 +17,9 @@ import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
 import FadeIn from "@/components/FadeIn";
 
-const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
+// Real shop hero — propagates to all 14+ city pages (Euclid, Lakewood, Parma,
+// Parma Heights, East Cleveland, Shaker Heights, Cleveland Heights, etc.)
+const HERO_IMG = "/storefront-day.webp";
 
 // ─── NAVBAR ───────────────────────────────────────────
 function CityNavbar({ city }: { city: CityData }) {
