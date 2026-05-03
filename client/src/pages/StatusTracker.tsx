@@ -65,6 +65,7 @@ export default function StatusTracker() {
         title="Check Your Vehicle Status | Nick's Tire & Auto"
         description="Track your vehicle repair progress in real time. Enter your phone number or reference code to see where your car is in the repair process."
         canonicalPath="/status"
+        robots="noindex, follow"
       />
       <Breadcrumbs items={[{ label: "Service Status", href: "/status" }]} />
       <LocalBusinessSchema />

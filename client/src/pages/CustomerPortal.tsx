@@ -94,6 +94,7 @@ export default function CustomerPortal() {
         title="Customer Portal | Nick's Tire & Auto Cleveland"
         description="Access your vehicle service history, upcoming maintenance reminders, and invoices at Nick's Tire & Auto in Cleveland. Log in with your phone number."
         canonicalPath="/portal"
+        robots="noindex, follow"
       />
       <NotificationBar />
       {/* Header */}

@@ -199,6 +199,7 @@ export default function MyGaragePage() {
         title="My Garage | Nick's Tire & Auto Cleveland"
         description="Save your vehicles, track service history, and get personalized maintenance reminders at Nick's Tire & Auto in Cleveland."
         canonicalPath="/my-garage"
+        robots="noindex, follow"
       />
       <LocalBusinessSchema />
       

@@ -56,6 +56,28 @@ const REDIRECTS: RedirectRule[] = [
 
   // General-repair cluster
   { from: "/general-repair-cleveland",        to: "/auto-repair-near-me", reason: "general-repair got merged into /auto-repair-near-me" },
+  { from: "/general-repair",                  to: "/auto-repair-near-me", reason: "consolidate /general-repair (which renders AutoRepairNearMePage anyway) into the canonical URL — kills duplicate-content split" },
+
+  // ─── 2026-05-03 PAGE-PRUNING SPRINT ─────────────────
+  // GSC showed 181 pages stuck in 'Discovered - currently not indexed' due
+  // to crawl-budget starvation. Below: consolidate alias URLs that split
+  // signal across multiple paths into one canonical per intent.
+
+  // Moe's Tire bridge aliases — capture variant queries, consolidate to canonical
+  { from: "/moes-tire",                       to: "/moes-tire-euclid", reason: "alias of canonical Moe's bridge page; 2026-05-03 prune sprint" },
+  { from: "/moes-tires",                      to: "/moes-tire-euclid", reason: "alias of canonical Moe's bridge page; 2026-05-03 prune sprint" },
+  { from: "/moes-auto",                       to: "/moes-tire-euclid", reason: "alias of canonical Moe's bridge page; 2026-05-03 prune sprint" },
+
+  // Sunday-muffler aliases
+  { from: "/muffler-shop-sunday",             to: "/muffler-shop-open-sunday-cleveland", reason: "shorter alias → long-tail canonical; 2026-05-03" },
+  { from: "/sunday-mechanic-cleveland",       to: "/muffler-shop-open-sunday-cleveland", reason: "broader-intent alias → canonical; 2026-05-03" },
+
+  // Booking / appointment duplicates
+  { from: "/appointment",                     to: "/booking", reason: "duplicate booking flow; canonical is /booking" },
+
+  // Pricing-tool duplicates — three pages were doing the same job
+  { from: "/estimate",                        to: "/pricing", reason: "third pricing tool consolidated; canonical is /pricing" },
+  { from: "/cost-estimator",                  to: "/pricing", reason: "third pricing tool consolidated; canonical is /pricing" },
 ];
 
 // Returns a 301 redirect if the path matches, otherwise falls through.
