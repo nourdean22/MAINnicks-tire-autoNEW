@@ -11,11 +11,11 @@ import { Disc, Activity, Wrench } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/brakes",
-  title: "Brake Repair Cleveland | Free Inspection · Same Day | Nick's Tire & Auto",
-  description: "Brake repair in Cleveland/Euclid. Free inspection, written estimate before any work. Quality pads, rotors if needed. Most done same day. Walk-ins 7 days. (216) 862-0005",
-  eyebrow: "BRAKE SERVICE",
+  title: "Brake Repair Cleveland · Free Inspection · $10 Down | Nick's Tire & Auto",
+  description: "Brake repair Cleveland & Euclid — free inspection, written estimate before any work. Pads, rotors, calipers, ABS. Most done same day. $10-down financing, no credit check. 4.9★ 1,700+ reviews. Walk-ins 7 days. (216) 862-0005",
+  eyebrow: "BRAKE REPAIR CLEVELAND · WALK-IN 7 DAYS",
   h1: "BRAKE REPAIR CLEVELAND",
-  sub: "Squealing, grinding, or soft pedal? Brake repair at Nick's Tire & Auto in Euclid. Free inspection on every visit, written estimate before we touch the car. Quality pads, honest diagnosis — we don't replace what doesn't need replacing. Walk-ins 7 days a week.",
+  sub: "Squealing, grinding, soft pedal, or pulsation? Brake repair at Nick's Tire & Auto on Euclid Ave. Free brake inspection — we put it on a lift and show you the worn pad before any work. Written estimate, no upsells, no \"we found something else.\" $10-down financing approved in 90 seconds, no credit check. Walk-ins 7 days, most jobs done same day. 4.9★ across 1,700+ verified Google reviews.",
   startingPrice: "Free inspection · written estimate",
   pricingTitle: "BRAKE SERVICE — THREE LEVELS",
   pricingSub: "Free written estimate after inspection. We show you the worn pad before we touch anything.",

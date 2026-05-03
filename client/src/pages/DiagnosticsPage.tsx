@@ -10,11 +10,11 @@ import { Disc, AlertTriangle, Clock } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/diagnostics",
-  title: "Check Engine Light Cleveland | Free Scan | Nick's Tire & Auto",
-  description: "Check engine light on? Free code scan at Nick's Tire & Auto in Cleveland/Euclid. Honest diagnosis, no upsell. Most scans in 15 min. Walk-ins 7 days. (216) 862-0005",
-  eyebrow: "DIAGNOSTICS",
+  title: "Check Engine Light Cleveland · Free 5-Min Scan · $10 Down | Nick's",
+  description: "Check engine light on? Free 5-minute OBD-II code scan in Cleveland/Euclid. Honest diagnosis, written estimate before any work, no upsells. $10-down financing — no credit check. Walk-ins 7 days · same-day repair on most codes. (216) 862-0005",
+  eyebrow: "CHECK ENGINE LIGHT · DIAGNOSTICS · CLEVELAND",
   h1: "CHECK ENGINE LIGHT CLEVELAND",
-  sub: "Check engine light on? Pull up. Free code scan at Nick's Tire & Auto. We tell you what the code actually means — and what it'll really cost to fix — before you authorize anything. 30+ years diagnosing Cleveland cars.",
+  sub: "Check engine light on, flashing, or staying solid? Pull up to Nick's Tire & Auto on Euclid Ave for a free 5-minute OBD-II scan. We tell you what the code actually means — and what it'll really cost to fix — before you authorize a wrench. Most scans done while you wait. Same-day repair on most codes. $10-down financing if you need it. 30+ years diagnosing Cleveland cars · 4.9★ across 1,700+ Google reviews.",
   startingPrice: "Free code scan",
   pricingTitle: "DIAGNOSTIC LEVELS",
   pricingSub: "Starts free. Anything beyond a code scan gets a written estimate before we start.",
