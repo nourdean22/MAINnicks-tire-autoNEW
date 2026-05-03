@@ -11,8 +11,8 @@ import FocusedServicePage, { type ServicePageConfig } from "@/components/Focused
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/tire-shop-near-me",
-  title: "Tire Shop Near Me — Open 7 Days · Cleveland · $10 Down | Nick's",
-  description: "Cleveland tire shop · open 7 days · walk-ins welcome. Used tires from $60 installed FREE. New tires with $10 down financing — no credit check. 4.9★ 1,700+ reviews. (216) 862-0005",
+  title: "Tire Shop Near Me · Cleveland · Open 7 Days, Even Sunday | Nick's",
+  description: "Cleveland's neighborhood tire shop on Euclid Ave. New & used tires installed free, mount + balance + valve stems + alignment check included on every set. Open 7 days, walk-ins welcome, financing on the spot. 4.9★ across 1,700+ reviews — and the lady whose Civic survived 287,000 miles. (216) 862-0005",
   eyebrow: "LOCAL TIRE SHOP",
   h1: "TIRE SHOP NEAR YOU — CLEVELAND / EUCLID",
   sub: "Searching for a tire shop near me? Nick's Tire & Auto at 17625 Euclid Ave, Cleveland is open 7 days a week with walk-ins welcome. New & used tires with free mounting, balancing, and alignment check. Walk in or call for a free quote on your exact size. Most installs in 30-45 minutes.",
