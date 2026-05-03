@@ -54,7 +54,12 @@ import LossAversionStat from "./conversion/LossAversionStat";
 import ServiceTriageCard from "./conversion/ServiceTriageCard";
 import TextMeQuote from "./conversion/TextMeQuote";
 
-const HERO_IMAGE_DEFAULT = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
+// Default hero swapped from CloudFront stock → real shop storefront (May 2026).
+// This propagates the real photo to every service page using FocusedServicePage
+// that doesn't override `heroImage` — brakes, diagnostics, used-tires, new-tires,
+// tire-shop-near-me, auto-repair-near-me, and more. Pages with stronger visual
+// context override via config.heroImage.
+const HERO_IMAGE_DEFAULT = "/storefront-day.webp";
 
 export interface ServicePricingTier {
   name: string;
