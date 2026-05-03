@@ -44,6 +44,7 @@ export default function TrackJob() {
         title="Track Your Vehicle Repair | Nick's Tire & Auto Cleveland"
         description="Track your vehicle repair status in real-time at Nick's Tire & Auto. Enter your order number and phone to see live updates on your service."
         canonicalPath="/track"
+        robots="noindex, follow"
       />
       <div className="w-full max-w-md space-y-6">
         {/* Header */}

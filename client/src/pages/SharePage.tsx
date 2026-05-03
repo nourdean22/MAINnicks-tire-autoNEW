@@ -148,6 +148,7 @@ export default function SharePage() {
           title="Service Summary"
           description="Service completion summary"
           canonicalPath={`/share/${token}`}
+          robots="noindex, nofollow"
         />
         <div className="container min-h-screen flex items-center justify-center">
           <div className="text-center space-y-4">
@@ -166,6 +167,7 @@ export default function SharePage() {
           title="Service Summary Not Found"
           description="Service summary not available"
           canonicalPath={`/share/${token}`}
+          robots="noindex, nofollow"
         />
         <div className="container min-h-screen flex items-center justify-center">
           <div className="text-center space-y-6 max-w-md">
@@ -194,6 +196,7 @@ export default function SharePage() {
         title={pageTitle}
         description={pageDescription}
         canonicalPath={`/share/${token}`}
+        robots="noindex, nofollow"
       />
 
       {/* Hero - Branded Background */}

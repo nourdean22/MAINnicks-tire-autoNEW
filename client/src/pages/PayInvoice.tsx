@@ -48,6 +48,7 @@ export default function PayInvoice() {
         title="Pay Invoice — Nick's Tire & Auto"
         description="Pay your invoice online. Enter your invoice number and phone to pull up your bill and pay with credit card."
         canonicalPath="/pay"
+        robots="noindex, follow"
       />
 
       <section className="bg-[oklch(0.065_0.004_260)] pt-28 pb-16 lg:pt-36 lg:pb-20">
