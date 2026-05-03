@@ -107,7 +107,7 @@ function Hero() {
             transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
             className="mt-6 text-lg sm:text-xl lg:text-2xl font-sans text-[#A0A0A0] max-w-lg"
           >
-            Cleveland&rsquo;s #1 tire and auto shop. We show you the problem before we fix it.
+            Used tires from $40 installed free. $10 down financing — no credit check. Walk-ins 7 days. You see the problem. Then we fix it.
           </motion.p>
 
           {/* CTA buttons */}
@@ -130,7 +130,7 @@ function Hero() {
               href="#booking"
               className="inline-flex items-center justify-center gap-2 border-2 border-[#FDB913] text-[#FDB913] px-8 py-3.5 rounded-lg font-semibold text-lg hover:bg-[#FDB913]/10 transition-colors btn-premium"
             >
-              Drop Off Your Car
+              Get $10-Down Quote
             </a>
           </motion.div>
 
@@ -150,9 +150,9 @@ function Hero() {
               </span>
               {rating.toFixed(1)} from {totalReviews.toLocaleString()}+ reviews
             </span>
-            <span className="text-[#A0A0A0]">&bull; Same-day service</span>
-            <span className="text-[#A0A0A0]">&bull; Walk-ins welcome</span>
-            <span className="text-[#A0A0A0]">&bull; Open 7 days</span>
+            <span className="text-[#A0A0A0]">&bull; $10 down · no credit check</span>
+            <span className="text-[#A0A0A0]">&bull; Same-day · walk-ins 7 days</span>
+            <span className="text-[#A0A0A0]">&bull; Free install on tires</span>
           </motion.div>
           <motion.div
             initial={{ opacity: 0 }}
@@ -188,9 +188,9 @@ function TrustNumbers() {
 
   const stats = [
     { value: String(googleData?.rating ?? BUSINESS.reviews.rating), label: "Google Rating" },
-    { value: `${totalReviews.toLocaleString()}+`, label: "Reviews" },
-    { value: "7", label: "Days a Week" },
-    { value: "Same Day", label: "Most Repairs" },
+    { value: `${totalReviews.toLocaleString()}+`, label: "5-Star Reviews" },
+    { value: "$10", label: "Down · No Credit" },
+    { value: "Same Day", label: "Walk-Ins 7 Days" },
   ];
 
   return (
@@ -220,13 +220,13 @@ function UsedTiresCallout() {
           <div className="text-center lg:text-left">
             <FadeIn>
               <h2 className="font-heading text-4xl lg:text-5xl font-extrabold text-black uppercase tracking-tight">
-                USED TIRES FROM $60
+                USED TIRES FROM $40 — INSTALLED FREE
               </h2>
               <p className="mt-2 text-black/70 text-lg lg:text-xl font-medium max-w-lg">
-                Pull up. Stay in your car. We come out to you.
+                Pull up. Stay in your car. Free mount, balance, valve stems — out the door in 20 minutes.
               </p>
               <p className="mt-1 text-black/50 text-sm lg:text-base max-w-lg">
-                In and out in under 20 minutes — rain or shine. Like a pit stop for your car.
+                $10 down financing on tire sets. Every size, every car. 7 days a week — rain, snow, or shine.
               </p>
             </FadeIn>
           </div>
@@ -244,7 +244,7 @@ function UsedTiresCallout() {
                 href="/tires"
                 className="inline-flex items-center justify-center gap-2 border-2 border-black text-black px-8 py-3.5 rounded-lg font-bold text-base hover:bg-black/10 transition-colors"
               >
-                See Tire Options
+                See Tires from $40
                 <ArrowRight className="w-5 h-5" />
               </Link>
             </div>
@@ -260,30 +260,30 @@ const services = [
   {
     title: "Tires",
     slug: "/tires",
-    desc: "New and used tires. Mounting, balancing, rotation, TPMS sensors, and flat repair.",
+    desc: "New & used tires Cleveland. Free mount, balance, rotation, TPMS sensors, flat repair. $10 down financing — no credit check.",
     img: TIRES_IMG,
-    price: "Quality tires at fair prices",
+    price: "Used from $40 · installed free",
   },
   {
     title: "Brakes",
     slug: "/brakes",
-    desc: "Pads, rotors, calipers, brake lines, and ABS diagnostics. We show you the problem first.",
+    desc: "Pads, rotors, calipers, brake lines, ABS diagnostics. We show you the worn parts before we touch the bill.",
     img: BRAKES_IMG,
-    price: "Free inspection",
+    price: "Free brake inspection",
   },
   {
     title: "Diagnostics",
     slug: "/diagnostics",
-    desc: "Check engine light, OBD-II code reading, advanced computer diagnostics.",
+    desc: "Check engine light, OBD-II code reading, advanced computer diagnostics. Free 5-min scan, written estimate before any work.",
     img: DIAG_IMG,
-    price: "Free scan with repair",
+    price: "Free scan · written estimate",
   },
 ];
 
 const moreServices = [
-  { title: "Emissions & E-Check", slug: "/emissions", desc: "Failed Ohio E-Check? We diagnose and repair emissions problems.", price: "Walk-ins welcome" },
-  { title: "Oil Change", slug: "/oil-change", desc: "Conventional and synthetic oil changes. Quick, affordable, done right.", price: "Quick service" },
-  { title: "General Repair", slug: "/general-repair", desc: "Suspension, steering, exhaust, cooling systems, belts, hoses, and more.", price: "Free estimate" },
+  { title: "Emissions & E-Check", slug: "/emissions", desc: "Failed Ohio E-Check Cleveland? State-certified emissions repair — pass guaranteed or we keep working.", price: "Same-day fix · walk-ins" },
+  { title: "Oil Change", slug: "/oil-change", desc: "Cheap oil change Cleveland — conventional & synthetic. Free 27-point inspection on every service.", price: "From $29.99 · in & out fast" },
+  { title: "General Repair", slug: "/general-repair", desc: "Suspension, steering, exhaust, cooling systems, belts, hoses, electrical — full-service auto repair Cleveland.", price: "Free estimate · all makes" },
 ];
 
 function Services() {
@@ -355,20 +355,21 @@ function WhyUs() {
           <FadeIn delay={0.15}>
             <div>
               <h2 className="font-heading text-4xl lg:text-5xl font-bold text-foreground tracking-tight leading-[1.1] uppercase">
-                We show you the problem
+                You see the problem.
                 <br />
-                <span className="text-primary">before we fix it.</span>
+                <span className="text-primary">Then we fix it.</span>
               </h2>
               <p className="mt-6 text-foreground/50 text-lg leading-relaxed">
-                Most shops hand you a bill and hope you don't ask questions. We walk you through the diagnosis, show you the worn parts, explain your options, and let you decide.
+                Most Cleveland auto shops hand you a bill and hope you don't ask questions. We walk you through the diagnosis, show you the worn parts on a lift, explain every option, and let you decide. No hidden fees. No upsells. Family-owned, 1,700+ five-star reviews.
               </p>
 
               <div className="mt-10 space-y-6">
                 {[
-                  { title: "Honest Diagnostics", text: "We read the codes, test the components, and show you exactly what failed." },
-                  { title: "Upfront Pricing", text: "Written estimates before work begins. No hidden fees, no surprise charges." },
-                  { title: "Warranty on Repairs", text: "We stand behind our work. If something isn't right, we make it right." },
-                  { title: "Trusted by Women", text: "Many of our regulars are women who say this is the first shop where they felt safe, informed, and never talked down to." },
+                  { title: "Honest Diagnostics", text: "We read the codes, test the components, and show you exactly what failed — on the lift, before a wrench moves." },
+                  { title: "Upfront Pricing", text: "Written estimates before work begins. No hidden fees, no surprise charges, no \"we found something else\" scams." },
+                  { title: "$10 Down Financing", text: "Acima · Snap · Koalafi · American First. Approved in 90 seconds, no credit check, drive away today, pay over time." },
+                  { title: "Warranty on Repairs", text: "We stand behind our work. If something isn't right, we make it right — every time." },
+                  { title: "Trusted by Women", text: "Many of our regulars are women who say this is the first Cleveland auto shop where they felt safe, informed, and never talked down to." },
                 ].map((item) => (
                   <div key={item.title} className="flex gap-4">
                     <div className="w-px bg-primary shrink-0 mt-1" style={{ minHeight: '2.5rem' }} />
@@ -384,8 +385,8 @@ function WhyUs() {
                 <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('whyus-cta')} className="inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/90 transition-colors">
                   Call for Free Estimate
                 </a>
-                <Link href="/booking" className="inline-flex items-center gap-2 border border-foreground/30 text-foreground px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/5 transition-colors">
-                  Book Online
+                <Link href="/financing" className="inline-flex items-center gap-2 border border-foreground/30 text-foreground px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/5 transition-colors">
+                  Apply for $10-Down Financing
                 </Link>
               </div>
             </div>
@@ -422,7 +423,7 @@ function Reviews() {
             <h2 className="font-heading text-4xl lg:text-5xl font-bold text-foreground tracking-tight uppercase">
               {totalReviews.toLocaleString()}+ five&#8209;star reviews.
             </h2>
-            <p className="mt-4 text-foreground/40 text-lg">Verified by Google. Written by real Cleveland drivers.</p>
+            <p className="mt-4 text-foreground/40 text-lg">Verified by Google. Written by real Cleveland drivers — no bots, no buyouts, no fake reviews.</p>
           </div>
         </FadeIn>
 
@@ -468,7 +469,7 @@ function Contact() {
               <h2 className="font-heading text-4xl lg:text-5xl font-bold text-foreground tracking-tight uppercase">
                 Pull up anytime.
               </h2>
-              <p className="mt-4 text-foreground/40 text-lg">No appointment needed. Drop off your car and go — we'll call when it's done.</p>
+              <p className="mt-4 text-foreground/40 text-lg">No appointment needed. Walk in 7 days a week, drop the keys, request an Uber from our lot — we'll text the moment your car is ready.</p>
 
               <div className="mt-10 space-y-8">
                 <div>
@@ -606,8 +607,7 @@ function TriageGrid() {
               Pick your symptom — we'll fix it today.
             </h2>
             <p className="mt-3 text-foreground/50 text-sm sm:text-base max-w-2xl mx-auto">
-              Honest diagnosis before any work. Free inspection under 1 hour. Most
-              repairs done same day.
+              Honest diagnosis before any work. Free inspection under 1 hour. Most repairs done same day. $10 down financing available — no credit check, drive away today.
             </p>
           </div>
         </FadeIn>
@@ -692,8 +692,7 @@ function PriceCompareSection() {
               Same job. A fraction of the price.
             </h2>
             <p className="mt-3 text-foreground/50 text-sm sm:text-base">
-              Cleveland-area dealer + national-chain quotes vs. ours, on the three
-              services we do most.
+              Cleveland-area dealer & national-chain quotes vs. ours — on the three services we do most. Same parts, same warranty, a fraction of the price.
             </p>
           </div>
         </FadeIn>
@@ -848,7 +847,7 @@ export default function Home() {
     <PageLayout activeHref="/" showChat={true}>
       <SEOHead
         title="Tire Shop & Auto Repair Cleveland · Walk-Ins 7 Days | Nick's"
-        description="Cleveland tire shop + auto repair. New & used tires, free install. Brakes, diagnostics, oil. 4.9★ · 1,700+ reviews. Walk-ins 7 days. (216) 862-0005"
+        description="Cleveland tire shop & auto repair. Used tires from $40 installed FREE. $10 down financing — no credit check. Brakes, oil change, diagnostics, alignment. 4.9★ · 1,700+ reviews. Walk-ins 7 days · same-day service. (216) 862-0005"
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />
@@ -891,8 +890,7 @@ export default function Home() {
               Drop the car. Keep your day.
             </h2>
             <p className="text-foreground/60 text-sm mt-3 max-w-lg mx-auto">
-              Pull up, hand us the keys, tap the button below to call an Uber right
-              from here. We text you when it's done. No waiting room torture.
+              Pull up, hand us the keys, tap below to call an Uber right from our lot. We text you the second your car is ready. No waiting-room torture, no wasted PTO.
             </p>
           </div>
           <UberDropoffWidget theme="gold" />
@@ -906,7 +904,7 @@ export default function Home() {
             Your Mechanic Near Me in Cleveland — Every Service, One Shop
           </h2>
           <p className="text-foreground/50 text-sm leading-relaxed mb-8 max-w-3xl">
-            Whether you are searching for a mechanic near me, auto repair near me, or a tire shop near me in Cleveland, Nick's Tire & Auto has you covered. From brake repair and oil changes to check engine light diagnostics and wheel alignment, we are the trusted auto shop near me that Cleveland drivers rely on for honest, affordable service 7 days a week.
+            Whether you're searching for a mechanic near me, auto repair near me, used tires Cleveland, cheap tires Cleveland, or a tire shop near me — Nick's Tire & Auto has you covered. From brake repair and oil change Cleveland to check engine light diagnostics, wheel alignment, AC repair, and emissions/E-Check, we're the trusted Cleveland auto shop drivers rely on for honest, affordable service 7 days a week. $10 down financing available — no credit check. New & used tires installed free. Walk-ins welcome at our Euclid Avenue location, serving Cleveland, Euclid, Lakewood, Parma, East Cleveland, Cleveland Heights, Shaker Heights, South Euclid, Garfield Heights, Richmond Heights, Mentor, and Strongsville.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Services column */}
