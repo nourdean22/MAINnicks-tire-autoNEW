@@ -1,0 +1,5 @@
+# Local-only originals — keep WebP/JPG hero assets only 
+*.jpg 
+*.png 
+*.HEIC 
+!README.md 

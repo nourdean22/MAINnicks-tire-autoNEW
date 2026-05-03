@@ -61,7 +61,7 @@ export function SEOHead({
 }: SEOHeadProps) {
   useEffect(() => {
     const canonicalUrl = ogUrl || `${BASE_URL}${canonicalPath}`;
-    const defaultOgImage = ogImage || `https://d2xsxph8kpxj0f.cloudfront.net/nickstire/og-default.jpg`;
+    const defaultOgImage = ogImage || `${BASE_URL}/hero-cybertruck.webp`;
 
     // Title
     document.title = title;
