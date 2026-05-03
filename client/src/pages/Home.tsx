@@ -57,31 +57,12 @@ function Hero() {
 
   return (
     <section className="relative h-[100svh] flex items-center overflow-hidden">
-      {/* Full-bleed background — video on desktop, static poster on mobile.
-          The poster image renders instantly while the video buffers, and on
-          mobile we skip the video entirely (data + autoplay UX). The
-          `prefers-reduced-motion` media query is respected by the browser's
-          autoplay heuristics on most platforms; we also render the poster
-          alone via CSS as a belt-and-suspenders fallback. */}
+      {/* Full-bleed background */}
       <div className="absolute inset-0">
-        <video
-          src="/hero-cybertruck-loop.webm"
-          poster={HERO_IMG}
-          autoPlay
-          loop
-          muted
-          playsInline
-          preload="metadata"
-          aria-hidden="true"
-          className="hidden md:block w-full h-full object-cover motion-reduce:hidden"
-        >
-          <source src="/hero-cybertruck-loop.webm" type="video/webm" />
-          <source src="/hero-cybertruck-loop.mp4" type="video/mp4" />
-        </video>
         <img
           src={HERO_IMG}
           alt="Tesla Cybertruck parked outside Nick's Tire & Auto on Euclid Ave in Cleveland — real shop, real customers, real cars"
-          className="md:motion-reduce:block md:hidden w-full h-full object-cover"
+          className="w-full h-full object-cover"
           loading="eager"
           fetchPriority="high"
         />
