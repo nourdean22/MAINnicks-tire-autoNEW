@@ -107,7 +107,7 @@ function Hero() {
             transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
             className="mt-6 text-lg sm:text-xl lg:text-2xl font-sans text-[#A0A0A0] max-w-lg"
           >
-            Used tires from $40 installed free. $10 down financing — no credit check. Walk-ins 7 days. You see the problem. Then we fix it.
+            Used tires from $60 installed free. $10 down financing — no credit check. Walk-ins 7 days. You see the problem. Then we fix it.
           </motion.p>
 
           {/* CTA buttons */}
@@ -220,7 +220,7 @@ function UsedTiresCallout() {
           <div className="text-center lg:text-left">
             <FadeIn>
               <h2 className="font-heading text-4xl lg:text-5xl font-extrabold text-black uppercase tracking-tight">
-                USED TIRES FROM $40 — INSTALLED FREE
+                USED TIRES FROM $60 — INSTALLED FREE
               </h2>
               <p className="mt-2 text-black/70 text-lg lg:text-xl font-medium max-w-lg">
                 Pull up. Stay in your car. Free mount, balance, valve stems — out the door in 20 minutes.
@@ -244,7 +244,7 @@ function UsedTiresCallout() {
                 href="/tires"
                 className="inline-flex items-center justify-center gap-2 border-2 border-black text-black px-8 py-3.5 rounded-lg font-bold text-base hover:bg-black/10 transition-colors"
               >
-                See Tires from $40
+                See Tires from $60
                 <ArrowRight className="w-5 h-5" />
               </Link>
             </div>
@@ -262,7 +262,7 @@ const services = [
     slug: "/tires",
     desc: "New & used tires Cleveland. Free mount, balance, rotation, TPMS sensors, flat repair. $10 down financing — no credit check.",
     img: TIRES_IMG,
-    price: "Used from $40 · installed free",
+    price: "Used from $60 · installed free",
   },
   {
     title: "Brakes",
@@ -847,7 +847,7 @@ export default function Home() {
     <PageLayout activeHref="/" showChat={true}>
       <SEOHead
         title="Tire Shop & Auto Repair Cleveland · Walk-Ins 7 Days | Nick's"
-        description="Cleveland tire shop & auto repair. Used tires from $40 installed FREE. $10 down financing — no credit check. Brakes, oil change, diagnostics, alignment. 4.9★ · 1,700+ reviews. Walk-ins 7 days · same-day service. (216) 862-0005"
+        description="Cleveland tire shop & auto repair. Used tires from $60 installed FREE. $10 down financing — no credit check. Brakes, oil change, diagnostics, alignment. 4.9★ · 1,700+ reviews. Walk-ins 7 days · same-day service. (216) 862-0005"
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />
@@ -951,6 +951,7 @@ export default function Home() {
                   { href: "/fleet", label: "Fleet Accounts" },
                   { href: "/rewards", label: "Rewards Program" },
                   { href: "/about", label: "About Us" },
+                  { href: "/moes-tire-euclid", label: "Looking for Moe's Tire? (Same Spot)" },
                 ].map((link) => (
                   <li key={link.href}>
                     <Link href={link.href} className="text-sm text-foreground/50 hover:text-primary transition-colors">
