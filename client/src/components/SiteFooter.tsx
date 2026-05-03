@@ -14,6 +14,17 @@ const HEADING_CLASS = "text-[11px] font-semibold uppercase tracking-[0.1em] text
 export default function SiteFooter() {
   return (
     <footer>
+      {/* ─── BRAND SIGN BANNER — actual photo of the actual sign ─── */}
+      <div className="relative h-[120px] sm:h-[160px] overflow-hidden bg-[#0B0B0B]">
+        <img
+          src="/brand-sign.webp"
+          alt="Nick's Tire & Auto signage on Euclid Ave Cleveland — Mechanic on duty, tires, brakes, auto repair, (216) 862-0005"
+          className="absolute inset-0 w-full h-full object-cover object-center"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0B0B0B] via-transparent to-transparent" />
+      </div>
+
       {/* ─── TOP CTA STRIPE ─── */}
       <div className="bg-[#FDB913] py-3.5">
         <div className="container text-center">
