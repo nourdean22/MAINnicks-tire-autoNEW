@@ -20,7 +20,7 @@ const ROWS: Row[] = [
   { feature: "Show problem first",       nicks: "yes", dealership: "warn", chain: "no"   },
   { feature: "Same-day service",         nicks: "yes", dealership: "no",   chain: "warn" },
   { feature: "All makes & models",       nicks: "yes", dealership: "no",   chain: "yes"  },
-  { feature: "$0-Down financing",        nicks: "yes", dealership: "warn", chain: "no"   },
+  { feature: "Financing on the spot",    nicks: "yes", dealership: "warn", chain: "no"   },
   { feature: "Open 7 days",             nicks: "yes", dealership: "no",   chain: "warn" },
   { feature: `${BUSINESS.reviews.countDisplay} Google reviews`, nicks: "yes", dealership: "warn", chain: "no" },
   { feature: "No pressure upselling",   nicks: "yes", dealership: "no",   chain: "no"   },

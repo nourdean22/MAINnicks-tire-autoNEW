@@ -81,7 +81,7 @@ export default function LocalBusinessSchema({
       name: area,
     })),
     description:
-      `Cleveland's #1 new and used tire specialist and full-service auto repair. Buy tires online with free premium installation package included. Expert brake, diagnostic, emissions, and general repair. ${BUSINESS.reviews.rating} stars, ${BUSINESS.reviews.countDisplay} reviews. Walk-ins welcome 7 days. $10 down financing available.`,
+      `Cleveland's top-rated new and used tire specialist and full-service auto repair on Euclid Ave. Buy tires online with free premium installation package — mount, balance, valve stems, alignment check. Expert brake, diagnostic, emissions, alignment, AC, transmission, electrical, exhaust. ${BUSINESS.reviews.rating} stars across ${BUSINESS.reviews.countDisplay} reviews. Walk-ins 7 days, financing approved on the spot.`,
     knowsAbout: [
       "New tire sales and installation",
       "Used tire sales and installation",
