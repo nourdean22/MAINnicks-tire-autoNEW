@@ -35,9 +35,13 @@ import LossAversionStat from "@/components/conversion/LossAversionStat";
 import { useWeatherCTA } from "@/hooks/useWeatherCTA";
 import { useConversionTracking } from "@/hooks/useConversionTracking";
 
-const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
+// Real shop photos (May 2026) — replaced CloudFront placeholders with
+// authentic on-site iPhone shots. The Cybertruck hero is the actual
+// silver Cybertruck that pulled in for tires; the bay shot is the
+// actual lift in mid-job. Trust photos > stock photos.
+const HERO_IMG = "/hero-cybertruck.webp";
 
-const MECHANIC_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/mechanic-night_af6b9eca.jpg";
+const MECHANIC_IMG = "/mechanic-bay.webp";
 const TIRES_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp";
 const DIAG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp";
 const BRAKES_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-brakes-nKAKuxmW2WAmNrbCFRD9zL.webp";
@@ -57,7 +61,7 @@ function Hero() {
       <div className="absolute inset-0">
         <img
           src={HERO_IMG}
-          alt="Nick's Tire and Auto repair shop in Cleveland Ohio"
+          alt="Tesla Cybertruck parked outside Nick's Tire & Auto on Euclid Ave in Cleveland — real shop, real customers, real cars"
           className="w-full h-full object-cover"
           loading="eager"
           fetchPriority="high"
@@ -348,7 +352,7 @@ function WhyUs() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <FadeIn>
             <div className="relative rounded-2xl overflow-hidden aspect-[4/3]">
-              <img src={MECHANIC_IMG} alt="Mechanic working at Nick's Tire and Auto" className="w-full h-full object-cover" loading="lazy" />
+              <img src={MECHANIC_IMG} alt="Inside the bay at Nick's Tire & Auto Cleveland — a vehicle on the lift mid-job, real tools, real shop" className="w-full h-full object-cover" loading="lazy" />
             </div>
           </FadeIn>
 
