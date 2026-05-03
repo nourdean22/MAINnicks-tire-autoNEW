@@ -100,6 +100,8 @@ const PayInvoice = lazy(() => import("./pages/PayInvoice"));
 const TireSizePage = lazy(() => import("./pages/TireSizePage"));
 // VehicleServicePage removed 2026-04-24 per T5 audit
 const WomensSafetyPage = lazy(() => import("./pages/WomensSafetyPage"));
+// Bridge page for legacy "Moe's Tire" brand traffic on Euclid Ave (GSC-driven, May 2026)
+const MoesTireBridgePage = lazy(() => import("./pages/MoesTireBridgePage"));
 
 function Router() {
   const [location, setLocation] = useLocation();
@@ -138,6 +140,12 @@ function Router() {
             {/* High-volume tire-intent silos — used vs new buyer journeys */}
             <Route path={"/used-tires-cleveland"} component={UsedTiresClevelandPage} />
             <Route path={"/new-tires-cleveland"} component={NewTiresClevelandPage} />
+            {/* Legacy-brand bridge page — captures "Moe's Tire" search traffic
+                from the previous occupant of 17625 Euclid Ave. ~200 imps/yr. */}
+            <Route path={"/moes-tire-euclid"} component={MoesTireBridgePage} />
+            <Route path={"/moes-tire"} component={MoesTireBridgePage} />
+            <Route path={"/moes-tires"} component={MoesTireBridgePage} />
+            <Route path={"/moes-auto"} component={MoesTireBridgePage} />
             {/* Tire-brand silos — single template (TireBrandPage) reading shared/tireBrands.ts */}
             <Route path={"/michelin-tires-cleveland"} component={TireBrandPage} />
             <Route path={"/goodyear-tires-cleveland"} component={TireBrandPage} />
