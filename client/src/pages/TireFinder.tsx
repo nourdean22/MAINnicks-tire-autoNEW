@@ -769,7 +769,7 @@ export default function TireFinder() {
     <PageLayout showChat={true}>
       <SEOHead
         title="Tire Shop Near Me · New & Used · Free Install | Cleveland | Nick's"
-        description="Cleveland tire shop — new & used tires installed, free mount/balance/valve/disposal. Flat repair. Walk-ins 7 days. (216) 862-0005"
+        description="Cleveland tire shop near me — new & used tires installed FREE. Used tires from $60. $10-down financing, no credit check. Free mount, balance, valve stems, disposal, alignment check. Flat repair from $15. Walk-ins 7 days · same-day service. 4.9★ 1,700+ reviews. (216) 862-0005"
         canonicalPath="/tires"
       />
       {/* v1.7 SEO · BreadcrumbList JSON-LD + visible nav */}
@@ -781,12 +781,12 @@ export default function TireFinder() {
       <section className="pt-8 pb-12 sm:pt-12 sm:pb-16">
         <div className="container max-w-3xl mx-auto text-center">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <span className="text-xs font-medium text-primary tracking-[0.2em] uppercase">Online Tire Shop</span>
+            <span className="text-xs font-medium text-primary tracking-[0.2em] uppercase">Cleveland Tire Shop · New + Used · Walk-In or Order Online</span>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-semibold text-foreground mt-4 leading-[1.1] tracking-tight">
               Order Tires Online
             </h1>
             <p className="mt-4 text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
-              Search your size. Pick your tires. We install them with our complete service package — free.
+              Cleveland's tire shop near you — search your size, pick new or used. We install free with our complete $289+ service package. Used tires from $60. $10-down financing — no credit check.
             </p>
 
             {/* Value proposition callout */}
@@ -1210,10 +1210,10 @@ export default function TireFinder() {
                     </span>
                   </div>
                   <h2 className="text-xl sm:text-2xl font-semibold text-foreground mt-2">
-                    Quality Used Tires
+                    Used Tires Cleveland — From $60 Installed Free
                   </h2>
                   <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-                    Not everyone needs brand-new tires. We carry a large selection of quality used tires — every one inspected for tread depth, sidewall condition, and safety before it goes on your vehicle. Same professional installation. Same honest service. Just a lower price.
+                    Not everyone needs brand-new tires. We carry a large selection of quality used tires from $60 — every one passes a 4-point inspection (tread depth, sidewall, DOT date, plug history) before it goes on your car. Same professional installation, same free mount/balance/valve stems/disposal — just a lower price. $10-down financing available, no credit check.
                   </p>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
