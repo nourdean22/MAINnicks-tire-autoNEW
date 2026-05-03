@@ -500,8 +500,8 @@ export default function Financing() {
   return (
     <PageLayout activeHref="/financing" showChat={true}>
       <SEOHead
-        title="$0-Down Auto Repair Financing · No Credit Check | Cleveland OH"
-        description="Repair your car today, pay over time. Four lenders, soft pre-qualification, $0 down, up to $7,500. Most customers approved with at least one option. (216) 862-0005"
+        title="Auto Repair Financing Cleveland · Approved On The Spot | Nick's"
+        description="Cleveland auto repair financing where four lenders compete for your business. Soft pre-qualification (no hard credit pull), drive away today, pay over time. Acima · Snap · Koalafi · American First. Approved before your coffee finishes brewing. (216) 862-0005"
         canonicalPath="/financing"
       />
       <Breadcrumbs items={[{ label: "Financing", href: "/financing" }]} />
@@ -520,7 +520,7 @@ export default function Financing() {
             <span className="text-[#FDB913]">Postpone the bill.</span>
           </h1>
           <p className="mt-5 text-white/70 text-lg lg:text-xl max-w-2xl mx-auto">
-            Soft pre-qualification in 60 seconds. Get the brakes/tires/engine work done today, pay it down on a schedule that fits your paycheck.
+            Soft pre-qualification, no hard credit pull, no shame. Four lenders compete for your business in the time it takes to refill your coffee. Drive away today, pay it down on a schedule that fits the way you actually get paid.
           </p>
 
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">

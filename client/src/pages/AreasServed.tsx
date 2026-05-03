@@ -38,8 +38,8 @@ export default function AreasServed() {
   return (
     <PageLayout activeHref="/areas-served" showChat={true}>
       <SEOHead
-        title="Areas Served — Nick's Tire & Auto | Cleveland & Northeast Ohio"
-        description="Nick's Tire & Auto serves 150+ locations across Cleveland, Euclid, Parma, Lakewood, Mentor, and all of Northeast Ohio. Find your neighborhood auto repair page."
+        title="Areas We Serve · Cleveland & Northeast Ohio | Nick's Tire & Auto"
+        description="Nick's Tire & Auto serves 150+ neighborhoods across Cleveland, Euclid, Parma, Parma Heights, Lakewood, Mentor, and the whole northeast Ohio. We've also been known to help drivers from as far as Erie — find your neighborhood and we'll tell you what street to take."
         canonicalPath="/areas-served"
       />
 

@@ -122,8 +122,8 @@ export default function ServicesOverview() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title="Auto Repair Near Me · Tires Brakes Diagnostics | Cleveland | Nick's"
-        description={`Cleveland auto repair near you — tires, brakes, diagnostics, emissions, oil. Walk-ins welcome 7 days. Free written estimates. 4.9★ from 1,700+ reviews. ${BUSINESS.phone.display}`}
+        title="Cleveland Auto Repair Services · One Shop, Every Repair | Nick's"
+        description={`Every service Cleveland drivers actually need — tires, brakes, oil, diagnostics, alignment, emissions, AC, transmission, electrical, exhaust, plus the weird rattle that started yesterday. Walk-ins 7 days, financing on the spot, 4.9★ across 1,700+ reviews. ${BUSINESS.phone.display}`}
         canonicalPath="/services"
       />
       <Breadcrumbs items={[{ label: "Services", href: "/services" }]} />

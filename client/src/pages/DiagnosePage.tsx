@@ -447,8 +447,8 @@ export default function DiagnosePage() {
   return (
     <PageLayout activeHref="/diagnose" showChat={true}>
       <SEOHead
-        title="Free Car Diagnostic Tool | Cleveland Auto Repair | Nick's"
-        description="Describe your car problem and get a free diagnosis. Check engine light? Brakes grinding? We'll tell you what's wrong. Walk in or call (216) 862-0005"
+        title="Free Car Diagnostic Tool · Tell Us The Symptom | Nick's Cleveland"
+        description="Describe your car problem like you'd explain it to a friend — we'll tell you what's likely wrong, how urgent it is, and what fixing it usually involves. Check engine light, weird noise, brakes grinding, anything. Walk in or call (216) 862-0005"
         canonicalPath="/diagnose"
       />
 
