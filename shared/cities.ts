@@ -107,6 +107,35 @@ export const CITIES: CityData[] = [
     }
   },
   {
+    // 2026-05-03 GSC-driven add: 119+ impressions/yr across "auto repair parma
+    // heights" / "parma heights auto repair" / "car repair parma heights" /
+    // "parma heights car repair" — all sitting at positions 38–42 with no
+    // matching landing page. This page captures all 4 query variants.
+    slug: "parma-heights-auto-repair",
+    name: "Parma Heights",
+    metaTitle: "Parma Heights Auto Repair · 4.9★ · Free Uber Both Ways | Nick's",
+    metaDescription: "Parma Heights drivers trust Nick's Tire & Auto for honest repairs. 4.9★ from 1,700+ reviews. Free Uber drop-off + pick-up so you don't lose your day. Brakes, tires, diagnostics, $10-down financing. (216) 862-0005",
+    heroHeadline: "PARMA HEIGHTS\nAUTO REPAIR — WORTH THE DRIVE",
+    heroSubline: "Parma Heights drivers fed up with overpriced local shops are coming to Nick's Tire & Auto for honest diagnostics, written estimates before any work, and $10-down financing with no credit check. 25 minutes up I-480 — and we Uber you home and back so you don't waste your day.",
+    distance: "16 miles",
+    driveTime: "25 minutes",
+    neighborhoods: ["Pleasant Lake", "Stumph Road", "York Road", "Pearl Road", "Snow Road"],
+    localContent: "Parma Heights sits between Parma proper and Brooklyn Heights along the Pearl Road / York Road corridor — a working-class community where families need a mechanic who doesn't pad the bill. Nick's Tire & Auto serves Parma Heights drivers tired of being talked over by chain shops or quoted prices that don't match what the work actually costs. The drive up I-480 to Cleveland is 25 minutes, and we Uber you home from the shop and back when your car is ready, so a repair doesn't cost you a day of work. We handle everything — brakes, tires, oil change, diagnostics, alignment, suspension, exhaust — with written estimates before any work begins. Most repairs done same day. $10 down financing approved in 90 seconds, no credit check.",
+    serviceHighlights: [
+      "Brake repair with free written estimate before any work",
+      "New & used tires installed FREE — used from $60",
+      "Check engine light diagnostics — free 5-min scan",
+      "Wheel alignment to fix Pearl Rd / York Rd pothole damage",
+      "$10-down financing — no credit check, drive away today",
+      "Free Uber drop-off and pick-up from anywhere in Parma Heights"
+    ],
+    testimonial: {
+      text: "Switched from a Parma Heights shop after they tried to upsell me on a $1,200 brake job I didn't need. Nick's quoted $340 with the same warranty and showed me the actual worn pads. Honest crew.",
+      author: "Marcus D.",
+      location: "Parma Heights, OH"
+    }
+  },
+  {
     slug: "east-cleveland-auto-repair",
     name: "East Cleveland",
     metaTitle: "Auto Repair Near East Cleveland, OH | Nick's | 8 Min Away",
