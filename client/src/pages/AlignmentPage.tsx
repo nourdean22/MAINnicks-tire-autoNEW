@@ -386,8 +386,8 @@ export default function AlignmentPage() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title="Wheel Alignment Cleveland · Same Day · $10 Down | Nick's Tire & Auto"
-        description="Cleveland wheel alignment — fix steering pull, uneven tire wear, vibration. Free alignment check. Same-day service. $10-down financing, no credit check. Walk-ins 7 days. 4.9★ 1,700+ reviews. (216) 862-0005"
+        title="Wheel Alignment Cleveland · Pothole Survivors Welcome | Nick's"
+        description="Cleveland wheel alignment for cars that have met one too many potholes. Fix steering pull, uneven tire wear, vibration. Free alignment check on every visit. Same-day service. Financing approved on the spot. 4.9★ across 1,700+ Cleveland drivers. (216) 862-0005"
         canonicalPath="/alignment"
       />
       <LocalBusinessSchema additionalSchema={{ "hasOfferCatalog": { "@type": "OfferCatalog", "name": "Wheel Alignment", "itemListElement": [{ "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Wheel Alignment", "serviceType": "Wheel Alignment" } }] } }} />

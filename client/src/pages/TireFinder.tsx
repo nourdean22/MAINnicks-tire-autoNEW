@@ -769,7 +769,7 @@ export default function TireFinder() {
     <PageLayout showChat={true}>
       <SEOHead
         title="Tire Shop Near Me · New & Used · Free Install | Cleveland | Nick's"
-        description="Cleveland tire shop near me — new & used tires installed FREE. Used tires from $60. $10-down financing, no credit check. Free mount, balance, valve stems, disposal, alignment check. Flat repair from $15. Walk-ins 7 days · same-day service. 4.9★ 1,700+ reviews. (216) 862-0005"
+        description="Cleveland's neighborhood tire shop on Euclid Ave. New & used tires, free install package on every set — mount, balance, valve stems, TPMS, alignment check. Walk-ins 7 days, financing on the spot. The shop your grandfather would've trusted, with the gear your kid's Tesla needs. (216) 862-0005"
         canonicalPath="/tires"
       />
       {/* v1.7 SEO · BreadcrumbList JSON-LD + visible nav */}
@@ -786,7 +786,7 @@ export default function TireFinder() {
               Order Tires Online
             </h1>
             <p className="mt-4 text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
-              Cleveland's tire shop near you — search your size, pick new or used. We install free with our complete $289+ service package. Used tires from $60. $10-down financing — no credit check.
+              Cleveland's tire shop, online or in-shop. Search your size, pick new or used, we install free with our complete service package — mount, balance, valve stems, alignment check, the works. Walk-ins always welcome. Financing approved on the spot — faster than your phone finds a signal.
             </p>
 
             {/* Value proposition callout */}
@@ -1210,10 +1210,10 @@ export default function TireFinder() {
                     </span>
                   </div>
                   <h2 className="text-xl sm:text-2xl font-semibold text-foreground mt-2">
-                    Used Tires Cleveland — From $60 Installed Free
+                    Used Tires Cleveland — Inspected, Installed, Honest
                   </h2>
                   <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-                    Not everyone needs brand-new tires. We carry a large selection of quality used tires from $60 — every one passes a 4-point inspection (tread depth, sidewall, DOT date, plug history) before it goes on your car. Same professional installation, same free mount/balance/valve stems/disposal — just a lower price. $10-down financing available, no credit check.
+                    Not everyone needs brand-new rubber. We carry a large selection of quality used tires — every one passes a 4-point exam (tread depth, sidewall, DOT date, plug history) before it earns a spot on your car. Same professional installation, same free mount/balance/valve stems/disposal, same coffee — just a friendlier number on the receipt. Financing on the spot if you need it.
                   </p>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
