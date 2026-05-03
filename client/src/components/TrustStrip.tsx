@@ -36,8 +36,22 @@ const SIGNALS = [
 
 export default function TrustStrip() {
   return (
-    <div className="border-b border-border/20 bg-[oklch(0.055_0.003_260)] py-4">
-      <div className="container">
+    <div className="relative border-b border-border/20 bg-[oklch(0.055_0.003_260)] py-4 overflow-hidden">
+      {/* Subtle atmospheric brand-sign image behind the trust signals.
+          Heavy darkening keeps text readable; the slight texture makes the
+          strip feel like part of the actual shop instead of a generic UI band. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-[0.06]"
+        style={{
+          backgroundImage: "url('/brand-sign.webp')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-r from-[oklch(0.055_0.003_260)]/95 via-[oklch(0.055_0.003_260)]/80 to-[oklch(0.055_0.003_260)]/95 pointer-events-none" />
+      <div className="relative container">
         <div className="flex flex-wrap justify-center gap-x-8 gap-y-3 lg:justify-between">
           {SIGNALS.map((s) => {
             const Icon = s.icon;

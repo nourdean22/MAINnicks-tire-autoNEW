@@ -18,7 +18,7 @@ import { GBP_REVIEW_URL } from "@shared/const";
 import { BUSINESS } from "@shared/business";
 import { QueryError } from "@/components/QueryState";
 
-const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
+const HERO_IMG = "/storefront-bmw.webp";
 
 // Service-related keywords to highlight in gold
 const SERVICE_KEYWORDS = [
@@ -554,6 +554,41 @@ export default function ReviewsPage() {
       </main>
 
       <ReviewCTA />
+
+      {/* Brand-swag callout — established-brand signal. Air fresheners are
+          a small thing that says "we've been here long enough to have merch."
+          That's a trust signal money can't fake. */}
+      <section className="bg-[oklch(0.06_0.004_260)] border-y border-border/15 py-12 lg:py-16">
+        <div className="container">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center max-w-5xl mx-auto">
+            <FadeIn>
+              <img
+                src="/brand-swag.webp"
+                alt="Nick's Tire & Auto branded air fresheners — Cleveland Tough on one side, 17625 Euclid Ave skyline on the other"
+                className="w-full h-auto rounded-lg shadow-2xl"
+                loading="lazy"
+              />
+            </FadeIn>
+            <FadeIn delay={0.15}>
+              <div>
+                <div className="text-[#FDB913] text-[10px] font-mono uppercase tracking-widest mb-2">
+                  The little stuff
+                </div>
+                <h3 className="font-heading text-3xl lg:text-4xl font-bold text-foreground tracking-tight uppercase leading-[1.05]">
+                  We made <span className="text-[#FDB913]">air fresheners.</span>
+                </h3>
+                <p className="mt-4 text-foreground/55 text-base lg:text-lg leading-relaxed">
+                  Most shops can't be bothered. We hand one to every customer with a fresh repair — Cleveland Tough on one side, the Cleveland skyline on the other. It's a small thing. The kind of small thing that tells you we're going to be here next year too.
+                </p>
+                <p className="mt-3 text-foreground/40 text-sm">
+                  Stop in for a service, walk out with one. They smell suspiciously like fresh leather.
+                </p>
+              </div>
+            </FadeIn>
+          </div>
+        </div>
+      </section>
+
       <InternalLinks title="Explore Our Services" />
     </PageLayout>
   );
