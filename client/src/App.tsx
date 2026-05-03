@@ -102,6 +102,8 @@ const TireSizePage = lazy(() => import("./pages/TireSizePage"));
 const WomensSafetyPage = lazy(() => import("./pages/WomensSafetyPage"));
 // Bridge page for legacy "Moe's Tire" brand traffic on Euclid Ave (GSC-driven, May 2026)
 const MoesTireBridgePage = lazy(() => import("./pages/MoesTireBridgePage"));
+// Sunday muffler/exhaust niche capture (GSC-driven, May 2026)
+const SundayMufflerPage = lazy(() => import("./pages/SundayMufflerPage"));
 
 function Router() {
   const [location, setLocation] = useLocation();
@@ -146,6 +148,10 @@ function Router() {
             <Route path={"/moes-tire"} component={MoesTireBridgePage} />
             <Route path={"/moes-tires"} component={MoesTireBridgePage} />
             <Route path={"/moes-auto"} component={MoesTireBridgePage} />
+            {/* Sunday-niche capture — "muffler shop open on sunday" GSC pos 3.7, 20% CTR */}
+            <Route path={"/muffler-shop-open-sunday-cleveland"} component={SundayMufflerPage} />
+            <Route path={"/muffler-shop-sunday"} component={SundayMufflerPage} />
+            <Route path={"/sunday-mechanic-cleveland"} component={SundayMufflerPage} />
             {/* Tire-brand silos — single template (TireBrandPage) reading shared/tireBrands.ts */}
             <Route path={"/michelin-tires-cleveland"} component={TireBrandPage} />
             <Route path={"/goodyear-tires-cleveland"} component={TireBrandPage} />
@@ -183,6 +189,7 @@ function Router() {
             <Route path={"/euclid-auto-repair"} component={CityPage} />
             <Route path={"/lakewood-auto-repair"} component={CityPage} />
             <Route path={"/parma-auto-repair"} component={CityPage} />
+            <Route path={"/parma-heights-auto-repair"} component={CityPage} />
             <Route path={"/east-cleveland-auto-repair"} component={CityPage} />
             <Route path={"/shaker-heights-auto-repair"} component={CityPage} />
             <Route

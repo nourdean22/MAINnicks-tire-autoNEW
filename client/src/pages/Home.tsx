@@ -952,6 +952,7 @@ export default function Home() {
                   { href: "/rewards", label: "Rewards Program" },
                   { href: "/about", label: "About Us" },
                   { href: "/moes-tire-euclid", label: "Looking for Moe's Tire? (Same Spot)" },
+                  { href: "/muffler-shop-open-sunday-cleveland", label: "Muffler Shop Open Sunday" },
                 ].map((link) => (
                   <li key={link.href}>
                     <Link href={link.href} className="text-sm text-foreground/50 hover:text-primary transition-colors">
@@ -970,6 +971,7 @@ export default function Home() {
                   { href: "/euclid-auto-repair", label: "Euclid" },
                   { href: "/lakewood-auto-repair", label: "Lakewood" },
                   { href: "/parma-auto-repair", label: "Parma" },
+                  { href: "/parma-heights-auto-repair", label: "Parma Heights" },
                   { href: "/east-cleveland-auto-repair", label: "East Cleveland" },
                   { href: "/shaker-heights-auto-repair", label: "Shaker Heights" },
                   { href: "/cleveland-heights-auto-repair", label: "Cleveland Heights" },
