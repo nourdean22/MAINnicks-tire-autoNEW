@@ -77,8 +77,8 @@ export default function Contact() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title="Contact Us | Nick's Tire & Auto Cleveland"
-        description={`Contact Nick's Tire & Auto at ${BUSINESS.phone.display}. Located at ${BUSINESS.address.full}. Open ${BUSINESS.hours.display}. Walk-ins welcome.`}
+        title="Contact Nick's Tire & Auto · Cleveland · Walk-Ins Always Welcome"
+        description={`Pull up to ${BUSINESS.address.full}. Open ${BUSINESS.hours.display}. Walk-ins always welcome — no appointment, no awkward small talk required. Call ${BUSINESS.phone.display}.`}
         canonicalPath="/contact"
       />
       <Breadcrumbs items={[{ label: "Contact", href: "/contact" }]} />

@@ -267,8 +267,8 @@ export default function BookingPage() {
   return (
     <PageLayout activeHref="/booking">
       <SEOHead
-        title="Hold Your Spot · Book Auto Repair Online | Cleveland OH"
-        description="Reserve your drop-off in 60 seconds at Nick's Tire & Auto Cleveland. No credit card. No commitment to fix. A master tech calls back within 15 minutes. (216) 862-0005"
+        title="Hold Your Spot · Book Auto Repair Online · Cleveland | Nick's"
+        description="Reserve your drop-off in 60 seconds at Nick's Tire & Auto Cleveland. No credit card. No commitment to fix. A real human master tech calls you back within 15 minutes — not a chatbot, not next Tuesday. (216) 862-0005"
         canonicalPath="/booking"
       />
       {/* v1.7 SEO · BreadcrumbList */}

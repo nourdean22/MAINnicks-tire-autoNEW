@@ -254,8 +254,8 @@ export default function FAQ() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title="Auto Repair FAQ | Brake, Tire & Oil Change Prices | Cleveland"
-        description="Get answers about auto repair costs, tire prices, brake service, and oil changes in Cleveland. Walk-ins welcome 7 days. Free estimates."
+        title="Auto Repair FAQ Cleveland · The Questions Everyone Forgets To Ask | Nick's"
+        description="Honest answers about brakes, tires, oil change, diagnostics, and the strange noises Cleveland cars make. Walk-ins welcome 7 days, free estimates, financing on the spot. (216) 862-0005"
         canonicalPath="/faq"
       />
       <FAQSchema />
