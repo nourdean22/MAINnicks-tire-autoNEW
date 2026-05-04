@@ -455,14 +455,23 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
               "itemOffered": { "@type": "Service", "name": `${t.name} ${config.serviceType}`, "serviceType": config.serviceType },
             })),
           },
-          "mainEntityOfPage": {
+        }}
+      />
+      {/* FAQPage emitted as its OWN top-level JSON-LD (not nested inside
+          LocalBusiness as mainEntityOfPage — that structure was causing GSC
+          "Duplicate field FAQPage" errors on 14 pages, May 2026 audit). */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
             "@type": "FAQPage",
             "mainEntity": config.faqs.map((f) => ({
               "@type": "Question",
               "name": f.q,
               "acceptedAnswer": { "@type": "Answer", "text": f.a },
             })),
-          },
+          }),
         }}
       />
       {/* v1.7 SEO · BreadcrumbList JSON-LD + visible nav. Single edit

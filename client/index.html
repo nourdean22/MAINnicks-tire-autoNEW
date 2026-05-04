@@ -64,106 +64,13 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-    <!-- Structured Data: LocalBusiness + AutoRepair + TireShop -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": ["AutoRepair", "TireShop"],
-      "name": "Nick's Tire & Auto",
-      "alternateName": "Nicks Tire and Auto",
-      "description": "Cleveland's #1 new and used tire specialist and full-service auto repair shop. Free premium installation package ($289+ value) with every tire purchase. Free written estimate on every repair. Expert brake, diagnostic, emissions, and general repair. 4.9 stars with 1,700+ reviews. Walk-ins welcome 7 days a week. $0-down financing available.",
-      "url": "https://nickstire.org",
-      "telephone": "+1-216-862-0005",
-      "email": "info@nickstire.org",
-      "address": {
-        "@type": "PostalAddress",
-        "streetAddress": "17625 Euclid Ave",
-        "addressLocality": "Euclid",
-        "addressRegion": "OH",
-        "postalCode": "44112",
-        "addressCountry": "US"
-      },
-      "geo": {
-        "@type": "GeoCoordinates",
-        "latitude": 41.5827,
-        "longitude": -81.5233
-      },
-      "openingHoursSpecification": [
-        {
-          "@type": "OpeningHoursSpecification",
-          "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-          "opens": "08:00",
-          "closes": "18:00"
-        },
-        {
-          "@type": "OpeningHoursSpecification",
-          "dayOfWeek": "Sunday",
-          "opens": "09:00",
-          "closes": "16:00"
-        }
-      ],
-      "priceRange": "$$",
-      "aggregateRating": {
-        "@type": "AggregateRating",
-        "ratingValue": "4.9",
-        "reviewCount": "1700",
-        "bestRating": "5",
-        "worstRating": "1"
-      },
-      "areaServed": [
-        { "@type": "City", "name": "Cleveland", "sameAs": "https://en.wikipedia.org/wiki/Cleveland" },
-        { "@type": "City", "name": "Euclid" },
-        { "@type": "City", "name": "Lakewood" },
-        { "@type": "City", "name": "Parma" },
-        { "@type": "City", "name": "East Cleveland" },
-        { "@type": "City", "name": "Shaker Heights" },
-        { "@type": "City", "name": "Cleveland Heights" },
-        { "@type": "City", "name": "South Euclid" },
-        { "@type": "City", "name": "Garfield Heights" },
-        { "@type": "City", "name": "Mentor" },
-        { "@type": "City", "name": "Strongsville" }
-      ],
-      "hasOfferCatalog": {
-        "@type": "OfferCatalog",
-        "name": "Auto Repair & Tire Services",
-        "itemListElement": [
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Online Tire Sales & Installation", "description": "New & used tires installed with free mount, balance, valve stems, TPMS reset, alignment check, and 20-point inspection. Walk in or call for a live quote on your size.", "image": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp" } },
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Flat Tire Repair", "description": "Professional flat tire repair — plug and patch service. Most repairs done in 15 minutes. Free quote on inspection.", "image": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp" } },
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Used Tires", "description": "Quality inspected used tires — every tire checked for tread depth, sidewall condition, and safety. Free quote on your size.", "image": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp" } },
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Brake Repair", "description": "Brake pads, rotors, calipers, brake lines, ABS diagnostics. Free inspection. Free written estimate before any work. We show you the problem before we fix it.", "image": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-brakes-AWxeiFZmv6FQocUMfiJvWb.webp" } },
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Engine Diagnostics", "description": "Check engine light, OBD-II code reading, advanced computer diagnostics. Free 5-minute scan. Deeper diagnostic gets a written estimate, credited toward repair if we fix it.", "image": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp" } },
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Ohio E-Check & Emissions Repair", "description": "Emissions diagnostics and repair — oxygen sensors, EVAP leaks, catalytic converters. We get you passing. Free written estimate before any work.", "image": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp" } },
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Oil Change", "description": "Conventional or full synthetic oil change. Filter replacement and free 27-point multi-point inspection included. Walk in or call for your live quote.", "image": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp" } },
-          { "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Suspension & Steering Repair", "description": "Suspension, steering, exhaust, cooling systems, belts, hoses, and general repair.", "image": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp" } }
-        ]
-      },
-      "sameAs": [
-        "https://www.google.com/maps/place/Nick's+Tire+%26+Auto/@41.5827,-81.5233",
-        "https://www.instagram.com/nickstireandauto/"
-      ],
-      "image": "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/og-share-image-b6xtjfHGwFJnz4MtsoFkCp.png",
-      "paymentAccepted": ["Cash", "Credit Card", "Debit Card"],
-      "currenciesAccepted": "USD",
-      "foundingDate": "2018",
-      "knowsAbout": [
-        "Tire installation",
-        "Flat tire repair",
-        "Brake repair",
-        "Engine diagnostics",
-        "Ohio E-Check",
-        "Emissions repair",
-        "Oil change",
-        "Suspension repair",
-        "Used tires",
-        "TPMS sensors",
-        "Wheel alignment",
-        "Auto repair Cleveland",
-        "Winter tires Cleveland",
-        "No credit check auto financing",
-        "Pothole damage repair"
-      ]
-    }
-    </script>
+    <!-- Structured Data: LocalBusiness + AutoRepair + TireShop
+         REMOVED 2026-05-03: was duplicating with the React LocalBusinessSchema
+         component, causing GSC "Duplicate field FAQPage" errors on 14 pages.
+         The React component is now the single source of truth — pulls from
+         BUSINESS shared constants, always fresh, properly structured. The
+         FAQPage error stems from this duplication; React component handles
+         it correctly per-page. -->
 
     <!-- FAQPage schema removed from index.html in 2026-04 to prevent
          "duplicate FAQPage" structured data errors across the site. Each page

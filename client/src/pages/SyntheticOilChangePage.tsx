@@ -261,15 +261,21 @@ export default function SyntheticOilChangePage() {
               { "@type": "Offer", "price": "39", "priceCurrency": "USD", "itemOffered": { "@type": "Service", "name": "Conventional Oil Change", "serviceType": "Oil Change" } },
             ],
           },
-          // FAQ schema for rich snippet eligibility
-          "mainEntityOfPage": {
+        }}
+      />
+      {/* FAQPage as its own top-level JSON-LD — fixes "Duplicate field FAQPage" GSC error */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
             "@type": "FAQPage",
             "mainEntity": FAQS.map((f) => ({
               "@type": "Question",
               "name": f.q,
               "acceptedAnswer": { "@type": "Answer", "text": f.a },
             })),
-          },
+          }),
         }}
       />
 
