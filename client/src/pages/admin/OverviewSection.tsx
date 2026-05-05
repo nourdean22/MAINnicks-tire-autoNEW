@@ -360,19 +360,25 @@ export default function OverviewSection() {
     }));
   }
 
-  const { data: stats, isLoading } = trpc.adminDashboard.stats.useQuery(undefined, {
+  // 2026-05-05 audit §1 follow-up · MEDIUM-tier dashboard bundle.
+  // Was 5 separate useQuery calls (stats, bookings, leads, callbacks,
+  // siteHealth) each polling at 30s/120s. Now one bundle endpoint that
+  // Promise.allSettled's the lot server-side. Each field is null on
+  // failure, so one slow subquery doesn't blank the whole dashboard.
+  // ~5x reduction in network round-trips for this slice of OverviewSection.
+  const { data: bundle, isLoading } = trpc.adminDashboard.overviewMediumBundle.useQuery(undefined, {
     refetchInterval: 30000,
+    staleTime: 25_000,
   });
-  const { data: health } = trpc.adminDashboard.siteHealth.useQuery(undefined, {
-    refetchInterval: 120000,
-  });
+  const stats = bundle?.stats ?? null;
+  const health = bundle?.health ?? null;
+  const allBookings = bundle?.bookings ?? null;
+  const allLeads = bundle?.leads ?? null;
+  const callbacks = bundle?.callbacks ?? null;
   const { data: sheetInfo } = trpc.lead.sheetUrl.useQuery();
   const { data: bridgeStatus } = trpc.nourOsBridge.status.useQuery(undefined, { refetchInterval: 30000 });
   const { data: customerStats } = trpc.customers.stats.useQuery(undefined, { refetchInterval: 30000 });
   const { data: campaignStats } = trpc.customers.campaignStats.useQuery(undefined, { refetchInterval: 15000 });
-  const { data: allBookings } = trpc.booking.list.useQuery(undefined, { refetchInterval: 30000 });
-  const { data: allLeads } = trpc.lead.list.useQuery(undefined, { refetchInterval: 30000 });
-  const { data: callbacks } = trpc.callback.list.useQuery(undefined, { refetchInterval: 30000 });
   // Nick AI intelligence — shop pulse for real-time awareness
   const { data: shopPulse } = trpc.nickActions.shopPulse.useQuery(undefined, { refetchInterval: 15000 });
   // Shop load indicator — cars in shop, active WOs, today's bookings, wait time

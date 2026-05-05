@@ -25,6 +25,18 @@ export const adminDashboardRouter = router({
     return getSiteHealth();
   }),
 
+  /**
+   * Medium-tier OverviewSection bundle — closes admin audit §1.
+   * Combines 5 useQuery calls (stats, bookings, leads, callbacks,
+   * siteHealth) into a single 30s-cadence query. Each field is
+   * nullable so one slow/failing subquery does not break the
+   * dashboard. See server/services/adminBundle.ts.
+   */
+  overviewMediumBundle: adminProcedure.query(async () => {
+    const { getOverviewMediumBundle } = await import("../services/adminBundle");
+    return getOverviewMediumBundle();
+  }),
+
   /** Full system diagnostics — predictive health, trends, anomalies, recovery history */
   systemDiagnostics: adminProcedure.query(async () => {
     const { generateDiagnosticReport } = await import("../lib/self-healing");
