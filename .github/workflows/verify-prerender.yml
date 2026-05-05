@@ -1,0 +1,126 @@
+name: Verify prerender output
+
+# Catches the silent-failure class that broke blog prerender on 2026-05-05:
+# tsx loader fails / temp-script imports break / new routes added without
+# matching prerender HTML. Runs on PRs that touch routes, blog, or the
+# prerender pipeline itself, and on pushes to main as a backstop.
+#
+# Strategy: don't re-run the full Puppeteer regen (too slow for PR CI).
+# Instead, compute the EXPECTED set of prerendered HTML files from
+# routes.ts + blog.ts + neighborhoods.ts and assert the committed
+# prerendered/ tree matches. Drift fails the build.
+
+on:
+  pull_request:
+    paths:
+      - "shared/routes.ts"
+      - "shared/blog.ts"
+      - "shared/neighborhoods.ts"
+      - "scripts/prerender.mjs"
+      - "scripts/audit-prerender.mjs"
+      - "scripts/regen-prerender.mjs"
+      - "scripts/patch-prerender-seo.mjs"
+      - "prerendered/**"
+      - "client/index.html"
+  push:
+    branches: [main]
+
+jobs:
+  verify-prerender:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Compute expected prerender set
+        id: expected
+        run: |
+          node --import tsx -e "
+            import { SITEMAP_ROUTES, BLOG_SLUGS } from './shared/routes.ts';
+            const fs = await import('fs');
+            const expected = new Set();
+            for (const r of SITEMAP_ROUTES) {
+              if (r.path === '/') expected.add('index.html');
+              else expected.add(r.path.replace(/^\//, '') + '/index.html');
+            }
+            for (const s of BLOG_SLUGS) expected.add('blog/' + s + '/index.html');
+            fs.writeFileSync('/tmp/expected.txt', [...expected].sort().join('\n') + '\n');
+            console.log('Expected:', expected.size);
+          "
+
+      - name: Compute actual prerender set
+        run: |
+          cd prerendered
+          find . -name 'index.html' -type f | sed 's|^\./||' | sort > /tmp/actual.txt
+          echo "Actual: $(wc -l < /tmp/actual.txt)"
+
+      - name: Diff (must be near-zero)
+        run: |
+          set +e
+          MISSING=$(comm -23 /tmp/expected.txt /tmp/actual.txt | head -50)
+          EXTRA=$(comm -13 /tmp/expected.txt /tmp/actual.txt | head -50)
+          MISSING_COUNT=$(comm -23 /tmp/expected.txt /tmp/actual.txt | wc -l)
+          EXTRA_COUNT=$(comm -13 /tmp/expected.txt /tmp/actual.txt | wc -l)
+
+          echo "Missing $MISSING_COUNT prerendered file(s) for routes/blogs that should be rendered:"
+          echo "$MISSING"
+          echo
+          echo "Extra $EXTRA_COUNT prerendered file(s) without a matching route/blog (stale):"
+          echo "$EXTRA"
+
+          # Threshold: small drift is OK (e.g. legacy redirects), but >5 in
+          # either direction means the prerender pipeline silently broke
+          # OR someone added routes/blogs without running pnpm run regen.
+          if [ "$MISSING_COUNT" -gt 5 ] || [ "$EXTRA_COUNT" -gt 5 ]; then
+            echo
+            echo "FAIL: prerender drift exceeds threshold (5)."
+            echo "Run \`pnpm run regen\` locally to refresh prerendered/ and commit."
+            exit 1
+          fi
+
+      - name: Spot-check 3 key blog posts have full content (not 9.9KB shells)
+        run: |
+          set -e
+          for slug in 5-signs-brakes-need-replacing when-to-replace-tires winter-tires-cleveland; do
+            f="prerendered/blog/$slug/index.html"
+            if [ ! -f "$f" ]; then
+              echo "Missing: $f"; exit 1
+            fi
+            size=$(wc -c < "$f")
+            if [ "$size" -lt 50000 ]; then
+              echo "Too small ($size bytes): $f — likely a shell, not full content"
+              exit 1
+            fi
+            echo "OK: $f ($size bytes)"
+          done
+
+      - name: Spot-check no meta corruption (zero matches expected)
+        run: |
+          set -e
+          if grep -lE '<meta name="description" content="[^"]*<meta' prerendered/*/index.html prerendered/blog/*/index.html 2>/dev/null; then
+            echo "FAIL: meta description corruption detected (nested <meta tags)"
+            exit 1
+          fi
+          echo "OK: no meta corruption."
+
+      - name: Spot-check no duplicate FAQPage schema
+        run: |
+          set -e
+          for f in prerendered/*/index.html prerendered/blog/*/index.html; do
+            count=$(grep -c '"@type": "FAQPage"' "$f" 2>/dev/null || echo 0)
+            if [ "$count" -gt 1 ]; then
+              echo "FAIL: duplicate FAQPage in $f ($count occurrences)"
+              exit 1
+            fi
+          done
+          echo "OK: no duplicate FAQPage."

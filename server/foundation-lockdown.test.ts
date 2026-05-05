@@ -76,19 +76,23 @@ describe("Vehicle Make Pages Data Consistency", () => {
 });
 
 describe("Sitemap Consistency", () => {
-  it("should have 60+ URLs in the static sitemap", () => {
-    const sitemapPath = path.join(__dirname, "../client/public/sitemap.xml");
-    const content = fs.readFileSync(sitemapPath, "utf-8");
-    const urlCount = (content.match(/<url>/g) || []).length;
-    expect(urlCount).toBeGreaterThanOrEqual(60);
+  // 2026-05-05 audit cleanup: client/public/sitemap.xml was deleted because
+  // server/_core/index.ts serves /sitemap.xml dynamically from
+  // SITEMAP_ROUTES truth in shared/routes.ts. Tests now check the truth
+  // source instead of the (deleted) static file.
+
+  it("should have 60+ routes flagged for sitemap inclusion", async () => {
+    const { SITEMAP_ROUTES } = await import("../shared/routes");
+    expect(SITEMAP_ROUTES.length).toBeGreaterThanOrEqual(60);
   });
 
-  it("should have lastmod dates on all sitemap entries", () => {
-    const sitemapPath = path.join(__dirname, "../client/public/sitemap.xml");
-    const content = fs.readFileSync(sitemapPath, "utf-8");
-    const urlCount = (content.match(/<url>/g) || []).length;
-    const lastmodCount = (content.match(/<lastmod>/g) || []).length;
-    expect(lastmodCount).toBe(urlCount);
+  it("every sitemap-flagged route has a path, priority, and changefreq", async () => {
+    const { SITEMAP_ROUTES } = await import("../shared/routes");
+    for (const r of SITEMAP_ROUTES) {
+      expect(r.path).toMatch(/^\/.*/);
+      expect(typeof r.priority).toBe("number");
+      expect(r.changefreq).toMatch(/^(always|hourly|daily|weekly|monthly|yearly|never)$/);
+    }
   });
 });
 

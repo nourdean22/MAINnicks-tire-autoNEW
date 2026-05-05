@@ -9,11 +9,12 @@ import { sanitizeText, sanitizePhone, sanitizeName } from "../sanitize";
 import { TRPCError } from "@trpc/server";
 import { leads } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { BUSINESS } from "@shared/business";
 
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("routers:messengerBot");
-const STORE_PHONE = "(216) 862-0005";
+const STORE_PHONE = BUSINESS.phone.display;
 
 // Conversation state: keyed by senderId (PSID)
 interface ConversationState {
