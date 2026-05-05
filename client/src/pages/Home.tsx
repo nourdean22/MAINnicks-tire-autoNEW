@@ -59,15 +59,20 @@ function Hero() {
 
   return (
     <section className="relative h-[100svh] flex items-center overflow-hidden">
-      {/* Full-bleed background */}
+      {/* Full-bleed background — <picture> element serves a 120KB mobile-optimized
+          variant under 768px instead of the 577KB desktop file. 5x bandwidth
+          win on mobile first-paint, identical visual on desktop. */}
       <div className="absolute inset-0">
-        <img
-          src={HERO_IMG}
-          alt="Tesla Cybertruck parked outside Nick's Tire & Auto on Euclid Ave in Cleveland — real shop, real customers, real cars"
-          className="w-full h-full object-cover"
-          loading="eager"
-          fetchPriority="high"
-        />
+        <picture>
+          <source media="(max-width: 768px)" srcSet="/hero-cybertruck-mobile.webp" type="image/webp" />
+          <img
+            src={HERO_IMG}
+            alt="Tesla Cybertruck parked outside Nick's Tire & Auto on Euclid Ave in Cleveland — real shop, real customers, real cars"
+            className="w-full h-full object-cover"
+            loading="eager"
+            fetchPriority="high"
+          />
+        </picture>
         <div
           className="absolute inset-0"
           style={{
@@ -296,11 +301,12 @@ function Services() {
   return (
     <section id="services">
       {/* Featured services — large image tiles with cinematic overlay treatment */}
-      {/* The "group" + "transition-transform" + "scale-105 on hover" gives a slow
-          ken-burns-style zoom on the photo. Multi-direction gradient + vignette
-          ensures the headline is legible regardless of photo brightness. */}
+      {/* Mobile gets 65vh per tile (3 × 65vh = 195vh of scroll, down from 240vh)
+          so phone users don't feel like the homepage is endless. Desktop keeps
+          the cinematic 80vh feel. Group hover + ken-burns zoom is desktop-only
+          (mobile has no cursor hover). */}
       {services.map((s) => (
-        <div key={s.slug} className="group relative min-h-[80vh] flex items-end overflow-hidden">
+        <div key={s.slug} className="group relative min-h-[65vh] sm:min-h-[80vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
             <img
               src={s.img}
