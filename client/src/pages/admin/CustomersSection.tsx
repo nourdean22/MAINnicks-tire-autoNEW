@@ -5,8 +5,13 @@
  * call buttons, total spent, days since last visit.
  */
 import React, { useEffect, useState, lazy, Suspense } from "react";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { StatCard, PageHeader, LoadingState, EmptyState } from "./shared";
+
+// Inferred from tRPC AppRouter — admin audit §3 follow-up.
+type ListedCustomer = NonNullable<RouterOutputs["customers"]["list"]>["customers"][number];
+type CustomerHistoryInvoice = NonNullable<RouterOutputs["customers"]["history"]>["invoices"][number];
+type TimelineEvent = NonNullable<RouterOutputs["customers"]["timeline"]>[number];
 import {
   Users, Search, ChevronLeft, ChevronRight, Phone, Mail,
   MapPin, Calendar, UserCheck, AlertTriangle, Building2,
@@ -106,8 +111,7 @@ function CustomerJourney({ phone }: { phone: string }) {
 
   return (
     <div className="space-y-0">
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
-      {(timeline as any[]).slice(0, 15).map((event: any, i: number) => {
+      {timeline.slice(0, 15).map((event: TimelineEvent, i: number) => {
         const cfg = JOURNEY_ICONS[event.type] || { icon: "📌", color: "border-foreground/20" };
         const date = new Date(event.date);
         const isFirst = i === 0;
@@ -472,7 +476,7 @@ function InlineSms({ customerId, firstName }: { customerId: number; firstName: s
 
 /** Customer 360 expandable detail panel — lazy-loaded service history */
 function Customer360Panel({ customer, onSmsClick }: {
-  customer: any;
+  customer: ListedCustomer;
   onSmsClick: (id: number) => void;
 }) {
   const { data: historyData, isLoading: historyLoading } = trpc.customers.history.useQuery(
@@ -690,7 +694,7 @@ function Customer360Panel({ customer, onSmsClick }: {
                     </tr>
                   </thead>
                   <tbody>
-                    {historyData.invoices.map((inv: any) => (
+                    {historyData.invoices.map((inv: CustomerHistoryInvoice) => (
                       <tr key={inv.id} className="border-b border-border/10">
                         <td className="py-1.5 pr-3 text-foreground/50 whitespace-nowrap">
                           {new Date(inv.invoiceDate).toLocaleDateString()}
@@ -1067,7 +1071,7 @@ function CustomersList() {
                 </td>
               </tr>
             ) : (
-              listData?.customers.map((c: any) => {
+              listData?.customers.map((c: ListedCustomer) => {
                 const daysAgo = c.daysSinceLastVisit ?? (c.lastVisitDate ? Math.floor((Date.now() - new Date(c.lastVisitDate).getTime()) / 86400000) : null);
                 const isExpanded = expandedId === c.id;
                 return (

@@ -2,8 +2,10 @@
  * CouponsSection — extracted from Admin.tsx for maintainability.
  */
 import { useState } from "react";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
+
+type Coupon = NonNullable<RouterOutputs["coupons"]["all"]>[number];
 import {
   Calendar, CheckCircle2, Loader2, Power, Star, XCircle, Zap
 } from "lucide-react";
@@ -104,7 +106,7 @@ export default function CouponsSection() {
         </div>
       ) : (
         <div className="space-y-3">
-          {(coupons ?? []).map((c: any) => (
+          {(coupons ?? []).map((c: Coupon) => (
             <div key={c.id} className="bg-card border border-border/30 p-4 flex items-center gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-2">
