@@ -54,8 +54,8 @@ export default function LoyaltyAdminSection() {
     const all = rewards ?? [];
     const totalRewards = all.length;
     const activeRewards = all.filter((r: RewardItem) => r.isActive !== 0).length;
-    const totalPointsValue = all.reduce((sum: number, r: any) => sum + (r.pointsCost || 0), 0);
-    const totalDiscountValue = all.reduce((sum: number, r: any) => sum + (r.discountValue || r.rewardValue || 0), 0);
+    const totalPointsValue = all.reduce((sum: number, r: RewardItem) => sum + (r.pointsCost || 0), 0);
+    const totalDiscountValue = all.reduce((sum: number, r: RewardItem) => sum + (r.discountValue || r.rewardValue || 0), 0);
     // "Most Popular" = lowest cost reward (most accessible)
     const cheapest = all.length > 0
       ? [...all].sort((a: RewardItem, b: RewardItem) => (a.pointsCost || 0) - (b.pointsCost || 0))[0]

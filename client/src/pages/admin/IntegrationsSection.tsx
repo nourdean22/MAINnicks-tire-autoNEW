@@ -7,8 +7,12 @@
  * 3. QUICK ESTIMATE — Combine tires + labor + parts into a complete estimate
  */
 import { useState, useMemo } from "react";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
+
+// tRPC-inferred types — replaces `any` annotations on map/filter callbacks.
+type SyncHealth = RouterOutputs["adminDashboard"]["syncHealth"];
+type HealthCheck = SyncHealth["checks"][number];
 import {
   Truck, Wrench, Calculator, ExternalLink, Search, Plus, Trash2,
   ChevronRight, DollarSign, Clock, Package, Loader2, Settings2,
@@ -71,7 +75,7 @@ function VendorHealthStrip() {
     : health.overallStatus === "degraded" ? AlertTriangle
     : WifiOff;
 
-  const connectedCount = health.checks.filter((c: any) => c.status === "connected").length;
+  const connectedCount = health.checks.filter((c: HealthCheck) => c.status === "connected").length;
 
   return (
     <div className="bg-card border border-border/30">
@@ -94,7 +98,7 @@ function VendorHealthStrip() {
       {expanded && (
         <div className="border-t border-border/20 px-4 py-3 space-y-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {health.checks.map((c: any) => (
+            {health.checks.map((c: HealthCheck) => (
               <div key={c.name} className="flex items-center gap-2 px-3 py-2 bg-background/50 border border-border/10 text-xs">
                 {c.status === "connected" ? (
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />

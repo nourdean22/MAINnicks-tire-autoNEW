@@ -81,8 +81,27 @@ export default function SettingsSection() {
   };
 
   const [syncing, setSyncing] = useState<string | null>(null);
-  const [probeResults, setProbeResults] = useState<any>(null);
-  const [syncResult, setSyncResult] = useState<{ type: string; data: any } | null>(null);
+  // Sync result shape is consistent across all shopdriver mutations
+  // (returns { success, synced, updated, error?, hint? }). probeResults
+  // is opaque diagnostic JSON used for displaying ALG endpoint discovery,
+  // so it's intentionally untyped at the consumer level.
+  type SyncPayload = {
+    success?: boolean;
+    synced?: number;
+    updated?: number;
+    error?: string;
+    hint?: string;
+  };
+  type ImportLogRow = {
+    id: number;
+    createdAt: string | Date;
+    totalRows: number;
+    newCustomers?: number | null;
+    updatedCustomers?: number | null;
+    status: string;
+  };
+  const [probeResults, setProbeResults] = useState<unknown>(null);
+  const [syncResult, setSyncResult] = useState<{ type: string; data: SyncPayload } | null>(null);
 
   // ALG connection status
   const { data: algStatus, isLoading: algLoading } = trpc.autoLabor.status.useQuery(undefined, { staleTime: 30_000 });
@@ -351,7 +370,7 @@ export default function SettingsSection() {
         <div className="bg-card border border-border/30 p-4">
           <h3 className="font-bold text-sm text-foreground tracking-wide mb-3">IMPORT HISTORY</h3>
           <div className="space-y-2">
-            {importHistory.slice(0, 5).map((h: any) => (
+            {importHistory.slice(0, 5).map((h: ImportLogRow) => (
               <div key={h.id} className="flex items-center gap-3 text-[12px] py-2 border-b border-border/10 last:border-0">
                 <Clock className="w-3.5 h-3.5 text-foreground/30" />
                 <span className="text-foreground/50 w-36">{new Date(h.createdAt).toLocaleString()}</span>

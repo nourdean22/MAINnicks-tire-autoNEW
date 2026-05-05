@@ -2,9 +2,11 @@
  * SpecialsSection — Manage promotions/specials from the admin dashboard.
  */
 import { useState } from "react";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Loader2, XCircle, Zap } from "lucide-react";
+
+type Special = RouterOutputs["specials"]["getActive"][number];
 
 const EMPTY_FORM = {
   title: "",
@@ -64,7 +66,7 @@ export default function SpecialsSection() {
     });
   }
 
-  const discountLabel = (s: any) => {
+  const discountLabel = (s: Special) => {
     if (s.discountType === "percent") return `${s.discountValue ?? 0}%`;
     if (s.discountType === "fixed") return `$${s.discountValue ?? 0}`;
     if (s.discountType === "free_service") return "FREE";
@@ -212,7 +214,7 @@ export default function SpecialsSection() {
         </div>
       ) : (
         <div className="space-y-3">
-          {(specials ?? []).map((s: any) => (
+          {(specials ?? []).map((s: Special) => (
             <div key={s.id} className="bg-card border border-border/30 p-4 flex items-center gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-2 flex-wrap">

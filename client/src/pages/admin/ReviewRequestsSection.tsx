@@ -3,7 +3,7 @@
  * Shows stats, request list, settings, and backfill blast controls.
  */
 import { useState, useMemo } from "react";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import { StatCard } from "./shared";
 import {
@@ -14,6 +14,8 @@ import {
 import { GLOBAL_QUOTES, PROOF_CONFIG, type ProofQuote } from "@shared/proof";
 
 type SettingsTab = "requests" | "settings" | "backfill" | "proofbank";
+type ReviewRequest = RouterOutputs["reviewRequests"]["list"][number];
+type BackfillBooking = RouterOutputs["reviewRequests"]["backfillPreview"]["bookings"][number];
 
 export default function ReviewRequestsSection() {
   const [tab, setTab] = useState<SettingsTab>("requests");
@@ -199,7 +201,7 @@ export default function ReviewRequestsSection() {
                   </tr>
                 </thead>
                 <tbody>
-                  {requests.map((req: any) => {
+                  {requests.map((req: ReviewRequest) => {
                     const sc = statusConfig[req.status] || statusConfig.pending;
                     return (
                       <tr key={req.id} className="border-b border-border/20 hover:bg-card/30 transition-colors">
@@ -430,7 +432,7 @@ export default function ReviewRequestsSection() {
                       </tr>
                     </thead>
                     <tbody>
-                      {backfillPreview.bookings.map((b: any) => (
+                      {backfillPreview.bookings.map((b: BackfillBooking) => (
                         <tr key={b.id} className="border-b border-border/20">
                           <td className="px-4 py-2.5 text-foreground">{b.name}</td>
                           <td className="px-4 py-2.5 text-[12px] text-foreground/50">{b.phone}</td>
