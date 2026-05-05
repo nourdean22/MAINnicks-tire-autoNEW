@@ -265,13 +265,19 @@ function NourOsBrainCard() {
   const [weather, setWeather] = useState<any>(null);
 
   useEffect(() => {
+    // 2026-05-05 audit follow-up: abort the fetches on unmount so a slow
+    // autonicks-os response can't setState on an unmounted component
+    // (React warns; race conditions follow on rapid remounts).
+    const ctrl = new AbortController();
     Promise.all([
-      fetch("https://statenour-os.vercel.app/api/brain/status").then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch("https://statenour-os.vercel.app/api/weather").then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch("https://statenour-os.vercel.app/api/brain/status", { signal: ctrl.signal }).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch("https://statenour-os.vercel.app/api/weather", { signal: ctrl.signal }).then(r => r.ok ? r.json() : null).catch(() => null),
     ]).then(([b, w]) => {
+      if (ctrl.signal.aborted) return;
       setBrain(b?.data ?? b);
       setWeather(w);
     });
+    return () => ctrl.abort();
   }, []);
 
   if (!brain && !weather) return null;
