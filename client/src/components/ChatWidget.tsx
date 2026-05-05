@@ -288,7 +288,7 @@ export default function ChatWidget() {
                     disabled={submitLead.isPending}
                     className="w-full bg-primary text-primary-foreground py-2 rounded-lg font-semibold text-[12px] hover:opacity-90 transition-opacity"
                   >
-                    {submitLead.isPending ? "Sending..." : "Call Me"}
+                    {submitLead.isPending ? "Telling the front desk..." : "Call Me"}
                   </button>
                 </div>
               )}

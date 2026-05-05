@@ -19,9 +19,9 @@ export default function TireSizePage() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <h1 className="font-semibold text-4xl text-foreground mb-4">Tire Size Not Found</h1>
-          <p className="text-foreground/60 mb-6">We couldn't find that tire size. Browse our full inventory instead.</p>
-          <Link href="/tires" className="text-primary hover:underline">Browse All Tires</Link>
+          <h1 className="font-semibold text-4xl text-foreground mb-4">That size isn't on the wall.</h1>
+          <p className="text-foreground/60 mb-6">Doesn't mean we can't get it — call (216) 862-0005 with the size off your sidewall and we'll source it. Or browse what we stock.</p>
+          <Link href="/tires" className="text-primary hover:underline">Browse what's in stock</Link>
         </div>
       </div>
     );

@@ -232,7 +232,7 @@ export default function LeadPopup() {
                       disabled={submitLead.isPending}
                       className="w-full bg-primary text-primary-foreground py-3.5 rounded-lg font-semibold text-[14px] tracking-[-0.01em] hover:opacity-90 transition-opacity disabled:opacity-50"
                     >
-                      {submitLead.isPending ? "Submitting..." : "Get a Free Assessment"}
+                      {submitLead.isPending ? "Sending it over..." : "Get a Free Assessment"}
                     </button>
                   </form>
 

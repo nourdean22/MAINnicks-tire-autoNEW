@@ -668,12 +668,12 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
               {mutation.isPending ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Submitting...
+                  Holding your spot...
                 </>
               ) : (
                 <>
                   <CheckCircle className="w-5 h-5" />
-                  Book Today
+                  Hold My Bay
                 </>
               )}
             </button>

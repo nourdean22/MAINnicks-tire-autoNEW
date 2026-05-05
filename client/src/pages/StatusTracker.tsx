@@ -143,10 +143,9 @@ export default function StatusTracker() {
             ) : !results || results.length === 0 ? (
               <div className="text-center py-12 bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-8">
                 <AlertTriangle className="w-12 h-12 text-primary/60 mx-auto mb-4" />
-                <h3 className="font-bold text-xl text-foreground mb-2">No Results Found</h3>
+                <h3 className="font-bold text-xl text-foreground mb-2">Nothing under that {searchType === "phone" ? "number" : "code"}.</h3>
                 <p className="text-foreground/60 max-w-md mx-auto">
-                  We could not find any active bookings matching that {searchType === "phone" ? "phone number" : "reference code"}.
-                  If you recently booked, it may take a few minutes to appear. You can also call us at{" "}
+                  Either the booking hasn't synced yet (give it a few minutes), the {searchType === "phone" ? "number" : "code"} got typed wrong, or you haven't actually booked yet — all fixable. Easiest path:{" "}
                   <a href={BUSINESS.phone.href} className="text-primary hover:underline">{BUSINESS.phone.display}</a>.
                 </p>
               </div>
