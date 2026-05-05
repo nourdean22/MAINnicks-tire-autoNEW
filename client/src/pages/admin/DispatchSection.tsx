@@ -2,11 +2,21 @@
  * Shop Status — wait status toggle + bay grid, ready queue, tech assignment, QC review.
  */
 import { useState } from "react";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { Loader2, User, MapPin, Play, CheckCircle2, XCircle, Clock, Wrench, Shield, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 type Tab = "bays" | "queue" | "qc" | "techs";
+
+// Inferred from the tRPC AppRouter — replaces 14 `any` uses in this file
+// (admin audit §3 follow-up). When the dispatch router shape changes,
+// these types update automatically and the compiler flags every usage.
+type DispatchLoad = NonNullable<RouterOutputs["dispatch"]["load"]>;
+type Bay = DispatchLoad["bays"][number];
+type Tech = DispatchLoad["techs"][number];
+type WorkOrderListItem = RouterOutputs["workOrders"]["list"][number];
+type DispatchRecommendation = NonNullable<RouterOutputs["dispatch"]["recommend"]>[number];
+type QcChecklistItem = NonNullable<RouterOutputs["dispatch"]["getQcChecklist"]>["items"][number];
 
 function WaitStatusToggle() {
   const { data: setting, isLoading } = trpc.shopdriver.getSetting.useQuery(
@@ -141,8 +151,8 @@ function MetricsStrip() {
   const { data: stats } = trpc.workOrders.stats.useQuery(undefined, { refetchInterval: 10000 });
   const { data: qcStats } = trpc.dispatch.qcStats.useQuery(undefined, { refetchInterval: 10000 });
 
-  const clockedIn = load?.techs.filter((t: any) => t.clockedIn).length || 0;
-  const freeBays = load?.bays.filter((b: any) => !b.occupied).length || 0;
+  const clockedIn = load?.techs.filter((t: Tech) => t.clockedIn).length || 0;
+  const freeBays = load?.bays.filter((b: Bay) => !b.occupied).length || 0;
   const totalBays = load?.bays.length || 0;
 
   const metrics = [
@@ -177,14 +187,14 @@ function BayGrid() {
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-      {bays.map((bay: any) => (
+      {bays.map((bay: Bay) => (
         <BayCard key={bay.id} bay={bay} techs={load?.techs || []} />
       ))}
     </div>
   );
 }
 
-function BayCard({ bay, techs }: { bay: any; techs: any[] }) {
+function BayCard({ bay, techs }: { bay: Bay; techs: Tech[] }) {
   const tech = bay.currentTechId ? techs.find(t => t.id === bay.currentTechId) : null;
 
   return (
@@ -230,8 +240,7 @@ function ReadyQueue() {
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
-  const orders = (workOrders as any[]) || [];
+  const orders = workOrders || [];
 
   if (orders.length === 0) {
     return (
@@ -247,7 +256,7 @@ function ReadyQueue() {
       {/* Queue list */}
       <div className="space-y-2">
         <h3 className="text-sm font-medium text-muted-foreground mb-2">Ready for Bay ({orders.length})</h3>
-        {orders.map((wo: any) => (
+        {orders.map((wo: WorkOrderListItem) => (
           <button
             key={wo.id}
             onClick={() => setSelectedWo(wo.id)}
@@ -283,7 +292,7 @@ function ReadyQueue() {
   );
 }
 
-function AssignmentPanel({ workOrderId, bays }: { workOrderId: string; bays: any[] }) {
+function AssignmentPanel({ workOrderId, bays }: { workOrderId: string; bays: Bay[] }) {
   const { data: recs, isLoading } = trpc.dispatch.recommend.useQuery({ workOrderId });
   const freeBays = bays.filter(b => !b.occupied);
   const [selectedTech, setSelectedTech] = useState<number | null>(null);
@@ -316,7 +325,7 @@ function AssignmentPanel({ workOrderId, bays }: { workOrderId: string; bays: any
           <Loader2 className="w-4 h-4 animate-spin" />
         ) : (
           <div className="space-y-1">
-            {(recs || []).map((rec: any) => (
+            {(recs || []).map((rec: DispatchRecommendation) => (
               <button
                 key={rec.techId}
                 onClick={() => setSelectedTech(rec.techId)}
@@ -379,10 +388,8 @@ function QcReview() {
   const [selectedWo, setSelectedWo] = useState<string | null>(null);
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
-  const orders = (workOrders as any[]) || [];
+  const orders = workOrders || [];
 
   if (orders.length === 0) {
     return (
@@ -397,7 +404,7 @@ function QcReview() {
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <div className="space-y-2">
         <h3 className="text-sm font-medium text-muted-foreground mb-2">Awaiting QC ({orders.length})</h3>
-        {orders.map((wo: any) => (
+        {orders.map((wo: WorkOrderListItem) => (
           <button
             key={wo.id}
             onClick={() => setSelectedWo(wo.id)}
@@ -445,11 +452,9 @@ function QcChecklistPanel({ workOrderId }: { workOrderId: string }) {
         <CreateQcButton workOrderId={workOrderId} />
       </div>
     );
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
-  const items = (checklist.items as any[]) || [];
+  const items = (checklist.items ?? []) as QcChecklistItem[];
   const allRequiredPassed = items.filter(i => i.required).every(i => i.passed === true);
   const roadTestOk = !checklist.roadTestRequired || checklist.roadTestCompleted;
 
@@ -467,7 +472,7 @@ function QcChecklistPanel({ workOrderId }: { workOrderId: string }) {
       </div>
 
       <div className="space-y-1 max-h-[400px] overflow-y-auto">
-        {items.map((item: any) => (
+        {items.map((item: QcChecklistItem) => (
           <div key={item.id} className="flex items-center gap-2 text-sm py-1">
             {item.passed === true ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
@@ -503,7 +508,7 @@ function QcChecklistPanel({ workOrderId }: { workOrderId: string }) {
           <button
             onClick={() => failMut.mutate({
               checklistId: checklist.id,
-              failureReasons: items.filter((i: any) => i.passed === false).map((i: any) => i.label),
+              failureReasons: items.filter((i: QcChecklistItem) => i.passed === false).map((i: QcChecklistItem) => i.label),
               correctiveActions: "Rework needed",
               reviewedBy: "admin",
             })}
@@ -555,7 +560,7 @@ function TechManager() {
     <div className="space-y-2">
       <h3 className="text-sm font-medium text-muted-foreground mb-2">Technicians ({techs.length})</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {techs.map((tech: any) => (
+        {techs.map((tech: Tech) => (
           <div key={tech.id} className="border border-border/40 rounded-lg p-4 bg-card">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
