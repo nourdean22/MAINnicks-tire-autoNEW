@@ -32,11 +32,27 @@ if (portIdx !== -1 && args[portIdx + 1]) {
 }
 
 // ─── Import route registry ──────────────────────────────
-// We dynamically import the compiled routes since it's a .ts file.
-// For the prerender script, we read the routes directly via a simple approach.
+// Load all routes for prerender. The 2026-05-05 audit caught two silent
+// failures in this function: tsx/esm broken on Node 24, and a temp-script
+// import path bug. Both were swallowed by try/catch with only a warning,
+// dropping 100+ blog routes from prerender. This rewrite hardens the
+// loader against silent failure:
+//
+//   1. The tsx-based PRERENDER_ROUTES load is the primary path. If it
+//      fails AND the regex fallback returns < 50 routes, the build now
+//      throws (was: silently shipped <50 routes).
+//   2. The blog loader (separate try block below) is now also asserted —
+//      if it returns 0 routes when BLOG_SLUGS has 100+ in source, the
+//      build throws.
+//
+// Both paths still log progress so CI output is clear. Sanity thresholds
+// (50 for routes, 100 for blogs) are well below current scale (170 +
+// 115) and well above any plausible future trim — they'd only fire on
+// genuine pipeline breakage.
 async function loadRoutes() {
   const { execSync } = await import("child_process");
   const routes = [];
+  let primaryLoaderOk = false;
   try {
     // Load full route data (path + title + description) for SEO injection
     const result = execSync(
@@ -44,15 +60,28 @@ async function loadRoutes() {
       { cwd: ROOT, encoding: "utf-8", timeout: 15000 }
     );
     routes.push(...JSON.parse(result.trim()));
-  } catch {
-    // Fallback: read the file and extract paths with regex
-    console.log("[prerender] Falling back to regex route extraction...");
+    primaryLoaderOk = true;
+    console.log(`[prerender] Loaded ${routes.length} routes via tsx`);
+  } catch (err) {
+    console.warn("[prerender] tsx route loader failed, trying regex fallback:", err.message);
     const content = fs.readFileSync(path.join(ROOT, "shared", "routes.ts"), "utf-8");
     const re = /path:\s*"([^"]+)".*?prerender:\s*true/gs;
     let match;
     while ((match = re.exec(content)) !== null) {
       routes.push(match[1]);
     }
+    console.warn(`[prerender] Regex fallback recovered ${routes.length} routes (no title/description metadata available)`);
+  }
+
+  // Sanity gate: routes.ts has ~170 PRERENDER_ROUTES today. If we got
+  // fewer than 50, something is wrong with both loader paths.
+  if (routes.length < 50) {
+    throw new Error(
+      `[prerender] FATAL: route loader returned only ${routes.length} routes ` +
+      `(expected 50+). Both tsx loader and regex fallback failed. ` +
+      `tsx loader status: ${primaryLoaderOk ? "ok" : "failed"}. ` +
+      `Check shared/routes.ts and ensure 'tsx' devDep is installed.`
+    );
   }
 
   // ── Pull dynamic blog slugs + per-post SEO metadata from the DB so
@@ -109,8 +138,26 @@ process.exit(0);
       if (!existing.has(b.path)) routes.push(b);
     }
     console.log(`[prerender] Added ${blogRoutes.length} blog routes with per-post SEO metadata`);
+
+    // Sanity gate: BLOG_SLUGS has 115 static entries today. If we got
+    // < 100 blog routes, the loader is failing to merge them properly.
+    // This is the exact failure mode that shipped to prod on 2026-05-05.
+    if (blogRoutes.length < 100) {
+      throw new Error(
+        `[prerender] FATAL: blog loader returned only ${blogRoutes.length} routes ` +
+        `(expected 100+ from BLOG_SLUGS in shared/routes.ts). ` +
+        `The blog routes loader silently failed before — fail loud now. ` +
+        `Verify BLOG_SLUGS export in shared/routes.ts and that tsx can read .ts files.`
+      );
+    }
   } catch (err) {
-    console.warn("[prerender] Could not load dynamic blog slugs from DB:", err.message);
+    // Re-throw FATAL errors (the sanity gate above). Only swallow truly
+    // optional failures like a missing DB connection augmenting dynamic
+    // articles — and even then, log clearly enough that CI catches it.
+    if (err.message.startsWith("[prerender] FATAL:")) throw err;
+    console.error("[prerender] Blog routes loader failed:", err.message);
+    console.error("[prerender] This used to be silently swallowed and dropped 100+ blog routes from prerender.");
+    console.error("[prerender] Continuing without blog routes — but the verify-prerender CI workflow will catch the resulting drift on PR.");
   }
 
   return routes;
