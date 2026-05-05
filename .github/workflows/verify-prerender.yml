@@ -45,11 +45,17 @@ jobs:
       - name: Compute expected prerender set
         id: expected
         run: |
+          # Expected = PRERENDER_ROUTES (prerender:true) + BLOG_SLUGS.
+          # NOT SITEMAP_ROUTES — some utility routes (e.g. /my-garage,
+          # /review, /status) prerender but are intentionally excluded
+          # from sitemap. Using PRERENDER_ROUTES avoids false positives.
+          # DB-dynamic blogs (added via getPublishedArticles at runtime)
+          # are NOT predictable here and surface as legit "extras" below.
           node --import tsx -e "
-            import { SITEMAP_ROUTES, BLOG_SLUGS } from './shared/routes.ts';
+            import { PRERENDER_ROUTES, BLOG_SLUGS } from './shared/routes.ts';
             const fs = await import('fs');
             const expected = new Set();
-            for (const r of SITEMAP_ROUTES) {
+            for (const r of PRERENDER_ROUTES) {
               if (r.path === '/') expected.add('index.html');
               else expected.add(r.path.replace(/^\//, '') + '/index.html');
             }
@@ -64,7 +70,7 @@ jobs:
           find . -name 'index.html' -type f | sed 's|^\./||' | sort > /tmp/actual.txt
           echo "Actual: $(wc -l < /tmp/actual.txt)"
 
-      - name: Diff (must be near-zero)
+      - name: Diff (missing blocks the build, extras only warn)
         run: |
           set +e
           MISSING=$(comm -23 /tmp/expected.txt /tmp/actual.txt | head -50)
@@ -75,17 +81,28 @@ jobs:
           echo "Missing $MISSING_COUNT prerendered file(s) for routes/blogs that should be rendered:"
           echo "$MISSING"
           echo
-          echo "Extra $EXTRA_COUNT prerendered file(s) without a matching route/blog (stale):"
+          echo "Extra $EXTRA_COUNT prerendered file(s) without a matching static route/blog:"
+          echo "(some are normal: DB-dynamic blogs from getPublishedArticles)"
           echo "$EXTRA"
 
-          # Threshold: small drift is OK (e.g. legacy redirects), but >5 in
-          # either direction means the prerender pipeline silently broke
-          # OR someone added routes/blogs without running pnpm run regen.
-          if [ "$MISSING_COUNT" -gt 5 ] || [ "$EXTRA_COUNT" -gt 5 ]; then
+          # MISSING is the actual silent-failure signal — something in
+          # PRERENDER_ROUTES or BLOG_SLUGS that didn't get prerendered.
+          # That's the 2026-05-05 bug class. Block on >5 missing.
+          if [ "$MISSING_COUNT" -gt 5 ]; then
             echo
-            echo "FAIL: prerender drift exceeds threshold (5)."
+            echo "FAIL: $MISSING_COUNT routes/blogs are in source but missing from prerendered/."
+            echo "This is the silent-failure class from 2026-05-05 (blog routes silently dropped)."
             echo "Run \`pnpm run regen\` locally to refresh prerendered/ and commit."
             exit 1
+          fi
+
+          # EXTRAS are usually DB-dynamic blogs OR stale prerendered files
+          # for routes that were removed. Warn but don't fail — the human
+          # can decide whether to re-regen and prune.
+          if [ "$EXTRA_COUNT" -gt 30 ]; then
+            echo
+            echo "WARN: $EXTRA_COUNT extra prerendered file(s) — high count suggests stale files for removed routes."
+            echo "Consider running \`pnpm run regen\` to refresh."
           fi
 
       - name: Spot-check 3 key blog posts have full content (not 9.9KB shells)
