@@ -42,9 +42,11 @@ import { useConversionTracking } from "@/hooks/useConversionTracking";
 const HERO_IMG = "/hero-cybertruck.webp";
 
 const MECHANIC_IMG = "/mechanic-bay.webp";
-const TIRES_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp";
-const DIAG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp";
-const BRAKES_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-brakes-nKAKuxmW2WAmNrbCFRD9zL.webp";
+// Service-tile photos — owned shop photos, not stock CDN.
+// Switched May 2026 from Manus.space CloudFront stock → real Nick's content.
+const TIRES_IMG = "/storefront-bmw.webp";        // Real customer's BMW out front of the shop
+const DIAG_IMG = "/mechanic-bay.webp";           // Inside our actual bay
+const BRAKES_IMG = "/cybertruck-front-tech.webp"; // Modern vehicle, tech-forward vibe
 
 // ─── HERO — Full-viewport cinematic with left content ────
 function Hero() {

@@ -57,7 +57,7 @@ function ContactSchema() {
       reviewCount: String(BUSINESS.reviews.count),
       bestRating: "5",
     },
-    image: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    image: `${BUSINESS.urls.website}/storefront-day.webp`,
     priceRange: "$$",
   };
 

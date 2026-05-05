@@ -410,7 +410,7 @@ export default function BlogPost() {
       url: "https://nickstire.org",
       logo: {
         "@type": "ImageObject",
-        url: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+        url: `${BUSINESS.urls.website}/icon-512x512.png`,
       },
       address: {
         "@type": "PostalAddress",

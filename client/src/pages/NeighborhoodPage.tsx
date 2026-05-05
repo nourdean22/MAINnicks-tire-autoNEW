@@ -16,7 +16,8 @@ import InternalLinks from "@/components/InternalLinks";
 import FadeIn from "@/components/FadeIn";
 import { trpc } from "@/lib/trpc";
 
-const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp";
+// Owned storefront photo — real Nick's shop, not Manus.space CloudFront stock.
+const HERO_IMG = "/storefront-day.webp";
 
 // Fixed 2026-04-24: broken internal links that dropped rank juice.
 // Was: Oil Change → /oil-change-cleveland (404-like SPA fallback),
