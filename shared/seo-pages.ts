@@ -28,7 +28,7 @@ export interface SEOServicePage {
 export const SEO_SERVICE_PAGES: SEOServicePage[] = [
   {
     slug: "brake-repair-cleveland",
-    metaTitle: "Brake Repair Cleveland OH | Same Day Service | Nick's Tire",
+    metaTitle: "Cleveland Brake Shop · Free Inspection · 36mo | Nick's",
     metaDescription: "Cleveland's top brake shop. Pads, rotors, calipers, ABS. 36-month warranty, same-day service, free estimate. Walk-ins welcome. Call (216) 862-0005.",
     heroHeadline: "BRAKE REPAIR\nCLEVELAND OH",
     heroSubline: "Looking for brake repair in Cleveland? Our Cleveland brake shop has been the trusted choice for brakes Cleveland drivers depend on. We inspect the entire braking system, show you the worn parts, and explain your options before any work begins. Free estimate, no surprises.",
@@ -88,7 +88,7 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
   },
   {
     slug: "check-engine-light-cleveland",
-    metaTitle: "Check Engine Light Near Me | Cleveland OH | Free Scan | Nick's",
+    metaTitle: "Check Engine Light Cleveland · Free OBD-II Scan | Nick's",
     metaDescription: "Searching for check engine light service near me in Cleveland? Free diagnostic scan with repair. OBD-II experts. Walk-ins 7 days. Call (216) 862-0005.",
     heroHeadline: "CHECK ENGINE LIGHT\nSERVICE NEAR ME",
     heroSubline: "If you are searching for check engine light service near me in Cleveland, you found the right shop. A check engine light can mean anything from a loose gas cap to a failing catalytic converter. We read the codes, run live data tests, and tell you exactly what is wrong before recommending any repair.",
@@ -144,7 +144,7 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
   },
   {
     slug: "tire-repair-cleveland",
-    metaTitle: "Tire Repair Near Me | Cleveland OH | Walk-Ins 7 Days | Nick's",
+    metaTitle: "Tire Repair Near Me Cleveland · Walk-Ins 7 Days | Nick's",
     metaDescription: "Need tire repair near me in Cleveland? Flat repair, new & used tires, mounting, balancing. All major brands. Walk-ins 7 days. Call (216) 862-0005.",
     heroHeadline: "TIRE REPAIR &\nTIRE SHOP NEAR ME",
     heroSubline: "Searching for tire repair near me in Cleveland? Whether you have a flat, need new tires, or want a rotation and balance, Nick's has you covered. We carry all major tire brands and offer honest recommendations based on your driving needs and budget.",
@@ -200,7 +200,7 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
   },
   {
     slug: "suspension-repair-cleveland",
-    metaTitle: "Suspension Repair Cleveland OH | Struts & Shocks | Nick's Tire",
+    metaTitle: "Suspension Repair Cleveland · Struts & Shocks | Nick's",
     metaDescription: "Suspension repair in Cleveland. Struts, shocks, ball joints, tie rods. Fix pothole damage. Same-day service, 4.9 stars. Call (216) 862-0005.",
     heroHeadline: "SUSPENSION REPAIR\nFOR CLEVELAND ROADS",
     heroSubline: "Cleveland potholes, frost heaves, and rough roads take a toll on suspension components. When your ride feels loose, bouncy, or unstable, our technicians inspect every component and restore safe handling.",
@@ -252,7 +252,7 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
   },
   {
     slug: "ac-repair-cleveland",
-    metaTitle: "AC Repair Cleveland OH | Same Day Service | Nick's Tire",
+    metaTitle: "AC Recharge Cleveland · No Appointment · Walk-Ins | Nick's",
     metaDescription: "Car AC not blowing cold in Cleveland? Recharge, compressor, leak repair. Same-day service, walk-ins welcome 7 days. Call (216) 862-0005.",
     heroHeadline: "CAR AC REPAIR\nIN CLEVELAND",
     heroSubline: "When your air conditioning stops blowing cold, driving in summer heat becomes miserable. We diagnose AC problems accurately, fix the root cause, and restore full cold air — not just add refrigerant and hope.",
@@ -304,7 +304,7 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
   },
   {
     slug: "diagnostics-cleveland",
-    metaTitle: "Auto Diagnostics Cleveland OH | Walk-Ins Welcome | Nick's Tire",
+    metaTitle: "Auto Diagnostics Cleveland · Walk-Ins Welcome | Nick's",
     metaDescription: "Advanced auto diagnostics in Cleveland. OBD-II scanning, electrical testing, sensor diagnostics. Walk-ins 7 days. 4.9 stars. Call (216) 862-0005.",
     heroHeadline: "ADVANCED AUTO\nDIAGNOSTICS",
     heroSubline: "Modern vehicles have dozens of computers and hundreds of sensors. When something goes wrong, you need a shop with the tools and knowledge to find the real problem — not just read a code and guess.",
@@ -383,7 +383,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
   {
     slug: "toyota-repair-cleveland",
     make: "Toyota",
-    metaTitle: "Toyota Repair Cleveland OH | Camry, Corolla, RAV4 | Nick's Tire & Auto",
+    metaTitle: "Toyota Repair Cleveland · Camry, Corolla, RAV4 | Nick's",
     metaDescription: "Toyota repair specialists in Cleveland. Camry, Corolla, RAV4, Highlander, Tacoma service and repair. Factory-quality work at independent shop prices. Call (216) 862-0005.",
     heroHeadline: "TOYOTA REPAIR\nIN CLEVELAND",
     heroSubline: "Toyotas are built to last, but they still need proper maintenance and occasional repairs. Our technicians know Toyota systems inside and out and use quality parts to keep your vehicle running the way Toyota intended.",
@@ -406,7 +406,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
   {
     slug: "honda-repair-cleveland",
     make: "Honda",
-    metaTitle: "Honda Repair Cleveland OH | Civic, Accord, CR-V | Nick's Tire & Auto",
+    metaTitle: "Honda Repair Cleveland · Civic, Accord, CR-V | Nick's",
     metaDescription: "Honda repair experts in Cleveland. Civic, Accord, CR-V, Pilot, Odyssey service and repair. Honest diagnostics, fair prices. Call (216) 862-0005.",
     heroHeadline: "HONDA REPAIR\nIN CLEVELAND",
     heroSubline: "Hondas are reliable vehicles, but Cleveland driving conditions and age take their toll. We service all Honda models with the same attention to detail Honda owners expect, at prices that make sense.",
@@ -429,7 +429,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
   {
     slug: "ford-repair-cleveland",
     make: "Ford",
-    metaTitle: "Ford Repair Cleveland OH | F-150, Escape, Explorer | Nick's Tire & Auto",
+    metaTitle: "Ford Repair Cleveland · F-150, Escape, Explorer | Nick's",
     metaDescription: "Ford repair in Cleveland. F-150, Escape, Explorer, Focus, Fusion service and repair. Truck and SUV specialists. Fair prices, honest work. Call (216) 862-0005.",
     heroHeadline: "FORD REPAIR\nIN CLEVELAND",
     heroSubline: "From F-150 trucks to Escape SUVs, Ford vehicles are workhorses that need a shop that understands them. We handle everything from routine maintenance to complex drivetrain and electrical repairs.",
@@ -452,7 +452,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
   {
     slug: "chevy-repair-cleveland",
     make: "Chevrolet",
-    metaTitle: "Chevy Repair Cleveland OH | Silverado, Equinox, Malibu | Nick's Tire & Auto",
+    metaTitle: "Chevy Repair Cleveland · Silverado, Equinox | Nick's",
     metaDescription: "Chevrolet repair in Cleveland. Silverado, Equinox, Malibu, Cruze, Traverse service and repair. GM specialists with honest pricing. Call (216) 862-0005.",
     heroHeadline: "CHEVY REPAIR\nIN CLEVELAND",
     heroSubline: "Chevrolet trucks, SUVs, and cars are built tough, but Cleveland winters and daily driving create wear that needs expert attention. We know GM vehicles and fix them right the first time.",
@@ -475,7 +475,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
   {
     slug: "nissan-repair-cleveland",
     make: "Nissan",
-    metaTitle: "Nissan Repair Cleveland OH | Altima, Rogue, Sentra | Nick's Tire & Auto",
+    metaTitle: "Nissan Repair Cleveland · Altima, Rogue, Sentra | Nick's",
     metaDescription: "Nissan repair in Cleveland. Altima, Rogue, Sentra, Pathfinder, Maxima service and repair. Expert CVT transmission service. Call (216) 862-0005.",
     heroHeadline: "NISSAN REPAIR\nIN CLEVELAND",
     heroSubline: "Nissan vehicles are reliable and efficient, but they have specific maintenance needs that require experienced technicians. We know Nissan engineering and service them right.",
@@ -498,7 +498,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
   {
     slug: "hyundai-repair-cleveland",
     make: "Hyundai",
-    metaTitle: "Hyundai Repair Cleveland OH | Elantra, Tucson, Sonata | Nick's Tire & Auto",
+    metaTitle: "Hyundai Repair Cleveland · Elantra, Tucson | Nick's",
     metaDescription: "Hyundai repair in Cleveland. Elantra, Tucson, Sonata, Santa Fe, Kona service and repair. Engine recall specialists. Call (216) 862-0005.",
     heroHeadline: "HYUNDAI REPAIR\nIN CLEVELAND",
     heroSubline: "Hyundai vehicles offer excellent value, but certain model years have known issues that require experienced diagnosis. We know these vehicles and fix them right.",
@@ -521,7 +521,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
   {
     slug: "kia-repair-cleveland",
     make: "Kia",
-    metaTitle: "Kia Repair Cleveland OH | Forte, Sportage, Sorento | Nick's Tire & Auto",
+    metaTitle: "Kia Repair Cleveland · Forte, Sportage, Sorento | Nick's",
     metaDescription: "Kia repair in Cleveland. Forte, Sportage, Sorento, Telluride, Soul service and repair. Engine and transmission specialists. Call (216) 862-0005.",
     heroHeadline: "KIA REPAIR\nIN CLEVELAND",
     heroSubline: "Kia vehicles have improved dramatically in quality, but certain model years share known issues with their Hyundai counterparts. We diagnose and repair them all.",
@@ -544,7 +544,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
   {
     slug: "jeep-repair-cleveland",
     make: "Jeep",
-    metaTitle: "Jeep Repair Cleveland OH | Wrangler, Cherokee, Grand Cherokee | Nick's Tire & Auto",
+    metaTitle: "Jeep Repair Cleveland · Wrangler, Cherokee, GC | Nick's",
     metaDescription: "Jeep repair in Cleveland. Wrangler, Cherokee, Grand Cherokee, Compass, Renegade service and repair. 4WD specialists. Call (216) 862-0005.",
     heroHeadline: "JEEP REPAIR\nIN CLEVELAND",
     heroSubline: "Jeep vehicles are built for adventure, but Cleveland's roads and weather create unique maintenance demands. We keep your Jeep running strong in every season.",
@@ -567,7 +567,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
   {
     slug: "bmw-repair-cleveland",
     make: "BMW",
-    metaTitle: "BMW Repair Cleveland OH | 3 Series, X3, X5, 5 Series | Nick's Tire & Auto",
+    metaTitle: "BMW Repair Cleveland · 3 Series, X3, X5, 5 | Nick's",
     metaDescription: "BMW repair in Cleveland. 3 Series, X3, X5, 5 Series service and repair. Dealership-quality work at independent shop prices. Call (216) 862-0005.",
     heroHeadline: "BMW REPAIR\nIN CLEVELAND",
     heroSubline: "BMW engineering is sophisticated, and maintenance costs at the dealer reflect that. We provide the same quality diagnosis and repair at significantly lower prices.",
@@ -590,7 +590,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
   {
     slug: "dodge-ram-repair-cleveland",
     make: "Dodge/Ram",
-    metaTitle: "Dodge & Ram Repair Cleveland OH | Ram 1500, Charger, Durango | Nick's Tire & Auto",
+    metaTitle: "Dodge & Ram Repair Cleveland · 1500, Charger, Durango | Nick's",
     metaDescription: "Dodge and Ram repair in Cleveland. Ram 1500, Charger, Durango, Challenger, Grand Caravan service and repair. Hemi specialists. Call (216) 862-0005.",
     heroHeadline: "DODGE & RAM REPAIR\nIN CLEVELAND",
     heroSubline: "Dodge and Ram vehicles are powerful and popular in Cleveland. From Hemi V8s to Pentastar V6s, we know these engines and keep them running strong.",
@@ -637,7 +637,7 @@ export interface ProblemPage {
 export const PROBLEM_PAGES: ProblemPage[] = [
   {
     slug: "car-shaking-while-driving",
-    metaTitle: "Car Shaking While Driving? | Causes & Repair | Nick's Tire & Auto Cleveland",
+    metaTitle: "Car Shaking? Causes & Repair | Nick's Cleveland",
     metaDescription: "Car vibrating or shaking while driving? Common causes include tire balance, brake rotors, suspension wear, and drivetrain problems. Diagnosis in Cleveland. Call (216) 862-0005.",
     heroHeadline: "CAR SHAKING\nWHILE DRIVING?",
     heroSubline: "A vibration or shake while driving is your vehicle telling you something needs attention. The cause depends on when it happens — at highway speed, during braking, or at all times. We diagnose the exact source.",
@@ -661,7 +661,7 @@ export const PROBLEM_PAGES: ProblemPage[] = [
   },
   {
     slug: "brakes-grinding",
-    metaTitle: "Brakes Grinding? | Causes & Urgent Repair | Nick's Tire & Auto Cleveland",
+    metaTitle: "Brakes Grinding? | Causes & Urgent Repair | Nick's Cleveland",
     metaDescription: "Brakes grinding or making metal-on-metal noise? This is urgent — worn pads damage rotors fast. Same-day brake repair in Cleveland. Call (216) 862-0005.",
     heroHeadline: "BRAKES GRINDING?\nDO NOT WAIT.",
     heroSubline: "A grinding noise when you brake means metal is contacting metal. Your brake pads are completely worn and the backing plate is grinding into the rotor. Every mile you drive is causing additional damage and reducing your stopping ability.",
@@ -683,7 +683,7 @@ export const PROBLEM_PAGES: ProblemPage[] = [
   },
   {
     slug: "check-engine-light-flashing",
-    metaTitle: "Check Engine Light Flashing? | STOP Driving | Nick's Tire & Auto Cleveland",
+    metaTitle: "Engine Light Flashing? STOP Driving | Nick's Cleveland",
     metaDescription: "Flashing check engine light means active misfire — stop driving to prevent catalytic converter damage. Emergency diagnostics in Cleveland. Call (216) 862-0005.",
     heroHeadline: "CHECK ENGINE\nLIGHT FLASHING?",
     heroSubline: "A flashing check engine light is the most serious warning your vehicle can give you. It means an active engine misfire is occurring that can destroy your catalytic converter. Reduce speed immediately and get to a shop.",
@@ -705,7 +705,7 @@ export const PROBLEM_PAGES: ProblemPage[] = [
   },
   {
     slug: "car-overheating",
-    metaTitle: "Car Overheating? | Causes & Emergency Repair | Nick's Tire & Auto Cleveland",
+    metaTitle: "Car Overheating? Emergency Repair | Nick's Cleveland",
     metaDescription: "Car overheating or temperature gauge in the red? Pull over immediately. Cooling system diagnosis and repair in Cleveland. Call (216) 862-0005.",
     heroHeadline: "CAR OVERHEATING?\nPULL OVER NOW.",
     heroSubline: "An overheating engine can cause catastrophic damage in minutes. If your temperature gauge is in the red or you see steam from under the hood, pull over safely, turn off the engine, and call for help.",
@@ -729,7 +729,7 @@ export const PROBLEM_PAGES: ProblemPage[] = [
   },
   {
     slug: "car-wont-start",
-    metaTitle: "Car Won't Start? | Causes & Repair | Nick's Tire & Auto Cleveland",
+    metaTitle: "Car Won't Start? | Causes & Repair | Nick's Cleveland",
     metaDescription: "Car won't start? Common causes include dead battery, bad starter, fuel pump failure, and ignition problems. Expert diagnosis in Cleveland. Call (216) 862-0005.",
     heroHeadline: "CAR WON'T\nSTART?",
     heroSubline: "A car that will not start can be caused by electrical, fuel, or mechanical problems. The symptoms you notice — clicking, cranking, or complete silence — tell us where to look first.",
@@ -753,7 +753,7 @@ export const PROBLEM_PAGES: ProblemPage[] = [
   },
   {
     slug: "steering-wheel-shaking",
-    metaTitle: "Steering Wheel Shaking? | Causes & Repair | Nick's Tire & Auto Cleveland",
+    metaTitle: "Steering Wheel Shaking? | Causes & Repair | Nick's Cleveland",
     metaDescription: "Steering wheel vibrating or shaking? Causes include tire balance, warped rotors, worn suspension, and alignment problems. Diagnosis in Cleveland. Call (216) 862-0005.",
     heroHeadline: "STEERING WHEEL\nSHAKING?",
     heroSubline: "A shaking steering wheel is not just annoying — it is a warning sign. The speed at which it shakes and whether it happens during braking tells us exactly where to look.",
@@ -777,7 +777,7 @@ export const PROBLEM_PAGES: ProblemPage[] = [
   },
   {
     slug: "car-pulling-to-one-side",
-    metaTitle: "Car Pulling to One Side? | Causes & Repair | Nick's Tire & Auto Cleveland",
+    metaTitle: "Car Pulling Sideways? Causes & Fix | Nick's Cleveland",
     metaDescription: "Car pulling left or right while driving? Causes include alignment, tire pressure, brake drag, and suspension wear. Expert diagnosis in Cleveland. Call (216) 862-0005.",
     heroHeadline: "CAR PULLING\nTO ONE SIDE?",
     heroSubline: "If your vehicle drifts left or right when you let go of the steering wheel, something is causing uneven forces on your tires. We identify and correct the cause.",
@@ -801,7 +801,7 @@ export const PROBLEM_PAGES: ProblemPage[] = [
   },
   {
     slug: "transmission-slipping",
-    metaTitle: "Transmission Slipping? | Causes & Repair | Nick's Tire & Auto Cleveland",
+    metaTitle: "Transmission Slipping? | Causes & Repair | Nick's Cleveland",
     metaDescription: "Transmission slipping, jerking, or not shifting properly? Expert transmission diagnosis in Cleveland. Honest assessment before any repair. Call (216) 862-0005.",
     heroHeadline: "TRANSMISSION\nSLIPPING?",
     heroSubline: "Transmission problems are stressful because the repair can be expensive. We diagnose the exact issue first and give you honest options — sometimes it is a simple fix.",
@@ -825,7 +825,7 @@ export const PROBLEM_PAGES: ProblemPage[] = [
   },
   {
     slug: "ac-not-blowing-cold",
-    metaTitle: "AC Not Blowing Cold? | Causes & Repair | Nick's Tire & Auto Cleveland",
+    metaTitle: "AC Not Blowing Cold? | Causes & Repair | Nick's Cleveland",
     metaDescription: "Car AC not blowing cold air? Causes include low refrigerant, compressor failure, and electrical problems. AC diagnosis and repair in Cleveland. Call (216) 862-0005.",
     heroHeadline: "AC NOT\nBLOWING COLD?",
     heroSubline: "When your AC stops cooling, Cleveland summers become miserable. We diagnose the exact cause — from simple refrigerant recharge to compressor replacement — and fix it right.",
@@ -849,7 +849,7 @@ export const PROBLEM_PAGES: ProblemPage[] = [
   },
   {
     slug: "battery-keeps-dying",
-    metaTitle: "Car Battery Keeps Dying? | Causes & Repair | Nick's Tire & Auto Cleveland",
+    metaTitle: "Battery Keeps Dying? Causes & Fix | Nick's Cleveland",
     metaDescription: "Car battery keeps dying or going dead? Causes include bad alternator, parasitic drain, and old battery. Expert electrical diagnosis in Cleveland. Call (216) 862-0005.",
     heroHeadline: "BATTERY KEEPS\nDYING?",
     heroSubline: "If your battery keeps going dead, something is either draining it or not charging it. We test the entire electrical system to find the exact cause.",
@@ -873,7 +873,7 @@ export const PROBLEM_PAGES: ProblemPage[] = [
   },
   {
     slug: "oil-leak-under-car",
-    metaTitle: "Oil Leak Under Car? | Causes & Repair | Nick's Tire & Auto Cleveland",
+    metaTitle: "Oil Leak Under Car? | Causes & Repair | Nick's Cleveland",
     metaDescription: "Oil puddle or stain under your car? Could be valve cover gasket, oil pan gasket, rear main seal, or oil filter. Expert leak diagnosis in Cleveland. Call (216) 862-0005.",
     heroHeadline: "OIL LEAK\nUNDER YOUR CAR?",
     heroSubline: "An oil spot under your vehicle is more than a driveway stain — it is a warning. Oil leaks get worse over time, never better. Left unchecked, they lead to low oil levels, engine overheating, and eventually catastrophic engine damage.",
@@ -898,7 +898,7 @@ export const PROBLEM_PAGES: ProblemPage[] = [
   },
   {
     slug: "grinding-noise-when-braking",
-    metaTitle: "Grinding Noise When Braking? | Causes & Repair | Nick's Tire & Auto Cleveland",
+    metaTitle: "Grinding When Braking? Urgent Repair | Nick's Cleveland",
     metaDescription: "Hear a grinding noise when you brake? Worn pads, damaged rotors, or stuck calipers. Expert brake diagnosis and repair in Cleveland. Call (216) 862-0005.",
     heroHeadline: "GRINDING NOISE\nWHEN BRAKING?",
     heroSubline: "A grinding noise when you apply the brakes is a clear sign that something in your brake system needs immediate attention. The longer you wait, the more expensive the repair becomes.",
@@ -922,7 +922,7 @@ export const PROBLEM_PAGES: ProblemPage[] = [
   },
   {
     slug: "check-engine-light-on",
-    metaTitle: "Check Engine Light On? | Causes & Diagnosis | Nick's Tire & Auto Cleveland",
+    metaTitle: "Engine Light On? Causes & Fix | Nick's Cleveland",
     metaDescription: "Check engine light on? Common causes include O2 sensor, catalytic converter, and gas cap. Expert OBD-II diagnostics in Cleveland. Call (216) 862-0005.",
     heroHeadline: "CHECK ENGINE\nLIGHT ON?",
     heroSubline: "A steady check engine light means your vehicle's computer has detected a problem. It could be something simple like a loose gas cap or something that needs professional attention. We diagnose the exact cause.",
