@@ -4,7 +4,6 @@ import { StatCard } from "../shared";
 import { SectionSpinner, NoData, EngineCard, MiniTable, fmt, pct, STALE_TIME } from "./utils";
 
 const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
-import { useState, useEffect } from "react";
 import {
   DollarSign, BarChart3, Target, TrendingUp, TrendingDown, Minus,
   AlertTriangle, CreditCard, Activity, CloudRain,
@@ -263,18 +262,12 @@ export default function RevenueTab() {
 }
 
 function WeatherImpactCard() {
-  const [weather, setWeather] = useState<any>(null);
-
-  useEffect(() => {
-    // 2026-05-05 audit follow-up: abort the fetch on unmount so a slow
-    // autonicks-os response can't setState on an unmounted component.
-    const ctrl = new AbortController();
-    fetch("https://statenour-os.vercel.app/api/weather", { signal: ctrl.signal })
-      .then(r => r.ok ? r.json() : null)
-      .then((w) => { if (!ctrl.signal.aborted) setWeather(w); })
-      .catch(() => {});
-    return () => ctrl.abort();
-  }, []);
+  // 2026-05-05 audit follow-up: was raw cross-origin fetch() to
+  // statenour-os from the browser. Now proxied through nickstire's
+  // tRPC layer for observability + same-origin requests.
+  const { data: weather } = trpc.intelligence.autonicksWeather.useQuery(undefined, {
+    staleTime: 60_000,
+  });
 
   if (!weather?.businessImpact) return null;
 

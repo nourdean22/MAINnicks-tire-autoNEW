@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { StatCard } from "../shared";
@@ -261,24 +260,15 @@ function AlertCard({ type, icon, message, border }: {
 }
 
 function NourOsBrainCard() {
-  const [brain, setBrain] = useState<any>(null);
-  const [weather, setWeather] = useState<any>(null);
-
-  useEffect(() => {
-    // 2026-05-05 audit follow-up: abort the fetches on unmount so a slow
-    // autonicks-os response can't setState on an unmounted component
-    // (React warns; race conditions follow on rapid remounts).
-    const ctrl = new AbortController();
-    Promise.all([
-      fetch("https://statenour-os.vercel.app/api/brain/status", { signal: ctrl.signal }).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch("https://statenour-os.vercel.app/api/weather", { signal: ctrl.signal }).then(r => r.ok ? r.json() : null).catch(() => null),
-    ]).then(([b, w]) => {
-      if (ctrl.signal.aborted) return;
-      setBrain(b?.data ?? b);
-      setWeather(w);
-    });
-    return () => ctrl.abort();
-  }, []);
+  // 2026-05-05 audit follow-up: was raw cross-origin fetch() to
+  // statenour-os from the browser. Now proxied through nickstire's
+  // tRPC layer for observability + same-origin requests.
+  const { data: brain } = trpc.intelligence.autonicksBrainStatus.useQuery(undefined, {
+    staleTime: 60_000,
+  });
+  const { data: weather } = trpc.intelligence.autonicksWeather.useQuery(undefined, {
+    staleTime: 60_000,
+  });
 
   if (!brain && !weather) return null;
 
