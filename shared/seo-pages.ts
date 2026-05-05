@@ -31,7 +31,7 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
     metaTitle: "Cleveland Brake Shop · Free Inspection · 36mo | Nick's",
     metaDescription: "Cleveland's top brake shop. Pads, rotors, calipers, ABS. 36-month warranty, same-day service, free estimate. Walk-ins welcome. Call (216) 862-0005.",
     heroHeadline: "BRAKE REPAIR\nCLEVELAND OH",
-    heroSubline: "Looking for brake repair in Cleveland? Our Cleveland brake shop has been the trusted choice for brakes Cleveland drivers depend on. We inspect the entire braking system, show you the worn parts, and explain your options before any work begins. Free estimate, no surprises.",
+    heroSubline: "Looking for brake repair in Cleveland? Our Euclid Ave brake shop has served Cleveland drivers since 2018 — with 1,700+ verified Google reviews behind it. We inspect the entire braking system, show you the worn parts, and explain your options before any work begins. Free estimate, no surprises.",
     category: "service",
     parentService: "brakes",
     sections: [
