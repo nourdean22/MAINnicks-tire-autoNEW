@@ -21,6 +21,7 @@ import ActivityPulse from "@/components/admin/ActivityPulse";
 import WeatherAwareBanner from "@/components/admin/WeatherAwareBanner";
 import { CustomerDrawer } from "@/components/admin/CustomerDrawer";
 import { AdminSSEProvider, useAdminSSE } from "@/components/admin/AdminSSEContext";
+import AdminSectionBoundary from "@/components/admin/AdminSectionBoundary";
 
 // Lazy-load each section for code splitting.
 // Post-audit (2026-04-24): removed 27 dead/redundant sections that had
@@ -58,26 +59,32 @@ function SectionSpinner() {
 }
 
 function SectionContent({ section }: { section: AdminSection }) {
+  // 2026-05-05 audit follow-up · per-section ErrorBoundary so one widget's
+  // failure (a tRPC error, a render bug, a malformed response) no longer
+  // crashes the whole admin to the App-level fallback. The user keeps the
+  // navbar + other sections, can retry the failed section in place.
   return (
-    <Suspense fallback={<SectionSpinner />}>
-      {section === "commandCenter" && <CommandCenterSection />}
-      {section === "overview" && <OverviewSection />}
-      {section === "leads" && <LeadsSection />}
-      {section === "content" && <ContentSection />}
-      {section === "customers" && <CustomersSection />}
-      {section === "campaigns" && <CampaignsSection />}
-      {section === "settings" && <SettingsSection />}
-      {section === "revenue" && <RevenueSection />}
-      {section === "callTrackingView" && <CallTrackingSection />}
-      {section === "intelligence" && <IntelligenceSection />}
-      {section === "declinedEstimates" && <DeclinedEstimatesSection />}
-      {section === "reEngagement" && <ReEngagementSection />}
-      {section === "noShowRisk" && <NoShowRiskSection />}
-      {section === "walkInCalc" && <WalkInCalculatorSection />}
-      {section === "snapDashboard" && <SnapDashboardSection />}
-      {section === "trafficFunnel" && <TrafficFunnelSection />}
-      {section === "conversionPreview" && <ConversionPreviewSection />}
-    </Suspense>
+    <AdminSectionBoundary sectionName={section}>
+      <Suspense fallback={<SectionSpinner />}>
+        {section === "commandCenter" && <CommandCenterSection />}
+        {section === "overview" && <OverviewSection />}
+        {section === "leads" && <LeadsSection />}
+        {section === "content" && <ContentSection />}
+        {section === "customers" && <CustomersSection />}
+        {section === "campaigns" && <CampaignsSection />}
+        {section === "settings" && <SettingsSection />}
+        {section === "revenue" && <RevenueSection />}
+        {section === "callTrackingView" && <CallTrackingSection />}
+        {section === "intelligence" && <IntelligenceSection />}
+        {section === "declinedEstimates" && <DeclinedEstimatesSection />}
+        {section === "reEngagement" && <ReEngagementSection />}
+        {section === "noShowRisk" && <NoShowRiskSection />}
+        {section === "walkInCalc" && <WalkInCalculatorSection />}
+        {section === "snapDashboard" && <SnapDashboardSection />}
+        {section === "trafficFunnel" && <TrafficFunnelSection />}
+        {section === "conversionPreview" && <ConversionPreviewSection />}
+      </Suspense>
+    </AdminSectionBoundary>
   );
 }
 
