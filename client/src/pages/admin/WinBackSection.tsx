@@ -5,6 +5,32 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { StatCard } from "./shared";
+
+// Local interfaces match the actual runtime shape returned by the
+// winback server router. RouterOutputs can't be used here because
+// the server router maps with `(c: any) =>` which erases the inference
+// chain (see server/routers/winback.ts:331). When the server-side
+// `any` is fixed, switch this section to RouterOutputs imports.
+type CampaignStepStat = { step: number; sent: number };
+type CampaignMessage = { id: number; step: number; delayDays: number; body: string };
+type PreviewRow = { customer: string; phone: string; messages: { body: string }[] };
+type RecentSend = {
+  id: number;
+  phone: string;
+  step: number;
+  status: string;
+  scheduledAt?: string | Date | null;
+  sentAt?: string | Date | null;
+};
+type CampaignListItem = {
+  id: number;
+  name: string;
+  status: string;
+  targetSegment: string;
+  targetCount: number;
+  sentCount: number;
+  createdAt: string | Date;
+};
 import {
   RotateCcw, Plus, Play, Pause, Eye, Send, CheckCircle2,
   XCircle, Clock, Users, AlertTriangle, ChevronRight, X,
@@ -308,7 +334,7 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard label="Target Customers" value={campaign.targetCount} icon={<Users className="w-4 h-4" />} />
         <StatCard label="Messages Sent" value={campaign.sentCount} icon={<Send className="w-4 h-4" />} color="text-emerald-400" />
-        {stats.map((s: any) => (
+        {stats.map((s: CampaignStepStat) => (
           <StatCard
             key={s.step}
             label={`Step ${s.step} Sent`}
@@ -323,7 +349,7 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
       <div>
         <h4 className="font-mono text-[10px] text-foreground/40 tracking-wide mb-3">MESSAGE SEQUENCE</h4>
         <div className="space-y-3">
-          {messages.map((msg: any) => (
+          {messages.map((msg: CampaignMessage) => (
             <div key={msg.id} className="bg-card border border-border/30 p-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
@@ -347,7 +373,7 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
         <div>
           <h4 className="font-mono text-[10px] text-foreground/40 tracking-wide mb-3">SAMPLE PREVIEWS (FIRST 5 CUSTOMERS)</h4>
           <div className="space-y-2">
-            {preview.map((p: any, i: number) => (
+            {preview.map((p: PreviewRow, i: number) => (
               <div key={i} className="bg-card border border-border/30 p-3">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-foreground font-medium">{p.customer}</span>
@@ -376,7 +402,7 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
                 </tr>
               </thead>
               <tbody>
-                {recentSends.map((s: any) => (
+                {recentSends.map((s: RecentSend) => (
                   <tr key={s.id} className="border-b border-border/10">
                     <td className="p-3 text-[12px] text-foreground/60">{s.phone}</td>
                     <td className="p-3 text-[12px] text-foreground/60">{s.step}</td>
@@ -473,7 +499,7 @@ export default function WinBackSection() {
         </div>
       ) : (
         <div className="space-y-2">
-          {campaigns.map((c: any) => {
+          {campaigns.map((c: CampaignListItem) => {
             const statusCfg = STATUS_CONFIG[c.status] || STATUS_CONFIG.draft;
             return (
               <button
