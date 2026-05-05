@@ -15,7 +15,7 @@ import { alertAfterHours } from "./telegram";
 import { BUSINESS } from "@shared/business";
 const log = createLogger("after-hours");
 
-const STORE_PHONE = "(216) 862-0005";
+const STORE_PHONE = BUSINESS.phone.display;
 
 /** Check if current time is outside business hours (Eastern Time) */
 export function isAfterHours(): boolean {

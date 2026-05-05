@@ -10,6 +10,7 @@ import {
   getReminderStats,
 } from "../db";
 import { sendSms, maintenanceReminderSms } from "../sms";
+import { BUSINESS } from "@shared/business";
 
 import { createLogger } from "../lib/logger";
 
@@ -83,7 +84,7 @@ export async function processReminderQueue() {
         message = template
           .replace("{firstName}", reminder.customerName.split(" ")[0])
           .replace("{service}", setting?.serviceLabel || reminder.serviceType)
-          .replace("{phone}", "(216) 862-0005");
+          .replace("{phone}", BUSINESS.phone.display);
       } else {
         const mileageNote = reminder.nextDueMileage
           ? `Your vehicle may be approaching ${reminder.nextDueMileage.toLocaleString()} miles.`

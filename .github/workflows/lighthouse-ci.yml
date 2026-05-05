@@ -1,0 +1,60 @@
+name: Lighthouse CI
+
+# Real LCP / CLS / INP / SEO / a11y / best-practices scores against
+# production on every push to main, plus on-demand. Catches perf
+# regressions before customers feel them. Free — no API key needed
+# (uses Lighthouse's mobile emulator + Chrome stable).
+#
+# Pages tested: highest-traffic and highest-conversion only. We don't
+# need to lighthouse 308 pages; the per-template signal is the same.
+# Update the URLs list when a new template type ships.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 14 * * 1"   # Monday 09:00 ET — weekly snapshot
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli@0.14.x
+
+      - name: Run Lighthouse on production
+        run: |
+          lhci collect \
+            --url=https://nickstire.org/ \
+            --url=https://nickstire.org/brakes \
+            --url=https://nickstire.org/tires \
+            --url=https://nickstire.org/booking \
+            --url=https://nickstire.org/cleveland-auto-repair \
+            --url=https://nickstire.org/blog/best-tires-for-cleveland-winter \
+            --numberOfRuns=2
+
+      - name: Assert minimum scores
+        run: |
+          lhci assert \
+            --preset=lighthouse:recommended \
+            --assertions.categories:performance="warn" \
+            --assertions.categories:accessibility="warn" \
+            --assertions.categories:best-practices="warn" \
+            --assertions.categories:seo="warn" \
+          || echo "Some assertions failed — see logs above. Not blocking the build until baselines are agreed."
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: .lighthouseci/
+          retention-days: 14

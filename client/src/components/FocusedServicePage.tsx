@@ -21,6 +21,7 @@
  */
 
 import InternalLinks from "./InternalLinks";
+import RelatedServices from "./RelatedServices";
 import PageLayout from "./PageLayout";
 import { SEOHead, Breadcrumbs } from "./SEO";
 import LocalBusinessSchema from "./LocalBusinessSchema";
@@ -500,6 +501,13 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
       <CrossSellSection config={config} />
       <BookingSection config={config} />
       <InternalLinks />
+      {/* 2026-05-05 audit follow-up · contextual related-services strip
+          (different from InternalLinks' random shuffle). The component
+          already existed in the repo with rich card styling but had
+          never been rendered. Wires it to the FocusedServicePage's
+          bookingService slug as the "current" so the DEFAULT_RELATED
+          map picks the right cluster. */}
+      <RelatedServices current={config.bookingService} />
       {/* v1.7 Q9 (W2) · city cross-link block on every FocusedServicePage.
           Single edit gives 5+ service pages a topical authority lift +
           deeper crawl reach to the city cluster. Mirrors the "ALSO
