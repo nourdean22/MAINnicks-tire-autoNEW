@@ -38,7 +38,7 @@ const DATABASE_URL = envText
 async function loadRoutesFromRegistry() {
   try {
     const result = execSync(
-      `node --import tsx/esm -e "import { PRERENDER_ROUTES } from './shared/routes.ts'; console.log(JSON.stringify(PRERENDER_ROUTES.map(r => ({ path: r.path, title: r.title, description: r.description, group: r.group, priority: r.priority }))));"`,
+      `node --import tsx -e "import { PRERENDER_ROUTES } from './shared/routes.ts'; console.log(JSON.stringify(PRERENDER_ROUTES.map(r => ({ path: r.path, title: r.title, description: r.description, group: r.group, priority: r.priority }))));"`,
       { cwd: ROOT, encoding: "utf-8", timeout: 20000 },
     );
     return JSON.parse(result.trim());
