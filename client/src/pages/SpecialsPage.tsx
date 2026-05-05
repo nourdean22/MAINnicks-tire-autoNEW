@@ -518,13 +518,13 @@ export default function SpecialsPage() {
                 className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
               >
                 <Phone className="w-5 h-5" />
-                CALL NOW
+                {BUSINESS.phone.display}
               </a>
               <Link
                 href="/booking"
                 className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors"
               >
-                BOOK ONLINE
+                HOLD A BAY
                 <ChevronRight className="w-5 h-5" />
               </Link>
             </div>

@@ -294,7 +294,7 @@ export default function CarCareGuidePage() {
                   className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
                 >
                   <Phone className="w-5 h-5" />
-                  CALL NOW
+                  {BUSINESS.phone.display}
                 </a>
                 <Link
                   href="/diagnose"

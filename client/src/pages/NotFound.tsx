@@ -27,12 +27,12 @@ export default function NotFound() {
 
             {/* Headline */}
             <h2 className="font-heading text-2xl md:text-3xl font-bold text-white uppercase tracking-wide mt-4">
-              Looks like this page took a wrong turn.
+              This page does not exist.
             </h2>
 
             {/* Subheadline */}
             <p className="text-white/50 text-lg mt-4 max-w-md mx-auto leading-relaxed">
-              Don't worry — we're better at finding car problems than missing pages.
+              Like the muffler on a Civic with a fart can. We're better at finding car problems than missing ones — pull up to the homepage.
             </p>
 
             {/* CTAs */}
