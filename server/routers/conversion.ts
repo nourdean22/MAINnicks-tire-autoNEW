@@ -20,6 +20,7 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { createLogger } from "../lib/logger";
+import { safeCount, safeRowQuery, safeAggregate } from "../lib/sql-safe";
 
 const log = createLogger("routers:conversion");
 
@@ -43,13 +44,12 @@ export const conversionRouter = router({
         // Count distinct session_ids in the last 5 min from page-view events.
         // Falls back gracefully if the analytics_events table doesn't exist
         // or is empty.
-        const [rows] = await d.execute(sql`
+        const count = await safeCount(d, sql`
           SELECT COUNT(DISTINCT session_id) AS cnt
           FROM analytics_events
           WHERE created_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
             AND event_type = 'page_view'
-        `).catch(() => [[]] as any);
-        const count = Number((rows as any)?.[0]?.cnt) || 0;
+        `);
         return { count, asOf: new Date().toISOString() };
       } catch (err) {
         log.warn("[conversion.liveSessions] failed:", err);
@@ -79,7 +79,15 @@ export const conversionRouter = router({
 
           // Pull from leads + bookings + invoices, all in last 7 days, real
           // customer data only (filter test/dev rows).
-          const [activity] = await d.execute(sql`
+          type ActivityRow = {
+            kind: string;
+            who: string;
+            what: string;
+            amount: number | null;
+            happened_at: string | Date;
+            where_at: string | null;
+          };
+          const activity = await safeRowQuery<ActivityRow>(d, sql`
             (
               SELECT
                 'booking' AS kind,
@@ -129,9 +137,9 @@ export const conversionRouter = router({
             )
             ORDER BY happened_at DESC
             LIMIT ${limit}
-          `).catch(() => [[]] as any);
+          `);
 
-          const items = ((activity as any[]) || []).map((row: any) => ({
+          const items = activity.map((row) => ({
             kind: row.kind as "booking" | "lead" | "invoice",
             who: String(row.who || "Someone").trim(),
             what: String(row.what || "service").slice(0, 80),
@@ -194,19 +202,17 @@ export const conversionRouter = router({
         }
 
         // Active WOs (in-progress/waiting_parts/quality_check, last 7d)
-        const [woRows] = await d.execute(sql`
+        const activeWOs = await safeCount(d, sql`
           SELECT COUNT(*) as cnt FROM work_orders
           WHERE status IN ('in_progress', 'waiting_parts', 'quality_check')
             AND COALESCE(updated_at, created_at) >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-        `).catch(() => [[]] as any);
-        const activeWOs = Number((woRows as any)?.[0]?.cnt) || 0;
+        `);
 
         // Today's bookings
-        const [bkRows] = await d.execute(sql`
+        const todayBookings = await safeCount(d, sql`
           SELECT COUNT(*) as cnt FROM bookings
           WHERE createdAt >= CURDATE() AND status IN ('new', 'confirmed')
-        `).catch(() => [[]] as any);
-        const todayBookings = Number((bkRows as any)?.[0]?.cnt) || 0;
+        `);
 
         // Daily capacity heuristic — 4 bays × 8 jobs/bay/day = 32 slots
         const DAILY_CAPACITY = 32;
@@ -280,16 +286,23 @@ export const conversionRouter = router({
         }
 
         // 7d / 30d totals — leads + bookings + paid invoices.
-        const [totalsRow] = await d.execute(sql`
+        // SQL note: each subselect can use indexed range scan on createdAt.
+        // Single round-trip is faster than 5 separate count queries here
+        // because MySQL caches the parser/optimizer state across subselects.
+        type TotalsRow = {
+          leads7d: number; leads30d: number;
+          bookings7d: number; bookings30d: number;
+          invoices30d: number;
+        };
+        const t = await safeAggregate<TotalsRow>(d, sql`
           SELECT
             (SELECT COUNT(*) FROM leads WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 7 DAY))   AS leads7d,
             (SELECT COUNT(*) FROM leads WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 30 DAY))  AS leads30d,
             (SELECT COUNT(*) FROM bookings WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS bookings7d,
             (SELECT COUNT(*) FROM bookings WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS bookings30d,
             (SELECT COUNT(*) FROM invoices WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL 30 DAY) AND paymentStatus = 'paid') AS invoices30d
-        `).catch(() => [[]] as any);
+        `);
 
-        const t = (totalsRow as any)?.[0] || {};
         const totals = {
           leads7d: Number(t.leads7d) || 0,
           leads30d: Number(t.leads30d) || 0,
@@ -299,36 +312,41 @@ export const conversionRouter = router({
         };
 
         // Source breakdown — last 30 days.
-        const [sourceRows] = await d.execute(sql`
+        // SQL note: index on (createdAt, source) recommended if not present.
+        type SourceRow = { source: string; count: number };
+        const sourceRows = await safeRowQuery<SourceRow>(d, sql`
           SELECT source, COUNT(*) AS count
           FROM leads
           WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 30 DAY)
             AND source IS NOT NULL AND source <> ''
           GROUP BY source
           ORDER BY count DESC
-        `).catch(() => [[]] as any);
-        const sources = ((sourceRows as any[]) || []).map((r: any) => ({
+        `);
+        const sources = sourceRows.map((r) => ({
           source: String(r.source || "unknown"),
           count: Number(r.count) || 0,
         }));
 
         // Lead → booking conversion. Phone-matched within 30 days.
         // Directional, not exact — but the simplest stable signal we have.
-        const [convRow] = await d.execute(sql`
+        // SQL perf note: requires indexes on leads.phone + bookings.phone.
+        // The DATE_ADD comparison must be evaluated per-row but the JOIN
+        // on indexed phone columns keeps this linear in result size.
+        const converted = await safeCount(d, sql`
           SELECT COUNT(DISTINCT l.phone) AS converted
           FROM leads l
           INNER JOIN bookings b ON b.phone = l.phone
             AND b.createdAt >= l.createdAt
             AND b.createdAt <= DATE_ADD(l.createdAt, INTERVAL 30 DAY)
           WHERE l.createdAt >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-        `).catch(() => [[]] as any);
-        const converted = Number((convRow as any)?.[0]?.converted) || 0;
+        `);
         const leadToBookingRate = totals.leads30d > 0
           ? Math.round((converted / totals.leads30d) * 1000) / 10
           : 0;
 
         // Daily trend — last 14 days. Lead and booking counts merged by date.
-        const [trendRows] = await d.execute(sql`
+        type TrendRow = { date: string | Date; leads: number; bookings: number };
+        const trendRows = await safeRowQuery<TrendRow>(d, sql`
           SELECT d AS date, SUM(leads) AS leads, SUM(bookings) AS bookings
           FROM (
             SELECT DATE(createdAt) AS d, COUNT(*) AS leads, 0 AS bookings
@@ -343,8 +361,8 @@ export const conversionRouter = router({
           ) merged
           GROUP BY d
           ORDER BY d ASC
-        `).catch(() => [[]] as any);
-        const dailyTrend = ((trendRows as any[]) || []).map((row: any) => ({
+        `);
+        const dailyTrend = trendRows.map((row) => ({
           date: String(row.date).slice(0, 10),
           leads: Number(row.leads) || 0,
           bookings: Number(row.bookings) || 0,

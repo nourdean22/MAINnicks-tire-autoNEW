@@ -58,6 +58,7 @@ import {
 } from "../services/advancedEngines";
 
 import { createLogger } from "../lib/logger";
+import { safeCount, safeRowQuery } from "../lib/sql-safe";
 
 const log = createLogger("routers:intelligence");
 export const intelligenceRouter = router({
@@ -266,71 +267,67 @@ export const intelligenceRouter = router({
     const actions: Action[] = [];
 
     // 1. Hot leads — new leads with urgency >= 3
-    try {
-      const [hotLeads] = await d.execute(
-        rawSql`SELECT id, name, phone, urgencyScore, source FROM leads WHERE status = 'new' AND urgencyScore >= 3 ORDER BY urgencyScore DESC, createdAt ASC LIMIT 10`
-      );
-      for (const l of hotLeads as any[]) {
-        actions.push({
-          type: "hot_lead",
-          message: `Call ${l.name || "Unknown"} \u2014 hot lead (${l.urgencyScore}/5 urgency, ${l.source || "direct"})`,
-          urgency: Math.min(5, l.urgencyScore + 1),
-          actionUrl: "/admin?tab=leads",
-          phone: l.phone || null,
-        });
-      }
-    } catch (e) { log.warn("[routers/intelligence] operation failed:", e); }
+    type HotLead = { id: number; name: string | null; phone: string | null; urgencyScore: number; source: string | null };
+    const hotLeads = await safeRowQuery<HotLead>(d,
+      rawSql`SELECT id, name, phone, urgencyScore, source FROM leads WHERE status = 'new' AND urgencyScore >= 3 ORDER BY urgencyScore DESC, createdAt ASC LIMIT 10`
+    );
+    for (const l of hotLeads) {
+      actions.push({
+        type: "hot_lead",
+        message: `Call ${l.name || "Unknown"} \u2014 hot lead (${l.urgencyScore}/5 urgency, ${l.source || "direct"})`,
+        urgency: Math.min(5, l.urgencyScore + 1),
+        actionUrl: "/admin?tab=leads",
+        phone: l.phone || null,
+      });
+    }
 
     // 2. Pending invoices > 7 days old
-    try {
-      const [pendingInvoices] = await d.execute(
-        rawSql`SELECT id, customerName, customerPhone, totalAmount, invoiceDate FROM invoices WHERE paymentStatus = 'pending' AND invoiceDate < DATE_SUB(NOW(), INTERVAL 7 DAY) ORDER BY totalAmount DESC LIMIT 8`
-      );
-      for (const inv of pendingInvoices as any[]) {
-        const amt = Math.round(Number(inv.totalAmount || 0) / 100);
-        actions.push({
-          type: "pending_invoice",
-          message: `Follow up on $${amt.toLocaleString()} invoice for ${inv.customerName || "Unknown"}`,
-          urgency: amt > 500 ? 4 : 3,
-          actionUrl: "/admin?tab=invoices",
-          phone: inv.customerPhone || null,
-        });
-      }
-    } catch (e) { log.warn("[routers/intelligence] operation failed:", e); }
+    type PendingInvoice = { id: number; customerName: string | null; customerPhone: string | null; totalAmount: number; invoiceDate: string | Date };
+    const pendingInvoices = await safeRowQuery<PendingInvoice>(d,
+      rawSql`SELECT id, customerName, customerPhone, totalAmount, invoiceDate FROM invoices WHERE paymentStatus = 'pending' AND invoiceDate < DATE_SUB(NOW(), INTERVAL 7 DAY) ORDER BY totalAmount DESC LIMIT 8`
+    );
+    for (const inv of pendingInvoices) {
+      const amt = Math.round(Number(inv.totalAmount || 0) / 100);
+      actions.push({
+        type: "pending_invoice",
+        message: `Follow up on $${amt.toLocaleString()} invoice for ${inv.customerName || "Unknown"}`,
+        urgency: amt > 500 ? 4 : 3,
+        actionUrl: "/admin?tab=invoices",
+        phone: inv.customerPhone || null,
+      });
+    }
 
     // 3. Callbacks unanswered > 2 hours
-    try {
-      const [callbacks] = await d.execute(
-        rawSql`SELECT id, name, phone, context, createdAt FROM callback_requests WHERE status = 'new' AND createdAt < DATE_SUB(NOW(), INTERVAL 2 HOUR) ORDER BY createdAt ASC LIMIT 8`
-      );
-      for (const cb of callbacks as any[]) {
-        const hoursAgo = Math.round((Date.now() - new Date(cb.createdAt).getTime()) / 3600000);
-        actions.push({
-          type: "callback",
-          message: `Call back ${cb.name || "Unknown"} \u2014 waiting ${hoursAgo}h`,
-          urgency: hoursAgo > 8 ? 5 : hoursAgo > 4 ? 4 : 3,
-          actionUrl: "/admin?tab=callbacks",
-          phone: cb.phone || null,
-        });
-      }
-    } catch (e) { log.warn("[routers/intelligence] operation failed:", e); }
+    type Callback = { id: number; name: string | null; phone: string | null; context: string | null; createdAt: string | Date };
+    const callbacks = await safeRowQuery<Callback>(d,
+      rawSql`SELECT id, name, phone, context, createdAt FROM callback_requests WHERE status = 'new' AND createdAt < DATE_SUB(NOW(), INTERVAL 2 HOUR) ORDER BY createdAt ASC LIMIT 8`
+    );
+    for (const cb of callbacks) {
+      const hoursAgo = Math.round((Date.now() - new Date(cb.createdAt).getTime()) / 3600000);
+      actions.push({
+        type: "callback",
+        message: `Call back ${cb.name || "Unknown"} \u2014 waiting ${hoursAgo}h`,
+        urgency: hoursAgo > 8 ? 5 : hoursAgo > 4 ? 4 : 3,
+        actionUrl: "/admin?tab=callbacks",
+        phone: cb.phone || null,
+      });
+    }
 
     // 4. VIP customers going cold (3+ visits, 60+ days since last visit)
-    try {
-      const [vipCold] = await d.execute(
-        rawSql`SELECT id, firstName, lastName, phone, totalVisits, lastVisitDate, DATEDIFF(NOW(), lastVisitDate) as daysSince FROM customers WHERE totalVisits >= 3 AND lastVisitDate < DATE_SUB(NOW(), INTERVAL 60 DAY) AND lastVisitDate IS NOT NULL ORDER BY totalVisits DESC, lastVisitDate ASC LIMIT 8`
-      );
-      for (const c of vipCold as any[]) {
-        const name = [c.firstName, c.lastName].filter(Boolean).join(" ") || "Unknown";
-        actions.push({
-          type: "vip_winback",
-          message: `Re-engage ${name} \u2014 VIP (${c.totalVisits} visits), ${c.daysSince}d since last visit`,
-          urgency: c.daysSince > 180 ? 4 : 3,
-          actionUrl: "/admin?tab=customers",
-          phone: c.phone || null,
-        });
-      }
-    } catch (e) { log.warn("[routers/intelligence] operation failed:", e); }
+    type VipCustomer = { id: number; firstName: string | null; lastName: string | null; phone: string | null; totalVisits: number; lastVisitDate: string | Date | null; daysSince: number };
+    const vipCold = await safeRowQuery<VipCustomer>(d,
+      rawSql`SELECT id, firstName, lastName, phone, totalVisits, lastVisitDate, DATEDIFF(NOW(), lastVisitDate) as daysSince FROM customers WHERE totalVisits >= 3 AND lastVisitDate < DATE_SUB(NOW(), INTERVAL 60 DAY) AND lastVisitDate IS NOT NULL ORDER BY totalVisits DESC, lastVisitDate ASC LIMIT 8`
+    );
+    for (const c of vipCold) {
+      const name = [c.firstName, c.lastName].filter(Boolean).join(" ") || "Unknown";
+      actions.push({
+        type: "vip_winback",
+        message: `Re-engage ${name} \u2014 VIP (${c.totalVisits} visits), ${c.daysSince}d since last visit`,
+        urgency: c.daysSince > 180 ? 4 : 3,
+        actionUrl: "/admin?tab=customers",
+        phone: c.phone || null,
+      });
+    }
 
     // Sort by urgency desc, take top 8
     actions.sort((a, b) => b.urgency - a.urgency);
@@ -356,14 +353,14 @@ export const intelligenceRouter = router({
     const { sql: rawSql } = await import("drizzle-orm");
     const d = await getDb();
     if (!d) return { activeWOs: 0, todayBookings: 0, estimatedWait: 0 };
-    const [woRows] = await d.execute(rawSql`
+    const activeWOs = await safeCount(d, rawSql`
       SELECT COUNT(*) as cnt FROM work_orders
       WHERE status IN ('in_progress', 'waiting_parts', 'quality_check')
         AND COALESCE(updated_at, created_at) >= DATE_SUB(NOW(), INTERVAL 7 DAY)
     `);
-    const [bkRows] = await d.execute(rawSql`SELECT COUNT(*) as cnt FROM bookings WHERE createdAt >= CURDATE() AND status IN ('new', 'confirmed')`);
-    const activeWOs = Number((woRows as any)?.[0]?.cnt || 0);
-    const todayBookings = Number((bkRows as any)?.[0]?.cnt || 0);
+    const todayBookings = await safeCount(d,
+      rawSql`SELECT COUNT(*) as cnt FROM bookings WHERE createdAt >= CURDATE() AND status IN ('new', 'confirmed')`
+    );
     return { activeWOs, todayBookings, estimatedWait: activeWOs === 0 ? 0 : Math.min(180, activeWOs * 45) };
   }),
 
@@ -384,6 +381,7 @@ export const intelligenceRouter = router({
       const r = await fetch("https://statenour-os.vercel.app/api/brain/status", { signal: ctrl.signal });
       clearTimeout(timeoutId);
       if (!r.ok) return null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- statenour brain endpoint returns dynamic JSON; consumers in OverviewTab destructure varied keys (memories / automationRules / etc)
       const data: any = await r.json();
       return data?.data ?? data;
     } catch (err) {
