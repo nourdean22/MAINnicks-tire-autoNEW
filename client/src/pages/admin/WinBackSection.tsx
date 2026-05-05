@@ -3,34 +3,19 @@
  * Create, manage, and monitor automated SMS win-back sequences.
  */
 import { useState } from "react";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { StatCard } from "./shared";
 
-// Local interfaces match the actual runtime shape returned by the
-// winback server router. RouterOutputs can't be used here because
-// the server router maps with `(c: any) =>` which erases the inference
-// chain (see server/routers/winback.ts:331). When the server-side
-// `any` is fixed, switch this section to RouterOutputs imports.
-type CampaignStepStat = { step: number; sent: number };
-type CampaignMessage = { id: number; step: number; delayDays: number; body: string };
-type PreviewRow = { customer: string; phone: string; messages: { body: string }[] };
-type RecentSend = {
-  id: number;
-  phone: string;
-  step: number;
-  status: string;
-  scheduledAt?: string | Date | null;
-  sentAt?: string | Date | null;
-};
-type CampaignListItem = {
-  id: number;
-  name: string;
-  status: string;
-  targetSegment: string;
-  targetCount: number;
-  sentCount: number;
-  createdAt: string | Date;
-};
+// tRPC-inferred types — server router was fixed in same commit
+// (drizzle $inferSelect on (c: any) leakages), so RouterOutputs
+// resolves cleanly. campaignDetail returns null | { campaign, messages, stats }
+// and we narrow to the non-null branch in the consumer before reading.
+type PreviewRow = RouterOutputs["winback"]["preview"][number];
+type CampaignDetailFull = NonNullable<RouterOutputs["winback"]["campaignDetail"]>;
+type CampaignMessage = CampaignDetailFull["messages"][number];
+type CampaignStepStat = CampaignDetailFull["stats"][number];
+type RecentSend = RouterOutputs["winback"]["recentSends"][number];
+type CampaignListItem = RouterOutputs["winback"]["campaigns"][number];
 import {
   RotateCcw, Plus, Play, Pause, Eye, Send, CheckCircle2,
   XCircle, Clock, Users, AlertTriangle, ChevronRight, X,

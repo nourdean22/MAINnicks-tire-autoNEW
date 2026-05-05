@@ -328,10 +328,12 @@ export const winbackRouter = router({
         .where(buildSegmentFilter(campaign.targetSegment))
         .limit(5);
 
-      return sampleCustomers.map((c: any) => ({
+      type SampleCustomer = typeof customers.$inferSelect;
+      type WinbackMessageRow = typeof winbackMessages.$inferSelect;
+      return sampleCustomers.map((c: SampleCustomer) => ({
         customer: `${c.firstName} ${c.lastName || ""}`.trim(),
         phone: c.phone,
-        messages: messages.map((m: any) => ({
+        messages: messages.map((m: WinbackMessageRow) => ({
           step: m.step,
           delayDays: m.delayDays,
           body: m.body.replace(/{firstName}/g, c.firstName),
