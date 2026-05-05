@@ -4,6 +4,13 @@ import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { defineConfig } from "vite";
 
+// Critical-CSS extraction via beasties was attempted (see
+// scripts/vite-plugin-critical-css.mjs) but Tailwind 4's @layer + CSS
+// variable structure isn't compatible with beasties' postcss parsing.
+// Beasties extracts 0 critical rules even with full prerendered DOM.
+// Decision: keep the standard async-CSS strategy (font preload-onload
+// already shipped) and revisit critical-CSS only if mobile render-block
+// stays high after font fix lands. The plugin file is kept for reference.
 const plugins = [react(), tailwindcss(), jsxLocPlugin()];
 
 export default defineConfig({
