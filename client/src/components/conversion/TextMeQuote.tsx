@@ -191,7 +191,7 @@ export default function TextMeQuote({
           {mutation.isPending ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              Sending...
+              Pulling the numbers...
             </>
           ) : (
             <>

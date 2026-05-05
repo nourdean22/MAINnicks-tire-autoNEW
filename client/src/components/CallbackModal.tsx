@@ -114,7 +114,7 @@ export default function CallbackModal() {
                     {mutation.isPending ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Sending...
+                        Telling the front desk...
                       </>
                     ) : (
                       "Call Me Back"
