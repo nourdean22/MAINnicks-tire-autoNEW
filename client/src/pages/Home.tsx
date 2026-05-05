@@ -414,7 +414,7 @@ function WhyUs() {
                   <div key={item.title} className="flex gap-4">
                     <div className="w-px bg-primary shrink-0 mt-1" style={{ minHeight: '2.5rem' }} />
                     <div>
-                      <h4 className="font-semibold text-foreground text-sm tracking-wide">{item.title}</h4>
+                      <h3 className="font-semibold text-foreground text-sm tracking-wide">{item.title}</h3>
                       <p className="text-foreground/40 text-sm mt-1 leading-relaxed">{item.text}</p>
                     </div>
                   </div>

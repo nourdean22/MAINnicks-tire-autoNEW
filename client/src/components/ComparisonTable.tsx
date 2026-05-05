@@ -100,7 +100,7 @@ function MobileCards() {
           key={row.feature}
           className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-xl p-4"
         >
-          <h4 className="text-white font-semibold text-sm mb-3">{row.feature}</h4>
+          <h3 className="text-white font-semibold text-sm mb-3">{row.feature}</h3>
           <div className="grid grid-cols-3 gap-2">
             {(["nicks", "dealership", "chain"] as const).map((col, i) => (
               <div
