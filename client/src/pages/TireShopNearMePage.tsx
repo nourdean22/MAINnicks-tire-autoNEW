@@ -50,7 +50,7 @@ const CONFIG: ServicePageConfig = {
   ],
   bookingService: "tires",
   serviceType: "Tire Installation",
-  ctaHeadline: "WALK IN OR BOOK ONLINE",
+  ctaHeadline: "WALK IN OR HOLD A BAY",
   ctaSub: "Open 7 days, walk-ins welcome. Call ahead at (216) 862-0005 and we'll have your size ready. 17625 Euclid Ave, Cleveland OH.",
 };
 

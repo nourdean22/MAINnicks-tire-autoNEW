@@ -48,7 +48,7 @@ function CityNavbar({ city }: { city: CityData }) {
         <div className="hidden lg:flex items-center gap-6 stagger-in">
           <a href="#services" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Services</a>
           <a href="#about" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">About</a>
-          <a href="#booking" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Book Now</a>
+          <a href="#booking" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Hold a Bay</a>
           <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('city-navbar-desktop')} className="flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
             <Phone className="w-4 h-4" />
             {BUSINESS.phone.display}
@@ -69,7 +69,7 @@ function CityNavbar({ city }: { city: CityData }) {
             </Link>
             <a href="#services" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Services</a>
             <a href="#about" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">About</a>
-            <a href="#booking" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Book Now</a>
+            <a href="#booking" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Hold a Bay</a>
             <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('city-navbar-mobile')} className="flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wide mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
               <Phone className="w-4 h-4" />
               {BUSINESS.phone.display}
@@ -256,7 +256,7 @@ export default function CityPage() {
                   CALL FOR A FREE QUOTE
                 </a>
                 <a href="#booking" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
-                  BOOK ONLINE
+                  HOLD A BAY
                   <ChevronRight className="w-5 h-5" />
                 </a>
               </div>
@@ -584,10 +584,10 @@ export default function CityPage() {
       <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/90 backdrop-blur-md border-t border-primary/30 p-3 flex gap-2 stagger-in">
         <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('city-mobile-sticky')} className="flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label="Call Nick's Tire and Auto at 216-862-0005">
           <Phone className="w-4 h-4" />
-          CALL NOW
+          {BUSINESS.phone.display}
         </a>
         <a href="#booking" className="flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue text-nick-blue-light flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label="Schedule a drop-off online">
-          BOOK ONLINE
+          Hold a Bay
         </a>
       </div>
     

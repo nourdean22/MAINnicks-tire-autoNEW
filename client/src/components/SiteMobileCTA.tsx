@@ -56,7 +56,7 @@ export default function SiteMobileCTA() {
               }}
             >
               <Phone className="w-5 h-5" />
-              Call Now
+              {BUSINESS.phone.display}
             </a>
 
             {/* Book Online */}
@@ -74,7 +74,7 @@ export default function SiteMobileCTA() {
                 borderRadius: 8,
               }}
             >
-              Book Online
+              Hold a Bay
             </a>
           </div>
         </motion.div>

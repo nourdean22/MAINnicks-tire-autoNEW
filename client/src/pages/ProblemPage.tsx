@@ -384,10 +384,10 @@ export default function ProblemPage() {
         <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/95 backdrop-blur-md border-t border-border p-3">
           <div className="flex gap-2 stagger-in">
             <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`problem-${page.slug}-sticky`)} aria-label="Call Nick's Tire and Auto" className="flex-1 flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium py-3 font-semibold font-bold text-sm tracking-wide">
-              <Phone className="w-4 h-4" />CALL NOW
+              <Phone className="w-4 h-4" />{BUSINESS.phone.display}
             </a>
             <Link href="/contact" className="flex-1 flex items-center justify-center gap-2 stagger-in border border-primary text-primary py-3 font-semibold font-bold text-sm tracking-wide">
-              BOOK ONLINE
+              Hold a Bay
             </Link>
           </div>
         </div>

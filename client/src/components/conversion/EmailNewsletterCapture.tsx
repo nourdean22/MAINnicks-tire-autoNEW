@@ -58,7 +58,7 @@ export default function EmailNewsletterCapture() {
         <div>
           <p className="text-sm font-semibold text-foreground">You're in.</p>
           <p className="text-xs text-foreground/65 mt-0.5 leading-relaxed">
-            We'll send the Cleveland Driver's Tip Sheet to your inbox within an hour. One email a week after that — unsubscribe any time.
+            We'll send the Cleveland Driver's Tip Sheet within the hour. One email a week after that. Fewer if nothing's worth saying.
           </p>
         </div>
       </div>

@@ -242,7 +242,7 @@ function UsedTiresCallout() {
                 className="inline-flex items-center justify-center gap-2 bg-black text-[#FDB913] px-8 py-3.5 rounded-lg font-bold text-base hover:bg-black/90 transition-colors"
               >
                 <Phone className="w-5 h-5" />
-                Call Now
+                {BUSINESS.phone.display}
               </a>
               <Link
                 href="/tires"
@@ -310,7 +310,7 @@ function Services() {
                   Learn More
                 </Link>
                 <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`service-${s.slug}`)} className="inline-flex items-center gap-2 border border-foreground/30 text-foreground px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/5 transition-colors">
-                  Call Now
+                  {BUSINESS.phone.display}
                 </a>
               </div>
             </FadeIn>
@@ -425,9 +425,10 @@ function Reviews() {
         <FadeIn>
           <div className="text-center mb-16">
             <h2 className="font-heading text-4xl lg:text-5xl font-bold text-foreground tracking-tight uppercase">
-              {totalReviews.toLocaleString()}+ five&#8209;star reviews.
+              {totalReviews.toLocaleString()}+ five&#8209;star reviews.<sup className="text-primary text-xl">*</sup>
             </h2>
             <p className="mt-4 text-foreground/40 text-lg">Verified by Google. Written by real Cleveland drivers — bus drivers, nurses, Browns fans, the lady whose Civic survived 287,000 miles. No bots, no buyouts, no fake reviews.</p>
+            <p className="mt-3 text-foreground/30 text-sm italic">* Yes, all real. Google catches fakes faster than we do.</p>
           </div>
         </FadeIn>
 
@@ -668,7 +669,7 @@ function TriageGrid() {
             symptom="Just need the basics?"
             consequence="Routine oil + filter prevents engine sludge that destroys engines after 60K miles."
             relief="Free 27-point inspection on every oil change. Walk-ins welcome 7 days."
-            ctaLabel="BOOK MAINTENANCE"
+            ctaLabel="HOLD A BAY"
             ctaHref="/oil-change"
           />
         </div>

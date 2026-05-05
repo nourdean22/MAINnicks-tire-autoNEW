@@ -278,10 +278,10 @@ export default function LandingPage() {
             className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
           >
             <Phone className="w-5 h-5" />
-            CALL NOW: {BUSINESS.phone.display}
+            {BUSINESS.phone.display}
           </a>
           <button onClick={() => location[1]("/booking")} className="flex-1 bg-yellow-400 hover:bg-yellow-300 text-black font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
-            BOOK ONLINE
+            HOLD A BAY
             <ChevronRight className="w-5 h-5" />
           </button>
         </div>
