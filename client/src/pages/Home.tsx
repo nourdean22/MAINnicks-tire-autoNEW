@@ -401,6 +401,70 @@ function WhyUs() {
   );
 }
 
+// ─── PULL UP BAND — full-bleed storefront photo as trust anchor ─────────────
+// Lives between WhyUs and LossOpportunity. WhyUs claims; this proves.
+// The yellow sign with the phone number IS the conversion asset — most local
+// businesses bury their actual storefront. Ours is the loudest one on Euclid.
+function PullUpBand() {
+  return (
+    <section className="relative overflow-hidden">
+      <div className="relative h-[420px] sm:h-[520px] lg:h-[600px] overflow-hidden">
+        <img
+          src="/brand-sign.webp"
+          alt="Nick's Tire & Auto storefront on Euclid Avenue Cleveland — Mechanic on Duty, Tires, Brakes, Auto Repair (216) 862-0005"
+          className="absolute inset-0 w-full h-full object-cover object-center"
+          loading="lazy"
+        />
+        {/* Multi-direction fades so overlay copy stays legible regardless of crop */}
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background/70 via-transparent to-background/40" />
+      </div>
+
+      {/* Overlay copy — anchored top-left, mock-formal voice (VOICE.md pattern 7) */}
+      <div className="absolute inset-0 flex items-end">
+        <div className="container pb-10 sm:pb-14 lg:pb-20">
+          <FadeIn>
+            <div className="max-w-2xl">
+              <p className="text-[11px] sm:text-xs uppercase tracking-[0.22em] font-bold text-[#FDB913] mb-3 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
+                17625 Euclid Ave · You can drive past it on accident
+              </p>
+              <h2 className="font-heading text-3xl sm:text-5xl lg:text-6xl font-bold text-white tracking-tight uppercase leading-[0.95] drop-shadow-[0_4px_16px_rgba(0,0,0,0.9)]">
+                Don't trust shops you can't see.<sup className="text-[#FDB913] text-2xl sm:text-4xl">*</sup>
+              </h2>
+              <p className="mt-4 sm:mt-5 text-white/85 text-base sm:text-lg leading-relaxed max-w-xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)]">
+                That's our actual sign. Our actual block. Our actual phone number — painted on, not Photoshopped. The yellow's a little louder in person.
+              </p>
+              <p className="mt-3 text-white/55 text-xs sm:text-sm italic max-w-xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
+                * Our address has been on Euclid Ave since 2018. The sign's been there longer than half the apps on your phone.
+              </p>
+
+              <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3">
+                <a
+                  href="https://www.google.com/maps/dir//Nick%27s+Tire+%26+Auto+17625+Euclid+Ave+Cleveland+OH+44112"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-black px-7 py-3.5 rounded-md font-bold text-sm tracking-wide hover:bg-[#FDB913]/90 transition-colors shadow-[0_4px_20px_rgba(253,185,19,0.4)]"
+                >
+                  Get Directions
+                  <ArrowRight className="w-4 h-4" />
+                </a>
+                <a
+                  href={BUSINESS.phone.href}
+                  onClick={() => trackPhoneClick("home-pull-up-band")}
+                  className="inline-flex items-center justify-center gap-2 border-2 border-white/30 bg-black/40 backdrop-blur-sm text-white px-7 py-3.5 rounded-md font-bold text-sm tracking-wide hover:bg-black/60 hover:border-white/60 transition-colors"
+                >
+                  <Phone className="w-4 h-4" />
+                  {BUSINESS.phone.display}
+                </a>
+              </div>
+            </div>
+          </FadeIn>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ─── REVIEWS — Minimal cards ─────────────────────────────
 const FALLBACK_REVIEWS = [
   { name: "Nurse Summer", stars: 5, text: "I have been to many mechanics in Cleveland this is the FIRST shop that I felt I could trust! Especially as a woman.. it's very hard to find HONEST and well done mechanic work." },
@@ -879,6 +943,7 @@ export default function Home() {
       <SafetyFactsSection />
       <Services />
       <WhyUs />
+      <PullUpBand />
       <LossOpportunitySection />
       <Reviews />
       <ComparisonTable />

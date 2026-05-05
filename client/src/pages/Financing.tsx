@@ -625,6 +625,41 @@ export default function Financing() {
         </div>
       </section>
 
+      {/* ─── Pull-Up Band — turns abstract financing into a real place ──── */}
+      {/* The financing page is the highest-anxiety surface on the site:
+          customers comparing pricing pages and wondering "is this real?"
+          The storefront photo answers that question without saying it. */}
+      <section className="relative overflow-hidden">
+        <div className="relative h-[360px] sm:h-[440px] lg:h-[500px] overflow-hidden">
+          <img
+            src="/brand-sign.webp"
+            alt="Nick's Tire & Auto storefront on Euclid Avenue Cleveland — financing approved on the spot at 17625 Euclid Ave"
+            className="absolute inset-0 w-full h-full object-cover object-center"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#111111] via-[#111111]/40 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#111111]/65 via-transparent to-[#111111]/35" />
+        </div>
+
+        <div className="absolute inset-0 flex items-end">
+          <div className="container max-w-5xl pb-8 sm:pb-12 lg:pb-16">
+            <FadeIn>
+              <div className="max-w-xl">
+                <p className="text-[11px] uppercase tracking-[0.22em] font-bold text-[#FDB913] mb-2 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
+                  17625 Euclid Ave · Cleveland
+                </p>
+                <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold text-white tracking-tight uppercase leading-[0.98] drop-shadow-[0_4px_16px_rgba(0,0,0,0.9)]">
+                  This is where you'll sign the papers.
+                </h2>
+                <p className="mt-3 text-white/80 text-sm sm:text-base leading-relaxed drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)]">
+                  Not a phone bot. Not a finance company you've never heard of. Walk in, sit in a chair that's older than some of our customers, get pre-qualified in 60 seconds.
+                </p>
+              </div>
+            </FadeIn>
+          </div>
+        </div>
+      </section>
+
       {/* ─── Approval range / honest social proof ─────────── */}
       <section className="bg-[#111111] py-16 lg:py-20">
         <div className="container max-w-4xl">

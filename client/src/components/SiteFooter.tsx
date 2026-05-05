@@ -15,14 +15,40 @@ export default function SiteFooter() {
   return (
     <footer>
       {/* ─── BRAND SIGN BANNER — actual photo of the actual sign ─── */}
-      <div className="relative h-[120px] sm:h-[160px] overflow-hidden bg-[#0B0B0B]">
+      {/* Voice-led "pull up" overlay turns a global trust strip into a final-impression
+          memory anchor before the user leaves the page. The photo does the heavy lifting:
+          real building, real Euclid Ave block, real phone number visible in the sign. */}
+      <div className="relative h-[220px] sm:h-[300px] lg:h-[360px] overflow-hidden bg-[#0B0B0B]">
         <img
           src="/brand-sign.webp"
           alt="Nick's Tire & Auto signage on Euclid Ave Cleveland — Mechanic on duty, tires, brakes, auto repair, (216) 862-0005"
           className="absolute inset-0 w-full h-full object-cover object-center"
           loading="lazy"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0B0B0B] via-transparent to-transparent" />
+        {/* Bottom-fade for legibility of the overlay copy */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0B0B0B] via-[#0B0B0B]/40 to-transparent" />
+        {/* Side-fade pulls focus to the center where the eye lands */}
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0B0B0B]/60 via-transparent to-[#0B0B0B]/60" />
+
+        {/* Voice overlay — bottom-left, doesn't fight the sign */}
+        <div className="absolute inset-0 flex items-end">
+          <div className="container pb-6 sm:pb-8 lg:pb-10">
+            <div className="max-w-2xl">
+              <p className="text-[10px] sm:text-[11px] uppercase tracking-[0.22em] font-bold text-[#FDB913] mb-2 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
+                The block · The bay · The phone
+              </p>
+              <h3 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-bold text-white tracking-tight uppercase leading-[1.05] drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]">
+                Don't trust shops you can't see.
+              </h3>
+              <p className="mt-2 sm:mt-3 text-white/75 text-sm sm:text-base leading-snug drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
+                That's our actual sign. Our actual block. Our actual number. The yellow's a little louder in person.
+              </p>
+              <p className="mt-3 text-white/55 text-xs sm:text-sm font-medium drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
+                {BUSINESS.address.full} · open 7 days · walk-ins welcome
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ─── TOP CTA STRIPE ─── */}

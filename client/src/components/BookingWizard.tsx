@@ -255,6 +255,29 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
             </p>
           </div>
 
+          {/* "Pull up here" — storefront photo closes the loop. They just trusted
+              us with their booking; show them the actual building they're coming to.
+              Reduces no-show rate via concrete-place anchoring. */}
+          <div className="mx-auto max-w-md mt-4 rounded-lg overflow-hidden border border-foreground/10">
+            <div className="relative h-[140px] sm:h-[160px]">
+              <img
+                src="/brand-sign.webp"
+                alt="Nick's Tire & Auto storefront on Euclid Ave Cleveland — pull up to 17625 Euclid Ave"
+                className="absolute inset-0 w-full h-full object-cover object-center"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-3 text-left">
+                <p className="text-[10px] uppercase tracking-[0.18em] font-bold text-[#FDB913] mb-0.5">
+                  Pull up here
+                </p>
+                <p className="text-white text-sm font-semibold leading-tight">
+                  17625 Euclid Ave · The yellow sign you can't miss
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* CTAs — call (most committed) + Uber drop-off if drop-off-eligible */}
           <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
             <a
