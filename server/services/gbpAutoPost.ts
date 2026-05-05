@@ -22,6 +22,20 @@ export interface GBPPost {
   createdAt: Date;
 }
 
+/**
+ * Tag a URL with GBP UTM params so analytics can attribute traffic
+ * coming from Google Business Profile posts. Skips tagging for tel:/mailto:
+ * URLs and for URLs that already have utm_source set.
+ */
+function gbpUrl(baseUrl: string, campaign: string): string {
+  if (baseUrl.startsWith("tel:") || baseUrl.startsWith("mailto:") || baseUrl.startsWith("sms:")) {
+    return baseUrl;
+  }
+  if (baseUrl.includes("utm_source=")) return baseUrl;
+  const sep = baseUrl.includes("?") ? "&" : "?";
+  return `${baseUrl}${sep}utm_source=gbp&utm_medium=organic&utm_campaign=${encodeURIComponent(campaign)}`;
+}
+
 /** Create a GBP post draft from a special/promotion */
 export function createSpecialPost(special: { title: string; description: string; expiresAt?: Date }): GBPPost {
   const text = `${special.title}\n\n${special.description}\n\n📍 ${BUSINESS.name} — ${BUSINESS.address.street}, ${BUSINESS.address.city}\n📞 ${BUSINESS.phone.display}\n⭐ ${BUSINESS.reviews.rating} stars, ${BUSINESS.reviews.countDisplay} reviews`;
@@ -30,7 +44,7 @@ export function createSpecialPost(special: { title: string; description: string;
     type: "offer",
     text: text.slice(0, 1500),
     callToAction: "BOOK",
-    ctaUrl: "https://nickstire.org/booking",
+    ctaUrl: gbpUrl("https://nickstire.org/booking", "special"),
     status: "draft",
     createdAt: new Date(),
   };
@@ -44,7 +58,7 @@ export function createBlogPost(blog: { title: string; excerpt: string; slug: str
     type: "update",
     text: text.slice(0, 1500),
     callToAction: "LEARN_MORE",
-    ctaUrl: `https://nickstire.org/blog/${blog.slug}`,
+    ctaUrl: gbpUrl(`https://nickstire.org/blog/${blog.slug}`, "blog"),
     status: "draft",
     createdAt: new Date(),
   };

@@ -1,8 +1,31 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { trackBookingSubmission, getUserDataForCAPI } from "@/lib/metaPixel";
+import { trackFormAbandon } from "@/lib/ga4";
 import { getUtmData } from "@/lib/utm";
+
+/**
+ * Format US phone number as (XXX) XXX-XXXX while user types.
+ * Strips non-digits, caps at 10. Returns the input string if not a phone.
+ */
+function formatPhoneInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 10);
+  if (digits.length === 0) return "";
+  if (digits.length <= 3) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+/** Validate phone has 10 digits after stripping format chars. */
+function isValidPhone(value: string): boolean {
+  return value.replace(/\D/g, "").length === 10;
+}
+
+/** Validate email format (basic but covers ~99% of real addresses). */
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
 import {
   Phone, Calendar, Clock, Car, Wrench, CheckCircle, AlertCircle,
   Loader2, Camera, X, ChevronRight, ChevronLeft, User, Mail, MessageSquare, AlertTriangle, Zap, HelpCircle, MapPin,
@@ -58,6 +81,41 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
   const [notSureMode, setNotSureMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Inline-validation error state — only displayed after onBlur (not while
+  // user is still typing), per UX research showing onChange-time errors
+  // feel hostile.
+  const [errors, setErrors] = useState<{ phone?: string; email?: string }>({});
+
+  // Track which fields the user has touched. Inline errors only fire on
+  // touched fields so first-paint shows zero red.
+  const [touched, setTouched] = useState<{ phone?: boolean; email?: boolean }>({});
+
+  // Form-abandon tracking: capture mount time + last-touched field; fire
+  // a GA4 event on unmount IF user started filling but didn't submit.
+  // Reveals exactly which step the booking funnel bleeds users.
+  const formMountTime = useRef<number>(Date.now());
+  const lastTouchedField = useRef<string>("none");
+  const startedRef = useRef(false);
+  const submittedRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      if (startedRef.current && !submittedRef.current) {
+        trackFormAbandon("booking", {
+          step,
+          lastTouchedField: lastTouchedField.current,
+          timeOnFormSec: Math.round((Date.now() - formMountTime.current) / 1000),
+        });
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: capture step at unmount via ref
+  }, []);
+
+  // Sync submittedRef with submitted state (so the cleanup effect sees it)
+  useEffect(() => {
+    submittedRef.current = submitted;
+  }, [submitted]);
+
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -79,8 +137,12 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
 
   const uploadPhoto = trpc.booking.uploadPhoto.useMutation();
 
-  const update = (field: string, value: string) =>
+  const update = (field: string, value: string) => {
+    // Mark form as "started" on first edit + track which field user is on
+    startedRef.current = true;
+    lastTouchedField.current = field;
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
   const handlePhotoAdd = useCallback(async (files: FileList | null) => {
     if (!files) return;
@@ -555,14 +617,40 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-nick-teal/40" />
                 <input
                   type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
                   required
                   value={formData.phone}
-                  onChange={(e) => update("phone", e.target.value)}
+                  onChange={(e) => {
+                    const formatted = formatPhoneInput(e.target.value);
+                    update("phone", formatted);
+                    // Clear error as soon as it becomes valid (live feedback)
+                    if (errors.phone && isValidPhone(formatted)) {
+                      setErrors((p) => ({ ...p, phone: undefined }));
+                    }
+                  }}
+                  onBlur={() => {
+                    setTouched((t) => ({ ...t, phone: true }));
+                    if (formData.phone && !isValidPhone(formData.phone)) {
+                      setErrors((p) => ({ ...p, phone: "Please enter a 10-digit phone number" }));
+                    }
+                  }}
                   aria-label="Phone number"
-                  className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
+                  aria-invalid={touched.phone && !!errors.phone}
+                  aria-describedby={errors.phone ? "phone-error" : undefined}
+                  className={`w-full bg-background/60 border rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:ring-1 focus:outline-none transition-all ${
+                    touched.phone && errors.phone
+                      ? "border-rose-500/60 focus:border-rose-500 focus:ring-rose-500/30"
+                      : "border-border/50 focus:border-primary focus:ring-nick-yellow/30"
+                  }`}
                   placeholder={BUSINESS.phone.placeholder}
                 />
               </div>
+              {touched.phone && errors.phone && (
+                <p id="phone-error" className="mt-1 text-[11px] text-rose-400">
+                  {errors.phone}
+                </p>
+              )}
             </div>
 
             <div className="sm:col-span-2">
@@ -573,13 +661,37 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-nick-teal/40" />
                 <input
                   type="email"
+                  inputMode="email"
+                  autoComplete="email"
                   value={formData.email}
-                  onChange={(e) => update("email", e.target.value)}
+                  onChange={(e) => {
+                    update("email", e.target.value);
+                    if (errors.email && isValidEmail(e.target.value)) {
+                      setErrors((p) => ({ ...p, email: undefined }));
+                    }
+                  }}
+                  onBlur={() => {
+                    setTouched((t) => ({ ...t, email: true }));
+                    if (formData.email && !isValidEmail(formData.email)) {
+                      setErrors((p) => ({ ...p, email: "That email doesn't look right — double-check?" }));
+                    }
+                  }}
                   aria-label="Email address"
-                  className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
+                  aria-invalid={touched.email && !!errors.email}
+                  aria-describedby={errors.email ? "email-error" : undefined}
+                  className={`w-full bg-background/60 border rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:ring-1 focus:outline-none transition-all ${
+                    touched.email && errors.email
+                      ? "border-rose-500/60 focus:border-rose-500 focus:ring-rose-500/30"
+                      : "border-border/50 focus:border-primary focus:ring-nick-yellow/30"
+                  }`}
                   placeholder="you@email.com"
                 />
               </div>
+              {touched.email && errors.email && (
+                <p id="email-error" className="mt-1 text-[11px] text-rose-400">
+                  {errors.email}
+                </p>
+              )}
             </div>
           </div>
 

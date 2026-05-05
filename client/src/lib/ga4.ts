@@ -99,6 +99,40 @@ export function trackServiceView(serviceType: string, data?: {
 }
 
 /**
+ * Track form abandonment — fires when a user starts a multi-step form but
+ * navigates away before submitting. Reveals exactly which step + field
+ * the user gave up on. Pair with form_submission_* to get a true funnel.
+ *
+ * Usage:
+ *   useEffect(() => () => {
+ *     if (started && !submitted) {
+ *       trackFormAbandon('booking', { step, lastTouchedField });
+ *     }
+ *   }, [submitted]);
+ */
+export function trackFormAbandon(
+  formType: 'booking' | 'lead' | 'callback' | 'newsletter',
+  data: {
+    step?: number | string;
+    lastTouchedField?: string;
+    timeOnFormSec?: number;
+  } = {},
+) {
+  if (typeof window === 'undefined' || !window.gtag) return;
+
+  window.gtag('event', `form_abandon_${formType}`, {
+    event_category: 'form',
+    event_label: formType,
+    form_type: formType,
+    abandon_step: data.step ?? 'unknown',
+    last_field: data.lastTouchedField ?? 'unknown',
+    time_on_form_sec: data.timeOnFormSec ?? 0,
+    page_path: window.location.pathname,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+/**
  * Track a chat interaction
  */
 export function trackChatInteraction(action: 'start' | 'message' | 'convert', data?: {
