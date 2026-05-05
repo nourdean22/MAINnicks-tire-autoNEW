@@ -106,7 +106,7 @@ export default function LaborEstimator() {
     <PageLayout activeHref="/estimate" showChat={true}>
       <SEOHead
         title="AI Repair Estimator | Nick's Tire & Auto — Cleveland, OH"
-        description="Get a detailed repair cost estimate for your vehicle. Enter your year, make, model, and repair needed. AI-powered labor and parts breakdown. Cleveland's trusted auto repair shop."
+        description="Get a detailed repair cost estimate for your vehicle. Enter your year, make, model, and repair needed. AI-powered labor and parts breakdown from Nick's Tire & Auto in Cleveland."
         canonicalPath="/estimate"
       />
       <Breadcrumbs items={[{ label: "Repair Estimator", href: "/estimate" }]} />
@@ -528,12 +528,12 @@ export default function LaborEstimator() {
               </div>
               <div>
                 <Wrench className="w-8 h-8 text-nick-teal mx-auto mb-3" />
-                <h4 className="font-bold text-foreground text-sm tracking-wide">Expert Technicians</h4>
+                <h4 className="font-bold text-foreground text-sm tracking-wide">Real Mechanics</h4>
                 <p className="text-foreground/60 text-xs mt-1">Advanced OBD-II diagnostics and certified repairs.</p>
               </div>
               <div>
                 <Car className="w-8 h-8 text-primary mx-auto mb-3" />
-                <h4 className="font-bold text-foreground text-sm tracking-wide">Cleveland Trusted</h4>
+                <h4 className="font-bold text-foreground text-sm tracking-wide">1,700+ Reviews</h4>
                 <p className="text-foreground/60 text-xs mt-1">{BUSINESS.reviews.countDisplay} reviews, {BUSINESS.reviews.rating} stars.</p>
               </div>
             </div>

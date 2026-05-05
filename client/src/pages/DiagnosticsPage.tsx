@@ -10,7 +10,7 @@ import { Disc, AlertTriangle, Clock } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/diagnostics",
-  title: "Check Engine Light Cleveland · Free 5-Min Scan · Same Day | Nick's",
+  title: "Check Engine Light Cleveland · Free 5-Min Scan | Nick's",
   description: "Cleveland check engine light decoder. Free 5-minute OBD-II scan, plain-English explanation, written estimate before any work. If your car's making a noise even Spotify can't identify, drive it over. Walk-ins 7 days · same-day repair on most codes. Financing on the spot. (216) 862-0005",
   eyebrow: "CHECK ENGINE LIGHT · CLEVELAND'S NOISE TRANSLATOR",
   h1: "THE LIGHT'S ON.\nWE FIND OUT *WHY* — NOT GUESS.",

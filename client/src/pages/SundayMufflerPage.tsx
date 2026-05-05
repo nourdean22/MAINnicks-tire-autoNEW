@@ -17,7 +17,7 @@ const CONFIG: ServicePageConfig = {
   canonicalPath: "/muffler-shop-open-sunday-cleveland",
   // Snow shot — visual proof "we work in any weather, even Sunday"
   heroImage: "/storefront-snow.webp",
-  title: "Muffler Shop Open Sunday · Cleveland · Walk-In | Nick's Tire & Auto",
+  title: "Muffler Shop Open Sunday · Cleveland | Nick's",
   description: "Cleveland muffler shop open on Sunday — 9 AM to 4 PM. Because exhaust never breaks Tuesday afternoon when shops are open. Muffler repair, full exhaust, catalytic converter, weld jobs, free written estimate. Walk-ins welcome. (216) 862-0005",
   eyebrow: "MUFFLER SHOP — SUNDAY HOURS · CLEVELAND",
   h1: "EXHAUST NEVER BREAKS TUESDAY.\nWE'RE OPEN SUNDAY.",

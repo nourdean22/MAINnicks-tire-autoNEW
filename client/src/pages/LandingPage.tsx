@@ -471,7 +471,7 @@ export default function LandingPage() {
             <div className="w-px h-12 bg-white/10" />
             <div>
               <p className="font-bold text-yellow-400 text-xl">Since 2005</p>
-              <p className="text-xs text-white/60">Trusted Shop</p>
+              <p className="text-xs text-white/60">1,700+ Reviews</p>
             </div>
           </div>
         </div>

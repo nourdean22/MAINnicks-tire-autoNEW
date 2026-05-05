@@ -18,7 +18,7 @@ const CONFIG: ServicePageConfig = {
   canonicalPath: "/auto-repair-near-me",
   // BMW at the shop — sells "every make, even European" credibility
   heroImage: "/every-make-bmw.webp",
-  title: "Auto Repair Near Me — Cleveland Mechanic · The Honest Crew | Nick's",
+  title: "Auto Repair Cleveland · Honest Mechanic · 7 Days | Nick's",
   description: "Cleveland/Euclid auto repair where the diagnosis comes before the bill. Brakes, tires, oil, diagnostics, alignment, AC. 4.9★ across 1,700+ Google reviews. Walk-ins 7 days, financing approved on the spot. Free written estimate before any wrench moves. (216) 862-0005",
   eyebrow: "LOCAL AUTO REPAIR",
   h1: "AUTO REPAIR THAT EXPLAINS ITSELF\nBEFORE IT BILLS YOU.",

@@ -74,7 +74,7 @@ export default function GuidesIndex() {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
     name: "Auto Repair Guides | Nick's Tire & Auto",
-    description: "Expert auto repair guides from Cleveland's trusted mechanics. Tire guides, maintenance tips, cost guides, and local Cleveland advice.",
+    description: "Mechanic-grade auto repair guides from Cleveland. Tire sizing, maintenance intervals, cost breakdowns, and local Cleveland advice from the shop on Euclid Ave.",
     url: "https://nickstire.org/guides",
   };
 
@@ -82,7 +82,7 @@ export default function GuidesIndex() {
     <PageLayout activeHref="/guides" showChat={true}>
       <SEOHead
         title="Auto Repair Guides | Nick's Tire & Auto Cleveland"
-        description="Expert auto repair guides from Cleveland's trusted mechanics. Tire guides, maintenance tips, cost breakdowns, and local Cleveland advice for every vehicle owner."
+        description="Mechanic-grade auto repair guides from Cleveland. Tire sizing, maintenance intervals, cost breakdowns, and local Cleveland advice from the shop on Euclid Ave."
         canonicalPath="/guides"
       />
       <Breadcrumbs items={[{ label: "Guides" }]} />
@@ -97,12 +97,12 @@ export default function GuidesIndex() {
       <section className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-24">
         <div className="container">
           <FadeIn>
-            <span className="font-mono text-primary text-sm tracking-wide">Expert Knowledge</span>
+            <span className="font-mono text-primary text-sm tracking-wide">Mechanic-Grade</span>
             <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-6xl text-foreground mt-3 tracking-tight leading-[0.95]">
               AUTO REPAIR GUIDES
             </h1>
             <p className="mt-6 text-lg text-foreground/70 max-w-2xl leading-relaxed">
-              Honest, mechanic-grade guides written by Cleveland's trusted auto repair team. Everything you need to know about tires, maintenance, costs, and car care.
+              Mechanic-grade guides written from the bay floor on Euclid Ave. Everything you need to know about tires, maintenance, costs, and car care — with the actual prices and the actual reasons behind them.
             </p>
           </FadeIn>
 

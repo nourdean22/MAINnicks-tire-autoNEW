@@ -950,7 +950,7 @@ export default function Home() {
     <PageLayout activeHref="/" showChat={true}>
       <SEOHead
         title="Tire Shop & Auto Repair Cleveland · Walk-Ins 7 Days | Nick's"
-        description="Cleveland's tire shop with the patience of a librarian and the speed of a pit crew. New & used tires installed free, brakes, diagnostics, oil, alignment, AC. Financing approved on the spot — no credit check. 4.9★ across 1,700+ reviews from real Cleveland drivers. Walk-ins 7 days · open Sunday · same-day service · 17625 Euclid Ave. (216) 862-0005"
+        description="Cleveland tire shop + auto repair on Euclid Ave. New/used tires installed free, brakes, diagnostics, oil. 4.9★ · 1,700+ reviews · open 7 days · (216) 862-0005"
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />

@@ -20,7 +20,7 @@ const CONFIG: ServicePageConfig = {
   canonicalPath: "/used-tires-cleveland",
   // Wide-bay shot — shows the actual install environment
   heroImage: "/mechanic-bay.webp",
-  title: "Used Tires Cleveland · Inspected, Installed, Honest | Nick's Tire & Auto",
+  title: "Used Tires Cleveland · Inspected & Installed | Nick's",
   description: "Cleveland used tires that don't insult your intelligence. Every tire passes a 4-point exam — tread, sidewall, DOT date, plug history — before it earns a spot on your car. Walk-ins 7 days, financing on the spot. 4.9★ across 1,700+ reviews. (216) 862-0005",
   eyebrow: "USED TIRES — CLEVELAND'S BEST-KEPT SECRET",
   h1: "USED TIRES CLEVELAND — INSPECTED, INSTALLED, NO FUNNY BUSINESS",

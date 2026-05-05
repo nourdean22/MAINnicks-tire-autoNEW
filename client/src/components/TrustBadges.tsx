@@ -8,7 +8,7 @@ import { BUSINESS } from "@shared/business";
 const BADGES = [
   { icon: Shield, label: "Licensed & Insured", detail: "Ohio Certified" },
   { icon: Clock, label: "Same-Day Service", detail: "Walk-ins Welcome" },
-  { icon: Award, label: "ASE Standards", detail: "Expert Technicians" },
+  { icon: Award, label: "ASE Standards", detail: "Real Mechanics" },
   { icon: MapPin, label: "Easy Access", detail: BUSINESS.address.street },
 ];
 

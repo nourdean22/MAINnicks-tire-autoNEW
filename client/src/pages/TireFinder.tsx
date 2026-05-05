@@ -1266,7 +1266,7 @@ export default function TireFinder() {
                 {[
                   {
                     icon: <Wrench className="w-5 h-5" />,
-                    title: "Expert Technicians",
+                    title: "Real Mechanics",
                     desc: "Years of experience with every make and model. We know tires inside and out — from performance fitments to heavy-duty truck tires.",
                   },
                   {
