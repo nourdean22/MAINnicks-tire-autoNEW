@@ -4,6 +4,7 @@
  */
 
 import PageLayout from "@/components/PageLayout";
+import ResponsivePhoto from "@/components/ResponsivePhoto";
 import { useEffect, useRef, useState } from "react";
 import { useRoute, Link } from "wouter";
 import { SEASONAL_PAGES } from "@shared/seasonal";
@@ -140,7 +141,7 @@ export default function SeasonalPage() {
         <section className="relative min-h-[55vh] lg:min-h-[65vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
             {/* LCP fix · above-the-fold hero */}
-            <img loading="eager" fetchPriority="high" src={HERO_IMG} alt={`${page.season} car care Cleveland — Nick's Tire & Auto open ${page.season === "Winter" ? "all winter" : "all summer"}`} className="w-full h-full object-cover" />
+            <ResponsivePhoto loading="eager" fetchPriority="high" src={HERO_IMG} alt={`${page.season} car care Cleveland — Nick's Tire & Auto open ${page.season === "Winter" ? "all winter" : "all summer"}`} className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/30" />
           </div>
 
