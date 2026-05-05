@@ -266,10 +266,14 @@ function WeatherImpactCard() {
   const [weather, setWeather] = useState<any>(null);
 
   useEffect(() => {
-    fetch("https://statenour-os.vercel.app/api/weather")
+    // 2026-05-05 audit follow-up: abort the fetch on unmount so a slow
+    // autonicks-os response can't setState on an unmounted component.
+    const ctrl = new AbortController();
+    fetch("https://statenour-os.vercel.app/api/weather", { signal: ctrl.signal })
       .then(r => r.ok ? r.json() : null)
-      .then(setWeather)
+      .then((w) => { if (!ctrl.signal.aborted) setWeather(w); })
       .catch(() => {});
+    return () => ctrl.abort();
   }, []);
 
   if (!weather?.businessImpact) return null;
