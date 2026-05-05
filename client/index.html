@@ -165,12 +165,26 @@
     <link rel="preload" as="image" href="/hero-cybertruck-mobile.webp" type="image/webp" media="(max-width: 768px)" />
     <link rel="preload" as="image" href="/hero-cybertruck.webp" type="image/webp" media="(min-width: 769px)" />
 
-    <!-- Fonts: Inter (headings), Roboto Mono (body), Oswald (nav/labels) — slimmed to critical weights -->
+    <!-- Fonts: Inter (headings), Roboto Mono (body), Oswald (nav/labels) — slimmed to critical weights.
+         Preload-as-style + onload swap removes the ~80ms render-blocking
+         penalty Lighthouse flagged. The font-CSS still applies; it just
+         doesn't gate first paint. <noscript> fallback ensures fonts load
+         even with JS disabled. font-display: swap in the URL means text
+         renders immediately in the system font, then upgrades. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- Preload Inter 800 (hero font) for fastest LCP -->
-    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@800&display=swap" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Roboto+Mono:wght@400&family=Oswald:wght@500;700&display=swap" rel="stylesheet" />
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Roboto+Mono:wght@400&family=Oswald:wght@500;700&display=swap"
+      onload="this.onload=null;this.rel='stylesheet'"
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Roboto+Mono:wght@400&family=Oswald:wght@500;700&display=swap"
+      />
+    </noscript>
   </head>
 
   <body>

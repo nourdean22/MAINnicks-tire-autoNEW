@@ -143,9 +143,32 @@ export function serveStatic(app: Express) {
     );
   }
 
-  // Hashed assets (JS/CSS) get 1-year cache. HTML gets no-cache (SPA routing).
+  // Hashed assets (JS/CSS) get 1-year immutable cache.
   app.use("/assets", express.static(path.join(distPath, "assets"), { maxAge: "1y", immutable: true }));
-  app.use(express.static(distPath, { maxAge: "1h" }));
+
+  // Other static files — extension-aware caching for Lighthouse "efficient
+  // cache lifetimes" audit (was flagging 610 KiB of unhashed static).
+  // - .webp/.png/.jpg/.svg/.ico → 1 year (these change rarely; we update the
+  //   filename when content changes, not the cache header)
+  // - .woff2/.woff/.ttf → 1 year (fonts are stable)
+  // - .json (manifest, robots.txt, etc.) → 1 hour
+  // - everything else → 1 day
+  app.use(express.static(distPath, {
+    maxAge: "1d",
+    setHeaders: (res, filePath) => {
+      const ext = path.extname(filePath).toLowerCase();
+      if (/\.(webp|png|jpg|jpeg|svg|ico|gif|avif)$/.test(ext)) {
+        // Long-lived images: 1 year + immutable. Filename-based cache busting
+        // when we genuinely change a photo (rename or hash-suffix it).
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      } else if (/\.(woff2|woff|ttf|otf|eot)$/.test(ext)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      } else if (/\.json$/.test(ext)) {
+        res.setHeader("Cache-Control", "public, max-age=3600");
+      }
+      // Default 1-day from express.static maxAge applies otherwise.
+    },
+  }));
 
   // fall through to index.html if the file doesn't exist — inject route-specific meta tags for SEO
   app.use("*", (req, res) => {
