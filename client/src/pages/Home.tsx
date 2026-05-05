@@ -295,23 +295,51 @@ const moreServices = [
 function Services() {
   return (
     <section id="services">
-      {/* Featured services — large image tiles */}
+      {/* Featured services — large image tiles with cinematic overlay treatment */}
+      {/* The "group" + "transition-transform" + "scale-105 on hover" gives a slow
+          ken-burns-style zoom on the photo. Multi-direction gradient + vignette
+          ensures the headline is legible regardless of photo brightness. */}
       {services.map((s) => (
-        <div key={s.slug} className="relative min-h-[80vh] flex items-end overflow-hidden">
+        <div key={s.slug} className="group relative min-h-[80vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
-            <img src={s.img} alt={`${s.title} service at Nick's Tire and Auto`} className="w-full h-full object-cover" loading="lazy" />
-            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
+            <img
+              src={s.img}
+              alt={`${s.title} service at Nick's Tire and Auto`}
+              className="w-full h-full object-cover transition-transform duration-[1500ms] ease-out group-hover:scale-[1.04]"
+              loading="lazy"
+            />
+            {/* Bottom-fade for headline legibility */}
+            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/55 to-transparent" />
+            {/* Side-vignette pulls focus to center */}
+            <div className="absolute inset-0 bg-gradient-to-r from-background/60 via-transparent to-background/30" />
+            {/* Subtle color cast over photo (luxury-spec treatment) */}
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_30%,_rgba(0,0,0,0.35)_100%)]" />
           </div>
           <div className="relative container pb-20">
             <FadeIn>
-              <h2 className="font-heading text-4xl lg:text-6xl font-bold text-foreground tracking-tight uppercase">{s.title}</h2>
-              <p className="mt-2 text-[#FDB913] font-semibold text-lg">{s.price}</p>
-              <p className="mt-3 text-lg text-foreground/60 max-w-md font-light">{s.desc}</p>
+              {/* Section label — small caps, gold, sets the architecture */}
+              <p className="text-[11px] uppercase tracking-[0.22em] font-bold text-[#FDB913] mb-3 drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]">
+                The Service
+              </p>
+              <h2 className="font-heading text-4xl lg:text-6xl font-bold text-foreground tracking-tight uppercase drop-shadow-[0_4px_16px_rgba(0,0,0,0.7)]">
+                {s.title}
+              </h2>
+              <p className="mt-2 text-[#FDB913] font-semibold text-lg drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]">{s.price}</p>
+              <p className="mt-3 text-lg text-foreground/75 max-w-md font-light drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">
+                {s.desc}
+              </p>
               <div className="mt-6 flex gap-3">
-                <Link href={s.slug} className="inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/90 transition-colors">
+                <Link
+                  href={s.slug}
+                  className="inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/90 transition-colors shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
+                >
                   Learn More
                 </Link>
-                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`service-${s.slug}`)} className="inline-flex items-center gap-2 border border-foreground/30 text-foreground px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/5 transition-colors">
+                <a
+                  href={BUSINESS.phone.href}
+                  onClick={() => trackPhoneClick(`service-${s.slug}`)}
+                  className="inline-flex items-center gap-2 border border-foreground/40 bg-black/30 backdrop-blur-sm text-foreground px-6 py-3 rounded-full font-medium text-sm hover:bg-black/50 hover:border-foreground/70 transition-colors"
+                >
                   {BUSINESS.phone.display}
                 </a>
               </div>
