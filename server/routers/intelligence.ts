@@ -366,4 +366,42 @@ export const intelligenceRouter = router({
     const todayBookings = Number((bkRows as any)?.[0]?.cnt || 0);
     return { activeWOs, todayBookings, estimatedWait: activeWOs === 0 ? 0 : Math.min(180, activeWOs * 45) };
   }),
+
+  // ── Autonicks brain proxy ──
+  // Closes admin audit §10. The intelligence tabs (NourOsBrainCard,
+  // WeatherImpactCard) used to do raw cross-origin fetch() to
+  // statenour-os.vercel.app from the browser. Three problems:
+  //   1. CORS surface — admin browser talks directly to autonicks
+  //   2. No retries, no timeout, no observability when it fails
+  //   3. Bypasses the standard tRPC error envelope used everywhere else
+  //
+  // These two procedures proxy the same data through the nickstire
+  // backend. The browser only ever talks to its own origin.
+  autonicksBrainStatus: adminProcedure.query(async () => {
+    try {
+      const ctrl = new AbortController();
+      const timeoutId = setTimeout(() => ctrl.abort(), 5000);
+      const r = await fetch("https://statenour-os.vercel.app/api/brain/status", { signal: ctrl.signal });
+      clearTimeout(timeoutId);
+      if (!r.ok) return null;
+      const data: any = await r.json();
+      return data?.data ?? data;
+    } catch (err) {
+      log.warn(`autonicksBrainStatus failed: ${err instanceof Error ? err.message : err}`);
+      return null;
+    }
+  }),
+  autonicksWeather: adminProcedure.query(async () => {
+    try {
+      const ctrl = new AbortController();
+      const timeoutId = setTimeout(() => ctrl.abort(), 5000);
+      const r = await fetch("https://statenour-os.vercel.app/api/weather", { signal: ctrl.signal });
+      clearTimeout(timeoutId);
+      if (!r.ok) return null;
+      return await r.json();
+    } catch (err) {
+      log.warn(`autonicksWeather failed: ${err instanceof Error ? err.message : err}`);
+      return null;
+    }
+  }),
 });
