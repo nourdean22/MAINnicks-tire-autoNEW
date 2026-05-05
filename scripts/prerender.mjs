@@ -40,7 +40,7 @@ async function loadRoutes() {
   try {
     // Load full route data (path + title + description) for SEO injection
     const result = execSync(
-      `node --import tsx/esm -e "import { PRERENDER_ROUTES } from './shared/routes.ts'; console.log(JSON.stringify(PRERENDER_ROUTES.map(r => ({ path: r.path, title: r.title, description: r.description }))));"`,
+      `node --import tsx -e "import { PRERENDER_ROUTES } from './shared/routes.ts'; console.log(JSON.stringify(PRERENDER_ROUTES.map(r => ({ path: r.path, title: r.title, description: r.description }))));"`,
       { cwd: ROOT, encoding: "utf-8", timeout: 15000 }
     );
     routes.push(...JSON.parse(result.trim()));
@@ -70,12 +70,16 @@ async function loadRoutes() {
   try {
     const tempScript = path.join(ROOT, "tmp", "load-blog-routes.mjs");
     fs.mkdirSync(path.dirname(tempScript), { recursive: true });
+    // Imports are relative to tempScript's directory (tmp/), so use `../`
+    // to escape into the project root. Previously these said `./shared/...`
+    // which resolved to `tmp/shared/...` (not exist) and silently failed,
+    // dropping all blog routes from the prerender list.
     fs.writeFileSync(
       tempScript,
       `import "dotenv/config";
-import { BLOG_SLUGS } from "./shared/routes.ts";
-import { BLOG_ARTICLES } from "./shared/blog.ts";
-import { getPublishedArticles } from "./server/content-generator.ts";
+import { BLOG_SLUGS } from "../shared/routes.ts";
+import { BLOG_ARTICLES } from "../shared/blog.ts";
+import { getPublishedArticles } from "../server/content-generator.ts";
 
 const dynRows = await getPublishedArticles().catch(() => []);
 const staticMap = new Map(BLOG_ARTICLES.map(a => [a.slug, { title: a.metaTitle, description: a.metaDescription }]));
@@ -95,7 +99,7 @@ process.exit(0);
     );
     // Run the temp script via tsx — works identically on Windows + POSIX.
     const result = execSync(
-      `node --import tsx/esm "${path.relative(ROOT, tempScript).replace(/\\/g, "/")}"`,
+      `node --import tsx "${path.relative(ROOT, tempScript).replace(/\\/g, "/")}"`,
       { cwd: ROOT, encoding: "utf-8", timeout: 45000 }
     );
     const blogRoutes = JSON.parse(result.trim());

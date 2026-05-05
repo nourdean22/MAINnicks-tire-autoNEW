@@ -960,18 +960,13 @@ export function getRouteByPath(path: string): RouteEntry | undefined {
   return ALL_ROUTES.find(r => r.path === path);
 }
 
-/** Hardcoded blog slugs (always in sitemap) */
-export const BLOG_SLUGS = [
-  "5-signs-brakes-need-replacing",
-  "check-engine-light-common-causes",
-  "ohio-echeck-what-to-know",
-  "when-to-replace-tires",
-  "spring-car-maintenance-checklist",
-  "synthetic-vs-conventional-oil",
-  "echeck-emissions-guide-cleveland",
-  "winter-tires-cleveland",
-  "how-much-brake-repair-cost-cleveland",
-  "used-tires-cleveland-guide",
-  "transmission-problems-warning-signs",
-  "car-wont-start-common-causes",
-];
+/**
+ * Blog slugs to include in sitemap + prerender list.
+ *
+ * Derived from `shared/blog.ts` (BLOG_ARTICLES) so adding a new article
+ * to that file automatically gets it indexed. Previously this was a
+ * hardcoded list of 12 slugs while BLOG_ARTICLES held 115, leaving 103
+ * production-ready articles invisible to Google. (2026-05-05 audit fix.)
+ */
+import { BLOG_ARTICLES } from "./blog";
+export const BLOG_SLUGS = BLOG_ARTICLES.map(a => a.slug);
