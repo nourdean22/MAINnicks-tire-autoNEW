@@ -4,7 +4,7 @@
  * Tab 2: AI Ideas Engine (trending topics, SEO opportunities, seasonal, competitor gaps)
  */
 import React, { useState } from "react";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Link } from "wouter";
 import {
@@ -17,6 +17,14 @@ import {
 } from "lucide-react";
 
 type ContentTab = "manager" | "ideas";
+
+// Inferred from the tRPC AppRouter — replaces 10 `any` annotations
+// (admin audit §3 follow-up; same pattern as DispatchSection cleanup).
+// chatFunnel / competitorGap / contentPerformance are intentionally NOT
+// aliased — those returns are loose analytics shapes; we narrow at use
+// site via pickArray/pickString helpers further down (safer than `any`).
+type Article = NonNullable<RouterOutputs["contentAdmin"]["allArticles"]>[number];
+type Notification = NonNullable<RouterOutputs["contentAdmin"]["allNotifications"]>[number];
 
 export default function ContentSection() {
   const [tab, setTab] = useState<ContentTab>("manager");
@@ -79,8 +87,8 @@ function ContentManager() {
       {/* Content Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total Articles" value={articles?.length ?? 0} icon={<FileText className="w-4 h-4" />} color="text-foreground" />
-        <StatCard label="Published" value={articles?.filter((a: any) => a.status === "published").length ?? 0} icon={<CheckCircle2 className="w-4 h-4" />} color="text-emerald-400" />
-        <StatCard label="Drafts" value={articles?.filter((a: any) => a.status === "draft").length ?? 0} icon={<Newspaper className="w-4 h-4" />} color="text-amber-400" />
+        <StatCard label="Published" value={articles?.filter((a: Article) => a.status === "published").length ?? 0} icon={<CheckCircle2 className="w-4 h-4" />} color="text-emerald-400" />
+        <StatCard label="Drafts" value={articles?.filter((a: Article) => a.status === "draft").length ?? 0} icon={<Newspaper className="w-4 h-4" />} color="text-amber-400" />
         <StatCard label="AI Generations" value={genLog?.length ?? 0} icon={<Sparkles className="w-4 h-4" />} color="text-purple-400" />
       </div>
 
@@ -106,7 +114,7 @@ function ContentManager() {
         </h3>
         {articles && articles.length > 0 ? (
           <div className="space-y-3">
-            {articles.map((article: any, _aIdx: any) => (
+            {articles.map((article: Article, _aIdx: number) => (
               <div key={article.id} className="stagger-in bg-card border border-border/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3" style={{ animationDelay: `${_aIdx * 50}ms` }}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
@@ -167,7 +175,7 @@ function ContentManager() {
         </h3>
         {notifications && notifications.length > 0 ? (
           <div className="space-y-2">
-            {notifications.map((notif: any) => (
+            {notifications.map((notif: Notification) => (
               <div key={notif.id} className="bg-card border border-border/30 p-3 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${notif.isActive === 1 ? "bg-emerald-400" : "bg-foreground/30"}`} />
@@ -262,67 +270,67 @@ function AIIdeasEngine() {
   // Build ideas from intelligence data
   const ideas: ContentIdea[] = [];
 
+  // The 3 intelligence procedures (chatFunnel, competitorGap, contentPerformance)
+  // return loose shapes from the analytics layer — we read from any of several
+  // possible property names. Using `unknown` instead of `any` here forces the
+  // narrowing checks below to actually run instead of silently letting bad data
+  // through (which is what the previous `as any` cast was hiding).
+  const pickArray = (obj: unknown, keys: string[]): unknown[] => {
+    if (!obj || typeof obj !== "object") return [];
+    const o = obj as Record<string, unknown>;
+    for (const k of keys) {
+      if (Array.isArray(o[k])) return o[k] as unknown[];
+    }
+    return [];
+  };
+  const pickString = (item: unknown, keys: string[]): string => {
+    if (typeof item === "string") return item;
+    if (!item || typeof item !== "object") return "";
+    const o = item as Record<string, unknown>;
+    for (const k of keys) {
+      if (typeof o[k] === "string") return o[k] as string;
+    }
+    return "";
+  };
+
   // Trending Topics — from chat FAQ pipeline
-  if (chatFunnel && typeof chatFunnel === "object") {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
-    const funnel = chatFunnel as any;
-    const topics = funnel.topQuestions || funnel.topTopics || funnel.questions || [];
-    if (Array.isArray(topics)) {
-      topics.slice(0, 3).forEach((q: any) => {
-        const question = typeof q === "string" ? q : q.question || q.topic || q.label || "";
-        if (question) {
-          ideas.push({
-            topic: `Answer: "${question}"`,
-            reason: "Customers are asking this — article captures search + builds FAQ authority",
-            impact: "high",
-            source: "trending",
-          });
-        }
+  pickArray(chatFunnel, ["topQuestions", "topTopics", "questions"]).slice(0, 3).forEach((q) => {
+    const question = pickString(q, ["question", "topic", "label"]);
+    if (question) {
+      ideas.push({
+        topic: `Answer: "${question}"`,
+        reason: "Customers are asking this — article captures search + builds FAQ authority",
+        impact: "high",
+        source: "trending",
       });
     }
-  }
+  });
 
   // Competitor Gaps
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
-  if (competitor && typeof competitor === "object") {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
-    const comp = competitor as any;
-    const gaps = comp.gaps || comp.opportunities || comp.missingTopics || [];
-    if (Array.isArray(gaps)) {
-      gaps.slice(0, 3).forEach((g: any) => {
-        const topic = typeof g === "string" ? g : g.topic || g.keyword || g.label || "";
-        if (topic) {
-          ideas.push({
-            topic: topic,
-            reason: "Competitors rank for this — we don't. Content fills the gap.",
-            impact: "high",
-            source: "competitor",
-          });
-        }
+  pickArray(competitor, ["gaps", "opportunities", "missingTopics"]).slice(0, 3).forEach((g) => {
+    const topic = pickString(g, ["topic", "keyword", "label"]);
+    if (topic) {
+      ideas.push({
+        topic,
+        reason: "Competitors rank for this — we don't. Content fills the gap.",
+        impact: "high",
+        source: "competitor",
       });
     }
-  }
+  });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
   // Content Performance — double down on what works
-  if (contentPerf && typeof contentPerf === "object") {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
-    const perf = contentPerf as any;
-    const topContent = perf.topPerformers || perf.bestArticles || perf.winners || [];
-    if (Array.isArray(topContent)) {
-      topContent.slice(0, 2).forEach((c: any) => {
-        const title = typeof c === "string" ? c : c.title || c.topic || c.label || "";
-        if (title) {
-          ideas.push({
-            topic: `Follow-up: "${title}" — Part 2 / Deep Dive`,
-            reason: "This topic already performs well. A follow-up compounds the traffic.",
-            impact: "medium",
-            source: "seo",
-          });
-        }
+  pickArray(contentPerf, ["topPerformers", "bestArticles", "winners"]).slice(0, 2).forEach((c) => {
+    const title = pickString(c, ["title", "topic", "label"]);
+    if (title) {
+      ideas.push({
+        topic: `Follow-up: "${title}" — Part 2 / Deep Dive`,
+        reason: "This topic already performs well. A follow-up compounds the traffic.",
+        impact: "medium",
+        source: "seo",
       });
     }
-  }
+  });
 
   // Seasonal suggestions — always present
   const season = getMonthSeason();
