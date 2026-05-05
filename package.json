@@ -14,6 +14,7 @@
     "prerender": "node scripts/prerender.mjs",
     "regen": "node scripts/regen-prerender.mjs",
     "audit:prerender": "node scripts/audit-prerender.mjs",
+    "prerender:check": "node scripts/check-prerender.mjs",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
