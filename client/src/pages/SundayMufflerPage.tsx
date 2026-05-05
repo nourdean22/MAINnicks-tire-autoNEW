@@ -20,7 +20,7 @@ const CONFIG: ServicePageConfig = {
   title: "Muffler Shop Open Sunday · Cleveland · Walk-In | Nick's Tire & Auto",
   description: "Cleveland muffler shop open on Sunday — 9 AM to 4 PM. Because exhaust never breaks Tuesday afternoon when shops are open. Muffler repair, full exhaust, catalytic converter, weld jobs, free written estimate. Walk-ins welcome. (216) 862-0005",
   eyebrow: "MUFFLER SHOP — SUNDAY HOURS · CLEVELAND",
-  h1: "MUFFLER SHOP OPEN SUNDAY — CLEVELAND",
+  h1: "EXHAUST NEVER BREAKS TUESDAY.\nWE'RE OPEN SUNDAY.",
   sub: "Loud exhaust on a Sunday morning and every other shop is hibernating? Nick's Tire & Auto on Euclid Ave is open Sunday 9 AM to 4 PM. Walk in for muffler repair, full exhaust replacement, catalytic converter work, weld jobs, or just a free inspection if you're not sure what the noise is. Most exhaust repairs done same day, written estimate before any work, financing on the spot. Your car can stop announcing itself to the entire neighborhood by lunch.",
   startingPrice: "Free exhaust inspection",
   pricingTitle: "EXHAUST & MUFFLER WORK",

@@ -22,7 +22,7 @@ const CONFIG: ServicePageConfig = {
   title: "Check Engine Light Diagnostic Cleveland | Real Diagnosis, No Parts-Swap | Nick's",
   description: "Tired of shops replacing parts hoping to fix it? Nick's Tire & Auto runs proper diagnostic tests in Cleveland — live data, root-cause analysis, written estimate. Stop paying for guesses. (216) 862-0005",
   eyebrow: "DIAGNOSTIC AUTHORITY",
-  h1: "CHECK ENGINE LIGHT DIAGNOSTIC CLEVELAND",
+  h1: "REAL DIAGNOSIS.\nNO PARTS-SWAP ROULETTE.",
   sub: "If you've been to a shop that 'tried a sensor, then another, then another' — you've been parts-swapped. We don't guess. We test. Live data, freeze-frame review, component isolation. You leave knowing what's actually wrong and what it'll cost — before you authorize anything.",
   startingPrice: "Free code scan",
   pricingTitle: "DIAGNOSTIC LEVELS",

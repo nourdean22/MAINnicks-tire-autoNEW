@@ -21,7 +21,7 @@ const CONFIG: ServicePageConfig = {
   title: "New Tires Cleveland · Free Install Package · Walk-Ins | Nick's",
   description: "Cleveland new tires with the install package built in. Michelin, Goodyear, Bridgestone, Continental, Firestone, Pirelli — major brands stocked, special-order in 24 hours. Free mount, balance, valve stems, TPMS reset, alignment check. Walk-ins 7 days. (216) 862-0005",
   eyebrow: "NEW TIRES — CLEVELAND",
-  h1: "NEW TIRES CLEVELAND — INSTALL PACKAGE INCLUDED, NOT INVOICED",
+  h1: "NEW TIRES.\nFREE INSTALL · FREE COFFEE · FREE OPINIONS.",
   sub: "Buying new tires? At Nick's the install package isn't an upsell — it's the welcome mat. Mount, balance, valve stems, TPMS reset, alignment check, and a 20-point safety inspection on every set, included. Same-day install on most sizes. Major brands stocked, specialty sizes ship from a warehouse before your laundry's dry. Call your size for a live quote — it'll be friendlier than your phone bill.",
   startingPrice: "Install package included on every set",
   pricingTitle: "NEW TIRE PACKAGES",
