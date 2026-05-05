@@ -14,6 +14,7 @@ import FadeIn from "@/components/FadeIn";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
+import ResponsivePhoto from "@/components/ResponsivePhoto";
 
 const HERO_IMG = "/storefront-day.webp";
 const DIAG_IMG = "/mechanic-bay.webp";
@@ -34,8 +35,10 @@ export default function About() {
       {/* Hero */}
       <section className="relative min-h-[60vh] flex items-end overflow-hidden">
         <div className="absolute inset-0">
-          {/* LCP fix · hero is above-the-fold, must load eagerly with high priority */}
-          <img loading="eager" fetchPriority="high" src={HERO_IMG} alt="Nick's Tire & Auto on Euclid Ave Cleveland — exterior shop view" className="w-full h-full object-cover" />
+          {/* LCP fix · hero is above-the-fold, must load eagerly with high priority.
+              ResponsivePhoto serves /storefront-day-mobile.webp (98KB) under
+              768px instead of the 469KB desktop variant. */}
+          <ResponsivePhoto loading="eager" fetchPriority="high" src={HERO_IMG} alt="Nick's Tire & Auto on Euclid Ave Cleveland — exterior shop view" className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
         </div>
         <div className="relative container pb-16 pt-32">

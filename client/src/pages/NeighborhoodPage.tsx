@@ -4,6 +4,7 @@
  */
 
 import PageLayout from "@/components/PageLayout";
+import ResponsivePhoto from "@/components/ResponsivePhoto";
 import { useEffect, useState } from "react";
 import { useLocation, Link } from "wouter";
 import { NEIGHBORHOODS, type Neighborhood } from "@shared/neighborhoods";
@@ -227,7 +228,7 @@ export default function NeighborhoodPage() {
       <section className="relative min-h-[60vh] lg:min-h-[70vh] flex items-end overflow-hidden">
         <div className="absolute inset-0">
           {/* LCP fix · above-the-fold hero */}
-          <img loading="eager" fetchPriority="high" src={HERO_IMG} alt={`${BUSINESS.name} on Euclid Ave — auto repair near ${neighborhood.name}`} className="w-full h-full object-cover" />
+          <ResponsivePhoto loading="eager" fetchPriority="high" src={HERO_IMG} alt={`${BUSINESS.name} on Euclid Ave — auto repair near ${neighborhood.name}`} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/30" />
         </div>
 

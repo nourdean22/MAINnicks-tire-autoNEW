@@ -6,6 +6,7 @@
 
 import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
+import ResponsivePhoto from "@/components/ResponsivePhoto";
 import { useState, useRef } from "react";
 import { Link } from "wouter";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
@@ -458,7 +459,7 @@ export default function DiagnosePage() {
         <section className="relative pt-32 pb-12 overflow-hidden">
           <div className="absolute inset-0">
             {/* LCP fix · hero image (rendered at 20% opacity as bg, but still LCP candidate) */}
-            <img loading="eager" fetchPriority="high" src={HERO_IMG} alt="Auto diagnostics at Nick's Tire & Auto Cleveland — check engine light + warning light testing" className="w-full h-full object-cover opacity-20" />
+            <ResponsivePhoto loading="eager" fetchPriority="high" src={HERO_IMG} alt="Auto diagnostics at Nick's Tire & Auto Cleveland — check engine light + warning light testing" className="w-full h-full object-cover opacity-20" />
             <div className="absolute inset-0 bg-gradient-to-b from-[#0A0A0A]/80 via-[#0A0A0A]/95 to-[#0A0A0A]" />
           </div>
 

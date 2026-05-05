@@ -16,6 +16,7 @@ import { useState } from "react";
 import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
 import FadeIn from "@/components/FadeIn";
+import ResponsivePhoto from "@/components/ResponsivePhoto";
 
 // Real shop hero — propagates to all 14+ city pages (Euclid, Lakewood, Parma,
 // Parma Heights, East Cleveland, Shaker Heights, Cleveland Heights, etc.)
@@ -220,7 +221,7 @@ export default function CityPage() {
         <section className="relative min-h-[60vh] lg:min-h-[70vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
             {/* LCP fix · above-the-fold hero */}
-            <img loading="eager" fetchPriority="high" src={HERO_IMG} alt={`Nick's Tire & Auto Cleveland — auto repair near ${city.name} Ohio`} className="w-full h-full object-cover" />
+            <ResponsivePhoto loading="eager" fetchPriority="high" src={HERO_IMG} alt={`Nick's Tire & Auto Cleveland — auto repair near ${city.name} Ohio`} className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/30" />
           </div>
 

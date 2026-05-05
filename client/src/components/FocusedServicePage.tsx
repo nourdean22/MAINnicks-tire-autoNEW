@@ -21,6 +21,7 @@
  */
 
 import InternalLinks from "./InternalLinks";
+import ResponsivePhoto from "./ResponsivePhoto";
 import RelatedServices from "./RelatedServices";
 import PageLayout from "./PageLayout";
 import { SEOHead, Breadcrumbs } from "./SEO";
@@ -157,8 +158,11 @@ function Hero({ config }: { config: ServicePageConfig }) {
   return (
     <section className="relative min-h-[55vh] flex items-end overflow-hidden">
       <div className="absolute inset-0">
-        {/* LCP fix · above-the-fold hero on every FocusedServicePage instance */}
-        <img
+        {/* LCP fix · above-the-fold hero on every FocusedServicePage instance.
+            ResponsivePhoto serves /<photo>-mobile.webp (~85-180KB) under 768px
+            instead of the desktop variant (~200-470KB). Powers TireShopNearMe,
+            Sunday-muffler, Used-tires, and 5+ other focused service pages. */}
+        <ResponsivePhoto
           loading="eager"
           fetchPriority="high"
           src={config.heroImage || HERO_IMAGE_DEFAULT}
