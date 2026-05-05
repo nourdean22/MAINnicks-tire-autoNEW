@@ -462,6 +462,55 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
           },
         }}
       />
+      {/* Page-specific Service schema (the actual service this page is for).
+          Replaces the generic "Premium Tire Installation Package" schema
+          that was previously hardcoded in index.html and shipped to every
+          page. Each FocusedServicePage instance now declares its real
+          service type — /brakes = "Brake Repair", /diagnostics = "Engine
+          Diagnostics", etc. — so Google's entity graph stops collapsing
+          all 22+ service pages into one duplicate. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Service",
+            name: config.serviceType,
+            description: config.description,
+            serviceType: config.serviceType,
+            provider: {
+              "@type": "AutoRepair",
+              name: "Nick's Tire & Auto",
+              telephone: "+1-216-862-0005",
+              url: `https://nickstire.org${config.canonicalPath}`,
+              address: {
+                "@type": "PostalAddress",
+                streetAddress: "17625 Euclid Ave",
+                addressLocality: "Euclid",
+                addressRegion: "OH",
+                postalCode: "44112",
+                addressCountry: "US",
+              },
+            },
+            areaServed: [
+              { "@type": "City", name: "Cleveland" },
+              { "@type": "City", name: "Euclid" },
+              { "@type": "City", name: "Parma" },
+              { "@type": "City", name: "Lakewood" },
+              { "@type": "City", name: "Cleveland Heights" },
+              { "@type": "City", name: "Shaker Heights" },
+            ],
+            offers: config.tiers.map((t) => ({
+              "@type": "Offer",
+              name: t.name,
+              price: t.price.replace(/[^0-9.]/g, "").split(".")[0] || "0",
+              priceCurrency: "USD",
+              availability: "https://schema.org/InStock",
+            })),
+            url: `https://nickstire.org${config.canonicalPath}`,
+          }),
+        }}
+      />
       {/* FAQPage emitted as its OWN top-level JSON-LD (not nested inside
           LocalBusiness as mainEntityOfPage — that structure was causing GSC
           "Duplicate field FAQPage" errors on 14 pages, May 2026 audit). */}

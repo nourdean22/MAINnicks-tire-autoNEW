@@ -954,6 +954,45 @@ export default function Home() {
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />
+      {/* Homepage-only Service schema (Premium Tire Installation Package).
+          Was previously hardcoded in client/index.html which caused every
+          page to inherit this tire-specific schema. Now scoped to the
+          homepage only — service-specific pages emit their own via
+          FocusedServicePage. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Service",
+            name: "Premium Tire Installation Package",
+            description:
+              "Free with every tire purchase. Includes professional mounting, computer balancing, new valve stems, TPMS reset, alignment check, 20-point safety inspection, rim cleaning, and tire disposal. $289+ value.",
+            provider: {
+              "@type": "AutoRepair",
+              name: BUSINESS.name,
+              telephone: `+1-${BUSINESS.phone.dashed}`,
+              url: BUSINESS.urls.website,
+              address: {
+                "@type": "PostalAddress",
+                streetAddress: BUSINESS.address.street,
+                addressLocality: BUSINESS.address.city,
+                addressRegion: BUSINESS.address.state,
+                postalCode: BUSINESS.address.zip,
+                addressCountry: "US",
+              },
+            },
+            areaServed: BUSINESS.serviceAreas.map((a) => ({ "@type": "City", name: a })),
+            serviceType: "Tire Installation",
+            offers: {
+              "@type": "Offer",
+              price: "0",
+              priceCurrency: "USD",
+              description: "Free with tire purchase — value $289+",
+            },
+          }),
+        }}
+      />
       {/* Weather-driven banner — only renders when conditions warrant
           (snow / heat / rain / surge demand). Per the conversion spec:
           no manufactured urgency on a calm 70°F day. */}
