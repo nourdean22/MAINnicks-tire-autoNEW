@@ -13,7 +13,7 @@ const CONFIG: ServicePageConfig = {
   title: "Check Engine Light Cleveland · Free 5-Min Scan · Same Day | Nick's",
   description: "Cleveland check engine light decoder. Free 5-minute OBD-II scan, plain-English explanation, written estimate before any work. If your car's making a noise even Spotify can't identify, drive it over. Walk-ins 7 days · same-day repair on most codes. Financing on the spot. (216) 862-0005",
   eyebrow: "CHECK ENGINE LIGHT · CLEVELAND'S NOISE TRANSLATOR",
-  h1: "CHECK ENGINE LIGHT CLEVELAND",
+  h1: "THE LIGHT'S ON.\nWE FIND OUT *WHY* — NOT GUESS.",
   sub: "Check engine light on, flashing, or playing peek-a-boo? Pull up to Nick's Tire & Auto on Euclid Ave for a free OBD-II code scan. We tell you what the code actually means — in real English, not engineer-speak — and what fixing it will actually take, before you authorize a single wrench. Most scans done while your coffee's still hot. Same-day repair on most codes. Financing approved on the spot if you need it. 30+ years of diagnosing every weird Cleveland-car symptom you can name (and a few we still can't).",
   startingPrice: "Free code scan",
   pricingTitle: "DIAGNOSTIC LEVELS",

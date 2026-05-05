@@ -15,17 +15,19 @@ interface Row {
   chain: Status;
 }
 
+// Voice-led row labels — same data, but each line sounds like a friend
+// telling you the difference. 2026-05-05 brand-voice pass.
 const ROWS: Row[] = [
-  { feature: "Transparent pricing",      nicks: "yes", dealership: "no",   chain: "warn" },
-  { feature: "Show problem first",       nicks: "yes", dealership: "warn", chain: "no"   },
-  { feature: "Same-day service",         nicks: "yes", dealership: "no",   chain: "warn" },
-  { feature: "All makes & models",       nicks: "yes", dealership: "no",   chain: "yes"  },
-  { feature: "Financing on the spot",    nicks: "yes", dealership: "warn", chain: "no"   },
-  { feature: "Open 7 days",             nicks: "yes", dealership: "no",   chain: "warn" },
-  { feature: `${BUSINESS.reviews.countDisplay} Google reviews`, nicks: "yes", dealership: "warn", chain: "no" },
-  { feature: "No pressure upselling",   nicks: "yes", dealership: "no",   chain: "no"   },
-  { feature: "ASE certified",           nicks: "yes", dealership: "yes",  chain: "warn" },
-  { feature: "Free diagnostic estimates", nicks: "yes", dealership: "no",   chain: "no"   },
+  { feature: "Tells you the price before doing the work",        nicks: "yes", dealership: "no",   chain: "warn" },
+  { feature: "Shows you the worn part on a lift",                nicks: "yes", dealership: "warn", chain: "no"   },
+  { feature: "Done before your Uber driver gets bored",          nicks: "yes", dealership: "no",   chain: "warn" },
+  { feature: "Works on whatever you drive",                       nicks: "yes", dealership: "no",   chain: "yes"  },
+  { feature: "$0 down financing — no credit check",              nicks: "yes", dealership: "warn", chain: "no"   },
+  { feature: "Open Sunday — exhaust never breaks Tuesday",       nicks: "yes", dealership: "no",   chain: "warn" },
+  { feature: `${BUSINESS.reviews.countDisplay} Cleveland drivers think so`, nicks: "yes", dealership: "warn", chain: "no" },
+  { feature: "Won't sell you what you don't need",               nicks: "yes", dealership: "no",   chain: "no"   },
+  { feature: "Mechanics actually trained on this stuff",         nicks: "yes", dealership: "yes",  chain: "warn" },
+  { feature: "Tells you what's wrong for free, in writing",      nicks: "yes", dealership: "no",   chain: "no"   },
 ];
 
 const COLUMNS = ["Nick's", "Dealership", "Chain Shop"] as const;

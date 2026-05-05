@@ -186,6 +186,46 @@ export default function About() {
         </div>
       </section>
 
+      {/* What we DON'T do — anti-promise trust device.
+          2026-05-05 brand-voice pass: most powerful trust copy a shop can
+          write is what they refuse to do. Each line is a real policy,
+          stated in plain language. */}
+      <section className="py-24 lg:py-32">
+        <div className="container max-w-3xl">
+          <FadeIn>
+            <div className="text-center mb-12">
+              <div className="text-xs uppercase tracking-[0.2em] text-primary font-bold mb-2">Anti-promises</div>
+              <h2 className="text-3xl lg:text-5xl font-bold text-foreground tracking-tight uppercase leading-[1.05]">
+                What we <span className="text-primary">won't</span> do.
+              </h2>
+              <p className="text-foreground/55 text-base mt-4">
+                Most shops talk about what they do. The shortcut to standing out is naming what we refuse to.
+              </p>
+            </div>
+          </FadeIn>
+          <FadeIn delay={0.1}>
+            <ul className="space-y-4 text-base lg:text-lg">
+              {[
+                "Replace brake pads that pass inspection.",
+                "Quote a fix without showing you the broken part.",
+                "Book a service we can't do that day unless we tell you up front.",
+                "Sell you new tires when used tires would last another year.",
+                "Add a fee at pickup that wasn't on the written estimate.",
+                "Pretend a noise is fine when we can hear it from the parking lot.",
+              ].map((line, i) => (
+                <li key={i} className="flex items-start gap-3 p-4 border border-border/40 rounded-lg bg-card/30">
+                  <span className="text-primary font-bold text-lg leading-none mt-0.5 shrink-0">·</span>
+                  <span className="text-foreground/80 leading-relaxed">{line}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-center text-foreground/50 text-sm mt-8 italic">
+              If we ever do, call us out. We'll fix it.
+            </p>
+          </FadeIn>
+        </div>
+      </section>
+
       {/* Reciprocity — "What you get for free" */}
       <section className="bg-[oklch(0.065_0.004_260)] py-20 lg:py-24">
         <div className="container max-w-6xl">

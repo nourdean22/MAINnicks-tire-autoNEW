@@ -31,7 +31,9 @@ describe("SEO Audit Fixes", () => {
       const emissions = getServiceBySlug("emissions");
       expect(emissions).toBeDefined();
       expect(emissions!.heroHeadline).not.toContain("|");
-      expect(emissions!.heroHeadline).toBe("OHIO E-CHECK & EMISSIONS EXPERTS");
+      // 2026-05-05 brand-voice pass: was "OHIO E-CHECK & EMISSIONS EXPERTS"
+      // (generic SEO-keyword shouting). Voice rewrite per docs/brand/VOICE.md.
+      expect(emissions!.heroHeadline).toContain("Failed E-Check");
     });
 
     it("all services have the correct phone number in meta descriptions", () => {
