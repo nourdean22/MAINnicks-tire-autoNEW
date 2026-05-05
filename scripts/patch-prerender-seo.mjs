@@ -24,6 +24,15 @@
  *   node scripts/patch-prerender-seo.mjs
  *
  * Idempotent — re-running on already-patched files is a no-op.
+ *
+ * SCOPE NOTE: this script was a one-shot historical fix for the 3
+ * affected top-level routes (/tires, /financing, /cleveland-auto-repair).
+ * It iterates only top-level prerendered/{slug}/index.html files; it
+ * does NOT recurse into prerendered/blog/<slug>/index.html. The
+ * 2026-05-05 .github/workflows/verify-prerender.yml workflow is the
+ * ongoing defense against drift, including for blog posts. If a
+ * similar corruption ever recurs in blog HTML, prefer re-running
+ * `pnpm run regen` over extending this script.
  */
 
 import fs from "fs";

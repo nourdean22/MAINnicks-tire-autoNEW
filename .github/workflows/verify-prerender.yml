@@ -133,8 +133,12 @@ jobs:
       - name: Spot-check no duplicate FAQPage schema
         run: |
           set -e
+          # Use grep + wc (not grep -c || echo 0) — that pattern produces
+          # multi-line output on no-match because || captures BOTH grep's
+          # "0" and echo's "0" into the command substitution. wc -l on
+          # grep's match-lines is single-line, never fails on empty input.
           for f in prerendered/*/index.html prerendered/blog/*/index.html; do
-            count=$(grep -c '"@type": "FAQPage"' "$f" 2>/dev/null || echo 0)
+            count=$(grep '"@type": "FAQPage"' "$f" 2>/dev/null | wc -l)
             if [ "$count" -gt 1 ]; then
               echo "FAIL: duplicate FAQPage in $f ($count occurrences)"
               exit 1
