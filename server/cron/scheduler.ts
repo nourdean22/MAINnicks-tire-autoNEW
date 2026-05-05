@@ -261,6 +261,17 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        // 2026-05-05 audit follow-up: cron failure observer.
+        // Reads cron_log, alerts owner via Telegram (channel='critical')
+        // on any job with 2+ consecutive failures in the last 24h.
+        // Suppresses duplicate alerts for 6h to avoid spam.
+        name: "cron-failure-observer",
+        handler: async () => {
+          const { runCronFailureObserver } = await import("./observer");
+          return runCronFailureObserver();
+        },
+      },
+      {
         name: "dashboard-sync",
         handler: async () => {
           const { processDashboardSync } = await import("./jobs/dashboardSync");
