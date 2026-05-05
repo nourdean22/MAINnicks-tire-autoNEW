@@ -2,6 +2,11 @@
  * Security Headers Middleware
  * Hardens HTTP responses against common attacks.
  * Aligned with OWASP security header recommendations.
+ *
+ * 2026-05-05: strengthened per Lighthouse Best Practices audit:
+ * - HSTS: added `preload` directive (still need to register at hstspreload.org)
+ * - COOP: added Cross-Origin-Opener-Policy for origin isolation
+ * - CORP: added Cross-Origin-Resource-Policy
  */
 
 import type { Request, Response, NextFunction } from "express";
@@ -17,8 +22,19 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
   // CSP is the correct protection layer.
   res.setHeader("X-XSS-Protection", "0");
 
-  // Force HTTPS
-  res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  // Force HTTPS — `preload` directive enables future hstspreload.org registration
+  // for inclusion in browser preload lists (HSTS active even on first visit).
+  // To complete: submit nickstire.org at https://hstspreload.org/
+  res.setHeader("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+
+  // Cross-Origin-Opener-Policy — origin isolation for Spectre-class attacks.
+  // `same-origin` keeps full control while preventing cross-origin window references.
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+
+  // Cross-Origin-Resource-Policy — limits which origins can embed our resources.
+  // `same-site` allows our subdomains (autonicks.com → nickstire.org) but blocks
+  // arbitrary external embedders.
+  res.setHeader("Cross-Origin-Resource-Policy", "same-site");
 
   // Referrer policy
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -39,6 +55,11 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
     "frame-src https://www.google.com https://maps.google.com",
     "media-src 'self' blob:",
     "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    // upgrade-insecure-requests: rewrites http:// to https:// automatically
+    // (defense-in-depth even with HSTS — covers user-typed URLs in our forms)
+    "upgrade-insecure-requests",
   ].join("; "));
 
   next();
