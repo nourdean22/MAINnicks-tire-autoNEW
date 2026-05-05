@@ -93,32 +93,16 @@
     }
     </script>
 
-    <!-- Structured Data: Service (Tire Installation) -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "Service",
-      "name": "Premium Tire Installation Package",
-      "description": "Free with every tire purchase. Includes professional mounting, computer balancing, new valve stems, TPMS reset, alignment check, 20-point safety inspection, rim cleaning, and tire disposal. $289+ value.",
-      "provider": {
-        "@type": "AutoRepair",
-        "name": "Nick's Tire & Auto",
-        "telephone": "+1-216-862-0005",
-        "address": {
-          "@type": "PostalAddress",
-          "streetAddress": "17625 Euclid Ave",
-          "addressLocality": "Euclid",
-          "addressRegion": "OH",
-          "postalCode": "44112"
-        }
-      },
-      "areaServed": {
-        "@type": "City",
-        "name": "Cleveland"
-      },
-      "serviceType": "Tire Installation"
-    }
-    </script>
+    <!-- Service schema (Premium Tire Installation Package) MOVED to Home.tsx
+         (was previously hardcoded here — caused EVERY page to ship the same
+         tire-specific Service schema even on /brakes, /diagnostics, /euclid-
+         auto-repair, etc. That's the schema half of the March indexing crisis:
+         Google saw 200+ pages all claiming to be the same Service entity.
+
+         Each page now emits its OWN Service schema (Home: tire installation,
+         FocusedServicePage: per-service via OfferCatalog + top-level Service,
+         CityPage: AutoRepair area-served, etc.). LocalBusiness/AutoRepair
+         schemas continue to render globally via LocalBusinessSchema component. -->
 
     <!-- FAQPage schema removed from index.html to prevent duplicate FAQPage errors.
          Each page renders its own FAQ schema via React components (ServicePage, FAQ, etc.) -->
