@@ -2,8 +2,12 @@
  * FollowUpsSection — shows pending and recent follow-up notifications.
  * Allows running follow-ups manually and viewing their status.
  */
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
+
+// Inferred from tRPC AppRouter — admin audit §3 follow-up.
+type PendingFollowUp = NonNullable<RouterOutputs["followUps"]["pending"]>[number];
+type RecentFollowUp = NonNullable<RouterOutputs["followUps"]["recent"]>[number];
 import {
   Loader2, Send, RefreshCw, CheckCircle2, Clock, MessageSquare, Star, AlertCircle
 } from "lucide-react";
@@ -40,8 +44,8 @@ export default function FollowUpsSection() {
 
   const isLoading = pendingLoading || recentLoading;
   const pendingCount = pending?.length ?? 0;
-  const sentCount = recent?.filter((n: any) => n.status === "sent").length ?? 0;
-  const failedCount = recent?.filter((n: any) => n.status === "failed").length ?? 0;
+  const sentCount = recent?.filter((n: RecentFollowUp) => n.status === "sent").length ?? 0;
+  const failedCount = recent?.filter((n: RecentFollowUp) => n.status === "failed").length ?? 0;
 
   return (
     <div className="space-y-6">
@@ -90,7 +94,7 @@ export default function FollowUpsSection() {
                 <AlertCircle className="w-4 h-4" /> PENDING ({pendingCount})
               </h3>
               <div className="space-y-2">
-                {pending?.map((fu: any) => {
+                {pending?.map((fu: PendingFollowUp) => {
                   const cfg = TYPE_CONFIG[fu.notificationType] || TYPE_CONFIG.follow_up;
                   return (
                     <div key={fu.id} className="bg-card border border-border/30 p-4 flex items-center gap-4">
@@ -127,7 +131,7 @@ export default function FollowUpsSection() {
               </div>
             ) : (
               <div className="space-y-2">
-                {recent?.map((fu: any) => {
+                {recent?.map((fu: RecentFollowUp) => {
                   const cfg = TYPE_CONFIG[fu.notificationType] || TYPE_CONFIG.follow_up;
                   return (
                     <div key={fu.id} className="bg-card border border-border/30 p-4 flex items-center gap-4">

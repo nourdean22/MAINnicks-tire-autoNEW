@@ -4,8 +4,10 @@
  * and one-click follow-up actions.
  */
 import { useState } from "react";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
+
+type DeclinedEstimate = NonNullable<RouterOutputs["invoices"]["declined"]>["estimates"][number];
 import { StatCard } from "./shared";
 import {
   Loader2, AlertTriangle, DollarSign, Phone, MessageSquare,
@@ -111,7 +113,7 @@ export default function DeclinedEstimatesSection() {
         </div>
       ) : (
         <div className="space-y-2">
-          {estimates.map((est: any) => {
+          {estimates.map((est: DeclinedEstimate) => {
             const daysOld = Math.floor(
               (Date.now() - new Date(est.invoiceDate).getTime()) / (1000 * 60 * 60 * 24)
             );

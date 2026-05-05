@@ -3,8 +3,12 @@
  * provider portals, and application logging with conversion metrics.
  */
 import { useState, useMemo } from "react";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
+
+// Inferred from tRPC AppRouter — admin audit §3 follow-up.
+type Lead = NonNullable<RouterOutputs["lead"]["list"]>[number];
+type Booking = NonNullable<RouterOutputs["booking"]["list"]>[number];
 import {
   CreditCard, ExternalLink, Wallet, Zap, Shield,
   Star, Plus, CheckCircle, Loader2, Phone, Copy,
@@ -40,7 +44,7 @@ function OpportunityTracker() {
     const highValueServices = ["engine", "transmission", "brake", "timing", "head gasket", "catalytic", "turbo", "ac", "a/c"];
 
     if (leads) {
-      leads.forEach((l: any) => {
+      leads.forEach((l: Lead) => {
         const text = `${l.problem || ""} ${l.vehicle || ""} ${l.source || ""}`.toLowerCase();
         const hasFinancingSignal = financingKeywords.some(k => text.includes(k));
         const hasHighValue = highValueServices.some(k => text.includes(k));
@@ -64,7 +68,7 @@ function OpportunityTracker() {
 
     if (bookings) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
-      (bookings as any[]).forEach(b => {
+      bookings.forEach((b: Booking) => {
         const text = `${b.service || ""} ${b.vehicle || ""} ${b.notes || ""}`.toLowerCase();
         const hasHighValue = highValueServices.some(k => text.includes(k));
         if (hasHighValue && b.status !== "completed" && b.status !== "cancelled") {
@@ -454,7 +458,7 @@ export default function FinancingSection() {
     if (!leads) return 0;
     const keywords = ["cost", "price", "afford", "financ", "payment", "expensive", "budget", "pay"];
     const highValue = ["engine", "transmission", "brake", "timing", "head gasket", "catalytic", "turbo", "ac", "a/c"];
-    return leads.filter((l: any) => {
+    return leads.filter((l: Lead) => {
       const text = `${l.problem || ""} ${l.vehicle || ""} ${l.source || ""}`.toLowerCase();
       return keywords.some(k => text.includes(k)) || highValue.some(k => text.includes(k));
     }).length;

@@ -3,8 +3,10 @@
  * Create, manage, and track targeted SMS campaigns.
  */
 import { useState } from "react";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { StatCard } from "./shared";
+
+type Campaign = NonNullable<RouterOutputs["campaigns"]["list"]>[number];
 import {
   Plus, Send, Clock, CheckCircle2, AlertCircle, Eye, X,
   Loader2, MessageSquare, Users, TrendingUp, ChevronRight,
@@ -354,7 +356,7 @@ export default function CampaignsSection() {
       {/* Campaigns List */}
       <div className="space-y-3">
         {campaigns && campaigns.length > 0 ? (
-          campaigns.map((campaign: any) => (
+          campaigns.map((campaign: Campaign) => (
             <CampaignRow key={campaign.id} campaign={campaign} />
           ))
         ) : (
@@ -367,7 +369,7 @@ export default function CampaignsSection() {
   );
 }
 
-function CampaignRow({ campaign }: { campaign: any }) {
+function CampaignRow({ campaign }: { campaign: Campaign }) {
   const { data: detail } = trpc.campaigns.getById.useQuery({ id: campaign.id });
 
   const statusConfig: Record<string, { color: string; icon: React.ReactNode }> = {

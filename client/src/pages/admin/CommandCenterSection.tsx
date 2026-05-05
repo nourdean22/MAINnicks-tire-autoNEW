@@ -3,7 +3,18 @@
  * Shows sync status, work order stats, and recent events pushed to NOUR OS.
  * No localStorage. No fake brain. This page is a window into the real system.
  */
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
+
+// The base NourOsEvent (type, timestamp, source, data, eventId) plus optional
+// loose fields the UI tried to read. Pre-cleanup these were silently undefined
+// at runtime — the type was `any`, masking dead code paths. The renderer below
+// degrades gracefully when these are missing.
+type RecentEvent = NonNullable<RouterOutputs["nourOsBridge"]["recentEvents"]>[number] & {
+  success?: boolean;
+  eventType?: string;
+  priority?: string;
+};
+type RevenueOpportunity = NonNullable<RouterOutputs["controlCenter"]["getOverview"]>["revenueWaiting"]["topOpportunities"][number];
 import {
   Zap, ExternalLink, Activity, Wrench, AlertTriangle, CheckCircle2,
   Clock, Loader2, ArrowRight, Wifi, WifiOff, RefreshCw, BarChart3, DollarSign,
@@ -214,7 +225,7 @@ export default function CommandCenterSection() {
           <p className="text-sm text-foreground/40 py-6 text-center">No events recorded yet.</p>
         ) : (
           <div className="space-y-1 max-h-[400px] overflow-y-auto">
-            {recentEvents.map((event: any, i: number) => (
+            {recentEvents.map((event: RecentEvent, i: number) => (
               <div
                 key={i}
                 className="flex items-center gap-3 px-3 py-2 hover:bg-muted/30 transition-colors rounded"
@@ -338,7 +349,7 @@ export default function CommandCenterSection() {
                   <div className="mt-3 pt-3 border-t border-border/30">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Top Opportunities</p>
                     <div className="space-y-1.5">
-                      {systemOverview.revenueWaiting.topOpportunities.slice(0, 5).map((opp: any) => (
+                      {systemOverview.revenueWaiting.topOpportunities.slice(0, 5).map((opp: RevenueOpportunity) => (
                         <div key={opp.id} className="flex items-center justify-between text-[11px]">
                           <div className="flex items-center gap-2 truncate">
                             <span className={`w-1.5 h-1.5 rounded-full ${opp.status === "new" ? "bg-amber-400" : "bg-blue-400"}`} />
@@ -347,8 +358,8 @@ export default function CommandCenterSection() {
                             <span className="text-muted-foreground truncate">{opp.service}</span>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            {opp.estimatedValueCents > 0 && (
-                              <span className="text-emerald-400 font-medium">${Math.round(opp.estimatedValueCents / 100)}</span>
+                            {(opp.estimatedValueCents ?? 0) > 0 && (
+                              <span className="text-emerald-400 font-medium">${Math.round((opp.estimatedValueCents ?? 0) / 100)}</span>
                             )}
                             <span className={`font-mono ${opp.ageHours > 24 ? "text-red-400" : "text-muted-foreground"}`}>
                               {opp.ageHours}h
