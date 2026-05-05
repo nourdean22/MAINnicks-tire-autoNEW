@@ -23,6 +23,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
   ResponsiveContainer, PieChart as RPieChart, Pie, Cell, Legend,
 } from "recharts";
+import WebVitalsPanel from "./WebVitalsPanel";
 
 const TOOLTIP_STYLE = {
   background: "oklch(0.12 0.005 260)",
@@ -1665,6 +1666,12 @@ export default function OverviewSection() {
           </div>
         </div>
       )}
+
+      {/* ─── CORE WEB VITALS ─── */}
+      {/* Real-user p75 latency (LCP/CLS/INP/FCP/TTFB) from in-memory ring buffer.
+          Refreshes every 2 minutes. Surfaces top 5 slowest LCP routes so we
+          catch perf regressions in the same dashboard we already check daily. */}
+      <WebVitalsPanel />
     </div>
   );
 }
