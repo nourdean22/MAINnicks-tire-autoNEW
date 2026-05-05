@@ -255,7 +255,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     priority: 0.7,
     changefreq: "monthly",
     title: "Continental Tires Cleveland | Free $289 Install Package | Nick's",
-    description: "Continental tires in Cleveland — TrueContact, ExtremeContact, TerrainContact, VikingContact winter. European engineering, OEM on BMW/Mercedes/Audi. FREE install. (216) 862-0005",
+    description: "Continental tires Cleveland — TrueContact, ExtremeContact, VikingContact. European engineering, OEM on BMW/Mercedes/Audi. FREE install. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -497,6 +497,97 @@ const CITY_PAGES: RouteEntry[] = [
     title: "Auto Repair Near Lyndhurst OH — Nick's Tire & Auto",
     description: "Top-rated auto repair near Lyndhurst, OH. Nick's Tire & Auto — 4.9 stars, 1,700+ reviews. Tires, brakes, oil changes, diagnostics. 10 min drive.",
     group: "city",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    // 2026-05-05: was wired in App.tsx but missing from registry —
+    // the route validator caught it. Adding so prerender + sitemap
+    // can index Parma Heights search intent.
+    path: "/parma-heights-auto-repair",
+    priority: 0.8,
+    changefreq: "monthly",
+    title: "Auto Repair Near Parma Heights OH — Nick's Tire & Auto",
+    description: "Parma Heights drivers cross town for honest auto repair. 4.9★ from 1,700+ reviews. Free Uber drop-off + pickup. Walk-ins 7 days. (216) 862-0005",
+    group: "city",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    // Brand-capture aliases — drivers searching "Moe's Tire" / "Moe's Auto"
+    // land on the same MoesTireBridgePage. Four URL variants for keyword
+    // capture. Added 2026-05-05; were wired in App.tsx but missing from
+    // registry.
+    path: "/moes-auto",
+    priority: 0.6,
+    changefreq: "monthly",
+    title: "Looking for Moe's Tire? — Nick's Tire & Auto, Euclid OH",
+    description: "Moe's Tire customers welcome at Nick's. Same neighborhood, same walk-in friendly service. 4.9★ from 1,700+ reviews. (216) 862-0005",
+    group: "landing",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/moes-tire",
+    priority: 0.6,
+    changefreq: "monthly",
+    title: "Moe's Tire — Now Nick's Tire & Auto, Euclid OH",
+    description: "Looking for Moe's Tire? Nick's Tire & Auto serves the same Euclid neighborhood. Walk-ins 7 days. 4.9★ from 1,700+ reviews. (216) 862-0005",
+    group: "landing",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/moes-tires",
+    priority: 0.6,
+    changefreq: "monthly",
+    title: "Moe's Tires — Now Nick's Tire & Auto, Euclid OH",
+    description: "Looking for Moe's Tires? Nick's Tire & Auto serves the same Euclid neighborhood. Walk-ins 7 days. 4.9★ from 1,700+ reviews. (216) 862-0005",
+    group: "landing",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/moes-tire-euclid",
+    priority: 0.6,
+    changefreq: "monthly",
+    title: "Moe's Tire Euclid — Now Nick's Tire & Auto",
+    description: "Moe's Tire Euclid customers — Nick's Tire & Auto is right in the neighborhood. Walk-ins 7 days. 4.9★ from 1,700+ reviews. (216) 862-0005",
+    group: "landing",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    // Sunday-open intent capture — high-value keyword for an auto shop
+    // that genuinely opens 9-4 on Sundays. Three keyword variants
+    // (open-sunday, sunday, sunday-mechanic) all served by the same
+    // SundayMufflerPage. 2026-05-05: missing from registry, fixed now.
+    path: "/muffler-shop-open-sunday-cleveland",
+    priority: 0.7,
+    changefreq: "monthly",
+    title: "Muffler Shop Open Sunday Cleveland — Nick's Tire & Auto",
+    description: "Cleveland muffler & exhaust repair open Sunday 9-4. Catalytic converter, weld jobs, full exhaust. Walk-ins welcome. (216) 862-0005",
+    group: "seo-service",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/muffler-shop-sunday",
+    priority: 0.65,
+    changefreq: "monthly",
+    title: "Muffler Shop Sunday Cleveland — Nick's Tire & Auto",
+    description: "Cleveland exhaust + muffler repair, open Sunday 9-4. Catalytic converter, full exhaust, weld jobs. Walk-ins welcome. (216) 862-0005",
+    group: "seo-service",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/sunday-mechanic-cleveland",
+    priority: 0.65,
+    changefreq: "monthly",
+    title: "Sunday Mechanic Cleveland — Auto Repair Open Sundays | Nick's",
+    description: "Cleveland auto shop open Sundays 9-4. Brakes, tires, diagnostics, exhaust, oil — full service. Walk-ins welcome. (216) 862-0005",
+    group: "seo-service",
     sitemap: true,
     prerender: true,
   },
