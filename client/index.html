@@ -165,14 +165,25 @@
     <link rel="preload" as="image" href="/hero-cybertruck-mobile.webp" type="image/webp" media="(max-width: 768px)" />
     <link rel="preload" as="image" href="/hero-cybertruck.webp" type="image/webp" media="(min-width: 769px)" />
 
-    <!-- Fonts: Inter (headings), Roboto Mono (body), Oswald (nav/labels) — slimmed to critical weights.
-         Preload-as-style + onload swap removes the ~80ms render-blocking
-         penalty Lighthouse flagged. The font-CSS still applies; it just
-         doesn't gate first paint. <noscript> fallback ensures fonts load
-         even with JS disabled. font-display: swap in the URL means text
-         renders immediately in the system font, then upgrades. -->
+    <!-- Fonts: Inter (headings), Roboto Mono (body), Oswald (nav/labels).
+         Multi-layer optimization to eliminate Lighthouse's ~80ms render-blocking flag:
+         1. preconnect → opens TCP+TLS connection to fonts.gstatic.com early
+         2. preload as=font for the LCP weight (Inter 800) → fetched in parallel
+         3. CSS preload+onload swap → non-blocking stylesheet load
+         4. font-display: swap → renders system font instantly, upgrades when Inter loads -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Direct woff2 preload for Inter 800 — the LCP H1 ("CLEVELAND TOUGH.") font.
+         Without this the font-CSS gets parsed first, THEN the woff2 fetch starts.
+         With this preload, both happen in parallel — the woff2 is cached by the
+         time the CSS resolves which weights to apply. -->
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      crossorigin
+      href="https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIv.woff2"
+    />
     <link
       rel="preload"
       as="style"

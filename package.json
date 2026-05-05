@@ -115,6 +115,7 @@
     "@types/web-push": "^3.6.4",
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.20",
+    "beasties": "0.4.2",
     "cross-env": "10.1.0",
     "drizzle-kit": "^0.31.4",
     "esbuild": "^0.25.12",

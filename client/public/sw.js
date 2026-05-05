@@ -7,7 +7,9 @@
  * - Stale-while-revalidate for pages (show cached, fetch fresh)
  */
 
-const CACHE_NAME = "nicks-v1";
+// Bump this version on any structural change to assets (new CSS/JS bundle hashes,
+// schema changes, major image swaps). Old caches are pruned in the activate handler.
+const CACHE_NAME = "nicks-v2-perf-2026-05-05";
 const STATIC_ASSETS = [
   "/",
   "/tires",
