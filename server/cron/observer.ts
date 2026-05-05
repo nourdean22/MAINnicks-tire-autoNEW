@@ -19,7 +19,7 @@
  * job_name + completed_at).
  */
 
-import { sql, desc, and, gte, eq } from "drizzle-orm";
+import { desc, gte } from "drizzle-orm";
 import { cronLog } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { sendTelegramMessage } from "../services/telegram";
