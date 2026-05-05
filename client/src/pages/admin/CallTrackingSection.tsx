@@ -3,7 +3,13 @@
  */
 import { useMemo } from "react";
 import { toast } from "sonner";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
+
+// Inferred from the tRPC AppRouter — replaces 6 `any` annotations
+// (admin audit §3 follow-up; same pattern as DispatchSection /
+// ContentSection cleanups).
+type CallEvent = RouterOutputs["callTracking"]["list"][number];
+type Callback = NonNullable<RouterOutputs["callback"]["list"]>[number];
 import { StatCard, CHART_COLORS, CHART_THEME } from "./shared";
 import {
   Phone, PhoneCall, MapPin, Loader2, Clock, AlertTriangle,
@@ -50,7 +56,7 @@ export default function CallTrackingSection() {
   const peakHours = useMemo(() => {
     if (!calls || calls.length === 0) return [];
     const hourCounts: Record<number, number> = {};
-    calls.forEach((c: any) => {
+    calls.forEach((c: CallEvent) => {
       const hour = new Date(c.createdAt).getHours();
       hourCounts[hour] = (hourCounts[hour] || 0) + 1;
     });
@@ -67,7 +73,7 @@ export default function CallTrackingSection() {
     if (!calls || calls.length === 0) return [];
     const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const dayCounts: Record<number, number> = {};
-    calls.forEach((c: any) => {
+    calls.forEach((c: CallEvent) => {
       const day = new Date(c.createdAt).getDay();
       dayCounts[day] = (dayCounts[day] || 0) + 1;
     });
@@ -82,7 +88,7 @@ export default function CallTrackingSection() {
   const sourceBreakdown = useMemo(() => {
     if (!calls || calls.length === 0) return [];
     const sources: Record<string, number> = {};
-    calls.forEach((c: any) => {
+    calls.forEach((c: CallEvent) => {
       const src = c.utmSource || "direct";
       sources[src] = (sources[src] || 0) + 1;
     });
@@ -94,8 +100,7 @@ export default function CallTrackingSection() {
   // Pending callbacks (missed call queue)
   const pendingCallbacks = useMemo(() => {
     if (!callbacks) return [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
-    return (callbacks as any[]).filter((c: any) => c.status === "new" || c.status === "pending");
+    return callbacks.filter((c: Callback) => c.status === "new" || c.status === "pending");
   }, [callbacks]);
 
   const callTracking = stats?.callTracking;
@@ -151,7 +156,7 @@ export default function CallTrackingSection() {
             </span>
           </h3>
           <div className="space-y-2">
-            {pendingCallbacks.slice(0, 10).map((cb: any) => {
+            {pendingCallbacks.slice(0, 10).map((cb: Callback) => {
               const ageMs = Date.now() - new Date(cb.createdAt).getTime();
               const ageHours = Math.floor(ageMs / (60 * 60 * 1000));
               const ageLabel = ageHours < 24
@@ -360,7 +365,7 @@ export default function CallTrackingSection() {
                 </tr>
               </thead>
               <tbody>
-                {calls.map((call: any) => (
+                {calls.map((call: CallEvent) => (
                   <tr key={call.id} className="border-t border-border/10 hover:bg-foreground/[0.02]">
                     <td className="p-3 font-mono text-foreground">{call.phoneNumber}</td>
                     <td className="p-3 text-foreground/70">{call.sourcePage || "—"}</td>
