@@ -13,7 +13,7 @@ const CONFIG: ServicePageConfig = {
   canonicalPath: "/tire-shop-near-me",
   // Real storefront — proves "this is an actual shop, not an aggregator"
   heroImage: "/storefront-bmw.webp",
-  title: "Tire Shop Near Me · Cleveland · Open 7 Days, Even Sunday | Nick's",
+  title: "Tire Shop Cleveland · Open 7 Days · Sunday | Nick's",
   description: "Cleveland's neighborhood tire shop on Euclid Ave. New & used tires installed free, mount + balance + valve stems + alignment check included on every set. Open 7 days, walk-ins welcome, financing on the spot. 4.9★ across 1,700+ reviews — and the lady whose Civic survived 287,000 miles. (216) 862-0005",
   eyebrow: "LOCAL TIRE SHOP",
   h1: "WALK IN. PICK A TIRE.\nLEAVE BEFORE YOUR PODCAST ENDS.",

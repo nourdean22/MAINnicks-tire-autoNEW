@@ -23,7 +23,7 @@ const SIGNALS = [
   {
     icon: Shield,
     value: "Family Owned",
-    sub: "Cleveland's Trusted Shop",
+    sub: "1,700+ Google Reviews",
     iconClass: "text-primary",
   },
   {

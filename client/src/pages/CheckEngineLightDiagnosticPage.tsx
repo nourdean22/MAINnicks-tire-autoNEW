@@ -19,7 +19,7 @@ import { Search, AlertTriangle, ShieldCheck } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/check-engine-light-diagnostic",
-  title: "Check Engine Light Diagnostic Cleveland | Real Diagnosis, No Parts-Swap | Nick's",
+  title: "Check Engine Light Cleveland · Real Diagnosis | Nick's",
   description: "Tired of shops replacing parts hoping to fix it? Nick's Tire & Auto runs proper diagnostic tests in Cleveland — live data, root-cause analysis, written estimate. Stop paying for guesses. (216) 862-0005",
   eyebrow: "DIAGNOSTIC AUTHORITY",
   h1: "REAL DIAGNOSIS.\nNO PARTS-SWAP ROULETTE.",

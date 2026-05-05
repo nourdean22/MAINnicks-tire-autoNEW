@@ -900,7 +900,7 @@ export default function DiagnosePage() {
                   <div className="w-12 h-12 bg-[#FDB913]/10 rounded-lg flex items-center justify-center mx-auto mb-3">
                     <Wrench className="w-6 h-6 text-[#FDB913]" />
                   </div>
-                  <h3 className="font-heading text-white tracking-wider text-sm mb-2">EXPERT BACKED</h3>
+                  <h3 className="font-heading text-white tracking-wider text-sm mb-2">MECHANIC BACKED</h3>
                   <p className="text-white/50 text-sm">Built on real diagnostic knowledge from professional auto technicians.</p>
                 </div>
               </div>

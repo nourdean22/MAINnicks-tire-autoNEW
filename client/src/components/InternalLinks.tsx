@@ -50,7 +50,7 @@ const ALL_LINKS: LinkItem[] = [
   { href: "/financing", label: "Financing Options", desc: "No credit check — 4 providers, apply in 2 min" },
   { href: "/rewards", label: "Rewards Program", desc: "Earn points on every service" },
   { href: "/car-care-guide", label: "Car Care Guide", desc: "Seasonal maintenance tips" },
-  { href: "/about", label: "About Us", desc: "Cleveland's trusted shop since day one" },
+  { href: "/about", label: "About Us", desc: "Cleveland's Euclid Ave shop since 2018" },
   { href: "/careers", label: "Careers at Nick's", desc: "Join our team — mechanics and service advisors" },
   // City pages for local SEO
   { href: "/cleveland-auto-repair", label: "Cleveland Auto Repair", desc: "Serving Cleveland drivers 7 days a week" },

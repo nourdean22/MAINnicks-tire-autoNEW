@@ -18,7 +18,7 @@ import { Award, ShieldCheck, Gauge } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/new-tires-cleveland",
-  title: "New Tires Cleveland · Free Install Package · Walk-Ins | Nick's",
+  title: "New Tires Cleveland · Free Install · Walk-Ins | Nick's",
   description: "Cleveland new tires with the install package built in. Michelin, Goodyear, Bridgestone, Continental, Firestone, Pirelli — major brands stocked, special-order in 24 hours. Free mount, balance, valve stems, TPMS reset, alignment check. Walk-ins 7 days. (216) 862-0005",
   eyebrow: "NEW TIRES — CLEVELAND",
   h1: "NEW TIRES.\nFREE INSTALL · FREE COFFEE · FREE OPINIONS.",

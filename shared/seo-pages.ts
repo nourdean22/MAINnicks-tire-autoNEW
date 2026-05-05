@@ -37,7 +37,7 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
     sections: [
       {
         title: "How We Diagnose Brake Problems",
-        content: "Every brake inspection at Nick's Tire & Auto — Cleveland's trusted brake repair shop — starts with a visual check of all four wheels. We measure pad thickness with a caliper gauge, check rotor surfaces for scoring and minimum thickness, inspect calipers for leaks and sticking, and test brake fluid condition. We also road test the vehicle to feel for pulsation, pulling, or noise that might not show up on a lift. If your vehicle has ABS, we scan the ABS module for stored codes. You see every measurement before we recommend anything. Whether you searched for brakes Cleveland or brake repair Cleveland, you will get the same thorough inspection."
+        content: "Every brake inspection at Nick's Tire & Auto — Cleveland's brake repair shop on Euclid Ave — starts with a visual check of all four wheels. We measure pad thickness with a caliper gauge, check rotor surfaces for scoring and minimum thickness, inspect calipers for leaks and sticking, and test brake fluid condition. We also road test the vehicle to feel for pulsation, pulling, or noise that might not show up on a lift. If your vehicle has ABS, we scan the ABS module for stored codes. You see every measurement before we recommend anything. Whether you searched for brakes Cleveland or brake repair Cleveland, you will get the same thorough inspection."
       },
       {
         title: "Brake Pad and Rotor Replacement",

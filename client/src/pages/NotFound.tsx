@@ -13,7 +13,7 @@ export default function NotFound() {
     <PageLayout>
       <SEOHead
         title="Page Not Found | Nick's Tire & Auto Cleveland"
-        description="Page not found. Let us help you find what you need. Nick's Tire & Auto — Cleveland's trusted auto repair shop."
+        description="Page not found. Pull up to the homepage. Nick's Tire & Auto — Cleveland auto repair on Euclid Ave."
         canonicalPath="/404"
       />
 

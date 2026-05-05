@@ -76,7 +76,7 @@ export default function AskMechanicPage() {
             <FadeIn>
               <div className="flex items-center gap-3 mb-4">
                 <MessageCircle className="w-6 h-6 text-primary" />
-                <span className="font-mono text-nick-blue-light text-sm tracking-wide">Free Expert Advice</span>
+                <span className="font-mono text-nick-blue-light text-sm tracking-wide">Free Mechanic Advice</span>
               </div>
               <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
                 ASK A<br />
