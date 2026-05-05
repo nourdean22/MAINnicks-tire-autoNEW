@@ -590,7 +590,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
   {
     slug: "dodge-ram-repair-cleveland",
     make: "Dodge/Ram",
-    metaTitle: "Dodge & Ram Repair Cleveland · 1500, Charger, Durango | Nick's",
+    metaTitle: "Dodge & Ram Cleveland · 1500, Charger, Durango | Nick's",
     metaDescription: "Dodge and Ram repair in Cleveland. Ram 1500, Charger, Durango, Challenger, Grand Caravan service and repair. Hemi specialists. Call (216) 862-0005.",
     heroHeadline: "DODGE & RAM REPAIR\nIN CLEVELAND",
     heroSubline: "Dodge and Ram vehicles are powerful and popular in Cleveland. From Hemi V8s to Pentastar V6s, we know these engines and keep them running strong.",
