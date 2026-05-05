@@ -528,6 +528,7 @@ export const gatewayTireRouter = router({
         try {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Gateway response shape varies across endpoints; narrowing here is brittler than `any`
             let tires: PublicTire[] = data.map((item: any, idx: number) => {
               const cost = parseFloat(item.cost || item.price || "0");
               // 100% markup: customer pays 2× wholesale

@@ -68,8 +68,20 @@ export default defineConfig({
             // Other vendor: let Rollup chunk by default.
             return undefined;
           }
-          // Admin shell — all admin sections land in a single chunk, lazy-loaded
-          if (id.includes("/pages/admin/") || id.includes("\\pages\\admin\\")) {
+          // Admin shell — only the SHARED admin helpers land in the admin chunk.
+          // Individual sections (LeadsSection, WinBackSection, etc.) are NOT
+          // forced into the same chunk so React.lazy() can produce per-section
+          // chunks and download them on-demand.
+          //
+          // Before this fix (May 2026): all 30+ admin files bundled into a
+          // single 1.7MB chunk — admins paid the full cost on every first
+          // visit even though most sections were never opened. After: only
+          // shared.tsx + AdminSectionBoundary + Admin.tsx land in `admin`
+          // (~80-150KB), each Section gets its own ~20-100KB chunk on demand.
+          if (
+            (id.includes("/pages/admin/shared") || id.includes("\\pages\\admin\\shared")) ||
+            (id.includes("/components/admin/") || id.includes("\\components\\admin\\"))
+          ) {
             return "admin";
           }
           if (id.includes("/pages/Blog") || id.includes("\\pages\\Blog")) {
