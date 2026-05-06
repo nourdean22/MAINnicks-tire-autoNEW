@@ -18,7 +18,10 @@ import FadeIn from "@/components/FadeIn";
 import { trpc } from "@/lib/trpc";
 
 // Owned storefront photo — real Nick's shop, not Manus.space CloudFront stock.
-const HERO_IMG = "/storefront-day.webp";
+// 2026-05-06 wave-16 · pro photo pack: neighborhood pages use the
+// roadside-sign photo per PLACEMENT_GUIDE.md "Areas Served" row —
+// wayfinding-forward image for "near me" search intent
+const HERO_IMG = "/photos/roadside-sign-exterior-wide.webp";
 
 // Fixed 2026-04-24: broken internal links that dropped rank juice.
 // Was: Oil Change → /oil-change-cleveland (404-like SPA fallback),

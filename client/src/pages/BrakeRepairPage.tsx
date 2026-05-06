@@ -12,7 +12,10 @@ import { Disc, Activity, Wrench } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/brakes",
-  heroImage: "/photos/service-bay-clean.webp",
+  // 2026-05-06 wave-16 · pro photo pack: under-car brake repair action
+  // per PLACEMENT_GUIDE.md "Brakes page" row — brakes are safety-driven,
+  // the under-car scene reads serious + mechanical
+  heroImage: "/photos/undercar-brake-repair-action.webp",
   title: "Brake Repair Cleveland — We Hand You The Flashlight | Nick's",
   description: "Cleveland brake shop where you walk under your own car on a lift before we touch a wrench. Free inspection, written estimate first, same-day repair. 4.9★ 1,700+ reviews.",
   eyebrow: "BRAKE REPAIR CLEVELAND · BRING YOUR EARS",

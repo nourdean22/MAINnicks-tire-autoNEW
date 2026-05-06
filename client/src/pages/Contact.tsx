@@ -57,7 +57,9 @@ function ContactSchema() {
       reviewCount: String(BUSINESS.reviews.count),
       bestRating: "5",
     },
-    image: `${BUSINESS.urls.website}/storefront-day.webp`,
+    // 2026-05-06 wave-16 · pro photo pack: contact page schema image
+    // uses the roadside sign (wayfinding-first) per PLACEMENT_GUIDE.md
+    image: `${BUSINESS.urls.website}/photos/roadside-sign-exterior-wide.webp`,
     priceRange: "$$",
   };
 

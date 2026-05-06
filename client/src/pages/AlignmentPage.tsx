@@ -20,7 +20,10 @@ import { ChevronDown } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
 // Hero image URL
-const HERO_IMAGE = "/storefront-day.webp";
+// 2026-05-06 wave-16 · pro photo pack: alignment is general-repair
+// per the placement guide → busy-shop-action-mechanics shows real
+// shop activity, the right credibility shot for non-tire mechanical work
+const HERO_IMAGE = "/photos/busy-shop-action-mechanics.webp";
 
 // FAQ data — lifted to module scope so it can power BOTH the visual accordion
 // and the JSON-LD FAQPage schema (which becomes Google rich snippets).

@@ -19,7 +19,9 @@ import { Award, ShieldCheck, Gauge } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/new-tires-cleveland",
-  heroImage: "/photos/tire-stacks-overhead.webp",
+  // 2026-05-06 wave-16 · pro photo pack: rugged tire tread closeup per
+  // PLACEMENT_GUIDE.md "Tires page" row — the strongest tire-authority shot
+  heroImage: "/photos/rugged-tire-tread-closeup.webp",
   title: "New Tires Cleveland — Install Package Free, Not An Upsell | Nick's",
   description: "Cleveland new tires where mount/balance/valve stems/TPMS reset/alignment check come included, not added at the register. Major brands stocked. Walk-ins 7 days. 4.9★ 1,700+ reviews.",
   eyebrow: "NEW TIRES — CLEVELAND",

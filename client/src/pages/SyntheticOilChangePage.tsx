@@ -29,7 +29,10 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
-const HERO_IMAGE = "/storefront-day.webp";
+// 2026-05-06 wave-16 · pro photo pack: oil change page hero per
+// PLACEMENT_GUIDE.md "Oil change page" row — interior bay reads
+// clean / fast / professional, NOT heavy under-car repair
+const HERO_IMAGE = "/photos/interior-service-bay-car-lift.webp";
 
 // ─── HERO ──────────────────────────────────────────────
 function Hero() {

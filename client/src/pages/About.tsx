@@ -16,8 +16,11 @@ import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import ResponsivePhoto from "@/components/ResponsivePhoto";
 
-const HERO_IMG = "/storefront-day.webp";
-const DIAG_IMG = "/mechanic-bay.webp";
+// 2026-05-06 wave-16 · pro photo pack swap per PLACEMENT_GUIDE.md
+// "About page" row: top hero = full storefront, inside-shop = real
+// techs working
+const HERO_IMG = "/photos/shop-exterior-hero-wide-sign-bays.webp";
+const DIAG_IMG = "/photos/busy-shop-action-mechanics.webp";
 
 export default function About() {
   const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });

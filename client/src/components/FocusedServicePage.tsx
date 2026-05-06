@@ -64,7 +64,10 @@ import TextMeQuote from "./conversion/TextMeQuote";
 // that doesn't override `heroImage` — brakes, diagnostics, used-tires, new-tires,
 // tire-shop-near-me, auto-repair-near-me, and more. Pages with stronger visual
 // context override via config.heroImage.
-const HERO_IMAGE_DEFAULT = "/storefront-day.webp";
+// 2026-05-06 wave-16 · pro photo pack: default fallback hero is now
+// the full-sign storefront photo — the strongest first-impression
+// trust image when a service config doesn't specify its own hero.
+const HERO_IMAGE_DEFAULT = "/photos/shop-exterior-hero-wide-sign-bays.webp";
 
 export interface ServicePricingTier {
   name: string;

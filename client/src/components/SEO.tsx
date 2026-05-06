@@ -61,7 +61,9 @@ export function SEOHead({
 }: SEOHeadProps) {
   useEffect(() => {
     const canonicalUrl = ogUrl || `${BASE_URL}${canonicalPath}`;
-    const defaultOgImage = ogImage || `${BASE_URL}/hero-cybertruck.webp`;
+    // 2026-05-06 wave-16 · default OG image is the full-sign storefront
+    // shot for social/messaging shares — strongest first-impression visual.
+    const defaultOgImage = ogImage || `${BASE_URL}/photos/shop-exterior-hero-wide-sign-bays.webp`;
 
     // Title
     document.title = title;

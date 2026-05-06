@@ -21,7 +21,10 @@ import CityReviewsBlock from "@/components/CityReviewsBlock";
 
 // Real shop hero — propagates to all 14+ city pages (Euclid, Lakewood, Parma,
 // Parma Heights, East Cleveland, Shaker Heights, Cleveland Heights, etc.)
-const HERO_IMG = "/storefront-day.webp";
+// 2026-05-06 wave-16 · upgraded to the new pro photo-pack hero (full sign +
+// open bays + tire stacks). Per PLACEMENT_GUIDE.md "Cleveland auto repair"
+// row — the strongest local-trust image for city landing pages.
+const HERO_IMG = "/photos/shop-exterior-hero-wide-sign-bays.webp";
 
 // ─── NAVBAR ───────────────────────────────────────────
 function CityNavbar({ city }: { city: CityData }) {

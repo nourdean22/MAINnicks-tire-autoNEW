@@ -18,8 +18,9 @@ import { DollarSign, ShieldCheck, Gauge } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/used-tires-cleveland",
-  // Wide-bay shot — shows the actual install environment
-  heroImage: "/mechanic-bay.webp",
+  // 2026-05-06 wave-16 · pro photo pack: used tires page = primary
+  // tire tread closeup per PLACEMENT_GUIDE.md "Used tires page" row
+  heroImage: "/photos/rugged-tire-tread-closeup.webp",
   // 2026-05-06 copy wave: title now specifies the 4-point promise
   // upfront. H1 dropped the "no funny business" cliché for the
   // sharper "no time bombs" — operator 4 (anti-pattern of selling

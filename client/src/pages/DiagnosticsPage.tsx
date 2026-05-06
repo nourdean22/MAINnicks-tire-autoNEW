@@ -11,7 +11,9 @@ import { Disc, AlertTriangle, Clock } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/diagnostics",
-  heroImage: "/photos/alignment-bay.webp",
+  // 2026-05-06 wave-16 · pro photo pack: diagnostics page hero per
+  // PLACEMENT_GUIDE.md — interior service bay with car on lift
+  heroImage: "/photos/interior-service-bay-car-lift.webp",
   title: "Check Engine Light Cleveland — Free Code Pull, Plain English | Nick's",
   description: "Cleveland diagnostic shop where a code pull is free and the explanation is in real English. Same-day repair on most codes. Walk-ins 7 days. 4.9★ 1,700+ reviews.",
   eyebrow: "CHECK ENGINE LIGHT · CLEVELAND'S NOISE TRANSLATOR",
