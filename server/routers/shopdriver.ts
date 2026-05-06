@@ -257,6 +257,92 @@ export const shopdriverRouter = router({
   }),
 
   // ═══════════════════════════════════════════════════════
+  // 2026-05-05 — DEMAND-DRIVEN PROBE BUDGET
+  // ═══════════════════════════════════════════════════════
+
+  /**
+   * Request an ALG probe from the demand-driven budget. This is the
+   * CORRECT way to refresh ALG data — it dedups within 30s, skips when
+   * data is fresh (<5 min), and writes a row to alg_probe_log.
+   *
+   * Use this from the admin "Refresh from ALG" button. Use forceSyncNow
+   * only when you absolutely need to override (and accept the shop kick).
+   */
+  requestProbe: adminProcedure
+    .input(z.object({
+      reason: z.enum(["manual_refresh", "chat_query", "admin_login", "overnight", "health_check"]).default("manual_refresh"),
+      detail: z.string().max(200).optional(),
+      force: z.boolean().default(false),
+    }).optional())
+    .mutation(async ({ input }) => {
+      const { requestAlgProbe } = await import("../services/algProbeBudget");
+      return requestAlgProbe(input?.reason ?? "manual_refresh", {
+        detail: input?.detail,
+        force: input?.force,
+      });
+    }),
+
+  /**
+   * Read the last N probe attempts. For the admin "Probe Log" panel —
+   * shows when each probe fired, why, and what came back.
+   */
+  recentProbes: adminProcedure
+    .input(z.object({ limit: z.number().min(1).max(100).default(20) }).optional())
+    .query(async ({ input }) => {
+      const { getRecentProbes, getProbeBudgetState } = await import("../services/algProbeBudget");
+      const [probes, state] = await Promise.all([
+        getRecentProbes(input?.limit ?? 20),
+        Promise.resolve(getProbeBudgetState()),
+      ]);
+      return { probes, state };
+    }),
+
+  /**
+   * Status of declined-work recovery feature. Shows whether the
+   * FEATURE_DECLINED_RECOVERY env flag is set + how many estimates are
+   * eligible for follow-up + total recoverable $.
+   */
+  declinedRecoveryStatus: adminProcedure.query(async () => {
+    const featureEnabled = process.env.FEATURE_DECLINED_RECOVERY === "1";
+    const d = await db();
+    if (!d) {
+      return { featureEnabled, eligible: 0, recoverableDollars: 0, dryRun: !featureEnabled };
+    }
+    try {
+      const { algEstimates } = await import("../../drizzle/schema");
+      const { isNull, gte, sql, lte } = await import("drizzle-orm");
+      const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const rows = await d
+        .select({
+          id: algEstimates.id,
+          estimatedAmount: algEstimates.estimatedAmount,
+          followUp7dSent: algEstimates.followUp7dSent,
+          followUp30dSent: algEstimates.followUp30dSent,
+          estimateDate: algEstimates.estimateDate,
+        })
+        .from(algEstimates)
+        .where(sql`${algEstimates.matchedInvoiceId} IS NULL AND ${algEstimates.estimateDate} >= ${sixtyDaysAgo} AND ${algEstimates.estimateDate} <= ${sevenDaysAgo}`)
+        .limit(500);
+      const totalCents = rows.reduce((s: number, r: { estimatedAmount: number | null }) => s + (r.estimatedAmount || 0), 0);
+      return {
+        featureEnabled,
+        dryRun: !featureEnabled,
+        eligible: rows.length,
+        recoverableDollars: Math.round(totalCents / 100),
+        next7dSends: rows.filter((r: { followUp7dSent: number }) => r.followUp7dSent === 0).length,
+        next30dSends: rows.filter((r: { followUp30dSent: number }) => r.followUp30dSent === 0).length,
+        message: featureEnabled
+          ? "Live: 7-day + 30-day SMS follow-ups firing daily during business hours."
+          : "DRY RUN: Set FEATURE_DECLINED_RECOVERY=1 in Vercel env to enable SMS sends.",
+      };
+    } catch (err) {
+      log.warn("[shopdriver] declinedRecoveryStatus failed:", err instanceof Error ? err.message : err);
+      return { featureEnabled, eligible: 0, recoverableDollars: 0, dryRun: !featureEnabled, error: "DB query failed" };
+    }
+  }),
+
+  // ═══════════════════════════════════════════════════════
   // EXISTING: CSV Import
   // ═══════════════════════════════════════════════════════
 

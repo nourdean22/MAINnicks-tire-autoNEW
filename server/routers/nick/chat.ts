@@ -134,6 +134,16 @@ export async function handleSetCamera(input: {
 // ─── Shop Pulse ───────────────────────────────────────
 
 export async function handleShopPulse() {
+  // 2026-05-05 — when Nick chat asks for the shop pulse (revenue today,
+  // jobs closed, walk rate), fire a demand-driven ALG probe so Nick
+  // answers with FRESH data, not cached. Probe budget dedups across
+  // multiple chat queries within 30s.
+  // Fire-and-forget — don't block the response on it. If probe takes
+  // 8s and chat is impatient, the next query gets the fresh numbers.
+  import("../../services/algProbeBudget").then(({ requestAlgProbe }) =>
+    requestAlgProbe("chat_query", { detail: "shop_pulse" }),
+  ).catch(() => { /* probe is fire-and-forget */ });
+
   const { getShopPulse } = await import("../../services/nickIntelligence");
   return getShopPulse();
 }

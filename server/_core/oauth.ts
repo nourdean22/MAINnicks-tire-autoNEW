@@ -127,6 +127,14 @@ export function registerOAuthRoutes(app: Express) {
             userAgent: req.headers["user-agent"] ?? null,
           }),
         ).catch((err) => log.warn("[OAuth] admin login log failed:", err));
+
+        // 2026-05-05 — Trigger an ALG probe on admin login. This is the
+        // ONLY automatic probe trigger besides the 3 AM overnight job.
+        // Fire-and-forget — don't block the login redirect on it. The
+        // probe budget will dedup if a recent probe already happened.
+        import("../services/algProbeBudget").then(({ requestAlgProbe }) =>
+          requestAlgProbe("admin_login", { detail: userInfo.email ?? undefined }),
+        ).catch((err) => log.warn("[OAuth] alg login-probe failed:", err));
       }
 
       res.redirect(302, dest);
