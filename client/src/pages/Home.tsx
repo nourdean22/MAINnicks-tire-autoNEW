@@ -29,6 +29,8 @@ import UberDropoffWidget from "@/components/UberDropoffWidget";
 import PhotoRibbon from "@/components/PhotoRibbon";
 import RiseInView from "@/components/RiseInView";
 import HeroDustLayer from "@/components/HeroDustLayer";
+import StampLetters from "@/components/StampLetters";
+import SkylineDivider from "@/components/SkylineDivider";
 // Conversion-architecture components (Batch 1 of v1.1 spec)
 import LiveVisitorCounter from "@/components/conversion/LiveVisitorCounter";
 import ServiceTriageCard from "@/components/conversion/ServiceTriageCard";
@@ -124,17 +126,21 @@ function Hero() {
           </motion.div>
 
           {/* H1: 'CLEVELAND TOUGH.' — short, confident, matches the pendant
-              tagline. SEO keywords live in the subhead below. */}
-          <motion.h1
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
+              tagline. SEO keywords live in the subhead below.
+              2026-05-06: per-letter stamp reveal replaces the previous
+              monolithic fade-up. Letters punch into place mechanically,
+              not bouncily — on-brand for the working-class tire-shop voice. */}
+          <h1
             className="font-heading text-[4rem] sm:text-7xl lg:text-[8.5rem] font-extrabold uppercase text-[#F5F5F5] leading-[0.85] tracking-tight"
           >
-            Cleveland
+            <StampLetters text="Cleveland" delay={0.3} />
             <br />
-            <span className="text-[#FDB913] text-gradient-yellow">Tough.</span>
-          </motion.h1>
+            <StampLetters
+              text="Tough."
+              delay={0.55}
+              className="text-[#FDB913] text-gradient-yellow"
+            />
+          </h1>
 
           {/* Subheadline */}
           <motion.p
@@ -236,7 +242,7 @@ function TrustNumbers() {
           {stats.map((s, i) => (
             <FadeIn key={s.label} delay={i * 0.1}>
               <div className={`text-center ${i > 0 ? "lg:border-l lg:border-border" : ""}`}>
-                <div className="text-3xl lg:text-4xl font-bold text-[#FDB913] tracking-tight font-mono text-gradient-yellow">{s.value}</div>
+                <div className="text-3xl lg:text-4xl font-bold text-[#FDB913] tracking-tight font-mono text-gradient-yellow letterpress-gold">{s.value}</div>
                 <div className="mt-1 text-sm text-foreground/40 font-medium">{s.label}</div>
               </div>
             </FadeIn>
@@ -1041,6 +1047,12 @@ export default function Home() {
       <FastPaths />
       <RiseInView className="parallax-rise"><UsedTiresCallout /></RiseInView>
       <RiseInView className="parallax-rise"><TrustNumbers /></RiseInView>
+      {/* Cleveland skyline silhouette divider — small SVG, not a generic
+          wave. Marks the transition from stat-density into the physical
+          photo proof. Brand-specific, not SaaS-generic. */}
+      <div className="bg-[oklch(0.05_0.004_260)]">
+        <SkylineDivider tone="dim" height={42} />
+      </div>
       {/* PHOTO RIBBON — 2026-05-06 cinematic depth wave. Real shop
           photos in a horizontal scroll-snap rail, Ken Burns drift,
           film-grain overlay. Reinforces the "lines of cars" mental

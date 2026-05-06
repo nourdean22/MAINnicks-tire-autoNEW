@@ -1245,6 +1245,28 @@ html[data-density="compact"] .admin-shell .p-4 { padding: 0.625rem; }
   will-change: transform;
 }
 
+/* Letterpress numerals — two-tone shadow that simulates ink pressed
+   into paper. Used on stat callouts (4.9, 1,700+, etc.) to give the
+   mono numerals a tactile, mechanical feel that matches the
+   "Grounded & Reliable" brand voice. Pure CSS, no extra layers. */
+.letterpress {
+  text-shadow:
+    /* Highlight on top — light edge of the impression */
+    0 -1px 0 rgba(255, 255, 255, 0.22),
+    /* Mid shadow — depth */
+    0 1px 0 rgba(0, 0, 0, 0.18),
+    /* Drop ink-spread */
+    0 2px 4px rgba(0, 0, 0, 0.34);
+}
+/* Variant for gold/yellow numerals — adjusted shadow to read on light */
+.letterpress-gold {
+  text-shadow:
+    0 -1px 0 rgba(255, 220, 130, 0.4),
+    0 1px 0 rgba(120, 70, 0, 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.5),
+    0 0 14px rgba(253, 185, 19, 0.25);
+}
+
 /* Halftone print texture — CMYK-style dot pattern reminiscent of a
    1970s shop manual or newspaper sports section. Used as a subtle
    overlay on key sections to differentiate from generic SaaS gradients

@@ -28,6 +28,7 @@ import PageLayout from "./PageLayout";
 import { SEOHead, Breadcrumbs } from "./SEO";
 import LocalBusinessSchema from "./LocalBusinessSchema";
 import PhotoRibbon from "./PhotoRibbon";
+import RiseInView from "./RiseInView";
 import { Link } from "wouter";
 import { CITIES } from "@shared/cities";
 
@@ -564,14 +565,21 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
           GenericServicePage). Rich-snippet eligibility = +CTR in SERP. */}
       <Breadcrumbs items={[{ label: slugToTitle(config.canonicalPath) }]} />
       <Hero config={config} />
+      {/* 2026-05-06 visual wave 4: each major section is wrapped in
+          RiseInView (Framer fade-and-rise on viewport entry, all
+          browsers) + .parallax-rise (CSS scroll-driven drift, modern
+          browsers only). Same depth treatment Home page got — service
+          pages now feel like distinct rooms instead of one infinite
+          scroll. Hero and breadcrumbs stay static; everything below
+          is on the conveyor. */}
       {/* Anchor table renders ABOVE pricing — sets the dealer/chain
           reference frame so Nick's price feels like rescue. */}
-      <AnchorSection config={config} />
-      <PricingSection config={config} />
+      <RiseInView className="parallax-rise"><AnchorSection config={config} /></RiseInView>
+      <RiseInView className="parallax-rise"><PricingSection config={config} /></RiseInView>
       {/* Fear-calibration AFTER pricing — readers who saw the price are now
           asking "is it worth it?" The fear stats answer with quantified risk. */}
-      <FearStatsSection config={config} />
-      <IncludedSection config={config} />
+      <RiseInView className="parallax-rise"><FearStatsSection config={config} /></RiseInView>
+      <RiseInView className="parallax-rise"><IncludedSection config={config} /></RiseInView>
       {/* Cinematic photo ribbon — physical proof of the shop running
           this service. Lands between "what you get" and "what others
           said about it" — the natural beat where the reader is
@@ -579,13 +587,15 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
           when config.photoRibbon is undefined, so service pages that
           haven't curated a photo set get zero visual change. */}
       {config.photoRibbon && (
-        <PhotoRibbon
-          photos={config.photoRibbon.photos}
-          eyebrow={config.photoRibbon.eyebrow}
-          headingLine1={config.photoRibbon.headingLine1}
-          headingLine2={config.photoRibbon.headingLine2}
-          subhead={config.photoRibbon.subhead}
-        />
+        <RiseInView className="parallax-rise">
+          <PhotoRibbon
+            photos={config.photoRibbon.photos}
+            eyebrow={config.photoRibbon.eyebrow}
+            headingLine1={config.photoRibbon.headingLine1}
+            headingLine2={config.photoRibbon.headingLine2}
+            subhead={config.photoRibbon.subhead}
+          />
+        </RiseInView>
       )}
       {/* Real-customer review block — pulled from reviewReplies via
           serviceReviews.forService. Surfaces 4-5 star reviews mentioning
@@ -594,17 +604,19 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
           before the closer). Renders nothing (no empty section band)
           when no matching reviews — graceful degradation for services
           without keyword matches yet. */}
-      <ServiceReviewsBlock
-        service={config.bookingService}
-        serviceTitle={config.serviceType ?? config.h1}
-      />
+      <RiseInView className="parallax-rise">
+        <ServiceReviewsBlock
+          service={config.bookingService}
+          serviceTitle={config.serviceType ?? config.h1}
+        />
+      </RiseInView>
       {/* Loss-aversion BEFORE FAQ — animated on scroll-in, last conversion
           push before the cooldown FAQ section. */}
-      <LossSection config={config} />
-      <FAQSection faqs={config.faqs} />
+      <RiseInView className="parallax-rise"><LossSection config={config} /></RiseInView>
+      <RiseInView className="parallax-rise"><FAQSection faqs={config.faqs} /></RiseInView>
       {/* SMS-back capture — phone-only, low-friction path for visitors
           who scrolled the FAQ but aren't ready for the full booking. */}
-      <TextMeSection config={config} />
+      <RiseInView className="parallax-rise"><TextMeSection config={config} /></RiseInView>
       {/* Cross-sell renders AFTER FAQ — catches visitors whose actual
           symptom didn't match this page's service. */}
       <CrossSellSection config={config} />
