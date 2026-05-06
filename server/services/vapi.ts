@@ -490,20 +490,24 @@ const VAPI_TOOLS: VapiToolDef[] = [
   // manager requests, upset customers, and complex repairs.
   //
   // ⚠️ TRANSFER NUMBER IS DASHBOARD-MANAGED, NOT CODE-MANAGED.
-  // The destinations[0].number below is a PLACEHOLDER for first-time
-  // deploys. The actual live forward number is owned by the VAPI
-  // dashboard. The deploy script (scripts/vapi-update-assistant.ts)
-  // fetches the live assistant before PATCHing and preserves whatever
-  // destination is currently set, so changing the number via the VAPI
-  // dashboard is a one-step operation that survives code re-pushes.
+  // The destinations[0].number below is the PLACEHOLDER fallback for
+  // first-time deploys. We use the main shop landline +1 (216) 862-0005
+  // because Nour switches managers often — the shop landline is the
+  // stable destination that always reaches whoever is at the front
+  // counter. Day-to-day routing (manager's personal cell, etc.) is
+  // owned by the VAPI dashboard. The deploy script (scripts/vapi-update-
+  // assistant.ts) fetches the live assistant before PATCHing and
+  // preserves whatever destination is currently set, so changing the
+  // number via the VAPI dashboard is a one-step operation that
+  // survives code re-pushes.
   {
     type: "transferCall",
     destinations: [
       {
         type: "number",
-        number: "+16056916315", // PLACEHOLDER · live value owned by VAPI dashboard
+        number: `+1${BUSINESS.phone.raw}`, // PLACEHOLDER fallback · main shop +12168620005 · live value owned by VAPI dashboard
         message: "Hold on, transferring you to the manager so he can physically check the rack and confirm.",
-        description: "Forward the live call to the manager's direct line for human handoff. Use for: used tire availability checks (manager physically looks at the rack), customers whose vehicle is currently at the shop, manager/owner requests, angry customers, complex repair questions requiring a human estimator, language barriers we can't bridge.",
+        description: "Forward the live call to the manager for human handoff. Use for: used tire availability checks (manager physically looks at the rack), customers whose vehicle is currently at the shop, manager/owner requests, angry customers, complex repair questions requiring a human estimator, language barriers we can't bridge.",
       },
     ],
   },
