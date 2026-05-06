@@ -2349,3 +2349,52 @@ export const gbpPostLog = mysqlTable("gbp_post_log", {
 
 export type GbpPostLogRow = typeof gbpPostLog.$inferSelect;
 export type InsertGbpPostLog = typeof gbpPostLog.$inferInsert;
+
+// ─── ALG PROBE LOG ──────────────────────────────────────
+/**
+ * Demand-driven ALG probe scheduler.
+ *
+ * Background: probing ShopDriver/ALG kicks the shop counter's live login
+ * out of the system. The previous pulse-tier cron probed every 5 min when
+ * any admin tab was open — this kept Moe getting kicked during normal
+ * admin browsing.
+ *
+ * New model: probes only fire when:
+ *   1. Nour just logged into /admin (real session-create event, not page refresh)
+ *   2. Nick chat asks for fresh data (e.g. "what's our revenue today?")
+ *   3. Admin clicks "Refresh from ALG" button
+ *   4. Single overnight probe at 3 AM ET when shop is closed
+ *
+ * Every probe attempt writes a row here. Lets us:
+ *   - Show admin a visible "last probed" timestamp + reason
+ *   - 30-second dedup window (5 simultaneous chat calls = 1 probe)
+ *   - Audit which trigger types are firing how often
+ *   - Detect probe storms (30+ probes/hour = bug somewhere)
+ */
+export const algProbeLog = mysqlTable("alg_probe_log", {
+  id: int("id").autoincrement().primaryKey(),
+  /**
+   * Why the probe fired:
+   *   admin_login | chat_query | manual_refresh | overnight | health_check
+   */
+  reason: varchar("reason", { length: 32 }).notNull(),
+  /** Optional sub-detail (chat session id, admin user id, etc) */
+  detail: varchar("detail", { length: 200 }),
+  /** Outcome: success | auth_failed | empty | dedup | error */
+  outcome: varchar("outcome", { length: 32 }).notNull(),
+  /** Records imported on this probe (invoices + customers + estimates) */
+  recordsProcessed: int("recordsProcessed").default(0).notNull(),
+  /** Probe duration in ms */
+  durationMs: int("durationMs").default(0).notNull(),
+  /** Error message if outcome != success */
+  errorMessage: text("errorMessage"),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+}, (table) => [
+  index("idx_alg_probe_log_started").on(table.startedAt),
+  index("idx_alg_probe_log_reason").on(table.reason),
+  index("idx_alg_probe_log_outcome").on(table.outcome),
+]);
+
+export type AlgProbeLogRow = typeof algProbeLog.$inferSelect;
+export type InsertAlgProbeLog = typeof algProbeLog.$inferInsert;

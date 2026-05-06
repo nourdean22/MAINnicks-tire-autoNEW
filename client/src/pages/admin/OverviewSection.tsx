@@ -400,6 +400,11 @@ export default function OverviewSection() {
   // ALG connection status
   const { data: algStatus } = trpc.autoLabor.status.useQuery(undefined, { staleTime: 60_000 });
 
+  // 2026-05-05 — Walk-away estimates (whole quotes that never converted)
+  // Different signal than declinedWork (per-line declines). Bigger
+  // recovery target per FCFS model. Renders nothing if 0 unmatched.
+  const { data: walkAway } = trpc.intelligence.walkAwayEstimates.useQuery(undefined, { staleTime: 5 * 60_000 });
+
   // Business health score from master report — expensive, cache 5min
   const { data: masterReport } = trpc.intelligence.masterReport.useQuery(undefined, { staleTime: 300_000, refetchInterval: 300_000 });
 
@@ -715,6 +720,70 @@ export default function OverviewSection() {
           settingsTab="integrations"
         />
       </div>
+
+      {/* 2026-05-05 — WALK-AWAY ESTIMATES STRIP
+          Renders only when alg_estimates has unmatched rows. Pulls from
+          trpc.intelligence.walkAwayEstimates which queries alg_estimates
+          where matchedInvoiceId IS NULL. Different signal than declined-
+          work line items — these are full estimates the customer never
+          converted. Highest-leverage recovery target per FCFS model. */}
+      {walkAway && walkAway.unmatchedCount > 0 && (
+        <div className="bg-card border border-amber-500/30 p-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+            <div>
+              <h3 className="font-bold text-sm text-foreground tracking-wide">
+                WALK-AWAY ESTIMATES · ${walkAway.unmatchedValueDollars} ON THE TABLE
+              </h3>
+              <p className="text-foreground/50 text-[11px] mt-0.5">
+                Quotes that never converted to invoice. The 7d/30d SMS recovery cron targets these.
+              </p>
+            </div>
+            <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider rounded bg-amber-500/15 text-amber-400">
+              {walkAway.unmatchedCount} UNMATCHED · {walkAway.conversionRate}% CONVERSION
+            </span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
+            <div className="border border-border/20 p-2.5">
+              <p className="text-foreground/40 uppercase tracking-wider mb-1">Last 7 Days</p>
+              <p className="text-foreground font-bold text-lg">{walkAway.recoveryWindow.last7d}</p>
+              <p className="text-foreground/40 text-[10px]">fresh walk-aways</p>
+            </div>
+            <div className="border border-border/20 p-2.5">
+              <p className="text-foreground/40 uppercase tracking-wider mb-1">Last 30 Days</p>
+              <p className="text-foreground font-bold text-lg">{walkAway.recoveryWindow.last30d}</p>
+              <p className="text-foreground/40 text-[10px]">recovery window</p>
+            </div>
+            <div className="border border-border/20 p-2.5">
+              <p className="text-foreground/40 uppercase tracking-wider mb-1">Recoverable</p>
+              <p className="text-emerald-400 font-bold text-lg">~${walkAway.recoverableEstimate}</p>
+              <p className="text-foreground/40 text-[10px]">@ 20% close rate</p>
+            </div>
+            <div className="border border-border/20 p-2.5">
+              <p className="text-foreground/40 uppercase tracking-wider mb-1">Total Estimates</p>
+              <p className="text-foreground font-bold text-lg">{walkAway.totalEstimates}</p>
+              <p className="text-foreground/40 text-[10px]">last 60 days</p>
+            </div>
+          </div>
+          {walkAway.topUnmatched.length > 0 && (
+            <details className="mt-3 border-t border-border/10 pt-3">
+              <summary className="cursor-pointer text-[11px] font-bold tracking-wider text-foreground/50 hover:text-foreground/80">
+                TOP 5 BY VALUE
+              </summary>
+              <div className="mt-2 space-y-1.5">
+                {walkAway.topUnmatched.map((e: { name: string; phone: string | null; service: string | null; amountCents: number; estimateDate: string; daysOld: number }, i: number) => (
+                  <div key={i} className="flex items-center gap-3 text-[11px] py-1 border-b border-border/10">
+                    <span className="text-foreground/40 w-12 shrink-0">{e.daysOld}d</span>
+                    <span className="text-emerald-400 font-bold w-20 shrink-0">${Math.round(e.amountCents / 100)}</span>
+                    <span className="text-foreground font-medium w-32 shrink-0 truncate">{e.name}</span>
+                    <span className="text-foreground/40 truncate flex-1 italic">{e.service || "—"}</span>
+                    {e.phone && <span className="text-foreground/30 text-[10px] shrink-0">{e.phone}</span>}
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+        </div>
+      )}
 
       {/* ─── SHOP LOAD INDICATOR ─── */}
       {shopLoad && (

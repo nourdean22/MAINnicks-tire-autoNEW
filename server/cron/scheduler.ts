@@ -285,41 +285,16 @@ export function startTieredScheduler(): void {
           return pullCloudCameraSnapshots();
         },
       },
-      {
-        name: "shopdriver-mirror",
-        businessHoursOnly: true,
-        handler: async () => {
-          // SHOP-PROTECT: probes kick the shop's ShopDriver session. Only run
-          // when admin is actively at /admin (or within last 10 min).
-          const { runIfAdminActive } = await import("../lib/adminActivity");
-          const result = await runIfAdminActive(
-            async () => {
-              const { runFullMirror } = await import("../services/shopDriverMirror");
-              return runFullMirror();
-            },
-            { jobName: "shopdriver-mirror" },
-          );
-          if ("skipped" in result) return { details: result.reason };
-          return result;
-        },
-      },
-      {
-        name: "shopdriver-estimate-mirror", // ALG walk-in estimates (declined work) — separate from invoices
-        businessHoursOnly: true,
-        handler: async () => {
-          // SHOP-PROTECT: same ALG session as invoice mirror — only probe while admin is active
-          const { runIfAdminActive } = await import("../lib/adminActivity");
-          const result = await runIfAdminActive(
-            async () => {
-              const { runEstimateMirror } = await import("../services/shopDriverEstimateSync");
-              return runEstimateMirror();
-            },
-            { jobName: "shopdriver-estimate-mirror" },
-          );
-          if ("skipped" in result) return { details: result.reason };
-          return result;
-        },
-      },
+      // 2026-05-05 — REMOVED pulse-tier shopdriver-mirror + estimate-mirror.
+      // The 5-minute admin-active probe was kicking Moe out of the shop's
+      // ShopDriver login during normal admin browsing. Replaced with the
+      // demand-driven probe budget (server/services/algProbeBudget.ts):
+      //   1. admin_login    — Nour just logged into /admin
+      //   2. chat_query     — Nick chat asks for fresh data
+      //   3. manual_refresh — admin clicks "Refresh from ALG" button
+      //   4. overnight      — single 3 AM ET probe (shop closed)
+      // Net effect: probes drop from ~12/hour to ~3-5/day under normal use.
+      // See: server/services/algProbeBudget.ts
       {
         name: "abandoned-forms",
         businessHoursOnly: true, // No customer outreach at 3am
@@ -738,37 +713,42 @@ export function startTieredScheduler(): void {
           return runHealthCheck();
         },
       },
+      // 2026-05-05 — REPLACED shopdriver-daily-ticket-pull and
+      // shopdriver-full-mirror with a SINGLE overnight probe at 3 AM ET.
+      // Shop closes at 6 PM (Mon-Sat) / 4 PM (Sun). At 3 AM ET nobody is
+      // logged into ShopDriver at the counter, so probing carries zero
+      // session-kick risk. This is now the canonical "make sure data is
+      // fresh by morning" sync. Manual refresh + chat queries cover the
+      // rest of the day.
       {
-        name: "shopdriver-daily-ticket-pull",
+        name: "alg-overnight-probe",
+        // Cron jobs in this file run on a fixed tier interval. We gate
+        // by current hour internally so the probe only fires during the
+        // 3 AM ET window (idempotent: dedup window in algProbeBudget
+        // catches double-fires within the hour).
         handler: async () => {
-          // SHOP-PROTECT: daily ShopDriver login kicks the shop session.
-          const { runIfAdminActive } = await import("../lib/adminActivity");
-          const result = await runIfAdminActive(
-            async () => {
-              const { pullRecentTickets } = await import("../services/shopDriverSync");
-              const tickets = await pullRecentTickets();
-              return { recordsProcessed: tickets.length, details: `Pulled ${tickets.length} tickets from ShopDriver` };
-            },
-            { jobName: "shopdriver-daily-ticket-pull", windowMinutes: 60 },
-          );
-          if ("skipped" in result) return { details: result.reason };
-          return result;
-        },
-      },
-      {
-        name: "shopdriver-full-mirror",
-        handler: async () => {
-          // SHOP-PROTECT: full mirror logs into ShopDriver → kicks shop session.
-          const { runIfAdminActive } = await import("../lib/adminActivity");
-          const result = await runIfAdminActive(
-            async () => {
-              const { runFullMirror } = await import("../services/shopDriverMirror");
-              return runFullMirror();
-            },
-            { jobName: "shopdriver-full-mirror", windowMinutes: 60 },
-          );
-          if ("skipped" in result) return { details: result.reason };
-          return result;
+          try {
+            const etHour = parseInt(
+              new Date().toLocaleString("en-US", {
+                timeZone: "America/New_York",
+                hour: "numeric",
+                hour12: false,
+              }),
+              10,
+            );
+            // Run between 3:00 AM and 4:00 AM ET only.
+            if (etHour !== 3) {
+              return { recordsProcessed: 0, details: `skipped (ET hour ${etHour}, want 3)` };
+            }
+            const { requestAlgProbe } = await import("../services/algProbeBudget");
+            const result = await requestAlgProbe("overnight");
+            return {
+              recordsProcessed: result.recordsProcessed,
+              details: `overnight probe → ${result.outcome} (${result.recordsProcessed} records, ${result.durationMs}ms)`,
+            };
+          } catch (e: unknown) {
+            return { details: `overnight probe failed: ${(e as Error).message}` };
+          }
         },
       },
       // NOTE: Also runs in hourly tier for more frequent updates
