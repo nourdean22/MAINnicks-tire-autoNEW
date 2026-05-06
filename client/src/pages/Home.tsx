@@ -23,7 +23,6 @@ import TrustBadges from "@/components/TrustBadges";
 import FastPaths from "@/components/FastPaths";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
-import BrandMark from "@/components/BrandMark";
 import ShopStatusWidget from "@/components/ShopStatusWidget";
 import UberDropoffWidget from "@/components/UberDropoffWidget";
 import PhotoRibbon from "@/components/PhotoRibbon";
@@ -138,40 +137,33 @@ function Hero() {
             and use clamp()-style fluid sizing so the H1 fits on 1 line per
             tagline across all viewports while staying visually massive on
             true desktop. */}
-        <div className="max-w-full">
-          {/* Headline */}
-          {/* Brand pendant above the H1 — inline SVG, no image file needed.
-              Hides on very small screens to leave room for the massive H1. */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, delay: 0.15, ease: "easeOut" }}
-            className="hidden sm:block mb-6"
-            aria-hidden="true"
-          >
-            <BrandMark variant="full" size={88} background="#0a1628" />
-          </motion.div>
+        {/* 2026-05-06 wave-19 · max-w-[58%] keeps H1 in the LEFT/dark
+            sky portion of the photo so the text doesn't bleed across
+            the bright yellow storefront sign on the right (which made
+            "Drop off for repairs." unreadable in wave-18). */}
+        <div className="max-w-full lg:max-w-[58%]">
+          {/* 2026-05-06 wave-19 · BrandMark removed from hero. It was
+              rendering a "CLEVELAND TOUGH" tagline banner that visually
+              overlapped with the SiteNavbar wordmark — both said NICK'S
+              TIRE & AUTO and the legacy Cleveland-Tough sub-text was
+              showing up clipped as "LEVELAND TOUG". The navbar logo is
+              the canonical brand mark; no need for a second pendant
+              in the hero. */}
 
-          {/* 2026-05-06 audit fix · H1 swapped from "Cleveland Tough"
-              (brand-emotion) to the locked master tagline (behavior-
-              instruction). Per HOMEPAGE_MOCKUP spec: white "Pull up
-              for tires." / yellow "Drop off for repairs." Tells a
-              Cleveland driver exactly what to do.
-              2026-05-06 wave-8 · clamp() fluid font sizing so the H1
-              scales smoothly from phone to ultrawide without ever
-              overflowing the container. 5vw scales font to viewport
-              width, capped at 4.5rem (72px) for max desktop sanity
-              and 2.25rem (36px) min for legibility on narrow phones. */}
-          {/* 2026-05-06 wave-18 · Drop-shadow added to the H1 wrapper so
-              every letter (white + yellow) has a crisp dark edge against
-              the busy storefront photo. Yellow gradient text was washing
-              out against the bright yellow sign in the photo background;
-              drop-shadow gives the yellow letters their own outline. */}
+          {/* 2026-05-06 wave-19 · H1 fits-into-sky redesign:
+              · max font dropped 4.5rem → 3.5rem (lg fits cleanly in 58% width)
+              · multi-layer drop-shadow + text-shadow + 1px stroke for crisp
+                legibility against the bright sky portion of the photo */}
           <h1
             className="font-heading font-extrabold uppercase text-[#F5F5F5] leading-[0.95] tracking-tight headline-balance"
             style={{
-              fontSize: "clamp(2.25rem, 5.5vw, 4.5rem)",
-              filter: "drop-shadow(0 2px 16px rgba(0,0,0,0.85)) drop-shadow(0 0 4px rgba(0,0,0,0.95))",
+              fontSize: "clamp(1.875rem, 4.6vw, 3.5rem)",
+              filter:
+                "drop-shadow(0 2px 4px rgba(0,0,0,0.95)) drop-shadow(0 4px 24px rgba(0,0,0,0.85)) drop-shadow(0 0 2px rgba(0,0,0,1))",
+              textShadow:
+                "0 0 8px rgba(0,0,0,0.9), 0 2px 0 rgba(0,0,0,0.6), 0 0 24px rgba(0,0,0,0.5)",
+              WebkitTextStroke: "1px rgba(0,0,0,0.6)",
+              paintOrder: "stroke fill",
             }}
           >
             <StampLetters text="Pull up for tires." delay={0.3} />
