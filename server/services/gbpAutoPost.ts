@@ -80,78 +80,125 @@ export function createSeasonalPost(season: { title: string; services: string[]; 
 }
 
 /**
- * Auto-generate GBP posts and send via Telegram for manual posting.
+ * Auto-generate ONE voice-grade GBP post per week + ONE bigger
+ * monthly recap on the first Monday of each month.
  *
- * 2026-05-05 upgrade: was 1 cliché-laden seasonal post once per week.
- * Now generates a FULL WEEK of 3 voice-grade posts every Sunday night
- * via the new gbpContentGenerator (4 archetypes from social-content
- * playbook + variety guard + real-data integration).
- *
- * Why Sunday batch: Nour copies all 3 posts in one Telegram thread
- * Sunday evening, then pastes them into business.google.com on Mon
- * (proof), Wed (math/anti), Fri (seasonal). Compounds local SEO via
- * GBP posting frequency without daily mental load.
+ * Why Monday: GBP posts get most engagement Mon-Wed (Google + customer
+ * data — people search for shops at the start of their week). Posting
+ * Sunday night means it's stale by Monday traffic.
  *
  * GBP Posts API was deprecated in 2024 — copy-paste is the only path.
+ * The leverage is voice quality + archetype rotation, not volume.
+ *
+ * Cadence:
+ *   - Every Monday: 1 voice-grade post (rotates archetype per playbook ratio)
+ *   - First Monday of month: ALSO a monthly summary block (specials
+ *     overview + reviews snapshot)
  */
 export async function generateAndNotifyGBPPost(): Promise<{ recordsProcessed: number; details: string }> {
   try {
-    // Run only on Sundays (or first run after deploy if last-run-day check is added)
-    const day = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, weekday: "long" });
-    if (day !== "Sunday") {
-      return { recordsProcessed: 0, details: `Skip — runs Sundays only (today is ${day})` };
+    const now = new Date();
+    const day = now.toLocaleString("en-US", { timeZone: BUSINESS.timezone, weekday: "long" });
+    if (day !== "Monday") {
+      return { recordsProcessed: 0, details: `Skip — runs Mondays only (today is ${day})` };
     }
 
-    const { generateWeeklyPostBatch } = await import("./gbpContentGenerator");
-    const posts = await generateWeeklyPostBatch();
-
-    if (posts.length === 0) {
-      return { recordsProcessed: 0, details: "Generator returned 0 posts" };
-    }
-
+    const { generateGBPPost } = await import("./gbpContentGenerator");
+    const post = await generateGBPPost();
     const { sendTelegram } = await import("./telegram");
-
-    // One Telegram message per post — easier to copy individually.
-    // Plus a header message with the schedule.
-    const today = new Date().toLocaleDateString("en-US", {
+    const today = now.toLocaleDateString("en-US", {
       timeZone: BUSINESS.timezone, weekday: "long", month: "short", day: "numeric",
     });
+
     await sendTelegram(
-      `📝 GBP POSTS — Week of ${today}\n\n` +
-      `${posts.length} voice-grade posts ready for the week.\n` +
-      `Suggested schedule:\n` +
-      `· Monday morning: Post #1 (${posts[0].archetype})\n` +
-      `· Wednesday morning: Post #2 (${posts[1]?.archetype ?? "—"})\n` +
-      `· Friday morning: Post #3 (${posts[2]?.archetype ?? "—"})\n\n` +
-      `Each post message below has:\n` +
-      `  • Copy-paste body\n` +
-      `  • Suggested CTA + URL\n` +
-      `  • Image hint\n\n` +
-      `Paste at: business.google.com → Posts → Add update`,
+      `📝 GBP POST — Week of ${today}\n\n` +
+      `Archetype: ${post.archetype.toUpperCase()}\n` +
+      `Paste at: business.google.com → Posts → Add update\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `${post.text}\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `🔗 CTA: ${post.callToAction}\n` +
+      `🔗 URL: ${post.ctaUrl}\n` +
+      `📸 Image: ${post.imageHint}`,
     );
 
-    let i = 1;
-    for (const p of posts) {
-      const archetypeLabel = p.archetype.toUpperCase();
-      await sendTelegram(
-        `━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `POST #${i} · ${archetypeLabel}\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-        `${p.text}\n\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `🔗 CTA: ${p.callToAction}\n` +
-        `🔗 URL: ${p.ctaUrl}\n` +
-        `📸 Image: ${p.imageHint}`,
-      );
-      i++;
+    let monthlyDetails = "";
+    // First-Monday-of-month recap. (Date 1-7 is the first occurrence of each weekday.)
+    if (now.getDate() <= 7) {
+      const recap = await buildMonthlyRecap();
+      if (recap) {
+        await sendTelegram(recap);
+        monthlyDetails = " + monthly recap";
+      }
     }
 
     return {
-      recordsProcessed: posts.length,
-      details: `Generated ${posts.length} voice-grade GBP posts (${posts.map((p) => p.archetype).join(", ")}) → Telegram batch`,
+      recordsProcessed: 1,
+      details: `GBP weekly post (${post.archetype})${monthlyDetails} → Telegram`,
     };
   } catch (err: unknown) {
     return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
+  }
+}
+
+/**
+ * Monthly recap — fires on the first Monday of each month alongside
+ * the regular weekly post. Includes:
+ *   - Last month's review count + average rating
+ *   - Active specials (so Nour can surface them in GBP)
+ *   - Suggested "month theme" for the upcoming 4 posts
+ *
+ * Uses real shop data — google-reviews + specials table.
+ */
+async function buildMonthlyRecap(): Promise<string | null> {
+  try {
+    const monthName = new Date().toLocaleString("en-US", {
+      timeZone: BUSINESS.timezone, month: "long", year: "numeric",
+    });
+
+    // Reviews snapshot
+    let reviewLine = "Reviews: data unavailable";
+    try {
+      const { getGoogleReviews } = await import("../google-reviews");
+      const data = await getGoogleReviews();
+      if (data) {
+        reviewLine = `Reviews: ${data.totalReviews ?? "?"} total · ${data.rating ?? "?"}★ avg`;
+      }
+    } catch { /* non-critical — skip review line */ }
+
+    // Specials snapshot
+    let specialsLine = "Active specials: none right now";
+    try {
+      const { db } = await import("../lib/db-helper");
+      const { specials } = await import("../../drizzle/schema");
+      const { sql, eq, and } = await import("drizzle-orm");
+      const d = await db();
+      if (d) {
+        const rows = await d
+          .select({ title: specials.title, code: specials.couponCode })
+          .from(specials)
+          .where(
+            and(
+              eq(specials.isActive, true),
+              eq(specials.displayOnWebsite, true),
+              sql`(${specials.expiresAt} IS NULL OR ${specials.expiresAt} > NOW())`,
+            ),
+          )
+          .limit(5);
+        if (rows.length > 0) {
+          specialsLine = `Active specials (${rows.length}):\n` +
+            rows.map((r: { title: string; code: string | null }) => `  · ${r.title}${r.code ? ` (${r.code})` : ""}`).join("\n");
+        }
+      }
+    } catch { /* non-critical */ }
+
+    return `📊 MONTHLY GBP RECAP — ${monthName}\n\n` +
+      `${reviewLine}\n\n` +
+      `${specialsLine}\n\n` +
+      `Suggested theme this month: rotate through the 4 archetypes (Proof, Anti, Math, Seasonal). The voice-compliance test guards against cliché creep — anything that ships will be voice-graded automatically.\n\n` +
+      `Reminder: post weekly at business.google.com → Posts → Add update`;
+  } catch {
+    return null;
   }
 }
 
