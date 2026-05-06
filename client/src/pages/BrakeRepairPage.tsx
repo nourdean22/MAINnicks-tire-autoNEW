@@ -12,6 +12,7 @@ import { Disc, Activity, Wrench } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/brakes",
+  heroImage: "/photos/service-bay-clean.webp",
   title: "Brake Repair Cleveland · Free Inspection · Same Day | Nick's",
   description: "Cleveland brake repair where the diagnosis comes before the bill. Pads, rotors, calipers, ABS — we put the car on a lift and walk you through what's actually worn. Written estimate before any wrench moves. Financing approved on the spot. 4.9★ across 1,700+ Google reviews. Walk-ins 7 days. (216) 862-0005",
   eyebrow: "BRAKE REPAIR CLEVELAND · BRING YOUR EARS",

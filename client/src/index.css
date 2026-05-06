@@ -1136,6 +1136,27 @@ html[data-density="compact"] .admin-shell .p-4 { padding: 0.625rem; }
     0 18px 40px -18px rgba(0, 0, 0, 0.55),
     0 6px 16px -6px rgba(0, 0, 0, 0.35);
 }
+/* Image-error fallback — when an image 404s or fails to decode, we
+   add this class via onError. The card retains its aspect-ratio box
+   so layout doesn't collapse, and gets a tasteful brand-tinted
+   gradient so it reads as "intentional placeholder" not "broken." */
+.photo-rail-item-error {
+  background:
+    linear-gradient(135deg, oklch(0.18 0.008 260) 0%, oklch(0.10 0.005 260) 100%);
+}
+.photo-rail-item-error::before {
+  content: "Photo unavailable";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", monospace;
+}
 .photo-rail-active .photo-rail-item {
   opacity: 1;
   transform: translateY(0) translateZ(0);
@@ -1243,6 +1264,54 @@ html[data-density="compact"] .admin-shell .p-4 { padding: 0.625rem; }
   transform: translateZ(-2px) scale(1.04);
   transform-origin: center 40%;
   will-change: transform;
+}
+
+/* ────────────────────────────────────────────────────────────
+   TYPOGRAPHY POLISH — 2026-05-06 visual wave 5.
+   Conservative refinements to the existing Barlow Condensed +
+   DM Sans + JetBrains Mono pairing. No font swaps — just tighter
+   numeric figures, better line-balance, and improved long-form
+   readability.
+   ──────────────────────────────────────────────────────────── */
+
+/* Tabular figures + slashed zero on monospace stat numerals.
+   Without this, "1,700" and "4.9" use proportional figures that
+   shift width when values change (e.g. live rating updates).
+   With tabular-nums + slashed-zero, numbers stay aligned and the
+   zero is unambiguous — critical for a working-class shop where
+   trust comes from "the numbers don't lie." */
+.font-mono,
+.tabular-stat {
+  font-variant-numeric: tabular-nums slashed-zero lining-nums;
+  font-feature-settings: "tnum" 1, "zero" 1, "lnum" 1;
+}
+
+/* Better headline line-breaks. text-wrap: balance is supported in
+   Chrome 114+, Safari 17.5+, FF 121+. It distributes a 2-3 line
+   headline so words don't orphan ("Cleveland's Best-Kept Secret"
+   never breaks into "Best-Kept" + lonely "Secret"). Graceful no-op
+   on older browsers. */
+.headline-balance,
+h1.headline-balance,
+h2.headline-balance {
+  text-wrap: balance;
+}
+
+/* Long-form paragraph readability — text-wrap: pretty avoids
+   widows at the end of paragraphs. Apply to dense article-style
+   copy in service pages, not to short marketing one-liners. */
+.body-pretty,
+p.body-pretty {
+  text-wrap: pretty;
+}
+
+/* Tighter body leading on long-form sections — the default
+   Tailwind line-height (1.5) reads slightly cramped on dense
+   service-page paragraphs. 1.65 lands the sweet spot for
+   working-class plain-English copy at the body sizes we use. */
+.long-form-body {
+  line-height: 1.65;
+  letter-spacing: -0.005em;
 }
 
 /* Letterpress numerals — two-tone shadow that simulates ink pressed
