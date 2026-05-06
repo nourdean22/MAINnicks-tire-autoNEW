@@ -559,16 +559,13 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
           serviceReviews.forService. Surfaces 4-5 star reviews mentioning
           this service. Lands AFTER pricing (reduces sticker-shock) and
           BEFORE loss-aversion (loads the "but does it work?" answer
-          before the closer). Component renders nothing if no matching
-          reviews are found, so unsupported services degrade gracefully. */}
-      <section className="py-8 lg:py-12 bg-[oklch(0.065_0.004_260)]">
-        <div className="container">
-          <ServiceReviewsBlock
-            service={config.bookingService}
-            serviceTitle={config.serviceType ?? config.h1}
-          />
-        </div>
-      </section>
+          before the closer). Renders nothing (no empty section band)
+          when no matching reviews — graceful degradation for services
+          without keyword matches yet. */}
+      <ServiceReviewsBlock
+        service={config.bookingService}
+        serviceTitle={config.serviceType ?? config.h1}
+      />
       {/* Loss-aversion BEFORE FAQ — animated on scroll-in, last conversion
           push before the cooldown FAQ section. */}
       <LossSection config={config} />
