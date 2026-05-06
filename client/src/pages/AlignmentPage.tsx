@@ -83,8 +83,11 @@ function AlignmentHero() {
         </FadeIn>
 
         <FadeIn delay={0.2}>
-          <p className="mt-6 text-lg sm:text-xl text-foreground/80 max-w-2xl font-light leading-relaxed">
-            Searching for wheel alignment near me in Cleveland? Nick's Tire & Auto provides professional wheel alignment at competitive prices. Proper alignment extends tire life, improves fuel economy, and ensures safer handling on Cleveland's pothole-heavy roads. Walk-ins welcome 7 days a week.
+          {/* 2026-05-06 copy wave: insider vocab (camber/caster/toe)
+              + useful absurd ("road that filed for divorce") + anti-
+              pattern (most chains hand you a slip with no numbers). */}
+          <p className="mt-6 text-lg sm:text-xl text-foreground/80 max-w-2xl font-light leading-relaxed body-pretty">
+            Steering wheel pulls left like it's filing for divorce? Tires chewing on one edge after a winter of potholes? Pull up to Nick's. We hook your car to the Hunter rack, measure camber, caster, and toe to a tenth of a degree, and hand you the printout when we're done. Most chains keep that paper. We give it to you. Walk-ins 7 days, most jobs out the door before lunch.
           </p>
         </FadeIn>
 
@@ -385,9 +388,13 @@ export default function AlignmentPage() {
 
   return (
     <PageLayout showChat={true}>
+      {/* 2026-05-06 copy wave · GSC: 214 imps at 0% CTR, pos 25.
+          Title was already on-brand ("Pothole Survivors Welcome").
+          Description tightened with operator 1 (specificity:
+          camber/caster/toe) + operator 5 (insider vocab). */}
       <SEOHead
         title="Wheel Alignment Cleveland · Pothole Survivors Welcome | Nick's"
-        description="Cleveland wheel alignment for cars that have met one too many potholes. Fix steering pull, uneven tire wear, vibration. Free alignment check on every visit. Same-day service. Financing approved on the spot. 4.9★ across 1,700+ Cleveland drivers. (216) 862-0005"
+        description="Cleveland alignment shop where camber, caster, and toe go on a printout you take home. Fix the pull, the wander, the chewing tire edge. Free alignment check every visit. 4.9★ 1,700+ reviews."
         canonicalPath="/alignment"
       />
       <LocalBusinessSchema additionalSchema={{ "hasOfferCatalog": { "@type": "OfferCatalog", "name": "Wheel Alignment", "itemListElement": [{ "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Wheel Alignment", "serviceType": "Wheel Alignment" } }] } }} />

@@ -388,10 +388,14 @@ export const CITIES: CityData[] = [
   {
     slug: "cleveland-auto-repair",
     name: "Cleveland",
-    metaTitle: "Auto Repair Cleveland OH · 4.9★ · 1,700+ Reviews | Nick's Tire & Auto",
-    metaDescription: "Cleveland's top-rated auto repair shop on Euclid Ave — 4.9★ from 1,700+ Google reviews. Tires, brakes, diagnostics, emissions, oil, alignment. Walk-ins 7 days. (216) 862-0005",
-    heroHeadline: "CLEVELAND'S #1 AUTO\nREPAIR & TIRE SHOP",
-    heroSubline: "Nick's Tire & Auto is Cleveland's top-rated shop for a reason: 1,700+ five-star reviews from real local drivers, honest diagnostics, the largest new & used tire selection on the east side, and a coffee maker that's been with us since the Cavs were good. We are the shop Cleveland trusts because we earned it, one transparent estimate at a time.",
+    // 2026-05-06 copy wave · GSC: 283 imps at 1.1% CTR, pos 19. Old
+    // title is generic "top-rated 4.9★" — every shop in town claims
+    // that. New title applies operator 4 (anti-pattern: most shops
+    // don't show the worn part) + operator 1 (specificity: 7 years).
+    metaTitle: "Auto Repair Cleveland · We Show You The Worn Part | Nick's",
+    metaDescription: "Cleveland auto shop on Euclid Ave where the worn part comes out of your car and onto the counter before you pay. 7 years, 1,700+ five-star reviews. Walk-ins 7 days.",
+    heroHeadline: "CLEVELAND'S AUTO SHOP\nWHERE THE WORN PART HITS THE COUNTER.",
+    heroSubline: "We're not Cleveland's biggest shop. We're not the cheapest. We're the one that puts the worn brake pad, the cracked CV boot, the seized caliper on the counter so you can see what you paid for. 1,700+ five-star reviews from drivers who came in skeptical and left with the part in their hand. Free estimates. No mystery line items. Open every day we're awake.",
     distance: "0 miles",
     driveTime: "You're here",
     neighborhoods: ["Downtown Cleveland", "East Side", "West Side", "Collinwood", "Nottingham", "Five Points", "University Circle", "Tremont", "Ohio City", "Slavic Village", "Glenville", "Hough"],

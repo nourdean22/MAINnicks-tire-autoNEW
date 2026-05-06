@@ -121,9 +121,12 @@ const SERVICES_LIST = [
 export default function ServicesOverview() {
   return (
     <PageLayout showChat={true}>
+      {/* 2026-05-06 copy wave · GSC: 734 imps at 0.8% CTR, pos 2.6.
+          Page 1 placement, terrible click-through. Title rewrite is
+          the highest-leverage CTR move available. */}
       <SEOHead
-        title="Cleveland Auto Repair Services · One Shop, Every Repair | Nick's"
-        description={`Every service Cleveland drivers actually need — tires, brakes, oil, diagnostics, alignment, emissions, AC, transmission, electrical, exhaust, plus the weird rattle that started yesterday. Walk-ins 7 days, financing on the spot, 4.9★ across 1,700+ reviews. ${BUSINESS.phone.display}`}
+        title="Auto Repair Cleveland · No Mystery Fees, Walk-Ins 7 Days | Nick's"
+        description={`Cleveland auto shop where invoice line items make sense. Tires, brakes, oil, diagnostics, AC, transmission, exhaust. Walk-ins 7 days. 4.9★ 1,700+ reviews. ${BUSINESS.phone.display}`}
         canonicalPath="/services"
       />
       <Breadcrumbs items={[{ label: "Services", href: "/services" }]} />
@@ -154,8 +157,11 @@ export default function ServicesOverview() {
               COMPLETE AUTO REPAIR<br />
               <span className="text-primary">SERVICES</span>
             </h1>
-            <p className="mt-6 text-foreground/70 text-lg leading-relaxed max-w-2xl">
-              From routine oil changes to complex engine diagnostics, our crew handles every repair the same way: explain the problem, show you the worn parts on a lift, let you decide. No pressure, no upsells, no mystery line items at checkout. We're a real shop with real bays — pull up any day of the week.
+            {/* 2026-05-06 copy wave: useful-absurd close ("We call it
+                Tuesday") names the chain pattern ($99 diagnostic fee)
+                without lecturing about it. Operators 4 + 3 stacked. */}
+            <p className="mt-6 text-foreground/70 text-lg leading-relaxed max-w-2xl body-pretty">
+              Oil change to head gasket — same playbook every time. Lift the car, hand you the flashlight, walk you under it before any wrench moves. The chains call that <span className="text-foreground/85">"a $99 diagnostic fee."</span> <span className="text-[#FDB913]">We call it Tuesday.</span>
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
               <a
