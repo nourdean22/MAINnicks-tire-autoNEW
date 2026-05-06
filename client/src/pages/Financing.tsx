@@ -499,12 +499,15 @@ export default function Financing() {
 
   return (
     <PageLayout activeHref="/financing" showChat={true}>
+      {/* 2026-05-06 audit fix · "Financing" is banned positioning per
+          operator voice rules. Renamed to "Payment Programs" —
+          same lender stack, same product, FCFS-affirming wording. */}
       <SEOHead
-        title="Auto Repair Financing Cleveland · Approved On The Spot | Nick's"
-        description="Cleveland auto repair financing where four lenders compete for your business. Soft pre-qualification (no hard credit pull), drive away today, pay over time. Acima · Snap · Koalafi · American First. Approved before your coffee finishes brewing. (216) 862-0005"
+        title="Auto Repair Payment Programs Cleveland · $10 Down, Drive Today | Nick's"
+        description="Cleveland auto repair payment programs — four lenders compete for your business. Soft pre-qualification (no hard credit pull), drive today, pay over time. Acima · Snap · Koalafi · American First. (216) 862-0005"
         canonicalPath="/financing"
       />
-      <Breadcrumbs items={[{ label: "Financing", href: "/financing" }]} />
+      <Breadcrumbs items={[{ label: "Payment Programs", href: "/financing" }]} />
       <LocalBusinessSchema />
       <FinancingSchema />
 

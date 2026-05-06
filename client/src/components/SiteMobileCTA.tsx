@@ -93,8 +93,8 @@ export default function SiteMobileCTA() {
             {/* Book Online — glass-style outline, complements the gold CTA */}
             <a
               href="/booking"
-              aria-label="Book an appointment online"
-              onClick={() => trackEvent("hold_a_bay_click", { source: "mobile-cta" })}
+              aria-label="Drop off your car at Nick's Tire & Auto"
+              onClick={() => trackEvent("drop_off_click", { source: "mobile-cta" })}
               className="flex items-center justify-center font-bold cta-depth"
               style={{
                 width: "48%",
@@ -109,7 +109,10 @@ export default function SiteMobileCTA() {
                 boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
               }}
             >
-              Hold a Bay
+              {/* 2026-05-06 audit fix · "Hold a Bay" was appointment-language
+                  (banned per operator voice rules). "Drop-Off" affirms the
+                  FCFS model. */}
+              Drop-Off
             </a>
           </div>
         </motion.div>

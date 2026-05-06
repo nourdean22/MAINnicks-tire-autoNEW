@@ -555,7 +555,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Brake Pad Replacement Only: $149 to $249",
-        content: "If your brake pads are worn but the rotors are still in good shape, a pad-only replacement is the most affordable brake repair. This involves removing the wheels, removing the old pads, cleaning the caliper slides, and installing new brake pads. The price range of $149 to $249 per axle covers most passenger cars and small SUVs. Larger trucks and European vehicles can run $50 to $100 more because the parts cost more. At Nick's Tire & Auto, we always measure rotor thickness and check for scoring before recommending pad-only service. If the rotors are too thin or damaged, installing new pads on bad rotors wastes your money because the new pads will wear unevenly and you will be back in the shop sooner than expected. We would rather do the job right the first time."
+        content: "If your brake pads are worn but the rotors are still in good shape, a pad-only replacement is the cheapest fix that exists. This involves removing the wheels, removing the old pads, cleaning the caliper slides, and installing new brake pads. The price range of $149 to $249 per axle covers most passenger cars and small SUVs. Larger trucks and European vehicles can run $50 to $100 more because the parts cost more. At Nick's Tire & Auto, we always measure rotor thickness and check for scoring before recommending pad-only service. If the rotors are too thin or damaged, installing new pads on bad rotors wastes your money because the new pads will wear unevenly and you will be back in the shop sooner than expected. We would rather do the job right the first time."
       },
       {
         heading: "Brake Pads and Rotors: $249 to $449",
@@ -622,7 +622,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "What Tire Rotation Costs at Nick's Tire & Auto",
-        content: "Tire rotation at Nick's Tire & Auto is one of the most affordable maintenance services we offer. If you purchased your tires from us, rotations are included for the life of the tires at no additional charge. For all other customers, tire rotation is a quick and affordable service that takes about 20 to 30 minutes. We remove all four wheels, inspect the tires and brakes, rotate to the correct pattern for your vehicle, and set all tire pressures to factory specifications. We also do a visual alignment check during every rotation. No appointment needed — drive in anytime during business hours. We serve Cleveland, Euclid, South Euclid, Cleveland Heights, and all of Cuyahoga County."
+        content: "Tire rotation at Nick's Tire & Auto is one of the cheapest maintenance services that exists. If you purchased your tires from us, rotations are included for the life of the tires at no additional charge. For all other customers, tire rotation is a quick service that takes about 20 to 30 minutes. We remove all four wheels, inspect the tires and brakes, rotate to the correct pattern for your vehicle, and set all tire pressures to factory specifications. We also do a visual alignment check during every rotation. No appointment needed — drive in anytime during business hours. We serve Cleveland, Euclid, South Euclid, Cleveland Heights, and all of Cuyahoga County."
       }
     ],
     relatedServices: ["/tires", "/alignment"],
@@ -1853,7 +1853,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Choose the Right Shop — Not the Cheapest",
-        content: "The cheapest quote is often the most expensive in the long run. Shops that undercut everyone are usually cutting corners — cheap parts, rushed work, or diagnosing by replacing parts until something works. A quality repair done right the first time costs less than a cheap repair done twice. Look for a shop that diagnoses before replacing, uses quality parts, offers a real warranty, and explains what they found. That is what we do at Nick's."
+        content: "The cheapest quote is often the most expensive in the long run. Shops that undercut everyone are usually cutting corners — bargain-bin parts, rushed work, or diagnosing by replacing parts until something works. A quality repair done right the first time costs less than a discount repair done twice. Look for a shop that diagnoses before replacing, uses quality parts, offers a real warranty, and explains what they found. That is what we do at Nick's."
       },
       {
         heading: "Financing Makes Big Repairs Manageable",
@@ -1892,7 +1892,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Why Warranty Matters More Than Price",
-        content: "A brake job that costs $50 less at another shop but only carries a 90-day warranty is not actually cheaper. If the cheap brake pads wear out in 18 months instead of 36, you are buying brakes twice in the time you would have bought them once from us. The real cost of a repair includes the warranty period. When you compare repair quotes, compare the total value — parts quality, labor quality, and how long the shop stands behind the work. The cheapest quote with the shortest warranty is usually the most expensive choice over time."
+        content: "A brake job that costs $50 less at another shop but only carries a 90-day warranty is not actually cheaper. If those discount brake pads wear out in 18 months instead of 36, you are buying brakes twice in the time you would have bought them once from us. The real cost of a repair includes the warranty period. When you compare repair quotes, compare the total value — parts quality, labor quality, and how long the shop stands behind the work. The cheapest quote with the shortest warranty is usually the most expensive choice over time."
       },
       {
         heading: "Get Repairs You Can Trust",
@@ -2460,7 +2460,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get Your Brakes Done Right",
-        content: "Whether you need ceramic or semi-metallic, the quality of the installation matters as much as the pad material. Proper brake jobs include cleaning and lubricating slide pins, checking and resurfacing or replacing rotors if needed, inspecting brake hardware, and testing the system after installation. A cheap brake pad slapped on dirty hardware with glazed rotors is going to squeal and underperform regardless of the material. At Nick's, we do brake jobs right. $89 brake special, honest service, no upselling. Call (216) 862-0005 or stop by 17625 Euclid Ave, Euclid. Learn more about our [brake repair service](/brakes) or check our [tire deals](/tires)."
+        content: "Whether you need ceramic or semi-metallic, the quality of the installation matters as much as the pad material. Proper brake jobs include cleaning and lubricating slide pins, checking and resurfacing or replacing rotors if needed, inspecting brake hardware, and testing the system after installation. A budget brake pad slapped on dirty hardware with glazed rotors is going to squeal and underperform regardless of the material. At Nick's, we do brake jobs right. $89 brake special, honest service, no upselling. Call (216) 862-0005 or stop by 17625 Euclid Ave, Euclid. Learn more about our [brake repair service](/brakes) or check our [tire deals](/tires)."
       }
     ],
     relatedServices: ["/brakes"],
@@ -3533,7 +3533,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "How It Started",
-        content: "Nick's Tire and Auto opened its doors at 17625 Euclid Ave in Euclid, Ohio in 2018. The idea was simple — Cleveland needed an honest, affordable auto repair shop that treated customers like people, not transactions. Too many shops in the area were overcharging, upselling, and making car repair feel like a battle. We wanted to build the shop we would want to take our own cars to. Fair prices, transparent service, no games. The first year was tires and basic services. Word got around. Customers kept coming back and bringing their friends and family. Within a couple years, we expanded into full mechanical repair — brakes, diagnostics, engine work, suspension, and everything in between."
+        content: "Nick's Tire and Auto opened its doors at 17625 Euclid Ave in Euclid, Ohio in 2018. The idea was simple — Cleveland needed an honest, fair-priced auto repair shop that treated customers like people, not transactions. Too many shops in the area were overcharging, upselling, and making car repair feel like a battle. We wanted to build the shop we would want to take our own cars to. Fair prices, transparent service, no games. The first year was tires and basic services. Word got around. Customers kept coming back and bringing their friends and family. Within a couple years, we expanded into full mechanical repair — brakes, diagnostics, engine work, suspension, and everything in between."
       },
       {
         heading: "What We Stand For",

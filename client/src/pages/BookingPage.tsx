@@ -266,13 +266,15 @@ export default function BookingPage() {
 
   return (
     <PageLayout activeHref="/booking">
+      {/* 2026-05-06 audit fix · removed banned phrases (Hold Your Spot,
+          Book, Reserve). Now affirms FCFS model in title + description. */}
       <SEOHead
-        title="Hold Your Spot · Book Auto Repair Online · Cleveland | Nick's"
-        description="Reserve your drop-off in 60 seconds at Nick's Tire & Auto Cleveland. No credit card. No commitment to fix. A real human master tech calls you back within 15 minutes — not a chatbot, not next Tuesday. (216) 862-0005"
+        title="Drop-Off Cleveland · No Appointment, No Reservation | Nick's"
+        description="Drop your car off at Nick's on Euclid Ave any day we're open. First-come-first-served. A master tech calls back within 15 minutes with a written estimate before any wrench moves. (216) 862-0005"
         canonicalPath="/booking"
       />
       {/* v1.7 SEO · BreadcrumbList */}
-      <Breadcrumbs items={[{ label: "Book Appointment" }]} />
+      <Breadcrumbs items={[{ label: "Drop-Off" }]} />
       <LocalBusinessSchema />
 
       <main className="max-w-3xl mx-auto px-4 py-10 sm:py-14">
