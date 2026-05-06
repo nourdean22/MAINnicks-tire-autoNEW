@@ -67,7 +67,7 @@ export const estimatesRouter = router({
               estimatedTime: `${item.laborHours}h labor`,
               explanation: item.notes,
             })),
-            recommendation: `Bring your ${vehicle} to Nick's Tire & Auto for this repair. Estimated total: $${laborResult.grandTotalLow}–$${laborResult.grandTotalHigh}. Call (216) 862-0005 or book online at nickstire.org.`,
+            recommendation: `Bring your ${vehicle} to Nick's Tire & Auto for this repair. Estimated total: $${laborResult.grandTotalLow}–$${laborResult.grandTotalHigh}. Call (216) 862-0005 or schedule a drop-off at nickstire.org.`,
             _source: "claude" as const,
           };
         }

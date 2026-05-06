@@ -168,7 +168,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Nick's Tire & Auto — Cleveland E-Check Repair Specialists",
-        content: "We diagnose and repair emissions problems for Cleveland, Euclid, and Northeast Ohio drivers. Our technicians use advanced OBD-II diagnostics to find the exact cause of your E-Check failure. We repair the issue and make sure all emissions monitors complete so your vehicle passes inspection. Call us at (216) 862-0005 or book online."
+        content: "We diagnose and repair emissions problems for Cleveland, Euclid, and Northeast Ohio drivers. Our technicians use advanced OBD-II diagnostics to find the exact cause of your E-Check failure. We repair the issue and make sure all emissions monitors complete so your vehicle passes inspection. Call us at (216) 862-0005 or schedule a drop-off online."
       }
     ],
     relatedServices: ["/emissions", "/diagnostics"],
@@ -246,7 +246,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Schedule Your Spring Checkup",
-        content: "At Nick's Tire & Auto, we offer a complete spring vehicle inspection that covers all of these items and more. We check your vehicle from top to bottom and let you know what needs attention now and what can wait. No pressure, no upselling — just honest advice from experienced technicians. Serving Cleveland, Euclid, and Northeast Ohio. Call (216) 862-0005 or book online."
+        content: "At Nick's Tire & Auto, we offer a complete spring vehicle inspection that covers all of these items and more. We check your vehicle from top to bottom and let you know what needs attention now and what can wait. No pressure, no upselling — just honest advice from experienced technicians. Serving Cleveland, Euclid, and Northeast Ohio. Call (216) 862-0005 or schedule a drop-off online."
       }
     ],
     relatedServices: ["/tires", "/brakes", "/oil-change", "/general-repair"],
@@ -834,7 +834,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Schedule Your Rotation",
-        content: "No appointment needed. Drive into Nick's Tire & Auto any day of the week and we will rotate your tires while you wait. If you purchased tires from us, it is free. If not, it is still the cheapest maintenance you can do for your vehicle. Call (216) 862-0005 or book online."
+        content: "No appointment needed. Drive into Nick's Tire & Auto any day of the week and we will rotate your tires while you wait. If you purchased tires from us, it is free. If not, it is still the cheapest maintenance you can do for your vehicle. Call (216) 862-0005 or schedule a drop-off online."
       }
     ],
     relatedServices: ["/tires", "/alignment"],
@@ -873,7 +873,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get Your TPMS Fixed at Nick's",
-        content: "Walk in any day of the week. We stock the most common programmable TPMS sensors and can usually replace them same-day. Every sensor is programmed and tested before you leave. Call (216) 862-0005 or book online."
+        content: "Walk in any day of the week. We stock the most common programmable TPMS sensors and can usually replace them same-day. Every sensor is programmed and tested before you leave. Call (216) 862-0005 or schedule a drop-off online."
       }
     ],
     relatedServices: ["/tires"],
@@ -1118,7 +1118,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Transmission Fluid Service at Nick's",
-        content: "Transmission fluid drain and fill at Nick's Tire & Auto runs $150 to $250 depending on the vehicle and fluid type. Full flush service runs $200 to $350. We use the correct fluid specification for your vehicle — there are dozens of different transmission fluid types and using the wrong one causes damage. Every service includes a new filter (if applicable) and pan gasket. Call (216) 862-0005 or book online."
+        content: "Transmission fluid drain and fill at Nick's Tire & Auto runs $150 to $250 depending on the vehicle and fluid type. Full flush service runs $200 to $350. We use the correct fluid specification for your vehicle — there are dozens of different transmission fluid types and using the wrong one causes damage. Every service includes a new filter (if applicable) and pan gasket. Call (216) 862-0005 or schedule a drop-off online."
       }
     ],
     relatedServices: ["/transmission"],
@@ -3726,7 +3726,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       { heading: "Modern Oil Change Intervals", content: "Conventional oil: 5,000-7,500 miles. Synthetic blend: 5,000-7,500 miles. Full synthetic: 7,500-10,000 miles. Some vehicles with oil life monitors: up to 15,000 miles. These intervals assume normal driving conditions. Your owner's manual defines what counts as severe service for your vehicle." },
       { heading: "Cleveland Driving = Severe Service", content: "Most Cleveland driving actually qualifies as severe service conditions: frequent short trips (less than 10 miles), stop-and-go traffic, extreme temperatures (both summer heat and winter cold), dusty conditions, towing or heavy loads. If most of your driving fits these descriptions, use the shorter interval in your owner's manual. For example, if the manual says 7,500 miles normal or 5,000 miles severe, Cleveland drivers should use 5,000." },
       { heading: "Oil Type Matters", content: "Full synthetic oil costs more per change but lasts longer and provides better protection — especially in extreme temperatures. For Cleveland's climate swings, synthetic is worth the extra cost. Most modern vehicles require synthetic. If your manual specifies conventional oil, upgrading to synthetic still provides benefits but is not required." },
-      { heading: "Oil Changes at Nick's Tire & Auto", content: "We use quality oil and filters, not the cheapest options available. Every oil change includes a courtesy inspection of fluids, belts, hoses, tires, and brakes. We check your vehicle's specific requirements and use the correct oil weight and specification. Walk-ins welcome, or book online. Most oil changes take 20-30 minutes." }
+      { heading: "Oil Changes at Nick's Tire & Auto", content: "We use quality oil and filters, not the cheapest options available. Every oil change includes a courtesy inspection of fluids, belts, hoses, tires, and brakes. We check your vehicle's specific requirements and use the correct oil weight and specification. Walk-ins welcome, or schedule a drop-off online. Most oil changes take 20-30 minutes." }
     ],
     relatedServices: ["/oil-change"],
     tags: ["oil change frequency", "how often change oil", "synthetic oil", "oil change Cleveland", "oil change near me", "severe service oil change"]

@@ -14,7 +14,7 @@ let lastMemoryAlertAt: number | null = null;
 // ─── AI fallback message for when AI is completely down ─────
 const AI_DOWN_FALLBACK_MESSAGE =
   "Our AI assistant is temporarily unavailable. For immediate help, " +
-  "please call us at (216) 862-0005 or book online at nickstire.org. " +
+  "please call us at (216) 862-0005 or schedule a drop-off at nickstire.org. " +
   "We're here to help Mon-Sat 8AM-6PM, Sun 9AM-4PM.";
 
 export { AI_DOWN_FALLBACK_MESSAGE };

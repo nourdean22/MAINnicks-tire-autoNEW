@@ -377,7 +377,7 @@ Return JSON:
     return scheduled.toISOString();
   }
 
-  const defaultMessage = `Hi! Following up from your chat about your ${vehicleInfo}. We'd love to get you in. Call us at (216) 862-0005 or book online at nickstire.org.`;
+  const defaultMessage = `Hi! Following up from your chat about your ${vehicleInfo}. We'd love to get you in. Call us at (216) 862-0005 or schedule a drop-off at nickstire.org.`;
 
   const verifiedChain = Array.isArray(chainData?.chain) ? chainData.chain.map((step: FollowUpStep, i: number) => {
     const stepChannel = step.channel as "sms" | "call" | "email";

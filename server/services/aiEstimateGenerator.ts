@@ -108,7 +108,7 @@ export function generateEstimate(request: EstimateRequest): EstimateResponse {
 
   return {
     possibleIssues: adjustedIssues,
-    recommendation: `Bring your ${request.vehicleYear} ${request.vehicleMake} ${request.vehicleModel} to Nick's Tire & Auto for a proper diagnosis. We'll show you exactly what's wrong before doing any work. Call (216) 862-0005 or book online at nickstire.org.`,
+    recommendation: `Bring your ${request.vehicleYear} ${request.vehicleMake} ${request.vehicleModel} to Nick's Tire & Auto for a proper diagnosis. We'll show you exactly what's wrong before any wrench moves. Call (216) 862-0005 or schedule a drop-off at nickstire.org.`,
     disclaimer: "This is a preliminary AI estimate based on your description. Actual diagnosis may reveal different issues. A proper inspection gives you an exact quote — no obligation.",
   };
 }

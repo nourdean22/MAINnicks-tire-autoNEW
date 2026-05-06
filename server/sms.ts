@@ -636,7 +636,7 @@ export function callbackConfirmationSms(name: string): string {
 export function maintenanceReminderSms(name: string, service: string, mileageNote?: string): string {
   const firstName = name.split(" ")[0];
   const mileage = mileageNote ? ` ${mileageNote}` : "";
-  return `Hi ${firstName}, it may be time for your next ${service.toLowerCase()}.${mileage} Call ${STORE_PHONE} or book online at nickstire.org to schedule.\n\n— ${STORE_NAME}`;
+  return `Hi ${firstName}, it may be time for your next ${service.toLowerCase()}.${mileage} Call ${STORE_PHONE} or schedule a drop-off at nickstire.org. First-come, first-served.\n\n— ${STORE_NAME}`;
 }
 
 /** Lead submission confirmation SMS */
