@@ -1071,3 +1071,191 @@ html[data-density="compact"] .admin-shell .p-4 { padding: 0.625rem; }
   .photo-depth:hover img,
   .stack-grid > *:hover { transform: none; }
 }
+
+/* ────────────────────────────────────────────────────────────
+   CINEMATIC DEPTH UTILITIES — 2026-05-06 visual upgrade wave.
+   Pure CSS, zero JS bundle weight. Designed for older Android
+   Chrome (Cleveland working-class fleet) — no scroll-timeline
+   gating, no IntersectionObserver requirements, prefers-
+   reduced-motion fully honored.
+   ──────────────────────────────────────────────────────────── */
+
+/* Inline-SVG noise overlay. No image asset, no extra HTTP req,
+   no decoder cost. The base64 is a 4x4 turbulence pattern that
+   tiles invisibly. Use with mix-blend-overlay for film-grain
+   feel without dirtying the photo. */
+.photo-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.92  0 0 0 0 0.85  0 0 0 0.95 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+/* Ken Burns slow zoom on a photo. Applied to <img> directly
+   (or via .ken-burns > img). 18s cycle so it never feels like
+   the image is sprinting. Reduced-motion kills it cleanly. */
+@keyframes kenBurnsDrift {
+  0% { transform: scale(1.02) translate(0, 0); }
+  50% { transform: scale(1.08) translate(-1.2%, 0.6%); }
+  100% { transform: scale(1.02) translate(0, 0); }
+}
+.ken-burns {
+  animation: kenBurnsDrift 22s ease-in-out infinite;
+  will-change: transform;
+}
+.ken-burns-target img,
+.ken-burns-target picture img {
+  animation: kenBurnsDrift 22s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Photo Ribbon — horizontal scroll-snap rail used by the
+   PhotoRibbon component. Each item gets a subtle tilt + entry
+   animation that fires when the rail enters viewport (gated
+   by .photo-rail-active class set via IntersectionObserver). */
+.photo-rail {
+  scroll-snap-type: x mandatory;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  /* Smooth-scrolling with momentum on iOS/Android */
+  -webkit-overflow-scrolling: touch;
+  scroll-padding: 1rem;
+}
+.photo-rail::-webkit-scrollbar { display: none; }
+
+.photo-rail-item {
+  scroll-snap-align: start;
+  /* Default: items sit flat until the rail is visible.
+     The .photo-rail-active class bumps in the entry animation. */
+  opacity: 0;
+  transform: translateY(28px) translateZ(0);
+  transition: transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1),
+              opacity 600ms ease-out;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 18px 40px -18px rgba(0, 0, 0, 0.55),
+    0 6px 16px -6px rgba(0, 0, 0, 0.35);
+}
+.photo-rail-active .photo-rail-item {
+  opacity: 1;
+  transform: translateY(0) translateZ(0);
+}
+/* Each item's image gets the slow Ken Burns drift */
+.photo-rail-active .photo-rail-item img {
+  animation: kenBurnsDrift 26s ease-in-out infinite;
+  will-change: transform;
+}
+/* Hover-capable devices get tilt-on-hover for desktop */
+@media (hover: hover) and (pointer: fine) {
+  .photo-rail-item {
+    transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1),
+                opacity 600ms ease-out,
+                box-shadow 320ms ease-out;
+  }
+  .photo-rail-active .photo-rail-item:hover {
+    transform: translateY(-6px) scale(1.015);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.08) inset,
+      0 30px 60px -20px rgba(0, 0, 0, 0.7),
+      0 10px 24px -8px rgba(253, 185, 19, 0.18);
+  }
+}
+
+/* CSS-only spinning tire decoration. Used as an accent on
+   hero/services pages. Pure border-radius + conic-gradient
+   for tread spokes + radial-gradient for hub. Zero assets. */
+@keyframes tireRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.css-tire {
+  position: relative;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%,
+      oklch(0.32 0.01 260) 0%,
+      oklch(0.18 0.008 260) 28%,
+      oklch(0.08 0.005 260) 32%,
+      oklch(0.06 0.003 260) 100%);
+  box-shadow:
+    inset 0 0 0 4px oklch(0.14 0.005 260),
+    inset 0 0 28px rgba(0, 0, 0, 0.7),
+    0 24px 60px -22px rgba(0, 0, 0, 0.85);
+}
+.css-tire::before {
+  /* Tread pattern — conic-gradient creates 24 evenly spaced
+     spokes that rotate with the tire. */
+  content: "";
+  position: absolute;
+  inset: 4%;
+  border-radius: 50%;
+  background:
+    conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      rgba(255, 255, 255, 0.06) 4deg,
+      transparent 8deg,
+      transparent 15deg
+    );
+  background-size: 100% 100%;
+  /* Mask out the inner hub area so spokes only show on the tread */
+  -webkit-mask: radial-gradient(circle, transparent 0 56%, black 57%);
+          mask: radial-gradient(circle, transparent 0 56%, black 57%);
+  animation: tireRotate 6s linear infinite;
+  will-change: transform;
+}
+.css-tire::after {
+  /* Hub: 5-spoke alloy via conic gradient + radial center */
+  content: "";
+  position: absolute;
+  inset: 28%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, oklch(0.62 0.02 260) 0%, oklch(0.32 0.01 260) 70%),
+    conic-gradient(from 0deg,
+      oklch(0.55 0.02 260) 0deg,
+      oklch(0.42 0.01 260) 36deg,
+      oklch(0.55 0.02 260) 72deg,
+      oklch(0.42 0.01 260) 108deg,
+      oklch(0.55 0.02 260) 144deg,
+      oklch(0.42 0.01 260) 180deg,
+      oklch(0.55 0.02 260) 216deg,
+      oklch(0.42 0.01 260) 252deg,
+      oklch(0.55 0.02 260) 288deg,
+      oklch(0.42 0.01 260) 324deg,
+      oklch(0.55 0.02 260) 360deg);
+  background-blend-mode: multiply;
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.6);
+}
+/* Smaller variant for inline decoration */
+.css-tire-sm { width: 64px; height: 64px; }
+.css-tire-md { width: 96px; height: 96px; }
+.css-tire-lg { width: 160px; height: 160px; }
+
+/* Hero parallax wrapper — gives the hero photo a subtle
+   "depth between camera and subject" via translateZ. Combined
+   with sticky positioning for scroll parallax effect. */
+.hero-stage {
+  perspective: 1400px;
+  perspective-origin: 50% 30%;
+}
+.hero-stage > .hero-bg {
+  transform: translateZ(-2px) scale(1.04);
+  transform-origin: center 40%;
+  will-change: transform;
+}
+
+/* Reduced-motion: kill all rotation + drift animations. */
+@media (prefers-reduced-motion: reduce) {
+  .ken-burns,
+  .ken-burns-target img,
+  .photo-rail-active .photo-rail-item img,
+  .css-tire::before {
+    animation: none !important;
+  }
+  .photo-rail-item {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

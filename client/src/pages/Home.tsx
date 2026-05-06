@@ -26,6 +26,7 @@ import FadeIn from "@/components/FadeIn";
 import BrandMark from "@/components/BrandMark";
 import ShopStatusWidget from "@/components/ShopStatusWidget";
 import UberDropoffWidget from "@/components/UberDropoffWidget";
+import PhotoRibbon from "@/components/PhotoRibbon";
 // Conversion-architecture components (Batch 1 of v1.1 spec)
 import LiveVisitorCounter from "@/components/conversion/LiveVisitorCounter";
 import ServiceTriageCard from "@/components/conversion/ServiceTriageCard";
@@ -58,11 +59,13 @@ function Hero() {
   const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
 
   return (
-    <section className="relative h-[100svh] flex items-center overflow-hidden">
+    <section className="relative h-[100svh] flex items-center overflow-hidden hero-stage">
       {/* Full-bleed background — <picture> element serves a 120KB mobile-optimized
           variant under 768px instead of the 577KB desktop file. 5x bandwidth
-          win on mobile first-paint, identical visual on desktop. */}
-      <div className="absolute inset-0">
+          win on mobile first-paint, identical visual on desktop.
+          Ken Burns drift on the photo + film-grain overlay add cinematic
+          depth without WebGL or extra bytes. Pure CSS, motion-safe. */}
+      <div className="absolute inset-0 hero-bg ken-burns-target">
         <picture>
           <source media="(max-width: 768px)" srcSet="/hero-cybertruck-mobile.webp" type="image/webp" />
           <img
@@ -73,13 +76,27 @@ function Hero() {
             fetchPriority="high"
           />
         </picture>
+        {/* Cinematic gradient — left-weighted so the headline keeps contrast
+            while the right side of the photo stays visible (cars + sky). */}
         <div
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(135deg, rgba(10,10,10,0.85) 0%, rgba(10,10,10,0.4) 100%)",
+              "linear-gradient(105deg, rgba(8,10,14,0.92) 0%, rgba(10,12,16,0.55) 38%, rgba(0,0,0,0.15) 75%, rgba(0,0,0,0) 100%)",
           }}
         />
+        {/* Vignette — focuses attention on the headline area + adds depth */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              "radial-gradient(ellipse at 25% 50%, transparent 0%, transparent 35%, rgba(0,0,0,0.5) 100%)",
+          }}
+        />
+        {/* Photo grain — inline-SVG noise, ~250 bytes total. Sells the
+            "real photo on Euclid Ave" feel and hides any compression
+            artifacts on older devices. */}
+        <div className="absolute inset-0 photo-grain pointer-events-none mix-blend-overlay opacity-[0.12]" />
       </div>
 
       {/* Content — left-aligned */}
@@ -225,8 +242,15 @@ function TrustNumbers() {
 // ─── USED TIRES CALLOUT — "Too good to be true" hook ────
 function UsedTiresCallout() {
   return (
-    <section className="bg-[#FDB913] py-12 lg:py-16">
-      <div className="container">
+    <section className="bg-[#FDB913] py-12 lg:py-16 relative overflow-hidden">
+      {/* CSS-only spinning tire decoration — pure border-radius +
+          conic-gradient + radial, zero asset bytes. Sells the
+          dimensional feel without WebGL or GLB downloads. Hidden
+          on small phones to keep the headline center-stage. */}
+      <div className="hidden lg:block absolute -right-12 top-1/2 -translate-y-1/2 opacity-25 pointer-events-none">
+        <div className="css-tire css-tire-lg" style={{ width: "320px", height: "320px" }} aria-hidden="true" />
+      </div>
+      <div className="container relative">
         <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
           <div className="text-center lg:text-left">
             <FadeIn>
@@ -1009,6 +1033,13 @@ export default function Home() {
       <FastPaths />
       <UsedTiresCallout />
       <TrustNumbers />
+      {/* PHOTO RIBBON — 2026-05-06 cinematic depth wave. Real shop
+          photos in a horizontal scroll-snap rail, Ken Burns drift,
+          film-grain overlay. Reinforces the "lines of cars" mental
+          model with actual physical proof before any service copy
+          loads below. Replaces what would have been a Three.js scene
+          — real photos beat synthetic 3D for an auto shop. */}
+      <PhotoRibbon />
       {/* CONVERSION ARCHITECTURE (v1.1 spec) — TriageGrid replaces the
           generic service-tile decision flow with a Cialdini-architected
           "pick your symptom" pattern. PriceCompare anchors against
