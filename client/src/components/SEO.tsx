@@ -272,6 +272,55 @@ export function trackEvent(
       new CustomEvent("nick_event", { detail: { eventName, data } }),
     );
   }
+
+  // Persist to DB via tRPC for the admin dashboard. Best-effort —
+  // analytics blockers, network issues, or session expiry must not
+  // break the customer-facing UX. Same pattern as trackPhoneClick.
+  if (typeof window !== "undefined") {
+    import("@/lib/utm").then(({ getUtmData }) => {
+      const utm = getUtmData();
+      const sessionId = getCachedSessionId();
+      fetch("/api/trpc/customerEvents.log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          json: {
+            eventName,
+            eventData: data ?? {},
+            sourcePage: window.location.pathname,
+            utmSource: utm.utmSource || null,
+            utmMedium: utm.utmMedium || null,
+            utmCampaign: utm.utmCampaign || null,
+            referrer: utm.referrer || null,
+            userAgent: navigator.userAgent.slice(0, 500),
+            sessionId,
+          },
+        }),
+      }).catch(() => { /* silent fail — never block UX on analytics */ });
+    }).catch(() => { /* utm import blocked — fine */ });
+  }
+}
+
+// Module-scoped session id cache. Without this every trackEvent call
+// hits localStorage — fine in isolation, but PhotoRibbon can fire
+// dozens of view events per scroll which made the localStorage call
+// the dominant cost. Now: read once, reuse forever.
+let _cachedSessionId: string | null = null;
+function getCachedSessionId(): string | null {
+  if (_cachedSessionId) return _cachedSessionId;
+  try {
+    let id = window.localStorage.getItem("nick_session_id");
+    if (!id) {
+      id = `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+      window.localStorage.setItem("nick_session_id", id);
+    }
+    _cachedSessionId = id;
+    return id;
+  } catch {
+    /* localStorage unavailable (private mode etc.) — return null */
+    return null;
+  }
 }
 
 /**

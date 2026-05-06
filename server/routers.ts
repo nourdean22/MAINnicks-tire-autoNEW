@@ -51,6 +51,7 @@ import {
   autoLaborRouter,
   campaignsRouter,
   callTrackingRouter,
+  customerEventsRouter,
   exportRouter,
   costEstimatorRouter,
   emergencyRouter,
@@ -151,6 +152,7 @@ export const appRouter = router({
 
   // Attribution & Export
   callTracking: callTrackingRouter,
+  customerEvents: customerEventsRouter,
   export: exportRouter,
 
   // SMS Campaigns

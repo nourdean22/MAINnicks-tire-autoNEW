@@ -2398,3 +2398,45 @@ export const algProbeLog = mysqlTable("alg_probe_log", {
 
 export type AlgProbeLogRow = typeof algProbeLog.$inferSelect;
 export type InsertAlgProbeLog = typeof algProbeLog.$inferInsert;
+
+// 📊 GENERIC CUSTOMER EVENT LOG
+/**
+ * Generic event log for customer-facing visual + interaction events
+ * (PhotoRibbon photo views, sticky-CTA Hold-A-Bay clicks, scroll-depth
+ * milestones, etc.). Pairs with the existing callEvents table — that
+ * one is phone-only; this is everything else.
+ *
+ * Designed to be the single sink for client-side trackEvent() so the
+ * admin dashboard can answer "which photo / CTA / surface gets the
+ * most engagement on the customer-facing site?"
+ *
+ * Indexed on (eventName, createdAt) so per-event time-series rollups
+ * are fast even at 10K+ events / day.
+ */
+export const customerEvents = mysqlTable("customer_events", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Event name — kebab/snake/camel all OK; recommend snake_case (ribbon_photo_view) */
+  eventName: varchar("eventName", { length: 64 }).notNull(),
+  /** Free-form structured detail. Common keys: src, index, source, label */
+  eventData: json("eventData"),
+  /** Page where the event happened — pathname only, no querystring */
+  sourcePage: varchar("sourcePage", { length: 500 }),
+  /** UTM attribution at the moment of the event */
+  utmSource: varchar("utmSource", { length: 100 }),
+  utmMedium: varchar("utmMedium", { length: 100 }),
+  utmCampaign: varchar("utmCampaign", { length: 255 }),
+  /** Referrer URL */
+  referrer: varchar("referrer", { length: 500 }),
+  /** User agent (truncated) for device-type analytics */
+  userAgent: varchar("userAgent", { length: 500 }),
+  /** Best-effort browser session id (set in localStorage) — not auth-bound */
+  sessionId: varchar("sessionId", { length: 64 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_customer_events_name_date").on(table.eventName, table.createdAt),
+  index("idx_customer_events_date").on(table.createdAt),
+  index("idx_customer_events_session").on(table.sessionId),
+]);
+
+export type CustomerEvent = typeof customerEvents.$inferSelect;
+export type InsertCustomerEvent = typeof customerEvents.$inferInsert;

@@ -497,6 +497,11 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
             name: config.serviceType,
             description: config.description,
             serviceType: config.serviceType,
+            // 2026-05-06 SEO audit · associate the service-specific
+            // hero photo (or default) with this service entity. Lets
+            // Google's image search surface the right photo for the
+            // right service intent. Absolute URL required by spec.
+            image: `https://nickstire.org${config.heroImage || HERO_IMAGE_DEFAULT}`,
             provider: {
               "@type": "AutoRepair",
               name: "Nick's Tire & Auto",
