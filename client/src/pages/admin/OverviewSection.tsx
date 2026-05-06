@@ -646,12 +646,24 @@ export default function OverviewSection() {
       {/* 2026-05-05 — TODAY'S BRIEF: top actionable signals at top of admin */}
       <TodayBriefStrip />
 
-      {/* ─── TOP ROW: 6 COMMAND STAT CARDS ─── */}
+      {/* 2026-05-06 Elon-style hierarchy pass · Today's Revenue gets
+          2x span (the single most-checked CEO metric); ALG demoted from
+          a hero KPI tile to a status pill below the row (it's "wallpaper"
+          most days — green check 99% of the time, only matters when red).
+          Net: 5 KPI tiles with proper visual hierarchy + 1 status pill. */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {/* Each card has an `href` so the whole card surface is a clickable
-            link to the detail view. `?tab=` deep-links match Admin.tsx's
-            TAB_ALIASES + valid AdminSection names. Settings sub-tabs use
-            `&settingsTab=...` (see SettingsSection.tsx). */}
+        {/* TODAY'S REVENUE — 2x span on desktop, the single number Nour
+            checks most when admin opens. Hierarchy: this is the headline. */}
+        <StatCard
+          label="Today's Revenue"
+          value={`$${Math.round(todayRevenue).toLocaleString()}`}
+          icon={<TrendingUp className="w-5 h-5" />}
+          color="text-emerald-400"
+          trend={todayRevenue > 0 ? "up" : "neutral"}
+          trendLabel={weekRevenue > 0 ? `$${Math.round(weekRevenue).toLocaleString()} this week` : "no invoices yet this week"}
+          onClick={() => openDrilldown({ kind: "revenue_today" })}
+          className="xl:col-span-2"
+        />
         <StatCard
           label="Cars in Shop"
           value={carsInShop}
@@ -660,15 +672,6 @@ export default function OverviewSection() {
           trend={carsInShop > 5 ? "up" : "neutral"}
           trendLabel={shopLoad ? `~${Math.round(shopLoad.estimatedWait / 60)}h wait` : undefined}
           onClick={() => openDrilldown({ kind: "cars_in_shop" })}
-        />
-        <StatCard
-          label="Today's Revenue"
-          value={`$${Math.round(todayRevenue).toLocaleString()}`}
-          icon={<TrendingUp className="w-4 h-4" />}
-          color="text-emerald-400"
-          trend={todayRevenue > 0 ? "up" : "neutral"}
-          trendLabel={weekRevenue > 0 ? `$${Math.round(weekRevenue).toLocaleString()} this week` : "no invoices yet this week"}
-          onClick={() => openDrilldown({ kind: "revenue_today" })}
         />
         <StatCard
           label="Jobs Closed Today"
@@ -705,25 +708,34 @@ export default function OverviewSection() {
             healthScore === null ? "Loading..." :
             healthScore >= 70 ? "Healthy" : healthScore >= 40 ? "Needs work" : "Critical"
           }
-          // Routes to Intelligence Overview where the 13-component breakdown
-          // lives. Was previously routing to Settings → Site Health which is
-          // system uptime / DB / vendor status — different concept entirely.
           targetSection="intelligence"
         />
-        <StatCard
-          label="ALG Status"
-          value={algConnected === null ? "--" : algConnected ? "Connected" : "Offline"}
-          icon={<Plug className="w-4 h-4" />}
-          color={
-            algConnected === null ? "text-muted-foreground" :
-            algConnected ? "text-emerald-400" : "text-red-400"
-          }
-          trend={algConnected ? "up" : algConnected === false ? "down" : "neutral"}
-          trendLabel={algStatus?.usingFallback ? "Using fallback" : algStatus?.totalLookups ? `${algStatus.totalLookups} lookups` : undefined}
-          targetSection="settings"
-          settingsTab="integrations"
-        />
       </div>
+
+      {/* ALG status pill — demoted from hero tile. Visible but not loud.
+          Green check = wallpaper; red = something to actually do. */}
+      <Link
+        href={algConnected === false ? "/admin?tab=settings&settingsTab=integrations" : "#"}
+        className={`inline-flex items-center gap-2 text-[11px] font-mono tracking-wider uppercase px-3 py-1.5 rounded-full border transition-colors ${
+          algConnected === null
+            ? "border-border/30 text-muted-foreground"
+            : algConnected
+            ? "border-emerald-500/20 text-emerald-400 bg-emerald-500/5"
+            : "border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500/20 cursor-pointer"
+        }`}
+      >
+        <Plug className="w-3 h-3" />
+        ALG{" "}
+        {algConnected === null
+          ? "—"
+          : algConnected
+          ? algStatus?.usingFallback
+            ? "Fallback"
+            : algStatus?.totalLookups
+            ? `Connected · ${algStatus.totalLookups} lookups`
+            : "Connected"
+          : "Offline — fix integrations"}
+      </Link>
 
       {/* 2026-05-05 — WALK-AWAY ESTIMATES STRIP
           Renders only when alg_estimates has unmatched rows. Pulls from

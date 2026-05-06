@@ -62,57 +62,68 @@ export const CHART_THEME = {
 export type NavGroup = { label: string; items: { id: AdminSection; label: string; icon: React.ReactNode; badge?: string }[] };
 
 /**
- * NAV STRUCTURE — Tesla-style: simple surface, powerful underneath.
+ * NAV STRUCTURE — 2026-05-06 Elon-style first-principles pass.
  *
- * Auto Labor Guide (ALG) is the master. Invoices = completed sales.
- * Estimates = walk-in quotes. Bookings = online appointments.
+ * Process applied:
+ *   1. QUESTION every requirement (why is THIS in THIS group?)
+ *   2. DELETE what's not earning its keep (none — all 17 sections kept)
+ *   3. SIMPLIFY the grouping (4 groups by ORG → 3 groups by USE-CASE)
+ *   4. ACCELERATE (most-used at top of each group, badges visible)
+ *   5. AUTOMATE (utility tools bottom-pinned, out of daily-use flow)
  *
- * Removed: Bay Dispatch (useless), Inspections (useless), separate Financing,
- * separate Estimates page, all "More" tab clutter.
+ * Old groups (4): COMMAND · PIPELINE · OUTREACH · SYSTEM
+ * New groups (3 + 1 pinned):
  *
- * Outreach consolidated: SMS + Follow-Ups + Campaigns + Reviews + Win-Back = ONE page.
- * "More" items distributed: Analytics → Dashboard, Chat → Dashboard, Content → Settings,
- * ShopDriver → Settings, everything else auto-syncs via brain.
+ *   TODAY    — daily operator surface: open this in the morning
+ *   REVENUE  — money + risk: where the dollars live
+ *   GROW     — long-horizon levers: SEO, content, intelligence
+ *   [pinned] — utility: NOUR OS Bridge + Settings
+ *
+ * The same 17 sections, reorganized by what the operator is DOING,
+ * not by org-chart taxonomy. Walk-In Quote moved to REVENUE (it's
+ * a money tool). NOUR OS Bridge bottom-pinned (it's a sync utility,
+ * not a daily destination). Conversion Preview moved to GROW
+ * (it's a content/marketing surface).
  */
 export const NAV_GROUPS: NavGroup[] = [
   {
-    label: "COMMAND",
+    label: "TODAY",
     items: [
       { id: "overview", label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
-      { id: "trafficFunnel", label: "Traffic → Revenue", icon: <TrendingUp className="w-4 h-4" /> },
+      { id: "leads", label: "Leads & Estimates", icon: <Users className="w-4 h-4" />, badge: "leads" },
+      { id: "callTrackingView", label: "Call Tracking", icon: <PhoneCall className="w-4 h-4" />, badge: "callbacks" },
+      { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
+    ],
+  },
+  {
+    label: "REVENUE",
+    items: [
+      { id: "revenue", label: "Revenue & Shop", icon: <TrendingUp className="w-4 h-4" /> },
+      { id: "declinedEstimates", label: "Declined Work", icon: <AlertTriangle className="w-4 h-4" /> },
+      { id: "noShowRisk", label: "No-Show Risk", icon: <AlertTriangle className="w-4 h-4" /> },
+      { id: "snapDashboard", label: "Snap Finance", icon: <CreditCard className="w-4 h-4" /> },
       { id: "walkInCalc", label: "Walk-In Quote", icon: <DollarSign className="w-4 h-4" /> },
-      { id: "commandCenter", label: "NOUR OS Bridge", icon: <Zap className="w-4 h-4" /> },
+    ],
+  },
+  {
+    label: "GROW",
+    items: [
+      { id: "trafficFunnel", label: "Traffic → Revenue", icon: <TrendingUp className="w-4 h-4" /> },
+      { id: "campaigns", label: "Outreach Hub", icon: <Send className="w-4 h-4" /> },
+      { id: "reEngagement", label: "Re-engagement", icon: <RotateCcw className="w-4 h-4" /> },
+      { id: "content", label: "Content & AI", icon: <FileText className="w-4 h-4" /> },
       { id: "intelligence", label: "Intelligence", icon: <Brain className="w-4 h-4" /> },
       { id: "conversionPreview", label: "Conversion Preview", icon: <Sparkles className="w-4 h-4" /> },
     ],
   },
   {
-    label: "PIPELINE",
+    label: "TOOLS",
     items: [
-      { id: "leads", label: "Leads & Estimates", icon: <Users className="w-4 h-4" />, badge: "leads" },
-      { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
-      { id: "callTrackingView", label: "Call Tracking", icon: <PhoneCall className="w-4 h-4" />, badge: "callbacks" },
-      { id: "declinedEstimates", label: "Declined Work", icon: <AlertTriangle className="w-4 h-4" /> },
-      { id: "noShowRisk", label: "No-Show Risk", icon: <AlertTriangle className="w-4 h-4" /> },
-      { id: "snapDashboard", label: "Snap Finance", icon: <CreditCard className="w-4 h-4" /> },
-      { id: "revenue", label: "Revenue & Shop", icon: <TrendingUp className="w-4 h-4" /> },
-    ],
-  },
-  {
-    label: "OUTREACH",
-    items: [
-      { id: "campaigns", label: "Outreach Hub", icon: <Send className="w-4 h-4" /> },
-      { id: "reEngagement", label: "Re-engagement", icon: <RotateCcw className="w-4 h-4" /> },
-      { id: "content", label: "Content & AI", icon: <FileText className="w-4 h-4" /> },
-    ],
-  },
-  {
-    label: "SYSTEM",
-    items: [
-      // One entry — ShopDriver HQ, System Health, Compliance, and Integrations
-      // are now tabs INSIDE the Settings page (SettingsSection.tsx) per
-      // "move all system stuff to the settings page". Deep links still work
-      // via ?tab=settings&settingsTab=health (or compliance/integrations).
+      // Bottom-pinned utility: NOUR OS Bridge is a sync widget, not a
+      // daily destination. Settings holds ShopDriver, System Health,
+      // Compliance, and Integrations as tabs (deep-link via
+      // ?tab=settings&settingsTab=health).
+      { id: "commandCenter", label: "NOUR OS Bridge", icon: <Zap className="w-4 h-4" /> },
       { id: "settings", label: "Settings", icon: <Settings className="w-4 h-4" /> },
     ],
   },
@@ -243,7 +254,7 @@ export function navigateToAdminSection(section: AdminSection, opts?: { settingsT
   );
 }
 
-export function StatCard({ label, value, icon, color = "text-foreground", trend, trendLabel, onClick, targetSection, settingsTab }: {
+export function StatCard({ label, value, icon, color = "text-foreground", trend, trendLabel, onClick, targetSection, settingsTab, className }: {
   label: string;
   value: string | number;
   icon: React.ReactNode;
@@ -256,6 +267,8 @@ export function StatCard({ label, value, icon, color = "text-foreground", trend,
   targetSection?: AdminSection;
   /** Optional sub-tab for Settings section (health, integrations, etc.) */
   settingsTab?: string;
+  /** Optional Tailwind className override — useful for grid-span hierarchy */
+  className?: string;
 }) {
   const inner = (
     <>
@@ -283,7 +296,7 @@ export function StatCard({ label, value, icon, color = "text-foreground", trend,
       <button
         type="button"
         onClick={handleClick}
-        className="stat-card stat-card-interactive group glow-on-hover card-enter cursor-pointer hover:ring-1 hover:ring-primary/40 transition-shadow text-left w-full"
+        className={`stat-card stat-card-interactive group glow-on-hover card-enter cursor-pointer hover:ring-1 hover:ring-primary/40 transition-shadow text-left w-full${className ? ` ${className}` : ""}`}
         aria-label={`${label} \u2014 open detail`}
       >
         {inner}
@@ -292,7 +305,7 @@ export function StatCard({ label, value, icon, color = "text-foreground", trend,
   }
 
   return (
-    <div className="stat-card stat-card-interactive group glow-on-hover card-enter">
+    <div className={`stat-card stat-card-interactive group glow-on-hover card-enter${className ? ` ${className}` : ""}`}>
       {inner}
     </div>
   );
