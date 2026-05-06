@@ -129,4 +129,19 @@ export const contentAdminRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Operation failed" });
       }
     }),
+  // GBP one-off post generator — admin clicks "Generate GBP Post" button.
+  // Returns the post text + CTA + image hint (no auto-send). Nour pastes
+  // into business.google.com manually because GBP Posts API is deprecated.
+  generateGBPPost: adminProcedure
+    .input(z.object({
+      forceArchetype: z.enum(["proof", "anti", "math", "seasonal"]).optional(),
+    }).optional())
+    .mutation(async ({ input }) => {
+      try {
+        const { generateOneOffGBPPost } = await import("../services/gbpAutoPost");
+        return await generateOneOffGBPPost(input?.forceArchetype);
+      } catch (err) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "GBP post generation failed" });
+      }
+    }),
 });

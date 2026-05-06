@@ -106,6 +106,10 @@ function ContentManager() {
         </Link>
       </div>
 
+      {/* GBP Post Generator — voice-graded one-off post for business.google.com */}
+      <GBPPostGenerator />
+
+
       {/* Articles List */}
       <div>
         <h3 className="font-bold text-sm tracking-wide text-foreground mb-4 flex items-center gap-2">
@@ -202,6 +206,98 @@ function ContentManager() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── GBP POST GENERATOR ───────────────────────────────────
+// Voice-graded one-off post generator for business.google.com.
+// GBP Posts API was deprecated by Google in 2024 — copy-paste only.
+// Cron runs every Monday + first-Monday recap; this surfaces ad-hoc.
+
+type Archetype = "proof" | "anti" | "math" | "seasonal";
+type GBPPostResult = RouterOutputs["contentAdmin"]["generateGBPPost"];
+
+const ARCHETYPE_LABELS: Record<Archetype | "auto", string> = {
+  auto: "AUTO",
+  proof: "PROOF",
+  anti: "ANTI",
+  math: "MATH",
+  seasonal: "SEASONAL",
+};
+
+function GBPPostGenerator() {
+  const [result, setResult] = useState<GBPPostResult | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const generate = trpc.contentAdmin.generateGBPPost.useMutation({
+    onSuccess: (data) => {
+      setResult(data);
+      setCopied(false);
+      toast.success(`Generated ${data.archetype.toUpperCase()} post`);
+    },
+    onError: (err: { message: string }) => toast.error("Failed: " + err.message),
+  });
+
+  const handleCopy = () => {
+    if (!result) return;
+    navigator.clipboard.writeText(result.text).then(() => {
+      setCopied(true);
+      toast.success("Post copied");
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => toast.error("Copy failed"));
+  };
+
+  return (
+    <div className="bg-card border border-border/30 p-4 space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Target className="w-5 h-5 text-primary" />
+          <div>
+            <p className="font-bold text-sm text-foreground tracking-wider">GBP POST GENERATOR</p>
+            <p className="text-[12px] text-foreground/40">Voice-graded post for business.google.com — copy + paste</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Archetype buttons */}
+      <div className="flex flex-wrap gap-2">
+        {(["auto", "proof", "anti", "math", "seasonal"] as const).map((a) => (
+          <button
+            key={a}
+            onClick={() => generate.mutate(a === "auto" ? undefined : { forceArchetype: a })}
+            disabled={generate.isPending}
+            className="flex items-center gap-1.5 border border-border/30 text-foreground/70 px-3 py-1.5 font-bold text-[10px] tracking-wide hover:bg-primary/10 hover:text-primary hover:border-primary/40 disabled:opacity-50"
+          >
+            {generate.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+            {ARCHETYPE_LABELS[a]}
+          </button>
+        ))}
+      </div>
+
+      {/* Result panel */}
+      {result && (
+        <div className="border border-border/30 bg-background/40 p-3 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-bold tracking-wider text-primary">
+              ARCHETYPE: {result.archetype.toUpperCase()}
+            </span>
+            <button
+              onClick={handleCopy}
+              className="flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-1 font-bold text-[10px] tracking-wide hover:bg-primary/90"
+            >
+              {copied ? <CheckCircle2 className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
+              {copied ? "COPIED" : "COPY"}
+            </button>
+          </div>
+          <pre className="whitespace-pre-wrap text-[12px] text-foreground/80 font-mono leading-relaxed">{result.text}</pre>
+          <div className="text-[11px] text-foreground/50 space-y-1 border-t border-border/20 pt-2">
+            <div><span className="font-bold text-foreground/70">CTA:</span> {result.callToAction}</div>
+            <div className="break-all"><span className="font-bold text-foreground/70">URL:</span> {result.ctaUrl}</div>
+            <div><span className="font-bold text-foreground/70">IMAGE:</span> {result.imageHint}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
