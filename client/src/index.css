@@ -1245,6 +1245,47 @@ html[data-density="compact"] .admin-shell .p-4 { padding: 0.625rem; }
   will-change: transform;
 }
 
+/* Halftone print texture — CMYK-style dot pattern reminiscent of a
+   1970s shop manual or newspaper sports section. Used as a subtle
+   overlay on key sections to differentiate from generic SaaS gradients
+   and reinforce the "grounded mechanical" brand voice.
+
+   Pure CSS via radial-gradient repeat. ~0 byte cost. Apply with
+   .halftone or .halftone::after for layered backdrop. */
+.halftone {
+  position: relative;
+}
+.halftone::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image:
+    radial-gradient(circle at center, currentColor 0.7px, transparent 1.2px);
+  background-size: 8px 8px;
+  mix-blend-mode: multiply;
+  z-index: 1;
+}
+/* Lighter variant for dark surfaces */
+.halftone-light::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.045;
+  background-image:
+    radial-gradient(circle at center, rgba(255,255,255,0.85) 0.7px, transparent 1.2px);
+  background-size: 9px 9px;
+  mix-blend-mode: screen;
+  z-index: 1;
+}
+.halftone > *,
+.halftone-light > * {
+  position: relative;
+  z-index: 2;
+}
+
 /* Section parallax — each section drifts UP slightly as it
    crosses the viewport. Pure CSS via animation-timeline: view().
    Modern Chrome 115+ + Edge 115+ supports it natively. Older

@@ -12,6 +12,7 @@ import ChatWidget from "@/components/ChatWidget";
 import CallbackModal from "@/components/CallbackModal";
 import NotificationBar from "@/components/NotificationBar";
 import ReviewCTA from "@/components/ReviewCTA";
+import ScrollProgressBar from "@/components/ScrollProgressBar";
 import UrgencyWidget from "@/components/conversion/UrgencyWidget";
 import ExitIntentModal from "@/components/conversion/ExitIntentModal";
 
@@ -32,6 +33,9 @@ export default function PageLayout({
 
   return (
     <div className="min-h-screen flex flex-col">
+      {/* ScrollProgressBar — yellow fill + rolling CSS tire on desktop.
+          Ambient brand reinforcement on every customer-facing page. */}
+      <ScrollProgressBar />
       <NotificationBar />
       <SiteNavbar activeHref={activeHref} />
       <StickyTrustBar />
