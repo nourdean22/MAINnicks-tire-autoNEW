@@ -118,6 +118,309 @@ export const adminDashboardRouter = router({
     }),
 
   /**
+   * Drilldown — clicking any KPI on the dashboard opens this.
+   * Returns the underlying rows that produced the metric so admins
+   * can act on the data, not just stare at it.
+   *
+   * Each `kind` returns a normalized shape:
+   *   { title, subtitle?, rows: Array<{ id, primary, secondary, meta?, value? }> }
+   * The drawer renders these uniformly + the rows can deep-link.
+   */
+  drilldown: adminProcedure
+    .input(z.object({
+      kind: z.enum([
+        "cars_in_shop",
+        "revenue_today",
+        "jobs_closed_today",
+        "pending_callbacks",
+        "walk_aways",
+        "fresh_leads",
+        "lapsed_vips",
+        "negative_reviews",
+        "today_bookings",
+      ]),
+      limit: z.number().int().min(1).max(100).default(50),
+    }))
+    .query(async ({ input }) => {
+      const empty = { title: "", subtitle: "", rows: [] as Array<{
+        id: string | number;
+        primary: string;
+        secondary?: string;
+        meta?: string;
+        value?: string;
+        href?: string;
+      }> };
+      try {
+        const { getDb } = await import("../db");
+        const d = await getDb();
+        if (!d) return empty;
+        const { sql, eq, and, gte, isNull, lte, desc } = await import("drizzle-orm");
+
+        switch (input.kind) {
+          case "cars_in_shop": {
+            const { workOrders } = await import("../../drizzle/schema");
+            const rows = await d
+              .select({
+                id: workOrders.id,
+                orderNumber: workOrders.orderNumber,
+                vehicleMake: workOrders.vehicleMake,
+                vehicleModel: workOrders.vehicleModel,
+                vehicleYear: workOrders.vehicleYear,
+                status: workOrders.status,
+                serviceDescription: workOrders.serviceDescription,
+                assignedTech: workOrders.assignedTech,
+                createdAt: workOrders.createdAt,
+              })
+              .from(workOrders)
+              .where(sql`${workOrders.status} NOT IN ('invoiced', 'picked_up', 'cancelled')`)
+              .orderBy(desc(workOrders.createdAt))
+              .limit(input.limit);
+            return {
+              title: "Cars in Shop",
+              subtitle: `${rows.length} active work orders`,
+              rows: rows.map((r: { id: string; orderNumber: string; vehicleYear: number | null; vehicleMake: string | null; vehicleModel: string | null; status: string; serviceDescription: string | null; assignedTech: string | null }) => ({
+                id: r.id,
+                primary: [r.vehicleYear, r.vehicleMake, r.vehicleModel].filter(Boolean).join(" ") || `Order ${r.orderNumber}`,
+                secondary: r.assignedTech ? `Tech: ${r.assignedTech}` : `Order ${r.orderNumber}`,
+                meta: r.serviceDescription?.slice(0, 80) || "",
+                value: r.status.replace(/_/g, " "),
+              })),
+            };
+          }
+          case "revenue_today":
+          case "jobs_closed_today": {
+            const { invoices } = await import("../../drizzle/schema");
+            const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+            const rows = await d
+              .select({
+                id: invoices.id,
+                invoiceNumber: invoices.invoiceNumber,
+                customerName: invoices.customerName,
+                vehicleInfo: invoices.vehicleInfo,
+                totalAmount: invoices.totalAmount,
+                paymentStatus: invoices.paymentStatus,
+                serviceDescription: invoices.serviceDescription,
+              })
+              .from(invoices)
+              .where(gte(invoices.invoiceDate, todayStart))
+              .orderBy(desc(invoices.invoiceDate))
+              .limit(input.limit);
+            const isRevenue = input.kind === "revenue_today";
+            return {
+              title: isRevenue ? "Revenue Today" : "Jobs Closed Today",
+              subtitle: `${rows.length} invoice${rows.length === 1 ? "" : "s"} since 12:00 AM`,
+              rows: rows.map((r: { id: number; invoiceNumber: string | null; customerName: string | null; vehicleInfo: string | null; totalAmount: number; paymentStatus: string; serviceDescription: string | null }) => ({
+                id: r.id,
+                primary: r.customerName || "Unknown",
+                secondary: r.vehicleInfo || "—",
+                meta: r.serviceDescription?.slice(0, 80) || r.invoiceNumber || "",
+                value: `$${(r.totalAmount / 100).toFixed(0)} · ${r.paymentStatus}`,
+              })),
+            };
+          }
+          case "pending_callbacks": {
+            const { callbackRequests } = await import("../../drizzle/schema");
+            const rows = await d
+              .select({
+                id: callbackRequests.id,
+                name: callbackRequests.name,
+                phone: callbackRequests.phone,
+                context: callbackRequests.context,
+                createdAt: callbackRequests.createdAt,
+              })
+              .from(callbackRequests)
+              .where(sql`${callbackRequests.status} IN ('new', 'pending')`)
+              .orderBy(desc(callbackRequests.createdAt))
+              .limit(input.limit);
+            return {
+              title: "Pending Callbacks",
+              subtitle: "Customers waiting for a return call. Every hour drops conversion ~10%.",
+              rows: rows.map((r: { id: number; name: string; phone: string; context: string | null; createdAt: Date }) => {
+                const ageMin = Math.floor((Date.now() - new Date(r.createdAt).getTime()) / 60_000);
+                const ageLabel = ageMin < 60 ? `${ageMin}m` : ageMin < 1440 ? `${Math.floor(ageMin / 60)}h` : `${Math.floor(ageMin / 1440)}d`;
+                return {
+                  id: r.id,
+                  primary: r.name,
+                  secondary: r.phone,
+                  meta: r.context?.slice(0, 80) || "",
+                  value: `${ageLabel} waiting`,
+                };
+              }),
+            };
+          }
+          case "walk_aways": {
+            const { algEstimates } = await import("../../drizzle/schema");
+            const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+            const rows = await d
+              .select({
+                id: algEstimates.id,
+                customerName: algEstimates.customerName,
+                customerPhone: algEstimates.customerPhone,
+                vehicleInfo: algEstimates.vehicleInfo,
+                serviceDescription: algEstimates.serviceDescription,
+                estimatedAmount: algEstimates.estimatedAmount,
+                estimateDate: algEstimates.estimateDate,
+              })
+              .from(algEstimates)
+              .where(and(
+                isNull(algEstimates.matchedInvoiceId),
+                gte(algEstimates.estimateDate, sixtyDaysAgo),
+              ))
+              .orderBy(desc(algEstimates.estimatedAmount))
+              .limit(input.limit);
+            const total = rows.reduce((s: number, r: { estimatedAmount: number }) => s + r.estimatedAmount, 0);
+            return {
+              title: "Walk-Away Estimates",
+              subtitle: `${rows.length} unmatched · $${Math.round(total / 100).toLocaleString()} on the table`,
+              rows: rows.map((r: { id: number; customerName: string; customerPhone: string | null; vehicleInfo: string | null; serviceDescription: string | null; estimatedAmount: number; estimateDate: Date }) => {
+                const days = Math.floor((Date.now() - new Date(r.estimateDate).getTime()) / 86_400_000);
+                return {
+                  id: r.id,
+                  primary: r.customerName,
+                  secondary: r.customerPhone || r.vehicleInfo || "—",
+                  meta: r.serviceDescription?.slice(0, 80) || "",
+                  value: `$${Math.round(r.estimatedAmount / 100).toLocaleString()} · ${days}d ago`,
+                };
+              }),
+            };
+          }
+          case "fresh_leads": {
+            const { leads } = await import("../../drizzle/schema");
+            const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+            const rows = await d
+              .select({
+                id: leads.id,
+                name: leads.name,
+                phone: leads.phone,
+                vehicle: leads.vehicle,
+                problem: leads.problem,
+                urgencyScore: leads.urgencyScore,
+                createdAt: leads.createdAt,
+              })
+              .from(leads)
+              .where(and(
+                eq(leads.status, "new"),
+                gte(leads.createdAt, fourHoursAgo),
+              ))
+              .orderBy(desc(leads.urgencyScore), desc(leads.createdAt))
+              .limit(input.limit);
+            return {
+              title: "Hot Leads (<4h)",
+              subtitle: "Golden response window. Conversion drops 80% after first day.",
+              rows: rows.map((r: { id: number; name: string; phone: string; vehicle: string | null; problem: string | null; urgencyScore: number; createdAt: Date }) => ({
+                id: r.id,
+                primary: r.name,
+                secondary: `${r.phone}${r.vehicle ? ` · ${r.vehicle}` : ""}`,
+                meta: r.problem?.slice(0, 80) || "",
+                value: `urgency ${r.urgencyScore}/5`,
+              })),
+            };
+          }
+          case "lapsed_vips": {
+            const { customers } = await import("../../drizzle/schema");
+            const sixMonthsAgo = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
+            const rows = await d
+              .select({
+                id: customers.id,
+                firstName: customers.firstName,
+                lastName: customers.lastName,
+                phone: customers.phone,
+                totalSpent: customers.totalSpent,
+                totalVisits: customers.totalVisits,
+                lastVisitDate: customers.lastVisitDate,
+              })
+              .from(customers)
+              .where(and(
+                sql`${customers.totalSpent} >= 50000`,
+                sql`${customers.lastVisitDate} < ${sixMonthsAgo}`,
+              ))
+              .orderBy(desc(customers.totalSpent))
+              .limit(input.limit);
+            return {
+              title: "Lapsed VIPs",
+              subtitle: ">$500 lifetime spend · 6+ months without a visit. Win-back targets.",
+              rows: rows.map((r: { id: number; firstName: string | null; lastName: string | null; phone: string | null; totalSpent: number; totalVisits: number; lastVisitDate: Date | null }) => {
+                const last = r.lastVisitDate ? Math.floor((Date.now() - new Date(r.lastVisitDate).getTime()) / 86_400_000) : null;
+                return {
+                  id: r.id,
+                  primary: [r.firstName, r.lastName].filter(Boolean).join(" ") || "Customer",
+                  secondary: r.phone || "—",
+                  meta: `${r.totalVisits} visit${r.totalVisits === 1 ? "" : "s"} lifetime`,
+                  value: `$${Math.round(r.totalSpent / 100).toLocaleString()} · ${last}d ago`,
+                };
+              }),
+            };
+          }
+          case "negative_reviews": {
+            const { reviewReplies } = await import("../../drizzle/schema");
+            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+            const rows = await d
+              .select({
+                id: reviewReplies.id,
+                reviewerName: reviewReplies.reviewerName,
+                reviewRating: reviewReplies.reviewRating,
+                reviewText: reviewReplies.reviewText,
+                reviewDate: reviewReplies.reviewDate,
+                status: reviewReplies.status,
+              })
+              .from(reviewReplies)
+              .where(and(
+                lte(reviewReplies.reviewRating, 2),
+                gte(reviewReplies.reviewDate, sevenDaysAgo),
+              ))
+              .orderBy(desc(reviewReplies.reviewDate))
+              .limit(input.limit);
+            return {
+              title: "Negative Reviews (last 7d)",
+              subtitle: "Reply within 24h preserves trust score.",
+              rows: rows.map((r: { id: number; reviewerName: string | null; reviewRating: number | null; reviewText: string | null; reviewDate: Date | null; status: string | null }) => ({
+                id: r.id,
+                primary: r.reviewerName || "Anonymous",
+                secondary: `${r.reviewRating || "?"}★ · status ${r.status || "draft"}`,
+                meta: r.reviewText?.slice(0, 100) || "",
+                value: r.reviewDate ? new Date(r.reviewDate).toLocaleDateString() : "",
+              })),
+            };
+          }
+          case "today_bookings": {
+            const { bookings } = await import("../../drizzle/schema");
+            const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+            const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+            const rows = await d
+              .select({
+                id: bookings.id,
+                name: bookings.name,
+                phone: bookings.phone,
+                vehicle: bookings.vehicle,
+                service: bookings.service,
+                status: bookings.status,
+                preferredTime: bookings.preferredTime,
+              })
+              .from(bookings)
+              .where(sql`${bookings.preferredDate} BETWEEN ${todayStart} AND ${todayEnd}`)
+              .orderBy(desc(bookings.createdAt))
+              .limit(input.limit);
+            return {
+              title: "Today's Bookings",
+              subtitle: `${rows.length} booking${rows.length === 1 ? "" : "s"} expected today`,
+              rows: rows.map((r: { id: number; name: string; phone: string; vehicle: string | null; service: string; status: string; preferredTime: string }) => ({
+                id: r.id,
+                primary: r.name,
+                secondary: `${r.phone} · ${r.vehicle || "—"}`,
+                meta: r.service,
+                value: `${r.status} · ${r.preferredTime}`,
+              })),
+            };
+          }
+          default:
+            return empty;
+        }
+      } catch (err) {
+        return { ...empty, title: "Error", subtitle: err instanceof Error ? err.message : "Drilldown failed" };
+      }
+    }),
+
+  /**
    * Today's Brief — top actionable items right now. Powers the
    * intelligence strip at top of Overview ("here's what to do now").
    *

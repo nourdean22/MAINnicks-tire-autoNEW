@@ -21,6 +21,7 @@ import DensityToggle from "@/components/admin/DensityToggle";
 import ActivityPulse from "@/components/admin/ActivityPulse";
 import WeatherAwareBanner from "@/components/admin/WeatherAwareBanner";
 import { CustomerDrawer } from "@/components/admin/CustomerDrawer";
+import DrilldownDrawer from "@/components/admin/DrilldownDrawer";
 import { AdminSSEProvider, useAdminSSE } from "@/components/admin/AdminSSEContext";
 import AdminSectionBoundary from "@/components/admin/AdminSectionBoundary";
 
@@ -455,6 +456,9 @@ export default function Admin() {
         onClose={() => setDrawerCustomerId(null)}
         onNavigateToSection={(s) => setSection(s as AdminSection)}
       />
+
+      {/* 2026-05-06 — Global drilldown drawer (event-bus triggered) */}
+      <DrilldownDrawer />
 
       {/* Live activity pulse — toast stream from SSE */}
       <ActivityPulse />
