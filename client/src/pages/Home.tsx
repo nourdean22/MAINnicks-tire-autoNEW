@@ -1001,16 +1001,19 @@ function LossOpportunitySection() {
 export default function Home() {
   return (
     <PageLayout activeHref="/" showChat={true}>
-      {/* 2026-05-06 copy wave · GSC-driven rewrite.
-          Old title got 1.7% CTR on 3,433 impressions over 28d (criminal).
-          New title applies 5 evolution operators:
-          - "Free Install + Free Opinions" — useful absurd (operator 3)
-          - "Open 7 Days" — anti-pattern naming (operator 4: most chains closed Sun)
-          - Description: "lift before any wrench moves" — insider behavior (operator 5)
-          - "1,700+ reviews" — specificity (operator 1) */}
+      {/* 2026-05-06 wave 2 · cannibalization fix.
+          GSC showed 13 pages competing for "nicks tires" — only / converts
+          (6 of 65 sitewide clicks). Root cause: previous home title didn't
+          contain "Nick's", so Google couldn't anchor / as the canonical
+          answer for the brand query. /services and /tires were ranking
+          higher because they DID say "Nick's" in their title suffix.
+          Fix: lead with brand. "Nick's Tire & Auto Cleveland" makes / the
+          unambiguous answer for "nicks tires" / "nick's tire" searches.
+          Still applies operator 4 (anti-pattern: open Sunday) + 1 (specific
+          install package). */}
       <SEOHead
-        title="Tire Shop Cleveland — Free Install, Free Opinions, Open 7 Days"
-        description="Cleveland tire shop where we put your car on a lift before any wrench moves. Free install, walk-ins 7 days, open Sundays. 4.9★ 1,700+ reviews."
+        title="Nick's Tire & Auto Cleveland · Free Install · Open 7 Days"
+        description="Nick's Tire & Auto on Euclid Ave Cleveland. New + used tires, free mount/balance/alignment check on every set. Brakes, diagnostics, oil. Open Sunday. 4.9★ 1,700+ reviews."
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />
