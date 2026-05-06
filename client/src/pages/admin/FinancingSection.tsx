@@ -9,6 +9,7 @@ import { toast } from "sonner";
 // Inferred from tRPC AppRouter — admin audit §3 follow-up.
 type Lead = NonNullable<RouterOutputs["lead"]["list"]>[number];
 type Booking = NonNullable<RouterOutputs["booking"]["list"]>[number];
+import { PageHeader } from "./shared";
 import {
   CreditCard, ExternalLink, Wallet, Zap, Shield,
   Star, Plus, CheckCircle, Loader2, Phone, Copy,
@@ -472,23 +473,21 @@ export default function FinancingSection() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-bold text-xl text-foreground tracking-tight">Financing Command</h2>
-          <p className="text-muted-foreground text-[12px] mt-1">
-            Track financing opportunities, manage providers, and log applications
-          </p>
-        </div>
-        <a
-          href="/financing"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-primary text-xs font-bold hover:underline"
-        >
-          View Public Page <ExternalLink className="w-3 h-3" />
-        </a>
-      </div>
+      <PageHeader
+        title="Financing Command"
+        subtitle="Opportunity tracker · provider portals · application log · 4 lenders compete: Acima · Snap · Koalafi · American First"
+        icon={<CreditCard className="w-5 h-5" />}
+        actions={
+          <a
+            href="/financing"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-primary text-xs font-bold hover:underline"
+          >
+            View Public Page <ExternalLink className="w-3 h-3" />
+          </a>
+        }
+      />
 
       {/* Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { Loader2, User, MapPin, Play, CheckCircle2, XCircle, Clock, Wrench, Shield, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { PageHeader } from "./shared";
 
 type Tab = "bays" | "queue" | "qc" | "techs";
 
@@ -114,6 +115,11 @@ export default function DispatchSection() {
 
   return (
     <div className="space-y-4">
+      <PageHeader
+        title="Shop Floor"
+        subtitle="Bay grid · ready queue · tech assignments · QC review · live wait status. Dispatch is real-time."
+        icon={<Wrench className="w-5 h-5" />}
+      />
       {/* WAIT STATUS — primary control */}
       <WaitStatusToggle />
 

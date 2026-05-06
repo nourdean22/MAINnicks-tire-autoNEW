@@ -463,6 +463,18 @@ function EstimateEndpointDiagnosticPanel() {
 
   return (
     <div className="bg-card border border-border/30 p-4 space-y-4">
+      {/* 2026-05-05 — Prior probe finding: all 18 candidates returned 404 on
+          Moe's tenant. Estimate sync is blocked at the vendor side, not
+          at our code. This banner exists so we don't re-probe wastefully. */}
+      <div className="bg-amber-500/[0.05] border border-amber-500/30 px-3 py-2.5 flex items-start gap-2.5">
+        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+        <div className="flex-1 text-[11px] leading-relaxed text-foreground/70">
+          <p className="text-amber-400 font-bold tracking-wide mb-0.5">VENDOR-BLOCKED · last probe 2026-05-05</p>
+          <p>
+            All 13 JSON + 5 HTML candidates returned 404 on this tenant. ShopDriver exposes /api/Customer/* and /api/Ticket/* but NOT /api/Estimate/*. To unblock walk-away recovery: <span className="text-foreground font-medium">ask ShopDriver support to expose the Estimate API on this tenant</span>, or import estimates via CSV manually.
+          </p>
+        </div>
+      </div>
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h3 className="font-bold text-sm text-foreground tracking-wide">

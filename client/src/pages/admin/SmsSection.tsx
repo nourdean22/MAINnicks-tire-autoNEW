@@ -6,8 +6,9 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { BUSINESS } from "@shared/business";
 import {
-  Loader2, Phone, Send, CheckCircle2, AlertTriangle, RefreshCw
+  Loader2, Phone, Send, CheckCircle2, AlertTriangle, RefreshCw, MessageSquare
 } from "lucide-react";
+import { PageHeader } from "./shared";
 
 export default function SmsSection() {
   const { data: smsStatus } = trpc.sms.status.useQuery();
@@ -48,6 +49,11 @@ export default function SmsSection() {
 
   return (
     <div className="space-y-8">
+      <PageHeader
+        title="SMS"
+        subtitle="Twilio outbound · test message · manual send. Connection status + sender number below."
+        icon={<MessageSquare className="w-5 h-5" />}
+      />
       {/* Status Card */}
       <div className="bg-card border border-border/30 p-6">
         <h3 className="font-bold text-lg text-foreground tracking-[-0.01em] mb-4">TWILIO STATUS</h3>

@@ -5,7 +5,7 @@
 import { useState, useMemo } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
-import { StatCard } from "./shared";
+import { StatCard, PageHeader } from "./shared";
 import {
   Loader2, Star, Send, RefreshCw, CheckCircle2, XCircle,
   Clock, MousePointerClick, Settings, Zap, AlertTriangle,
@@ -104,6 +104,11 @@ export default function ReviewRequestsSection() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="Review Requests"
+        subtitle="SMS review-asks fired post-service · proof bank · backfill controls. Review velocity = compounding social proof."
+        icon={<Star className="w-5 h-5" />}
+      />
       {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatCard

@@ -6,6 +6,7 @@ import { useState } from "react";
 import {
   Brain, TrendingUp, Users, Wrench, Target, Rocket, Shield,
 } from "lucide-react";
+import { PageHeader } from "./shared";
 import OverviewTab from "./intelligence/OverviewTab";
 import RevenueTab from "./intelligence/RevenueTab";
 import CustomersTab from "./intelligence/CustomersTab";
@@ -31,16 +32,13 @@ export default function IntelligenceSection() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-violet-500/20 flex items-center justify-center rounded-sm">
-            <Brain className="w-4 h-4 text-violet-400" />
-          </div>
-          <div>
-            <p className="text-[12px] text-foreground/40">50 engines. 7 categories. Real-time intelligence.</p>
-          </div>
-        </div>
+      <PageHeader
+        title="Intelligence"
+        subtitle="50 engines · 7 categories · revenue forecasting · churn prediction · cross-sell · capacity · seasonal demand"
+        icon={<Brain className="w-5 h-5" />}
+      />
+      {/* Tab bar */}
+      <div className="flex items-center justify-end">
         <div className="flex items-center gap-1 flex-wrap">
           {TABS.map((t) => (
             <button

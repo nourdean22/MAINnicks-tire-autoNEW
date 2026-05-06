@@ -7,8 +7,9 @@ import { toast } from "sonner";
 
 type Coupon = NonNullable<RouterOutputs["coupons"]["all"]>[number];
 import {
-  Calendar, CheckCircle2, Loader2, Power, Star, XCircle, Zap
+  Calendar, CheckCircle2, Loader2, Power, Star, XCircle, Zap, Gift
 } from "lucide-react";
+import { PageHeader } from "./shared";
 
 export default function CouponsSection() {
   const { data: coupons, isLoading } = trpc.coupons.all.useQuery();
@@ -32,12 +33,16 @@ export default function CouponsSection() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="font-bold text-xl text-foreground tracking-wider">ACTIVE COUPONS</h2>
-        <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 font-bold text-xs tracking-wide hover:bg-primary/90 transition-colors">
-          {showForm ? "CANCEL" : "+ NEW COUPON"}
-        </button>
-      </div>
+      <PageHeader
+        title="Coupons"
+        subtitle="Promo codes redeemable at checkout · dollar/percent/free service · featured-coupon flag for hero placement"
+        icon={<Gift className="w-5 h-5" />}
+        actions={
+          <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 font-bold text-xs tracking-wide hover:bg-primary/90 transition-colors">
+            {showForm ? "CANCEL" : "+ NEW COUPON"}
+          </button>
+        }
+      />
 
       {showForm && (
         <div className="bg-card border border-border/30 p-6 space-y-4">
