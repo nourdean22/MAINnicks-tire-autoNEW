@@ -79,15 +79,26 @@ export function SignFeature() {
           {/* RIGHT — sign photo, full bleed in container */}
           <div className="order-1 lg:order-2 relative">
             <figure className="relative aspect-[4/3] sm:aspect-[16/10] overflow-hidden rounded-xl photo-depth ken-burns-target">
+              {/* 2026-05-06 wave-25 · brand-sign.webp is wider than the
+                  figure's 16/10 (desktop) and 4/3 (mobile) aspect ratios,
+                  so object-fit:cover crops the sides. With "center center"
+                  the RIGHT side of the sign was getting clipped — readers
+                  saw "TIRE & AU" + "(216) 862" instead of the full
+                  "TIRE & AUTO REPAIR · (216) 862-0005" plus the address
+                  block. Anchor the right edge so the most identity-rich
+                  portion of the sign (the phone number + "AUTO REPAIR"
+                  badge) is always fully visible. Vertical biased to 55%
+                  so the sign body sits center-stage and the tree-line
+                  above it is cropped slightly more aggressively. */}
               <img
                 src="/brand-sign.webp"
-                alt="The Nick's Tire & Auto storefront sign on Euclid Avenue, Cleveland, OH — yellow letters, two stories, visible from Lakeshore Boulevard"
+                alt="The Nick's Tire & Auto storefront sign on Euclid Avenue, Cleveland, OH — yellow letters reading TIRE & AUTO REPAIR with phone (216) 862-0005, two stories, visible from Lakeshore Boulevard"
                 width={1600}
                 height={1000}
                 loading="lazy"
                 decoding="async"
                 className="absolute inset-0 w-full h-full object-cover"
-                style={{ objectPosition: "center center" }}
+                style={{ objectPosition: "right 55%" }}
               />
               {/* Photo grain — subtle film texture */}
               <div className="absolute inset-0 photo-grain pointer-events-none mix-blend-overlay opacity-[0.14]" />
