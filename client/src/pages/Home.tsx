@@ -28,6 +28,7 @@ import ShopStatusWidget from "@/components/ShopStatusWidget";
 import UberDropoffWidget from "@/components/UberDropoffWidget";
 import PhotoRibbon from "@/components/PhotoRibbon";
 import RiseInView from "@/components/RiseInView";
+import HeroDustLayer from "@/components/HeroDustLayer";
 // Conversion-architecture components (Batch 1 of v1.1 spec)
 import LiveVisitorCounter from "@/components/conversion/LiveVisitorCounter";
 import ServiceTriageCard from "@/components/conversion/ServiceTriageCard";
@@ -98,6 +99,12 @@ function Hero() {
             "real photo on Euclid Ave" feel and hides any compression
             artifacts on older devices. */}
         <div className="absolute inset-0 photo-grain pointer-events-none mix-blend-overlay opacity-[0.12]" />
+        {/* Atmospheric dust layer — canvas-based particle system, only
+            renders on >=1024px viewports + WebGL-capable + reduced-
+            motion-OK. Mobile customers see exactly the photo hero
+            they saw before. Desktop customers get sunlight-catching-
+            dust depth on top of the existing photo. */}
+        <HeroDustLayer />
       </div>
 
       {/* Content — left-aligned */}
@@ -385,7 +392,7 @@ function Services() {
           <FadeIn>
             <h2 className="font-heading text-3xl lg:text-4xl font-bold text-foreground tracking-tight text-center mb-12 uppercase">More Services</h2>
           </FadeIn>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 stagger-in depth-stage">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 stagger-in depth-stage stack-grid">
             {moreServices.map((s, i) => (
               <FadeIn key={s.slug} delay={i * 0.1}>
                 <Link href={s.slug} className="tilt-card group block p-8 border border-border rounded-2xl hover:border-foreground/20 transition-all card-gold-hover">
@@ -1058,7 +1065,7 @@ export default function Home() {
       <RiseInView className="parallax-rise"><Reviews /></RiseInView>
       <RiseInView className="parallax-rise"><ComparisonTable /></RiseInView>
       {/* ── DROP-OFF + UBER-OUT — Pillar 4, the killer flywheel ──────────── */}
-      <section className="bg-[oklch(0.055_0.004_260)] py-14 border-t border-border/30">
+      <section className="bg-[oklch(0.055_0.004_260)] py-14 border-t border-border/30 halftone-light">
         <div className="container">
           <div className="max-w-2xl mx-auto text-center mb-8">
             <div className="text-[#FDB913] text-[10px] font-mono uppercase tracking-widest mb-2">
