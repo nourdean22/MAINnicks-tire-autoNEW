@@ -46,6 +46,7 @@ function Hero() {
           src={HERO_IMAGE}
           alt="Full synthetic oil change Cleveland — Nick's Tire & Auto Euclid Ave"
           className="w-full h-full object-cover"
+          style={{ objectPosition: "center 45%" }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/40" />
       </div>

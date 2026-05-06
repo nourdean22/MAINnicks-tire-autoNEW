@@ -1411,6 +1411,7 @@ export default function TireFinder() {
               src="/photos/alignment-bay.webp"
               alt="Nick's Tire & Auto wheel alignment bay in Cleveland — precision Hunter alignment rack"
               className="absolute inset-0 w-full h-full object-cover"
+              style={{ objectPosition: "center 50%" }}
               loading="lazy"
               onError={(e) => {
                 // Gracefully hide on missing asset until Nour uploads
