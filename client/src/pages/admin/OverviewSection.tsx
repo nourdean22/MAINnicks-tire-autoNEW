@@ -642,6 +642,9 @@ export default function OverviewSection() {
 
   return (
     <div className="space-y-6">
+      {/* 2026-05-05 — TODAY'S BRIEF: top actionable signals at top of admin */}
+      <TodayBriefStrip />
+
       {/* ─── TOP ROW: 6 COMMAND STAT CARDS ─── */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {/* Each card has an `href` so the whole card surface is a clickable
@@ -1741,6 +1744,85 @@ export default function OverviewSection() {
           Refreshes every 2 minutes. Surfaces top 5 slowest LCP routes so we
           catch perf regressions in the same dashboard we already check daily. */}
       <WebVitalsPanel />
+    </div>
+  );
+}
+
+// 2026-05-05 — TODAY'S BRIEF STRIP
+// Pulls trpc.adminDashboard.todaysBrief and renders top 5 actionable
+// callouts at the top of every admin session. Every brief has a CTA
+// that deep-links into the relevant section. Renders nothing if no
+// briefs are flagged (clean shop = clean admin).
+
+const ICON_MAP_BRIEF: Record<string, React.ReactNode> = {
+  phone: <PhoneCall className="w-4 h-4" />,
+  users: <Users className="w-4 h-4" />,
+  dollar: <TrendingUp className="w-4 h-4" />,
+  star: <Star className="w-4 h-4" />,
+  calendar: <CalendarClock className="w-4 h-4" />,
+  tag: <Sparkles className="w-4 h-4" />,
+};
+
+function TodayBriefStrip() {
+  const { data, isLoading } = trpc.adminDashboard.todaysBrief.useQuery(undefined, {
+    refetchInterval: 90_000, // 90s — actionable should feel live
+    staleTime: 30_000,
+  });
+
+  if (isLoading || !data?.briefs?.length) return null;
+
+  const variantClass: Record<string, string> = {
+    primary: "bg-primary/[0.06] border-primary/30 text-primary",
+    warning: "bg-amber-500/[0.05] border-amber-500/30 text-amber-400",
+    danger: "bg-red-500/[0.05] border-red-500/30 text-red-400",
+    info: "bg-blue-500/[0.04] border-blue-500/25 text-blue-400",
+    success: "bg-emerald-500/[0.04] border-emerald-500/25 text-emerald-400",
+  };
+
+  type BriefItem = {
+    id: string;
+    variant: keyof typeof variantClass;
+    icon: string;
+    message: string;
+    metric: string;
+    cta: { label: string; section: string; settingsTab?: string };
+    score: number;
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Brain className="w-4 h-4 text-primary/60" />
+          <h3 className="text-[11px] font-bold tracking-[0.15em] text-foreground/60 uppercase">
+            Today's Brief
+          </h3>
+          <span className="px-1.5 py-0.5 text-[9px] font-bold tracking-wider rounded bg-primary/15 text-primary">
+            {data.briefs.length} action{data.briefs.length === 1 ? "" : "s"}
+          </span>
+        </div>
+        <span className="text-[10px] text-foreground/30">auto-refreshes every 90s</span>
+      </div>
+      <div className="space-y-1.5">
+        {(data.briefs as BriefItem[]).map((brief) => (
+          <div
+            key={brief.id}
+            className={`flex items-center gap-3 border ${variantClass[brief.variant]} px-4 py-2.5`}
+          >
+            <div className="shrink-0">{ICON_MAP_BRIEF[brief.icon] || <Bell className="w-4 h-4" />}</div>
+            <div className="flex items-baseline gap-2 flex-wrap min-w-0 flex-1">
+              <span className="font-bold text-sm whitespace-nowrap">{brief.metric}</span>
+              <span className="text-[12px] text-foreground/80 leading-snug">{brief.message}</span>
+            </div>
+            <button
+              onClick={() => navigateToAdminSection(brief.cta.section as AdminSection, brief.cta.settingsTab ? { settingsTab: brief.cta.settingsTab } : undefined)}
+              className={`shrink-0 text-[11px] font-bold tracking-wider px-3 py-1 border rounded ${variantClass[brief.variant]} hover:opacity-80 transition-opacity`}
+            >
+              {brief.cta.label} →
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

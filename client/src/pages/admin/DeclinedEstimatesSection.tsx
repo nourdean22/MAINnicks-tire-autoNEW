@@ -8,7 +8,7 @@ import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 
 type DeclinedEstimate = NonNullable<RouterOutputs["invoices"]["declined"]>["estimates"][number];
-import { StatCard } from "./shared";
+import { StatCard, PageHeader } from "./shared";
 import {
   Loader2, AlertTriangle, DollarSign, Phone, MessageSquare,
   TrendingUp, Clock, Filter,
@@ -39,6 +39,11 @@ export default function DeclinedEstimatesSection() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="Declined Work"
+        subtitle="ALG estimates that didn't convert + work-order line items the customer said no to. Recovery pipeline targets these via 7d/30d SMS."
+        icon={<AlertTriangle className="w-5 h-5" />}
+      />
       {/* Urgency Banner */}
       <div className="bg-amber-500/10 border border-amber-500/20 px-5 py-4">
         <div className="flex items-start gap-3">

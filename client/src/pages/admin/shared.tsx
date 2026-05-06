@@ -322,6 +322,267 @@ export function ActivityIcon({ type }: { type: string }) {
   }
 }
 
+// ─── 2026-05-05 — UNIFIED LAYOUT PRIMITIVES ───────────────
+// Standardize how every admin section renders. Replaces the scattered
+// `bg-card border border-border/30 p-4` patterns and per-section
+// PageHeader/Loading/Empty/Error variants. Net effect: one visual
+// language across all 32 admin sections.
+
+/**
+ * Panel — the single canonical card wrapper for any content block in
+ * admin. Replaces ~80 inline `bg-card border border-border/30 p-X`
+ * usages with one component that has consistent padding, border,
+ * radius, hover affordance, and accent variants.
+ *
+ * Use `accent` to communicate state without color spam: "info" (blue),
+ * "warning" (amber), "danger" (red), "success" (emerald), "primary"
+ * (yellow) for actionable callouts.
+ */
+export function Panel({
+  title,
+  subtitle,
+  icon,
+  actions,
+  children,
+  className = "",
+  padding = "md",
+  accent = "neutral",
+  contentClassName = "",
+}: {
+  title?: string;
+  subtitle?: string;
+  icon?: React.ReactNode;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+  padding?: "none" | "sm" | "md" | "lg";
+  accent?: "neutral" | "info" | "warning" | "danger" | "success" | "primary";
+  contentClassName?: string;
+}) {
+  const padMap = { none: "", sm: "p-3", md: "p-4", lg: "p-6" };
+  const accentMap = {
+    neutral: "border-border/30",
+    info: "border-blue-500/30 bg-blue-500/[0.02]",
+    warning: "border-amber-500/30 bg-amber-500/[0.02]",
+    danger: "border-red-500/30 bg-red-500/[0.02]",
+    success: "border-emerald-500/30 bg-emerald-500/[0.02]",
+    primary: "border-primary/30 bg-primary/[0.02]",
+  };
+  return (
+    <div className={`bg-card border ${accentMap[accent]} ${className}`}>
+      {(title || actions) && (
+        <div className={`flex items-start justify-between gap-3 ${padMap[padding] || "p-4"} ${children ? "border-b border-border/10 pb-3" : ""}`}>
+          <div className="flex items-start gap-2.5 min-w-0">
+            {icon && <div className="text-foreground/50 shrink-0 mt-0.5">{icon}</div>}
+            <div className="min-w-0">
+              {title && <h3 className="text-[13px] font-bold text-foreground tracking-wide truncate">{title}</h3>}
+              {subtitle && <p className="text-[11px] text-foreground/50 mt-0.5">{subtitle}</p>}
+            </div>
+          </div>
+          {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+        </div>
+      )}
+      <div className={`${padMap[padding]} ${title || actions ? "pt-3" : ""} ${contentClassName}`}>{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Section — top-level wrapper for an admin section. Combines PageHeader
+ * + a vertical-rhythm content area. Replaces the scattered top-level
+ * `<div className="space-y-6">` openings + manual title rendering.
+ *
+ * Pass `pageHeader` props directly — title/subtitle/icon/actions/badge.
+ * Pass `intelligenceStrip` (optional) for a top-level "what to do now"
+ * callout that scrolls with the page.
+ */
+export function Section({
+  title,
+  subtitle,
+  icon,
+  actions,
+  badge,
+  intelligenceStrip,
+  children,
+  spacing = "default",
+}: {
+  title: string;
+  subtitle?: string;
+  icon?: React.ReactNode;
+  actions?: React.ReactNode;
+  badge?: { label: string; variant: "success" | "warning" | "danger" | "neutral" };
+  intelligenceStrip?: React.ReactNode;
+  children: React.ReactNode;
+  spacing?: "tight" | "default" | "loose";
+}) {
+  const spacingMap = { tight: "space-y-4", default: "space-y-6", loose: "space-y-8" };
+  return (
+    <div className={spacingMap[spacing]}>
+      <PageHeader title={title} subtitle={subtitle} icon={icon} actions={actions} badge={badge} />
+      {intelligenceStrip}
+      {children}
+    </div>
+  );
+}
+
+/**
+ * InsightStrip — top-of-section actionable callout. Surfaces the
+ * "what should I do RIGHT NOW" answer for whoever's looking at this
+ * section. Variants:
+ *
+ *  - "primary"  → opportunity ($ on the table, CTA forward)
+ *  - "warning"  → soft risk (something needs attention soon)
+ *  - "danger"   → hard risk (something is failing now)
+ *  - "info"     → status update / passive information
+ *  - "success"  → green-light state, no action needed
+ *
+ * Use `metric` to anchor with a number ("$2,840 recoverable", "12 due
+ * today"). Use `cta` for the action button.
+ */
+export function InsightStrip({
+  variant = "info",
+  icon,
+  message,
+  metric,
+  cta,
+  onDismiss,
+}: {
+  variant?: "primary" | "warning" | "danger" | "info" | "success";
+  icon?: React.ReactNode;
+  message: string;
+  metric?: string;
+  cta?: { label: string; onClick: () => void };
+  onDismiss?: () => void;
+}) {
+  const variants = {
+    primary: "bg-primary/[0.06] border-primary/30 text-primary",
+    warning: "bg-amber-500/[0.05] border-amber-500/30 text-amber-400",
+    danger: "bg-red-500/[0.05] border-red-500/30 text-red-400",
+    info: "bg-blue-500/[0.04] border-blue-500/25 text-blue-400",
+    success: "bg-emerald-500/[0.04] border-emerald-500/25 text-emerald-400",
+  };
+  return (
+    <div className={`flex items-center gap-3 border ${variants[variant]} px-4 py-2.5`}>
+      {icon && <div className="shrink-0">{icon}</div>}
+      <div className="flex items-baseline gap-2 flex-wrap min-w-0 flex-1">
+        {metric && <span className="font-bold text-base whitespace-nowrap">{metric}</span>}
+        <span className="text-[12px] text-foreground/80 leading-snug">{message}</span>
+      </div>
+      {cta && (
+        <button
+          onClick={cta.onClick}
+          className={`shrink-0 text-[11px] font-bold tracking-wider px-3 py-1 border rounded ${variants[variant]} hover:bg-opacity-100 hover:bg-current hover:text-foreground transition-colors`}
+        >
+          {cta.label} →
+        </button>
+      )}
+      {onDismiss && (
+        <button
+          onClick={onDismiss}
+          className="shrink-0 text-foreground/30 hover:text-foreground/60 transition-colors"
+          aria-label="Dismiss"
+        >
+          <XCircle className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * MetricGrid — responsive grid wrapper for StatCards. Replaces the
+ * scattered `grid grid-cols-2 lg:grid-cols-X gap-4` patterns.
+ */
+export function MetricGrid({ cols = 4, children }: {
+  cols?: 2 | 3 | 4 | 5 | 6;
+  children: React.ReactNode;
+}) {
+  const colMap = {
+    2: "grid-cols-1 sm:grid-cols-2",
+    3: "grid-cols-2 lg:grid-cols-3",
+    4: "grid-cols-2 lg:grid-cols-4",
+    5: "grid-cols-2 lg:grid-cols-5",
+    6: "grid-cols-2 lg:grid-cols-3 xl:grid-cols-6",
+  };
+  return <div className={`grid ${colMap[cols]} gap-4`}>{children}</div>;
+}
+
+/**
+ * Toolbar — horizontal button row with consistent gap + alignment.
+ * Replaces inline `flex items-center gap-2` for action rows.
+ */
+export function Toolbar({ children, align = "right" }: {
+  children: React.ReactNode;
+  align?: "left" | "right" | "between";
+}) {
+  const alignMap = {
+    left: "justify-start",
+    right: "justify-end",
+    between: "justify-between",
+  };
+  return <div className={`flex items-center gap-2 flex-wrap ${alignMap[align]}`}>{children}</div>;
+}
+
+/**
+ * KpiTile — stronger StatCard variant for hero metrics. Larger value,
+ * optional sparkline, supports trend with delta vs previous.
+ *
+ * Use for the 1-3 most important numbers per section. Use StatCard
+ * for the rest.
+ */
+export function KpiTile({
+  label,
+  value,
+  delta,
+  deltaLabel,
+  trend = "neutral",
+  icon,
+  onClick,
+  accent = "neutral",
+}: {
+  label: string;
+  value: string | number;
+  delta?: string | number;
+  deltaLabel?: string;
+  trend?: "up" | "down" | "neutral";
+  icon?: React.ReactNode;
+  onClick?: () => void;
+  accent?: "neutral" | "primary" | "success" | "warning" | "danger";
+}) {
+  const accentMap = {
+    neutral: "border-border/30",
+    primary: "border-primary/30 bg-primary/[0.03]",
+    success: "border-emerald-500/30 bg-emerald-500/[0.03]",
+    warning: "border-amber-500/30 bg-amber-500/[0.03]",
+    danger: "border-red-500/30 bg-red-500/[0.03]",
+  };
+  const trendColor =
+    trend === "up" ? "text-emerald-400" :
+    trend === "down" ? "text-red-400" :
+    "text-foreground/40";
+  const trendArrow = trend === "up" ? "↑" : trend === "down" ? "↓" : "·";
+  const Wrapper: React.ElementType = onClick ? "button" : "div";
+  return (
+    <Wrapper
+      onClick={onClick}
+      className={`bg-card border ${accentMap[accent]} p-5 ${onClick ? "text-left w-full hover:ring-1 hover:ring-primary/40 transition-shadow cursor-pointer" : ""}`}
+    >
+      <div className="flex items-start justify-between mb-3">
+        <span className="text-[10px] font-bold text-foreground/50 tracking-[0.15em] uppercase">{label}</span>
+        {icon && <div className="text-foreground/30">{icon}</div>}
+      </div>
+      <div className="font-bold text-3xl text-foreground tracking-tight number-animate">{value}</div>
+      {(delta || deltaLabel) && (
+        <div className={`mt-2 text-[11px] font-medium ${trendColor} flex items-center gap-1`}>
+          <span>{trendArrow}</span>
+          {delta && <span>{delta}</span>}
+          {deltaLabel && <span className="text-foreground/40">· {deltaLabel}</span>}
+        </div>
+      )}
+    </Wrapper>
+  );
+}
+
 export function StatusDot({ status }: { status?: string }) {
   const colors: Record<string, string> = {
     new: "bg-blue-400", confirmed: "bg-amber-400", completed: "bg-emerald-400",

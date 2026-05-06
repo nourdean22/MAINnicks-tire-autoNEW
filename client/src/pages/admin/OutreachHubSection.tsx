@@ -6,6 +6,7 @@
  */
 import { useState, lazy, Suspense } from "react";
 import { Send, MessageSquare, Star, RotateCcw, Timer, Loader2 } from "lucide-react";
+import { PageHeader } from "./shared";
 
 const SmsSection = lazy(() => import("./SmsSection"));
 const FollowUpsSection = lazy(() => import("./FollowUpsSection"));
@@ -36,6 +37,11 @@ export default function OutreachHubSection() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="Outreach Hub"
+        subtitle="Campaigns · SMS broadcasts · Review requests · Win-back · Follow-ups · Loyalty — every customer touch in one place."
+        icon={<Send className="w-5 h-5" />}
+      />
       {/* Tab Bar */}
       <div className="flex items-center gap-1 bg-card border border-border/30 p-1 overflow-x-auto">
         {TABS.map(t => (

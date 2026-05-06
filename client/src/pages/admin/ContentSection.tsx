@@ -8,7 +8,7 @@ import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Link } from "wouter";
 import {
-  StatCard, StatusDot,
+  StatCard, StatusDot, PageHeader,
 } from "./shared";
 import {
   Bell, CheckCircle2, ChevronRight, FileText, Loader2, Newspaper,
@@ -31,6 +31,11 @@ export default function ContentSection() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="Content & AI"
+        subtitle="Articles, notifications, GBP posts, AI ideas engine — everything customer-facing copy + automation"
+        icon={<FileText className="w-5 h-5" />}
+      />
       {/* Tab switcher — same pattern as Revenue tabs */}
       <div className="flex items-center gap-1 border-b border-border/20 pb-0">
         {([

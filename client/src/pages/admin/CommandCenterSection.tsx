@@ -20,7 +20,7 @@ import {
   Clock, Loader2, ArrowRight, Wifi, WifiOff, RefreshCw, BarChart3, DollarSign,
 } from "lucide-react";
 import { toast } from "sonner";
-import { StatCard } from "./shared";
+import { StatCard, PageHeader } from "./shared";
 
 const NOUR_OS_URL = "https://autonicks.com/command";
 const NOUR_OS_CHAT_URL = "https://autonicks.com/chat";
@@ -61,6 +61,11 @@ export default function CommandCenterSection() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="NOUR OS Bridge"
+        subtitle="Cross-system command center: Nick AI chat, NOUR OS dashboard, automation engine, dispatch event bus."
+        icon={<Zap className="w-5 h-5" />}
+      />
       {/* ─── NOUR OS LINK BANNER ─── */}
       <div className="relative overflow-hidden bg-gradient-to-br from-primary/15 via-card to-card border border-primary/30 rounded-lg p-6">
         <div className="flex items-center justify-between">
