@@ -896,3 +896,121 @@ input:focus, textarea:focus, select:focus {
   z-index: 9998;
   background: repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.012) 1px, rgba(0,0,0,0.012) 2px);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   3D DEPTH SYSTEM — Universal across all customer pages
+   ═══════════════════════════════════════════════════════════════
+   Per the 3d-web-experience skill: "When 3D enhances and when it's
+   just showing off." This layer adds tasteful depth to every page
+   via CSS-only transforms — zero JS bundle cost, no LCP regression.
+
+   Mobile-aware: respects prefers-reduced-motion + disables on touch.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Perspective wrapper — apply to a section or card grid to enable
+   3D children. Browsers GPU-accelerate transforms inside this. */
+.depth-stage {
+  perspective: 1200px;
+  perspective-origin: 50% 50%;
+}
+
+/* Card tilt on hover — subtle 3D rotation. Apply to: pricing tiers,
+   review cards, service cards, CTA blocks. Pure CSS. Mobile = static. */
+.tilt-card {
+  transform-style: preserve-3d;
+  transform: translateZ(0);
+  transition: transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+@media (hover: hover) and (pointer: fine) {
+  .tilt-card:hover {
+    transform: translateZ(8px) rotateX(2deg) rotateY(-1.5deg);
+    box-shadow: 0 24px 48px -16px oklch(0.05 0 0 / 0.5),
+                0 8px 20px -8px oklch(0.05 0 0 / 0.3);
+  }
+  .tilt-card.tilt-primary:hover {
+    transform: translateZ(12px) rotateX(2.5deg) rotateY(-2deg);
+    box-shadow: 0 24px 48px -16px rgba(245, 166, 35, 0.35),
+                0 8px 20px -8px oklch(0.05 0 0 / 0.4);
+  }
+}
+
+/* Photo depth — hero/service photo wrappers with subtle parallax. */
+.photo-depth {
+  position: relative;
+  overflow: hidden;
+  transform: translateZ(0);
+}
+.photo-depth::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, transparent 40%, oklch(0 0 0 / 0.18) 100%);
+  pointer-events: none;
+  transition: opacity 280ms ease;
+}
+.photo-depth:hover::after { opacity: 0.7; }
+.photo-depth img,
+.photo-depth picture {
+  transition: transform 600ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+@media (hover: hover) and (pointer: fine) {
+  .photo-depth:hover img,
+  .photo-depth:hover picture { transform: scale(1.04); }
+}
+
+/* CTA button depth — primary CTAs get tactile press + lift. */
+.cta-depth {
+  position: relative;
+  transform: translateZ(0);
+  transition: transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.cta-depth:active { transform: translateY(1px) translateZ(-2px); }
+@media (hover: hover) and (pointer: fine) {
+  .cta-depth:hover {
+    transform: translateY(-1px) translateZ(2px);
+    box-shadow: 0 12px 24px -8px rgba(245, 166, 35, 0.3);
+  }
+}
+
+/* Stacked-cards grid — pricing-tier-style 3D layer. */
+.stack-grid { perspective: 1500px; }
+.stack-grid > * {
+  transform-style: preserve-3d;
+  transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@media (hover: hover) and (pointer: fine) {
+  .stack-grid > *:nth-child(2) { transform: translateZ(4px); }
+  .stack-grid > *:hover { transform: translateZ(16px) rotateX(1deg); }
+  .stack-grid:hover > *:not(:hover) {
+    transform: translateZ(-4px) scale(0.98);
+    opacity: 0.85;
+  }
+}
+
+/* Reduced motion override — WCAG compliant kill switch. */
+@media (prefers-reduced-motion: reduce) {
+  .tilt-card,
+  .tilt-card:hover,
+  .photo-depth img,
+  .photo-depth:hover img,
+  .cta-depth,
+  .cta-depth:hover,
+  .cta-depth:active,
+  .stack-grid > *,
+  .stack-grid > *:hover,
+  .stack-grid:hover > *:not(:hover) {
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+/* Performance guard — disable on low-frequency-update devices. */
+@media (update: slow) {
+  .tilt-card:hover,
+  .photo-depth:hover img,
+  .stack-grid > *:hover { transform: none; }
+}

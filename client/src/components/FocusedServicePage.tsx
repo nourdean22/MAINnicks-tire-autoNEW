@@ -230,10 +230,13 @@ function PricingSection({ config }: { config: ServicePageConfig }) {
           <h2 className="font-bold text-3xl sm:text-4xl text-foreground tracking-tight">{config.pricingTitle}</h2>
           <p className="text-foreground/60 mt-2">{config.pricingSub}</p>
         </FadeIn>
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* 2026-05-05 — stack-grid + tilt-card give the 3 pricing tiers
+            a 3D-feel layer. Middle tier already lifts via .stack-grid
+            CSS rule. Featured tier gets tilt-primary for stronger lift. */}
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 stack-grid">
           {config.tiers.map((tier) => (
             <FadeIn key={tier.name} delay={0.1}>
-              <div className={`border rounded-lg p-6 bg-card transition-all ${tier.featured ? "border-emerald-500/40 ring-1 ring-emerald-500/20" : "border-border/30"}`}>
+              <div className={`tilt-card ${tier.featured ? "tilt-primary" : ""} border rounded-lg p-6 bg-card transition-all ${tier.featured ? "border-emerald-500/40 ring-1 ring-emerald-500/20" : "border-border/30"}`}>
                 {tier.featured && <span className="inline-block text-[10px] font-bold tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded mb-2">RECOMMENDED</span>}
                 <h3 className="font-bold text-xl text-foreground">{tier.name}</h3>
                 <p className="font-bold text-3xl text-foreground mt-1">{tier.price}</p>

@@ -33,6 +33,13 @@ interface ResponsivePhotoProps {
   mobileBreakpoint?: number;
   /** Disable mobile-variant if you know the file doesn't have a -mobile sibling. */
   disableMobile?: boolean;
+  /**
+   * 2026-05-05 — wrap the <picture> in a `.photo-depth` span so the
+   * 3D-depth CSS layer applies hover-zoom + radial vignette on the
+   * photo container. Defaults to true for non-LCP photos; LCP photos
+   * (loading="eager") opt out to keep paint cost minimal.
+   */
+  withDepth?: boolean;
 }
 
 export default function ResponsivePhoto({
@@ -43,10 +50,13 @@ export default function ResponsivePhoto({
   fetchPriority,
   mobileBreakpoint = 768,
   disableMobile = false,
+  withDepth,
 }: ResponsivePhotoProps) {
   const mobileSrc = src.replace(/(\.\w+)$/, "-mobile$1");
+  // Default: enable depth on lazy photos, disable on eager (LCP path).
+  const depthEnabled = withDepth ?? loading === "lazy";
 
-  return (
+  const inner = (
     <picture>
       {!disableMobile && (
         <source
@@ -64,4 +74,8 @@ export default function ResponsivePhoto({
       />
     </picture>
   );
+
+  if (!depthEnabled) return inner;
+
+  return <span className="photo-depth block">{inner}</span>;
 }
