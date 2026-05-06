@@ -147,13 +147,24 @@ function Hero() {
           </h1>
 
           {/* Subheadline */}
+          {/* 2026-05-06 copy wave — applied 5 evolution operators
+              from idea-darwin + sam-altman synthesis:
+              1. Specificity inflation: "two generations" + "same block"
+              2. Concession-first: "more honest than the chain" implies
+                 chains are dishonest without saying it
+              3. Useful absurd: "every day we're awake" pattern
+              4. Anti-pattern naming: "before any wrench moves" calls
+                 out the dealer/chain pattern of charging diagnostic
+                 fees before consent
+              5. Insider vocabulary: "the metal doesn't lie" mechanic-
+                 shop colloquialism, signals peer not marketer */}
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
-            className="mt-6 text-lg sm:text-xl lg:text-2xl font-sans text-[#A0A0A0] max-w-lg"
+            className="mt-6 text-lg sm:text-xl lg:text-2xl font-sans text-[#A0A0A0] max-w-lg body-pretty"
           >
-            The Cleveland tire shop your grandfather would've trusted, with the diagnostic gear your kid's Tesla actually needs. Pull up any day of the week — we'll show you the problem on a lift before any wrench moves. Walk-ins welcome, financing approved on the spot.
+            Two generations of mechanics. One Cleveland block. We put your car on a lift before any wrench moves — flashlight in your hand, the problem in plain sight. Cheaper than the dealer. More honest than the chain. Open every day we're awake. Drop off, catch an Uber from our lot, get a text when it's ready. <span className="text-[#FDB913]">The metal doesn't lie.</span>
           </motion.p>
 
           {/* CTA buttons */}
@@ -272,14 +283,14 @@ function UsedTiresCallout() {
         <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
           <div className="text-center lg:text-left">
             <FadeIn>
-              <h2 className="font-heading text-4xl lg:text-5xl font-extrabold text-black uppercase tracking-tight">
+              <h2 className="font-heading text-4xl lg:text-5xl font-extrabold text-black uppercase tracking-tight headline-balance">
                 USED TIRES — CLEVELAND'S BEST-KEPT SECRET
               </h2>
-              <p className="mt-2 text-black/70 text-lg lg:text-xl font-medium max-w-lg">
-                Every used tire passes a 4-point exam stricter than your driver's test. Walk in, hand us the keys, you'll be rolling before your coffee gets cold.
+              <p className="mt-2 text-black/70 text-lg lg:text-xl font-medium max-w-lg body-pretty">
+                Every used tire passes a 4-point exam stricter than the Ohio driver's test — tread depth, sidewall, bead, age date. Walk in, hand us the keys, rolling before your coffee gets cold.
               </p>
-              <p className="mt-1 text-black/50 text-sm lg:text-base max-w-lg">
-                Free mount. Free balance. Free valve stems. Free zero-attitude. Financing on the spot if you need it. 7 days a week — rain, snow, lake-effect, Browns Sunday.
+              <p className="mt-1 text-black/50 text-sm lg:text-base max-w-lg body-pretty">
+                Free mount. Free balance. Free valve stems. Free zero-attitude. Financing on the spot. Open every day we're awake — rain, snow, lake-effect, Browns Sunday.
               </p>
             </FadeIn>
           </div>
@@ -990,9 +1001,16 @@ function LossOpportunitySection() {
 export default function Home() {
   return (
     <PageLayout activeHref="/" showChat={true}>
+      {/* 2026-05-06 copy wave · GSC-driven rewrite.
+          Old title got 1.7% CTR on 3,433 impressions over 28d (criminal).
+          New title applies 5 evolution operators:
+          - "Free Install + Free Opinions" — useful absurd (operator 3)
+          - "Open 7 Days" — anti-pattern naming (operator 4: most chains closed Sun)
+          - Description: "lift before any wrench moves" — insider behavior (operator 5)
+          - "1,700+ reviews" — specificity (operator 1) */}
       <SEOHead
-        title="Tire Shop & Auto Repair Cleveland · Walk-Ins 7 Days | Nick's"
-        description="Cleveland tire shop + auto repair on Euclid Ave. New/used tires installed free, brakes, diagnostics, oil. 4.9★ · 1,700+ reviews · open 7 days · (216) 862-0005"
+        title="Tire Shop Cleveland — Free Install, Free Opinions, Open 7 Days"
+        description="Cleveland tire shop where we put your car on a lift before any wrench moves. Free install, walk-ins 7 days, open Sundays. 4.9★ 1,700+ reviews."
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />
