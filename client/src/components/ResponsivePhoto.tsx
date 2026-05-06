@@ -53,6 +53,13 @@ interface ResponsivePhotoProps {
    * (loading="eager") opt out to keep paint cost minimal.
    */
   withDepth?: boolean;
+  /**
+   * 2026-05-06 wave-18 — explicit object-position passthrough so callers
+   * can lock the focal point per PLACEMENT_GUIDE.md (e.g. "center 42%"
+   * for the storefront-hero, "center 48%" for the roadside-sign, etc.).
+   * Defaults to the CSS default ("center center") if not provided.
+   */
+  objectPosition?: string;
 }
 
 export default function ResponsivePhoto({
@@ -64,6 +71,7 @@ export default function ResponsivePhoto({
   mobileBreakpoint = 768,
   disableMobile = true,
   withDepth,
+  objectPosition,
 }: ResponsivePhotoProps) {
   const mobileSrc = src.replace(/(\.\w+)$/, "-mobile$1");
   // Default: enable depth on lazy photos, disable on eager (LCP path).
@@ -84,6 +92,7 @@ export default function ResponsivePhoto({
         className={className}
         loading={loading}
         fetchPriority={fetchPriority}
+        style={objectPosition ? { objectPosition } : undefined}
       />
     </picture>
   );

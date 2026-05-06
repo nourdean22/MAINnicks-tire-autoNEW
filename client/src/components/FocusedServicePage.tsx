@@ -69,6 +69,34 @@ import TextMeQuote from "./conversion/TextMeQuote";
 // trust image when a service config doesn't specify its own hero.
 const HERO_IMAGE_DEFAULT = "/photos/shop-exterior-hero-wide-sign-bays.webp";
 
+// 2026-05-06 wave-18 · per-photo focal points from PLACEMENT_GUIDE.md.
+// Returns the optimal object-position string for any pro-pack hero
+// based on its filename. Pages can still override via
+// config.heroObjectPosition.
+function pickObjectPosition(heroImage: string | undefined): string {
+  if (!heroImage) return "center 42%";
+  const map: Record<string, string> = {
+    "shop-exterior-hero-wide-sign-bays": "center 42%",
+    "shopfront-clear-vertical-sign-bays": "center 36%",
+    "shop-exterior-cones-vertical": "center 40%",
+    "shop-exterior-service-center-vertical": "center 38%",
+    "bmw-premium-front-shop-sign": "center 45%",
+    "cybertruck-front-shop-clean": "center 43%",
+    "roadside-sign-exterior-wide": "center 48%",
+    "parking-lot-sign-perspective-wide": "center 50%",
+    "shop-exterior-busy-service-wide": "center 45%",
+    "rugged-tire-tread-closeup": "center 50%",
+    "tire-wheel-changer-closeup": "center 52%",
+    "busy-shop-action-mechanics": "center 50%",
+    "undercar-brake-repair-action": "center 48%",
+    "interior-service-bay-car-lift": "center 45%",
+  };
+  for (const key of Object.keys(map)) {
+    if (heroImage.includes(key)) return map[key];
+  }
+  return "center 42%";
+}
+
 export interface ServicePricingTier {
   name: string;
   price: string;
@@ -97,6 +125,9 @@ export interface ServicePageConfig {
   sub: string;
   /** Optional hero image URL override */
   heroImage?: string;
+  /** Optional object-position override (e.g. "center 42%"). Defaults
+   *  via pickObjectPosition() based on the heroImage filename. */
+  heroObjectPosition?: string;
   /** "From $X" opening price — shown in hero */
   startingPrice?: string;
   /** 3-up pricing cards — middle one defaults to featured */
@@ -187,6 +218,7 @@ function Hero({ config }: { config: ServicePageConfig }) {
           src={config.heroImage || HERO_IMAGE_DEFAULT}
           alt={`${config.h1} at Nick's Tire & Auto Cleveland`}
           className="w-full h-full object-cover"
+          objectPosition={config.heroObjectPosition || pickObjectPosition(config.heroImage)}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/40" />
       </div>

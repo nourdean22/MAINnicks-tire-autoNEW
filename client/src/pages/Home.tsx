@@ -89,18 +89,24 @@ function Hero() {
             src={HERO_IMG}
             alt="Nick's Tire & Auto storefront on Euclid Avenue in Cleveland with the yellow sign, open service bays, and tire stacks visible"
             className="w-full h-full object-cover"
-            style={{ objectPosition: "center 42%" }}
+            style={{ objectPosition: "right 42%" }}
             loading="eager"
             fetchPriority="high"
           />
         </picture>
-        {/* Cinematic gradient — left-weighted so the headline keeps contrast
-            while the right side of the photo stays visible (cars + sky). */}
+        {/* 2026-05-06 wave-18 · Headline-readability fix.
+            object-position pushed from "center 42%" to "right 42%" so the
+            bright yellow sign sits on the RIGHT side of the frame, leaving
+            the LEFT (where the H1 lives) in the dark sky/trees zone. The
+            gradient overlay is also strengthened to add more contrast under
+            the headline area. Combined with text-shadow on the yellow span,
+            "Drop off for repairs." now has crisp readability against the
+            still-visible-but-not-overlapping sign. */}
         <div
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(105deg, rgba(8,10,14,0.92) 0%, rgba(10,12,16,0.55) 38%, rgba(0,0,0,0.15) 75%, rgba(0,0,0,0) 100%)",
+              "linear-gradient(105deg, rgba(8,10,14,0.96) 0%, rgba(10,12,16,0.78) 35%, rgba(0,0,0,0.35) 70%, rgba(0,0,0,0) 100%)",
           }}
         />
         {/* Vignette — focuses attention on the headline area + adds depth */}
@@ -108,7 +114,7 @@ function Hero() {
           className="absolute inset-0 pointer-events-none"
           style={{
             background:
-              "radial-gradient(ellipse at 25% 50%, transparent 0%, transparent 35%, rgba(0,0,0,0.5) 100%)",
+              "radial-gradient(ellipse at 25% 50%, transparent 0%, transparent 30%, rgba(0,0,0,0.65) 100%)",
           }}
         />
         {/* Photo grain — inline-SVG noise, ~250 bytes total. Sells the
@@ -156,9 +162,17 @@ function Hero() {
               overflowing the container. 5vw scales font to viewport
               width, capped at 4.5rem (72px) for max desktop sanity
               and 2.25rem (36px) min for legibility on narrow phones. */}
+          {/* 2026-05-06 wave-18 · Drop-shadow added to the H1 wrapper so
+              every letter (white + yellow) has a crisp dark edge against
+              the busy storefront photo. Yellow gradient text was washing
+              out against the bright yellow sign in the photo background;
+              drop-shadow gives the yellow letters their own outline. */}
           <h1
             className="font-heading font-extrabold uppercase text-[#F5F5F5] leading-[0.95] tracking-tight headline-balance"
-            style={{ fontSize: "clamp(2.25rem, 5.5vw, 4.5rem)" }}
+            style={{
+              fontSize: "clamp(2.25rem, 5.5vw, 4.5rem)",
+              filter: "drop-shadow(0 2px 16px rgba(0,0,0,0.85)) drop-shadow(0 0 4px rgba(0,0,0,0.95))",
+            }}
           >
             <StampLetters text="Pull up for tires." delay={0.3} />
             <br />
@@ -474,7 +488,7 @@ function WhyUs() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <FadeIn>
             <div className="relative rounded-2xl overflow-hidden aspect-[4/3]">
-              <img src={MECHANIC_IMG} alt="Inside the bay at Nick's Tire & Auto Cleveland — a vehicle on the lift mid-job, real tools, real shop" className="w-full h-full object-cover" loading="lazy" />
+              <img src={MECHANIC_IMG} alt="Inside the bay at Nick's Tire & Auto Cleveland — a vehicle on the lift mid-job, real tools, real shop" className="w-full h-full object-cover" loading="lazy" style={{ objectPosition: "center 50%" }} />
             </div>
           </FadeIn>
 

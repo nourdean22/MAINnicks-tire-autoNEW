@@ -293,7 +293,7 @@ export default function ReviewsPage() {
         {/* ─── HERO ─── */}
         <section className="relative min-h-[50vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
-            <img src={HERO_IMG} alt={`${BUSINESS.reviews.countDisplay} Cleveland drivers reviewed Nick's Tire & Auto on Google — ${BUSINESS.reviews.rating}★ average`} className="w-full h-full object-cover" loading="eager" fetchPriority="high" />
+            <img src={HERO_IMG} alt={`${BUSINESS.reviews.countDisplay} Cleveland drivers reviewed Nick's Tire & Auto on Google — ${BUSINESS.reviews.rating}★ average`} className="w-full h-full object-cover" loading="eager" fetchPriority="high" style={{ objectPosition: "center 42%" }} />
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/40" />
           </div>
 
