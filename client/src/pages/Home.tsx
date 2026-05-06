@@ -161,7 +161,15 @@ function Hero() {
           <h1
             className="font-heading font-extrabold uppercase text-[#F5F5F5] leading-[0.95] tracking-tight headline-balance"
             style={{
-              fontSize: "clamp(1.875rem, 4.6vw, 3.5rem)",
+              // 2026-05-06 wave-24 · slope tightened from 4.6vw → 3.5vw so
+              // "DROP OFF FOR REPAIRS." fits on a single line inside the
+              // max-w-[58%] sky column at desktop viewports between
+              // 1024–1440px. At 1090vw the old 4.6vw rendered fontSize
+              // 50px → headline 596px wide → wrapped to 2 lines inside
+              // the ~614px column. New 3.5vw → 38px at 1090vw → ~460px
+              // wide with comfortable clearance. Cap stays at 3.5rem so
+              // headline still scales up on true desktops.
+              fontSize: "clamp(1.5rem, 3.5vw, 3.5rem)",
               filter:
                 "drop-shadow(0 2px 4px rgba(0,0,0,0.95)) drop-shadow(0 4px 24px rgba(0,0,0,0.85)) drop-shadow(0 0 2px rgba(0,0,0,1))",
               textShadow:
