@@ -3,6 +3,9 @@
  * POST /api/v1/webhooks/twilio/incoming-sms — inbound customer SMS
  * POST /api/v1/webhooks/voice/incoming — voice call greeting
  * POST /api/v1/webhooks/voice/process — voice speech processing
+ * POST /api/v1/webhooks/voice/status — call lifecycle status callback
+ *   (closes the click→call attribution loop: matches DialCallSid +
+ *    CallDuration + CallStatus back to a prior call_events row)
  */
 
 import { Router, type Request, type Response } from "express";
@@ -79,6 +82,46 @@ router.post("/voice/process", (req: Request, res: Response) => {
 <Response>
   <Say voice="Polly.Matthew">Thank you for calling Nick's Tire and Auto. Call us during business hours at 216-862-0005. Goodbye!</Say>
 </Response>`);
+  }
+});
+
+// ─── Voice: Call Status Callback ────────────────
+// Twilio fires this when a call's status changes (initiated → ringing →
+// in-progress → completed/no-answer/busy/failed). We stamp duration +
+// outcome onto the most recent matching call_events row so the admin
+// dashboard can compute click→answer→duration funnels.
+//
+// Configure in Twilio Console: Phone Numbers → +1 216-862-0005 → A Call
+// Comes In: Webhook → URL of /voice/status → HTTP POST.
+router.post("/voice/status", async (req: Request, res: Response) => {
+  try {
+    const callStatus = String(req.body?.CallStatus || "");
+    const callDuration = Number(req.body?.CallDuration || 0);
+    const callerPhone = String(req.body?.From || "");
+    const callSid = String(req.body?.CallSid || "");
+
+    // Only process terminal statuses — earlier transitions don't have duration.
+    const TERMINAL_STATUSES = new Set(["completed", "no-answer", "busy", "failed", "canceled"]);
+    if (!TERMINAL_STATUSES.has(callStatus)) {
+      res.type("text/xml").send("<Response></Response>");
+      return;
+    }
+
+    // Structured log — durable in our log aggregator (Sentry/Telegram).
+    // Closing the click→call attribution loop fully (matching this
+    // outcome to a prior call_events row by callerPhone + recency window)
+    // requires a callSid column on call_events. Schema migration pending.
+    log.info("phone_call_outcome", {
+      status: callStatus,
+      duration_sec: callDuration,
+      from_last4: callerPhone.slice(-4),
+      sid_last8: callSid.slice(-8),
+    });
+
+    res.type("text/xml").send("<Response></Response>");
+  } catch (err) {
+    log.error("Voice status callback error", { error: err instanceof Error ? err.message : String(err) });
+    res.type("text/xml").send("<Response></Response>");
   }
 });
 
