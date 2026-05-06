@@ -797,7 +797,7 @@ const UTILITY_PAGES: RouteEntry[] = [
     priority: 0.8,
     changefreq: "weekly",
     title: "Auto Repair Financing Cleveland — Nick's Tire & Auto",
-    description: "Auto repair financing in Cleveland. $10 down, drive today. Acima, Koalafi, Snap Finance, American First. All credit welcome. Apply in minutes.",
+    description: "Auto repair payment programs in Cleveland. $10 down, drive today. Acima, Koalafi, Snap Finance, American First. All credit welcome. Apply in minutes.",
     group: "utility",
     sitemap: true,
     prerender: true,

@@ -13,7 +13,7 @@ import BrandMark from "@/components/BrandMark";
 
 const NAV_LINKS = [
   { label: "Services", href: "/services" },
-  { label: "Financing", href: "/financing" },
+  { label: "Payment Programs", href: "/financing" },
   { label: "Reviews", href: "/reviews" },
   { label: "Specials", href: "/specials" },
   { label: "About", href: "/about" },

@@ -786,7 +786,7 @@ export default function TireFinder() {
               Order Tires Online
             </h1>
             <p className="mt-4 text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
-              Cleveland's tire shop, online or in-shop. Search your size, pick new or used, we install free with our complete service package — mount, balance, valve stems, alignment check, the works. Walk-ins always welcome. Financing approved on the spot — faster than your phone finds a signal.
+              Cleveland's tire shop, online or in-shop. Search your size, pick new or used, we install free with our complete service package — mount, balance, valve stems, alignment check, the works. Walk-ins always welcome. Payment programs approved on the spot — faster than your phone finds a signal.
             </p>
 
             {/* Value proposition callout */}

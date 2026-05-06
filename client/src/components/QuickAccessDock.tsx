@@ -22,18 +22,23 @@ export default function QuickAccessDock() {
   if (!showDock) return null;
 
   return (
+    // 2026-05-06 audit fix · scoped to lg:hidden so the dock no longer
+    // overlaps the right-side phone widget + "Tour the Tire Rack" CTA on
+    // desktop. Navbar already exposes Call/Drop-Off/Directions on lg+,
+    // so the dock is mobile-only redundancy. "Book" → "Drop-Off" per
+    // FCFS positioning (Book is banned).
     <div
-      className="pointer-events-none fixed bottom-28 right-3 z-[80] flex flex-col gap-2 sm:bottom-20"
+      className="pointer-events-none fixed bottom-28 right-3 z-[80] flex flex-col gap-2 sm:bottom-20 lg:hidden"
       role="region"
       aria-label="Quick access actions"
     >
       <a
         href="/booking"
         className={ACTION_CLASS}
-        aria-label="Book an appointment online"
+        aria-label="Schedule a drop-off"
       >
         <CalendarDays className="h-4 w-4" aria-hidden="true" />
-        Book
+        Drop-Off
       </a>
 
       <a

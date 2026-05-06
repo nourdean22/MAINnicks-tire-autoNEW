@@ -477,7 +477,7 @@ function WhyUs() {
                 {[
                   { title: "Honest Diagnostics", text: "We read the codes, test the components, and show you exactly what failed — on the lift, before a wrench moves. Bring binoculars if you want; we'll still let you watch." },
                   { title: "Upfront Pricing", text: "Written estimates before work begins. No hidden fees, no surprise charges, no mysterious 'shop supplies' line item that costs more than lunch." },
-                  { title: "Financing On The Spot", text: "Acima · Snap · Koalafi · American First. Approved in 90 seconds, no credit check, drive away today. We've seen approvals come through faster than the front-counter coffee finishes brewing." },
+                  { title: "Payment Programs On The Spot", text: "Acima · Snap · Koalafi · American First. Approved in 90 seconds, no credit check, drive away today. We've seen approvals come through faster than the front-counter coffee finishes brewing." },
                   { title: "Warranty That Actually Means Something", text: "We stand behind our work. If something isn't right, we make it right. We don't give you a sticker and a phone number that goes to voicemail." },
                   { title: "The First Shop That Doesn't Talk Down to You", text: "Many of our regulars are women who say this is the first Cleveland auto shop where they felt safe, informed, and never patronized. Half our crew's mothers come here too — that should tell you something." },
                 ].map((item) => (
@@ -782,7 +782,7 @@ function TriageGrid() {
               Pick your symptom — we'll fix it today.
             </h2>
             <p className="mt-3 text-foreground/50 text-sm sm:text-base max-w-2xl mx-auto">
-              Honest diagnosis before any work. Free inspection in under an hour. Most repairs done same day. Financing approved on the spot — drive away today, sleep tonight.
+              Honest diagnosis before any work. Free inspection in under an hour. Most repairs done same day. Payment programs approved on the spot — drive away today, sleep tonight.
             </p>
           </div>
         </FadeIn>
@@ -965,7 +965,7 @@ function LossOpportunitySection() {
               Every day your car gets sicker.
             </h2>
             <p className="mt-3 text-foreground/50 text-sm sm:text-base">
-              Don't have the cash today? Financing approved on the spot — four lenders compete for your business, no hard credit pull, drive away protected. The longer you wait, the louder your car gets.
+              Don't have the cash today? Payment programs approved on the spot — four providers compete for your business, no hard credit pull, drive away protected. The longer you wait, the louder your car gets.
             </p>
           </div>
         </FadeIn>
@@ -995,7 +995,7 @@ function LossOpportunitySection() {
               Can't afford NOT to fix it
             </div>
             <h3 className="font-bold text-2xl text-foreground mb-3">
-              Approved on the spot · four lenders compete for you
+              Approved on the spot · four payment programs compete for you
             </h3>
             <p className="text-sm text-foreground/60 max-w-xl mx-auto mb-5">
               Acima · Snap · Koalafi · American First. No hard credit pull. Most customers approved before they finish their coffee. Drive away today, pay over time.
@@ -1004,7 +1004,7 @@ function LossOpportunitySection() {
               href="/financing"
               className="inline-flex items-center gap-2 rounded-full bg-emerald-500 text-emerald-950 px-6 py-3 text-sm font-bold tracking-wide hover:bg-emerald-400 transition-colors"
             >
-              SEE FINANCING OPTIONS
+              SEE PAYMENT PROGRAMS
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
@@ -1186,7 +1186,7 @@ export default function Home() {
             Your Mechanic Near Me in Cleveland — Every Service, One Surprisingly Decent Shop
           </h2>
           <p className="text-foreground/50 text-sm leading-relaxed mb-8 max-w-3xl">
-            Whether you're hunting for a mechanic near me, auto repair near me, used tires Cleveland, cheap tires Cleveland, or a tire shop near me — Nick's Tire & Auto has you covered like Lake Erie covers the city in February. Brake repair, oil change, check engine light diagnostics, wheel alignment, AC repair, emissions / E-Check, transmission, electrical, exhaust — we handle the boring stuff so you don't have to think about it. Financing approved on the spot — no credit check, no shame. New and used tires installed free with our complete service package. Walk-ins welcome at 17625 Euclid Ave, serving Cleveland, Euclid, Lakewood, Parma, Parma Heights, East Cleveland, Cleveland Heights, Shaker Heights, South Euclid, Garfield Heights, Richmond Heights, Mentor, and Strongsville. We've also been known to help drivers from as far as Erie, but we won't tell anyone if you don't.
+            Whether you're hunting for a mechanic near me, auto repair near me, used tires Cleveland, cheap tires Cleveland, or a tire shop near me — Nick's Tire & Auto has you covered like Lake Erie covers the city in February. Brake repair, oil change, check engine light diagnostics, wheel alignment, AC repair, emissions / E-Check, transmission, electrical, exhaust — we handle the boring stuff so you don't have to think about it. Payment programs approved on the spot — no credit check, no shame. New and used tires installed free with our complete service package. Walk-ins welcome at 17625 Euclid Ave, serving Cleveland, Euclid, Lakewood, Parma, Parma Heights, East Cleveland, Cleveland Heights, Shaker Heights, South Euclid, Garfield Heights, Richmond Heights, Mentor, and Strongsville. We've also been known to help drivers from as far as Erie, but we won't tell anyone if you don't.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {/* Services column */}
