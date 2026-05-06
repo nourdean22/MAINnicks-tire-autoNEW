@@ -432,14 +432,14 @@ export default function About() {
         <div className="container text-center">
           <FadeIn>
             <h2 className="text-3xl lg:text-5xl font-bold text-foreground tracking-tight">Ready to get started?</h2>
-            <p className="mt-4 text-foreground/40 text-lg max-w-md mx-auto">Call us, book online, or just stop by. Walk-ins welcome.</p>
+            <p className="mt-4 text-foreground/40 text-lg max-w-md mx-auto">Call us, drop off online, or just pull up. Walk-ins welcome — first-come, first-served.</p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
               <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("about-cta")} className="inline-flex items-center justify-center gap-2 bg-foreground text-background px-8 py-3.5 rounded-full font-medium hover:bg-foreground/90 transition-colors">
                 <Phone className="w-4 h-4" />
                 Call {BUSINESS.phone.display}
               </a>
               <Link href="/contact" className="inline-flex items-center justify-center gap-2 border border-foreground/30 text-foreground px-8 py-3.5 rounded-full font-medium hover:bg-foreground/5 transition-colors">
-                Book Online
+                Schedule Drop-Off
               </Link>
             </div>
           </FadeIn>

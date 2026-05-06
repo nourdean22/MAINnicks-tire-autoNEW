@@ -67,7 +67,7 @@ export default function SiteFooter() {
             </span>
             {" "}or{" "}
             <Link href="/booking" className="underline hover:no-underline">
-              Book Online
+              Schedule Drop-Off
             </Link>
           </p>
         </div>

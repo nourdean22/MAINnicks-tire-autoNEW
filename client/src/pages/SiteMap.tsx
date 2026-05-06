@@ -71,7 +71,7 @@ const PROBLEM_PAGES: LinkItem[] = [
 ];
 
 const CUSTOMER_TOOLS: LinkItem[] = [
-  { label: "Book Online", href: "/booking", note: "Fill out, we confirm by text" },
+  { label: "Schedule Drop-Off", href: "/booking", note: "Fill out, we confirm by text" },
   { label: "AI Repair Estimator", href: "/estimate", note: "Describe the problem, get a cost range" },
   { label: "Diagnose My Car", href: "/diagnose", note: "AI symptom checker" },
   { label: "Cost Estimator", href: "/cost-estimator" },

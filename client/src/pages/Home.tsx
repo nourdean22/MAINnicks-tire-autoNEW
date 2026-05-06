@@ -122,7 +122,15 @@ function Hero() {
 
       {/* Content — left-aligned */}
       <div className="relative container">
-        <div className="max-w-[60%] max-lg:max-w-full">
+        {/* 2026-05-06 wave-6 fix · widened from max-w-[60%] to max-w-[78%] +
+            shrunk H1 lg font from 6.5rem (104px) to 5rem (80px). At 1512px
+            viewport with non-breaking spaces in StampLetters, the previous
+            sizing made "Pull up for tires." / "Drop off for repairs." each
+            overflow the 60% container so badly that only mid-letter
+            fragments stayed in the visible-after-overflow:hidden zone of
+            the hero section. With 78% container + 80px font, both lines
+            fit on a single line at lg+. */}
+        <div className="max-w-[78%] max-lg:max-w-full">
           {/* Headline */}
           {/* Brand pendant above the H1 — inline SVG, no image file needed.
               Hides on very small screens to leave room for the massive H1. */}
@@ -140,9 +148,11 @@ function Hero() {
               (brand-emotion) to the locked master tagline (behavior-
               instruction). Per HOMEPAGE_MOCKUP spec: white "Pull up
               for tires." / yellow "Drop off for repairs." Tells a
-              Cleveland driver exactly what to do. */}
+              Cleveland driver exactly what to do.
+              2026-05-06 wave-6 · lg font dropped 6.5rem→5rem so each
+              tagline line fits on one line in the widened container. */}
           <h1
-            className="font-heading text-[3.25rem] sm:text-6xl lg:text-[6.5rem] font-extrabold uppercase text-[#F5F5F5] leading-[0.9] tracking-tight headline-balance"
+            className="font-heading text-[3.25rem] sm:text-6xl lg:text-[5rem] font-extrabold uppercase text-[#F5F5F5] leading-[0.95] tracking-tight headline-balance"
           >
             <StampLetters text="Pull up for tires." delay={0.3} />
             <br />
