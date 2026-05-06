@@ -6,7 +6,7 @@ import { useState } from "react";
 import {
   Brain, TrendingUp, Users, Wrench, Target, Rocket, Shield,
 } from "lucide-react";
-import { PageHeader } from "./shared";
+import { PageHeader, TabBar } from "./shared";
 import OverviewTab from "./intelligence/OverviewTab";
 import RevenueTab from "./intelligence/RevenueTab";
 import CustomersTab from "./intelligence/CustomersTab";
@@ -37,25 +37,12 @@ export default function IntelligenceSection() {
         subtitle="50 engines · 7 categories · revenue forecasting · churn prediction · cross-sell · capacity · seasonal demand"
         icon={<Brain className="w-5 h-5" />}
       />
-      {/* Tab bar */}
-      <div className="flex items-center justify-end">
-        <div className="flex items-center gap-1 flex-wrap">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] tracking-wider transition-colors ${
-                tab === t.id
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-card border border-border/30 text-foreground/60 hover:text-foreground"
-              }`}
-            >
-              {t.icon}
-              <span className="hidden md:inline">{t.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+      <TabBar
+        tabs={TABS}
+        activeTab={tab}
+        onChange={setTab}
+        variant="pill"
+      />
 
       {/* Active tab */}
       {tab === "overview" && <OverviewTab />}

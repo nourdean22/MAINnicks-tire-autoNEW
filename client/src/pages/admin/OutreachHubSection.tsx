@@ -4,7 +4,7 @@
  *
  * Tesla-style: one clean surface, tabs to navigate, all tools in one place.
  */
-import { useState, lazy, Suspense } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Send, MessageSquare, Star, RotateCcw, Timer, Loader2 } from "lucide-react";
 import { PageHeader, TabBar } from "./shared";
 
@@ -32,8 +32,23 @@ function TabSpinner() {
   );
 }
 
+const VALID_OUTREACH_TABS: OutreachTab[] = ["campaigns", "sms", "followups", "reviews", "winback"];
+
 export default function OutreachHubSection() {
-  const [tab, setTab] = useState<OutreachTab>("campaigns");
+  // URL-persistent ?outreachTab=...
+  const [tab, setTab] = useState<OutreachTab>(() => {
+    if (typeof window === "undefined") return "campaigns";
+    const raw = new URLSearchParams(window.location.search).get("outreachTab");
+    return raw && (VALID_OUTREACH_TABS as string[]).includes(raw) ? (raw as OutreachTab) : "campaigns";
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (tab === "campaigns") url.searchParams.delete("outreachTab");
+    else url.searchParams.set("outreachTab", tab);
+    window.history.replaceState({}, "", url.toString());
+  }, [tab]);
 
   return (
     <div className="space-y-6">
