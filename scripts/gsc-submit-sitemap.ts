@@ -20,6 +20,9 @@ const SITEMAPS_TO_SUBMIT = [
   "https://nickstire.org/sitemap.xml",
   "https://nickstire.org/sitemap-services.xml",
   "https://nickstire.org/sitemap-locations.xml",
+  // 2026-05-06 visual wave 5 · image sitemap surfaces 21 real shop
+  // photos across home + service pages for Google Image Search.
+  "https://nickstire.org/sitemap-images.xml",
 ];
 
 async function getAccessToken(): Promise<string> {
