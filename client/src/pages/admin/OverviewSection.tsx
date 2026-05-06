@@ -24,6 +24,7 @@ import {
   ResponsiveContainer, PieChart as RPieChart, Pie, Cell, Legend,
 } from "recharts";
 import WebVitalsPanel from "./WebVitalsPanel";
+import { openDrilldown } from "@/components/admin/DrilldownDrawer";
 
 const TOOLTIP_STYLE = {
   background: "oklch(0.12 0.005 260)",
@@ -658,7 +659,7 @@ export default function OverviewSection() {
           color={carsInShop > 0 ? "text-primary" : "text-muted-foreground"}
           trend={carsInShop > 5 ? "up" : "neutral"}
           trendLabel={shopLoad ? `~${Math.round(shopLoad.estimatedWait / 60)}h wait` : undefined}
-          targetSection="customers"
+          onClick={() => openDrilldown({ kind: "cars_in_shop" })}
         />
         <StatCard
           label="Today's Revenue"
@@ -667,7 +668,7 @@ export default function OverviewSection() {
           color="text-emerald-400"
           trend={todayRevenue > 0 ? "up" : "neutral"}
           trendLabel={weekRevenue > 0 ? `$${Math.round(weekRevenue).toLocaleString()} this week` : "no invoices yet this week"}
-          targetSection="revenue"
+          onClick={() => openDrilldown({ kind: "revenue_today" })}
         />
         <StatCard
           label="Jobs Closed Today"
@@ -676,7 +677,7 @@ export default function OverviewSection() {
           color={jobsClosed > 0 ? "text-emerald-400" : "text-muted-foreground"}
           trend={jobsClosed > 0 ? "up" : "neutral"}
           trendLabel={`${weekInvoiceCount} this week`}
-          targetSection="customers"
+          onClick={() => openDrilldown({ kind: "jobs_closed_today" })}
         />
         <StatCard
           label="Website Leads"
@@ -685,7 +686,7 @@ export default function OverviewSection() {
           color="text-blue-400"
           trend={urgentLeads > 0 ? "up" : "neutral"}
           trendLabel={urgentLeads > 0 ? `${urgentLeads} urgent` : `${stats.leads.thisWeek} this week`}
-          targetSection="leads"
+          onClick={() => openDrilldown({ kind: "fresh_leads" })}
         />
         <StatCard
           label="Health Score"
@@ -741,9 +742,17 @@ export default function OverviewSection() {
                 Quotes that never converted to invoice. The 7d/30d SMS recovery cron targets these.
               </p>
             </div>
-            <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider rounded bg-amber-500/15 text-amber-400">
-              {walkAway.unmatchedCount} UNMATCHED · {walkAway.conversionRate}% CONVERSION
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider rounded bg-amber-500/15 text-amber-400">
+                {walkAway.unmatchedCount} UNMATCHED · {walkAway.conversionRate}% CONVERSION
+              </span>
+              <button
+                onClick={() => openDrilldown({ kind: "walk_aways" })}
+                className="px-2.5 py-1 text-[10px] font-bold tracking-wider rounded border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors"
+              >
+                SEE ROWS →
+              </button>
+            </div>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
             <div className="border border-border/20 p-2.5">

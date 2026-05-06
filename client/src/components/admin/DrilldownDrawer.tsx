@@ -1,0 +1,221 @@
+/**
+ * DrilldownDrawer — global slide-out panel that shows the rows
+ * behind any KPI on the dashboard.
+ *
+ * Triggered globally via the `admin:open-drilldown` CustomEvent —
+ * any metric card calls `dispatchEvent(new CustomEvent('admin:open-drilldown',
+ * { detail: { kind: 'walk_aways' } }))` and the drawer opens, fetches,
+ * and renders the rows.
+ *
+ * Architecture:
+ *   - Single instance lives at the Admin shell top level
+ *   - Event bus avoids prop-drilling
+ *   - Queries trpc.adminDashboard.drilldown for normalized rows
+ *   - Closes on Escape + outside click + close button
+ *   - Mobile-aware: full-screen on phone, side panel on desktop
+ */
+import { useState, useEffect } from "react";
+import { trpc } from "@/lib/trpc";
+import { X, Loader2, ExternalLink } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+
+type DrilldownKind =
+  | "cars_in_shop"
+  | "revenue_today"
+  | "jobs_closed_today"
+  | "pending_callbacks"
+  | "walk_aways"
+  | "fresh_leads"
+  | "lapsed_vips"
+  | "negative_reviews"
+  | "today_bookings";
+
+export type DrilldownDetail = {
+  kind: DrilldownKind;
+  /** Optional override label/subtitle if you want to customize */
+  title?: string;
+};
+
+const ADMIN_DRILLDOWN_EVENT = "admin:open-drilldown";
+
+/**
+ * Public helper — call this from any metric card to open the drawer.
+ */
+export function openDrilldown(detail: DrilldownDetail) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(ADMIN_DRILLDOWN_EVENT, { detail }));
+}
+
+export default function DrilldownDrawer() {
+  const [activeKind, setActiveKind] = useState<DrilldownKind | null>(null);
+  const [titleOverride, setTitleOverride] = useState<string | undefined>();
+
+  // Listen for global open events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<DrilldownDetail>).detail;
+      if (!detail?.kind) return;
+      setActiveKind(detail.kind);
+      setTitleOverride(detail.title);
+    };
+    window.addEventListener(ADMIN_DRILLDOWN_EVENT, handler as EventListener);
+    return () => window.removeEventListener(ADMIN_DRILLDOWN_EVENT, handler as EventListener);
+  }, []);
+
+  // Close on Escape
+  useEffect(() => {
+    if (!activeKind) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setActiveKind(null);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [activeKind]);
+
+  const isOpen = activeKind !== null;
+
+  // tRPC query — only runs when drawer is open
+  const { data, isLoading } = trpc.adminDashboard.drilldown.useQuery(
+    activeKind ? { kind: activeKind, limit: 50 } : undefined as never,
+    {
+      enabled: isOpen,
+      staleTime: 30_000,
+    },
+  );
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            key="backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="fixed inset-0 z-[60] bg-black/55 backdrop-blur-sm"
+            onClick={() => setActiveKind(null)}
+            aria-hidden="true"
+          />
+          {/* Drawer */}
+          <motion.aside
+            key="drawer"
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", stiffness: 320, damping: 32 }}
+            className="fixed top-0 right-0 bottom-0 z-[61] w-full sm:w-[480px] bg-card border-l border-border/40 shadow-2xl flex flex-col"
+            role="dialog"
+            aria-modal="true"
+          >
+            {/* Header */}
+            <div className="shrink-0 flex items-start justify-between gap-3 px-5 py-4 border-b border-border/30">
+              <div className="min-w-0">
+                <h2 className="font-bold text-foreground text-base tracking-tight truncate">
+                  {isLoading ? "Loading…" : (titleOverride || data?.title || "Detail")}
+                </h2>
+                {data?.subtitle && (
+                  <p className="text-foreground/50 text-[12px] mt-0.5">{data.subtitle}</p>
+                )}
+              </div>
+              <button
+                onClick={() => setActiveKind(null)}
+                className="shrink-0 text-foreground/40 hover:text-foreground/80 transition-colors p-1 rounded-md hover:bg-foreground/5"
+                aria-label="Close drilldown"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto">
+              {isLoading && (
+                <div className="flex items-center justify-center py-20">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary/60" />
+                </div>
+              )}
+
+              {!isLoading && data && data.rows.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+                  <p className="text-[13px] font-medium text-foreground/40">Nothing to show.</p>
+                  <p className="text-[11px] text-foreground/30 mt-1">
+                    No matching rows right now — that's a clean state.
+                  </p>
+                </div>
+              )}
+
+              {!isLoading && data && data.rows.length > 0 && (
+                <div className="divide-y divide-border/15">
+                  {data.rows.map((row: DrilldownRowData) => (
+                    <DrilldownRow key={row.id} row={row} />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="shrink-0 flex items-center justify-between gap-3 px-5 py-3 border-t border-border/20 bg-background/40">
+              <span className="text-[10px] text-foreground/40">
+                {data?.rows.length ?? 0} row{data?.rows.length === 1 ? "" : "s"} · Esc to close
+              </span>
+              <button
+                onClick={() => setActiveKind(null)}
+                className="text-[11px] font-bold tracking-wider px-3 py-1 border border-border/40 text-foreground/60 hover:text-foreground hover:border-foreground/30 rounded transition-colors"
+              >
+                CLOSE
+              </button>
+            </div>
+          </motion.aside>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ─── Row renderer ────────────────────────────────────────
+
+interface DrilldownRowData {
+  id: string | number;
+  primary: string;
+  secondary?: string;
+  meta?: string;
+  value?: string;
+  href?: string;
+}
+
+function DrilldownRow({ row }: { row: DrilldownRowData }) {
+  return (
+    <div className="px-5 py-3 hover:bg-foreground/[0.02] transition-colors">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-foreground text-[13px] truncate">{row.primary}</p>
+          {row.secondary && (
+            <p className="text-foreground/50 text-[11px] mt-0.5 truncate">{row.secondary}</p>
+          )}
+          {row.meta && (
+            <p className="text-foreground/40 text-[10px] mt-1 italic line-clamp-2">{row.meta}</p>
+          )}
+        </div>
+        <div className="shrink-0 flex items-center gap-2">
+          {row.value && (
+            <span className="font-mono text-[11px] text-foreground/70 whitespace-nowrap">
+              {row.value}
+            </span>
+          )}
+          {row.href && (
+            <a
+              href={row.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-foreground/30 hover:text-primary transition-colors"
+              aria-label="Open detail"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
