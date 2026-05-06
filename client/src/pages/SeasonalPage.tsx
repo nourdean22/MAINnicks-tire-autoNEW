@@ -132,10 +132,8 @@ export default function SeasonalPage() {
         description={page.metaDescription}
         canonicalPath={`/${page.slug}`}
       />
-      
-      
-      <SeasonalNavbar season={page.season} />
-
+      {/* 2026-05-06 wave-7 · SeasonalNavbar removed to kill duplicate-nav
+          glitch. PageLayout's SiteNavbar handles nav. */}
 
         {/* Hero */}
         <section className="relative min-h-[55vh] lg:min-h-[65vh] flex items-end overflow-hidden">
