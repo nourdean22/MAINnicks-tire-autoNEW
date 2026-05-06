@@ -72,6 +72,18 @@ export function StampLetters({
   className,
   style,
 }: StampLettersProps) {
+  // 2026-05-06 wave-23 · group letters by word.
+  //
+  // Earlier versions wrapped every letter in its own inline-block span.
+  // The browser treats each inline-block as a wrap candidate, so lines
+  // could break mid-word ("FOR" → "F" + "OR" on the next line) when the
+  // headline ran out of horizontal room. By wrapping each WORD in its
+  // own inline-block container and putting REAL spaces between words,
+  // words stay glued together as a single break unit while line-wraps
+  // still happen naturally at word boundaries.
+  const words = text.split(" ");
+  let charIndex = 0;
+
   return (
     <motion.span
       className={className}
@@ -82,23 +94,39 @@ export function StampLetters({
       custom={{ delay, stagger }}
       aria-label={text}
     >
-      {Array.from(text).map((char, i) => {
-        if (char === " ") {
-          // Real space — preserve it without animating
-          return <span key={`s-${i}`} aria-hidden="true">&nbsp;</span>;
-        }
-        return (
-          <motion.span
-            key={`${char}-${i}`}
+      {words.map((word, wIdx) => {
+        const wordNode = (
+          <span
+            key={`w-${wIdx}`}
             aria-hidden="true"
-            variants={letterVariants}
-            style={{
-              display: "inline-block",
-              willChange: "transform, opacity, filter",
-            }}
+            style={{ display: "inline-block", whiteSpace: "nowrap" }}
           >
-            {char}
-          </motion.span>
+            {Array.from(word).map((char) => {
+              const key = `c-${charIndex++}`;
+              return (
+                <motion.span
+                  key={key}
+                  aria-hidden="true"
+                  variants={letterVariants}
+                  style={{
+                    display: "inline-block",
+                    willChange: "transform, opacity, filter",
+                  }}
+                >
+                  {char}
+                </motion.span>
+              );
+            })}
+          </span>
+        );
+        // Real (breakable) space between words; not after the last word
+        return wIdx < words.length - 1 ? (
+          <span key={`wrap-${wIdx}`}>
+            {wordNode}
+            {" "}
+          </span>
+        ) : (
+          wordNode
         );
       })}
     </motion.span>
