@@ -217,6 +217,7 @@ function ContentManager() {
 
 type Archetype = "proof" | "anti" | "math" | "seasonal";
 type GBPPostResult = RouterOutputs["contentAdmin"]["generateGBPPost"];
+type GBPHistoryRow = RouterOutputs["contentAdmin"]["gbpPostHistory"][number];
 
 const ARCHETYPE_LABELS: Record<Archetype | "auto", string> = {
   auto: "AUTO",
@@ -230,10 +231,15 @@ function GBPPostGenerator() {
   const [result, setResult] = useState<GBPPostResult | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const utils = trpc.useUtils();
+  const { data: history } = trpc.contentAdmin.gbpPostHistory.useQuery();
+
   const generate = trpc.contentAdmin.generateGBPPost.useMutation({
     onSuccess: (data) => {
       setResult(data);
       setCopied(false);
+      // Refresh history panel so the new post shows up immediately.
+      utils.contentAdmin.gbpPostHistory.invalidate();
       toast.success(`Generated ${data.archetype.toUpperCase()} post`);
     },
     onError: (err: { message: string }) => toast.error("Failed: " + err.message),
@@ -297,6 +303,34 @@ function GBPPostGenerator() {
             <div><span className="font-bold text-foreground/70">IMAGE:</span> {result.imageHint}</div>
           </div>
         </div>
+      )}
+
+      {/* Post history (last 14 — variety guard window) */}
+      {history && history.length > 0 && (
+        <details className="border-t border-border/20 pt-3">
+          <summary className="cursor-pointer text-[11px] font-bold tracking-wider text-foreground/50 hover:text-foreground/80">
+            POST HISTORY · LAST {history.length} (variety window)
+          </summary>
+          <div className="mt-2 space-y-1.5">
+            {history.map((row: GBPHistoryRow) => {
+              const date = new Date(row.postedAt);
+              const dayLabel = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+              const archetypeColor =
+                row.archetype === "proof" ? "text-emerald-400" :
+                row.archetype === "anti" ? "text-amber-400" :
+                row.archetype === "math" ? "text-blue-400" :
+                "text-purple-400";
+              return (
+                <div key={row.id} className="flex items-center gap-3 text-[11px] py-1 border-b border-border/10">
+                  <span className="text-foreground/40 w-12 shrink-0">{dayLabel}</span>
+                  <span className={`font-bold tracking-wider w-16 shrink-0 ${archetypeColor}`}>{row.archetype.toUpperCase()}</span>
+                  <span className="text-foreground/30 text-[10px] w-12 shrink-0">{row.source}</span>
+                  <span className="text-foreground/60 truncate flex-1">{row.postBody.split("\n")[0]}</span>
+                </div>
+              );
+            })}
+          </div>
+        </details>
       )}
     </div>
   );

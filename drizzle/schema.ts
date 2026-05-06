@@ -2311,3 +2311,41 @@ export const reviewTrends = mysqlTable("review_trends", {
 }, (table) => [
   index("idx_review_trends_date").on(table.snapshotDate),
 ]);
+
+// ─── GBP POST LOG ───────────────────────────────────────
+/**
+ * Sent-history log for Google Business Profile posts.
+ * Replaces the in-memory variety guard (which lost state on every deploy)
+ * with a durable table the generator reads from before picking the next
+ * archetype. Lets us:
+ *  - Avoid duplicate topics across consecutive posts
+ *  - Audit what was sent and when
+ *  - Track playbook ratio over time (proof should be ~50%, etc)
+ *  - Flag drift (e.g. 3 anti-promise posts in a row)
+ */
+export const gbpPostLog = mysqlTable("gbp_post_log", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Post archetype: proof | anti | math | seasonal */
+  archetype: varchar("archetype", { length: 20 }).notNull(),
+  /** SHA-1 hash of post body for cross-post dedup (variety guard) */
+  topicHash: varchar("topicHash", { length: 64 }).notNull(),
+  /** Truncated body text (first 1500 chars — GBP post limit) */
+  postBody: text("postBody").notNull(),
+  /** CTA enum: BOOK | CALL | LEARN_MORE | ORDER */
+  ctaType: varchar("ctaType", { length: 20 }).notNull(),
+  /** Full CTA URL (with UTM params) */
+  ctaUrl: varchar("ctaUrl", { length: 500 }).notNull(),
+  /** Image hint string from generator */
+  imageHint: text("imageHint"),
+  /** Source: 'cron' (scheduled) or 'admin' (one-off button) */
+  source: varchar("source", { length: 20 }).default("cron").notNull(),
+  /** When the post was generated and queued for paste */
+  postedAt: timestamp("postedAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_gbp_post_log_posted").on(table.postedAt),
+  index("idx_gbp_post_log_archetype").on(table.archetype),
+  index("idx_gbp_post_log_topic").on(table.topicHash),
+]);
+
+export type GbpPostLogRow = typeof gbpPostLog.$inferSelect;
+export type InsertGbpPostLog = typeof gbpPostLog.$inferInsert;

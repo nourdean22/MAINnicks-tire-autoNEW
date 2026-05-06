@@ -144,4 +144,31 @@ export const contentAdminRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "GBP post generation failed" });
       }
     }),
+  // GBP post history — last 14 posts (variety guard window). Lets Nour
+  // see what's been queued and confirm playbook ratio is being respected.
+  gbpPostHistory: adminProcedure.query(async () => {
+    try {
+      const { db: dbHelper } = await import("../lib/db-helper");
+      const { gbpPostLog } = await import("../../drizzle/schema");
+      const { desc } = await import("drizzle-orm");
+      const d = await dbHelper();
+      if (!d) return [];
+      const rows = await d
+        .select({
+          id: gbpPostLog.id,
+          archetype: gbpPostLog.archetype,
+          postBody: gbpPostLog.postBody,
+          ctaType: gbpPostLog.ctaType,
+          source: gbpPostLog.source,
+          postedAt: gbpPostLog.postedAt,
+        })
+        .from(gbpPostLog)
+        .orderBy(desc(gbpPostLog.postedAt))
+        .limit(14);
+      return rows;
+    } catch (err) {
+      log.warn("[content] gbpPostHistory failed", { err: err instanceof Error ? err.message : err });
+      return [];
+    }
+  }),
 });
