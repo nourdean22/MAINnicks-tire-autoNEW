@@ -1,0 +1,133 @@
+/**
+ * One-off: PATCH the live VAPI assistant with the latest code config.
+ *
+ * Usage:
+ *   npx tsx scripts/vapi-update-assistant.ts
+ *
+ * Env required: VAPI_API_KEY
+ *
+ * What it does:
+ *   1. Builds the assistant config from server/services/vapi.ts (the
+ *      source-of-truth — system prompt, 9 tools, voice, model, analysis).
+ *   2. PATCHes /assistant/{id} on api.vapi.ai with that config.
+ *   3. Re-fetches the assistant to confirm the update landed.
+ *
+ * Run this any time the system prompt or tool definitions change in code.
+ */
+
+import "dotenv/config";
+import { buildAssistantConfig } from "../server/services/vapi";
+
+const ASSISTANT_ID = "150fe622-0b9f-4b03-b8c7-3063812717ae";
+const SERVER_URL = "https://nickstire.org/api/webhooks/vapi";
+const VAPI_BASE = "https://api.vapi.ai";
+
+async function main(): Promise<void> {
+  const apiKey = process.env.VAPI_API_KEY;
+  if (!apiKey) {
+    console.error("ERROR: VAPI_API_KEY not set in environment");
+    process.exit(1);
+  }
+
+  const config = buildAssistantConfig(SERVER_URL);
+
+  console.log("─── Build config summary ───");
+  console.log(`  Name:                ${config.name}`);
+  console.log(`  Model:               ${config.model.provider} / ${config.model.model}`);
+  console.log(`  Voice:               ${config.voice.provider} / ${config.voice.voiceId}`);
+  console.log(`  Tool count:          ${config.model.tools.length}`);
+  console.log(`  Tool types/names:    ${config.model.tools.map((t) => (t.type === "function" ? t.function.name : t.type)).join(", ")}`);
+  console.log(`  Prompt length:       ${config.model.messages[0].content.length} chars`);
+  console.log(`  First message:       "${config.firstMessage.slice(0, 90)}..."`);
+  console.log(`  Server URL:          ${config.serverUrl}`);
+  console.log("");
+
+  console.log(`PATCH https://api.vapi.ai/assistant/${ASSISTANT_ID}`);
+
+  const res = await fetch(`${VAPI_BASE}/assistant/${ASSISTANT_ID}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(config),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    console.error(`\n❌ PATCH failed: ${res.status}`);
+    console.error(text.slice(0, 1500));
+    process.exit(1);
+  }
+
+  console.log(`✅ PATCH succeeded (${res.status})\n`);
+
+  // Verify
+  console.log("─── Verifying live state ───");
+  const verifyRes = await fetch(`${VAPI_BASE}/assistant/${ASSISTANT_ID}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+
+  if (!verifyRes.ok) {
+    console.error(`Verify fetch failed: ${verifyRes.status}`);
+    process.exit(1);
+  }
+
+  const live = (await verifyRes.json()) as Record<string, unknown>;
+  const liveModel = live.model as Record<string, unknown> | undefined;
+  const liveTools = (liveModel?.tools as Array<Record<string, unknown>>) || [];
+
+  console.log(`  ID:                  ${live.id}`);
+  console.log(`  Name:                ${live.name}`);
+  console.log(`  Updated:             ${live.updatedAt}`);
+  console.log(`  Live model:          ${liveModel?.provider} / ${liveModel?.model}`);
+  console.log(`  Live tool count:     ${liveTools.length}`);
+  const liveToolNames = liveTools.map((t) => {
+    if (t.type === "function") {
+      const fn = t.function as Record<string, unknown>;
+      return fn?.name as string;
+    }
+    return t.type as string;
+  });
+  console.log(`  Live tool names:     ${liveToolNames.join(", ")}`);
+  console.log(`  Live prompt length:  ${(((liveModel?.messages as Array<Record<string, unknown>>) || [])[0]?.content as string)?.length ?? 0} chars`);
+  console.log("");
+
+  // Sanity checks
+  const checks: Array<{ ok: boolean; name: string; detail: string }> = [
+    {
+      ok: liveModel?.provider === config.model.provider,
+      name: "Model provider matches",
+      detail: `${liveModel?.provider} === ${config.model.provider}`,
+    },
+    {
+      ok: liveModel?.model === config.model.model,
+      name: "Model name matches",
+      detail: `${liveModel?.model} === ${config.model.model}`,
+    },
+    {
+      ok: liveTools.length === config.model.tools.length,
+      name: "Tool count matches",
+      detail: `${liveTools.length} === ${config.model.tools.length}`,
+    },
+    {
+      ok: liveToolNames.includes("transferCall"),
+      name: "transferCall tool present",
+      detail: `tools include transferCall: ${liveToolNames.includes("transferCall")}`,
+    },
+  ];
+
+  console.log("─── Sanity checks ───");
+  for (const c of checks) {
+    console.log(`  ${c.ok ? "✅" : "❌"} ${c.name} · ${c.detail}`);
+  }
+  const allPassed = checks.every((c) => c.ok);
+  console.log("");
+  console.log(allPassed ? "🎉 All checks passed." : "⚠️  Some checks failed — review above.");
+  process.exit(allPassed ? 0 : 1);
+}
+
+main().catch((err: Error) => {
+  console.error("FATAL:", err.message);
+  process.exit(1);
+});

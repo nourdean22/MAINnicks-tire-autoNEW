@@ -777,16 +777,18 @@ interface VapiAssistantConfig {
 
 // Keywords boost transcriber accuracy on shop-specific terms.
 // Deepgram lets us pre-prime the model with high-priority words.
+// VAPI's transcriber spec only allows 'word' or 'word:boost' format —
+// no slashes, no hyphens. So tire sizes ("215/55R16") and hyphenated
+// model names ("F-150", "CR-V") are flattened to plain words.
 const TRANSCRIBER_KEYWORDS = [
   "tire", "tires",
   "Goodyear", "Michelin", "Bridgestone", "Continental", "Cooper", "Hankook",
   "brake", "rotor", "pad",
   "alignment", "balance",
   "TPMS",
-  "F-150", "Silverado", "Camry", "Accord", "Civic", "RAV4", "CR-V", "Escape",
+  "F150", "Silverado", "Camry", "Accord", "Civic", "RAV4", "CRV", "Escape",
   "Acima", "Snap", "Koalafi",
   "Euclid", "Cleveland",
-  "215/55R16", "225/65R17", "265/70R17", // common Cleveland sizes
 ];
 
 function buildAssistantConfig(serverUrl?: string): VapiAssistantConfig {
