@@ -32,6 +32,22 @@ export default function LocalBusinessSchema({
     "@context": "https://schema.org",
     "@type": ["AutoRepair", "TireShop"],
     name: pageName || BUSINESS.name,
+    // 2026-05-06 cannibalization deep fix · explicit brand-name variants
+    // for Google's knowledge graph. Without this, "nicks tires" / "nick
+    // tire" / "nicks tire and auto" can match different pages because
+    // the brand identity isn't normalized to one entity. With these,
+    // all variants resolve to / as the canonical brand home.
+    alternateName: [
+      "Nicks Tire",
+      "Nick's Tire",
+      "Nicks Tires",
+      "Nick's Tires",
+      "Nicks Tire and Auto",
+      "Nick's Tire and Auto",
+      "Nicks Tire & Auto",
+      "Nicks Auto",
+      "Nick's Auto",
+    ],
     image: `${BUSINESS.urls.website}/favicon.ico`,
     telephone: `+1-${BUSINESS.phone.dashed}`,
     url: BUSINESS.urls.website,
