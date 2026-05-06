@@ -104,6 +104,20 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   funnel: "trafficFunnel",
   traffic: "trafficFunnel",
 
+  // 2026-05-06 Elon-deeper-cut · these 4 sections were removed from the
+  // sidebar (TODAY/REVENUE/GROW/TOOLS) but kept reachable via URL.
+  // resolveInitialSection() lowercases the param, so the lowercase
+  // aliases below ensure direct deep-links keep working.
+  walkincalc: "walkInCalc",
+  walkin: "walkInCalc",
+  quote: "walkInCalc",
+  noshowrisk: "noShowRisk",
+  noshow: "noShowRisk",
+  reengagement: "reEngagement",
+  reengage: "reEngagement",
+  conversionpreview: "conversionPreview",
+  preview: "conversionPreview",
+
   // Settings sub-tabs (the old standalone sections are now Settings tabs)
   health: "settings",
   sysHealth: "settings",

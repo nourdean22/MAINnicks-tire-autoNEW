@@ -189,6 +189,42 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
       group: "Action",
       run: () => onNavigate("overview"),
     },
+    // 2026-05-06 Elon-deeper-cut · these sections were removed from the
+    // sidebar to declutter daily nav. Surfacing them as Cmd+K quick
+    // actions keeps them 3-keystrokes-away without the visual tax of
+    // a permanent sidebar slot.
+    {
+      id: "action-walkin-quote",
+      label: "Walk-In Quote",
+      keywords: ["walkin", "walk-in", "quote", "estimate", "calculator", "labor"],
+      icon: <DollarSign className="w-4 h-4 text-emerald-500" />,
+      group: "Action",
+      run: () => onNavigate("walkInCalc"),
+    },
+    {
+      id: "action-no-show-risk",
+      label: "No-Show Risk",
+      keywords: ["noshow", "no-show", "risk", "missing", "ghost", "appointments"],
+      icon: <AlertTriangle className="w-4 h-4 text-amber-500" />,
+      group: "Action",
+      run: () => onNavigate("noShowRisk"),
+    },
+    {
+      id: "action-conversion-preview",
+      label: "Conversion Preview",
+      keywords: ["preview", "conversion", "test", "verify", "deploy"],
+      icon: <Sparkles className="w-4 h-4 text-purple-500" />,
+      group: "Action",
+      run: () => onNavigate("conversionPreview"),
+    },
+    {
+      id: "action-re-engagement",
+      label: "Re-engagement",
+      keywords: ["reengage", "re-engage", "winback", "win-back", "dormant"],
+      icon: <RefreshCw className="w-4 h-4 text-blue-500" />,
+      group: "Action",
+      run: () => onNavigate("reEngagement"),
+    },
   ], [refreshAlgMutation, generateGbpMutation, onNavigate]);
 
   // Filter actions by query
