@@ -379,7 +379,7 @@ export default function SpecialsPage() {
     <PageLayout showChat={true}>
       <SEOHead
         title="Auto Repair Specials & Coupons Cleveland · Honest Discounts | Nick's"
-        description="Cleveland auto-repair specials that don't read like fine print. Current discounts on oil change, brakes, diagnostics, tires, AC, alignment. Walk-ins 7 days, financing on the spot. (216) 862-0005"
+        description="Cleveland auto-repair specials that don't read like fine print. Current discounts on oil change, brakes, diagnostics, tires, AC, alignment. Walk-ins 7 days, payment programs on the spot. (216) 862-0005"
         canonicalPath="/specials"
       />
 
@@ -524,7 +524,7 @@ export default function SpecialsPage() {
                 href="/booking"
                 className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors"
               >
-                HOLD A BAY
+                SCHEDULE DROP-OFF
                 <ChevronRight className="w-5 h-5" />
               </Link>
             </div>
