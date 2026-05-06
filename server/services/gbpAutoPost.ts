@@ -103,8 +103,10 @@ export async function generateAndNotifyGBPPost(): Promise<{ recordsProcessed: nu
       return { recordsProcessed: 0, details: `Skip — runs Mondays only (today is ${day})` };
     }
 
-    const { generateGBPPost } = await import("./gbpContentGenerator");
+    const { generateGBPPost, logPostToDb } = await import("./gbpContentGenerator");
     const post = await generateGBPPost();
+    // Durable log so variety guard survives deploys + admin can review history.
+    await logPostToDb(post, "cron");
     const { sendTelegram } = await import("./telegram");
     const today = now.toLocaleDateString("en-US", {
       timeZone: BUSINESS.timezone, weekday: "long", month: "short", day: "numeric",
@@ -214,8 +216,11 @@ export async function generateOneOffGBPPost(forceArchetype?: "proof" | "anti" | 
   ctaUrl: string;
   imageHint: string;
 }> {
-  const { generateGBPPost } = await import("./gbpContentGenerator");
+  const { generateGBPPost, logPostToDb } = await import("./gbpContentGenerator");
   const post = await generateGBPPost(forceArchetype);
+  // Log admin-triggered posts too — counts toward variety guard so we don't
+  // generate same archetype/topic via cron right after.
+  await logPostToDb(post, "admin");
   return {
     archetype: post.archetype,
     text: post.text,

@@ -28,8 +28,8 @@
 import { BUSINESS } from "@shared/business";
 import { createLogger } from "../lib/logger";
 import { db } from "../lib/db-helper";
-import { specials } from "../../drizzle/schema";
-import { eq, and, gte, sql } from "drizzle-orm";
+import { specials, gbpPostLog } from "../../drizzle/schema";
+import { eq, and, gte, sql, desc } from "drizzle-orm";
 
 const log = createLogger("gbp-content-generator");
 
@@ -49,16 +49,66 @@ export interface GeneratedGBPPost {
   topicHash: string;            // for variety guard
 }
 
-// In-memory variety guard. Tracks last N topic hashes sent so we don't
-// repeat. Resets on deploy — acceptable trade-off vs adding a DB table.
-const RECENT_TOPICS: string[] = [];
+// Variety guard. Hybrid: DB (durable, survives deploys) + in-memory cache
+// (fast, avoids re-querying for every attempt). DB is source of truth on
+// startup; cache is hydrated from DB once per server lifetime, then mutated
+// in-process.
+//
+// Why hybrid: the generator runs synchronously inside a single request
+// (admin button) or cron tick. We don't want to round-trip the DB 4× during
+// the variety-retry loop. So we hydrate once, then dedup against memory.
 const RECENT_LIMIT = 14;
+let RECENT_TOPICS: string[] = [];
+let HYDRATED_AT: number | null = null;
+const HYDRATE_TTL_MS = 5 * 60 * 1000; // re-hydrate every 5 min
+
+async function hydrateRecentTopicsFromDb(): Promise<void> {
+  // Re-hydrate if first call OR cache stale (>5 min old).
+  if (HYDRATED_AT && Date.now() - HYDRATED_AT < HYDRATE_TTL_MS) return;
+  try {
+    const d = await db();
+    if (!d) return; // DB down — fall through to in-memory only
+    const rows = await d
+      .select({ topicHash: gbpPostLog.topicHash })
+      .from(gbpPostLog)
+      .orderBy(desc(gbpPostLog.postedAt))
+      .limit(RECENT_LIMIT);
+    RECENT_TOPICS = rows.map((r: { topicHash: string }) => r.topicHash);
+    HYDRATED_AT = Date.now();
+  } catch (err) {
+    log.warn("hydrate failed, falling back to memory-only variety guard", { err: err instanceof Error ? err.message : String(err) });
+  }
+}
+
 function recordTopic(hash: string) {
   RECENT_TOPICS.unshift(hash);
   if (RECENT_TOPICS.length > RECENT_LIMIT) RECENT_TOPICS.length = RECENT_LIMIT;
 }
+
 function isRecentTopic(hash: string): boolean {
   return RECENT_TOPICS.includes(hash);
+}
+
+/**
+ * Insert a row into gbp_post_log. Fire-and-forget — failure to log
+ * shouldn't block the post generation. Cron + admin both call this.
+ */
+export async function logPostToDb(post: GeneratedGBPPost, source: "cron" | "admin"): Promise<void> {
+  try {
+    const d = await db();
+    if (!d) return;
+    await d.insert(gbpPostLog).values({
+      archetype: post.archetype,
+      topicHash: post.topicHash,
+      postBody: post.text.slice(0, 1500),
+      ctaType: post.callToAction,
+      ctaUrl: post.ctaUrl.slice(0, 500),
+      imageHint: post.imageHint,
+      source,
+    });
+  } catch (err) {
+    log.warn("gbpPostLog insert failed (non-critical)", { err: err instanceof Error ? err.message : String(err) });
+  }
 }
 
 // ─────────────────────────────────────────────────────────
@@ -393,6 +443,9 @@ function pickArchetype(): GBPArchetype {
  * topic hash within RECENT_LIMIT calls).
  */
 export async function generateGBPPost(forceArchetype?: GBPArchetype): Promise<GeneratedGBPPost> {
+  // Pull recent topics from DB once per generation cycle (cached 5 min).
+  await hydrateRecentTopicsFromDb();
+
   // If a special is active, prefer to feature it (highest signal/conversion).
   const featuredSpecial = await getFeaturedActiveSpecial();
   if (featuredSpecial && !forceArchetype) {
