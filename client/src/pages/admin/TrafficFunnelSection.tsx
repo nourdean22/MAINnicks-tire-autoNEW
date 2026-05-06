@@ -325,6 +325,9 @@ export default function TrafficFunnelSection() {
       {/* ─── CUSTOMER EVENTS PANEL — visual-surface engagement ── */}
       <CustomerEventsPanel range={range} />
 
+      {/* ─── WEEKLY GSC AUDIT PANEL — CTR + ranking + cannibalization ── */}
+      <GscAuditPanel range={range} />
+
       {/* ─── SITEMAP SUBMISSION PANEL — accelerate Google indexing ── */}
       <SitemapSubmissionPanel />
 
@@ -643,6 +646,144 @@ function SitemapSubmissionPanel() {
           </table>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * GscAuditPanel — weekly Google Search Console audit surface.
+ *
+ * Pulls CTR opportunities, ranking changes, cannibalization, and top
+ * queries from the search_performance table that gets populated nightly
+ * by the gsc-pipeline cron job. Replaces the manual gsc-audit.ts CLI
+ * script — now a one-click admin view.
+ *
+ * Default-collapsed to avoid cluttering the funnel page; click to expand.
+ */
+function GscAuditPanel({ range }: { range: Range }) {
+  const [expanded, setExpanded] = useState(false);
+  const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
+
+  const { data, isLoading } = trpc.seoTools.weeklyAudit.useQuery(
+    { days },
+    { enabled: expanded, staleTime: 60 * 60 * 1000 },
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-end justify-between flex-wrap gap-3">
+        <div>
+          <div className="text-[#FDB913] text-[10px] font-mono uppercase tracking-widest mb-1">
+            Search Console Audit ({range})
+          </div>
+          <h3 className="font-bold text-base text-foreground tracking-wide uppercase">
+            Weekly GSC Audit
+          </h3>
+          <p className="text-[12px] text-foreground/40 mt-1 max-w-2xl">
+            CTR opportunities, ranking drops, cannibalization clusters. Pulled from the
+            search_performance table that gsc-pipeline syncs nightly. Replaces the manual
+            gsc-audit.ts CLI script.
+          </p>
+        </div>
+        <button
+          onClick={() => setExpanded((x) => !x)}
+          className="flex items-center gap-2 bg-card border border-border/30 px-4 py-2 text-sm hover:border-primary/30 transition-colors"
+        >
+          <Search className="w-3.5 h-3.5" />
+          {expanded ? "Collapse" : "Run Audit"}
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="bg-card border border-border/30 p-4 space-y-5">
+          {isLoading || !data ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+            </div>
+          ) : !data.ok ? (
+            <div className="text-[12px] text-amber-400">
+              GSC audit unavailable. {("authError" in data && data.authError) || "Check pipeline status."}
+            </div>
+          ) : (
+            <>
+              {/* CTR opportunities */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                  <h4 className="text-xs font-bold tracking-wider uppercase text-foreground/70">
+                    CTR Opportunities ({data.ctrOpportunities.length})
+                  </h4>
+                </div>
+                {data.ctrOpportunities.length === 0 ? (
+                  <p className="text-[11px] text-foreground/40 italic">
+                    No high-impression / low-CTR queries detected this window.
+                  </p>
+                ) : (
+                  <div className="space-y-1 text-[11px] font-mono">
+                    {data.ctrOpportunities.slice(0, 8).map((o: { query: string; impressions: number; currentCtr: number; avgPosition: number }, i: number) => (
+                      <div key={i} className="flex items-center gap-3 py-1 border-b border-border/5 last:border-0">
+                        <span className="text-foreground/60 truncate flex-1">{o.query}</span>
+                        <span className="text-foreground/40 shrink-0">{o.impressions} imp</span>
+                        <span className="text-foreground/40 shrink-0">{(o.currentCtr * 100).toFixed(1)}% CTR</span>
+                        <span className="text-foreground/40 shrink-0">#{o.avgPosition?.toFixed(1) ?? "—"}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Ranking drops */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                  <h4 className="text-xs font-bold tracking-wider uppercase text-foreground/70">
+                    Ranking Drops ({data.rankingDrops.length})
+                  </h4>
+                </div>
+                {data.rankingDrops.length === 0 ? (
+                  <p className="text-[11px] text-foreground/40 italic">No queries dropped 3+ positions.</p>
+                ) : (
+                  <div className="space-y-1 text-[11px] font-mono">
+                    {data.rankingDrops.slice(0, 8).map((d: { query: string; delta: number; currentPosition: number }, i: number) => (
+                      <div key={i} className="flex items-center gap-3 py-1 border-b border-border/5 last:border-0">
+                        <span className="text-foreground/60 truncate flex-1">{d.query}</span>
+                        <span className="text-red-400 shrink-0">{d.delta} spots</span>
+                        <span className="text-foreground/40 shrink-0">now #{d.currentPosition?.toFixed(1) ?? "—"}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Cannibalization */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                  <h4 className="text-xs font-bold tracking-wider uppercase text-foreground/70">
+                    Cannibalization ({data.cannibalization.length})
+                  </h4>
+                </div>
+                {data.cannibalization.length === 0 ? (
+                  <p className="text-[11px] text-foreground/40 italic">No multi-page query competition detected.</p>
+                ) : (
+                  <div className="space-y-1 text-[11px] font-mono">
+                    {data.cannibalization.slice(0, 5).map((c: { query: string; pages: { page: string; position: number }[] }, i: number) => (
+                      <div key={i} className="py-1 border-b border-border/5 last:border-0">
+                        <div className="text-foreground/70 mb-0.5">{c.query} <span className="text-foreground/30">— {c.pages.length} pages</span></div>
+                        <div className="text-foreground/40 pl-3 text-[10px] leading-snug">
+                          {c.pages.slice(0, 3).map((p, j: number) => (
+                            <div key={j}>{p.page} (pos {p.position?.toFixed(1) ?? "—"})</div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

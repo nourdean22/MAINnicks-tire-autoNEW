@@ -154,6 +154,65 @@ export const seoToolsRouter = router({
       };
     }),
 
+  /** Weekly GSC audit — pulls top queries, CTR opportunities, ranking
+   *  drops, and cannibalization clusters from the search_performance
+   *  table that gets populated nightly by the gsc-pipeline cron job.
+   *
+   *  Surfaces what the gsc-audit.ts CLI script outputs, but in admin
+   *  UI form so Nour doesn't have to SSH into Railway weekly. */
+  weeklyAudit: adminProcedure
+    .input(z.object({
+      days: z.number().min(7).max(90).default(28),
+    }).optional())
+    .query(async ({ input }) => {
+      const days = input?.days ?? 28;
+      try {
+        const { findCtrOpportunities, detectRankingChanges, detectCannibalization, getTopQueries, getPagePerformance } =
+          await import("../pipelines/gsc-data");
+
+        // Compute startDate string for the window — gsc-data fns use
+        // it directly rather than a numeric `days` arg.
+        const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+          .toISOString().split("T")[0];
+
+        const [opportunities, rankingChanges, cannibalization, topQueries, topPages] = await Promise.all([
+          findCtrOpportunities({ startDate, minImpressions: 100, limit: 20 }).catch(() => []),
+          detectRankingChanges({ minDelta: 3, limit: 40 }).catch(() => []),
+          detectCannibalization({ startDate, limit: 10 }).catch(() => []),
+          getTopQueries({ startDate, limit: 25 }).catch(() => []),
+          getPagePerformance({ startDate, limit: 25 }).catch(() => []),
+        ]);
+
+        return {
+          ok: true,
+          days,
+          ctrOpportunities: opportunities.slice(0, 20),
+          rankingDrops: rankingChanges.filter((c: { direction: string; delta: number }) =>
+            c.direction === "dropped" && Math.abs(c.delta) >= 3,
+          ).slice(0, 20),
+          rankingGains: rankingChanges.filter((c: { direction: string; delta: number }) =>
+            c.direction === "improved" && Math.abs(c.delta) >= 3,
+          ).slice(0, 20),
+          cannibalization: cannibalization.slice(0, 10),
+          topQueries: topQueries.slice(0, 20),
+          topPages: topPages.slice(0, 20),
+        };
+      } catch (err) {
+        log.error("[SeoTools] weeklyAudit failed", { err });
+        return {
+          ok: false,
+          authError: err instanceof Error ? err.message : "Unknown error",
+          days,
+          ctrOpportunities: [],
+          rankingDrops: [],
+          rankingGains: [],
+          cannibalization: [],
+          topQueries: [],
+          topPages: [],
+        };
+      }
+    }),
+
   /** Pull current GSC status for each sitemap — last submitted, last
    *  downloaded, error count, indexed-vs-submitted counts. */
   sitemapStatus: adminProcedure.query(async () => {

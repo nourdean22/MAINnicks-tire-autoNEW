@@ -1017,6 +1017,30 @@ export default function Home() {
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />
+      {/* 2026-05-06 cannibalization deep fix · explicit WebSite schema
+          on the home page only. Tells Google's knowledge graph that /
+          is the canonical entry point for the brand entity, regardless
+          of which other internal page also mentions "Nick's Tire". */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            name: "Nick's Tire & Auto",
+            alternateName: ["Nicks Tire", "Nick's Tire", "Nicks Tires", "Nicks Tire and Auto"],
+            url: "https://nickstire.org/",
+            potentialAction: {
+              "@type": "SearchAction",
+              target: {
+                "@type": "EntryPoint",
+                urlTemplate: "https://nickstire.org/search?q={search_term_string}",
+              },
+              "query-input": "required name=search_term_string",
+            },
+          }),
+        }}
+      />
       {/* Homepage-only Service schema (Premium Tire Installation Package).
           Was previously hardcoded in client/index.html which caused every
           page to inherit this tire-specific schema. Now scoped to the

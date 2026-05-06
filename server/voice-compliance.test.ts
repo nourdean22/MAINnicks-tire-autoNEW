@@ -21,6 +21,7 @@ import { describe, expect, it } from "vitest";
 import { SERVICES } from "../shared/services";
 import { SEO_SERVICE_PAGES } from "../shared/seo-pages";
 import { BLOG_ARTICLES } from "../shared/blog";
+import { CITIES } from "../shared/cities";
 
 // VOICE.md cliché kill list — phrases that should never appear as
 // marketing labels. Each pattern is paired with an `allowlist` of
@@ -104,6 +105,20 @@ function* scanCopy(): Generator<ScannedField> {
     yield { fileName: "blog.ts", recordSlug: a.slug, field: "metaDescription", value: a.metaDescription };
     yield { fileName: "blog.ts", recordSlug: a.slug, field: "excerpt", value: a.excerpt };
   }
+  // Cities (added 2026-05-06 — closes the gap that allowed generic
+  // "top-rated" / "trusted" copy to ship across 21 city pages)
+  for (const c of CITIES) {
+    yield { fileName: "cities.ts", recordSlug: c.slug, field: "metaTitle", value: c.metaTitle };
+    yield { fileName: "cities.ts", recordSlug: c.slug, field: "metaDescription", value: c.metaDescription };
+    yield { fileName: "cities.ts", recordSlug: c.slug, field: "heroHeadline", value: c.heroHeadline };
+    yield { fileName: "cities.ts", recordSlug: c.slug, field: "heroSubline", value: c.heroSubline };
+    if (c.localContent) {
+      yield { fileName: "cities.ts", recordSlug: c.slug, field: "localContent", value: c.localContent };
+    }
+    if (c.testimonial?.text) {
+      yield { fileName: "cities.ts", recordSlug: c.slug, field: "testimonial.text", value: c.testimonial.text };
+    }
+  }
 }
 
 describe("VOICE.md Compliance — cliché kill list", () => {
@@ -149,6 +164,19 @@ describe("VOICE.md Compliance — meta-title length (≤60 chars)", () => {
       .map((a) => `${a.slug}: ${a.title.length}ch`);
     expect(violations).toEqual([]);
   });
+
+  // 2026-05-06 · 90+ blog metaTitles still over 60ch from pre-framework
+  // era. Tracked as todo for a follow-up content audit. The 6 GSC-traffic
+  // posts already comply (ledger in shared/blog.ts framework header).
+  // Once the rest are tightened, flip this to `it(...)`.
+  it.todo("all BLOG_ARTICLES.metaTitle ≤60 chars (audit pending)");
+
+  it("all CITIES.metaTitle ≤60 chars", () => {
+    const violations = CITIES
+      .filter((c) => c.metaTitle.length > 60)
+      .map((c) => `${c.slug}: ${c.metaTitle.length}ch`);
+    expect(violations).toEqual([]);
+  });
 });
 
 describe("VOICE.md Compliance — meta-description length (≤170 chars)", () => {
@@ -163,6 +191,20 @@ describe("VOICE.md Compliance — meta-description length (≤170 chars)", () =>
     const violations = BLOG_ARTICLES
       .filter((a) => a.metaDescription.length > 170)
       .map((a) => `${a.slug}: ${a.metaDescription.length}ch`);
+    expect(violations).toEqual([]);
+  });
+
+  it("all CITIES.metaDescription ≤170 chars", () => {
+    const violations = CITIES
+      .filter((c) => c.metaDescription.length > 170)
+      .map((c) => `${c.slug}: ${c.metaDescription.length}ch`);
+    expect(violations).toEqual([]);
+  });
+
+  it("all SEO_SERVICE_PAGES.metaDescription ≤170 chars", () => {
+    const violations = SEO_SERVICE_PAGES
+      .filter((p) => p.metaDescription.length > 170)
+      .map((p) => `${p.slug}: ${p.metaDescription.length}ch`);
     expect(violations).toEqual([]);
   });
 });

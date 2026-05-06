@@ -175,6 +175,18 @@ export function serveStatic(app: Express) {
     const indexPath = path.resolve(distPath, "index.html");
     let html = fs.readFileSync(indexPath, "utf-8");
     html = injectRouteMeta(html, req.originalUrl);
-    res.status(200).set({ "Content-Type": "text/html" }).end(html);
+    // 2026-05-06 cache fix · was implicitly inheriting express.static's
+    // 1-day default, meaning new HTML deploys took up to 24h to
+    // propagate to returning visitors. HTML should be short-lived;
+    // it points at hashed asset filenames that ARE long-cached.
+    // 5-min browser + 5-min CDN with must-revalidate = deploy lands
+    // for everyone within 5 minutes max.
+    res
+      .status(200)
+      .set({
+        "Content-Type": "text/html",
+        "Cache-Control": "public, max-age=300, s-maxage=300, must-revalidate",
+      })
+      .end(html);
   });
 }
