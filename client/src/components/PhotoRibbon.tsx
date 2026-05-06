@@ -35,6 +35,11 @@ export type RibbonPhoto = {
   caption: string;
   /** Tailwind width override — produces the asymmetric/non-grid feel */
   widthClass: string;
+  /** CSS object-position override — useful when the focal point
+   *  (e.g., the brand sign) sits off-center and gets cropped by
+   *  object-cover. Default "center center". Try "center top" or
+   *  "right top" for sign-prominent shots. */
+  objectPosition?: string;
 };
 
 export interface PhotoRibbonProps {
@@ -67,7 +72,27 @@ export interface PhotoRibbonProps {
   dataDrivenDays?: number;
 }
 
+// 2026-05-06 · sign-prominent photos lead. The Nick's Tire & Auto sign
+// is the brand's primary trust anchor — physical proof of "real shop on
+// Euclid Ave". Reordered so the first two tiles in the ribbon both
+// feature the sign clearly: signage-approach view (full sign in
+// foreground) then full-facade view (storefront + sign). Brand
+// recognition before service variety.
 const DEFAULT_PHOTOS: RibbonPhoto[] = [
+  {
+    src: "/photos/exterior-signage-approach.webp",
+    alt: "Approaching the Nick's Tire & Auto sign on Euclid Ave Cleveland — the actual storefront sign at street level",
+    caption: "The sign on Euclid you've driven past.",
+    widthClass: "w-[78vw] sm:w-[440px] md:w-[520px]",
+    objectPosition: "center top",
+  },
+  {
+    src: "/photos/exterior-facade-wide.webp",
+    alt: "Full facade of Nick's Tire & Auto on Euclid Ave with the storefront sign visible — Cleveland tire shop",
+    caption: "Full storefront. Sign and all.",
+    widthClass: "w-[80vw] sm:w-[500px] md:w-[600px]",
+    objectPosition: "center 35%",
+  },
   {
     src: "/photos/parking-lot-cars.webp",
     alt: "Lines of customer cars in the Nick's Tire & Auto lot on a busy Cleveland Saturday",
@@ -79,12 +104,6 @@ const DEFAULT_PHOTOS: RibbonPhoto[] = [
     alt: "Multiple service bays running simultaneously inside the Cleveland tire shop",
     caption: "Bays running 7 days a week.",
     widthClass: "w-[68vw] sm:w-[360px] md:w-[420px]",
-  },
-  {
-    src: "/photos/exterior-facade-wide.webp",
-    alt: "The Nick's Tire & Auto storefront on Euclid Ave, full facade view",
-    caption: "Right on Euclid Ave.",
-    widthClass: "w-[80vw] sm:w-[500px] md:w-[600px]",
   },
   {
     src: "/photos/tire-stacks-overhead.webp",
@@ -349,6 +368,7 @@ export function PhotoRibbon({
               width={1200}
               height={800}
               className="absolute inset-0 w-full h-full object-cover"
+              style={p.objectPosition ? { objectPosition: p.objectPosition } : undefined}
               onError={(e) => {
                 /* Network or 404 fallback — swap in a transparent SVG
                    so the captioned card still renders without a broken-
