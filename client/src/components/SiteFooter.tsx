@@ -169,12 +169,12 @@ export default function SiteFooter() {
                   { href: "/faq", label: "FAQ" },
                   { href: "/car-care-guide", label: "Car Care Guide" },
                   { href: "/diagnose", label: "Diagnose My Car" },
-                  { href: "/financing", label: "Financing" },
+                  { href: "/financing", label: "Payment Programs" },
                   { href: "/specials", label: "Specials" },
                   { href: "/careers", label: "Careers" },
                   { href: "/estimate", label: "Cost Estimator" },
                   { href: "/fleet", label: "Fleet" },
-                  { href: "/appointment", label: "Book Online" },
+                  { href: "/appointment", label: "Drop-Off Online" },
                 ].map((l) => (
                   <Link key={l.href} href={l.href} className={LINK_CLASS}>{l.label}</Link>
                 ))}

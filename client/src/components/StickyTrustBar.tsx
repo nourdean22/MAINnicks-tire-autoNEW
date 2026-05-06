@@ -90,7 +90,7 @@ export default function StickyTrustBar() {
         {/* Right: Financing */}
         <div className="flex items-center gap-1.5 shrink-0">
           <DollarSign className="w-3.5 h-3.5 text-[#FDB913]" />
-          <span>Financing approved on the spot</span>
+          <span>Payment programs on the spot</span>
         </div>
       </div>
 

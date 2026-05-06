@@ -636,7 +636,7 @@ export default function Financing() {
         <div className="relative h-[360px] sm:h-[440px] lg:h-[500px] overflow-hidden">
           <img
             src="/brand-sign.webp"
-            alt="Nick's Tire & Auto storefront on Euclid Avenue Cleveland — financing approved on the spot at 17625 Euclid Ave"
+            alt="Nick's Tire & Auto storefront on Euclid Avenue Cleveland — payment programs on the spot at 17625 Euclid Ave"
             className="absolute inset-0 w-full h-full object-cover object-center"
             loading="lazy"
           />

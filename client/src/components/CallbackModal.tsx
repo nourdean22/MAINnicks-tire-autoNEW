@@ -77,7 +77,7 @@ export default function CallbackModal() {
                   Expect a call from {BUSINESS.phone.display} shortly.
                 </p>
                 <p className="text-[11px] text-emerald-400/60 mt-2">
-                  Lease-to-own financing approved on the spot — no credit check
+                  Lease-to-own payment programs on the spot — no credit check
                 </p>
               </div>
             ) : (
