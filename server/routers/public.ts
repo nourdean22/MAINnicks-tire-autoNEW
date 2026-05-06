@@ -310,21 +310,52 @@ export const serviceReviewsRouter = router({
           .orderBy(desc(reviewReplies.reviewDate))
           .limit(3);
 
+        // If DB returns matches, surface those (most authoritative).
+        // Otherwise fall back to curated testimonials so the block never
+        // renders empty in production. As review_replies fills via the
+        // gbp-reviews cron pipeline, real reviews will replace these.
+        if (matchingReviews.length > 0) {
+          return {
+            reviews: matchingReviews.map((r) => ({
+              name: anonymizeName(r.reviewerName || "Customer"),
+              rating: r.reviewRating || 5,
+              text: r.reviewText || "",
+              date: r.reviewDate ? new Date(r.reviewDate).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              }) : "",
+            })),
+          };
+        }
+
+        // Fallback path — curated testimonials filtered by service tokens.
+        const { getTestimonialsForService } = await import("../../shared/customer-testimonials");
         return {
-          reviews: matchingReviews.map((r) => ({
-            name: anonymizeName(r.reviewerName || "Customer"),
-            rating: r.reviewRating || 5,
-            text: r.reviewText || "",
-            date: r.reviewDate ? new Date(r.reviewDate).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            }) : "",
+          reviews: getTestimonialsForService(serviceKeywords).map((t) => ({
+            name: t.name,
+            rating: t.rating,
+            text: t.text,
+            date: t.date,
           })),
         };
       } catch (err) {
         log.error("[ServiceReviews] Failed:", err);
-        return { reviews: [] };
+        // Even on DB error, fallback to curated set — better than empty.
+        try {
+          const { getTestimonialsForService } = await import("../../shared/customer-testimonials");
+          const serviceKeywords = buildServiceKeywords(input.service);
+          return {
+            reviews: getTestimonialsForService(serviceKeywords).map((t) => ({
+              name: t.name,
+              rating: t.rating,
+              text: t.text,
+              date: t.date,
+            })),
+          };
+        } catch {
+          return { reviews: [] };
+        }
       }
     }),
 
@@ -380,21 +411,48 @@ export const serviceReviewsRouter = router({
           .orderBy(desc(reviewReplies.reviewDate))
           .limit(3);
 
+        // DB hit — surface those. Otherwise fall back to curated set
+        // so CityReviewsBlock never renders empty.
+        if (matchingReviews.length > 0) {
+          return {
+            reviews: matchingReviews.map((r) => ({
+              name: anonymizeName(r.reviewerName || "Customer"),
+              rating: r.reviewRating || 5,
+              text: r.reviewText || "",
+              date: r.reviewDate ? new Date(r.reviewDate).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              }) : "",
+            })),
+          };
+        }
+
+        const { getTestimonialsForCity } = await import("../../shared/customer-testimonials");
         return {
-          reviews: matchingReviews.map((r) => ({
-            name: anonymizeName(r.reviewerName || "Customer"),
-            rating: r.reviewRating || 5,
-            text: r.reviewText || "",
-            date: r.reviewDate ? new Date(r.reviewDate).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            }) : "",
+          reviews: getTestimonialsForCity(cityKeywords).map((t) => ({
+            name: t.name,
+            rating: t.rating,
+            text: t.text,
+            date: t.date,
           })),
         };
       } catch (err) {
         log.error("[CityReviews] Failed:", err);
-        return { reviews: [] };
+        try {
+          const { getTestimonialsForCity } = await import("../../shared/customer-testimonials");
+          const cityKeywords = buildCityKeywords(input.city);
+          return {
+            reviews: getTestimonialsForCity(cityKeywords).map((t) => ({
+              name: t.name,
+              rating: t.rating,
+              text: t.text,
+              date: t.date,
+            })),
+          };
+        } catch {
+          return { reviews: [] };
+        }
       }
     }),
 });
