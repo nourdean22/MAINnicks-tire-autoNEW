@@ -925,6 +925,36 @@ html[data-density="compact"] .admin-shell .p-5 { padding: 0.75rem; }
 html[data-density="compact"] .admin-shell .p-4 { padding: 0.625rem; }
 
 /* ═══════════════════════════════════════════════════════════════
+   MOBILE ADMIN POLISH (≤ 640px)
+   ═══════════════════════════════════════════════════════════════
+   Phone-controlled admin needs tighter rhythm. Tightens grid gaps,
+   card padding, page-header spacing. Stat cards stay 2-column on
+   phone (already Tailwind default). Topbar stays sticky.
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 640px) {
+  .admin-shell .space-y-8 > * + * { margin-top: 1rem; }
+  .admin-shell .space-y-6 > * + * { margin-top: 0.875rem; }
+  .admin-shell .gap-6 { gap: 0.75rem; }
+  .admin-shell .gap-4 { gap: 0.625rem; }
+  .admin-shell .p-6 { padding: 0.875rem; }
+  .admin-shell .p-5 { padding: 0.75rem; }
+  .admin-shell .stat-card { padding: 0.75rem; }
+  .admin-shell .stat-card .number-animate { font-size: 1.25rem; }
+  /* Page header tightens on phone — title/subtitle on the same row
+     and actions wrap underneath naturally */
+  .admin-shell h2.text-\[15px\] { font-size: 0.875rem; }
+}
+
+/* Topbar always sticky — defensive in case parent overflow:hidden
+   tries to break it. */
+.admin-shell .admin-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    3D DEPTH SYSTEM — Universal across all customer pages
    ═══════════════════════════════════════════════════════════════
    Per the 3d-web-experience skill: "When 3D enhances and when it's

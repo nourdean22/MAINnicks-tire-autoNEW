@@ -327,8 +327,7 @@ export default function SettingsSection() {
 
       {/* Probe Results */}
       {probeResults && (
-        <div className="bg-card border border-border/30 p-4">
-          <h3 className="font-bold text-sm text-foreground tracking-wide mb-3">ALG ENDPOINT DISCOVERY</h3>
+        <Panel title="ALG Endpoint Discovery" icon={<Search className="w-4 h-4" />}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {Object.entries(probeResults).map(([endpoint, result]: [string, any]) => (
               <div key={endpoint} className={`flex items-center gap-2 p-2 border ${
@@ -346,13 +345,12 @@ export default function SettingsSection() {
               </div>
             ))}
           </div>
-        </div>
+        </Panel>
       )}
 
       {/* CSV Import History */}
       {importHistory && importHistory.length > 0 && (
-        <div className="bg-card border border-border/30 p-4">
-          <h3 className="font-bold text-sm text-foreground tracking-wide mb-3">IMPORT HISTORY</h3>
+        <Panel title="Import History" icon={<Clock className="w-4 h-4" />}>
           <div className="space-y-2">
             {importHistory.slice(0, 5).map((h: ImportLogRow) => (
               <div key={h.id} className="flex items-center gap-3 text-[12px] py-2 border-b border-border/10 last:border-0">
@@ -369,7 +367,7 @@ export default function SettingsSection() {
               </div>
             ))}
           </div>
-        </div>
+        </Panel>
       )}
 
       {/* 2026-05-05 — VAPI VOICE RECEPTIONIST */}
