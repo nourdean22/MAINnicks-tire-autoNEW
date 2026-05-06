@@ -26,14 +26,19 @@ export interface GBPPost {
  * Tag a URL with GBP UTM params so analytics can attribute traffic
  * coming from Google Business Profile posts. Skips tagging for tel:/mailto:
  * URLs and for URLs that already have utm_source set.
+ *
+ * `archetype` (optional) sets utm_content so we can A/B which post type
+ * (proof/anti/math/seasonal) drives conversions. Lets the playbook ratio
+ * iterate from real data instead of static guesses.
  */
-function gbpUrl(baseUrl: string, campaign: string): string {
+function gbpUrl(baseUrl: string, campaign: string, archetype?: string): string {
   if (baseUrl.startsWith("tel:") || baseUrl.startsWith("mailto:") || baseUrl.startsWith("sms:")) {
     return baseUrl;
   }
   if (baseUrl.includes("utm_source=")) return baseUrl;
   const sep = baseUrl.includes("?") ? "&" : "?";
-  return `${baseUrl}${sep}utm_source=gbp&utm_medium=organic&utm_campaign=${encodeURIComponent(campaign)}`;
+  const archetypePart = archetype ? `&utm_content=archetype-${encodeURIComponent(archetype)}` : "";
+  return `${baseUrl}${sep}utm_source=gbp&utm_medium=organic&utm_campaign=${encodeURIComponent(campaign)}${archetypePart}`;
 }
 
 /** Create a GBP post draft from a special/promotion */
@@ -124,23 +129,60 @@ export async function generateAndNotifyGBPPost(): Promise<{ recordsProcessed: nu
       `📸 Image: ${post.imageHint}`,
     );
 
-    let monthlyDetails = "";
+    let extras = "";
+    const dom = now.getDate();
     // First-Monday-of-month recap. (Date 1-7 is the first occurrence of each weekday.)
-    if (now.getDate() <= 7) {
+    if (dom <= 7) {
       const recap = await buildMonthlyRecap();
       if (recap) {
         await sendTelegram(recap);
-        monthlyDetails = " + monthly recap";
+        extras += " + monthly recap";
       }
+    }
+    // Second-Monday-of-month photo nudge. (Date 8-14 is the 2nd occurrence.)
+    // GBP rewards fresh photos as a ranking + engagement signal. Without
+    // a structured nudge, photos go stale fast.
+    if (dom >= 8 && dom <= 14) {
+      const photoNudge = buildPhotoNudge();
+      await sendTelegram(photoNudge);
+      extras += " + photo nudge";
     }
 
     return {
       recordsProcessed: 1,
-      details: `GBP weekly post (${post.archetype})${monthlyDetails} → Telegram`,
+      details: `GBP weekly post (${post.archetype})${extras} → Telegram`,
     };
   } catch (err: unknown) {
     return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
+}
+
+/**
+ * Photo cadence nudge — fires the 2nd Monday of every month.
+ *
+ * Why monthly photos: GBP listings with fresh photos in the last 30 days
+ * get more views + engagement than stale listings. Most shops upload 5
+ * photos at launch and never refresh — easy ranking edge if you stay on
+ * a calendar.
+ *
+ * The nudge rotates 4 photo themes through the year so the listing
+ * doesn't end up with 12 storefront shots in a row.
+ */
+function buildPhotoNudge(): string {
+  const month = new Date().getMonth(); // 0=Jan
+  const themes = [
+    { months: [0, 4, 8],  topic: "the team",       shots: ["technician at work on a lifted car", "team photo in front of the storefront sign", "tech holding the part they replaced"] },
+    { months: [1, 5, 9],  topic: "before/after",   shots: ["worn brake pad next to new pad", "rusted muffler next to fresh exhaust", "balding tire next to new tread"] },
+    { months: [2, 6, 10], topic: "the storefront", shots: ["building exterior with sign at golden hour", "service-bay doors open with cars on lifts", "waiting area interior with the brand colors"] },
+    { months: [3, 7, 11], topic: "the work",       shots: ["alignment rack with a car on it", "diagnostic computer hooked to OBD-II", "tire-mounting machine mid-cycle"] },
+  ];
+  const theme = themes.find((t) => t.months.includes(month)) ?? themes[0];
+  const shotList = theme.shots.map((s, i) => `  ${i + 1}. ${s}`).join("\n");
+  return `📸 GBP PHOTO NUDGE — ${theme.topic.toUpperCase()}\n\n` +
+    `GBP rewards listings that stay fresh. Suggested shots this month:\n\n` +
+    `${shotList}\n\n` +
+    `Upload at: business.google.com → Photos → Add (mobile or desktop)\n` +
+    `3-5 new photos = strong signal. Quick phone shots are fine — authentic beats polished.`;
 }
 
 /**

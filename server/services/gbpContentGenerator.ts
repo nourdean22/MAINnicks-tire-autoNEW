@@ -320,7 +320,9 @@ ${BUSINESS.phone.display}`;
     archetype: "math",
     text,
     callToAction: "LEARN_MORE",
-    ctaUrl: `${BUSINESS.urls.website}/financing?utm_source=gbp&utm_medium=organic&utm_campaign=math-post`,
+    // utm_content=archetype lets analytics A/B which post type drives
+    // conversions. Lets the playbook ratio iterate from real data.
+    ctaUrl: `${BUSINESS.urls.website}/financing?utm_source=gbp&utm_medium=organic&utm_campaign=math-post&utm_content=archetype-math`,
     imageHint: m.imageHint,
     topicHash: `math-${m.today.amount}-vs-${m.later.amount}`,
   };
@@ -459,7 +461,7 @@ ${BUSINESS.phone.display} · code ${featuredSpecial.couponCode ?? "—"}`;
       archetype: "math",
       text: text.slice(0, 1500),
       callToAction: "BOOK",
-      ctaUrl: `${BUSINESS.urls.website}/specials?utm_source=gbp&utm_medium=organic&utm_campaign=special-${featuredSpecial.couponCode ?? "active"}`,
+      ctaUrl: `${BUSINESS.urls.website}/specials?utm_source=gbp&utm_medium=organic&utm_campaign=special-${featuredSpecial.couponCode ?? "active"}&utm_content=archetype-special`,
       imageHint: "the actual special — service-specific photo",
       topicHash: `special-${featuredSpecial.id}`,
     };
