@@ -68,6 +68,50 @@ const KILL_LIST: Array<{
     label: "'top-notch' (pure filler per VOICE.md)",
     allowedContexts: [],
   },
+  // 2026-05-06 audit-driven additions · FCFS positioning lockdown.
+  // These phrases were called out as BANNED in the foot-traffic-grade
+  // audit directive (Asset Dictionary > banned language section).
+  {
+    pattern: /\b(?:Book|Reserve|Hold Your Spot)\s+(?:Appointment|Online|Your Spot|a Bay)\b/i,
+    label: "appointment-language ('Book Appointment' / 'Reserve' / 'Hold Your Spot') — site is FCFS",
+    allowedContexts: [
+      // "Book a free consultation" is fine in admin UI. The banned uses
+      // are customer-facing copy that implies appointment scheduling.
+    ],
+  },
+  {
+    pattern: /\bSchedule\s+(?:Appointment|a Time|Time Slot)\b/i,
+    label: "'Schedule Appointment' / 'Schedule a Time' — appointment scheduling banned (FCFS only)",
+    allowedContexts: ["Schedule Drop-Off"], // "Schedule Drop-Off" is the approved CTA per HOMEPAGE_MOCKUP
+  },
+  {
+    pattern: /\bWaiting\s+Room\b/i,
+    label: "'Waiting Room' — drop-off model means no waiting room, banned",
+    allowedContexts: [],
+  },
+  {
+    pattern: /\b(?:affordable|cheap)\s+(?:tires|repair|service|auto|brake|prices?)\b/i,
+    label: "'affordable' / 'cheap' as price descriptor — banned, signals weakness",
+    allowedContexts: [
+      // "cheap [thing] cleveland" patterns are SEARCH-QUERY TARGETS that
+      // we genuinely rank for. The KILL_LIST applies to the operator's
+      // brand voice describing themselves; query-target language in
+      // blog titles + URL slugs is intentional SEO inventory we own.
+      "cheap tires near me",
+      "cheap tires cleveland",
+      "cheap tire shop",
+      "cheap brake repair",
+      "cheap oil change",
+      "cheap car repair",
+      "cheap auto repair",
+      "best cheap tires",
+    ],
+  },
+  {
+    pattern: /\bWe\s+Offer\s+Financing\b/i,
+    label: "'We Offer Financing' — banned per FCFS positioning. Use 'Payment Programs Available'.",
+    allowedContexts: [],
+  },
 ];
 
 interface ScannedField {

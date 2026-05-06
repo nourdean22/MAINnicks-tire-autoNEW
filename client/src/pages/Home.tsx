@@ -32,6 +32,7 @@ import HeroDustLayer from "@/components/HeroDustLayer";
 import StampLetters from "@/components/StampLetters";
 import SkylineDivider from "@/components/SkylineDivider";
 import SignFeature from "@/components/SignFeature";
+import ConesBlock from "@/components/ConesBlock";
 // Conversion-architecture components (Batch 1 of v1.1 spec)
 import LiveVisitorCounter from "@/components/conversion/LiveVisitorCounter";
 import ServiceTriageCard from "@/components/conversion/ServiceTriageCard";
@@ -41,11 +42,13 @@ import LossAversionStat from "@/components/conversion/LossAversionStat";
 import { useWeatherCTA } from "@/hooks/useWeatherCTA";
 import { useConversionTracking } from "@/hooks/useConversionTracking";
 
-// Real shop photos (May 2026) — replaced CloudFront placeholders with
-// authentic on-site iPhone shots. The Cybertruck hero is the actual
-// silver Cybertruck that pulled in for tires; the bay shot is the
-// actual lift in mid-job. Trust photos > stock photos.
-const HERO_IMG = "/hero-cybertruck.webp";
+// 2026-05-06 audit fix · hero photo swapped from cybertruck to the
+// full-facade storefront shot per the FCFS positioning. The cybertruck
+// was correct for "Cleveland Tough" emotion-positioning; the storefront
+// (sign + bays + cones-adjacent) is correct for "Pull Up / Drop Off"
+// behavior-positioning. Mobile variant removed (no -mobile.webp for
+// this asset yet); browser falls back to desktop with object-cover.
+const HERO_IMG = "/photos/exterior-facade-wide.webp";
 
 const MECHANIC_IMG = "/mechanic-bay.webp";
 // Service-tile photos — 2026-05-06 visual wave 5 photo content audit.
@@ -75,23 +78,19 @@ function Hero() {
           Ken Burns drift on the photo + film-grain overlay add cinematic
           depth without WebGL or extra bytes. Pure CSS, motion-safe. */}
       <div className="absolute inset-0 hero-bg ken-burns-target">
-        <picture>
-          <source media="(max-width: 768px)" srcSet="/hero-cybertruck-mobile.webp" type="image/webp" />
-          {/* 2026-05-06 sign-positioning fix · object-position favors the
-              upper portion of the photo so the Nick's Tire & Auto
-              storefront sign (which sits above the cybertruck in the
-              frame) stays visible after object-cover crop on tall
-              viewports. Was implicitly `center center` which cropped
-              the sign on phones in landscape and short laptop screens. */}
-          <img
-            src={HERO_IMG}
-            alt="Nick's Tire & Auto storefront sign on Euclid Ave Cleveland with a Tesla Cybertruck parked out front — real shop, real sign, real customers"
-            className="w-full h-full object-cover"
-            style={{ objectPosition: "center 30%" }}
-            loading="eager"
-            fetchPriority="high"
-          />
-        </picture>
+        {/* 2026-05-06 audit fix · hero is now the full-facade storefront
+            (sign + 3 open bays + tire stacks) — the visual proof of the
+            FCFS model. Mobile variant fallback to desktop until we ship
+            an exterior-facade-wide-mobile.webp variant. object-position
+            keeps the sign in frame after object-cover crop. */}
+        <img
+          src={HERO_IMG}
+          alt="Nick's Tire & Auto storefront on Euclid Ave Cleveland — yellow sign visible, three open service bays, cones in foreground guiding the tire-install line"
+          className="w-full h-full object-cover"
+          style={{ objectPosition: "center 40%" }}
+          loading="eager"
+          fetchPriority="high"
+        />
         {/* Cinematic gradient — left-weighted so the headline keeps contrast
             while the right side of the photo stays visible (cars + sky). */}
         <div
@@ -137,45 +136,42 @@ function Hero() {
             <BrandMark variant="full" size={88} background="#0a1628" />
           </motion.div>
 
-          {/* H1: 'CLEVELAND TOUGH.' — short, confident, matches the pendant
-              tagline. SEO keywords live in the subhead below.
-              2026-05-06: per-letter stamp reveal replaces the previous
-              monolithic fade-up. Letters punch into place mechanically,
-              not bouncily — on-brand for the working-class tire-shop voice. */}
+          {/* 2026-05-06 audit fix · H1 swapped from "Cleveland Tough"
+              (brand-emotion) to the locked master tagline (behavior-
+              instruction). Per HOMEPAGE_MOCKUP spec: white "Pull up
+              for tires." / yellow "Drop off for repairs." Tells a
+              Cleveland driver exactly what to do. */}
           <h1
-            className="font-heading text-[4rem] sm:text-7xl lg:text-[8.5rem] font-extrabold uppercase text-[#F5F5F5] leading-[0.85] tracking-tight headline-balance"
+            className="font-heading text-[3.25rem] sm:text-6xl lg:text-[6.5rem] font-extrabold uppercase text-[#F5F5F5] leading-[0.9] tracking-tight headline-balance"
           >
-            <StampLetters text="Cleveland" delay={0.3} />
+            <StampLetters text="Pull up for tires." delay={0.3} />
             <br />
             <StampLetters
-              text="Tough."
+              text="Drop off for repairs."
               delay={0.55}
               className="text-[#FDB913] text-gradient-yellow"
             />
           </h1>
 
           {/* Subheadline */}
-          {/* 2026-05-06 copy wave — applied 5 evolution operators
-              from idea-darwin + sam-altman synthesis:
-              1. Specificity inflation: "two generations" + "same block"
-              2. Concession-first: "more honest than the chain" implies
-                 chains are dishonest without saying it
-              3. Useful absurd: "every day we're awake" pattern
-              4. Anti-pattern naming: "before any wrench moves" calls
-                 out the dealer/chain pattern of charging diagnostic
-                 fees before consent
-              5. Insider vocabulary: "the metal doesn't lie" mechanic-
-                 shop colloquialism, signals peer not marketer */}
+          {/* 2026-05-06 audit fix · subhead now leads with FCFS model +
+              required language: first-come-first-served · used tires
+              from $60 · written estimate before any wrench moves ·
+              payment programs (NOT "financing", banned word).
+              Closes on the loss-aversion anchor. */}
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
             className="mt-6 text-lg sm:text-xl lg:text-2xl font-sans text-[#A0A0A0] max-w-lg body-pretty"
           >
-            Two generations of mechanics. One Cleveland block. We put your car on a lift before any wrench moves — flashlight in your hand, the problem in plain sight. Cheaper than the dealer. More honest than the chain. Open every day we're awake. Drop off, catch an Uber from our lot, get a text when it's ready. <span className="text-[#FDB913]">The metal doesn't lie.</span>
+            Cleveland's first-come-first-served shop on Euclid Ave. Walk in 7 days. Used tires from <span className="text-[#FDB913]">$60</span> installed. Written estimate before any wrench moves. Payment programs available on the spot. <span className="text-[#FDB913]">Don't let the problem get bigger.</span>
           </motion.p>
 
-          {/* CTA buttons */}
+          {/* 2026-05-06 audit fix · 3-CTA stack per HOMEPAGE_MOCKUP:
+              Red CALL NOW · Yellow SCHEDULE DROP-OFF · Outline GET DIRECTIONS.
+              Mobile thumb-tested. "SCHEDULE DROP-OFF" is the FCFS-affirming
+              substitute for "Book" / "Reserve" / "Hold a Bay" (banned). */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -185,22 +181,34 @@ function Hero() {
             <a
               href={BUSINESS.phone.href}
               onClick={() => trackPhoneClick("hero")}
-              className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-[#0A0A0A] px-8 py-3.5 rounded-lg font-semibold text-lg hover:bg-[#FDB913]/90 transition-colors btn-premium"
-              aria-label="Call for service"
+              className="inline-flex items-center justify-center gap-2 bg-red-500 text-white px-7 py-3.5 rounded-lg font-bold text-lg hover:bg-red-600 transition-colors btn-premium"
+              aria-label={`Call Nick's Tire and Auto at ${BUSINESS.phone.display}`}
             >
               <Phone className="w-5 h-5" />
-              Call {BUSINESS.phone.display}
+              CALL NOW
             </a>
             <a
               href="#booking"
-              className="inline-flex items-center justify-center gap-2 border-2 border-[#FDB913] text-[#FDB913] px-8 py-3.5 rounded-lg font-semibold text-lg hover:bg-[#FDB913]/10 transition-colors btn-premium"
+              className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-[#0A0A0A] px-7 py-3.5 rounded-lg font-bold text-lg hover:bg-[#FDB913]/90 transition-colors btn-premium"
             >
-              Drop Off Your Car
+              SCHEDULE DROP-OFF
+            </a>
+            <a
+              href="https://www.google.com/maps/dir//Nick's+Tire+And+Auto+Euclid,+17625+Euclid+Ave,+Cleveland,+OH+44112"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 border-2 border-[#FDB913]/70 text-[#FDB913] px-7 py-3.5 rounded-lg font-bold text-lg hover:bg-[#FDB913]/10 transition-colors btn-premium"
+              aria-label="Get directions to Nick's Tire and Auto on Euclid Ave"
+            >
+              <MapPin className="w-5 h-5" />
+              GET DIRECTIONS
             </a>
           </motion.div>
 
-          {/* Social proof strip — review stars + LiveVisitorCounter (real-time
-              from tRPC, hides automatically when fewer than 3 active sessions). */}
+          {/* 2026-05-06 audit fix · 5-point trust strip per mockup spec:
+              4.9★ · FCFS · $60 tires · Payment programs · Open 7 days.
+              Replaces "Financing" (banned) with "Payment programs."
+              Drops "free coffee · free opinions" — moved to body. */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -215,9 +223,10 @@ function Hero() {
               </span>
               {rating.toFixed(1)} from {totalReviews.toLocaleString()}+ reviews
             </span>
-            <span className="text-[#A0A0A0]">&bull; Financing approved on the spot</span>
-            <span className="text-[#A0A0A0]">&bull; Walk-ins 7 days · open Sunday</span>
-            <span className="text-[#A0A0A0]">&bull; Free install · free coffee · free opinions</span>
+            <span className="text-[#A0A0A0]">&bull; First-come-first-served</span>
+            <span className="text-[#A0A0A0]">&bull; Used tires from $60</span>
+            <span className="text-[#A0A0A0]">&bull; Payment programs available</span>
+            <span className="text-[#A0A0A0]">&bull; Open 7 days incl. Sunday</span>
           </motion.div>
           <motion.div
             initial={{ opacity: 0 }}
@@ -1019,9 +1028,12 @@ export default function Home() {
           unambiguous answer for "nicks tires" / "nick's tire" searches.
           Still applies operator 4 (anti-pattern: open Sunday) + 1 (specific
           install package). */}
+      {/* 2026-05-06 audit fix · meta leads with FCFS positioning + $60
+          anchor + master tagline phrasing in description. Brand still
+          in title for "nicks tires" branded query. */}
       <SEOHead
-        title="Nick's Tire & Auto Cleveland · Free Install · Open 7 Days"
-        description="Nick's Tire & Auto on Euclid Ave Cleveland. New + used tires, free mount/balance/alignment check on every set. Brakes, diagnostics, oil. Open Sunday. 4.9★ 1,700+ reviews."
+        title="Nick's Tire & Auto Cleveland · Pull Up for Tires, Drop Off"
+        description="Cleveland's first-come-first-served tire + auto shop on Euclid Ave. Used tires from $60. Walk in 7 days. Written estimate before any wrench moves. Payment programs available."
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />
@@ -1093,6 +1105,12 @@ export default function Home() {
           no manufactured urgency on a calm 70°F day. */}
       <WeatherBanner />
       <Hero />
+      {/* CONES BLOCK — 2026-05-06 audit fix · per HOMEPAGE_MOCKUP spec.
+          The single most defensible visual differentiator the site can
+          ship: explains the FCFS tire-line ritual + drop-off model in
+          one section. Lands directly under hero so customers see it
+          before scrolling further. */}
+      <RiseInView className="parallax-rise"><ConesBlock /></RiseInView>
       {/* ── LIVE STATUS STRIP — Pillar 3 (Happy Wait) ────────── */}
       <section className="bg-[oklch(0.055_0.004_260)] py-6 border-t border-b border-border/30">
         <div className="container flex items-center justify-center">
