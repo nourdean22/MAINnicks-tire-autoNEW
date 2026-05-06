@@ -8,7 +8,7 @@ import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 
 type DeclinedEstimate = NonNullable<RouterOutputs["invoices"]["declined"]>["estimates"][number];
-import { StatCard, PageHeader, SectionInsightStrip } from "./shared";
+import { StatCard, PageHeader, SectionInsightStrip, useUrlFilter } from "./shared";
 import {
   Loader2, AlertTriangle, DollarSign, Phone, MessageSquare,
   TrendingUp, Clock, Filter,
@@ -17,7 +17,11 @@ import {
 type TimeFilter = "7" | "30" | "all";
 
 export default function DeclinedEstimatesSection() {
-  const [filter, setFilter] = useState<TimeFilter>("30");
+  // URL-persistent ?range=7|30|all (default 30 not written to URL)
+  const [filter, setFilter] = useUrlFilter<TimeFilter>(
+    "range", "30",
+    { validate: (v) => (v === "7" || v === "30" || v === "all" ? v : null) },
+  );
   const days = filter === "all" ? 365 : Number(filter);
 
   const { data, isLoading } = trpc.invoices.declined.useQuery({ days });
