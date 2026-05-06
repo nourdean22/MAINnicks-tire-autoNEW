@@ -50,7 +50,7 @@ function CityNavbar({ city }: { city: CityData }) {
         <div className="hidden lg:flex items-center gap-6 stagger-in">
           <a href="#services" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Services</a>
           <a href="#about" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">About</a>
-          <a href="#booking" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Hold a Bay</a>
+          <a href="#booking" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Drop-Off</a>
           <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('city-navbar-desktop')} className="flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
             <Phone className="w-4 h-4" />
             {BUSINESS.phone.display}
@@ -71,7 +71,7 @@ function CityNavbar({ city }: { city: CityData }) {
             </Link>
             <a href="#services" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Services</a>
             <a href="#about" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">About</a>
-            <a href="#booking" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Hold a Bay</a>
+            <a href="#booking" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Drop-Off</a>
             <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('city-navbar-mobile')} className="flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wide mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
               <Phone className="w-4 h-4" />
               {BUSINESS.phone.display}
@@ -595,7 +595,7 @@ export default function CityPage() {
           {BUSINESS.phone.display}
         </a>
         <a href="#booking" className="flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue text-nick-blue-light flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label="Schedule a drop-off online">
-          Hold a Bay
+          Drop-Off
         </a>
       </div>
     

@@ -250,8 +250,8 @@ export default function IntersectionPage() {
             </FadeIn>
             <FadeIn delay={0.15}>
               <div className="bg-card/30 border border-border/50 rounded-lg p-5">
-                <h3 className="font-semibold font-bold text-foreground text-sm mb-2">FINANCING FROM $10 DOWN</h3>
-                <p className="text-foreground/60 text-sm leading-relaxed">Can't pay in full today? <Link href="/financing" className="text-nick-blue-light hover:underline">We offer financing starting at $10 down</Link> on tires and major repairs. Get the fix now, pay over time.</p>
+                <h3 className="font-semibold font-bold text-foreground text-sm mb-2">PAYMENT PROGRAMS · $10 DOWN</h3>
+                <p className="text-foreground/60 text-sm leading-relaxed">Can't pay in full today? <Link href="/financing" className="text-nick-blue-light hover:underline">Payment programs available — $10 down</Link> on tires and major repairs. Get the fix now, pay over time.</p>
               </div>
             </FadeIn>
             <FadeIn delay={0.2}>

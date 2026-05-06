@@ -41,7 +41,7 @@ export default function ExitIntentModal() {
       setSubmitted(true);
       setTimeout(() => setOpen(false), 2500);
     },
-    onError: () => toast.error("Couldn't reserve. Call (216) 862-0005."),
+    onError: () => toast.error("Could not save. Call (216) 862-0005."),
   });
 
   const onSuppressed = SUPPRESS_PATHS.some((p) => location.startsWith(p));
@@ -125,9 +125,9 @@ export default function ExitIntentModal() {
             </h2>
 
             <p className="text-sm text-foreground/70 mb-5 leading-relaxed">
-              Other Cleveland drivers are trying to grab today's last slots
-              right now. Lock in 90 seconds — we'll text you a confirmation
-              and hold your spot for 4 hours.
+              Drop your number — we'll text you a written estimate within
+              15 minutes during open hours. First-come, first-served.
+              No appointment, no reservation needed.
             </p>
 
             {!submitted ? (
@@ -148,7 +148,7 @@ export default function ExitIntentModal() {
                     className="flex-1 flex items-center justify-center gap-1.5 rounded bg-primary text-primary-foreground py-2.5 text-sm font-bold tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-60"
                   >
                     {submit.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Phone className="w-4 h-4" />}
-                    RESERVE MY SPOT
+                    TEXT ME AN ESTIMATE
                   </button>
                   <button
                     type="button"
@@ -164,7 +164,7 @@ export default function ExitIntentModal() {
               </form>
             ) : (
               <div className="flex items-center gap-2 rounded bg-emerald-500/10 border border-emerald-500/30 px-3 py-3 text-sm font-semibold text-emerald-400">
-                <Check className="w-4 h-4" /> Spot reserved — we'll text you in 5 min
+                <Check className="w-4 h-4" /> Got it — we'll text you in 5 min
               </div>
             )}
           </motion.div>

@@ -285,10 +285,10 @@ export default function BookingPage() {
             60 seconds · no credit card
           </div>
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight mb-3">
-            Hold your spot.
+            Drop it off.
           </h1>
           <p className="text-foreground/65 text-lg max-w-xl mx-auto">
-            Tell us what's going on with your car. We'll call back within 15 minutes during open hours, hold your bay, and walk you through everything before you spend a dollar.
+            Tell us what's going on with your car. We'll call back within 15 minutes during open hours with a written estimate before any wrench moves. First-come, first-served — pull up any day we're open.
           </p>
         </div>
 

@@ -690,7 +690,7 @@ export default function Financing() {
                 num: "02",
                 icon: <CreditCard className="w-7 h-7" />,
                 title: "Apply (60 seconds)",
-                desc: "From your phone, in the waiting room, or at the counter. Soft check first — no impact on credit.",
+                desc: "From your phone, while you grab a coffee, or at the counter. Soft check first — no impact on credit.",
               },
               {
                 num: "03",

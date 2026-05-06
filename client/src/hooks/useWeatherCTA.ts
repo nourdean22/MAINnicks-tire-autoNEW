@@ -124,10 +124,10 @@ export function useWeatherCTA(): WeatherCTA | null {
   // Surge demand from the demand-forecast model
   if (demand === "surge" || demand === "high") {
     return {
-      message: "Shop is busy today",
-      sub: "Reserve your slot — same-day availability is going fast.",
+      message: "Shop is slammed today",
+      sub: "Pull up early — first-come, first-served.",
       urgency: "low",
-      ctaLabel: "RESERVE A SLOT",
+      ctaLabel: "GET DIRECTIONS",
       ctaHref: "/booking",
       context: { tempHigh, description: feed.current?.description, demandForecast: demand },
     };
