@@ -6,7 +6,7 @@
  */
 import { useState, lazy, Suspense } from "react";
 import { Send, MessageSquare, Star, RotateCcw, Timer, Loader2 } from "lucide-react";
-import { PageHeader } from "./shared";
+import { PageHeader, TabBar } from "./shared";
 
 const SmsSection = lazy(() => import("./SmsSection"));
 const FollowUpsSection = lazy(() => import("./FollowUpsSection"));
@@ -42,23 +42,12 @@ export default function OutreachHubSection() {
         subtitle="Campaigns · SMS broadcasts · Review requests · Win-back · Follow-ups · Loyalty — every customer touch in one place."
         icon={<Send className="w-5 h-5" />}
       />
-      {/* Tab Bar */}
-      <div className="flex items-center gap-1 bg-card border border-border/30 p-1 overflow-x-auto">
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 px-4 py-2 text-[12px] font-bold tracking-wider whitespace-nowrap transition-all ${
-              tab === t.id
-                ? "bg-primary text-primary-foreground"
-                : "text-foreground/40 hover:text-foreground/70 hover:bg-foreground/5"
-            }`}
-          >
-            {t.icon}
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={TABS}
+        activeTab={tab}
+        onChange={setTab}
+        variant="pill"
+      />
 
       {/* Content */}
       <Suspense fallback={<TabSpinner />}>

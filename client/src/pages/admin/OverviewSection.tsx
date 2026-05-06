@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Link } from "wouter";
 import {
   StatCard, ActivityIcon, StatusDot, CHART_COLORS, CHART_THEME, BOOKING_STATUS_CONFIG,
-  PageHeader, LoadingState, navigateToAdminSection,
+  PageHeader, LoadingState, navigateToAdminSection, TimestampLabel,
   type BookingStatus, type AdminSection,
 } from "./shared";
 import {
@@ -1801,7 +1801,10 @@ function TodayBriefStrip() {
             {data.briefs.length} action{data.briefs.length === 1 ? "" : "s"}
           </span>
         </div>
-        <span className="text-[10px] text-foreground/30">auto-refreshes every 90s</span>
+        <div className="flex items-center gap-2">
+          <TimestampLabel date={data.generatedAt} prefix="·" />
+          <span className="text-[10px] text-foreground/30">auto-refreshes every 90s</span>
+        </div>
       </div>
       <div className="space-y-1.5">
         {(data.briefs as BriefItem[]).map((brief) => (

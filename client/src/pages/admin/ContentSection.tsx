@@ -8,7 +8,7 @@ import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Link } from "wouter";
 import {
-  StatCard, StatusDot, PageHeader,
+  StatCard, StatusDot, PageHeader, TabBar,
 } from "./shared";
 import {
   Bell, CheckCircle2, ChevronRight, FileText, Loader2, Newspaper,
@@ -36,25 +36,14 @@ export default function ContentSection() {
         subtitle="Articles, notifications, GBP posts, AI ideas engine — everything customer-facing copy + automation"
         icon={<FileText className="w-5 h-5" />}
       />
-      {/* Tab switcher — same pattern as Revenue tabs */}
-      <div className="flex items-center gap-1 border-b border-border/20 pb-0">
-        {([
-          { id: "manager" as const, label: "Content Manager", icon: <FileText className="w-3.5 h-3.5" /> },
-          { id: "ideas" as const, label: "AI Ideas Engine", icon: <Lightbulb className="w-3.5 h-3.5" /> },
-        ]).map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-[12px] font-bold tracking-wider border-b-2 transition-colors ${
-              tab === t.id
-                ? "border-primary text-primary"
-                : "border-transparent text-foreground/40 hover:text-foreground/60"
-            }`}
-          >
-            {t.icon} {t.label}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={[
+          { id: "manager", label: "Content Manager", icon: <FileText className="w-3.5 h-3.5" /> },
+          { id: "ideas", label: "AI Ideas Engine", icon: <Lightbulb className="w-3.5 h-3.5" /> },
+        ]}
+        activeTab={tab}
+        onChange={setTab}
+      />
 
       {tab === "manager" && <ContentManager />}
       {tab === "ideas" && <AIIdeasEngine />}

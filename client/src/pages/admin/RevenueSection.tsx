@@ -28,7 +28,7 @@ import {
   AreaChart, Area, CartesianGrid,
 } from "recharts";
 
-import { CHART_COLORS, CHART_THEME, PageHeader, LoadingState, SectionInsightStrip } from "./shared";
+import { CHART_COLORS, CHART_THEME, PageHeader, LoadingState, SectionInsightStrip, TabBar } from "./shared";
 
 function formatCents(cents: number): string {
   return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -60,22 +60,11 @@ export default function RevenueSection() {
         icon={<TrendingUp className="w-5 h-5" />}
       />
       <SectionInsightStrip section="revenue" />
-      {/* Section-level tabs — wraps on mobile */}
-      <div className="flex flex-wrap items-center gap-1 border-b border-border/20 pb-0">
-        {REVENUE_TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setSection(t.id)}
-            className={`flex items-center gap-1.5 px-3 sm:px-4 py-2.5 text-[11px] sm:text-[12px] font-bold tracking-wider border-b-2 transition-colors whitespace-nowrap ${
-              section === t.id
-                ? "border-primary text-primary"
-                : "border-transparent text-foreground/40 hover:text-foreground/60"
-            }`}
-          >
-            {t.icon} {t.label}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={REVENUE_TABS}
+        activeTab={section}
+        onChange={setSection}
+      />
 
       {section === "revenue" && <RevenueContent />}
       {section === "specials" && (
