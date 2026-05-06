@@ -263,7 +263,7 @@ function TrustNumbers() {
   const stats = [
     { value: String(googleData?.rating ?? BUSINESS.reviews.rating), label: "Google Rating" },
     { value: `${totalReviews.toLocaleString()}+`, label: "5-Star Reviews" },
-    { value: "ON-SPOT", label: "Financing Approval" },
+    { value: "ON-SPOT", label: "Payment Programs" },
     { value: "Same Day", label: "Walk-Ins · Open Sunday" },
   ];
 
@@ -307,7 +307,7 @@ function UsedTiresCallout() {
                 Every used tire passes a 4-point exam stricter than the Ohio driver's test — tread depth, sidewall, bead, age date. Walk in, hand us the keys, rolling before your coffee gets cold.
               </p>
               <p className="mt-1 text-black/50 text-sm lg:text-base max-w-lg body-pretty">
-                Free mount. Free balance. Free valve stems. Free zero-attitude. Financing on the spot. Open every day we're awake — rain, snow, lake-effect, Browns Sunday.
+                Free mount. Free balance. Free valve stems. Free zero-attitude. Payment programs on the spot. Open every day we're awake — rain, snow, lake-effect, Browns Sunday.
               </p>
             </FadeIn>
           </div>
@@ -1223,7 +1223,7 @@ export default function Home() {
                 {[
                   { href: "/diagnose", label: "Diagnose My Car" },
                   { href: "/pricing", label: "Price Estimator" },
-                  { href: "/financing", label: "Financing — No Credit Check" },
+                  { href: "/financing", label: "Payment Programs — No Credit Check" },
                   { href: "/booking", label: "Schedule Drop-Off Online" },
                   { href: "/specials", label: "Specials & Coupons" },
                   { href: "/blog", label: "Repair Tips Blog" },

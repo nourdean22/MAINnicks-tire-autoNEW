@@ -769,7 +769,7 @@ export default function TireFinder() {
     <PageLayout showChat={true}>
       <SEOHead
         title="Tire Shop Near Me · New & Used · Free Install | Cleveland | Nick's"
-        description="Cleveland's neighborhood tire shop on Euclid Ave. New & used tires, free install package on every set — mount, balance, valve stems, TPMS, alignment check. Walk-ins 7 days, financing on the spot. The shop your grandfather would've trusted, with the gear your kid's Tesla needs. (216) 862-0005"
+        description="Cleveland's neighborhood tire shop on Euclid Ave. New & used tires, free install package on every set — mount, balance, valve stems, TPMS, alignment check. Walk-ins 7 days, payment programs on the spot. The shop your grandfather would've trusted, with the gear your kid's Tesla needs. (216) 862-0005"
         canonicalPath="/tires"
       />
       {/* v1.7 SEO · BreadcrumbList JSON-LD + visible nav */}

@@ -20,7 +20,7 @@ const CONFIG: ServicePageConfig = {
   // Hero shows the actual current sign — visual proof of "we are now Nick's"
   heroImage: "/brand-sign.webp",
   title: "Moe's Tire is Now Nick's · 17625 Euclid Ave Cleveland",
-  description: "Looking for Moe's Tire on Euclid Ave in Cleveland? Same corner, new chapter — we're now Nick's Tire & Auto. Same address, same neighborhood-trust ethos, expanded services, financing on the spot. 4.9★ across 1,700+ Google reviews. Walk-ins 7 days. (216) 862-0005",
+  description: "Looking for Moe's Tire on Euclid Ave in Cleveland? Same corner, new chapter — we're now Nick's Tire & Auto. Same address, same neighborhood-trust ethos, expanded services, payment programs on the spot. 4.9★ across 1,700+ Google reviews. Walk-ins 7 days. (216) 862-0005",
   eyebrow: "MOE'S TIRE EUCLID — SAME CORNER, NEW CHAPTER",
   h1: "MOE'S TIRE EUCLID IS NOW NICK'S TIRE & AUTO",
   sub: "Same shop. Same address. Same corner of Euclid Ave you remembered, with possibly a fresh coat of paint. New ownership, sharper service, and a coffee maker that's still standing after all these years. If you trusted this spot for tires, brakes, or repair before — you're still in the right place. We carry the legacy and we earned the rating: 4.9★ across 1,700+ verified Google reviews. Walk in 7 days a week, no appointment needed, no awkward small talk required.",

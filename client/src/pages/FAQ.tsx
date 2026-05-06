@@ -255,7 +255,7 @@ export default function FAQ() {
     <PageLayout showChat={true}>
       <SEOHead
         title="Auto Repair FAQ Cleveland · The Questions Everyone Forgets To Ask | Nick's"
-        description="Honest answers about brakes, tires, oil change, diagnostics, and the strange noises Cleveland cars make. Walk-ins welcome 7 days, free estimates, financing on the spot. (216) 862-0005"
+        description="Honest answers about brakes, tires, oil change, diagnostics, and the strange noises Cleveland cars make. Walk-ins welcome 7 days, free estimates, payment programs on the spot. (216) 862-0005"
         canonicalPath="/faq"
       />
       <FAQSchema />
