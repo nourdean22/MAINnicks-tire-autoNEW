@@ -72,26 +72,39 @@ export interface PhotoRibbonProps {
   dataDrivenDays?: number;
 }
 
-// 2026-05-06 · sign-prominent photos lead. The Nick's Tire & Auto sign
-// is the brand's primary trust anchor — physical proof of "real shop on
-// Euclid Ave". Reordered so the first two tiles in the ribbon both
-// feature the sign clearly: signage-approach view (full sign in
-// foreground) then full-facade view (storefront + sign). Brand
-// recognition before service variety.
+// 2026-05-06 wave-16 · pro photo pack rebuild per PLACEMENT_GUIDE.md
+// "Homepage gallery / social proof strip" sequence:
+// real shop → premium vehicles → real work → tire authority.
+// Lead tiles are sign-prominent (brand recognition before variety),
+// then variety photos round out the ribbon.
 const DEFAULT_PHOTOS: RibbonPhoto[] = [
   {
-    src: "/photos/exterior-signage-approach.webp",
-    alt: "Approaching the Nick's Tire & Auto sign on Euclid Ave Cleveland — the actual storefront sign at street level",
+    src: "/photos/shop-exterior-hero-wide-sign-bays.webp",
+    alt: "Nick's Tire & Auto storefront on Euclid Avenue in Cleveland with the yellow sign, open service bays, and tire stacks visible",
     caption: "The sign on Euclid you've driven past.",
-    widthClass: "w-[78vw] sm:w-[440px] md:w-[520px]",
-    objectPosition: "center top",
+    widthClass: "w-[80vw] sm:w-[500px] md:w-[600px]",
+    objectPosition: "center 42%",
   },
   {
-    src: "/photos/exterior-facade-wide.webp",
-    alt: "Full facade of Nick's Tire & Auto on Euclid Ave with the storefront sign visible — Cleveland tire shop",
-    caption: "Full storefront. Sign and all.",
-    widthClass: "w-[80vw] sm:w-[500px] md:w-[600px]",
-    objectPosition: "center 35%",
+    src: "/photos/bmw-premium-front-shop-sign.webp",
+    alt: "Maroon BMW convertible parked in front of Nick's Tire & Auto with the full shop sign and service bays visible",
+    caption: "Every make. Even the European ones.",
+    widthClass: "w-[78vw] sm:w-[440px] md:w-[520px]",
+    objectPosition: "center 45%",
+  },
+  {
+    src: "/photos/busy-shop-action-mechanics.webp",
+    alt: "Nick's Tire & Auto technicians working inside the tire and auto repair bay with tires and equipment around them",
+    caption: "Real techs. Real shop. Real work.",
+    widthClass: "w-[78vw] sm:w-[440px] md:w-[520px]",
+    objectPosition: "center 50%",
+  },
+  {
+    src: "/photos/rugged-tire-tread-closeup.webp",
+    alt: "Close-up of aggressive tire tread at Nick's Tire & Auto showing deep tread blocks and rugged pattern",
+    caption: "Inventory in-house. Same-day install.",
+    widthClass: "w-[64vw] sm:w-[340px] md:w-[400px]",
+    objectPosition: "center 50%",
   },
   {
     src: "/photos/parking-lot-cars.webp",
@@ -100,58 +113,54 @@ const DEFAULT_PHOTOS: RibbonPhoto[] = [
     widthClass: "w-[78vw] sm:w-[440px] md:w-[520px]",
   },
   {
-    src: "/photos/service-bay-busy.webp",
-    alt: "Multiple service bays running simultaneously inside the Cleveland tire shop",
-    caption: "Bays running 7 days a week.",
-    widthClass: "w-[68vw] sm:w-[360px] md:w-[420px]",
-  },
-  {
-    src: "/photos/tire-stacks-overhead.webp",
-    alt: "Overhead view of inventory tire stacks ready for same-day install at Nick's Tire",
-    caption: "Inventory in-house. Same-day install.",
-    widthClass: "w-[64vw] sm:w-[340px] md:w-[400px]",
-  },
-  {
     src: "/photos/exterior-winter-allweather.webp",
     alt: "Customers' cars in line at Nick's Tire & Auto during a Cleveland snowstorm",
     caption: "Open through every Cleveland storm.",
     widthClass: "w-[72vw] sm:w-[400px] md:w-[480px]",
   },
   {
-    src: "/photos/alignment-bay.webp",
-    alt: "Computerized alignment bay showing diagnostic readings on a customer vehicle",
-    caption: "Alignment numbers on screen, not guessed.",
+    src: "/photos/interior-service-bay-car-lift.webp",
+    alt: "Vehicle raised on a lift inside Nick's Tire & Auto service bay with tire inventory and shop equipment visible",
+    caption: "On the lift, on the spot.",
     widthClass: "w-[66vw] sm:w-[360px] md:w-[440px]",
+    objectPosition: "center 45%",
   },
 ];
 
 // Service-specific photo sets used by service pages. Curated to lead
 // with the photo most relevant to the service while still showcasing
 // the broader shop reality.
+// 2026-05-06 wave-16 · pro photo pack: tire-authority shots lead.
+// Per PLACEMENT_GUIDE.md, the tire flow uses tread closeup, tire-changer
+// closeup, busy-shop, and the cones/walk-in line.
 export const TIRES_PHOTOS: RibbonPhoto[] = [
   {
-    src: "/photos/tire-stacks-overhead.webp",
-    alt: "Tire inventory stacks at Nick's Tire & Auto — every size, in-house, ready for same-day install in Cleveland",
-    caption: "Inventory on-site. No waiting on shipments.",
+    src: "/photos/rugged-tire-tread-closeup.webp",
+    alt: "Close-up of aggressive tire tread at Nick's Tire & Auto showing deep tread blocks and rugged pattern",
+    caption: "Tire authority. Real tread, real pattern.",
     widthClass: "w-[78vw] sm:w-[440px] md:w-[520px]",
+    objectPosition: "center 50%",
   },
   {
-    src: "/photos/tire-tread-closeup.webp",
-    alt: "Close-up of a used tire passing the 4-point tread inspection at Nick's Tire & Auto",
-    caption: "Every used tire passes a 4-point exam.",
+    src: "/photos/tire-wheel-changer-closeup.webp",
+    alt: "Tire mounted on a wheel at Nick's Tire & Auto on the tire changer machine during installation",
+    caption: "Mount, balance, valve stems. Free.",
     widthClass: "w-[72vw] sm:w-[400px] md:w-[480px]",
+    objectPosition: "center 52%",
   },
   {
-    src: "/photos/parking-lot-cars.webp",
-    alt: "Customer vehicles in line for tire installation outside the Cleveland tire shop",
-    caption: "Lines on Saturdays for a reason.",
+    src: "/photos/busy-shop-action-mechanics.webp",
+    alt: "Nick's Tire & Auto technicians working inside the tire and auto repair bay with tires and equipment around them",
+    caption: "Real techs. Real shop. Real install.",
     widthClass: "w-[80vw] sm:w-[480px] md:w-[560px]",
+    objectPosition: "center 50%",
   },
   {
-    src: "/photos/service-bay-busy.webp",
-    alt: "Tire mount and balance happening across multiple bays at Nick's Tire & Auto",
-    caption: "Free mount, balance, valve stems.",
+    src: "/photos/shop-exterior-cones-vertical.webp",
+    alt: "Nick's Tire & Auto exterior with yellow and black lane cones, open bays, and tire stacks",
+    caption: "The cones mean: pull up, line up.",
     widthClass: "w-[64vw] sm:w-[340px] md:w-[400px]",
+    objectPosition: "center 40%",
   },
   {
     src: "/photos/exterior-winter-allweather.webp",
@@ -161,45 +170,55 @@ export const TIRES_PHOTOS: RibbonPhoto[] = [
   },
 ];
 
+// 2026-05-06 wave-16 · brakes lead with the under-car action shot,
+// supporting tiles show the bay/lift environment.
 export const BRAKES_PHOTOS: RibbonPhoto[] = [
   {
-    src: "/photos/service-bay-clean.webp",
-    alt: "Clean service bay at Nick's Tire & Auto where brake jobs happen — Cleveland brake repair shop",
-    caption: "Walk in, walk under your own car, see the part.",
+    src: "/photos/undercar-brake-repair-action.webp",
+    alt: "Underbody auto repair at Nick's Tire & Auto with a vehicle lifted and parts laid out on the shop floor",
+    caption: "Under your own car. Under the lift.",
     widthClass: "w-[78vw] sm:w-[440px] md:w-[520px]",
+    objectPosition: "center 48%",
   },
   {
-    src: "/photos/service-bay-busy.webp",
-    alt: "Multiple bays running brake jobs simultaneously at Nick's Tire & Auto in Cleveland",
+    src: "/photos/interior-service-bay-car-lift.webp",
+    alt: "Vehicle raised on a lift inside Nick's Tire & Auto service bay with tire inventory and shop equipment visible",
     caption: "Pads, rotors, calipers, lines, ABS.",
     widthClass: "w-[68vw] sm:w-[380px] md:w-[440px]",
+    objectPosition: "center 45%",
+  },
+  {
+    src: "/photos/busy-shop-action-mechanics.webp",
+    alt: "Nick's Tire & Auto technicians working brake jobs inside the bays in Cleveland",
+    caption: "Same-day brake job. Walk-ins welcome.",
+    widthClass: "w-[76vw] sm:w-[420px] md:w-[500px]",
+    objectPosition: "center 50%",
   },
   {
     src: "/photos/parking-lot-cars.webp",
     alt: "Customer cars waiting for brake service in the lot at Nick's Tire & Auto",
-    caption: "Same-day brake job. Walk-ins welcome.",
-    widthClass: "w-[76vw] sm:w-[420px] md:w-[500px]",
-  },
-  {
-    src: "/photos/alignment-bay.webp",
-    alt: "Diagnostic alignment readings inform the brake-pull diagnosis at Nick's Tire & Auto",
-    caption: "Brake pull? We measure, not guess.",
+    caption: "Cars in the lot. Brakes in the bay.",
     widthClass: "w-[66vw] sm:w-[360px] md:w-[420px]",
   },
 ];
 
+// 2026-05-06 wave-16 · diagnostics leads with the bay+lift+capability
+// shot. The new pro pack doesn't have a "computer screen" angle; the
+// interior-bay shot reads as "real diagnostic environment" instead.
 export const DIAGNOSTICS_PHOTOS: RibbonPhoto[] = [
   {
-    src: "/photos/alignment-bay.webp",
-    alt: "Computerized diagnostic readout at Nick's Tire & Auto's Cleveland alignment and diagnostic bay",
-    caption: "Numbers on screen, in real English.",
+    src: "/photos/interior-service-bay-car-lift.webp",
+    alt: "Vehicle raised on a lift inside Nick's Tire & Auto service bay with tire inventory and shop equipment visible — Cleveland diagnostic bay",
+    caption: "On the lift. On the scanner. On the spot.",
     widthClass: "w-[80vw] sm:w-[480px] md:w-[560px]",
+    objectPosition: "center 45%",
   },
   {
-    src: "/photos/service-bay-clean.webp",
-    alt: "OBD-II scan in progress at the Cleveland diagnostic shop",
-    caption: "Free OBD-II scan. Written estimate before any wrench.",
+    src: "/photos/busy-shop-action-mechanics.webp",
+    alt: "Nick's Tire & Auto technicians running diagnostic jobs in the Cleveland shop bays",
+    caption: "Real shop. Real diagnostics. Plain English.",
     widthClass: "w-[72vw] sm:w-[400px] md:w-[480px]",
+    objectPosition: "center 50%",
   },
   {
     src: "/photos/front-desk.webp",
@@ -208,10 +227,11 @@ export const DIAGNOSTICS_PHOTOS: RibbonPhoto[] = [
     widthClass: "w-[68vw] sm:w-[380px] md:w-[440px]",
   },
   {
-    src: "/photos/service-bay-busy.webp",
-    alt: "Multiple diagnostic jobs running in the Cleveland auto repair shop bays",
-    caption: "Same-day diagnosis on most makes.",
+    src: "/photos/undercar-brake-repair-action.webp",
+    alt: "Underbody inspection during diagnostic at Nick's Tire & Auto",
+    caption: "Underneath, where the codes come from.",
     widthClass: "w-[64vw] sm:w-[340px] md:w-[400px]",
+    objectPosition: "center 48%",
   },
 ];
 
