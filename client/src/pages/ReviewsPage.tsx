@@ -277,7 +277,7 @@ export default function ReviewsPage() {
     <PageLayout activeHref="/reviews" showChat={true}>
       <SEOHead
         title={`Cleveland Auto Repair Reviews · 4.9★ Across ${BUSINESS.reviews.countDisplay} | Nick's Tire & Auto`}
-        description={`Read ${BUSINESS.reviews.countDisplay} real Google reviews from Cleveland drivers — bus drivers, nurses, Browns fans, the lady whose Civic survived 287,000 miles. Cleveland's top-rated auto repair shop. Walk-ins welcome 7 days. ${BUSINESS.phone.display}`}
+        description={`Read ${BUSINESS.reviews.countDisplay} real Google reviews from Cleveland drivers. The pattern: pulled up not knowing what to expect, walked under the lift to see the worn part, written estimate before any wrench moved, paid less than the dealer quote. ${BUSINESS.phone.display}`}
         canonicalPath="/reviews"
       />
       <script

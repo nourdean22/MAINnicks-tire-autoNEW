@@ -80,7 +80,7 @@ export const CAMPAIGNS: DripCampaign[] = [
     trigger: "declined-estimate",
     isActive: true,
     steps: [
-      { stepNumber: 1, delayDays: 7, channel: "sms", messageTemplate: "Hi {{firstName}}, just following up on your {{service}} estimate. Car problems rarely stay the same — they usually get worse. Early diagnosis costs less than waiting. Questions about pricing? We offer financing too. (216) 862-0005" },
+      { stepNumber: 1, delayDays: 7, channel: "sms", messageTemplate: "Hi {{firstName}}, just following up on your {{service}} estimate. Car problems rarely stay the same — they usually get worse. Early diagnosis costs less than waiting. Need to pay over time? Payment programs available, $10 down. (216) 862-0005" },
       { stepNumber: 2, delayDays: 30, channel: "sms", messageTemplate: "{{firstName}}, that {{service}} issue won't fix itself. What feels minor today can turn into more damage, a bigger repair, or a breakdown. Most breakdowns don't come out of nowhere. Bring your estimate back anytime — (216) 862-0005" },
     ],
   },

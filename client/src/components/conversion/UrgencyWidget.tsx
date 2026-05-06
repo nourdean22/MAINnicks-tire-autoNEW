@@ -47,7 +47,7 @@ export default function UrgencyWidget() {
         setPhone("");
       }, 2500);
     },
-    onError: () => toast.error("Couldn't reserve. Call (216) 862-0005."),
+    onError: () => toast.error("Could not save. Call (216) 862-0005."),
   });
 
   function handleSubmit(e: React.FormEvent) {
@@ -191,7 +191,7 @@ export default function UrgencyWidget() {
                       className="flex-1 flex items-center justify-center gap-1.5 rounded bg-primary text-primary-foreground py-2 text-xs font-bold tracking-wide hover:bg-primary/90 transition-colors"
                     >
                       <Phone className="w-3.5 h-3.5" />
-                      HOLD MY SPOT
+                      TEXT ME AN ESTIMATE
                     </button>
                     <a
                       href={BUSINESS.phone.href}
@@ -202,7 +202,7 @@ export default function UrgencyWidget() {
                   </div>
                 ) : submitted ? (
                   <div className="flex items-center gap-2 rounded bg-emerald-500/10 border border-emerald-500/30 px-3 py-2 text-xs font-semibold text-emerald-400">
-                    <Check className="w-3.5 h-3.5" /> Spot reserved — we'll text you in 5 min
+                    <Check className="w-3.5 h-3.5" /> Got it — we'll text you in 5 min
                   </div>
                 ) : (
                   <form onSubmit={handleSubmit} className="flex gap-2">

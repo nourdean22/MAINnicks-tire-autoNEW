@@ -574,7 +574,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "Not every noise means you need new brakes, but some signs should not be ignored. Squealing when braking is usually the wear indicator tab contacting the rotor — this means your pads are getting thin and you should schedule service within a few weeks. Grinding or metal-on-metal sounds mean the pads are completely worn through and the metal backing plate is damaging the rotors. This needs immediate attention because it gets more expensive every day you drive on it. A soft or spongy brake pedal that sinks toward the floor can indicate a brake fluid leak, air in the lines, or a failing master cylinder. This is a safety issue — get it checked immediately. Vibration or pulsation when braking usually means warped rotors. The vehicle is still safe to drive but the condition will worsen over time. Pulling to one side during braking often indicates a stuck caliper or uneven pad wear. Our free brake inspection takes about 20 minutes and tells you exactly what condition your brakes are in. We measure pad thickness, check rotor condition, inspect lines and hoses, and test the hydraulic system. No appointment needed."
       },
       {
-        heading: "Financing Your Brake Repair",
+        heading: "Payment Programs for Brake Repair",
         content: "We understand that an unexpected brake repair bill can strain your budget. That is why Nick's Tire & Auto offers flexible financing options to help you get the repair done now and pay over time. We work with multiple financing partners to offer plans that fit different credit situations. Some plans offer 0% interest for qualified buyers. The important thing is that you do not delay brake repair because of cost — brakes are your primary safety system, and putting off repairs always makes them more expensive. A $200 pad job today becomes a $600 full brake job next month if you keep driving on worn pads. Visit our financing page or ask about payment options when you bring your vehicle in."
       },
       {
@@ -1292,8 +1292,8 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "Tires (new and quality used), brake repair, oil changes, diagnostics, emissions and E-Check repair, transmission service, electrical work, steering and suspension, and general auto repair. If it has an engine and four wheels, we fix it. We work on all makes and models — Honda, Toyota, Chevy, Ford, Hyundai, Kia, Nissan, BMW, Mercedes, everything. Our technicians have decades of combined experience and see every problem in the book."
       },
       {
-        heading: "Transparent Pricing and Financing",
-        content: "Every repair starts with a diagnosis and a written estimate. You approve the price before we start. If we find additional issues during the repair, we call you to discuss before doing any extra work. No surprises, no add-ons you did not agree to. For larger repairs, we offer $10 down financing through Acima, Koalafi, Snap Finance, and American First Finance. Bad credit, no credit — we have options that work for almost everyone."
+        heading: "Transparent Pricing and Payment Programs",
+        content: "Every repair starts with a diagnosis and a written estimate before any wrench moves. You approve the price before we start. If we find additional issues during the repair, we call you to discuss before doing any extra work. No surprise prices, no add-ons you did not agree to. For larger repairs, payment programs are available through Acima, Koalafi, Snap Finance, and American First Finance — $10 down. Bad credit, no credit — we have options that work for almost everyone."
       },
       {
         heading: "Come See for Yourself",
@@ -1836,7 +1836,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: "how-to-save-money-on-car-repairs",
     title: "How to Save Money on Car Repairs Without Cutting Corners",
     metaTitle: "Save Money on Car Repairs | Cleveland Auto Shop | Nick's Tire & Auto",
-    metaDescription: "Smart ways to reduce car repair costs without risking your safety. Maintenance tips and financing options from Nick's Tire & Auto in Cleveland.",
+    metaDescription: "Smart ways to reduce car repair costs without risking your safety. Maintenance tips and payment programs from Nick's Tire & Auto in Cleveland.",
     category: "Cost Guide",
     publishDate: "2026-04-12",
     readTime: "5 min read",
@@ -1856,12 +1856,12 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "The cheapest quote is often the most expensive in the long run. Shops that undercut everyone are usually cutting corners — bargain-bin parts, rushed work, or diagnosing by replacing parts until something works. A quality repair done right the first time costs less than a discount repair done twice. Look for a shop that diagnoses before replacing, uses quality parts, offers a real warranty, and explains what they found. That is what we do at Nick's."
       },
       {
-        heading: "Financing Makes Big Repairs Manageable",
-        content: "Sometimes a major repair hits at the worst possible time. That does not mean you have to drive an unsafe vehicle or drain your savings. We offer $10 down financing through four providers — options exist for every credit situation, including bad credit and no credit. Getting your brakes fixed today and paying over 6 months is smarter than driving on dangerous brakes because you are waiting for payday. Your safety should not depend on your bank balance this week."
+        heading: "Payment Programs Make Big Repairs Manageable",
+        content: "Sometimes a major repair hits at the worst possible time. That does not mean you have to drive an unsafe vehicle or drain your savings. Payment programs are available through four providers — $10 down, options for every credit situation, including bad credit and no credit. Getting your brakes fixed today and paying over 6 months is smarter than driving on dangerous brakes because you are waiting for payday. Your safety should not depend on your bank balance this week."
       },
       {
         heading: "Save Smart at Nick's Tire & Auto",
-        content: "We help Cleveland drivers keep their cars running without overpaying. Honest diagnosis, quality parts, real warranties, and financing when you need it. No unnecessary repairs, no pressure, no games. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. Saving Cleveland drivers money the right way."
+        content: "We help Cleveland drivers keep their cars running without overpaying. Honest diagnosis, quality parts, real warranties, and payment programs when you need them. No unnecessary repairs, no pressure, no games. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. Saving Cleveland drivers money the right way."
       }
     ],
     relatedServices: ["/oil-change", "/brakes", "/diagnostics", "/general-repair"],

@@ -218,9 +218,9 @@ export default function TireSizePage() {
                 </p>
               </div>
               <div>
-                <h3 className="font-semibold text-foreground mb-2">Do you offer financing on {page.size} tires?</h3>
+                <h3 className="font-semibold text-foreground mb-2">Do you have payment programs for {page.size} tires?</h3>
                 <p className="text-foreground/70">
-                  Yes. We offer financing with payments as low as $10 down. No credit check required.
+                  Yes. Payment programs available — $10 down. No credit check required.
                   Get the tires you need today and pay over time.
                 </p>
               </div>

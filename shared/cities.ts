@@ -28,9 +28,9 @@ export const CITIES: CityData[] = [
     slug: "euclid-auto-repair",
     name: "Euclid",
     metaTitle: "Auto Repair Euclid OH · Walk-Ins 7 Days | Nick's",
-    metaDescription: "Nick's Tire & Auto — literally on Euclid Ave. Brakes, tires, diagnostics, oil, alignment for Euclid drivers. 4.9★ 1,700+ reviews. Walk-ins 7 days, financing on the spot.",
+    metaDescription: "Nick's Tire & Auto — literally on Euclid Ave. Brakes, tires, diagnostics for Euclid drivers. 4.9★ 1,700+ reviews. Walk-ins 7 days. Payment programs on the spot.",
     heroHeadline: "AUTO REPAIR\nLITERALLY ON EUCLID AVE",
-    heroSubline: "We are literally on Euclid Avenue — that's not a marketing flourish, it's the address. Pull up, we put the car on a lift, hand you the flashlight, write the estimate before any wrench moves. The kind of repairs your grandfather would've nodded at, with the diagnostic gear your kid's Tesla actually needs. Walk in any day. Financing on the spot.",
+    heroSubline: "We are literally on Euclid Avenue — that's not a marketing flourish, it's the address. Pull up, we put the car on a lift, hand you the flashlight, write the estimate before any wrench moves. The kind of repairs your grandfather would've nodded at, with the diagnostic gear your kid's Tesla actually needs. Walk in any day. Payment programs on the spot.",
     distance: "0.5 miles",
     driveTime: "2 minutes",
     neighborhoods: ["Downtown Euclid", "Indian Hills", "Euclid Green", "Bluestone", "Upson"],
@@ -85,7 +85,7 @@ export const CITIES: CityData[] = [
     slug: "parma-auto-repair",
     name: "Parma",
     metaTitle: "Parma Auto Repair · Free Uber Both Ways | Nick's",
-    metaDescription: "Parma drivers cross town for an honest mechanic. 25 min away, free Uber drop-off + pick-up. 4.9★ 1,700+ reviews. Walk-ins 7 days, financing on the spot.",
+    metaDescription: "Parma drivers cross town for an honest mechanic. 25 min away, free Uber drop-off + pick-up. 4.9★ 1,700+ reviews. Walk-ins 7 days, payment programs on the spot.",
     heroHeadline: "AUTO REPAIR\nWORTH THE DRIVE FROM PARMA",
     heroSubline: "Parma drivers tired of three different local shops giving three different prices for the same job come to Nick's Tire & Auto for one answer — the honest one. 25 minutes up I-480, and we Uber you home and back so you don't sacrifice a Saturday sitting around. 4.9★ from 1,700+ Cleveland-area drivers who came in skeptical and left with a working car.",
     distance: "15 miles",
@@ -120,13 +120,13 @@ export const CITIES: CityData[] = [
     distance: "16 miles",
     driveTime: "25 minutes",
     neighborhoods: ["Pleasant Lake", "Stumph Road", "York Road", "Pearl Road", "Snow Road"],
-    localContent: "Parma Heights sits between Parma proper and Brooklyn Heights along the Pearl Road / York Road corridor — a working-class community where families need a mechanic who explains things twice without sighing. Nick's Tire & Auto serves Parma Heights drivers tired of being talked over by chain shops or quoted prices that change between the front desk and the parking lot. The drive up I-480 to Cleveland is 25 minutes, and we Uber you home from the shop and back when your car is ready, so a repair doesn't cost you a day of work. We handle everything — brakes, tires, oil change, diagnostics, alignment, suspension, exhaust — with written estimates before any wrench moves. Most repairs done same day. Financing approved on the spot if you need it.",
+    localContent: "Parma Heights sits between Parma proper and Brooklyn Heights along the Pearl Road / York Road corridor — a working-class community where families need a mechanic who explains things twice without sighing. Nick's Tire & Auto serves Parma Heights drivers tired of being talked over by chain shops or quoted prices that change between the front desk and the parking lot. The drive up I-480 to Cleveland is 25 minutes, and we Uber you home from the shop and back when your car is ready, so a repair doesn't cost you a day of work. We handle everything — brakes, tires, oil change, diagnostics, alignment, suspension, exhaust — with written estimates before any wrench moves. Most repairs done same day. Payment programs available on the spot if you need them.",
     serviceHighlights: [
       "Brake repair with free written estimate before any wrench moves",
       "New & used tires installed FREE with our complete service package",
       "Check engine light diagnostics — free scan, real-English explanation",
       "Wheel alignment to fix the damage Pearl Rd & York Rd potholes did over winter",
-      "Financing approved on the spot — no credit check, drive away today",
+      "Payment programs approved on the spot — no credit check, drive away today",
       "Free Uber drop-off and pick-up from anywhere in Parma Heights"
     ],
     testimonial: {
@@ -399,7 +399,7 @@ export const CITIES: CityData[] = [
     distance: "0 miles",
     driveTime: "You're here",
     neighborhoods: ["Downtown Cleveland", "East Side", "West Side", "Collinwood", "Nottingham", "Five Points", "University Circle", "Tremont", "Ohio City", "Slavic Village", "Glenville", "Hough"],
-    localContent: "Nick's Tire & Auto is at 17625 Euclid Avenue in the heart of Cleveland's East Side — yes, the shop is literally on Euclid Ave. Since 2018 the formula has been boring on purpose: honest diagnostics, transparent pricing, quality work, no upsells. We show you the problem on a lift, explain your options in real English, and let you decide. That approach earned us 1,700+ five-star Google reviews and a 4.9★ rating — the highest of any independent shop in the metro. Tires, brakes, engine diagnostics, emissions, transmission, or that strange noise that started this morning. Walk-ins welcome 7 days a week, financing approved on the spot through Acima, Koalafi, Snap Finance, and American First Finance.",
+    localContent: "Nick's Tire & Auto is at 17625 Euclid Avenue in the heart of Cleveland's East Side — yes, the shop is literally on Euclid Ave. Since 2018 the formula has been boring on purpose: honest diagnostics, transparent pricing, quality work, no upsells. We show you the problem on a lift, explain your options in real English, and let you decide. That approach earned us 1,700+ five-star Google reviews and a 4.9★ rating — the highest of any independent shop in the metro. Tires, brakes, engine diagnostics, emissions, transmission, or that strange noise that started this morning. Walk-ins welcome 7 days a week, payment programs approved on the spot through Acima, Koalafi, Snap Finance, and American First Finance.",
     serviceHighlights: [
       "Cleveland's largest new & used tire selection with free install package",
       "Brake repair — pads, rotors, calipers, ABS diagnostics on a lift you can see",
@@ -407,7 +407,7 @@ export const CITIES: CityData[] = [
       "Ohio E-Check and emissions repair — we get you passing or we keep working",
       "Oil changes faster than your barista finishes your name",
       "Transmission, suspension, electrical, exhaust, and the weird rattle that started yesterday",
-      "Auto-repair financing approved on the spot — all credit welcome",
+      "Auto-repair payment programs approved on the spot — all credit welcome",
       "Walk-ins welcome 7 days a week, including Sunday 9 AM–4 PM"
     ],
     testimonial: {

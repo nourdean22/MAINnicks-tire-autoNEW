@@ -709,7 +709,7 @@ export const SERVICES: ServiceData[] = [
     title: "AC & HEATING",
     shortDesc: "AC recharge, compressor, condenser, evaporator, heater core, and blower motor repair. Stay comfortable year-round.",
     metaTitle: "AC Repair Cleveland · Cold Air By Lunch · $10 Down | Nick's",
-    metaDescription: "Cleveland car AC repair — leak test with UV dye, recharge, compressor, condenser, heater core. Most jobs blow cold by lunch. Free inspection. $10-down financing.",
+    metaDescription: "Cleveland car AC repair — leak test with UV dye, recharge, compressor, condenser, heater core. Most jobs blow cold by lunch. Free inspection. $10-down payment programs.",
     heroHeadline: "Cold air, fast —\nor we keep working.",
     heroSubline: "Everything you need to know about your car's air conditioning system — common problems, repair costs, and when to get service. From the technicians Cleveland drivers trust.",
     heroCTA: "FIX MY AC",

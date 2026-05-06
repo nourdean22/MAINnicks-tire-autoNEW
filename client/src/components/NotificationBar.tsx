@@ -102,8 +102,8 @@ const ALL_NOTIFICATIONS: Notification[] = [
   {
     id: "urg-3",
     strategy: "urgency",
-    text: "Saturday appointments fill up fast — call now to reserve your spot",
-    cta: "Hold a Bay",
+    text: "Saturday gets slammed — pull up early or call ahead",
+    cta: "Call Nick's",
     ctaHref: BUSINESS.phone.href,
     icon: <Clock className="w-4 h-4" />,
     daysOfWeek: [4, 5],

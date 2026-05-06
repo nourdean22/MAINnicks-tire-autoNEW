@@ -212,7 +212,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
           transition={{ delay: 0.2 }}
           className="font-bold text-[28px] text-foreground tracking-[-0.02em] mb-2"
         >
-          Your spot is reserved, {formData.name.split(" ")[0]}.
+          You're in the queue, {formData.name.split(" ")[0]}.
         </motion.h3>
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -220,16 +220,16 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
           transition={{ delay: 0.35 }}
           className="space-y-3"
         >
-          {/* Reservation block — per conversion-overhaul spec: "Your spot is
-              RESERVED for 4 hours." Sets a real concrete window that signals
-              we treat the booking seriously. */}
+          {/* 2026-05-06 audit fix · removed "Your spot is RESERVED" / "Slot held"
+              language. FCFS shop — no reservations. Block now restates what
+              service they queued + tells them to drop off any time we're open. */}
           <div className="mx-auto max-w-md rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 text-left">
             <div className="flex items-center gap-2 mb-2">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/60" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
               </span>
-              <span className="text-[10px] font-bold tracking-widest text-emerald-400 uppercase">Slot held · 4 hr</span>
+              <span className="text-[10px] font-bold tracking-widest text-emerald-400 uppercase">In the queue</span>
             </div>
             <p className="text-sm text-foreground/80 leading-relaxed">
               <span className="font-semibold">{formData.service}</span>
@@ -238,8 +238,8 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                 : ""}.
             </p>
             <p className="text-[12px] text-foreground/60 mt-1.5">
-              We'll text {formData.phone} within 15 minutes to confirm exact time + parts availability.
-              Walk in any time during business hours — your spot is held.
+              We'll text {formData.phone} within 15 minutes with a written estimate.
+              Drop it off any time during business hours — first-come, first-served.
             </p>
           </div>
 
@@ -291,7 +291,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
               href="/financing"
               className="inline-flex items-center gap-2 border border-foreground/30 text-foreground/80 px-5 py-3 rounded-lg font-semibold text-[13px] hover:border-primary hover:text-primary transition-colors"
             >
-              See Financing Options
+              See Payment Programs
             </a>
           </div>
         </motion.div>

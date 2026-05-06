@@ -78,7 +78,7 @@ function NeighborhoodNavbar({ neighborhood }: { neighborhood: Neighborhood }) {
         <div className="hidden lg:flex items-center gap-6 stagger-in">
           <a href="#services" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Services</a>
           <a href="#reviews" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Reviews</a>
-          <a href="#booking" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Hold a Bay</a>
+          <a href="#booking" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Drop-Off</a>
           <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('neighborhood-navbar-desktop')} className="flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label={`Call ${BUSINESS.name} at ${BUSINESS.phone.display}`}>
             <Phone className="w-4 h-4" />
             {BUSINESS.phone.display}
@@ -99,7 +99,7 @@ function NeighborhoodNavbar({ neighborhood }: { neighborhood: Neighborhood }) {
             </Link>
             <a href="#services" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Services</a>
             <a href="#reviews" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Reviews</a>
-            <a href="#booking" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Hold a Bay</a>
+            <a href="#booking" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Drop-Off</a>
             <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('neighborhood-navbar-mobile')} className="flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wide mt-2" aria-label={`Call ${BUSINESS.name} at ${BUSINESS.phone.display}`}>
               <Phone className="w-4 h-4" />
               {BUSINESS.phone.display}
@@ -467,7 +467,7 @@ export default function NeighborhoodPage() {
           {BUSINESS.phone.display}
         </a>
         <a href="#booking" className="flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue text-nick-blue-light flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label="Schedule a drop-off online">
-          Hold a Bay
+          Drop-Off
         </a>
       </div>
 
