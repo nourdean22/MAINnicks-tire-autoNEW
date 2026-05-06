@@ -486,17 +486,22 @@ const VAPI_TOOLS: VapiToolDef[] = [
   // 2026-05-06 wave-15 · transferCall added per first-day call analysis.
   // The biggest leak (9+ calls/day) was AI saying "let me check the rack"
   // when it had no rack-check tool. Now AI can actually forward the call
-  // to a human at +1 (605) 691-6315 (Nour's direct line — bypasses the
-  // main shop landline so calls reach a real person regardless of who's
-  // at the front counter) for tire stock verification, vehicle-already-
-  // at-shop questions, manager requests, upset customers, and complex
-  // repairs needing approval.
+  // for tire stock verification, vehicle-already-at-shop questions,
+  // manager requests, upset customers, and complex repairs.
+  //
+  // ⚠️ TRANSFER NUMBER IS DASHBOARD-MANAGED, NOT CODE-MANAGED.
+  // The destinations[0].number below is a PLACEHOLDER for first-time
+  // deploys. The actual live forward number is owned by the VAPI
+  // dashboard. The deploy script (scripts/vapi-update-assistant.ts)
+  // fetches the live assistant before PATCHing and preserves whatever
+  // destination is currently set, so changing the number via the VAPI
+  // dashboard is a one-step operation that survives code re-pushes.
   {
     type: "transferCall",
     destinations: [
       {
         type: "number",
-        number: "+16056916315", // E.164 · Nour's direct line for AI handoffs
+        number: "+16056916315", // PLACEHOLDER · live value owned by VAPI dashboard
         message: "Hold on, transferring you to the manager so he can physically check the rack and confirm.",
         description: "Forward the live call to the manager's direct line for human handoff. Use for: used tire availability checks (manager physically looks at the rack), customers whose vehicle is currently at the shop, manager/owner requests, angry customers, complex repair questions requiring a human estimator, language barriers we can't bridge.",
       },

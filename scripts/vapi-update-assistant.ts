@@ -29,14 +29,59 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // 2026-05-06 wave-15.1 · The transferCall destinations are owned by
+  // the VAPI dashboard, NOT the code. Before PATCHing, fetch the live
+  // assistant and preserve whatever transferCall.destinations are set.
+  // This way Nour can change the forward number from the dashboard
+  // and code re-pushes won't blow it away.
+  console.log(`Fetching current live assistant ${ASSISTANT_ID} to preserve dashboard-managed settings...`);
+  const preRes = await fetch(`${VAPI_BASE}/assistant/${ASSISTANT_ID}`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!preRes.ok) {
+    console.error(`Could not fetch live assistant: ${preRes.status}`);
+    process.exit(1);
+  }
+  const preLive = (await preRes.json()) as Record<string, unknown>;
+  const preLiveModel = preLive.model as Record<string, unknown> | undefined;
+  const preLiveTools = (preLiveModel?.tools as Array<Record<string, unknown>>) || [];
+  const preLiveTransferCall = preLiveTools.find((t) => t.type === "transferCall") as Record<string, unknown> | undefined;
+  const liveDestinations = preLiveTransferCall?.destinations as Array<Record<string, unknown>> | undefined;
+
   const config = buildAssistantConfig(SERVER_URL);
 
+  // Merge: replace code's transferCall destinations with whatever the
+  // dashboard has set (preserves Nour's number choice). If dashboard
+  // has no transferCall yet (first deploy), code default ships through.
+  if (liveDestinations && liveDestinations.length > 0) {
+    const codeTransferIdx = config.model.tools.findIndex((t) => t.type === "transferCall");
+    if (codeTransferIdx >= 0) {
+      const codeTool = config.model.tools[codeTransferIdx];
+      if (codeTool.type === "transferCall") {
+        codeTool.destinations = liveDestinations.map((d) => ({
+          type: (d.type as "number") || "number",
+          number: d.number as string,
+          message: (d.message as string) ?? codeTool.destinations[0]?.message,
+          description: (d.description as string) ?? codeTool.destinations[0]?.description,
+        }));
+        console.log(`✅ Preserved dashboard-set transfer destinations: ${codeTool.destinations.map((d) => d.number).join(", ")}`);
+      }
+    }
+  } else {
+    console.log(`⚠️  No live transferCall destinations found — using code default (${config.model.tools.find((t) => t.type === "transferCall" && t.destinations)?.destinations?.[0]?.number ?? "none"})`);
+  }
+
+  console.log("");
   console.log("─── Build config summary ───");
   console.log(`  Name:                ${config.name}`);
   console.log(`  Model:               ${config.model.provider} / ${config.model.model}`);
   console.log(`  Voice:               ${config.voice.provider} / ${config.voice.voiceId}`);
   console.log(`  Tool count:          ${config.model.tools.length}`);
   console.log(`  Tool types/names:    ${config.model.tools.map((t) => (t.type === "function" ? t.function.name : t.type)).join(", ")}`);
+  const transferTool = config.model.tools.find((t) => t.type === "transferCall");
+  if (transferTool && transferTool.type === "transferCall") {
+    console.log(`  Transfer to:         ${transferTool.destinations.map((d) => d.number).join(", ")}`);
+  }
   console.log(`  Prompt length:       ${config.model.messages[0].content.length} chars`);
   console.log(`  First message:       "${config.firstMessage.slice(0, 90)}..."`);
   console.log(`  Server URL:          ${config.serverUrl}`);
