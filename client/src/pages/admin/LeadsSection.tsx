@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import {
   StatCard, UrgencyBadge, ActivityIcon, StatusDot, PageHeader, LoadingState, EmptyState, SectionInsightStrip,
   BOOKING_STATUS_CONFIG, LEAD_STATUS_CONFIG, TIME_LABELS, CHART_COLORS,
+  useUrlFilter,
   type BookingStatus, type LeadStatus,
 } from "./shared";
 import {
@@ -249,11 +250,29 @@ function KanbanBoard({ leadsData, onUpdate, isLoading }: {
 type LeadCategory = "all" | "estimates" | "chat" | "callbacks";
 
 export default function LeadsSection() {
-  const [leadFilter, setLeadFilter] = useState<LeadStatus | "all">("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [sourceFilter, setSourceFilter] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
-  const [category, setCategory] = useState<LeadCategory>("all");
+  // 2026-05-06 — URL-persistent filters via useUrlFilter.
+  // Reload, back-button, shared links all preserve filter state.
+  // ?status= ?q= ?source= ?view= ?cat= keys; defaults are NOT in URL.
+  const [leadFilter, setLeadFilter] = useUrlFilter<LeadStatus | "all">(
+    "status", "all",
+    {
+      validate: (v) => (["all", "new", "contacted", "booked", "completed", "closed", "lost"].includes(v)
+        ? (v as LeadStatus | "all") : null),
+    },
+  );
+  const [searchQuery, setSearchQuery] = useUrlFilter<string>("q", "", { debounce: true });
+  const [sourceFilter, setSourceFilter] = useUrlFilter<string>("source", "all");
+  const [viewMode, setViewMode] = useUrlFilter<"kanban" | "list">(
+    "view", "kanban",
+    { validate: (v) => (v === "kanban" || v === "list" ? v : null) },
+  );
+  const [category, setCategory] = useUrlFilter<LeadCategory>(
+    "cat", "all",
+    {
+      validate: (v) => (["all", "estimates", "chat", "callbacks"].includes(v)
+        ? (v as LeadCategory) : null),
+    },
+  );
 
   const { data: leadsData, isLoading, refetch } = trpc.lead.list.useQuery(undefined, {
     refetchInterval: 30000,

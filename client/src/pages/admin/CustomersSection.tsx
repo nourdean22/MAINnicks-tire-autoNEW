@@ -6,7 +6,7 @@
  */
 import React, { useEffect, useState, lazy, Suspense } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
-import { StatCard, PageHeader, LoadingState, EmptyState, SectionInsightStrip, TabBar } from "./shared";
+import { StatCard, PageHeader, LoadingState, EmptyState, SectionInsightStrip, TabBar, useUrlFilter } from "./shared";
 
 // Inferred from tRPC AppRouter — admin audit §3 follow-up.
 type ListedCustomer = NonNullable<RouterOutputs["customers"]["list"]>["customers"][number];
@@ -789,7 +789,11 @@ export default function CustomersSection() {
 function CustomersList() {
   const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
-  const [segment, setSegment] = useState<Segment>("all");
+  // URL-persistent ?seg=recent|lapsed|unknown (default all not in URL)
+  const [segment, setSegment] = useUrlFilter<Segment>(
+    "seg", "all",
+    { validate: (v) => (["all", "recent", "lapsed", "unknown"].includes(v) ? (v as Segment) : null) },
+  );
   const [sortBy, setSortBy] = useState<SortByExt>("totalSpent");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);

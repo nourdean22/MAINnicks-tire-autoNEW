@@ -4,7 +4,7 @@
  */
 import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
-import { StatCard, PageHeader } from "./shared";
+import { StatCard, PageHeader, useUrlFilter } from "./shared";
 
 // tRPC-inferred types — server router was fixed in same commit
 // (drizzle $inferSelect on (c: any) leakages), so RouterOutputs
@@ -419,7 +419,11 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
 }
 
 export default function WinBackSection() {
-  const [view, setView] = useState<View>("list");
+  // URL-persistent ?wbView=list|create|detail|preview (default list)
+  const [view, setView] = useUrlFilter<View>(
+    "wbView", "list",
+    { validate: (v) => (["list", "create", "detail", "preview"].includes(v) ? (v as View) : null) },
+  );
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
 
   const { data: stats } = trpc.winback.campaignStats.useQuery();

@@ -5,7 +5,7 @@
 import { useState, useMemo } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
-import { StatCard, PageHeader } from "./shared";
+import { StatCard, PageHeader, useUrlFilter } from "./shared";
 import {
   Loader2, Star, Send, RefreshCw, CheckCircle2, XCircle,
   Clock, MousePointerClick, Settings, Zap, AlertTriangle,
@@ -18,7 +18,11 @@ type ReviewRequest = RouterOutputs["reviewRequests"]["list"][number];
 type BackfillBooking = RouterOutputs["reviewRequests"]["backfillPreview"]["bookings"][number];
 
 export default function ReviewRequestsSection() {
-  const [tab, setTab] = useState<SettingsTab>("requests");
+  // URL-persistent ?reviewTab=requests|settings|backfill|proofbank (default requests)
+  const [tab, setTab] = useUrlFilter<SettingsTab>(
+    "reviewTab", "requests",
+    { validate: (v) => (["requests", "settings", "backfill", "proofbank"].includes(v) ? (v as SettingsTab) : null) },
+  );
   const utils = trpc.useUtils();
 
   // Data queries
