@@ -44,7 +44,7 @@ export function classifyVoiceIntent(speech: string): VoiceIntent {
   if (/appointment|book|schedule|come in|bring.*car|drop off|available/i.test(lower)) {
     return {
       intent: "appointment",
-      message: "I'd be happy to help you schedule! Walk-ins are welcome during business hours, or you can book online at nickstire dot org. Would you like me to have someone call you back to confirm a time?",
+      message: "I'd be happy to help! Walk-ins are welcome during business hours — first-come, first-served — or you can schedule a drop-off at nickstire dot org. Would you like me to have someone call you back?",
     };
   }
 

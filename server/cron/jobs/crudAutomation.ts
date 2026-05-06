@@ -78,7 +78,7 @@ export async function detectNoShows(): Promise<{ recordsProcessed: number; detai
       for (const b of noShows.filter((n) => n.phone)) {
         try {
           const firstName = (String(b.name || "there")).split(" ")[0];
-          await sendSms(String(b.phone), `Hi ${firstName}, we noticed you may have missed your appointment at Nick's Tire & Auto. We'd love to reschedule — call us at (216) 862-0005 or book online at nickstire.org. We're here when you're ready!`);
+          await sendSms(String(b.phone), `Hi ${firstName}, we noticed you may have missed your drop-off at Nick's Tire & Auto. We'd love to get you back in — call us at (216) 862-0005 or schedule a drop-off at nickstire.org. First-come, first-served, 7 days a week.`);
           smsSent++;
         } catch (err) { log.warn("detectNoShows: SMS send failed", { error: err instanceof Error ? err.message : String(err) }); }
         if (smsSent >= 5) break; // Rate limit
