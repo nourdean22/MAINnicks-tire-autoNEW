@@ -213,10 +213,11 @@ export default function CityPage() {
         canonicalPath={`/${city.slug}`}
       />
       <CitySchema city={city} />
-      
-      
-      <CityNavbar city={city} />
 
+      {/* 2026-05-06 wave-7 · CityNavbar removed to kill duplicate-nav
+          glitch on city pages. PageLayout already provides the global
+          SiteNavbar + StickyTrustBar; the city-specific nav was rendering
+          as a 2nd `fixed top-0` bar overlapping the global one. */}
 
         {/* Hero */}
         <section className="relative min-h-[60vh] lg:min-h-[70vh] flex items-end overflow-hidden">

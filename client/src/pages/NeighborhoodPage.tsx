@@ -222,7 +222,8 @@ export default function NeighborhoodPage() {
       />
       <NeighborhoodSchema neighborhood={neighborhood} />
 
-      <NeighborhoodNavbar neighborhood={neighborhood} />
+      {/* 2026-05-06 wave-7 · NeighborhoodNavbar removed to kill
+          duplicate-nav glitch. PageLayout's SiteNavbar handles nav. */}
 
       {/* Hero */}
       <section className="relative min-h-[60vh] lg:min-h-[70vh] flex items-end overflow-hidden">
