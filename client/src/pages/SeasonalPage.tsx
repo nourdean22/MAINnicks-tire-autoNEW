@@ -17,7 +17,9 @@ import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 
 // Owned storefront photo — real Nick's shop, not Manus.space CloudFront stock.
-const HERO_IMG = "/storefront-day.webp";
+// 2026-05-06 wave-16 · pro photo pack: seasonal pages use the busy
+// service-exterior shot — feels like real Cleveland weather + activity
+const HERO_IMG = "/photos/shop-exterior-busy-service-wide.webp";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);

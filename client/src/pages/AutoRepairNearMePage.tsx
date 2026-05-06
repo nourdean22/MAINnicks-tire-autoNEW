@@ -16,8 +16,9 @@ import { Disc, Activity, Wrench, AlertTriangle } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/auto-repair-near-me",
-  // BMW at the shop — sells "every make, even European" credibility
-  heroImage: "/every-make-bmw.webp",
+  // 2026-05-06 wave-16 · pro photo pack: full-sign storefront for
+  // local "auto repair near me" landing — strongest neighborhood-trust photo
+  heroImage: "/photos/shop-exterior-hero-wide-sign-bays.webp",
   // 2026-05-06 copy wave: title now anchors on "Estimate Before
   // Wrench" — the actual differentiator. Sub rewritten with operator
   // 3 (useful absurd: "phone bill that never breaks") + operator 4

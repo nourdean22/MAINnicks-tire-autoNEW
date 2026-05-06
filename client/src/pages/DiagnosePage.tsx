@@ -23,7 +23,9 @@ import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FinancingCTA from "@/components/FinancingCTA";
 
 // Owned shop photo — real bay interior, not Manus.space CloudFront stock.
-const HERO_IMG = "/mechanic-bay.webp";
+// 2026-05-06 wave-16 · pro photo pack: diagnostics needs authority +
+// shop capability — interior bay with car on lift per PLACEMENT_GUIDE.md
+const HERO_IMG = "/photos/interior-service-bay-car-lift.webp";
 
 // ─── CAR ZONES ────────────────────────────────────────
 type CarZone = {

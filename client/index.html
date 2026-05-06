@@ -145,13 +145,14 @@
     <!-- Ahrefs Analytics — defer to avoid render-blocking -->
     <script src="https://analytics.ahrefs.com/analytics.js" data-key="DCheKV/YJsF9d6vmJuHNBg" defer></script>
 
-    <!-- Preload Home hero image (cybertruck out front of the shop) for fastest LCP.
-         Mobile/desktop split via media-attribute preload — phones get the 120KB
-         mobile-optimized variant, desktop gets the 577KB full-resolution version.
-         Same-origin webp = served via existing Brotli/gzip pipeline, no
-         cross-origin DNS lookup. Stock-CDN preconnect removed May 2026. -->
-    <link rel="preload" as="image" href="/hero-cybertruck-mobile.webp" type="image/webp" media="(max-width: 768px)" />
-    <link rel="preload" as="image" href="/hero-cybertruck.webp" type="image/webp" media="(min-width: 769px)" />
+    <!-- Preload Home hero image (full storefront sign + open bays) for fastest LCP.
+         Mobile/desktop split via media-attribute preload — phones get the
+         vertical sign-bays variant so the sign isn't cropped, desktop gets
+         the wide hero. Same-origin webp = served via existing Brotli/gzip
+         pipeline, no cross-origin DNS lookup. Updated 2026-05-06 wave-16
+         to point at the new pro photo pack assets. -->
+    <link rel="preload" as="image" href="/photos/shopfront-clear-vertical-sign-bays.webp" type="image/webp" media="(max-width: 768px)" />
+    <link rel="preload" as="image" href="/photos/shop-exterior-hero-wide-sign-bays.webp" type="image/webp" media="(min-width: 769px)" />
 
     <!-- Fonts: Inter (headings), Roboto Mono (body), Oswald (nav/labels).
          Multi-layer optimization to eliminate Lighthouse's ~80ms render-blocking flag:

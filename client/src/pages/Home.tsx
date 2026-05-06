@@ -42,24 +42,23 @@ import LossAversionStat from "@/components/conversion/LossAversionStat";
 import { useWeatherCTA } from "@/hooks/useWeatherCTA";
 import { useConversionTracking } from "@/hooks/useConversionTracking";
 
-// 2026-05-06 audit fix · hero photo swapped from cybertruck to the
-// full-facade storefront shot per the FCFS positioning. The cybertruck
-// was correct for "Cleveland Tough" emotion-positioning; the storefront
-// (sign + bays + cones-adjacent) is correct for "Pull Up / Drop Off"
-// behavior-positioning. Mobile variant removed (no -mobile.webp for
-// this asset yet); browser falls back to desktop with object-cover.
-const HERO_IMG = "/photos/exterior-facade-wide.webp";
+// 2026-05-06 wave-16 · photos swapped to the new pro photo pack per
+// PLACEMENT_GUIDE.md. The storefront-hero photo shows the FULL yellow
+// sign + 3 open bays + tire stacks (the strongest first-impression
+// trust image). Vertical fallback for mobile keeps the sign visible
+// when object-cover crops aggressively on phones.
+const HERO_IMG = "/photos/shop-exterior-hero-wide-sign-bays.webp";
+const HERO_IMG_MOBILE = "/photos/shopfront-clear-vertical-sign-bays.webp";
 
-const MECHANIC_IMG = "/mechanic-bay.webp";
-// Service-tile photos — 2026-05-06 visual wave 5 photo content audit.
-// Each tile now uses the photo that DIRECTLY matches its service —
-// previous placeholders (storefront-bmw, cybertruck-front-tech) were
-// "real customer" photos but didn't show the actual service content,
-// so the visual–copy match was weak. New photos pulled from
-// /public/photos/ are direct service-action shots.
-const TIRES_IMG = "/photos/tire-stacks-overhead.webp";   // Literal tire inventory
-const DIAG_IMG = "/photos/alignment-bay.webp";           // Computer screen + diagnostic data
-const BRAKES_IMG = "/photos/service-bay-clean.webp";     // Clean lift bay where brake jobs happen
+// Service-tile + WhyUs photos — wave-16 placement-guide pull:
+// · Tires tile → aggressive tread closeup (tire authority)
+// · Brakes tile → under-car brake repair action (safety credibility)
+// · Diagnostics tile → interior service bay with car on lift (capability)
+// · WhyUs/Mechanic section → busy shop with techs working (real shop activity)
+const MECHANIC_IMG = "/photos/busy-shop-action-mechanics.webp";
+const TIRES_IMG = "/photos/rugged-tire-tread-closeup.webp";
+const DIAG_IMG = "/photos/interior-service-bay-car-lift.webp";
+const BRAKES_IMG = "/photos/undercar-brake-repair-action.webp";
 
 // ─── HERO — Full-viewport cinematic with left content ────
 function Hero() {
@@ -78,19 +77,23 @@ function Hero() {
           Ken Burns drift on the photo + film-grain overlay add cinematic
           depth without WebGL or extra bytes. Pure CSS, motion-safe. */}
       <div className="absolute inset-0 hero-bg ken-burns-target">
-        {/* 2026-05-06 audit fix · hero is now the full-facade storefront
-            (sign + 3 open bays + tire stacks) — the visual proof of the
-            FCFS model. Mobile variant fallback to desktop until we ship
-            an exterior-facade-wide-mobile.webp variant. object-position
-            keeps the sign in frame after object-cover crop. */}
-        <img
-          src={HERO_IMG}
-          alt="Nick's Tire & Auto storefront on Euclid Ave Cleveland — yellow sign visible, three open service bays, cones in foreground guiding the tire-install line"
-          className="w-full h-full object-cover"
-          style={{ objectPosition: "center 40%" }}
-          loading="eager"
-          fetchPriority="high"
-        />
+        {/* 2026-05-06 wave-16 · pro photo pack hero. <picture> serves
+            the vertical sign-bays variant on phones <=768px so the
+            sign isn't cropped on mobile — desktop gets the wide hero
+            with full sign + open bays. object-position 'center 42%'
+            per the placement guide keeps the sign in frame after
+            object-cover crop. */}
+        <picture>
+          <source media="(max-width: 768px)" srcSet={HERO_IMG_MOBILE} />
+          <img
+            src={HERO_IMG}
+            alt="Nick's Tire & Auto storefront on Euclid Avenue in Cleveland with the yellow sign, open service bays, and tire stacks visible"
+            className="w-full h-full object-cover"
+            style={{ objectPosition: "center 42%" }}
+            loading="eager"
+            fetchPriority="high"
+          />
+        </picture>
         {/* Cinematic gradient — left-weighted so the headline keeps contrast
             while the right side of the photo stays visible (cars + sky). */}
         <div

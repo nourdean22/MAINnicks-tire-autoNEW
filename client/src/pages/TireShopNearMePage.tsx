@@ -12,7 +12,9 @@ import FocusedServicePage, { type ServicePageConfig } from "@/components/Focused
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/tire-shop-near-me",
   // Real storefront — proves "this is an actual shop, not an aggregator"
-  heroImage: "/storefront-bmw.webp",
+  // 2026-05-06 wave-16 · pro photo pack: tire-shop-near-me lands on tire
+  // tread closeup per PLACEMENT_GUIDE.md "Tires page" row — tire-authority
+  heroImage: "/photos/rugged-tire-tread-closeup.webp",
   // 2026-05-06 copy wave · This page targets "tire shops near me"
   // 3,387 imp/mo cluster. Title kept short + Sunday-differentiator.
   // Sub rewritten with operators 3 + 4 + 5.

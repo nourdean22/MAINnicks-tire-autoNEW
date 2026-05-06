@@ -18,7 +18,10 @@ import { GBP_REVIEW_URL } from "@shared/const";
 import { BUSINESS } from "@shared/business";
 import { QueryError } from "@/components/QueryState";
 
-const HERO_IMG = "/storefront-bmw.webp";
+// 2026-05-06 wave-16 · pro photo pack: reviews page top banner = full-sign
+// storefront per PLACEMENT_GUIDE.md "Reviews page" row — overlay copy
+// emphasizes trust/reviews, photo is real-place proof
+const HERO_IMG = "/photos/shop-exterior-hero-wide-sign-bays.webp";
 
 // Service-related keywords to highlight in gold
 const SERVICE_KEYWORDS = [
