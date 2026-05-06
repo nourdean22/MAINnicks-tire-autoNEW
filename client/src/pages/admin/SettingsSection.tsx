@@ -387,6 +387,9 @@ export default function SettingsSection() {
         </div>
       )}
 
+      {/* 2026-05-05 — VAPI VOICE RECEPTIONIST */}
+      <VapiPanel />
+
       {/* 2026-05-05 — ESTIMATE ENDPOINT DIAGNOSTIC */}
       <EstimateEndpointDiagnosticPanel />
 
@@ -676,6 +679,141 @@ function AlgProbeBudgetPanel() {
             })}
           </div>
         </details>
+      )}
+    </div>
+  );
+}
+
+// ─── VAPI VOICE RECEPTIONIST PANEL ────────────────────────
+// Connection status · one-click assistant create · recent-call log.
+// The Vapi assistant answers when no human picks up — books slots,
+// quotes ranges, escalates, sends recap SMS. ROI estimate ~360x.
+
+interface VapiCallRow {
+  id: string;
+  startedAt?: string;
+  endedAt?: string;
+  durationSeconds?: number;
+  customerNumber?: string;
+  endedReason?: string;
+  cost?: number;
+  summary?: string;
+}
+
+function VapiPanel() {
+  const utils = trpc.useUtils();
+  const { data: status, isLoading } = trpc.vapi.status.useQuery(undefined, { staleTime: 60_000 });
+  const { data: callsData } = trpc.vapi.recentCalls.useQuery({ limit: 10 }, {
+    staleTime: 60_000,
+    enabled: status?.connected ?? false,
+  });
+  const createAssistant = trpc.vapi.createAssistant.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success(`Assistant created · ID ${result.assistantId?.slice(0, 12)}…`);
+        utils.vapi.status.invalidate();
+      } else {
+        toast.error("Create failed: " + (result.error || "unknown"));
+      }
+    },
+    onError: (err: { message: string }) => toast.error("Create failed: " + err.message),
+  });
+
+  const connected = status?.connected ?? false;
+
+  return (
+    <div className={`bg-card border ${connected ? "border-emerald-500/30" : "border-amber-500/30"} p-4 space-y-4`}>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h3 className="font-bold text-sm text-foreground tracking-wide">
+            VAPI VOICE RECEPTIONIST · {isLoading ? "…" : connected ? "CONNECTED" : "OFFLINE"}
+          </h3>
+          <p className="text-foreground/50 text-[11px] mt-0.5 max-w-2xl">
+            AI answers when no human picks up. Books slots, quotes ranges, escalates frustrated callers, sends recap SMS. Industry data: 27% of inbound auto-shop calls go unanswered during open hours; 68% after hours. Recovery target: ~$6-15k/mo at this shop's volume.
+          </p>
+        </div>
+        <span className={`px-2.5 py-1 text-[10px] font-bold tracking-wider rounded ${connected ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>
+          {connected
+            ? `${status?.assistantCount ?? 0} ASSISTANT${(status?.assistantCount ?? 0) === 1 ? "" : "S"}`
+            : "API KEY MISSING OR INVALID"}
+        </span>
+      </div>
+
+      {/* Status states */}
+      {!connected && (
+        <div className="border border-amber-500/30 bg-amber-500/[0.05] p-3 text-[11px] text-foreground/70 leading-relaxed">
+          {status?.error
+            ? <>Vapi error: <span className="font-mono text-amber-400">{status.error}</span></>
+            : <>Set <span className="font-mono">VAPI_API_KEY</span> in Vercel env to connect.</>
+          }
+        </div>
+      )}
+
+      {connected && (status?.assistantCount ?? 0) === 0 && (
+        <div className="border border-blue-500/30 bg-blue-500/[0.05] p-3 space-y-2">
+          <p className="text-[12px] text-foreground/80">
+            Connected but no assistant configured yet. Click below to create the production receptionist with the canonical voice + tools wired to <span className="font-mono">/api/webhooks/vapi</span>.
+          </p>
+          <button
+            onClick={() => createAssistant.mutate({ serverUrl: "https://nickstire.org/api/webhooks/vapi" })}
+            disabled={createAssistant.isPending}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 font-bold text-xs tracking-wide hover:bg-primary/90 disabled:opacity-50"
+          >
+            {createAssistant.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+            CREATE ASSISTANT
+          </button>
+        </div>
+      )}
+
+      {/* Assistants */}
+      {status?.assistants && status.assistants.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-foreground/50">Configured Assistants</p>
+          {status.assistants.map((a: { id: string; name: string; createdAt: string }) => (
+            <div key={a.id} className="flex items-center justify-between gap-3 text-[11px] py-1.5 border-b border-border/10">
+              <span className="text-foreground font-medium truncate">{a.name}</span>
+              <span className="font-mono text-foreground/40 shrink-0">{a.id.slice(0, 12)}…</span>
+              <span className="text-foreground/40 shrink-0">{new Date(a.createdAt).toLocaleDateString()}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Recent calls */}
+      {connected && callsData?.calls && callsData.calls.length > 0 && (
+        <details className="border-t border-border/10 pt-3">
+          <summary className="cursor-pointer text-[11px] font-bold tracking-wider text-foreground/50 hover:text-foreground/80">
+            RECENT CALLS · LAST {callsData.calls.length}
+          </summary>
+          <div className="mt-2 space-y-1.5">
+            {(callsData.calls as VapiCallRow[]).map((c) => {
+              const date = c.startedAt ? new Date(c.startedAt) : null;
+              const day = date ? date.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—";
+              const time = date ? date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : "";
+              const dur = c.durationSeconds ? `${Math.round(c.durationSeconds)}s` : "—";
+              const cost = c.cost ? `$${c.cost.toFixed(2)}` : "—";
+              const reasonColor =
+                c.endedReason?.includes("error") ? "text-red-400" :
+                c.endedReason?.includes("hangup") || c.endedReason?.includes("customer") ? "text-emerald-400" :
+                "text-foreground/50";
+              return (
+                <div key={c.id} className="flex items-center gap-3 text-[11px] py-1 border-b border-border/10">
+                  <span className="text-foreground/40 w-20 shrink-0">{day} {time}</span>
+                  <span className="font-mono text-foreground/60 w-28 shrink-0">{c.customerNumber || "Unknown"}</span>
+                  <span className="text-foreground/50 w-12 shrink-0">{dur}</span>
+                  <span className="text-emerald-400/60 w-14 shrink-0">{cost}</span>
+                  <span className={`${reasonColor} truncate flex-1`}>{c.endedReason || "—"}</span>
+                </div>
+              );
+            })}
+          </div>
+        </details>
+      )}
+
+      {connected && callsData?.calls && callsData.calls.length === 0 && (
+        <p className="text-[11px] text-foreground/40 italic">
+          No calls yet. The assistant goes live when Twilio is configured to forward unanswered calls to Vapi (one-time Twilio dashboard setup — ask vendor for SIP URL).
+        </p>
       )}
     </div>
   );

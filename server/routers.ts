@@ -81,6 +81,8 @@ import {
   trafficFunnelRouter,
   conversionRouter,
 } from "./routers/index";
+import { voiceAgentRouter } from "./routers/voiceAgent";
+import { vapiRouter } from "./routers/vapi";
 
 export const appRouter = router({
   system: systemRouter,
@@ -102,6 +104,9 @@ export const appRouter = router({
   laborEstimate: laborEstimateRouter,
   activity: activityRouter,
   serviceReviews: serviceReviewsRouter,
+  // 2026-05-05 — Vapi voice receptionist tool endpoints + admin
+  voiceAgent: voiceAgentRouter,
+  vapi: vapiRouter,
   costEstimator: costEstimatorRouter,
   content: contentRouter,
 
