@@ -58,7 +58,7 @@ export function segmentCustomer(params: {
 
   // Price-sensitive (high decline rate)
   if (declineRate > 0.5 && visitCount >= 2) {
-    return { segment: "price-sensitive", score: 35, recommendedAction: "Value packages. Financing options. Coupons." };
+    return { segment: "price-sensitive", score: 35, recommendedAction: "Value packages. Payment programs. Coupons." };
   }
 
   // At-risk (was active, fading)

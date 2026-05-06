@@ -269,12 +269,12 @@ Each message should:
 
 Examples of good messages:
 - "Check engine light on? Do not wait — small problems become expensive ones fast"
-- "Winter tires save lives on Cleveland roads. Book your tire swap today"
+- "Winter tires save lives on Cleveland roads. Drop yours off for the swap today"
 - "Failed your Ohio E-Check? We diagnose and fix emissions problems every day"
 
 Return a JSON object with a "notifications" array. Each notification has:
 - message (string): under 80 chars
-- ctaText (string): e.g. Call Now, Book Online, Learn More
+- ctaText (string): e.g. Call Now, Schedule Drop-Off, Learn More
 - ctaHref (string): e.g. tel:2168620005, /brakes, /blog/article-slug
 - icon (string): one of wrench, alert_triangle, snowflake, thermometer, shield, gauge, phone
 - season (string): spring, summer, fall, winter, or all

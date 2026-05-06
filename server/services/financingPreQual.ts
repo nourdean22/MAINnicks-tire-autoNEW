@@ -83,11 +83,11 @@ export function getFinancingPreQual(params: {
 
   let recommendation: string;
   if (eligible.length === 0) {
-    recommendation = "Your repair cost may be below the financing minimum. Ask about our payment plans — call (216) 862-0005.";
+    recommendation = "Your repair cost may be below the program minimum. Ask about our payment plans — call (216) 862-0005.";
   } else if (creditTier === "poor" || creditTier === "no-credit") {
-    recommendation = `${eligible.length} financing options available. Acima and American First Finance have the highest approval rates for all credit levels.`;
+    recommendation = `${eligible.length} payment programs available. Acima and American First Finance have the highest approval rates for all credit levels.`;
   } else {
-    recommendation = `${eligible.length} financing options available. Most customers are approved in under 60 seconds.`;
+    recommendation = `${eligible.length} payment programs available. Most customers are approved in under 60 seconds.`;
   }
 
   log.info("Financing pre-qual", { creditTier, estimatedCost, eligible: eligible.length });

@@ -446,7 +446,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       }
     ],
     relatedServices: ["/tires"],
-    tags: ["used tires Cleveland", "buy used tires Cleveland", "cheap tires Cleveland", "quality used tires", "used tire inspection"]
+    tags: ["used tires Cleveland", "buy used tires Cleveland", "budget tires Cleveland", "quality used tires", "used tire inspection"]
   },
   {
     slug: "transmission-problems-warning-signs",
@@ -583,7 +583,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       }
     ],
     relatedServices: ["/brakes", "/financing", "/diagnostics"],
-    tags: ["brake repair cost", "brake repair Cleveland", "brake pad replacement price", "brake rotor cost", "cheap brakes Cleveland", "brake repair financing"]
+    tags: ["brake repair cost", "brake repair Cleveland", "brake pad replacement price", "brake rotor cost", "discount brakes Cleveland", "brake repair payment programs"]
   },
   {
     slug: "how-often-rotate-tires",
@@ -803,7 +803,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       }
     ],
     relatedServices: ["/tires"],
-    tags: ["used tires near me", "used tires Cleveland", "cheap tires Cleveland", "quality used tires Euclid", "buy used tires east side Cleveland"]
+    tags: ["used tires near me", "used tires Cleveland", "budget tires Cleveland", "quality used tires Euclid", "buy used tires east side Cleveland"]
   },
   {
     slug: "tire-rotation-cost-cleveland",
@@ -1410,7 +1410,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       }
     ],
     relatedServices: ["/oil-change"],
-    tags: ["cheap oil change Cleveland", "oil change near me Cleveland", "oil change cost Cleveland", "synthetic oil change price", "no upsell oil change"]
+    tags: ["budget oil change Cleveland", "oil change near me Cleveland", "oil change cost Cleveland", "synthetic oil change price", "no upsell oil change"]
   },
   {
     slug: "emergency-car-repair-cleveland-sunday",
@@ -1865,7 +1865,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       }
     ],
     relatedServices: ["/oil-change", "/brakes", "/diagnostics", "/general-repair"],
-    tags: ["save money car repairs", "affordable auto repair Cleveland", "car maintenance saves money", "car repair financing Cleveland", "cheap car repair tips"]
+    tags: ["save money car repairs", "fair-priced auto repair Cleveland", "car maintenance saves money", "auto repair payment programs Cleveland", "save money on car repair tips"]
   },
   {
     slug: "warranty-on-auto-repairs-what-to-know",
@@ -1903,9 +1903,9 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     tags: ["auto repair warranty", "36 month warranty auto repair", "car repair guarantee Cleveland", "warranty on brake repair", "Nick's Tire warranty"]
   },
   {
-    slug: "car-repair-financing-bad-credit-cleveland",
-    title: "Car Repair Financing with Bad Credit in Cleveland",
-    metaTitle: "Car Repair Financing Bad Credit | $10 Down | Nick's Tire & Auto Cleveland",
+    slug: "auto-repair-payment-programs-bad-credit-cleveland",
+    title: "Car Repair Payment Programs for Bad Credit in Cleveland",
+    metaTitle: "Auto Repair Payment Programs Bad Credit · $10 Down | Nick's",
     metaDescription: "Need car repairs but have bad credit? Nick's Tire & Auto offers $10 down payment programs through 4 providers. Get approved today — Cleveland, Euclid, Northeast Ohio.",
     category: "Cost Guide",
     publishDate: "2026-04-14",
@@ -1935,7 +1935,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       }
     ],
     relatedServices: ["/brakes", "/tires", "/general-repair", "/diagnostics"],
-    tags: ["car repair financing bad credit", "auto repair payment plan Cleveland", "$10 down car repair", "no credit check auto repair", "car repair financing Cleveland"]
+    tags: ["car repair payment program bad credit", "auto repair payment plan Cleveland", "$10 down car repair", "no credit check auto repair", "auto repair payment programs Cleveland"]
   },
   {
     slug: "is-my-car-worth-repairing",
@@ -2294,7 +2294,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   {
     slug: "best-tire-brands-budget-cleveland",
     title: "Best Budget Tire Brands for Cleveland Drivers",
-    metaTitle: "Best Cheap Tires Cleveland · Honest Mechanic Take | Nick's",
+    metaTitle: "Best Budget Tires Cleveland · Honest Mechanic Take | Nick's",
     metaDescription: "Cleveland tire shop ranks Ironman, Westlake, Federal, and the rest of the budget shelf. Which grips snow. Which lasts. Which we'd put on our family car.",
     category: "Tires",
     publishDate: "2025-12-15",
@@ -2304,7 +2304,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "The Budget Tire Market Has Changed",
-        content: "Ten years ago, cheap tires were genuinely bad. Poor grip, fast wear, noisy ride. Today the picture is completely different. Manufacturing technology has improved across the board, and brands like Ironman, Westlake, Federal, Sailun, and Sentury are producing tires that perform surprisingly well in independent testing. Are they as good as Michelin or Bridgestone? No — the premium brands still have better tread life, slightly better wet grip, and more refined ride quality. But the gap has closed dramatically. For most Cleveland drivers doing a normal daily commute on I-90 or surface streets, a quality budget tire is perfectly safe and a smart financial choice."
+        content: "Ten years ago, budget tires were genuinely bad. Poor grip, fast wear, noisy ride. Today the picture is completely different. Manufacturing technology has improved across the board, and brands like Ironman, Westlake, Federal, Sailun, and Sentury are producing tires that perform surprisingly well in independent testing. Are they as good as Michelin or Bridgestone? No — the premium brands still have better tread life, slightly better wet grip, and more refined ride quality. But the gap has closed dramatically. For most Cleveland drivers doing a normal daily commute on I-90 or surface streets, a quality budget tire is perfectly safe and a smart financial choice."
       },
       {
         heading: "Brands We Carry and Trust at Nick's",
@@ -2324,7 +2324,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       }
     ],
     relatedServices: ["/tires"],
-    tags: ["budget tires Cleveland", "cheap tires Cleveland", "Ironman tires", "Westlake tires", "used tires Cleveland", "tire shop near me"]
+    tags: ["budget tires Cleveland", "budget tires Cleveland", "Ironman tires", "Westlake tires", "used tires Cleveland", "tire shop near me"]
   },
   {
     slug: "how-long-do-tires-last-cleveland",
@@ -3378,7 +3378,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       }
     ],
     relatedServices: ["/diagnostics", "/general-repair"],
-    tags: ["check engine light fix", "cheap check engine repair", "check engine light cost", "OBD code Cleveland", "diagnostic Cleveland"]
+    tags: ["check engine light fix", "budget check engine repair", "check engine light cost", "OBD code Cleveland", "diagnostic Cleveland"]
   },
   {
     slug: "free-car-services-you-didnt-know-about",
@@ -3483,7 +3483,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       }
     ],
     relatedServices: ["/tires"],
-    tags: ["used tires Cleveland", "used tire quality", "tire inspection process", "cheap tires Cleveland", "Nick's Tire used tires"]
+    tags: ["used tires Cleveland", "used tire quality", "tire inspection process", "budget tires Cleveland", "Nick's Tire used tires"]
   },
   {
     slug: "what-ase-certification-means-for-you",

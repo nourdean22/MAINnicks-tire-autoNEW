@@ -1,6 +1,16 @@
 /**
- * Financing Providers — All financing options for Nick's Tire & Auto
- * Updated: American First Finance replaced Synchrony
+ * Payment Program Providers — third-party financing companies Nick's
+ * Tire & Auto partners with for customer payment programs.
+ *
+ * Note: This file is named `financing.ts` for legacy import-compatibility
+ * reasons. The third-party providers (Acima, Snap, Koalafi, AFF) call
+ * themselves "financing companies" because that's what they legally are.
+ * Throughout the customer-facing brand voice on the site, we refer to
+ * what we offer customers as "Payment Programs" — that's the FCFS-
+ * positioning brand language. The interface name `FinancingProvider`
+ * reflects the third-party industry term, not our brand voice.
+ *
+ * Updated: American First Finance replaced Synchrony.
  */
 
 export interface FinancingProvider {
