@@ -743,6 +743,14 @@ Sitemap: ${SITE_URL}/sitemap-locations.xml
   // at /api/v1/webhooks to scope the validation middleware to only webhook requests.
   app.use("/api/v1/webhooks", twilioWebhookRouter);
 
+  // ─── Vapi Webhook (AI receptionist) ────────────────────
+  // Vapi posts tool calls + call lifecycle events to /api/webhooks/vapi.
+  // The webhook router handles signature validation + tool dispatch.
+  // Mounted at /api/webhooks (not /api/v1/webhooks) to keep Twilio's
+  // signature middleware off this route.
+  const { vapiWebhookRouter } = await import("../routes/webhooks/vapi");
+  app.use("/api/webhooks", vapiWebhookRouter);
+
   // ─── Stripe Webhook ─────────────────────────────────────
   // Receives payment_intent.succeeded events to confirm invoice payments
   // even if the client drops before calling confirmPayment
