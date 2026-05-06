@@ -6,7 +6,7 @@
  */
 import React, { useEffect, useState, lazy, Suspense } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
-import { StatCard, PageHeader, LoadingState, EmptyState, SectionInsightStrip, TabBar, useUrlFilter } from "./shared";
+import { StatCard, PageHeader, LoadingState, EmptyState, SectionInsightStrip, TabBar, useUrlFilter, FilterChips } from "./shared";
 
 // Inferred from tRPC AppRouter — admin audit §3 follow-up.
 type ListedCustomer = NonNullable<RouterOutputs["customers"]["list"]>["customers"][number];
@@ -1037,6 +1037,26 @@ function CustomersList() {
             )}
           </div>
         )}
+
+        {/* Active Filter Chips — auto-hides when nothing's active */}
+        <FilterChips
+          chips={[
+            { label: "Search", value: search, default: "", onClear: () => { setSearch(""); setPage(1); } },
+            { label: "Segment", value: segment, default: "all", onClear: () => { setSegment("all"); setPage(1); } },
+            { label: "Min Visits", value: minVisits ? String(minVisits) : "", default: "", onClear: () => { setMinVisits(undefined); setPage(1); }, displayValue: minVisits ? `${minVisits}+` : undefined },
+            { label: "Last Visit", value: lastVisitDays ? String(lastVisitDays) : "", default: "", onClear: () => { setLastVisitDays(undefined); setPage(1); }, displayValue: lastVisitDays ? `≤${lastVisitDays}d` : undefined },
+            { label: "Sort", value: sortBy, default: "totalSpent", onClear: () => { setSortBy("totalSpent"); setPage(1); }, displayValue: sortBy === "totalSpent" ? undefined : sortBy },
+          ]}
+          onClearAll={() => {
+            setSearch("");
+            setSegment("all");
+            setMinVisits(undefined);
+            setLastVisitDays(undefined);
+            setSortBy("totalSpent");
+            setSortDir("desc");
+            setPage(1);
+          }}
+        />
       </div>
 
       {/* Table */}

@@ -5,7 +5,7 @@
 import { useState, useMemo } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
-import { StatCard, PageHeader, useUrlFilter } from "./shared";
+import { StatCard, PageHeader, useUrlFilter, FilterChips } from "./shared";
 import {
   Loader2, Star, Send, RefreshCw, CheckCircle2, XCircle,
   Clock, MousePointerClick, Settings, Zap, AlertTriangle,
@@ -631,6 +631,20 @@ function ProofBankPanel() {
         </select>
         <span className="text-[11px] text-muted-foreground">{filtered.length} quotes</span>
       </div>
+
+      {/* Active Filter Chips — auto-hides when nothing's active */}
+      <FilterChips
+        chips={[
+          { label: "Search", value: searchQuery, default: "", onClear: () => setSearchQuery("") },
+          { label: "Service", value: serviceFilter, default: "all", onClear: () => setServiceFilter("all") },
+          { label: "Objection", value: objectionFilter, default: "all", onClear: () => setObjectionFilter("all") },
+        ]}
+        onClearAll={() => {
+          setSearchQuery("");
+          setServiceFilter("all");
+          setObjectionFilter("all");
+        }}
+      />
 
       {/* Quote Cards */}
       <div className="space-y-2">
