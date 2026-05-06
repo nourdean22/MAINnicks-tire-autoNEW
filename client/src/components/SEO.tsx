@@ -195,7 +195,14 @@ export function trackPhoneClick(source: string) {
   import("@/lib/ga4").then(({ trackPhoneClick: ga4PhoneClick }) => {
     ga4PhoneClick(source, { page: window.location.pathname });
   });
-  // Log to database via tRPC for admin dashboard call tracking
+  // Log to database via tRPC for admin dashboard call tracking.
+  //
+  // BUG FIX (May 2026): client previously sent `sourceElement` but the
+  // server schema validates `clickElement` (matches the column name in
+  // call_events). The mismatched field name was being silently dropped
+  // by zod's nullish() — so call_events rows had clickElement=NULL across
+  // the entire history. Renamed to clickElement + added userAgent so
+  // device-type analytics actually populate.
   import("@/lib/utm").then(({ getUtmData }) => {
     const utm = getUtmData();
     fetch("/api/trpc/callTracking.logCall", {
@@ -206,12 +213,13 @@ export function trackPhoneClick(source: string) {
         json: {
           phoneNumber: "(216) 862-0005",
           sourcePage: source,
-          sourceElement: "phone_link",
+          clickElement: "phone_link",
           utmSource: utm.utmSource || null,
           utmMedium: utm.utmMedium || null,
           utmCampaign: utm.utmCampaign || null,
           landingPage: utm.landingPage || null,
           referrer: utm.referrer || null,
+          userAgent: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 500) : null,
         },
       }),
     }).catch(() => { /* silent fail — don't block the call */ });
