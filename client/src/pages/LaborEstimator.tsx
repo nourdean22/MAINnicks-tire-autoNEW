@@ -498,7 +498,7 @@ export default function LaborEstimator() {
                       href="/booking"
                       className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-6 py-3.5 rounded-md font-bold tracking-wide hover:border-nick-teal hover:text-nick-teal transition-colors"
                     >
-                      HOLD A BAY
+                      SCHEDULE DROP-OFF
                       <ArrowRight className="w-5 h-5" />
                     </Link>
                   </div>

@@ -924,7 +924,7 @@ export default function DiagnosePage() {
                   CALL {BUSINESS.phone.display}
                 </a>
                 <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-[#FDB913]/40 text-[#FDB913] px-8 py-4 rounded-md font-heading text-lg tracking-wider hover:bg-[#FDB913]/10 hover:border-[#FDB913] transition-colors">
-                  HOLD A BAY
+                  SCHEDULE DROP-OFF
                 </Link>
               </div>
             </FadeIn>

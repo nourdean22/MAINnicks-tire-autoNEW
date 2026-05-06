@@ -281,7 +281,7 @@ export default function LandingPage() {
             {BUSINESS.phone.display}
           </a>
           <button onClick={() => location[1]("/booking")} className="flex-1 bg-yellow-400 hover:bg-yellow-300 text-black font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
-            HOLD A BAY
+            SCHEDULE DROP-OFF
             <ChevronRight className="w-5 h-5" />
           </button>
         </div>

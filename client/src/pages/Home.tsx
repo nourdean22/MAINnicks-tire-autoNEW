@@ -852,7 +852,7 @@ function TriageGrid() {
             symptom="Just need the basics?"
             consequence="Routine oil + filter prevents engine sludge that destroys engines after 60K miles."
             relief="Free 27-point inspection on every oil change. Walk-ins welcome 7 days."
-            ctaLabel="HOLD A BAY"
+            ctaLabel="SCHEDULE DROP-OFF"
             ctaHref="/oil-change"
           />
         </div>

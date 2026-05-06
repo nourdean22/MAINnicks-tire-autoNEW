@@ -575,7 +575,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Payment Programs for Brake Repair",
-        content: "We understand that an unexpected brake repair bill can strain your budget. That is why Nick's Tire & Auto offers flexible financing options to help you get the repair done now and pay over time. We work with multiple financing partners to offer plans that fit different credit situations. Some plans offer 0% interest for qualified buyers. The important thing is that you do not delay brake repair because of cost — brakes are your primary safety system, and putting off repairs always makes them more expensive. A $200 pad job today becomes a $600 full brake job next month if you keep driving on worn pads. Visit our financing page or ask about payment options when you bring your vehicle in."
+        content: "We understand that an unexpected brake repair bill can strain your budget. That is why Nick's Tire & Auto offers flexible payment programs to help you get the repair done now and pay over time. We work with multiple providers to offer plans that fit different credit situations. Some plans offer 0% interest for qualified buyers. The important thing is that you do not delay brake repair because of cost — brakes are your primary safety system, and putting off repairs always makes them more expensive. A $200 pad job today becomes a $600 full brake job next month if you keep driving on worn pads. Visit our payment programs page or ask about options when you bring your vehicle in."
       },
       {
         heading: "Schedule Your Free Brake Inspection",
@@ -1297,7 +1297,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Come See for Yourself",
-        content: "Read our Google reviews, then come see the shop in person. Walk-ins welcome 7 days a week. Free estimates on most services. Free brake inspections. Free battery testing. Free tire pressure checks. We earn your trust by doing good work at fair prices and treating you like a neighbor, not a transaction. Nick's Tire & Auto — call (216) 862-0005 or book online."
+        content: "Read our Google reviews, then come see the shop in person. Walk-ins welcome 7 days a week. Free estimates on most services. Free brake inspections. Free battery testing. Free tire pressure checks. We earn your trust by doing good work at fair prices and treating you like a neighbor, not a transaction. Nick's Tire & Auto — call (216) 862-0005 or schedule a drop-off online."
       }
     ],
     relatedServices: ["/tires", "/brakes", "/oil-change", "/diagnostics", "/general-repair"],
