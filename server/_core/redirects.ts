@@ -78,6 +78,22 @@ const REDIRECTS: RedirectRule[] = [
   // Pricing-tool duplicates — three pages were doing the same job
   { from: "/estimate",                        to: "/pricing", reason: "third pricing tool consolidated; canonical is /pricing" },
   { from: "/cost-estimator",                  to: "/pricing", reason: "third pricing tool consolidated; canonical is /pricing" },
+
+  // ─── 2026-05-06 wave-14 SLUG RENAMES — preserve link equity ──────
+  // The two financing-targeted long-form posts kept their search-query
+  // intent but renamed the slugs to use "payment programs" voice. Old
+  // URLs may still be in Google's index and on external referrals, so
+  // 301 to the new canonicals to consolidate rank + bookmarks.
+  {
+    from: "/blog/car-repair-financing-bad-credit-cleveland",
+    to:   "/blog/auto-repair-payment-programs-bad-credit-cleveland",
+    reason: "wave-14 slug rename; same content + intent, FCFS-aligned voice",
+  },
+  {
+    from: "/guides/financing-auto-repair-no-credit-check",
+    to:   "/guides/auto-repair-payment-programs-no-credit-check",
+    reason: "wave-14 slug rename; same content + intent, FCFS-aligned voice",
+  },
 ];
 
 // Returns a 301 redirect if the path matches, otherwise falls through.
