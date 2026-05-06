@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import {
   StatCard, UrgencyBadge, ActivityIcon, StatusDot, PageHeader, LoadingState, EmptyState, SectionInsightStrip,
   BOOKING_STATUS_CONFIG, LEAD_STATUS_CONFIG, TIME_LABELS, CHART_COLORS,
-  useUrlFilter,
+  useUrlFilter, FilterChips,
   type BookingStatus, type LeadStatus,
 } from "./shared";
 import {
@@ -376,6 +376,23 @@ export default function LeadsSection() {
         icon={<Users className="w-5 h-5" />}
       />
       <SectionInsightStrip section="leads" />
+      {/* 2026-05-06 — Active filter chips with one-click clear */}
+      <FilterChips
+        chips={[
+          { label: "Status", value: leadFilter, default: "all", onClear: () => setLeadFilter("all"), displayValue: leadFilter === "all" ? undefined : leadFilter.charAt(0).toUpperCase() + leadFilter.slice(1) },
+          { label: "Search", value: searchQuery, default: "", onClear: () => setSearchQuery("") },
+          { label: "Source", value: sourceFilter, default: "all", onClear: () => setSourceFilter("all") },
+          { label: "View", value: viewMode, default: "kanban", onClear: () => setViewMode("kanban"), displayValue: viewMode === "list" ? "List" : undefined },
+          { label: "Category", value: category, default: "all", onClear: () => setCategory("all"), displayValue: category === "all" ? undefined : category.charAt(0).toUpperCase() + category.slice(1) },
+        ]}
+        onClearAll={() => {
+          setLeadFilter("all");
+          setSearchQuery("");
+          setSourceFilter("all");
+          setViewMode("kanban");
+          setCategory("all");
+        }}
+      />
       {/* CRITICAL ALERT — Uncontacted leads with ticking timer */}
       {uncontactedLeads.length > 0 && (
         <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-4 animate-pulse-slow">
