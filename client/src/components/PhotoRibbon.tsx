@@ -6,6 +6,10 @@
  * component turns those existing photos into a dimensional ribbon that
  * reinforces the "lines of cars" mental model before any copy is read.
  *
+ * Now parameterized (2026-05-06) so service pages can pass their own
+ * photo set + headline copy. Default export keeps backward-compat with
+ * the Home page wiring.
+ *
  * Design rules (from frontend-design + 3d-web-experience guard rails):
  *   - REAL photos only. No stock. No AI imagery.
  *   - Asymmetric widths (no AI-slop symmetry)
@@ -21,7 +25,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 
-type RibbonPhoto = {
+export type RibbonPhoto = {
   src: string;
   /** Wider than tall photos look better in a landscape ribbon */
   alt: string;
@@ -31,7 +35,21 @@ type RibbonPhoto = {
   widthClass: string;
 };
 
-const PHOTOS: RibbonPhoto[] = [
+export interface PhotoRibbonProps {
+  /** Defaults to the home-page Lot/Bays/Storefront set */
+  photos?: RibbonPhoto[];
+  /** Small all-caps eyebrow above the heading */
+  eyebrow?: string;
+  /** Two-line heading. Pass JSX or use defaults. */
+  headingLine1?: string;
+  headingLine2?: string;
+  /** Sub-headline beneath */
+  subhead?: string;
+  /** Background tone — defaults to the dark home-page tone */
+  bgClass?: string;
+}
+
+const DEFAULT_PHOTOS: RibbonPhoto[] = [
   {
     src: "/photos/parking-lot-cars.webp",
     alt: "Lines of customer cars in the Nick's Tire & Auto lot on a busy Cleveland Saturday",
@@ -70,7 +88,104 @@ const PHOTOS: RibbonPhoto[] = [
   },
 ];
 
-export function PhotoRibbon() {
+// Service-specific photo sets used by service pages. Curated to lead
+// with the photo most relevant to the service while still showcasing
+// the broader shop reality.
+export const TIRES_PHOTOS: RibbonPhoto[] = [
+  {
+    src: "/photos/tire-stacks-overhead.webp",
+    alt: "Tire inventory stacks at Nick's Tire & Auto — every size, in-house, ready for same-day install in Cleveland",
+    caption: "Inventory on-site. No waiting on shipments.",
+    widthClass: "w-[78vw] sm:w-[440px] md:w-[520px]",
+  },
+  {
+    src: "/photos/tire-tread-closeup.webp",
+    alt: "Close-up of a used tire passing the 4-point tread inspection at Nick's Tire & Auto",
+    caption: "Every used tire passes a 4-point exam.",
+    widthClass: "w-[72vw] sm:w-[400px] md:w-[480px]",
+  },
+  {
+    src: "/photos/parking-lot-cars.webp",
+    alt: "Customer vehicles in line for tire installation outside the Cleveland tire shop",
+    caption: "Lines on Saturdays for a reason.",
+    widthClass: "w-[80vw] sm:w-[480px] md:w-[560px]",
+  },
+  {
+    src: "/photos/service-bay-busy.webp",
+    alt: "Tire mount and balance happening across multiple bays at Nick's Tire & Auto",
+    caption: "Free mount, balance, valve stems.",
+    widthClass: "w-[64vw] sm:w-[340px] md:w-[400px]",
+  },
+  {
+    src: "/photos/exterior-winter-allweather.webp",
+    alt: "Cleveland winter weather at Nick's Tire & Auto — same-day winter tire install",
+    caption: "Snow tires today. Today.",
+    widthClass: "w-[72vw] sm:w-[400px] md:w-[480px]",
+  },
+];
+
+export const BRAKES_PHOTOS: RibbonPhoto[] = [
+  {
+    src: "/photos/service-bay-clean.webp",
+    alt: "Clean service bay at Nick's Tire & Auto where brake jobs happen — Cleveland brake repair shop",
+    caption: "Walk in, walk under your own car, see the part.",
+    widthClass: "w-[78vw] sm:w-[440px] md:w-[520px]",
+  },
+  {
+    src: "/photos/service-bay-busy.webp",
+    alt: "Multiple bays running brake jobs simultaneously at Nick's Tire & Auto in Cleveland",
+    caption: "Pads, rotors, calipers, lines, ABS.",
+    widthClass: "w-[68vw] sm:w-[380px] md:w-[440px]",
+  },
+  {
+    src: "/photos/parking-lot-cars.webp",
+    alt: "Customer cars waiting for brake service in the lot at Nick's Tire & Auto",
+    caption: "Same-day brake job. Walk-ins welcome.",
+    widthClass: "w-[76vw] sm:w-[420px] md:w-[500px]",
+  },
+  {
+    src: "/photos/alignment-bay.webp",
+    alt: "Diagnostic alignment readings inform the brake-pull diagnosis at Nick's Tire & Auto",
+    caption: "Brake pull? We measure, not guess.",
+    widthClass: "w-[66vw] sm:w-[360px] md:w-[420px]",
+  },
+];
+
+export const DIAGNOSTICS_PHOTOS: RibbonPhoto[] = [
+  {
+    src: "/photos/alignment-bay.webp",
+    alt: "Computerized diagnostic readout at Nick's Tire & Auto's Cleveland alignment and diagnostic bay",
+    caption: "Numbers on screen, in real English.",
+    widthClass: "w-[80vw] sm:w-[480px] md:w-[560px]",
+  },
+  {
+    src: "/photos/service-bay-clean.webp",
+    alt: "OBD-II scan in progress at the Cleveland diagnostic shop",
+    caption: "Free OBD-II scan. Written estimate before any wrench.",
+    widthClass: "w-[72vw] sm:w-[400px] md:w-[480px]",
+  },
+  {
+    src: "/photos/front-desk.webp",
+    alt: "Diagnostic write-up handed to a customer at the Nick's Tire & Auto front desk",
+    caption: "We explain the code. You decide the move.",
+    widthClass: "w-[68vw] sm:w-[380px] md:w-[440px]",
+  },
+  {
+    src: "/photos/service-bay-busy.webp",
+    alt: "Multiple diagnostic jobs running in the Cleveland auto repair shop bays",
+    caption: "Same-day diagnosis on most makes.",
+    widthClass: "w-[64vw] sm:w-[340px] md:w-[400px]",
+  },
+];
+
+export function PhotoRibbon({
+  photos = DEFAULT_PHOTOS,
+  eyebrow = "The Lot · The Bays · The Real Thing",
+  headingLine1 = "Walk past on Euclid",
+  headingLine2 = "and you'll see this.",
+  subhead = "No stock photos. No staging. Just the actual shop running on a normal day.",
+  bgClass = "bg-[oklch(0.05_0.004_260)]",
+}: PhotoRibbonProps) {
   const railRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
 
@@ -96,23 +211,23 @@ export function PhotoRibbon() {
   return (
     <section
       aria-labelledby="photo-ribbon-heading"
-      className="bg-[oklch(0.05_0.004_260)] py-14 lg:py-20 border-y border-border/30 overflow-hidden"
+      className={`${bgClass} py-14 lg:py-20 border-y border-border/30 overflow-hidden`}
     >
       <div className="container mb-8 lg:mb-10 flex items-end justify-between gap-6 flex-wrap">
         <div>
           <p className="text-[11px] font-semibold tracking-[0.18em] text-[#FDB913] uppercase mb-2">
-            The Lot · The Bays · The Real Thing
+            {eyebrow}
           </p>
           <h2
             id="photo-ribbon-heading"
             className="font-heading text-3xl sm:text-4xl lg:text-5xl font-extrabold uppercase text-foreground tracking-tight leading-[0.9]"
           >
-            Walk past on Euclid <br className="hidden sm:block" />
-            <span className="text-[#FDB913] text-gradient-yellow">and you'll see this.</span>
+            {headingLine1} <br className="hidden sm:block" />
+            <span className="text-[#FDB913] text-gradient-yellow">{headingLine2}</span>
           </h2>
-          <p className="mt-3 text-foreground/55 text-sm sm:text-base max-w-md">
-            No stock photos. No staging. Just the actual shop running on a normal day.
-          </p>
+          {subhead && (
+            <p className="mt-3 text-foreground/55 text-sm sm:text-base max-w-md">{subhead}</p>
+          )}
         </div>
 
         <div className="hidden lg:flex items-center gap-2 text-[11px] tracking-wider text-foreground/40 uppercase">
@@ -128,7 +243,7 @@ export function PhotoRibbon() {
           visible ? "photo-rail-active" : ""
         }`}
       >
-        {PHOTOS.map((p, i) => (
+        {photos.map((p, i) => (
           <figure
             key={p.src}
             className={`photo-rail-item relative shrink-0 ${p.widthClass} aspect-[4/3] sm:aspect-[3/2] overflow-hidden rounded-xl`}
@@ -150,7 +265,7 @@ export function PhotoRibbon() {
             </figcaption>
             {/* Index marker — small numerical anchor (frontend-design "1 memorable anchor" rule) */}
             <span className="absolute top-3 right-3 text-[10px] font-mono tracking-[0.2em] text-foreground/60 bg-black/35 backdrop-blur-sm px-2 py-1 rounded">
-              {String(i + 1).padStart(2, "0")} / {String(PHOTOS.length).padStart(2, "0")}
+              {String(i + 1).padStart(2, "0")} / {String(photos.length).padStart(2, "0")}
             </span>
           </figure>
         ))}

@@ -1,8 +1,14 @@
 /**
  * QueryState — reusable loading, error, and empty state components
  * for tRPC query results across all pages.
+ *
+ * 2026-05-06 visual upgrade: customer-facing loading state now uses the
+ * branded TireSpinner instead of a generic spinner — every Cleveland
+ * waiter who sees this gets a tiny dose of "yes, this is a tire shop"
+ * brand reinforcement during the otherwise-blank loading moment.
  */
-import { Loader2, AlertTriangle, RefreshCw } from "lucide-react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
+import TireSpinner from "./TireSpinner";
 
 interface QueryLoadingProps {
   message?: string;
@@ -12,8 +18,8 @@ interface QueryLoadingProps {
 export function QueryLoading({ message = "Loading...", className = "" }: QueryLoadingProps) {
   return (
     <div className={`flex flex-col items-center justify-center py-16 ${className}`}>
-      <Loader2 className="w-8 h-8 animate-spin text-primary mb-3" />
-      <p className="text-[13px] text-foreground/70">{message}</p>
+      <TireSpinner size="md" />
+      <p className="text-[13px] text-foreground/70 mt-4">{message}</p>
     </div>
   );
 }
