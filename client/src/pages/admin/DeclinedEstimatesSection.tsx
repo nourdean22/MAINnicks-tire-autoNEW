@@ -3,12 +3,11 @@
  * Shows pending invoices (walked-away customers), total recoverable revenue,
  * and one-click follow-up actions.
  */
-import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 
 type DeclinedEstimate = NonNullable<RouterOutputs["invoices"]["declined"]>["estimates"][number];
-import { StatCard, PageHeader, SectionInsightStrip, useUrlFilter } from "./shared";
+import { StatCard, PageHeader, SectionInsightStrip, useUrlFilter, FilterChips } from "./shared";
 import {
   Loader2, AlertTriangle, DollarSign, Phone, MessageSquare,
   TrendingUp, Clock, Filter,
@@ -110,6 +109,20 @@ export default function DeclinedEstimatesSection() {
           ))}
         </div>
       </div>
+
+      {/* Active Filter Chips — auto-hides when range is at default */}
+      <FilterChips
+        chips={[
+          {
+            label: "Range",
+            value: filter,
+            default: "30",
+            onClear: () => setFilter("30"),
+            displayValue: filter === "7" ? "7 days" : filter === "all" ? "All time" : "30 days",
+          },
+        ]}
+        onClearAll={() => setFilter("30")}
+      />
 
       {/* Table */}
       {isLoading ? (
