@@ -315,9 +315,9 @@ export default function IntersectionPage() {
           </FadeIn>
 
           <div className="mt-8 flex flex-wrap justify-center gap-4 stagger-in text-sm text-foreground/50">
-            <Link href="/financing" className="text-emerald-400 hover:underline">Financing from $10 down</Link>
+            <Link href="/financing" className="text-emerald-400 hover:underline">Payment programs from $10 down</Link>
             <span className="text-foreground/20">|</span>
-            <Link href="/booking" className="hover:text-primary transition-colors">Book online</Link>
+            <Link href="/booking" className="hover:text-primary transition-colors">Schedule drop-off</Link>
             <span className="text-foreground/20">|</span>
             <Link href="/diagnose" className="hover:text-primary transition-colors">Diagnose my car</Link>
             <span className="text-foreground/20">|</span>

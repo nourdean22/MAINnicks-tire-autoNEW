@@ -419,7 +419,7 @@ export default function NeighborhoodPage() {
                 SCHEDULE YOUR DROP-OFF
               </h2>
               <p className="mt-4 text-foreground/60 text-lg">
-                {neighborhood.name} residents are just {neighborhood.driveTime} away. Call us or book online.
+                {neighborhood.name} residents are just {neighborhood.driveTime} away. Pull up first-come, first-served — or call ahead.
               </p>
             </div>
 

@@ -329,7 +329,7 @@ export default function About() {
               </div>
               <div>
                 <h3 className="font-bold text-foreground mb-1">Payment Options Available</h3>
-                <p className="text-foreground/60 text-sm">Need tires or major repairs but can't pay all at once? We offer lease-to-own and financing options so you can get back on the road without the stress. Ask us how.</p>
+                <p className="text-foreground/60 text-sm">Need tires or major repairs but can't pay all at once? Lease-to-own and payment programs available — $10 down, four providers, no credit check. Ask us how.</p>
               </div>
             </div>
           </FadeIn>

@@ -520,7 +520,7 @@ export default function ReviewsPage() {
                 Ready to <span className="text-[#FDB913]">Experience It</span>?
               </h2>
               <p className="mt-4 text-foreground/60 text-lg max-w-xl mx-auto">
-                Join thousands of Cleveland drivers who trust Nick's Tire & Auto. Call for a free estimate or book online.
+                Join thousands of Cleveland drivers who trust Nick's Tire & Auto. Pull up any day we're open — first-come, first-served — or call for a free estimate.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center flex-wrap">
                 <Link

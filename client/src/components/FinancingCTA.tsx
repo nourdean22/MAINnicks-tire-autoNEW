@@ -46,7 +46,7 @@ export default function FinancingCTA({ variant = "banner", className = "" }: Fin
             <div className="flex-1">
               <h3 className="font-bold text-foreground text-sm mb-1">Need to Spread Out the Cost?</h3>
               <p className="text-foreground/60 text-xs leading-relaxed mb-3">
-                We offer 4 financing options with no credit needed. Get approved in seconds and pay over time.
+                4 payment programs available, no credit needed. Approved in seconds. Pay over time.
               </p>
               <div className="flex flex-wrap gap-2">
                 <a

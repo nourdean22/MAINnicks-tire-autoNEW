@@ -483,7 +483,7 @@ export default function LaborEstimator() {
                     READY TO GET STARTED?
                   </h3>
                   <p className="text-foreground/60 text-[13px] mb-6">
-                    Call us or book online to schedule your {result.repairTitle.toLowerCase()}.
+                    Call us or schedule a drop-off for your {result.repairTitle.toLowerCase()}.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <a

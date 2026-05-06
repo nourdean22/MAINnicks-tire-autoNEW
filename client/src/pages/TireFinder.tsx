@@ -1213,7 +1213,7 @@ export default function TireFinder() {
                     Used Tires Cleveland — Inspected, Installed, Honest
                   </h2>
                   <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-                    Not everyone needs brand-new rubber. We carry a large selection of quality used tires — every one passes a 4-point exam (tread depth, sidewall, DOT date, plug history) before it earns a spot on your car. Same professional installation, same free mount/balance/valve stems/disposal, same coffee — just a friendlier number on the receipt. Financing on the spot if you need it.
+                    Not everyone needs brand-new rubber. We carry a large selection of quality used tires — every one passes a 4-point exam (tread depth, sidewall, DOT date, plug history) before it earns a spot on your car. Same professional installation, same free mount/balance/valve stems/disposal, same coffee — just a friendlier number on the receipt. Payment programs on the spot if you need them.
                   </p>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
