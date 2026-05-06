@@ -702,42 +702,58 @@ Sitemap: ${SITE_URL}/sitemap-images.xml
 
     // Map: page-path → array of photos that appear on it. Mirrors
     // what's actually rendered on each page (PhotoRibbon + heros).
+    // 2026-05-06 wave-16 · refreshed to surface the new pro photo pack
+    // (14 new .webp files added in this wave) so Google Image Search
+    // re-crawls and indexes them. Old photos that are no longer rendered
+    // on these pages have been removed.
     type ImgEntry = { src: string; title: string; caption: string };
     const HOME_PHOTOS: ImgEntry[] = [
-      { src: "/hero-cybertruck.webp",                     title: "Tesla Cybertruck at Nick's Tire & Auto Cleveland", caption: "Real shop, real customers — Cybertruck out front of Nick's Tire & Auto on Euclid Ave." },
-      { src: "/photos/parking-lot-cars.webp",             title: "Lines of cars at Nick's Tire & Auto Cleveland",   caption: "Customer cars in line at the lot on a busy Cleveland Saturday." },
-      { src: "/photos/service-bay-busy.webp",             title: "Multiple bays running at Nick's Tire Cleveland",  caption: "Multiple service bays running simultaneously in the Cleveland tire shop." },
-      { src: "/photos/exterior-facade-wide.webp",         title: "Nick's Tire & Auto storefront on Euclid Ave",     caption: "The storefront on Euclid Ave — full facade view." },
-      { src: "/photos/tire-stacks-overhead.webp",         title: "Tire inventory stacks ready for same-day install", caption: "Overhead view of in-house tire inventory ready for same-day install." },
-      { src: "/photos/exterior-winter-allweather.webp",   title: "Nick's Tire open through Cleveland winter storms", caption: "Customers' cars in line during a Cleveland snowstorm — open every day." },
-      { src: "/photos/alignment-bay.webp",                title: "Computerized alignment bay at Nick's Tire",       caption: "Computerized alignment bay showing diagnostic readings on a customer vehicle." },
-      { src: "/photos/service-bay-clean.webp",            title: "Clean service bay where brake jobs happen",       caption: "Clean service bay at Nick's Tire & Auto — brake jobs and repair work." },
+      { src: "/photos/shop-exterior-hero-wide-sign-bays.webp", title: "Nick's Tire & Auto storefront on Euclid Avenue Cleveland", caption: "Full yellow sign, open service bays, and tire stacks at Nick's Tire & Auto on Euclid Avenue in Cleveland." },
+      { src: "/photos/bmw-premium-front-shop-sign.webp",       title: "BMW at Nick's Tire & Auto Cleveland",                       caption: "Maroon BMW convertible in front of Nick's Tire & Auto with the full shop sign visible — every make, even European." },
+      { src: "/photos/busy-shop-action-mechanics.webp",        title: "Real techs working inside Nick's Tire & Auto",              caption: "Nick's Tire & Auto technicians working inside the tire and auto repair bay with tires and equipment around them." },
+      { src: "/photos/rugged-tire-tread-closeup.webp",         title: "Aggressive tire tread closeup at Nick's Tire",              caption: "Close-up of aggressive tire tread at Nick's Tire & Auto showing deep tread blocks and rugged pattern." },
+      { src: "/photos/parking-lot-cars.webp",                  title: "Lines of cars at Nick's Tire & Auto Cleveland",             caption: "Customer cars in line at the lot on a busy Cleveland Saturday." },
+      { src: "/photos/exterior-winter-allweather.webp",        title: "Nick's Tire open through Cleveland winter storms",          caption: "Customers' cars in line during a Cleveland snowstorm — open every day." },
+      { src: "/photos/interior-service-bay-car-lift.webp",     title: "Car on the lift inside Nick's Tire service bay",            caption: "Vehicle raised on a lift inside Nick's Tire & Auto service bay with tire inventory and shop equipment visible." },
+      { src: "/photos/shop-exterior-busy-service-wide.webp",   title: "Busy service exterior at Nick's Tire Cleveland",            caption: "Nick's Tire & Auto service bays active with vehicles and technicians at the Euclid Avenue shop." },
     ];
     const TIRES_PHOTOS: ImgEntry[] = [
-      { src: "/photos/tire-stacks-overhead.webp",       title: "New tire inventory at Nick's Tire Cleveland",   caption: "Inventory on-site, no shipment delays — same-day install Cleveland tire shop." },
-      { src: "/photos/tire-tread-closeup.webp",         title: "Used tire 4-point tread inspection",            caption: "Every used tire passes a 4-point tread exam at Nick's Tire & Auto." },
-      { src: "/photos/parking-lot-cars.webp",           title: "Customer cars in line for tire installation",   caption: "Customer vehicles in line for tire installation outside the shop." },
-      { src: "/photos/service-bay-busy.webp",           title: "Tire mount and balance at Nick's Tire bays",    caption: "Tire mount and balance happening across multiple bays." },
-      { src: "/photos/exterior-winter-allweather.webp", title: "Same-day winter tire install Cleveland",        caption: "Cleveland winter weather at Nick's Tire — same-day winter tire install." },
+      { src: "/photos/rugged-tire-tread-closeup.webp",      title: "Tire authority — aggressive tread closeup",                 caption: "Close-up of aggressive tire tread at Nick's Tire & Auto Cleveland." },
+      { src: "/photos/tire-wheel-changer-closeup.webp",     title: "Tire installation on the wheel changer",                    caption: "Tire mounted on a wheel at Nick's Tire & Auto on the tire changer machine during installation." },
+      { src: "/photos/busy-shop-action-mechanics.webp",     title: "Real techs running tire installs",                          caption: "Nick's Tire & Auto technicians working tire installs inside the Cleveland shop bays." },
+      { src: "/photos/shop-exterior-cones-vertical.webp",   title: "Pull-up tire line — cones guiding the lane",                caption: "Nick's Tire & Auto exterior with yellow and black lane cones, open bays, and tire stacks." },
+      { src: "/photos/exterior-winter-allweather.webp",     title: "Same-day winter tire install Cleveland",                    caption: "Cleveland winter weather at Nick's Tire — same-day winter tire install." },
     ];
     const BRAKES_PHOTOS: ImgEntry[] = [
-      { src: "/photos/service-bay-clean.webp", title: "Cleveland brake repair shop service bay",        caption: "Clean service bay at Nick's Tire & Auto — Cleveland brake repair shop." },
-      { src: "/photos/service-bay-busy.webp",  title: "Multiple brake jobs running simultaneously",     caption: "Multiple bays running brake jobs simultaneously — same-day brake repair." },
-      { src: "/photos/parking-lot-cars.webp",  title: "Cars waiting for brake service at Nick's Tire",  caption: "Customer cars waiting for brake service in the lot." },
-      { src: "/photos/alignment-bay.webp",     title: "Diagnostic alignment readings inform brake pull", caption: "Diagnostic alignment readings inform the brake-pull diagnosis at Nick's Tire & Auto." },
+      { src: "/photos/undercar-brake-repair-action.webp", title: "Under-car brake repair at Nick's Tire Cleveland",           caption: "Underbody auto repair at Nick's Tire & Auto with a vehicle lifted and parts laid out on the shop floor." },
+      { src: "/photos/interior-service-bay-car-lift.webp",title: "Brake job on the lift at Nick's Tire & Auto",                caption: "Vehicle raised on a lift inside Nick's Tire & Auto service bay with brake-job tools and tire inventory visible." },
+      { src: "/photos/busy-shop-action-mechanics.webp",   title: "Multiple brake jobs running simultaneously",                 caption: "Nick's Tire & Auto technicians running brake jobs in the Cleveland bays." },
+      { src: "/photos/parking-lot-cars.webp",             title: "Cars waiting for brake service at Nick's Tire",              caption: "Customer cars waiting for brake service in the lot." },
     ];
     const DIAGNOSTICS_PHOTOS: ImgEntry[] = [
-      { src: "/photos/alignment-bay.webp",     title: "Computerized diagnostic readout Cleveland", caption: "Computerized diagnostic readout at Cleveland alignment and diagnostic bay." },
-      { src: "/photos/service-bay-clean.webp", title: "OBD-II scan in progress",                   caption: "OBD-II scan in progress at the Cleveland diagnostic shop." },
-      { src: "/photos/front-desk.webp",        title: "Diagnostic write-up at the front desk",     caption: "Diagnostic write-up handed to a customer at the Nick's Tire & Auto front desk." },
-      { src: "/photos/service-bay-busy.webp",  title: "Same-day diagnosis at Nick's Tire bays",    caption: "Multiple diagnostic jobs running in the Cleveland auto repair shop bays." },
+      { src: "/photos/interior-service-bay-car-lift.webp",  title: "Cleveland diagnostic bay with car on lift",                caption: "Vehicle raised on a lift inside Nick's Tire & Auto service bay during diagnostic work." },
+      { src: "/photos/busy-shop-action-mechanics.webp",     title: "Real techs running diagnostic jobs",                       caption: "Nick's Tire & Auto technicians running diagnostic jobs in the Cleveland shop bays." },
+      { src: "/photos/front-desk.webp",                     title: "Diagnostic write-up at the front desk",                    caption: "Diagnostic write-up handed to a customer at the Nick's Tire & Auto front desk." },
+      { src: "/photos/undercar-brake-repair-action.webp",   title: "Underbody inspection during diagnostic",                   caption: "Underbody inspection at Nick's Tire & Auto during the diagnostic process." },
+    ];
+    const ABOUT_PHOTOS: ImgEntry[] = [
+      { src: "/photos/shop-exterior-hero-wide-sign-bays.webp", title: "Nick's Tire & Auto storefront — Euclid Avenue Cleveland", caption: "Full storefront with yellow sign and open service bays at Nick's Tire & Auto in Cleveland." },
+      { src: "/photos/busy-shop-action-mechanics.webp",        title: "Inside Nick's Tire & Auto — real techs at work",          caption: "Nick's Tire & Auto technicians working inside the tire and auto repair bay." },
+    ];
+    const CONTACT_PHOTOS: ImgEntry[] = [
+      { src: "/photos/roadside-sign-exterior-wide.webp",      title: "Nick's Tire & Auto roadside sign — wayfinding",            caption: "Nick's Tire & Auto roadside sign and shop exterior on Euclid Avenue in Cleveland Ohio." },
+      { src: "/photos/parking-lot-sign-perspective-wide.webp", title: "Parking lot perspective at Nick's Tire & Auto",            caption: "Nick's Tire & Auto parking lot with roadside sign, parked vehicles, and service bays visible." },
     ];
 
     const pages: Array<{ path: string; photos: ImgEntry[] }> = [
       { path: "/",                       photos: HOME_PHOTOS },
       { path: "/new-tires-cleveland",    photos: TIRES_PHOTOS },
+      { path: "/used-tires-cleveland",   photos: TIRES_PHOTOS },
+      { path: "/tires",                  photos: TIRES_PHOTOS },
       { path: "/brakes",                 photos: BRAKES_PHOTOS },
       { path: "/diagnostics",            photos: DIAGNOSTICS_PHOTOS },
+      { path: "/about",                  photos: ABOUT_PHOTOS },
+      { path: "/contact",                photos: CONTACT_PHOTOS },
     ];
 
     const escapeXml = (s: string) =>
