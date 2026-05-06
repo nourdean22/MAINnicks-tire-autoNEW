@@ -18,8 +18,9 @@ import {
   ChevronRight, DollarSign, Clock, Package, Loader2, Settings2,
   CheckCircle2, AlertTriangle, Gauge, Zap, Shield, Droplets,
   ThermometerSun, Cog, CircleDot, ArrowRight, RefreshCw, XCircle,
-  Activity, Wifi, WifiOff
+  Activity, Wifi, WifiOff, Plug
 } from "lucide-react";
+import { PageHeader } from "./shared";
 
 // ─── TYPES ──────────────────────────────────────────────
 type Tab = "tires" | "labor" | "estimate";
@@ -145,6 +146,11 @@ export default function IntegrationsSection() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="Integrations"
+        subtitle="Tire search (Gateway/ALG), labor guide lookup, quick-estimate calculator. Live vendor health below."
+        icon={<Plug className="w-5 h-5" />}
+      />
       {/* Vendor Health Strip */}
       <VendorHealthStrip />
 

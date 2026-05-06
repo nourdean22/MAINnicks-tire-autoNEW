@@ -5,6 +5,7 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
+import { PageHeader } from "./shared";
 import {
   Wrench, Clock, AlertTriangle, User, ChevronRight, Plus, RefreshCw,
   Package, Truck, CheckCircle2, XCircle, Timer, Phone, MapPin,
@@ -846,12 +847,13 @@ export default function WorkOrdersSection() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Wrench className="w-5 h-5 text-primary" />
-          <h2 className="text-lg font-bold">Work Order Board</h2>
-        </div>
+      <PageHeader
+        title="Work Orders"
+        subtitle="Kanban board grouped by lifecycle phase — queue, parts, in-shop, QC/pickup. Refreshes every 15 seconds."
+        icon={<Wrench className="w-5 h-5" />}
+      />
+      {/* View switcher + actions */}
+      <div className="flex items-center justify-end">
         <div className="flex items-center gap-2">
           <div className="flex border border-border/40 rounded overflow-hidden">
             <button

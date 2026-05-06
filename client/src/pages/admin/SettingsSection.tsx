@@ -19,8 +19,9 @@ import {
   Users, FileText, TrendingUp, Search, Upload, Zap,
   AlertTriangle, Clock, DollarSign, Wrench, ArrowRight,
   ToggleLeft, ToggleRight,
-  Activity, Shield, Plug,
+  Activity, Shield, Plug, Settings,
 } from "lucide-react";
+import { PageHeader } from "./shared";
 
 // Lazy-loaded system tabs — Nour's request: "move all system stuff to the settings page"
 // Consolidates System Health, Compliance, and Integrations into this hub so
@@ -156,13 +157,11 @@ export default function SettingsSection() {
 
   return (
     <div className="space-y-6">
-      {/* Header + Tab switcher */}
-      <div>
-        <h2 className="font-bold text-2xl text-foreground tracking-wider">SETTINGS & SYSTEM</h2>
-        <p className="text-foreground/50 text-[12px] mt-1">
-          One hub for ShopDriver sync, system health, compliance audit, and vendor integrations.
-        </p>
-      </div>
+      <PageHeader
+        title="Settings & System"
+        subtitle="ShopDriver/ALG sync · system health · compliance audit · vendor integrations · feature flags"
+        icon={<Settings className="w-5 h-5" />}
+      />
 
       {/* Tab bar — survives page reloads via ?settingsTab URL param */}
       <div className="flex items-center gap-1 border-b border-border/30 overflow-x-auto">
