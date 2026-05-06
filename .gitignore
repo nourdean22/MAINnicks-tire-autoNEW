@@ -121,3 +121,5 @@ temp/
 logs/
 tunnel-url.txt
 *.yml.bak
+
+.vercel

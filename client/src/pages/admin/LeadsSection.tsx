@@ -6,7 +6,7 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
-  StatCard, UrgencyBadge, ActivityIcon, StatusDot, PageHeader, LoadingState, EmptyState,
+  StatCard, UrgencyBadge, ActivityIcon, StatusDot, PageHeader, LoadingState, EmptyState, SectionInsightStrip,
   BOOKING_STATUS_CONFIG, LEAD_STATUS_CONFIG, TIME_LABELS, CHART_COLORS,
   type BookingStatus, type LeadStatus,
 } from "./shared";
@@ -351,6 +351,12 @@ export default function LeadsSection() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="Leads & Estimates"
+        subtitle="Inbound leads · estimate forms · phone-call captures · Vapi tire inquiries · golden 4-hour response window"
+        icon={<Users className="w-5 h-5" />}
+      />
+      <SectionInsightStrip section="leads" />
       {/* CRITICAL ALERT — Uncontacted leads with ticking timer */}
       {uncontactedLeads.length > 0 && (
         <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-4 animate-pulse-slow">
