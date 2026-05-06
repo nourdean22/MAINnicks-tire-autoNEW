@@ -6,7 +6,7 @@
  */
 import React, { useEffect, useState, lazy, Suspense } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
-import { StatCard, PageHeader, LoadingState, EmptyState, SectionInsightStrip } from "./shared";
+import { StatCard, PageHeader, LoadingState, EmptyState, SectionInsightStrip, TabBar } from "./shared";
 
 // Inferred from tRPC AppRouter — admin audit §3 follow-up.
 type ListedCustomer = NonNullable<RouterOutputs["customers"]["list"]>["customers"][number];
@@ -747,26 +747,15 @@ export default function CustomersSection() {
         icon={<UserCheck className="w-5 h-5" />}
       />
       <SectionInsightStrip section="customers" />
-      {/* Sub-tabs: Customers | Loyalty | Coupons */}
-      <div className="flex items-center gap-1 border-b border-border/40">
-        {([
-          { id: "customers" as CustomerTab, label: "Customers" },
-          { id: "loyalty" as CustomerTab, label: "Loyalty" },
-          { id: "coupons" as CustomerTab, label: "Coupons" },
-        ]).map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2.5 text-[12px] font-bold tracking-wide border-b-2 transition-colors ${
-              activeTab === tab.id
-                ? "border-primary text-primary"
-                : "border-transparent text-foreground/50 hover:text-foreground"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={[
+          { id: "customers", label: "Customers", icon: <Users className="w-3.5 h-3.5" /> },
+          { id: "loyalty", label: "Loyalty", icon: <Crown className="w-3.5 h-3.5" /> },
+          { id: "coupons", label: "Coupons", icon: <Hash className="w-3.5 h-3.5" /> },
+        ]}
+        activeTab={activeTab}
+        onChange={setActiveTab}
+      />
 
       {activeTab === "loyalty" && (
         <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>

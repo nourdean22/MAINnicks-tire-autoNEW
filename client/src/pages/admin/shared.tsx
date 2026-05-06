@@ -322,6 +322,217 @@ export function ActivityIcon({ type }: { type: string }) {
   }
 }
 
+// ─── 2026-05-06 — TABBAR / SEARCH / BREADCRUMBS / TIMESTAMP ──
+// Unified secondary-navigation primitives. Replaces ~6 different
+// in-section tab implementations + ad-hoc search + ad-hoc "last
+// refreshed" timestamps. Net: identical interaction language
+// everywhere in admin.
+
+interface TabBarItem<T extends string> {
+  id: T;
+  label: string;
+  icon?: React.ReactNode;
+  badge?: number | string;
+  /** Optional sub-label rendered under the label */
+  subtitle?: string;
+}
+
+/**
+ * TabBar — the canonical secondary navigation pattern. Used inside
+ * a section to switch between sub-views (e.g. Customers → Loyalty →
+ * Coupons, or Revenue → Daily → Invoices → Forecast).
+ *
+ * Two variants:
+ *   - `border` (default): underline-style, tighter, fits long lists
+ *   - `pill`: rounded-button style, fits 2-4 short tabs
+ */
+export function TabBar<T extends string>({
+  tabs,
+  activeTab,
+  onChange,
+  variant = "border",
+  size = "default",
+}: {
+  tabs: TabBarItem<T>[];
+  activeTab: T;
+  onChange: (id: T) => void;
+  variant?: "border" | "pill";
+  size?: "default" | "compact";
+}) {
+  if (variant === "pill") {
+    return (
+      <div className="inline-flex items-center gap-1 bg-card/50 border border-border/30 p-1 rounded-md">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => onChange(t.id)}
+            className={`flex items-center gap-1.5 px-3 ${size === "compact" ? "py-1" : "py-1.5"} text-[12px] font-bold tracking-wide rounded transition-all whitespace-nowrap ${
+              activeTab === t.id
+                ? "bg-primary text-primary-foreground"
+                : "text-foreground/50 hover:text-foreground/80 hover:bg-foreground/5"
+            }`}
+          >
+            {t.icon}
+            <span>{t.label}</span>
+            {t.badge !== undefined && t.badge !== "" && (
+              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                activeTab === t.id ? "bg-primary-foreground/15 text-primary-foreground" : "bg-foreground/10 text-foreground/60"
+              }`}>
+                {t.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1 border-b border-border/20 overflow-x-auto">
+      {tabs.map((t) => {
+        const active = activeTab === t.id;
+        return (
+          <button
+            key={t.id}
+            onClick={() => onChange(t.id)}
+            className={`flex items-center gap-1.5 px-4 ${size === "compact" ? "py-1.5" : "py-2.5"} text-[12px] font-bold tracking-wide border-b-2 transition-colors whitespace-nowrap ${
+              active
+                ? "border-primary text-primary"
+                : "border-transparent text-foreground/40 hover:text-foreground/70"
+            }`}
+          >
+            {t.icon}
+            <span>{t.label}</span>
+            {t.badge !== undefined && t.badge !== "" && (
+              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                active ? "bg-primary/15 text-primary" : "bg-foreground/10 text-foreground/60"
+              }`}>
+                {t.badge}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * SearchInput — canonical text-search field for any list/grid in admin.
+ * Replaces ~12 different inline search input styles.
+ */
+export function SearchInput({
+  value,
+  onChange,
+  placeholder = "Search…",
+  size = "default",
+  className = "",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  size?: "default" | "compact";
+  className?: string;
+}) {
+  return (
+    <div className={`relative ${className}`}>
+      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-foreground/30 pointer-events-none" />
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={`w-full bg-background border border-border/30 text-foreground pl-9 pr-3 ${size === "compact" ? "py-1.5 text-[12px]" : "py-2 text-[13px]"} rounded focus:border-primary focus:outline-none placeholder:text-foreground/30`}
+      />
+      {value && (
+        <button
+          onClick={() => onChange("")}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-foreground/30 hover:text-foreground/60"
+          aria-label="Clear search"
+        >
+          <XCircle className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Breadcrumbs — section / sub-section / detail. Used inside a section
+ * when there's a deep view (e.g. Customers → John Smith → Edit).
+ * onClick on a non-final crumb navigates back.
+ */
+export function Breadcrumbs({
+  items,
+}: {
+  items: Array<{ label: string; onClick?: () => void }>;
+}) {
+  return (
+    <nav className="flex items-center gap-1.5 text-[11px] text-foreground/40 flex-wrap">
+      {items.map((item, i) => {
+        const isLast = i === items.length - 1;
+        return (
+          <React.Fragment key={i}>
+            {item.onClick && !isLast ? (
+              <button
+                onClick={item.onClick}
+                className="hover:text-foreground transition-colors"
+              >
+                {item.label}
+              </button>
+            ) : (
+              <span className={isLast ? "text-foreground font-medium" : ""}>
+                {item.label}
+              </span>
+            )}
+            {!isLast && <span className="text-foreground/20">/</span>}
+          </React.Fragment>
+        );
+      })}
+    </nav>
+  );
+}
+
+/**
+ * TimestampLabel — "Last refreshed: 3 min ago" tag. Use to make
+ * data-freshness explicit at the top of any data-heavy panel.
+ *
+ * Auto-updates the relative time every 30s.
+ */
+export function TimestampLabel({
+  date,
+  prefix = "Updated",
+  className = "",
+}: {
+  date: Date | string | null | undefined;
+  prefix?: string;
+  className?: string;
+}) {
+  const [, forceUpdate] = React.useState(0);
+  React.useEffect(() => {
+    const tick = setInterval(() => forceUpdate((n) => n + 1), 30_000);
+    return () => clearInterval(tick);
+  }, []);
+
+  if (!date) return null;
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return null;
+
+  const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
+  let label: string;
+  if (diffSec < 30) label = "just now";
+  else if (diffSec < 60) label = `${diffSec}s ago`;
+  else if (diffSec < 3600) label = `${Math.floor(diffSec / 60)}m ago`;
+  else if (diffSec < 86400) label = `${Math.floor(diffSec / 3600)}h ago`;
+  else label = `${Math.floor(diffSec / 86400)}d ago`;
+
+  return (
+    <span className={`text-[10px] text-foreground/40 ${className}`}>
+      {prefix} {label}
+    </span>
+  );
+}
+
 // ─── SECTION INSIGHT STRIP ─────────────────────────────────
 // Drop this at the top of any admin section to surface a per-section
 // actionable callout from `trpc.adminDashboard.sectionInsight`. Renders

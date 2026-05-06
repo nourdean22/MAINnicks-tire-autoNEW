@@ -21,7 +21,7 @@ import {
   ToggleLeft, ToggleRight,
   Activity, Shield, Plug, Settings,
 } from "lucide-react";
-import { PageHeader, SectionInsightStrip } from "./shared";
+import { PageHeader, SectionInsightStrip, TabBar, Panel } from "./shared";
 
 // Lazy-loaded system tabs — Nour's request: "move all system stuff to the settings page"
 // Consolidates System Health, Compliance, and Integrations into this hub so
@@ -165,27 +165,11 @@ export default function SettingsSection() {
       <SectionInsightStrip section="settings" />
 
       {/* Tab bar — survives page reloads via ?settingsTab URL param */}
-      <div className="flex items-center gap-1 border-b border-border/30 overflow-x-auto">
-        {SETTINGS_TABS.map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => handleTabChange(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-[12px] font-medium tracking-wide border-b-2 transition-all whitespace-nowrap ${
-                isActive
-                  ? "border-primary text-primary bg-primary/5"
-                  : "border-transparent text-foreground/50 hover:text-foreground hover:bg-foreground/5"
-              }`}
-              title={tab.subtitle}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      <TabBar
+        tabs={SETTINGS_TABS}
+        activeTab={activeTab}
+        onChange={handleTabChange}
+      />
 
       {/* Lazy-loaded tabs — these are the former sidebar sections */}
       {activeTab === "health" && (
@@ -401,9 +385,11 @@ export default function SettingsSection() {
       <DeclinedRecoveryPanel />
 
       {/* Cron Status */}
-      <div className="bg-card border border-border/30 p-4">
-        <h3 className="font-bold text-sm text-foreground tracking-wide mb-3">AUTONOMOUS OPERATIONS</h3>
-        <p className="text-foreground/50 text-[11px] mb-3">These run automatically. No manual action needed.</p>
+      <Panel
+        title="Autonomous Operations"
+        subtitle="These run automatically. No manual action needed."
+        icon={<Zap className="w-4 h-4" />}
+      >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {[
             { name: "ALG Overnight Probe", interval: "Daily 3 AM ET", desc: "Single nightly sync — shop closed, no Moe risk" },
@@ -427,7 +413,7 @@ export default function SettingsSection() {
             </div>
           ))}
         </div>
-      </div>
+      </Panel>
 
       {/* Feature Flags */}
       <FeatureFlagsPanel />
