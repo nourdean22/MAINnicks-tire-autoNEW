@@ -21,7 +21,7 @@ import { PageHeader } from "./shared";
 import {
   Loader2, TrendingUp, AlertTriangle, AlertCircle, Info,
   ExternalLink, Zap, Eye, MousePointer, MessageSquare, Calendar, DollarSign,
-  Search,
+  Search, Image as ImageIcon, Activity,
 } from "lucide-react";
 
 type Range = "7d" | "30d" | "90d";
@@ -321,6 +321,9 @@ export default function TrafficFunnelSection() {
         )}
       </div>
 
+      {/* ─── CUSTOMER EVENTS PANEL — visual-surface engagement ── */}
+      <CustomerEventsPanel range={range} />
+
       {/* ─── FOOTER ─────────────────────────────────────── */}
       <div className="text-[10px] text-foreground/30 text-center pt-2">
         <p>
@@ -333,6 +336,166 @@ export default function TrafficFunnelSection() {
           real engagement visibility.
         </p>
       </div>
+    </div>
+  );
+}
+
+/**
+ * CustomerEventsPanel — surfaces the customer_events table that's now
+ * being populated by the customer-side trackEvent() wiring (PhotoRibbon
+ * photo views, sticky-CTA Hold-A-Bay clicks, future scroll-depth
+ * milestones, etc.). Two views: per-event totals + top photos.
+ */
+function CustomerEventsPanel({ range }: { range: Range }) {
+  // Map "7d/30d/90d" to numeric days for the tRPC summary
+  const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
+
+  const { data: summary, isLoading: summaryLoading } = trpc.customerEvents.summary.useQuery(
+    { days },
+    { refetchInterval: 60_000 },
+  );
+  const { data: topPhotos, isLoading: photosLoading } = trpc.customerEvents.topRibbonPhotos.useQuery(
+    { days, limit: 10 },
+    { refetchInterval: 60_000 },
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <div className="text-[#FDB913] text-[10px] font-mono uppercase tracking-widest mb-1">
+            Customer-Side Events ({range})
+          </div>
+          <h3 className="font-bold text-base text-foreground tracking-wide uppercase">
+            Visual Surface Engagement
+          </h3>
+          <p className="text-[12px] text-foreground/40 mt-1 max-w-2xl">
+            PhotoRibbon photo views, sticky-CTA "Hold a Bay" clicks, and
+            anything else fired through trackEvent() on the customer
+            site. Best for tuning which photos drive engagement and
+            verifying the new visual surfaces are actually being used.
+          </p>
+        </div>
+      </div>
+
+      {/* Per-event totals + top photos side-by-side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Per-event totals */}
+        <div className="bg-card border border-border/30 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Activity className="w-4 h-4 text-foreground/40" />
+            <h4 className="text-xs font-bold tracking-wider uppercase text-foreground/60">
+              Event Totals
+            </h4>
+          </div>
+          {summaryLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+            </div>
+          ) : !summary || summary.totals.length === 0 ? (
+            <div className="text-[12px] text-foreground/40 py-6 text-center">
+              No events yet in this window. Live the day after the
+              customer_events migration runs and the new tracking
+              fires from the public site.
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {summary.totals.map((t: { eventName: string; count: number }) => (
+                <div
+                  key={t.eventName}
+                  className="flex items-center justify-between text-[13px] py-1.5 border-b border-border/10 last:border-0"
+                >
+                  <code className="text-foreground/80 font-mono text-[11px]">
+                    {t.eventName}
+                  </code>
+                  <span className="font-mono font-bold text-foreground tabular-stat">
+                    {t.count.toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Top PhotoRibbon photos */}
+        <div className="bg-card border border-border/30 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <ImageIcon className="w-4 h-4 text-foreground/40" />
+            <h4 className="text-xs font-bold tracking-wider uppercase text-foreground/60">
+              Top PhotoRibbon Photos
+            </h4>
+          </div>
+          {photosLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+            </div>
+          ) : !topPhotos || topPhotos.length === 0 ? (
+            <div className="text-[12px] text-foreground/40 py-6 text-center">
+              No ribbon photo views yet. Will populate after customers
+              start scrolling through PhotoRibbon on Home / Brakes /
+              Tires / Diagnostics.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {topPhotos.map((p: { src: string; count: number }, i: number) => {
+                const max = topPhotos[0]?.count || 1;
+                const pct = (p.count / max) * 100;
+                const filename = (p.src || "").split("/").pop() || p.src;
+                return (
+                  <div key={p.src} className="relative">
+                    <div className="flex items-center gap-3 text-[12px] py-1">
+                      <span className="w-5 text-foreground/30 font-mono text-[10px] shrink-0">
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <span className="flex-1 min-w-0 truncate text-foreground/80 font-mono text-[10px]">
+                        {filename}
+                      </span>
+                      <span className="font-mono font-bold text-foreground/90 tabular-stat shrink-0">
+                        {p.count.toLocaleString()}
+                      </span>
+                    </div>
+                    <div
+                      className="absolute left-8 right-12 bottom-0 h-0.5 bg-primary/40"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Recent events live tail */}
+      {summary && summary.recent.length > 0 && (
+        <div className="bg-card border border-border/30 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Zap className="w-4 h-4 text-foreground/40" />
+            <h4 className="text-xs font-bold tracking-wider uppercase text-foreground/60">
+              Live Tail (Last 50)
+            </h4>
+          </div>
+          <div className="max-h-72 overflow-y-auto space-y-0.5 text-[11px] font-mono">
+            {summary.recent.map((r: { id: number; eventName: string; sourcePage: string | null; createdAt: string | Date }) => (
+              <div
+                key={r.id}
+                className="flex items-center gap-3 py-1 border-b border-border/5 last:border-0"
+              >
+                <span className="text-foreground/30 shrink-0 w-24 truncate">
+                  {new Date(r.createdAt).toLocaleString(undefined, { hour: "numeric", minute: "2-digit", month: "short", day: "numeric" })}
+                </span>
+                <code className="text-foreground/70 shrink-0 w-44 truncate">
+                  {r.eventName}
+                </code>
+                <span className="text-foreground/40 truncate">
+                  {r.sourcePage}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

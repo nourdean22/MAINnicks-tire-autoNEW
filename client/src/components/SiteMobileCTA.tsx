@@ -54,11 +54,15 @@ export default function SiteMobileCTA() {
             style={{
               height: 68,
               // Glassmorphic — translucent black with backdrop blur.
+              // 12px blur lands the visual payoff on every Cleveland
+              // Android since Galaxy S8 without the 20px GPU spike that
+              // can stutter on older devices. The background opacity is
+              // dialed up slightly to compensate for less blur.
               // Non-supporting browsers fall back to the rgba layer alone
               // (still reads as a bar, just less premium).
-              background: "rgba(10, 10, 10, 0.62)",
-              backdropFilter: "blur(20px) saturate(140%)",
-              WebkitBackdropFilter: "blur(20px) saturate(140%)",
+              background: "rgba(10, 10, 10, 0.74)",
+              backdropFilter: "blur(12px) saturate(135%)",
+              WebkitBackdropFilter: "blur(12px) saturate(135%)",
               borderTop: "1px solid rgba(255,255,255,0.06)",
               boxShadow:
                 "0 -8px 24px -8px rgba(0,0,0,0.5), 0 -1px 0 rgba(255,255,255,0.03) inset",

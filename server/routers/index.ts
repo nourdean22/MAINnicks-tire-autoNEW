@@ -6,7 +6,7 @@ export { callbackRouter } from "./callback";
 export { leadRouter } from "./lead";
 export { chatRouter } from "./chat";
 export { contentRouter, contentAdminRouter } from "./content";
-export { adminDashboardRouter, analyticsRouter, followUpsRouter, weeklyReportRouter, callTrackingRouter, exportRouter } from "./admin";
+export { adminDashboardRouter, analyticsRouter, followUpsRouter, weeklyReportRouter, callTrackingRouter, customerEventsRouter, exportRouter } from "./admin";
 export { weatherRouter, reviewsRouter, instagramRouter, searchRouter, diagnoseRouter, laborEstimateRouter, activityRouter, serviceReviewsRouter } from "./public";
 export {
   couponsRouter,
