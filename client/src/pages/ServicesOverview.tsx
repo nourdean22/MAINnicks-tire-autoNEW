@@ -239,7 +239,7 @@ export default function ServicesOverview() {
               </div>
               <div className="text-center">
                 <Wrench className="w-8 h-8 text-primary mx-auto mb-2" />
-                <span className="font-bold text-2xl text-foreground">Expert</span>
+                <span className="font-bold text-2xl text-foreground">ASE</span>
                 <p className="text-foreground/60 text-sm mt-1">Advanced OBD-II diagnostics</p>
               </div>
             </div>

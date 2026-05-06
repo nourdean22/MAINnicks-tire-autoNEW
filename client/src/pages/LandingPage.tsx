@@ -110,7 +110,7 @@ const VARIANTS: Record<string, LandingVariant> = {
     offerBadgeColor: "bg-yellow-500",
     trustBullets: [
       "Computer diagnostic scan identifies the exact code",
-      "Expert explanation of what it means",
+      "We translate what it means in plain English — no acronym soup",
       "Honest recommendation for repair",
       "Diagnostic fee credited toward service if you book with us",
     ],

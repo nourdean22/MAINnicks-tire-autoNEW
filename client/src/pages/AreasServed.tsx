@@ -54,8 +54,8 @@ export default function AreasServed() {
             <p className="text-foreground/60 mt-4 text-base leading-relaxed">
               Nick's Tire & Auto at {BUSINESS.address.street}, Cleveland, OH {BUSINESS.address.zip} serves
               drivers from over 150 neighborhoods, cities, and intersections across Northeast Ohio. Whether
-              you're in Euclid, Parma, Lakewood, Mentor, or anywhere in between — we're your trusted
-              auto repair shop. Find your area below.
+              you're in Euclid, Parma, Lakewood, Mentor, or anywhere in between — we're the corner of
+              Euclid Ave that fixes it. Find your area below.
             </p>
           </div>
         </div>

@@ -180,6 +180,12 @@ import { join } from "node:path";
 
 const COMPONENT_FILES_TO_SCAN = [
   "client/src/components/LocalBusinessSchema.tsx",
+  "client/src/components/InternalLinks.tsx",
+  "client/src/pages/AreasServed.tsx",
+  "client/src/pages/LandingPage.tsx",
+  "client/src/pages/ServicesOverview.tsx",
+  "client/src/pages/TireFinder.tsx",
+  "client/src/pages/TireShopNearMePage.tsx",
 ];
 
 describe("VOICE.md Compliance — component-level marketing copy", () => {
