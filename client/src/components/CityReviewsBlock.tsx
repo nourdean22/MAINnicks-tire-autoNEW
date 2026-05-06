@@ -43,10 +43,10 @@ export default function CityReviewsBlock({ city, cityName }: CityReviewsBlockPro
               Recent verified reviews from customers in {cityName} and nearby neighborhoods.
             </p>
 
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 depth-stage">
               {data.reviews.map((review, i) => (
                 <FadeIn key={i} delay={i * 0.1}>
-                  <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-5 h-full flex flex-col">
+                  <div className="tilt-card bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-5 h-full flex flex-col">
                     <div className="flex gap-0.5 mb-3">
                       {Array.from({ length: review.rating }, (_, j) => (
                         <Star key={j} size={14} fill="#FDB913" color="#FDB913" />

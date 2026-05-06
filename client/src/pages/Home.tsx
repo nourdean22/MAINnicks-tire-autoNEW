@@ -360,10 +360,10 @@ function Services() {
           <FadeIn>
             <h2 className="font-heading text-3xl lg:text-4xl font-bold text-foreground tracking-tight text-center mb-12 uppercase">More Services</h2>
           </FadeIn>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 stagger-in">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 stagger-in depth-stage">
             {moreServices.map((s, i) => (
               <FadeIn key={s.slug} delay={i * 0.1}>
-                <Link href={s.slug} className="group block p-8 border border-border rounded-2xl hover:border-foreground/20 transition-all card-gold-hover">
+                <Link href={s.slug} className="tilt-card group block p-8 border border-border rounded-2xl hover:border-foreground/20 transition-all card-gold-hover">
                   <h3 className="font-heading text-xl font-semibold text-foreground tracking-tight group-hover:text-primary transition-colors uppercase">{s.title}</h3>
                   <p className="mt-1 text-[#FDB913] font-semibold text-sm">{s.price}</p>
                   <p className="mt-3 text-foreground/50 text-sm leading-relaxed">{s.desc}</p>
@@ -532,10 +532,10 @@ function Reviews() {
           </div>
         </FadeIn>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 stagger-in">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 stagger-in depth-stage">
           {displayReviews.map((r, i) => (
             <FadeIn key={r.name + i} delay={i * 0.1}>
-              <div className="p-8 border border-border rounded-2xl h-full flex flex-col glow-on-hover">
+              <div className="tilt-card p-8 border border-border rounded-2xl h-full flex flex-col glow-on-hover">
                 <div className="flex gap-0.5 mb-5">
                   {[...Array(r.stars)].map((_, j) => (
                     <Star key={j} className="w-4 h-4 fill-nick-yellow text-primary" />
