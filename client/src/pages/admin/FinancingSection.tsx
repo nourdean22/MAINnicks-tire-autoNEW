@@ -100,10 +100,10 @@ function OpportunityTracker() {
   const [copied, setCopied] = useState<string | null>(null);
 
   const copyFinancingText = (name: string, phone: string) => {
-    const msg = `Hi ${name}, this is Nick's Tire & Auto — we have several no-credit-needed financing options to help with your repair. Apply in 60 seconds:\n\nAcima: https://www.acima.com/en/applicationprocess\nSnap: https://snapfinance.com\nKoalafi: https://koalafi.com/for-customers/\n\nOr visit nickstire.org/financing for all options. Questions? Call us!`;
+    const msg = `Hi ${name}, this is Nick's Tire & Auto — we have several no-credit-needed payment programs to help with your repair. Apply in 60 seconds:\n\nAcima: https://www.acima.com/en/applicationprocess\nSnap: https://snapfinance.com\nKoalafi: https://koalafi.com/for-customers/\n\nOr visit nickstire.org/financing for all options. Questions? Call us!`;
     navigator.clipboard.writeText(msg);
     setCopied(phone);
-    toast.success("Financing text copied");
+    toast.success("Payment program text copied");
     setTimeout(() => setCopied(null), 2000);
   };
 

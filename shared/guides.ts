@@ -554,9 +554,9 @@ export const GUIDES: GuideData[] = [
   },
 
   {
-    slug: "financing-auto-repair-no-credit-check",
-    title: "Financing Auto Repair with No Credit Check: Complete Guide | Nick's Tire & Auto",
-    description: "Need auto repair but short on cash? Complete guide to all 4 no-credit-check financing options at Nick's Tire & Auto Cleveland. $10 down.",
+    slug: "auto-repair-payment-programs-no-credit-check",
+    title: "Auto Repair Payment Programs with No Credit Check: Complete Guide | Nick's Tire & Auto",
+    description: "Need auto repair but short on cash? Complete guide to all 4 no-credit-check payment programs at Nick's Tire & Auto Cleveland. $10 down.",
     category: "cost-guide",
     sections: [
       {

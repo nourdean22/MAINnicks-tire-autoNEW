@@ -24,10 +24,10 @@ export interface SearchResult {
 // ─── STATIC PAGES ──────────────────────────────────────
 const STATIC_PAGES = [
   {
-    title: "Book an Appointment",
-    description: "Schedule your service online — pick your service, pick your time, done.",
+    title: "Schedule a Drop-Off",
+    description: "Drop your car off at Nick's any day we're open — first-come, first-served. Tell us what's going on, we'll text back within 15 minutes.",
     url: "/#booking",
-    keywords: ["book", "appointment", "schedule", "reserve", "online booking"],
+    keywords: ["drop off", "drop-off", "schedule", "online drop-off", "book", "appointment"],
   },
   {
     title: "Contact Us",
@@ -209,7 +209,7 @@ FAQ QUESTIONS:
 ${faqList}
 
 OTHER PAGES:
-- Book an Appointment (/#booking)
+- Schedule a Drop-Off (/#booking)
 - Contact Us (/#contact)
 - Customer Reviews (/#reviews)
 - Blog & Tips (/blog)
