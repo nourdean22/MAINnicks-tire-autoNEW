@@ -63,12 +63,26 @@ export default defineConfig({
             // unfavorably. Bundling them together costs ~70KB but eliminates
             // the entire class of init-order bugs.
             //
-            // Also covered (added 2026-04-26 after audit): sonner, vaul,
-            // recharts, react-day-picker, embla-carousel-react. Each calls
-            // React.createContext at module load and was at risk of landing
-            // in a separate chunk that evaluates before vendor-react.
+            // 2026-05-05 perf fix — Lighthouse flagged 301 KiB unused JS
+            // shipped with vendor-react. recharts (used ONLY in admin) +
+            // react-day-picker + embla-carousel-react + cmdk are all
+            // restricted to specific UI surfaces. Since admin sections
+            // lazy-load AFTER React mounts, vendor-react has already
+            // initialized — no createContext race. Splitting these to
+            // their own chunks saves ~250 KB on customer first-paint.
             if (
-              /[\\/]node_modules[\\/](react|react-dom|scheduler|react-is|use-sync-external-store|@radix-ui|framer-motion|@tanstack[\\/]react-query|@trpc[\\/]client|@trpc[\\/]react-query|wouter|lucide-react|sonner|vaul|recharts|react-day-picker|embla-carousel-react|react-hot-toast|react-helmet|cmdk|class-variance-authority|tailwind-merge)[\\/]/.test(id)
+              /[\\/]node_modules[\\/]recharts[\\/]/.test(id)
+            ) {
+              return "vendor-charts";
+            }
+            if (
+              /[\\/]node_modules[\\/](react-day-picker|embla-carousel-react|cmdk)[\\/]/.test(id)
+            ) {
+              return "vendor-ui-extras";
+            }
+            // Core React + libs that use createContext at module load.
+            if (
+              /[\\/]node_modules[\\/](react|react-dom|scheduler|react-is|use-sync-external-store|@radix-ui|framer-motion|@tanstack[\\/]react-query|@trpc[\\/]client|@trpc[\\/]react-query|wouter|lucide-react|sonner|vaul|react-hot-toast|react-helmet|class-variance-authority|tailwind-merge)[\\/]/.test(id)
             ) {
               return "vendor-react";
             }
