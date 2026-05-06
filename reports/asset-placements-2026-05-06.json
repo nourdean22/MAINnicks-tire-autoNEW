@@ -1,0 +1,189 @@
+[
+  {
+    "page_url": "https://www.nickstire.org/",
+    "slot": "hero_background",
+    "current_asset": "/hero-cybertruck.webp",
+    "proposed_asset": "STOREFRONT_HERO (closest in repo: /photos/exterior-facade-wide.webp; ideal: a NEW dedicated wide composition with sky + sign + cones + 3 open bays + tire stacks)",
+    "crop": {"ratio_desktop": "16:9", "ratio_mobile": "4:5", "focus": "sign + cones + bays in frame"},
+    "overlay_required": true,
+    "alt_text": "Nick's Tire & Auto storefront on Euclid Ave Cleveland — yellow sign visible, three open service bays, orange cones in foreground guiding the tire line, tire stacks stacked on the right side of the lot",
+    "rationale": "CURRENT: Cybertruck photo is brand-emotion (Cleveland Tough). NEW POSITIONING: behavior instruction (Pull Up / Drop Off). The photo MUST show the cones (tire-line), the open bays (drop-off proof), and the sign (real local place). The cybertruck shows none of those.",
+    "priority": "P1"
+  },
+  {
+    "page_url": "https://www.nickstire.org/",
+    "slot": "header_logo",
+    "current_asset": "BrandMark SVG component (pendant-style, 'CLEVELAND TOUGH' tagline)",
+    "proposed_asset": "LOGO_PATCH (embroidered patch design — gold 'NICK'S' / white 'TIRE & AUTO CLEVELAND, OH' / yellow border on black)",
+    "crop": {"ratio_desktop": "natural; max-height 56px", "ratio_mobile": "natural; max-height 40px", "focus": "full patch visible"},
+    "overlay_required": false,
+    "alt_text": "Nick's Tire & Auto Cleveland — embroidered patch logo",
+    "rationale": "The pendant SVG is on-brand for 'Cleveland Tough' but doesn't match the Asset Dictionary. LOGO_PATCH is the locked brand mark. If it doesn't yet exist as an asset file, it needs to be exported from the source design and committed to /public/.",
+    "priority": "P2"
+  },
+  {
+    "page_url": "https://www.nickstire.org/",
+    "slot": "cones_block_left_image",
+    "current_asset": "(section does not exist on current home — no Cones Mean Keep Moving block)",
+    "proposed_asset": "STOREFRONT_PIT_STOP (closest: /photos/exterior-signage-approach.webp or new tighter crop on cones)",
+    "crop": {"ratio_desktop": "1:1 square", "ratio_mobile": "1:1 square", "focus": "cones in foreground + one open bay + tire stacks on right"},
+    "overlay_required": false,
+    "alt_text": "Orange cones in the Nick's Tire & Auto parking lot guiding the tire-install line, with one open service bay visible and tire stacks ready to mount",
+    "rationale": "Net-new section per HOMEPAGE_MOCKUP. The Cones Mean Keep Moving block is the highest-leverage trust-anchor we don't have. Pairs with 3-icon stack: Stay In The Car / Drop It Off / We'll Handle It.",
+    "priority": "P1"
+  },
+  {
+    "page_url": "https://www.nickstire.org/",
+    "slot": "footer_trust_thumbnail",
+    "current_asset": "(currently uses brand pendant in footer)",
+    "proposed_asset": "STOREFRONT_TRUST (closest: /public/storefront-day.webp)",
+    "crop": {"ratio_desktop": "1:1 thumbnail 200-400px", "ratio_mobile": "same", "focus": "centered storefront, all 3 bays visible"},
+    "overlay_required": false,
+    "alt_text": "Nick's Tire & Auto storefront at 17625 Euclid Ave — three service bays, sign visible, daylight",
+    "rationale": "Footer trust anchor. Real shop > brand mark for trust signaling at the bottom of the page where the user is deciding whether to act.",
+    "priority": "P3"
+  },
+  {
+    "page_url": "https://www.nickstire.org/tires",
+    "slot": "hero_background",
+    "current_asset": "/storefront-bmw.webp (BMW out front)",
+    "proposed_asset": "STOREFRONT_PIT_STOP (closest: /photos/exterior-signage-approach.webp + tighter crop on cones, OR /photos/tire-stacks-overhead.webp)",
+    "crop": {"ratio_desktop": "16:9", "ratio_mobile": "4:5", "focus": "cones + tire stacks (the proof of the FCFS tire model)"},
+    "overlay_required": true,
+    "alt_text": "Cones in foreground at Nick's Tire & Auto Cleveland, tire stacks visible on the right, the FCFS tire-install lane",
+    "rationale": "BMW photo is incidental. Tires page hero must show the FCFS tire process. The cones + stacks is the proof.",
+    "priority": "P1"
+  },
+  {
+    "page_url": "https://www.nickstire.org/booking",
+    "slot": "hero_background",
+    "current_asset": "(uses generic page layout, no dedicated hero photo)",
+    "proposed_asset": "STOREFRONT_HERO (full storefront wide composition)",
+    "crop": {"ratio_desktop": "16:9", "ratio_mobile": "4:5", "focus": "sign + bays"},
+    "overlay_required": true,
+    "alt_text": "Nick's Tire & Auto storefront on Euclid Ave — drop-off entrance, three service bays open",
+    "rationale": "Booking/drop-off page deserves the full storefront credibility shot. Anchors the form to a real local place.",
+    "priority": "P2"
+  },
+  {
+    "page_url": "https://www.nickstire.org/financing",
+    "slot": "top_third_image",
+    "current_asset": "(uses generic financing imagery / icons)",
+    "proposed_asset": "STOREFRONT_TRUST (NOT hero — top third only)",
+    "crop": {"ratio_desktop": "16:9 banner", "ratio_mobile": "4:3", "focus": "centered storefront"},
+    "overlay_required": false,
+    "alt_text": "Nick's Tire & Auto storefront — the local Cleveland shop where payment programs are processed in person, not by a remote lender",
+    "rationale": "Financing pages feel sketchy when they show stock 'happy customer' imagery. Anchoring to the real shop reduces the 'is this a payday lender' fear.",
+    "priority": "P2"
+  },
+  {
+    "page_url": "https://www.nickstire.org/reviews",
+    "slot": "top_banner",
+    "current_asset": "(needs verification — likely default page layout)",
+    "proposed_asset": "STOREFRONT_TRUST",
+    "crop": {"ratio_desktop": "21:9 ultrawide banner", "ratio_mobile": "16:9", "focus": "centered storefront"},
+    "overlay_required": true,
+    "alt_text": "Nick's Tire & Auto storefront, 4.9★ from 1,700+ reviews",
+    "rationale": "Reviews page must visually anchor the proof to the real place.",
+    "priority": "P2"
+  },
+  {
+    "page_url": "https://www.nickstire.org/about",
+    "slot": "hero_or_top_banner",
+    "current_asset": "(needs verification)",
+    "proposed_asset": "STOREFRONT_TRUST",
+    "crop": {"ratio_desktop": "16:9", "ratio_mobile": "4:5", "focus": "centered storefront, all 3 bays equally framed"},
+    "overlay_required": true,
+    "alt_text": "Nick's Tire & Auto storefront on Euclid Ave Cleveland — family-owned since 2018",
+    "rationale": "About page should lead with the real shop, not stock 'team photo' imagery.",
+    "priority": "P2"
+  },
+  {
+    "page_url": "https://www.nickstire.org/brakes",
+    "slot": "hero_background",
+    "current_asset": "/photos/service-bay-clean.webp (good — actual bay)",
+    "proposed_asset": "KEEP /photos/service-bay-clean.webp; ALTERNATIVE: STOREFRONT_PIT_STOP cropped to bay area",
+    "crop": {"ratio_desktop": "16:9", "ratio_mobile": "4:5", "focus": "lift + brake assembly visible"},
+    "overlay_required": true,
+    "alt_text": "Brake service bay at Nick's Tire & Auto with lift + brake assembly visible — Cleveland brake shop on Euclid Ave",
+    "rationale": "Current asset is acceptable. Service bay is the right context. Could be slightly tighter framing on the lift.",
+    "priority": "P3"
+  },
+  {
+    "page_url": "https://www.nickstire.org/diagnostics",
+    "slot": "hero_background",
+    "current_asset": "/photos/alignment-bay.webp (computer + screen — good for diagnostic visual)",
+    "proposed_asset": "KEEP /photos/alignment-bay.webp",
+    "crop": {"ratio_desktop": "16:9", "ratio_mobile": "4:5", "focus": "diagnostic computer screen + connector"},
+    "overlay_required": true,
+    "alt_text": "Diagnostic computer reading OBD-II codes at Nick's Tire & Auto Cleveland — free code pull",
+    "rationale": "Asset is appropriate. Verify object-position keeps the screen in frame on mobile crop.",
+    "priority": "P3"
+  },
+  {
+    "page_url": "https://www.nickstire.org/cleveland-auto-repair",
+    "slot": "hero_background",
+    "current_asset": "/storefront-day.webp (acceptable but generic)",
+    "proposed_asset": "STOREFRONT_TRUST (current /storefront-day.webp is the closest — keep)",
+    "crop": {"ratio_desktop": "16:9", "ratio_mobile": "4:5", "focus": "centered storefront, all 3 bays equally framed"},
+    "overlay_required": true,
+    "alt_text": "Nick's Tire & Auto storefront at 17625 Euclid Ave Cleveland — the city's auto shop, 4.9★ 1,700+ reviews",
+    "rationale": "Asset placement correct. Verify alt-text matches.",
+    "priority": "P3"
+  },
+  {
+    "page_url": "GLOBAL · favicon + apple-touch-icon",
+    "slot": "favicon_set",
+    "current_asset": "/favicon.svg + /favicon-16x16.png + /favicon-32x32.png + /apple-touch-icon.png + /icon-192x192.png + /icon-512x512.png",
+    "proposed_asset": "Regenerate all from LOGO_PATCH (square crop centered on the badge, drop the rectangular border for sub-32px sizes)",
+    "crop": {"ratio": "1:1 square", "focus": "patch center"},
+    "overlay_required": false,
+    "alt_text": "Nick's Tire & Auto",
+    "rationale": "If LOGO_PATCH replaces the pendant brand mark, all favicon sizes need regeneration to match.",
+    "priority": "P3"
+  },
+  {
+    "page_url": "GLOBAL · open graph",
+    "slot": "og_image",
+    "current_asset": "https://d2xsxph8kpxj0f.cloudfront.net/...og-share-image-b6xtjfHGwFJnz4MtsoFkCp.png (external CDN, says 'Cleveland Tough pendant logo on metallic backdrop')",
+    "proposed_asset": "STOREFRONT_HERO with overlay 'Pull Up for Tires. Drop Off for Repairs.'",
+    "crop": {"ratio": "1.91:1 (1200x630)", "focus": "sign + cones + bays + headline overlay"},
+    "overlay_required": true,
+    "alt_text": "Nick's Tire & Auto Euclid Ave Cleveland — Pull Up for Tires. Drop Off for Repairs.",
+    "rationale": "OG card is the share-card seen on every Facebook/Twitter/SMS preview. Currently shows the pendant brand mark — visually disconnected from the FCFS positioning.",
+    "priority": "P2"
+  },
+  {
+    "page_url": "GLOBAL · mobile sticky CTA bar",
+    "slot": "sticky_cta_bar",
+    "current_asset": "Glassmorphic bar with Call + Hold a Bay (already shipped this session, not yet deployed)",
+    "proposed_asset": "Same bar, but rename CTAs: Call · Drop-Off · Directions (no 'Hold a Bay')",
+    "crop": "N/A (no photo)",
+    "overlay_required": false,
+    "alt_text": "N/A",
+    "rationale": "'Hold a Bay' is appointment-language. Replace with 'Drop-Off' (FCFS-affirming) and add Directions for the 4-second walk-in lever.",
+    "priority": "P1"
+  },
+  {
+    "page_url": "AUDIT NOTE · stock-photo audit",
+    "slot": "site_wide_scan",
+    "current_asset": "Per repo grep, no obvious stock photos found — all customer-facing photos are real shop photos. ZERO stock-photo violations detected.",
+    "proposed_asset": "MAINTAIN: zero stock photos discipline.",
+    "crop": "N/A",
+    "overlay_required": false,
+    "alt_text": "N/A",
+    "rationale": "This is a strength worth scaling. Document explicitly in design system.",
+    "priority": "P3"
+  },
+  {
+    "page_url": "AUDIT NOTE · LOGO_PATCH availability",
+    "slot": "asset_existence_check",
+    "current_asset": "/brand-sign.webp exists in /public/ but per filename and prior session context, this is the STOREFRONT SIGN photo, not the embroidered patch logo. The patch design described in the Asset Dictionary may not yet have been exported as a digital asset.",
+    "proposed_asset": "ACTION REQUIRED: export LOGO_PATCH from source design (Figma / Illustrator / wherever) as an SVG + PNG set at the sizes needed (header 56px max, footer 80px, favicon 16/32/192/512). Commit to /public/.",
+    "crop": "N/A (varies by use)",
+    "overlay_required": false,
+    "alt_text": "Nick's Tire & Auto patch — gold NICK'S, white TIRE & AUTO CLEVELAND OH, yellow border on black",
+    "rationale": "Without the asset file, the directive's brand-mark consistency rules can't be enforced. This is a content-creation blocker, not a code blocker.",
+    "priority": "P1"
+  }
+]

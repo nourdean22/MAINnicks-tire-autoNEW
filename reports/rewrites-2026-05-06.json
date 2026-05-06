@@ -1,0 +1,173 @@
+[
+  {
+    "page_url": "https://www.nickstire.org/",
+    "page_section": "hero_h1",
+    "current": "CLEVELAND TOUGH.",
+    "proposed": "PULL UP FOR TIRES. DROP OFF FOR REPAIRS.",
+    "rationale": "Master tagline is the locked positioning. Cleveland Tough was a brand emotion; Pull Up / Drop Off is a behavior instruction. Behavior beats emotion for FCFS conversion.",
+    "frameworks_applied": ["Hopkins specific claim", "Sugarman slippery slide", "Brunson hook"],
+    "priority": "P1"
+  },
+  {
+    "page_url": "https://www.nickstire.org/",
+    "page_section": "hero_subhead",
+    "current": "The Cleveland tire shop your grandfather would've trusted, with the diagnostic gear your kid's Tesla actually needs. Pull up any day of the week — we'll show you the problem on a lift before any wrench moves. Walk-ins welcome, financing approved on the spot.",
+    "proposed": "Cleveland's first-come-first-served shop. Walk in 7 days. Used tires from $60 installed. Written estimate before any wrench moves. Payment programs available on the spot. Don't let the problem get bigger.",
+    "rationale": "Inserts FOUR required phrases (FCFS, used tires from $60, written estimate, payment programs) and removes banned phrase 'financing' (replaced with 'payment programs'). Adds urgency anchor (don't let it get bigger).",
+    "frameworks_applied": ["Hormozi value equation", "Cialdini specificity", "Schwartz solution-aware"],
+    "priority": "P1"
+  },
+  {
+    "page_url": "https://www.nickstire.org/",
+    "page_section": "hero_cta_primary",
+    "current": "Call (216) 862-0005",
+    "proposed": "CALL NOW · (216) 862-0005",
+    "rationale": "Hierarchical action verb upfront. Number stays. 'CALL NOW' is mobile-thumb-tested copy from the mockup CTA stack.",
+    "frameworks_applied": ["Halbert A-pile", "Mobile-first action paths"],
+    "priority": "P1"
+  },
+  {
+    "page_url": "https://www.nickstire.org/",
+    "page_section": "hero_cta_secondary",
+    "current": "Drop Off Your Car",
+    "proposed": "SCHEDULE DROP-OFF",
+    "rationale": "Aligns with mockup CTA stack. Caps + 'SCHEDULE DROP-OFF' avoids both 'Book' (banned) and ambiguity. Mockup has 3-CTA stack: Call / Schedule Drop-Off / Get Directions.",
+    "frameworks_applied": ["Mobile-first", "StoryBrand clear path"],
+    "priority": "P1"
+  },
+  {
+    "page_url": "https://www.nickstire.org/",
+    "page_section": "hero_cta_tertiary",
+    "current": "(missing)",
+    "proposed": "GET DIRECTIONS → 17625 Euclid Ave",
+    "rationale": "Mockup has 3 CTAs above the fold. Directions is a 4-second walk-in lever for a Cleveland driver passing by.",
+    "frameworks_applied": ["Frictionless action"],
+    "priority": "P1"
+  },
+  {
+    "page_url": "https://www.nickstire.org/",
+    "page_section": "trust_strip_below_hero",
+    "current": "(currently uses TrustNumbers / TrustStrip components with rating + review count + financing approved + walk-ins)",
+    "proposed": "★ 4.9 from 1,700+ reviews · First-come-first-served · Used tires from $60 · Payment programs · Open 7 days incl. Sunday",
+    "rationale": "Inserts FCFS + $60 anchor + replaces 'financing' with 'payment programs'. 5 proof points matches mockup spec.",
+    "frameworks_applied": ["Cialdini social proof", "Trust calibrator", "Specificity inflation"],
+    "priority": "P1"
+  },
+  {
+    "page_url": "https://www.nickstire.org/",
+    "page_section": "cones_block_h2",
+    "current": "(does not exist on current home — no Cones Mean Keep Moving section per mockup)",
+    "proposed": "THE CONES MEAN KEEP MOVING.",
+    "rationale": "Net-new section per HOMEPAGE_MOCKUP. Pairs with STOREFRONT_PIT_STOP photo. Three-icon stack: Stay In The Car / Drop It Off / We'll Handle It. Highest-leverage section we don't ship today.",
+    "frameworks_applied": ["StoryBrand 3-step plan", "Sutherland weird-that-works"],
+    "priority": "P1"
+  },
+  {
+    "page_url": "https://www.nickstire.org/booking",
+    "page_section": "meta_title",
+    "current": "Hold Your Spot · Book Auto Repair Online · Cleveland | Nick's",
+    "proposed": "Drop-Off Cleveland · No Appointment, No Reservation | Nick's",
+    "rationale": "BANNED PHRASES PRESENT: 'Hold Your Spot' implies appointment-game. 'Book' is banned. Replace with FCFS-affirming language. Adds anti-pattern naming (operator 4).",
+    "frameworks_applied": ["Anti-pattern naming", "Brunson hook", "FCFS positioning"],
+    "priority": "P1"
+  },
+  {
+    "page_url": "https://www.nickstire.org/booking",
+    "page_section": "meta_description",
+    "current": "Reserve your drop-off in 60 seconds at Nick's Tire & Auto Cleveland. No credit card. No commitment to fix. A master tech calls back within 15 minutes. Walk-ins welcome 7 days.",
+    "proposed": "Drop your car off at Nick's on Euclid Ave any day, any time we're open. No appointment to make. No reservation system. A master tech calls back within 15 minutes with a written estimate before any wrench moves. (216) 862-0005",
+    "rationale": "REMOVE 'Reserve' (banned). 'Drop your car off' affirms the model. 'Written estimate before any wrench moves' is required language. Phone number anchored.",
+    "frameworks_applied": ["Hormozi clarity", "Trust calibrator"],
+    "priority": "P1"
+  },
+  {
+    "page_url": "https://www.nickstire.org/financing",
+    "page_section": "meta_title",
+    "current": "Auto Repair Financing Cleveland · Approved On The Spot | Nick's",
+    "proposed": "Auto Repair Payment Programs Cleveland · $10 Down, Drive Today | Nick's",
+    "rationale": "BANNED PHRASE: 'Financing' as primary positioning. 'Payment Programs' is the locked term. $10 down keeps the urgency anchor.",
+    "frameworks_applied": ["Trust calibrator", "Loss aversion (drive today)"],
+    "priority": "P1"
+  },
+  {
+    "page_url": "https://www.nickstire.org/tires",
+    "page_section": "meta_title",
+    "current": "Tire Shop Near Me · New & Used · Free Install | Cleveland | Nick's",
+    "proposed": "Tires Cleveland · Used From $60 · Pull Up, Stay In The Car | Nick's",
+    "rationale": "Adds the $60 anchor (required phrase) + the FCFS behavior cue ('Stay In The Car'). Operator 1 specificity + operator 5 insider behavior.",
+    "frameworks_applied": ["Hopkins specificity", "Behavior anchor", "Hormozi clarity"],
+    "priority": "P1"
+  },
+  {
+    "page_url": "https://www.nickstire.org/tires",
+    "page_section": "meta_description",
+    "current": "Cleveland tire shop — new & used tires installed, free mount/balance/valve/disposal. Flat repair. Walk-ins 7 days. (216) 862-0005",
+    "proposed": "Used tires from $60 installed. Pull up to Nick's on Euclid — stay in the car, the tire crew works outside, you're rolling before your coffee gets cold. New tires, all major brands. Free mount, balance, valve stems, alignment check. Walk-ins 7 days. (216) 862-0005",
+    "rationale": "Inserts $60 + Pull Up + Stay In The Car. The 'before your coffee gets cold' is operator 3 useful absurd from this session's framework. Same install promise but anchored to the FCFS process.",
+    "frameworks_applied": ["Useful absurd", "Hormozi value", "Behavior anchor"],
+    "priority": "P1"
+  },
+  {
+    "page_url": "https://www.nickstire.org/services",
+    "page_section": "meta_title",
+    "current": "Cleveland Auto Repair Services · One Shop, Every Repair | Nick's",
+    "proposed": "Cleveland Auto Repair · Drop It Off, Estimate First, No Surprises | Nick's",
+    "rationale": "Inserts 'Drop It Off' + 'No Surprises' (required language). Operator 4 anti-pattern (the chains DO surprise you).",
+    "frameworks_applied": ["Anti-pattern naming", "Trust calibrator"],
+    "priority": "P1"
+  },
+  {
+    "page_url": "https://www.nickstire.org/brakes",
+    "page_section": "meta_description",
+    "current": "Brake repair Cleveland from $149/axle. Free inspection, same-day service, 12-month warranty. ★4.9 from 1,700+ reviews. Walk-ins 7 days.",
+    "proposed": "Brake repair Cleveland from $149/axle. Drop it off, walk under the lift with us, see the worn pads yourself. Written estimate before any wrench moves. Same-day repair, 12-month warranty. 4.9★ 1,700+ reviews.",
+    "rationale": "Process anchor ('walk under the lift', 'see the worn pads yourself') = operator 5 insider vocab. 'Drop it off' affirms model. 'Written estimate before any wrench moves' is required.",
+    "frameworks_applied": ["Insider vocab", "Process transparency", "Trust calibrator"],
+    "priority": "P2"
+  },
+  {
+    "page_url": "https://www.nickstire.org/diagnostics",
+    "page_section": "meta_description",
+    "current": "Check engine light on in Cleveland? Free OBD-II scan, exact-cause diagnosis. ★4.9 from 1,700+ reviews. Same-day diagnosis. Walk-ins 7 days.",
+    "proposed": "Check engine light on in Cleveland? Drop it off — free OBD-II scan, plain-English explanation, written estimate before any wrench moves. The chains call this a $99 diagnostic fee. We call it Tuesday. 4.9★ 1,700+ reviews.",
+    "rationale": "Operator 4 anti-pattern naming (chains' $99 fee called out specifically). Operator 3 useful absurd ('We call it Tuesday'). Operator 5 insider vocab ('plain-English' + 'written estimate before any wrench').",
+    "frameworks_applied": ["Anti-pattern", "Useful absurd", "Concession-first"],
+    "priority": "P2"
+  },
+  {
+    "page_url": "https://www.nickstire.org/about",
+    "page_section": "meta_description",
+    "current": "Family-owned auto repair in Cleveland since 2018. Honest service, transparent pricing, 4.9-star reviews. Meet the team behind Northeast Ohio's top-rated shop.",
+    "proposed": "Family-owned auto shop on Euclid Ave since 2018. First-come-first-served. Cones for tires, drop-off for repairs, written estimate before any wrench. The shop where Cleveland drivers stay in the car for tires and walk under the lift for everything else. 4.9★ 1,700+ reviews.",
+    "rationale": "BANNED PHRASE: 'top-rated' (per voice-compliance KILL_LIST). Replaces with concrete behavior signals. Inserts master taglines (cones for tires / drop-off for repairs).",
+    "frameworks_applied": ["Anti-cliche substitution", "Behavior anchor"],
+    "priority": "P2"
+  },
+  {
+    "page_url": "https://www.nickstire.org/contact",
+    "page_section": "meta_description",
+    "current": "Visit Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112. Call (216) 862-0005. Open Mon-Sat 8AM-6PM, Sun 9AM-4PM. Walk-ins welcome.",
+    "proposed": "Pull up to Nick's at 17625 Euclid Ave Cleveland. First-come-first-served. The cones are for tires. The drop-off is for everything else. Open every day we're awake — Mon-Sat 8a-6p, Sun 9a-4p. (216) 862-0005",
+    "rationale": "Inserts 'Pull up' + master tagline + FCFS. Replaces generic 'visit' with specific behavior. Operator 3 useful absurd ('every day we're awake').",
+    "frameworks_applied": ["Master tagline insertion", "Useful absurd"],
+    "priority": "P2"
+  },
+  {
+    "page_url": "https://www.nickstire.org/reviews",
+    "page_section": "meta_description",
+    "current": "Read 1,700+ Google reviews for Nick's Tire & Auto. 4.9-star rating. See why Cleveland trusts us for tires, brakes, diagnostics, and auto repair.",
+    "proposed": "1,700+ Google reviews. 4.9★. The pattern in every one: pulled up not knowing what to expect, walked under the lift to see the worn part, got a written estimate before any wrench moved, paid less than the dealer quote.",
+    "rationale": "Replaces generic 'see why Cleveland trusts us' (banned 'trust' marketing-label) with concrete behavioral pattern. The pattern itself becomes the proof.",
+    "frameworks_applied": ["Pattern observation", "Trust calibrator", "Anti-cliche"],
+    "priority": "P2"
+  },
+  {
+    "page_url": "GLOBAL · banned phrase audit",
+    "page_section": "site_wide_search_replace",
+    "current": "Various pages use: 'Book Appointment', 'Reserve', 'Schedule Appointment', 'Pick a Time Slot', 'Waiting Room', 'Affordable', 'Cheap', 'We Offer Financing'",
+    "proposed": "Search-and-replace across the entire codebase: Book → Drop-off · Reserve → Drop-off · Appointment → Walk-in or Drop-off · Schedule → Drop-off · Affordable → Fair · Cheap → Used (when about tires) · Offer Financing → Payment programs available · Top-rated → 4.9★ 1,700+ reviews",
+    "rationale": "Site-wide compliance pass. Voice-compliance test should add these as new KILL_LIST entries to prevent regression.",
+    "frameworks_applied": ["FCFS positioning lockdown"],
+    "priority": "P1"
+  }
+]
