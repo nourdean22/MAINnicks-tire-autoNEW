@@ -295,13 +295,23 @@ export default function NotificationBar() {
     retry: 1,
   });
 
+  // Fetch active specials so the band auto-features whatever is live
+  // without needing a separate hero band (avoids stacking two strips +
+  // pushing the hero down → LCP cost). Cached aggressively (specials
+  // change daily, not minutely).
+  const { data: activeSpecials } = trpc.specials.getActive.useQuery(undefined, {
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: 30 * 60 * 1000,
+    retry: 1,
+  });
+
   const baseNotifications = useMemo(() => getFilteredHardcodedNotifications(), []);
 
-  // Build the final notification list: weather → dynamic DB → hardcoded fallback
+  // Build the final notification list: weather → specials → dynamic DB → hardcoded fallback
   const activeNotifications = useMemo(() => {
     const list: Notification[] = [];
 
-    // 1. Weather alert first (highest priority)
+    // 1. Weather alert first (highest priority — safety > sales)
     if (weatherData?.alert?.active) {
       const alert = weatherData.alert;
       list.push({
@@ -314,7 +324,26 @@ export default function NotificationBar() {
       });
     }
 
-    // 2. Dynamic database messages
+    // 2. Active specials (next-highest — direct revenue impact). Up to 2
+    //    so the rotation doesn't get monopolized by one promo.
+    if (activeSpecials && activeSpecials.length > 0) {
+      for (const sp of activeSpecials.slice(0, 2)) {
+        // Build a tight one-liner: "TITLE — code XYZ" or just title.
+        const tightLine = sp.couponCode
+          ? `${sp.title} · code ${sp.couponCode}`
+          : sp.title;
+        list.push({
+          id: `special-${sp.id}`,
+          strategy: "value_anchor",
+          text: tightLine,
+          cta: "See details",
+          ctaHref: "/specials",
+          icon: <CreditCard className="w-4 h-4" />,
+        });
+      }
+    }
+
+    // 3. Dynamic database messages
     if (dynamicNotifs && dynamicNotifs.length > 0) {
       for (const dn of dynamicNotifs) {
         list.push({
@@ -328,10 +357,10 @@ export default function NotificationBar() {
       }
     }
 
-    // 3. Hardcoded fallback messages
+    // 4. Hardcoded fallback messages
     list.push(...baseNotifications);
     return list;
-  }, [weatherData, dynamicNotifs, baseNotifications]);
+  }, [weatherData, activeSpecials, dynamicNotifs, baseNotifications]);
 
   // Check if dismissed in last 24 hours
   useEffect(() => {

@@ -327,7 +327,106 @@ export const serviceReviewsRouter = router({
         return { reviews: [] };
       }
     }),
+
+  /**
+   * Reviews mentioning a specific city / neighborhood — for dynamic
+   * social proof on CityPage. Reuses reviewReplies table; matches city
+   * keywords (Cleveland, Euclid, Parma, etc + a few common neighborhood
+   * names) inside the reviewText.
+   *
+   * Why this matters: CityPage previously rendered a single hand-written
+   * testimonial per city. Real keyword-matched reviews are stronger
+   * trust signals AND get rated higher by Google's helpful-content
+   * scoring (real, verifiable, attributed) than static testimonials.
+   */
+  forCity: publicProcedure
+    .input(z.object({ city: z.string().min(1).max(100) }))
+    .query(async ({ input }): Promise<{
+      reviews: Array<{
+        name: string;
+        rating: number;
+        text: string;
+        date: string;
+      }>;
+    }> => {
+      try {
+        const { getDb } = await import("../db");
+        const d = await getDb();
+        if (!d) return { reviews: [] };
+        const { reviewReplies } = await import("../../drizzle/schema");
+        const cityKeywords = buildCityKeywords(input.city);
+        const conditions = cityKeywords.map(
+          (kw) => like(reviewReplies.reviewText, `%${kw}%`),
+        );
+        const matchingReviews: Array<{
+          reviewerName: string | null;
+          reviewRating: number | null;
+          reviewText: string | null;
+          reviewDate: Date | null;
+        }> = await d
+          .select({
+            reviewerName: reviewReplies.reviewerName,
+            reviewRating: reviewReplies.reviewRating,
+            reviewText: reviewReplies.reviewText,
+            reviewDate: reviewReplies.reviewDate,
+          })
+          .from(reviewReplies)
+          .where(
+            and(
+              gte(reviewReplies.reviewRating, 4),
+              or(...conditions),
+            ),
+          )
+          .orderBy(desc(reviewReplies.reviewDate))
+          .limit(3);
+
+        return {
+          reviews: matchingReviews.map((r) => ({
+            name: anonymizeName(r.reviewerName || "Customer"),
+            rating: r.reviewRating || 5,
+            text: r.reviewText || "",
+            date: r.reviewDate ? new Date(r.reviewDate).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            }) : "",
+          })),
+        };
+      } catch (err) {
+        log.error("[CityReviews] Failed:", err);
+        return { reviews: [] };
+      }
+    }),
 });
+
+/**
+ * Map a city slug to keyword variations for reviewText matching.
+ * Includes city name + common neighborhood references so a Cleveland
+ * resident saying "best shop in Glenville" still surfaces under
+ * /cleveland.
+ */
+function buildCityKeywords(city: string): string[] {
+  const lower = city.toLowerCase().replace(/-/g, " ");
+  const map: Record<string, string[]> = {
+    cleveland: ["cleveland", "downtown", "east side", "west side", "glenville", "collinwood", "ohio city", "tremont"],
+    euclid: ["euclid", "euclid ave", "richmond mall", "north euclid"],
+    parma: ["parma", "parma heights", "ridge road"],
+    lakewood: ["lakewood", "detroit ave", "edgewater"],
+    "cleveland heights": ["cleveland heights", "coventry", "cedar fairmount"],
+    "shaker heights": ["shaker heights", "shaker", "van aken"],
+    "south euclid": ["south euclid", "cedar center"],
+    "east cleveland": ["east cleveland", "hayden"],
+    "garfield heights": ["garfield heights", "transportation blvd"],
+    "maple heights": ["maple heights"],
+    "richmond heights": ["richmond heights"],
+    "mayfield heights": ["mayfield heights", "mayfield"],
+    willowick: ["willowick", "willoughby"],
+    wickliffe: ["wickliffe"],
+    eastlake: ["eastlake"],
+    mentor: ["mentor"],
+  };
+  return map[lower] || [lower];
+}
 
 /** Map service slugs/names to keyword variations for searching review text */
 function buildServiceKeywords(service: string): string[] {

@@ -17,6 +17,7 @@ import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
 import FadeIn from "@/components/FadeIn";
 import ResponsivePhoto from "@/components/ResponsivePhoto";
+import CityReviewsBlock from "@/components/CityReviewsBlock";
 
 // Real shop hero — propagates to all 14+ city pages (Euclid, Lakewood, Parma,
 // Parma Heights, East Cleveland, Shaker Heights, Cleveland Heights, etc.)
@@ -318,6 +319,12 @@ export default function CityPage() {
             </div>
           </div>
         </section>
+
+        {/* Real reviews mentioning this city / its neighborhoods. Renders
+            nothing if no matches — graceful fallback to the static
+            testimonial above. As real reviews accumulate this section
+            adds 3 more attributable trust signals per city. */}
+        <CityReviewsBlock city={city.slug} cityName={city.name} />
 
         {/* Service Highlights */}
         <section id="services" className="py-16 lg:py-24 bg-[oklch(0.055_0.004_260)]">
