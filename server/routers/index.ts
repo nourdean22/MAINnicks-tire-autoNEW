@@ -62,3 +62,4 @@ export { noShowRouter } from "./noShow";
 export { snapRouter } from "./snap";
 export { trafficFunnelRouter } from "./trafficFunnel";
 export { conversionRouter } from "./conversion";
+export { seoToolsRouter } from "./seoTools";

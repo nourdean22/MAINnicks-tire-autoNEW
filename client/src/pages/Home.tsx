@@ -1062,8 +1062,12 @@ export default function Home() {
           film-grain overlay. Reinforces the "lines of cars" mental
           model with actual physical proof before any service copy
           loads below. Replaces what would have been a Three.js scene
-          — real photos beat synthetic 3D for an auto shop. */}
-      <PhotoRibbon />
+          — real photos beat synthetic 3D for an auto shop.
+          dataDriven=true: once 25+ views land per top photo, the
+          ribbon auto-reorders by engagement so the leading photo
+          is the one customers actually look at most. Curated order
+          serves as fallback before significance threshold is met. */}
+      <PhotoRibbon dataDriven />
       {/* CONVERSION ARCHITECTURE (v1.1 spec) — TriageGrid replaces the
           generic service-tile decision flow with a Cialdini-architected
           "pick your symptom" pattern. PriceCompare anchors against

@@ -23,8 +23,9 @@
  * No Three.js, no model-viewer, no GPU-heavy assets. Real photos +
  * smart CSS = more persuasive than any synthetic 3D for an auto shop.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { trackEvent } from "@/components/SEO";
+import { trpc } from "@/lib/trpc";
 
 export type RibbonPhoto = {
   src: string;
@@ -48,6 +49,22 @@ export interface PhotoRibbonProps {
   subhead?: string;
   /** Background tone — defaults to the dark home-page tone */
   bgClass?: string;
+  /**
+   * Adaptive mode — when true, fetches per-photo view counts from
+   * customerEvents.topRibbonPhotos and reorders this instance's photo
+   * set so top-performers lead. The curated default order is the
+   * fallback for first-time visitors / sparse data. Re-orders only
+   * when the leading photo has more than `minViewsForReorder` views,
+   * to avoid noise from a handful of early sessions.
+   *
+   * Disabled by default — pages that opt in get the data-driven sort
+   * without changing PhotoRibbon's behavior elsewhere.
+   */
+  dataDriven?: boolean;
+  /** Threshold to consider data significant. Default 25. */
+  minViewsForReorder?: number;
+  /** Window in days. Default 30. */
+  dataDrivenDays?: number;
 }
 
 const DEFAULT_PHOTOS: RibbonPhoto[] = [
@@ -186,9 +203,43 @@ export function PhotoRibbon({
   headingLine2 = "and you'll see this.",
   subhead = "No stock photos. No staging. Just the actual shop running on a normal day.",
   bgClass = "bg-[oklch(0.05_0.004_260)]",
+  dataDriven = false,
+  minViewsForReorder = 25,
+  dataDrivenDays = 30,
 }: PhotoRibbonProps) {
   const railRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
+
+  // Adaptive sort — fetch per-photo view counts only when the page
+  // opted in. Skipped entirely for non-data-driven instances so we
+  // don't add a tRPC round-trip to every page view.
+  const { data: topPhotosData } = trpc.customerEvents.topRibbonPhotos.useQuery(
+    { days: dataDrivenDays, limit: 50 },
+    {
+      enabled: dataDriven,
+      staleTime: 5 * 60 * 1000,
+    },
+  );
+
+  // Reorder photos by view count when adaptive mode is on AND the
+  // top photo has crossed the significance threshold. Otherwise keep
+  // the curated order so first-time visitors get the intentional
+  // narrative arc the operator hand-picked.
+  const orderedPhotos = useMemo(() => {
+    if (!dataDriven || !topPhotosData || topPhotosData.length === 0) return photos;
+    const top = topPhotosData[0];
+    if (!top || (top.count ?? 0) < minViewsForReorder) return photos;
+
+    const counts = new Map<string, number>();
+    for (const p of topPhotosData) {
+      if (p.src) counts.set(p.src, p.count ?? 0);
+    }
+    // Stable sort by count DESC, falling back to original index for ties
+    return [...photos]
+      .map((p, idx) => ({ p, idx, c: counts.get(p.src) ?? 0 }))
+      .sort((a, b) => (b.c - a.c) || (a.idx - b.idx))
+      .map((x) => x.p);
+  }, [dataDriven, topPhotosData, photos, minViewsForReorder]);
   // Track which photos have been counted as "viewed" (>50% in
   // viewport for >300ms) so we don't fire repeat events.
   const viewedRef = useRef<Set<string>>(new Set());
@@ -241,7 +292,7 @@ export function PhotoRibbon({
     );
     photoEls.forEach((el) => obs.observe(el));
     return () => obs.disconnect();
-  }, [photos]);
+  }, [orderedPhotos]);
 
   return (
     <section
@@ -278,7 +329,7 @@ export function PhotoRibbon({
           visible ? "photo-rail-active" : ""
         }`}
       >
-        {photos.map((p, i) => (
+        {orderedPhotos.map((p, i) => (
           <figure
             key={p.src}
             data-src={p.src}
@@ -316,7 +367,7 @@ export function PhotoRibbon({
             </figcaption>
             {/* Index marker — small numerical anchor (frontend-design "1 memorable anchor" rule) */}
             <span className="absolute top-3 right-3 text-[10px] font-mono tracking-[0.2em] text-foreground/60 bg-black/35 backdrop-blur-sm px-2 py-1 rounded">
-              {String(i + 1).padStart(2, "0")} / {String(photos.length).padStart(2, "0")}
+              {String(i + 1).padStart(2, "0")} / {String(orderedPhotos.length).padStart(2, "0")}
             </span>
           </figure>
         ))}

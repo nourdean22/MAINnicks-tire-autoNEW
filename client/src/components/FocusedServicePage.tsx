@@ -599,6 +599,7 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
             headingLine1={config.photoRibbon.headingLine1}
             headingLine2={config.photoRibbon.headingLine2}
             subhead={config.photoRibbon.subhead}
+            dataDriven
           />
         </RiseInView>
       )}

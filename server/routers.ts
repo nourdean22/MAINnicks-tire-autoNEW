@@ -80,6 +80,7 @@ import {
   noShowRouter,
   snapRouter,
   trafficFunnelRouter,
+  seoToolsRouter,
   conversionRouter,
 } from "./routers/index";
 import { voiceAgentRouter } from "./routers/voiceAgent";
@@ -228,6 +229,11 @@ export const appRouter = router({
   // conversion-overhaul spec, NEVER fakes numbers — components decide
   // whether to render based on whether real data is persuasive.
   conversion: conversionRouter,
+
+  // SEO tooling — sitemap submission to Google Search Console.
+  // Wraps scripts/gsc-submit-sitemap.ts as tRPC mutations so admin
+  // can trigger from the UI without SSH-ing into Railway.
+  seoTools: seoToolsRouter,
 });
 
 export type AppRouter = typeof appRouter;

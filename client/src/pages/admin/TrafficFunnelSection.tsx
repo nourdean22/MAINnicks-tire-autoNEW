@@ -18,10 +18,11 @@
 import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { PageHeader } from "./shared";
+import { toast } from "sonner";
 import {
   Loader2, TrendingUp, AlertTriangle, AlertCircle, Info,
   ExternalLink, Zap, Eye, MousePointer, MessageSquare, Calendar, DollarSign,
-  Search, Image as ImageIcon, Activity,
+  Search, Image as ImageIcon, Activity, Send, CheckCircle2, XCircle,
 } from "lucide-react";
 
 type Range = "7d" | "30d" | "90d";
@@ -324,6 +325,9 @@ export default function TrafficFunnelSection() {
       {/* ─── CUSTOMER EVENTS PANEL — visual-surface engagement ── */}
       <CustomerEventsPanel range={range} />
 
+      {/* ─── SITEMAP SUBMISSION PANEL — accelerate Google indexing ── */}
+      <SitemapSubmissionPanel />
+
       {/* ─── FOOTER ─────────────────────────────────────── */}
       <div className="text-[10px] text-foreground/30 text-center pt-2">
         <p>
@@ -496,6 +500,149 @@ function CustomerEventsPanel({ range }: { range: Range }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * SitemapSubmissionPanel — admin button + status board for Google
+ * Search Console sitemap submission. Wraps seoTools.submitSitemaps
+ * + seoTools.sitemapStatus tRPC routes.
+ *
+ * One click submits all 4 sitemaps (main, services, locations, images)
+ * to GSC for re-crawl. Status table shows per-sitemap last-submitted +
+ * indexed-vs-submitted counts so Nour can see each sitemap's Google
+ * processing state without leaving admin.
+ */
+function SitemapSubmissionPanel() {
+  const utils = trpc.useUtils();
+  const { data: status, isLoading: statusLoading } = trpc.seoTools.sitemapStatus.useQuery(
+    undefined,
+    { staleTime: 60_000 },
+  );
+  type SubmitResult = { ok: boolean; authError: string | null; results: Array<{ sitemap: string; ok: boolean; error?: string }> };
+  const submitMutation = trpc.seoTools.submitSitemaps.useMutation({
+    onSuccess: (res: SubmitResult) => {
+      const okCount = res.results.filter((r) => r.ok).length;
+      const failCount = res.results.length - okCount;
+      if (res.authError) {
+        toast.error("GSC auth failed", { description: res.authError });
+      } else if (failCount === 0) {
+        toast.success(`${okCount} sitemap${okCount === 1 ? "" : "s"} submitted`, {
+          description: "Google will re-crawl in 24-72h",
+        });
+      } else {
+        toast.warning(`${okCount} ok · ${failCount} failed`, {
+          description: res.results.filter((r) => !r.ok).map((r) => r.error).filter(Boolean).join(" · "),
+        });
+      }
+      utils.seoTools.sitemapStatus.invalidate();
+    },
+    onError: (err: { message: string }) => {
+      toast.error("Submission failed", { description: err.message });
+    },
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-end justify-between flex-wrap gap-3">
+        <div>
+          <div className="text-[#FDB913] text-[10px] font-mono uppercase tracking-widest mb-1">
+            Search Console
+          </div>
+          <h3 className="font-bold text-base text-foreground tracking-wide uppercase">
+            Sitemap Submission
+          </h3>
+          <p className="text-[12px] text-foreground/40 mt-1 max-w-2xl">
+            Pings Google to re-crawl the 4 sitemaps. Use after content
+            audits, new pages, or when a fresh sitemap-images.xml lands.
+            Same JWT-signed service-account flow as the gsc-submit-sitemap
+            CLI script — just no SSH required.
+          </p>
+        </div>
+        <button
+          onClick={() => submitMutation.mutate(undefined)}
+          disabled={submitMutation.isPending}
+          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 text-sm font-bold tracking-wide hover:bg-primary/90 disabled:opacity-50 transition-colors"
+        >
+          {submitMutation.isPending ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Send className="w-4 h-4" />
+          )}
+          {submitMutation.isPending ? "Submitting..." : "Submit All Sitemaps"}
+        </button>
+      </div>
+
+      <div className="bg-card border border-border/30 overflow-hidden">
+        {statusLoading ? (
+          <div className="flex items-center justify-center py-10">
+            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+          </div>
+        ) : !status || !status.ok ? (
+          <div className="text-[12px] text-amber-400 p-4">
+            {status?.authError
+              ? `GSC auth failed: ${status.authError}`
+              : "Sitemap status unavailable. Confirm GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_SERVICE_ACCOUNT_KEY env vars are set, and that the service account has full siteOwner permissions on https://nickstire.org/."}
+          </div>
+        ) : (
+          <table className="w-full text-[12px]">
+            <thead>
+              <tr className="border-b border-border/20">
+                <th className="text-left p-3 text-[10px] text-foreground/40 tracking-widest uppercase">Sitemap</th>
+                <th className="text-left p-3 text-[10px] text-foreground/40 tracking-widest uppercase">Last Submitted</th>
+                <th className="text-left p-3 text-[10px] text-foreground/40 tracking-widest uppercase">Last Downloaded</th>
+                <th className="text-left p-3 text-[10px] text-foreground/40 tracking-widest uppercase">Submitted / Indexed</th>
+                <th className="text-left p-3 text-[10px] text-foreground/40 tracking-widest uppercase">State</th>
+              </tr>
+            </thead>
+            <tbody>
+              {status.sitemaps.map((s: { url: string; status: { lastSubmitted?: string; lastDownloaded?: string; isPending?: boolean; warnings?: string; errors?: string; contents?: Array<{ type: string; submitted: string; indexed: string }> } | null }) => {
+                const filename = s.url.split("/").pop() || s.url;
+                const submitted = s.status?.contents?.[0]?.submitted ?? "—";
+                const indexed = s.status?.contents?.[0]?.indexed ?? "—";
+                const errCount = Number(s.status?.errors ?? 0);
+                const warnCount = Number(s.status?.warnings ?? 0);
+                const submittedAt = s.status?.lastSubmitted
+                  ? new Date(s.status.lastSubmitted).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+                  : "—";
+                const downloadedAt = s.status?.lastDownloaded
+                  ? new Date(s.status.lastDownloaded).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+                  : "—";
+                return (
+                  <tr key={s.url} className="border-b border-border/10 last:border-0">
+                    <td className="p-3 text-foreground/85 font-mono text-[11px]">{filename}</td>
+                    <td className="p-3 text-foreground/55">{submittedAt}</td>
+                    <td className="p-3 text-foreground/55">{downloadedAt}</td>
+                    <td className="p-3 text-foreground/85 tabular-stat font-mono text-[11px]">{submitted} / {indexed}</td>
+                    <td className="p-3">
+                      {!s.status ? (
+                        <span className="text-foreground/40 text-[11px]">Not yet submitted</span>
+                      ) : errCount > 0 ? (
+                        <span className="inline-flex items-center gap-1 text-red-400 text-[11px]">
+                          <XCircle className="w-3 h-3" /> {errCount} error{errCount === 1 ? "" : "s"}
+                        </span>
+                      ) : warnCount > 0 ? (
+                        <span className="inline-flex items-center gap-1 text-amber-400 text-[11px]">
+                          <AlertTriangle className="w-3 h-3" /> {warnCount} warning{warnCount === 1 ? "" : "s"}
+                        </span>
+                      ) : s.status.isPending ? (
+                        <span className="inline-flex items-center gap-1 text-blue-400 text-[11px]">
+                          <Loader2 className="w-3 h-3 animate-spin" /> Pending
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-emerald-400 text-[11px]">
+                          <CheckCircle2 className="w-3 h-3" /> OK
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }
