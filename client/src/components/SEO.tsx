@@ -229,6 +229,52 @@ export function trackPhoneClick(source: string) {
 }
 
 /**
+ * Generic event-tracking wrapper for non-phone customer-side
+ * conversions. Fires umami + GA4 + a DOM event so consumers can
+ * subscribe without coupling to a specific provider.
+ *
+ * Use for: PhotoRibbon photo views, sticky-CTA Hold-A-Bay clicks,
+ * scroll-depth milestones, anywhere we want signal but a DB row is
+ * overkill.
+ */
+export function trackEvent(
+  eventName: string,
+  data?: Record<string, string | number | boolean>,
+) {
+  if (typeof window !== "undefined" && window.umami) {
+    try {
+      window.umami.track(eventName, data ?? {});
+    } catch {
+      /* umami can throw on SSR or teardown — silent fail */
+    }
+  }
+  // GA4: best-effort via window.gtag if loaded. Type-narrowed to the
+  // small window-typed surface the rest of the codebase already uses.
+  if (
+    typeof window !== "undefined" &&
+    typeof (window as Window & { gtag?: (...args: unknown[]) => void }).gtag === "function"
+  ) {
+    try {
+      (window as Window & { gtag: (...args: unknown[]) => void }).gtag(
+        "event",
+        eventName,
+        {
+          ...data,
+          page_path: window.location.pathname,
+        },
+      );
+    } catch {
+      /* analytics blocked — fine */
+    }
+  }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("nick_event", { detail: { eventName, data } }),
+    );
+  }
+}
+
+/**
  * Skip navigation link — renders as first focusable element.
  * Only visible when focused via keyboard.
  */

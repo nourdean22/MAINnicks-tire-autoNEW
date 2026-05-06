@@ -24,6 +24,7 @@
  * smart CSS = more persuasive than any synthetic 3D for an auto shop.
  */
 import { useEffect, useRef, useState } from "react";
+import { trackEvent } from "@/components/SEO";
 
 export type RibbonPhoto = {
   src: string;
@@ -188,6 +189,9 @@ export function PhotoRibbon({
 }: PhotoRibbonProps) {
   const railRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
+  // Track which photos have been counted as "viewed" (>50% in
+  // viewport for >300ms) so we don't fire repeat events.
+  const viewedRef = useRef<Set<string>>(new Set());
 
   // Gate Ken Burns + tilt animations until the ribbon enters the
   // viewport. Off-screen animations on older Androids are pure waste.
@@ -207,6 +211,37 @@ export function PhotoRibbon({
     obs.observe(railRef.current);
     return () => obs.disconnect();
   }, []);
+
+  // Per-photo view tracking. Fires a "ribbon_photo_view" event the
+  // first time a photo crosses 50% visibility, with the photo's src
+  // and index. Lets us see which photos drive engagement and tune
+  // the curated photo sets per service over time.
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const photoEls = Array.from(
+      rail.querySelectorAll<HTMLElement>(".photo-rail-item")
+    );
+    if (photoEls.length === 0) return;
+
+    const obs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const el = entry.target as HTMLElement;
+          const src = el.dataset.src;
+          const idx = el.dataset.idx;
+          if (!src || viewedRef.current.has(src)) return;
+          if (entry.intersectionRatio >= 0.5) {
+            viewedRef.current.add(src);
+            trackEvent("ribbon_photo_view", { src, index: Number(idx ?? 0) });
+          }
+        });
+      },
+      { threshold: [0.5] }
+    );
+    photoEls.forEach((el) => obs.observe(el));
+    return () => obs.disconnect();
+  }, [photos]);
 
   return (
     <section
@@ -246,6 +281,8 @@ export function PhotoRibbon({
         {photos.map((p, i) => (
           <figure
             key={p.src}
+            data-src={p.src}
+            data-idx={i}
             className={`photo-rail-item relative shrink-0 ${p.widthClass} aspect-[4/3] sm:aspect-[3/2] overflow-hidden rounded-xl`}
             style={{ animationDelay: `${i * 90}ms` }}
           >
@@ -254,7 +291,21 @@ export function PhotoRibbon({
               alt={p.alt}
               loading={i === 0 ? "eager" : "lazy"}
               decoding="async"
+              /* Explicit dimensions — browser computes the layout box
+                 before pixel data arrives, eliminating CLS regression
+                 for slow-network Cleveland customers. Intrinsic ratio
+                 is preserved by the figure's aspect-[4/3] / [3/2]. */
+              width={1200}
+              height={800}
               className="absolute inset-0 w-full h-full object-cover"
+              onError={(e) => {
+                /* Network or 404 fallback — swap in a transparent SVG
+                   so the captioned card still renders without a broken-
+                   image icon. The aspect-ratio container preserves layout. */
+                const img = e.currentTarget;
+                img.style.opacity = "0";
+                img.parentElement?.classList.add("photo-rail-item-error");
+              }}
             />
             {/* Photo grain — purely CSS via inline SVG noise, no asset bytes */}
             <div className="absolute inset-0 photo-grain pointer-events-none mix-blend-overlay opacity-[0.18]" />

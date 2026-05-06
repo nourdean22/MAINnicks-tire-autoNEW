@@ -47,11 +47,15 @@ import { useConversionTracking } from "@/hooks/useConversionTracking";
 const HERO_IMG = "/hero-cybertruck.webp";
 
 const MECHANIC_IMG = "/mechanic-bay.webp";
-// Service-tile photos — owned shop photos, not stock CDN.
-// Switched May 2026 from Manus.space CloudFront stock → real Nick's content.
-const TIRES_IMG = "/storefront-bmw.webp";        // Real customer's BMW out front of the shop
-const DIAG_IMG = "/mechanic-bay.webp";           // Inside our actual bay
-const BRAKES_IMG = "/cybertruck-front-tech.webp"; // Modern vehicle, tech-forward vibe
+// Service-tile photos — 2026-05-06 visual wave 5 photo content audit.
+// Each tile now uses the photo that DIRECTLY matches its service —
+// previous placeholders (storefront-bmw, cybertruck-front-tech) were
+// "real customer" photos but didn't show the actual service content,
+// so the visual–copy match was weak. New photos pulled from
+// /public/photos/ are direct service-action shots.
+const TIRES_IMG = "/photos/tire-stacks-overhead.webp";   // Literal tire inventory
+const DIAG_IMG = "/photos/alignment-bay.webp";           // Computer screen + diagnostic data
+const BRAKES_IMG = "/photos/service-bay-clean.webp";     // Clean lift bay where brake jobs happen
 
 // ─── HERO — Full-viewport cinematic with left content ────
 function Hero() {
@@ -131,7 +135,7 @@ function Hero() {
               monolithic fade-up. Letters punch into place mechanically,
               not bouncily — on-brand for the working-class tire-shop voice. */}
           <h1
-            className="font-heading text-[4rem] sm:text-7xl lg:text-[8.5rem] font-extrabold uppercase text-[#F5F5F5] leading-[0.85] tracking-tight"
+            className="font-heading text-[4rem] sm:text-7xl lg:text-[8.5rem] font-extrabold uppercase text-[#F5F5F5] leading-[0.85] tracking-tight headline-balance"
           >
             <StampLetters text="Cleveland" delay={0.3} />
             <br />

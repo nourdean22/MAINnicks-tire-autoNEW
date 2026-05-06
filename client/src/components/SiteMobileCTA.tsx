@@ -15,7 +15,7 @@
 import { useState, useEffect } from "react";
 import { Phone } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { trackPhoneClick } from "@/components/SEO";
+import { trackPhoneClick, trackEvent } from "@/components/SEO";
 import { BUSINESS } from "@shared/business";
 
 export default function SiteMobileCTA() {
@@ -90,6 +90,7 @@ export default function SiteMobileCTA() {
             <a
               href="/booking"
               aria-label="Book an appointment online"
+              onClick={() => trackEvent("hold_a_bay_click", { source: "mobile-cta" })}
               className="flex items-center justify-center font-bold cta-depth"
               style={{
                 width: "48%",
