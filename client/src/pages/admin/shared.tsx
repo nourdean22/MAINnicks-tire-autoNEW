@@ -406,6 +406,70 @@ export function useUrlFilter<T extends string>(
   return [value, setValue, reset];
 }
 
+// ─── 2026-05-06 — FILTER CHIPS ─────────────────────────────
+// Visual affordance showing currently-active URL filters with one-click
+// reset. Pair with useUrlFilter — when a filter is at its default, it
+// renders no chip; non-default values get a chip with an X.
+//
+// Usage:
+//   <FilterChips chips={[
+//     { label: "Status", value: leadFilter, default: "all", onClear: () => setLeadFilter("all") },
+//     { label: "Search", value: searchQuery, default: "", onClear: () => setSearchQuery("") },
+//   ]} />
+//
+// Renders nothing when ALL filters are at default. Drop in at top of
+// any list/grid for a "what am I currently filtering by?" indicator.
+
+interface FilterChipDef {
+  label: string;
+  value: string;
+  default: string;
+  onClear: () => void;
+  /** Optional: render a friendlier display value (e.g. "All" for "all") */
+  displayValue?: string;
+}
+
+export function FilterChips({ chips, onClearAll }: {
+  chips: FilterChipDef[];
+  /** Optional master clear — clears every active filter */
+  onClearAll?: () => void;
+}) {
+  const active = chips.filter((c) => c.value !== c.default && c.value !== "");
+  if (active.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap py-1">
+      <span className="text-[10px] font-bold tracking-[0.15em] text-foreground/40 uppercase">
+        Filtered by
+      </span>
+      {active.map((chip) => (
+        <span
+          key={chip.label}
+          className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-[11px] bg-primary/10 text-primary border border-primary/20"
+        >
+          <span className="text-primary/60">{chip.label}:</span>
+          <span className="font-medium">{chip.displayValue || chip.value}</span>
+          <button
+            onClick={chip.onClear}
+            className="text-primary/50 hover:text-primary transition-colors"
+            aria-label={`Clear ${chip.label} filter`}
+          >
+            <XCircle className="w-3 h-3" />
+          </button>
+        </span>
+      ))}
+      {active.length > 1 && onClearAll && (
+        <button
+          onClick={onClearAll}
+          className="text-[11px] text-foreground/50 hover:text-primary transition-colors"
+        >
+          Clear all
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── 2026-05-06 — TABBAR / SEARCH / BREADCRUMBS / TIMESTAMP ──
 // Unified secondary-navigation primitives. Replaces ~6 different
 // in-section tab implementations + ad-hoc search + ad-hoc "last

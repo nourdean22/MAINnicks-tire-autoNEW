@@ -2,10 +2,12 @@
  * CommandSearch — Searchable command bar for the admin top bar.
  * Searches customers, navigates to sections, and provides quick actions.
  */
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import { Search, Users, CalendarClock, Phone, X, LayoutDashboard } from "lucide-react";
+import { Search, Users, CalendarClock, Phone, X, LayoutDashboard, Zap, RefreshCw, Sparkles, AlertTriangle, DollarSign, Star, Crown, PhoneCall, FileText } from "lucide-react";
+import { toast } from "sonner";
 import type { AdminSection } from "@/pages/admin/shared";
+import { openDrilldown } from "./DrilldownDrawer";
 
 interface Props {
   onNavigate: (section: AdminSection) => void;
@@ -54,6 +56,19 @@ const SECTION_SHORTCUTS: { id: AdminSection; label: string; keywords: string[]; 
   { id: "settings", label: "Settings & System", keywords: ["setting", "config", "sync", "shopdriver", "health", "compliance", "integrations"], group: "System" },
 ];
 
+// 2026-05-06 — Quick Actions registry for ⌘K palette.
+// Each action either opens a drilldown, triggers a mutation, or fires
+// a side effect. Type-safe action handler is set up at runtime.
+interface QuickAction {
+  id: string;
+  label: string;
+  keywords: string[];
+  icon: React.ReactNode;
+  group: "Drilldown" | "Action";
+  /** Set at component runtime — closure over hooks/dispatchers */
+  run: () => void | Promise<void>;
+}
+
 export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -66,12 +81,122 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     { enabled: open && debouncedQuery.length >= 2 }
   );
 
+  // 2026-05-06 — AI Admin Copilot mutations. Wired into Quick Actions
+  // registry so ⌘K can trigger them without leaving keyboard flow.
+  const refreshAlgMutation = trpc.shopdriver.requestProbe.useMutation({
+    onSuccess: (res) => {
+      if (res?.outcome === "success") {
+        toast.success("ALG probe fired", {
+          description: `Synced ${res.recordsProcessed ?? 0} records in ${res.durationMs ?? 0}ms`,
+        });
+      } else if (res?.outcome === "dedup" || res?.outcome === "skipped_recent" || res?.alreadyFresh) {
+        toast.message("ALG probe skipped", { description: "Recent data still valid" });
+      } else {
+        toast.warning("ALG probe finished", { description: res?.errorMessage || res?.outcome || "Unknown outcome" });
+      }
+    },
+    onError: (err) => toast.error("ALG probe failed", { description: err.message }),
+  });
+  const generateGbpMutation = trpc.contentAdmin.generateGBPPost.useMutation({
+    onSuccess: (res) => {
+      toast.success("GBP post generated", {
+        description: res?.archetype ? `Archetype: ${res.archetype} — ready to copy` : "Ready to paste into business.google.com",
+      });
+    },
+    onError: (err) => toast.error("GBP generation failed", { description: err.message }),
+  });
+
   // Filter section shortcuts
   const matchingSections = query.length >= 1
     ? SECTION_SHORTCUTS.filter(s =>
         s.label.toLowerCase().includes(query.toLowerCase()) ||
         s.keywords.some(k => k.includes(query.toLowerCase()))
       ).slice(0, 4)
+    : [];
+
+  // Quick Actions registry — built at runtime so closures capture
+  // mutation hooks + onNavigate. Memoized to avoid re-running every keystroke.
+  const quickActions = useMemo<QuickAction[]>(() => [
+    {
+      id: "drilldown-walkaways",
+      label: "Show walk-aways",
+      keywords: ["walk", "walkaway", "lost", "declined", "bounced", "abandoned"],
+      icon: <AlertTriangle className="w-4 h-4 text-amber-500" />,
+      group: "Drilldown",
+      run: () => openDrilldown({ kind: "walk_aways", title: "Walk-Aways (Last 7 Days)" }),
+    },
+    {
+      id: "drilldown-callbacks",
+      label: "Show pending callbacks",
+      keywords: ["callback", "call", "missed", "phone", "pending", "owed"],
+      icon: <PhoneCall className="w-4 h-4 text-blue-500" />,
+      group: "Drilldown",
+      run: () => openDrilldown({ kind: "pending_callbacks", title: "Pending Callbacks" }),
+    },
+    {
+      id: "drilldown-fresh-leads",
+      label: "Show fresh leads",
+      keywords: ["lead", "fresh", "new", "today", "incoming"],
+      icon: <Sparkles className="w-4 h-4 text-emerald-500" />,
+      group: "Drilldown",
+      run: () => openDrilldown({ kind: "fresh_leads", title: "Fresh Leads (24h)" }),
+    },
+    {
+      id: "drilldown-revenue-today",
+      label: "Show today's revenue",
+      keywords: ["revenue", "money", "today", "income", "sales", "invoice"],
+      icon: <DollarSign className="w-4 h-4 text-green-500" />,
+      group: "Drilldown",
+      run: () => openDrilldown({ kind: "revenue_today", title: "Revenue — Today" }),
+    },
+    {
+      id: "drilldown-negative-reviews",
+      label: "Show negative reviews",
+      keywords: ["review", "negative", "bad", "complaint", "1-star", "rating"],
+      icon: <Star className="w-4 h-4 text-red-500" />,
+      group: "Drilldown",
+      run: () => openDrilldown({ kind: "negative_reviews", title: "Negative Reviews (≤3★)" }),
+    },
+    {
+      id: "drilldown-lapsed-vips",
+      label: "Show lapsed VIPs",
+      keywords: ["vip", "lapsed", "loyal", "winback", "dormant", "best"],
+      icon: <Crown className="w-4 h-4 text-purple-500" />,
+      group: "Drilldown",
+      run: () => openDrilldown({ kind: "lapsed_vips", title: "Lapsed VIPs" }),
+    },
+    {
+      id: "action-refresh-alg",
+      label: "Refresh ALG (tire counts)",
+      keywords: ["alg", "refresh", "shopdriver", "probe", "tire", "count", "sync"],
+      icon: <RefreshCw className="w-4 h-4 text-cyan-500" />,
+      group: "Action",
+      run: () => refreshAlgMutation.mutate({ reason: "manual_refresh" }),
+    },
+    {
+      id: "action-generate-gbp",
+      label: "Generate GBP post",
+      keywords: ["gbp", "google", "post", "social", "business profile", "generate"],
+      icon: <FileText className="w-4 h-4 text-orange-500" />,
+      group: "Action",
+      run: () => generateGbpMutation.mutate(undefined),
+    },
+    {
+      id: "action-jump-overview",
+      label: "Jump to Today's Brief",
+      keywords: ["brief", "today", "morning", "overview", "dashboard", "home"],
+      icon: <Zap className="w-4 h-4 text-yellow-500" />,
+      group: "Action",
+      run: () => onNavigate("overview"),
+    },
+  ], [refreshAlgMutation, generateGbpMutation, onNavigate]);
+
+  // Filter actions by query
+  const matchingActions = query.length >= 1
+    ? quickActions.filter(a =>
+        a.label.toLowerCase().includes(query.toLowerCase()) ||
+        a.keywords.some(k => k.includes(query.toLowerCase()))
+      ).slice(0, 6)
     : [];
 
   // Keyboard shortcut to open
@@ -100,10 +225,10 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
   }, []);
 
   const customers = customerResults?.customers || [];
-  const hasResults = customers.length > 0 || matchingSections.length > 0;
+  const hasResults = customers.length > 0 || matchingSections.length > 0 || matchingActions.length > 0;
 
-  // Total results for keyboard navigation
-  const totalResults = matchingSections.length + customers.length;
+  // Total results for keyboard navigation. Order: Sections → Actions → Customers
+  const totalResults = matchingSections.length + matchingActions.length + customers.length;
 
   // Keyboard navigation within results
   useEffect(() => {
@@ -123,8 +248,15 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
         if (selectedIndex < matchingSections.length) {
           onNavigate(matchingSections[selectedIndex].id);
           close();
+        } else if (selectedIndex < matchingSections.length + matchingActions.length) {
+          const actIdx = selectedIndex - matchingSections.length;
+          const action = matchingActions[actIdx];
+          if (action) {
+            void action.run();
+            close();
+          }
         } else {
-          const custIdx = selectedIndex - matchingSections.length;
+          const custIdx = selectedIndex - matchingSections.length - matchingActions.length;
           if (customers[custIdx]) {
             onSelectCustomer((customers[custIdx] as { id: number }).id);
             close();
@@ -134,7 +266,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [open, selectedIndex, totalResults, matchingSections, customers, close, onNavigate, onSelectCustomer]);
+  }, [open, selectedIndex, totalResults, matchingSections, matchingActions, customers, close, onNavigate, onSelectCustomer]);
 
   // Reset selection when query changes
   useEffect(() => { setSelectedIndex(-1); }, [query]);
@@ -198,6 +330,33 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
                     </div>
                   )}
 
+                  {/* Quick Actions (drilldowns + mutations) */}
+                  {matchingActions.length > 0 && (
+                    <div className="px-2 py-2 border-t border-border/10">
+                      <div className="px-2 py-1 text-[10px] font-semibold text-foreground/40 tracking-wider uppercase">Actions</div>
+                      {matchingActions.map((a, ai) => {
+                        const idx = matchingSections.length + ai;
+                        const isPending =
+                          (a.id === "action-refresh-alg" && refreshAlgMutation.isPending) ||
+                          (a.id === "action-generate-gbp" && generateGbpMutation.isPending);
+                        return (
+                          <button
+                            key={a.id}
+                            onClick={() => { void a.run(); close(); }}
+                            disabled={isPending}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                              selectedIndex === idx ? "bg-primary/15 text-primary" : "hover:bg-primary/10"
+                            }`}
+                          >
+                            {a.icon}
+                            <span className="flex-1">{a.label}</span>
+                            <span className="text-[10px] text-foreground/30 uppercase tracking-wider">{a.group}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   {/* Customer results */}
                   {customers.length > 0 && (
                     <div className="px-2 py-2 border-t border-border/10">
@@ -207,7 +366,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
                           key={c.id}
                           onClick={() => { onSelectCustomer(c.id); close(); }}
                           className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors group ${
-                            selectedIndex === matchingSections.length + ci ? "bg-primary/15" : "hover:bg-primary/10"
+                            selectedIndex === matchingSections.length + matchingActions.length + ci ? "bg-primary/15" : "hover:bg-primary/10"
                           }`}
                         >
                           <Users className="w-4 h-4 text-foreground/40 group-hover:text-primary" />
