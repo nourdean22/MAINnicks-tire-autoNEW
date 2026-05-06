@@ -31,6 +31,7 @@ import RiseInView from "@/components/RiseInView";
 import HeroDustLayer from "@/components/HeroDustLayer";
 import StampLetters from "@/components/StampLetters";
 import SkylineDivider from "@/components/SkylineDivider";
+import SignFeature from "@/components/SignFeature";
 // Conversion-architecture components (Batch 1 of v1.1 spec)
 import LiveVisitorCounter from "@/components/conversion/LiveVisitorCounter";
 import ServiceTriageCard from "@/components/conversion/ServiceTriageCard";
@@ -76,10 +77,17 @@ function Hero() {
       <div className="absolute inset-0 hero-bg ken-burns-target">
         <picture>
           <source media="(max-width: 768px)" srcSet="/hero-cybertruck-mobile.webp" type="image/webp" />
+          {/* 2026-05-06 sign-positioning fix · object-position favors the
+              upper portion of the photo so the Nick's Tire & Auto
+              storefront sign (which sits above the cybertruck in the
+              frame) stays visible after object-cover crop on tall
+              viewports. Was implicitly `center center` which cropped
+              the sign on phones in landscape and short laptop screens. */}
           <img
             src={HERO_IMG}
-            alt="Tesla Cybertruck parked outside Nick's Tire & Auto on Euclid Ave in Cleveland — real shop, real customers, real cars"
+            alt="Nick's Tire & Auto storefront sign on Euclid Ave Cleveland with a Tesla Cybertruck parked out front — real shop, real sign, real customers"
             className="w-full h-full object-cover"
+            style={{ objectPosition: "center 30%" }}
             loading="eager"
             fetchPriority="high"
           />
@@ -1096,6 +1104,12 @@ export default function Home() {
       <FastPaths />
       <RiseInView className="parallax-rise"><UsedTiresCallout /></RiseInView>
       <RiseInView className="parallax-rise"><TrustNumbers /></RiseInView>
+      {/* SIGN FEATURE — dedicated trust-anchor section featuring the
+          actual brand sign on Euclid Ave. Lands between stat density
+          and photo ribbon. The sign is the strongest visual recognition
+          asset; given its own surface it carries the trust load
+          better than competing inside the ribbon's 7-photo set. */}
+      <RiseInView className="parallax-rise"><SignFeature /></RiseInView>
       {/* Cleveland skyline silhouette divider — small SVG, not a generic
           wave. Marks the transition from stat-density into the physical
           photo proof. Brand-specific, not SaaS-generic. */}
