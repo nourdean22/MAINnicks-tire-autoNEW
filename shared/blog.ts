@@ -2,6 +2,36 @@
  * Blog/Tips content for Nick's Tire & Auto
  * SEO-optimized maintenance articles following the brand's content structure:
  * Problem Hook → Simple Explanation → Diagnostic Authority → Solution → Local Trust → CTA
+ *
+ * 2026-05-06 COPY FRAMEWORK · "Useful Absurdity" — applied to GSC-traffic
+ * blog metas + documented for future content. Synthesized from idea-darwin
+ * + sam-altman skill personas. Five evolution operators:
+ *
+ *   1. SPECIFICITY INFLATION
+ *      "Free brake check" → "rotor thickness measured to .001 inch"
+ *
+ *   2. CONCESSION-FIRST PERSUASION
+ *      "We're great" → "Cheaper than the dealer. More honest than the chain."
+ *
+ *   3. USEFUL ABSURD COMPARISON
+ *      "Same-day repair" → "out the door before lunch" / "before your
+ *      coffee gets cold" / "open every day we're awake"
+ *
+ *   4. ANTI-PATTERN NAMING
+ *      "Honest pricing" → "The chain advertises a tire price. They don't
+ *      advertise the $289 they tack on at the register."
+ *
+ *   5. INSIDER VOCABULARY
+ *      "Diagnostic" → "code pull" · "Multi-point" → "walk-around" ·
+ *      Use mechanic-shop colloquialism. Signals peer not marketer.
+ *
+ * Constraints (enforced by server/voice-compliance.test.ts on services):
+ *   - metaTitle ≤ 60 chars
+ *   - metaDescription ≤ 170 chars
+ *   - No KILL_LIST clichés ("top-rated", "trusted", "premier", etc.)
+ *
+ * Apply at least 2 operators per new article meta. Lead with the
+ * one that best fits the article's actual differentiator.
  */
 
 export interface BlogArticle {
@@ -26,8 +56,8 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   {
     slug: "5-signs-brakes-need-replacing",
     title: "5 Signs Your Brakes Need Replacing",
-    metaTitle: "5 Signs Your Brakes Need Replacing | Nick's Tire & Auto Cleveland",
-    metaDescription: "Squealing, grinding, or soft brake pedal? Learn the 5 warning signs your brakes need attention from Cleveland's brake shop on Euclid Ave.",
+    metaTitle: "5 Brake Sounds Cleveland Mechanics Don't Tell You About | Nick's",
+    metaDescription: "Squeal, grind, soft pedal, pulsation, click — each brake sound says something specific. Cleveland mechanic translates them, plus what gets missed at chain inspections.",
     category: "Brake Repair",
     publishDate: "2026-03-01",
     readTime: "4 min read",
@@ -1770,8 +1800,8 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   {
     slug: "car-inspection-before-buying-used",
     title: "Pre-Purchase Car Inspection: Buying Used Checklist",
-    metaTitle: "Pre-Purchase Car Inspection Cleveland | Nick's Tire & Auto",
-    metaDescription: "Buying a used car? Get a pre-purchase inspection first. Our 100-point checklist catches hidden problems before you sign. Nick's Tire & Auto — Cleveland.",
+    metaTitle: "Used Car Inspection Cleveland · What Sellers Skip | Nick's",
+    metaDescription: "Cleveland pre-purchase inspection. The 100-point check that catches what the seller forgot. 90 minutes, written report you take to the negotiation.",
     category: "Cost Guide",
     publishDate: "2026-04-11",
     readTime: "6 min read",
@@ -2089,8 +2119,8 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   {
     slug: "car-making-clicking-noise",
     title: "Car Making a Clicking Noise? Here's What It Could Be",
-    metaTitle: "Car Clicking Noise Diagnosis | Cleveland Auto Repair | Nick's Tire & Auto",
-    metaDescription: "Clicking when turning, starting, or driving? Each clicking noise points to a different problem. Diagnosis at Nick's Tire & Auto — Cleveland, Euclid.",
+    metaTitle: "Car Clicking Noise · Translate It Before The Tow | Nick's",
+    metaDescription: "Click on turn? CV joint. Click on start? Starter solenoid. Click while driving? Bad valve lifter. Cleveland mechanic decodes every click — plus what most shops miss.",
     category: "Diagnostics",
     publishDate: "2026-04-20",
     readTime: "5 min read",
@@ -2264,8 +2294,8 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   {
     slug: "best-tire-brands-budget-cleveland",
     title: "Best Budget Tire Brands for Cleveland Drivers",
-    metaTitle: "Best Budget Tire Brands Cleveland | Nick's Tire & Auto",
-    metaDescription: "Ironman, Westlake, Federal — how do budget tire brands compare to premium? Cleveland tire shop breaks down real performance and value.",
+    metaTitle: "Best Cheap Tires Cleveland · Honest Mechanic Take | Nick's",
+    metaDescription: "Cleveland tire shop ranks Ironman, Westlake, Federal, and the rest of the budget shelf. Which grips snow. Which lasts. Which we'd put on our family car.",
     category: "Tires",
     publishDate: "2025-12-15",
     readTime: "6 min read",
@@ -2719,8 +2749,8 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   {
     slug: "car-wont-accelerate-causes",
     title: "Car Won't Accelerate? Cleveland Mechanic Guide",
-    metaTitle: "Car Won't Accelerate Causes | Nick's Tire & Auto Cleveland",
-    metaDescription: "Car feels sluggish or will not accelerate? Fuel, transmission, ignition, and MAF sensor problems are the most common causes. Cleveland diagnostic shop.",
+    metaTitle: "Car Won't Accelerate · 4 Causes (Cheap to Brutal) | Nick's",
+    metaDescription: "Car sluggish or won't accelerate? 4 causes ranked cheap to brutal — MAF sensor, fuel filter, transmission slip, timing chain. Cleveland diagnostic mechanic.",
     category: "Diagnostics",
     publishDate: "2026-02-25",
     readTime: "5 min read",
@@ -2894,8 +2924,8 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   {
     slug: "car-broke-down-on-i90-cleveland",
     title: "Car Broke Down on I-90? Cleveland Emergency Steps",
-    metaTitle: "Car Broke Down on I-90 Cleveland — What to Do | Nick's Tire & Auto",
-    metaDescription: "Broke down on I-90 in Cleveland? Follow these emergency steps to stay safe, get help fast, and avoid getting scammed by predatory tow trucks.",
+    metaTitle: "Broke Down On I-90? Don't Call The Tow Yet | Nick's",
+    metaDescription: "Cleveland mechanic's I-90 breakdown playbook. Stay safe, avoid the predatory tow trick, get the cheapest path home — in that order. What tow drivers don't tell you.",
     category: "Emergency",
     publishDate: "2026-04-03",
     readTime: "5 min read",
