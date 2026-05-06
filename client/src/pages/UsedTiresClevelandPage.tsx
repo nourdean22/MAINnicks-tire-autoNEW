@@ -20,10 +20,14 @@ const CONFIG: ServicePageConfig = {
   canonicalPath: "/used-tires-cleveland",
   // Wide-bay shot — shows the actual install environment
   heroImage: "/mechanic-bay.webp",
-  title: "Used Tires Cleveland · Inspected & Installed | Nick's",
-  description: "Cleveland used tires that don't insult your intelligence. Every tire passes a 4-point exam — tread, sidewall, DOT date, plug history — before it earns a spot on your car. Walk-ins 7 days, financing on the spot. 4.9★ across 1,700+ reviews. (216) 862-0005",
+  // 2026-05-06 copy wave: title now specifies the 4-point promise
+  // upfront. H1 dropped the "no funny business" cliché for the
+  // sharper "no time bombs" — operator 4 (anti-pattern of selling
+  // tires nobody inspected the DOT date on).
+  title: "Used Tires Cleveland · 4-Point Inspection, Free Install | Nick's",
+  description: "Cleveland used tires that don't insult your intelligence. Every tire passes a 4-point exam — tread, sidewall, DOT date, plug history — before it earns a spot on your car. Walk-ins 7 days. 4.9★ 1,700+ reviews.",
   eyebrow: "USED TIRES — CLEVELAND'S BEST-KEPT SECRET",
-  h1: "USED TIRES CLEVELAND — INSPECTED, INSTALLED, NO FUNNY BUSINESS",
+  h1: "USED TIRES CLEVELAND.\n4-POINT EXAM. NO TIME BOMBS.",
   sub: "Need a tire today, not a payment plan? We carry quality-inspected used tires in most popular sizes — fully installed, free mount, free balance, free attitude. Every tire passes a 4-point check before it earns a spot on your car: tread depth measured (not eyeballed), sidewall walked for cracks, DOT date verified (no time bombs), plug history reviewed. Call your size before you drive over — we'll tell you what's on the rack and what we'd put on our own family's car.",
   startingPrice: "Walk-ins welcome · free quote in shop",
   pricingTitle: "USED TIRE PRICING — TRANSPARENT BY DEFAULT",
