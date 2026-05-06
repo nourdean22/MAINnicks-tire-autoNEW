@@ -27,6 +27,7 @@ import ServiceReviewsBlock from "./ServiceReviewsBlock";
 import PageLayout from "./PageLayout";
 import { SEOHead, Breadcrumbs } from "./SEO";
 import LocalBusinessSchema from "./LocalBusinessSchema";
+import PhotoRibbon from "./PhotoRibbon";
 import { Link } from "wouter";
 import { CITIES } from "@shared/cities";
 
@@ -152,6 +153,19 @@ export interface ServicePageConfig {
       ctaHref: string;
       icon?: React.ReactNode;
     }>;
+  };
+
+  /** Optional cinematic photo ribbon — real shop photos relevant to the
+   *  service. Renders between "What's Included" and the review block —
+   *  the natural beat where the reader has just learned what they get
+   *  and now sees physical proof of where they'd get it. Mobile-fast
+   *  (CSS-only, IntersectionObserver-gated, real photos already on CDN). */
+  photoRibbon?: {
+    photos: import("./PhotoRibbon").RibbonPhoto[];
+    eyebrow?: string;
+    headingLine1?: string;
+    headingLine2?: string;
+    subhead?: string;
   };
 }
 
@@ -558,6 +572,21 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
           asking "is it worth it?" The fear stats answer with quantified risk. */}
       <FearStatsSection config={config} />
       <IncludedSection config={config} />
+      {/* Cinematic photo ribbon — physical proof of the shop running
+          this service. Lands between "what you get" and "what others
+          said about it" — the natural beat where the reader is
+          deciding "is this real?" Photos answer that. Renders nothing
+          when config.photoRibbon is undefined, so service pages that
+          haven't curated a photo set get zero visual change. */}
+      {config.photoRibbon && (
+        <PhotoRibbon
+          photos={config.photoRibbon.photos}
+          eyebrow={config.photoRibbon.eyebrow}
+          headingLine1={config.photoRibbon.headingLine1}
+          headingLine2={config.photoRibbon.headingLine2}
+          subhead={config.photoRibbon.subhead}
+        />
+      )}
       {/* Real-customer review block — pulled from reviewReplies via
           serviceReviews.forService. Surfaces 4-5 star reviews mentioning
           this service. Lands AFTER pricing (reduces sticker-shock) and

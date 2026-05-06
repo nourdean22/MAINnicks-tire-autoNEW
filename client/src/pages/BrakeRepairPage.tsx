@@ -7,6 +7,7 @@
  */
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
+import { BRAKES_PHOTOS } from "@/components/PhotoRibbon";
 import { Disc, Activity, Wrench } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
@@ -89,6 +90,13 @@ const CONFIG: ServicePageConfig = {
       ctaLabel: "STOP THE DAMAGE TODAY",
     },
   ],
+  photoRibbon: {
+    photos: BRAKES_PHOTOS,
+    eyebrow: "Brake bays · Pads on the bench · Real lift-ups",
+    headingLine1: "We do this every day,",
+    headingLine2: "and it's not theatre.",
+    subhead: "Real lifts, real measurements, real customers — no stock photos, no fake \"shop tour\" video.",
+  },
   crossSell: {
     heading: "While you're here — what else might your car need?",
     items: [

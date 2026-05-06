@@ -14,6 +14,7 @@
  */
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
+import { TIRES_PHOTOS } from "@/components/PhotoRibbon";
 import { Award, ShieldCheck, Gauge } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
@@ -85,6 +86,13 @@ const CONFIG: ServicePageConfig = {
         consequence: "Over-torqued lug nuts from impact-gun install warp rotors and snap studs. We torque to spec on every wheel — basic mechanic discipline some shops skip to save 60 seconds per car.",
       },
     ],
+  },
+  photoRibbon: {
+    photos: TIRES_PHOTOS,
+    eyebrow: "Inventory · Mounted · Driven Off the Lot",
+    headingLine1: "Stacked floor-to-ceiling.",
+    headingLine2: "Mounted in 90 minutes.",
+    subhead: "Real inventory. Real installs. Real customers driving out the same day they walked in.",
   },
   crossSell: {
     heading: "Or maybe a different fit makes more sense.",

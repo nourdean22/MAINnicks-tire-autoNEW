@@ -1245,12 +1245,40 @@ html[data-density="compact"] .admin-shell .p-4 { padding: 0.625rem; }
   will-change: transform;
 }
 
+/* Section parallax — each section drifts UP slightly as it
+   crosses the viewport. Pure CSS via animation-timeline: view().
+   Modern Chrome 115+ + Edge 115+ supports it natively. Older
+   browsers (Safari < 17.5, FF) get a no-op since the animation
+   plays only when bound to a scroll-progress timeline.
+
+   Net result: in-spec browsers get cinematic depth between
+   sections. Out-of-spec browsers see the page exactly as before.
+   No JS shim, no observers, no perf hit either way. */
+@supports (animation-timeline: view()) {
+  @keyframes parallaxRise {
+    /* Section enters viewport: starts slightly low + transparent */
+    0% { transform: translateY(40px); opacity: 0.6; }
+    /* Centered: at rest */
+    40%, 60% { transform: translateY(0); opacity: 1; }
+    /* Exits: drifts up slightly */
+    100% { transform: translateY(-30px); opacity: 0.85; }
+  }
+
+  .parallax-rise {
+    animation: parallaxRise linear both;
+    animation-timeline: view();
+    animation-range: cover 0% cover 100%;
+    will-change: transform, opacity;
+  }
+}
+
 /* Reduced-motion: kill all rotation + drift animations. */
 @media (prefers-reduced-motion: reduce) {
   .ken-burns,
   .ken-burns-target img,
   .photo-rail-active .photo-rail-item img,
-  .css-tire::before {
+  .css-tire::before,
+  .parallax-rise {
     animation: none !important;
   }
   .photo-rail-item {

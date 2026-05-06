@@ -27,6 +27,7 @@ import BrandMark from "@/components/BrandMark";
 import ShopStatusWidget from "@/components/ShopStatusWidget";
 import UberDropoffWidget from "@/components/UberDropoffWidget";
 import PhotoRibbon from "@/components/PhotoRibbon";
+import RiseInView from "@/components/RiseInView";
 // Conversion-architecture components (Batch 1 of v1.1 spec)
 import LiveVisitorCounter from "@/components/conversion/LiveVisitorCounter";
 import ServiceTriageCard from "@/components/conversion/ServiceTriageCard";
@@ -1031,8 +1032,8 @@ export default function Home() {
       <TrustStrip />
       <TrustBadges />
       <FastPaths />
-      <UsedTiresCallout />
-      <TrustNumbers />
+      <RiseInView className="parallax-rise"><UsedTiresCallout /></RiseInView>
+      <RiseInView className="parallax-rise"><TrustNumbers /></RiseInView>
       {/* PHOTO RIBBON — 2026-05-06 cinematic depth wave. Real shop
           photos in a horizontal scroll-snap rail, Ken Burns drift,
           film-grain overlay. Reinforces the "lines of cars" mental
@@ -1043,16 +1044,19 @@ export default function Home() {
       {/* CONVERSION ARCHITECTURE (v1.1 spec) — TriageGrid replaces the
           generic service-tile decision flow with a Cialdini-architected
           "pick your symptom" pattern. PriceCompare anchors against
-          dealer/chain quotes. SafetyFacts makes risk visceral. */}
-      <TriageGrid />
-      <PriceCompareSection />
-      <SafetyFactsSection />
-      <Services />
-      <WhyUs />
-      <PullUpBand />
-      <LossOpportunitySection />
-      <Reviews />
-      <ComparisonTable />
+          dealer/chain quotes. SafetyFacts makes risk visceral.
+          Each major section gets a RiseInView fade-and-rise + the
+          .parallax-rise CSS utility for scroll-driven drift on modern
+          browsers (graceful no-op everywhere else). */}
+      <RiseInView className="parallax-rise"><TriageGrid /></RiseInView>
+      <RiseInView className="parallax-rise"><PriceCompareSection /></RiseInView>
+      <RiseInView className="parallax-rise"><SafetyFactsSection /></RiseInView>
+      <RiseInView className="parallax-rise"><Services /></RiseInView>
+      <RiseInView className="parallax-rise"><WhyUs /></RiseInView>
+      <RiseInView className="parallax-rise"><PullUpBand /></RiseInView>
+      <RiseInView className="parallax-rise"><LossOpportunitySection /></RiseInView>
+      <RiseInView className="parallax-rise"><Reviews /></RiseInView>
+      <RiseInView className="parallax-rise"><ComparisonTable /></RiseInView>
       {/* ── DROP-OFF + UBER-OUT — Pillar 4, the killer flywheel ──────────── */}
       <section className="bg-[oklch(0.055_0.004_260)] py-14 border-t border-border/30">
         <div className="container">

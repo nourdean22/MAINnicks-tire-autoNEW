@@ -6,6 +6,7 @@
  */
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
+import { DIAGNOSTICS_PHOTOS } from "@/components/PhotoRibbon";
 import { Disc, AlertTriangle, Clock } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
@@ -97,6 +98,13 @@ const CONFIG: ServicePageConfig = {
       ctaLabel: "STOP THE LEAK",
     },
   ],
+  photoRibbon: {
+    photos: DIAGNOSTICS_PHOTOS,
+    eyebrow: "Scan tools · Live data · Written estimates",
+    headingLine1: "We measure the codes,",
+    headingLine2: "not improvise the bill.",
+    subhead: "Real shop floor — alignment bay, OBD-II in hand, the front desk where you get the answer.",
+  },
   crossSell: {
     heading: "Got the diagnosis? Here's the next step.",
     items: [
