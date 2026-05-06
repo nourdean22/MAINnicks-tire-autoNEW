@@ -737,7 +737,21 @@ function Customer360Panel({ customer, onSmsClick }: {
 type SortByExt = "name" | "visits" | "lastVisit" | "totalSpent" | "firstVisit" | "created";
 
 export default function CustomersSection() {
-  const [activeTab, setActiveTab] = useState<CustomerTab>("customers");
+  // URL-persistent tab state (matches Settings pattern via ?customersTab=...)
+  const [activeTab, setActiveTab] = useState<CustomerTab>(() => {
+    if (typeof window === "undefined") return "customers";
+    const raw = new URLSearchParams(window.location.search).get("customersTab");
+    return raw === "loyalty" || raw === "coupons" ? raw : "customers";
+  });
+
+  // Keep URL in sync when tab changes
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (activeTab === "customers") url.searchParams.delete("customersTab");
+    else url.searchParams.set("customersTab", activeTab);
+    window.history.replaceState({}, "", url.toString());
+  }, [activeTab]);
 
   return (
     <div className="space-y-6">

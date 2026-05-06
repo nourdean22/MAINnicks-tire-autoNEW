@@ -17,6 +17,7 @@ import {
 } from "./admin/shared";
 import { CommandSearch } from "@/components/admin/CommandSearch";
 import ThemeToggle from "@/components/admin/ThemeToggle";
+import DensityToggle from "@/components/admin/DensityToggle";
 import ActivityPulse from "@/components/admin/ActivityPulse";
 import WeatherAwareBanner from "@/components/admin/WeatherAwareBanner";
 import { CustomerDrawer } from "@/components/admin/CustomerDrawer";
@@ -427,6 +428,7 @@ export default function Admin() {
             onNavigate={(s) => setSection(s)}
             onSelectCustomer={(id) => setDrawerCustomerId(id)}
           />
+          <DensityToggle />
           <ThemeToggle />
           <Link
             href="/admin/content"

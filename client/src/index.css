@@ -898,6 +898,33 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   ADMIN DENSITY MODE — compact toggle via DensityToggle component
+   ═══════════════════════════════════════════════════════════════
+   Sets `data-density="compact"` on <html>. Compact mode tightens
+   vertical rhythm + card padding + grid gaps so power users see
+   more on screen. Comfortable is default.
+
+   Targets the admin shell only — customer pages unaffected.
+   ═══════════════════════════════════════════════════════════════ */
+
+html[data-density="compact"] .admin-shell .stat-card { padding: 0.625rem; }
+html[data-density="compact"] .admin-shell .stat-card .number-animate { font-size: 1.25rem; }
+html[data-density="compact"] .admin-shell h1,
+html[data-density="compact"] .admin-shell h2 { font-size: 0.875rem; }
+html[data-density="compact"] .admin-shell h3 { font-size: 0.8125rem; }
+html[data-density="compact"] .admin-shell .space-y-8 > * + * { margin-top: 1rem; }
+html[data-density="compact"] .admin-shell .space-y-6 > * + * { margin-top: 0.75rem; }
+html[data-density="compact"] .admin-shell .space-y-4 > * + * { margin-top: 0.5rem; }
+html[data-density="compact"] .admin-shell .gap-6 { gap: 0.75rem; }
+html[data-density="compact"] .admin-shell .gap-4 { gap: 0.625rem; }
+html[data-density="compact"] .admin-shell .py-12 { padding-top: 2rem; padding-bottom: 2rem; }
+html[data-density="compact"] .admin-shell .py-8 { padding-top: 1.25rem; padding-bottom: 1.25rem; }
+html[data-density="compact"] .admin-shell .py-6 { padding-top: 1rem; padding-bottom: 1rem; }
+html[data-density="compact"] .admin-shell .p-6 { padding: 1rem; }
+html[data-density="compact"] .admin-shell .p-5 { padding: 0.75rem; }
+html[data-density="compact"] .admin-shell .p-4 { padding: 0.625rem; }
+
+/* ═══════════════════════════════════════════════════════════════
    3D DEPTH SYSTEM — Universal across all customer pages
    ═══════════════════════════════════════════════════════════════
    Per the 3d-web-experience skill: "When 3D enhances and when it's
