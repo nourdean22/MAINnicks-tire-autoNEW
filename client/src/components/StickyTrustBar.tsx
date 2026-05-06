@@ -127,8 +127,8 @@ export default function StickyTrustBar() {
 
         <span className="w-px h-3.5 bg-[#F5F5F5]/10 shrink-0" />
 
-        {/* Financing */}
-        <span className="shrink-0">Financing on the spot</span>
+        {/* Payment programs */}
+        <span className="shrink-0">Payment programs on the spot</span>
       </div>
     </motion.div>
   );
