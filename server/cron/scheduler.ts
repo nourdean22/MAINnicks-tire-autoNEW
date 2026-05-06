@@ -1207,7 +1207,21 @@ export function startTieredScheduler(): void {
             }
             const dec = report.declined as Record<string, unknown> | null;
             if (dec?.totalDeclinedValue && Number(dec.totalDeclinedValue) > 0) {
-              parts.push(`Declined work: $${Math.round(Number(dec.totalDeclinedValue))} recoverable`);
+              parts.push(`Declined work (line items): $${Math.round(Number(dec.totalDeclinedValue))} recoverable`);
+            }
+            // 2026-05-05 — NEW signal: full walk-away ALG estimates
+            // (whole quotes that never converted). This is the bigger
+            // recovery target per Nick's FCFS model. Surfaces $X / N count
+            // / oldest days when alg_estimates table has data.
+            const wae = report.walkAwayEstimates as Record<string, unknown> | null;
+            if (wae && !wae.error && Number(wae.unmatchedCount || 0) > 0) {
+              parts.push(
+                `Walk-away estimates: ${wae.unmatchedCount} unmatched · ` +
+                `$${wae.unmatchedValueDollars} on the table · ` +
+                `${wae.recoveryWindow ? (wae.recoveryWindow as Record<string, number>).last7d : 0} fresh (<7d) · ` +
+                `${wae.conversionRate}% conversion rate · ` +
+                `~$${wae.recoverableEstimate} recoverable @ 20% close`,
+              );
             }
 
             await sendTelegram(parts.join("\n\n"));
