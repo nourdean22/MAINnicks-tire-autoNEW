@@ -13,11 +13,14 @@ const CONFIG: ServicePageConfig = {
   canonicalPath: "/tire-shop-near-me",
   // Real storefront — proves "this is an actual shop, not an aggregator"
   heroImage: "/storefront-bmw.webp",
-  title: "Tire Shop Cleveland · Open 7 Days · Sunday | Nick's",
-  description: "Cleveland's neighborhood tire shop on Euclid Ave. New & used tires installed free, mount + balance + valve stems + alignment check included on every set. Open 7 days, walk-ins welcome, financing on the spot. 4.9★ across 1,700+ reviews — and the lady whose Civic survived 287,000 miles. (216) 862-0005",
+  // 2026-05-06 copy wave · This page targets "tire shops near me"
+  // 3,387 imp/mo cluster. Title kept short + Sunday-differentiator.
+  // Sub rewritten with operators 3 + 4 + 5.
+  title: "Tire Shop Near Me Cleveland · Open 7 Days, Sunday Too | Nick's",
+  description: "Cleveland tire shop on Euclid Ave. New + used tires, free mount/balance/valve stems/alignment check on every set. Open 7 days, even Sunday. 4.9★ 1,700+ reviews.",
   eyebrow: "LOCAL TIRE SHOP",
   h1: "WALK IN. PICK A TIRE.\nLEAVE BEFORE YOUR PODCAST ENDS.",
-  sub: "Searching for a tire shop near me? Nick's Tire & Auto at 17625 Euclid Ave, Cleveland is open 7 days a week with walk-ins welcome. New & used tires with free mounting, balancing, and alignment check. Walk in or call for a free quote on your exact size. Most installs in 30-45 minutes.",
+  sub: "Cleveland's neighborhood tire shop, no Yelp filter required. Walk in, pick a tire, hand us the keys — most installs wrap before your podcast episode does. New tires, used tires, the weird sizes the chain told you to special-order in 5 days. Free mount, balance, valve stems, alignment check. Open every day we're awake. Yes, including Sunday.",
   startingPrice: "Free quote in shop or by phone",
   pricingTitle: "TIRE OPTIONS",
   pricingSub: "Walk in or call — we quote your exact size live with current inventory. Free installation package included with every tire (mount, balance, valve stem, disposal).",

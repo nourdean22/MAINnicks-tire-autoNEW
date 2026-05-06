@@ -18,11 +18,15 @@ const CONFIG: ServicePageConfig = {
   canonicalPath: "/auto-repair-near-me",
   // BMW at the shop — sells "every make, even European" credibility
   heroImage: "/every-make-bmw.webp",
-  title: "Auto Repair Cleveland · Honest Mechanic · 7 Days | Nick's",
-  description: "Cleveland/Euclid auto repair where the diagnosis comes before the bill. Brakes, tires, oil, diagnostics, alignment, AC. 4.9★ across 1,700+ Google reviews. Walk-ins 7 days, financing approved on the spot. Free written estimate before any wrench moves. (216) 862-0005",
+  // 2026-05-06 copy wave: title now anchors on "Estimate Before
+  // Wrench" — the actual differentiator. Sub rewritten with operator
+  // 3 (useful absurd: "phone bill that never breaks") + operator 4
+  // (anti-pattern: chains' diagnostic fee).
+  title: "Auto Repair Near Me Cleveland · Estimate Before Wrench | Nick's",
+  description: "Cleveland auto shop where the written estimate hits the counter before any wrench moves. Brakes, tires, oil, diagnostics, alignment, AC. Walk-ins 7 days. 4.9★ 1,700+ reviews.",
   eyebrow: "LOCAL AUTO REPAIR",
   h1: "AUTO REPAIR THAT EXPLAINS ITSELF\nBEFORE IT BILLS YOU.",
-  sub: "Looking for a mechanic near me in Cleveland? Nick's Tire & Auto at 17625 Euclid Ave, Cleveland is your neighborhood auto repair shop. Brakes, tires, diagnostics, engine, suspension, exhaust — we fix it. 4.9 stars from 1,700+ Google reviews, walk-ins 7 days a week.",
+  sub: "Cleveland mechanic near me. Walk in to Nick's on Euclid Ave with a noise, a light, or a bad feeling about something — we put it on a lift, take pictures of what's worn, and hand you a written estimate before any wrench touches a bolt. The chains call that 'a $99 diagnostic fee.' We call it Tuesday. 4.9★ from 1,700+ Cleveland drivers, walk-ins 7 days, every make and model including the European stuff your buddy said you have to drive to the dealer for.",
   startingPrice: "Free estimates",
   pricingTitle: "COMMON REPAIR LEVELS",
   pricingSub: "Free written estimate before any work. Labor comparable to local shops, lower than dealers. Parts at fair markup — no games.",
