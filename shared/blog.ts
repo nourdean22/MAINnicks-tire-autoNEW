@@ -407,7 +407,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "How to Avoid Overpaying for Brake Repair",
-        content: "1. Get a written estimate before authorizing work. 2. Ask what is actually worn — not every brake job needs rotors. 3. Compare independent shop prices to dealerships. 4. Do not ignore brake noise — catching worn pads early prevents rotor damage and saves $200+. 5. Ask about financing — at Nick's Tire & Auto, we offer $10 down financing through four providers so you do not have to drive on unsafe brakes because of cost."
+        content: "1. Get a written estimate before any wrench moves. 2. Ask what is actually worn — not every brake job needs rotors. 3. Compare independent shop prices to dealerships. 4. Do not ignore brake noise — catching worn pads early prevents rotor damage and saves $200+. 5. Ask about payment programs — at Nick's Tire & Auto, payment programs are available $10 down through four providers so you do not have to drive on unsafe brakes because of cost."
       }
     ],
     relatedServices: ["/brakes", "/financing"],
@@ -567,7 +567,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Nick's Tire & Auto vs Dealership vs Chain Shop Pricing",
-        content: "We regularly hear from customers who got quotes elsewhere before coming to us. Here is what we typically see in the Cleveland market. Dealerships charge $400 to $800 per axle for pads and rotors on most vehicles. Their labor rates are $150 to $200 per hour, and they use OEM parts at full retail price. You are paying for the brand name and the waiting room with free coffee. National chain shops like Midas, Firestone, and Meineke advertise brake specials starting at $99 per axle, but those prices rarely include rotors, and the upsell often pushes the final bill to $500 or more. Read the fine print carefully. At Nick's Tire & Auto, our labor rate is competitive and transparent. We use high-quality aftermarket parts that meet or exceed OEM specifications, and we do not pad the bill with unnecessary add-ons. Most customers save 20 to 40 percent compared to dealership pricing for the same quality of work."
+        content: "We regularly hear from customers who got quotes elsewhere before coming to us. Here is what we typically see in the Cleveland market. Dealerships charge $400 to $800 per axle for pads and rotors on most vehicles. Their labor rates are $150 to $200 per hour, and they use OEM parts at full retail price. You are paying for the brand name and the lobby coffee. National chain shops like Midas, Firestone, and Meineke advertise brake specials starting at $99 per axle, but those prices rarely include rotors, and the upsell often pushes the final bill to $500 or more. Read the fine print carefully. At Nick's Tire & Auto, our labor rate is competitive and transparent. We use high-quality aftermarket parts that meet or exceed OEM specifications, and we do not pad the bill with unnecessary add-ons. Most customers save 20 to 40 percent compared to dealership pricing for the same quality of work."
       },
       {
         heading: "When Do You Actually Need Brake Repair?",
@@ -795,7 +795,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Used Tire Prices at Nick's",
-        content: "Used tires at Nick's Tire & Auto run $30 to $80 each depending on size, brand, and remaining tread. That includes professional mounting, computer balancing, new valve stem, and TPMS sensor reset. Compare that to new tire prices of $80 to $250 each plus installation, and the savings are obvious. We also offer $10 down financing through Acima, Koalafi, and Snap Finance if you need a full set and money is tight."
+        content: "Used tires at Nick's Tire & Auto run $30 to $80 each depending on size, brand, and remaining tread. That includes professional mounting, computer balancing, new valve stem, and TPMS sensor reset. Compare that to new tire prices of $80 to $250 each plus installation, and the savings are obvious. Payment programs are also available — $10 down through Acima, Koalafi, and Snap Finance if you need a full set and money is tight."
       },
       {
         heading: "Find Us on the East Side",
@@ -1355,7 +1355,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "E-Check Stations Closest to Euclid",
-        content: "The Ohio E-Check program operates testing stations across Cuyahoga County. The closest stations to Euclid are in the greater Cleveland East Side area. You can find the nearest location and schedule an appointment at the official Ohio E-Check website (ohio.gov/echeck) or by calling 1-800-CAR-TEST. Walk-ins are accepted but wait times vary — appointments are faster, especially during peak registration renewal months."
+        content: "The Ohio E-Check program operates testing stations across Cuyahoga County. The closest stations to Euclid are in the greater Cleveland East Side area. You can find the nearest location and reserve a time at the official Ohio E-Check website (ohio.gov/echeck) or by calling 1-800-CAR-TEST. Walk-ins are accepted but wait times vary — reserved times are faster, especially during peak registration renewal months."
       },
       {
         heading: "What to Bring to Your E-Check Appointment",
@@ -1441,7 +1441,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Emergency Repairs on a Budget",
-        content: "We know emergency repairs are never planned expenses. That is why we offer $10 down financing through multiple providers. Get the repair done today and pay over time. Bad credit, no credit — we have options. Your safety is not something that should wait because of money. Come to Nick's Tire & Auto — Cleveland's East Side emergency repair shop, open every day."
+        content: "We know emergency repairs are never planned expenses. That is why we partner with multiple payment-program providers — $10 down, no credit check. Get the repair done today and pay over time. Bad credit, no credit — we have options. Your safety is not something that should wait because of money. Come to Nick's Tire & Auto — Cleveland's East Side emergency repair shop, open every day."
       }
     ],
     relatedServices: ["/tires", "/brakes", "/diagnostics", "/general-repair"],
@@ -1906,28 +1906,28 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: "car-repair-financing-bad-credit-cleveland",
     title: "Car Repair Financing with Bad Credit in Cleveland",
     metaTitle: "Car Repair Financing Bad Credit | $10 Down | Nick's Tire & Auto Cleveland",
-    metaDescription: "Need car repairs but have bad credit? Nick's Tire & Auto offers $10 down financing through 4 providers. Get approved today — Cleveland, Euclid, Northeast Ohio.",
+    metaDescription: "Need car repairs but have bad credit? Nick's Tire & Auto offers $10 down payment programs through 4 providers. Get approved today — Cleveland, Euclid, Northeast Ohio.",
     category: "Cost Guide",
     publishDate: "2026-04-14",
     readTime: "5 min read",
     heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
-    excerpt: "Bad credit should not mean unsafe brakes. We offer $10 down financing through four providers so Cleveland drivers can get repairs done now and pay over time.",
+    excerpt: "Bad credit should not mean unsafe brakes. Payment programs available — $10 down through four providers — so Cleveland drivers can get repairs done now and pay over time.",
     sections: [
       {
-        heading: "Why We Offer Financing",
-        content: "We see it every week — a Cleveland driver comes in with a serious safety issue, gets the diagnosis, and then has to choose between fixing the car and paying rent. That is not a choice anyone should have to make. Driving on bad brakes, worn tires, or a misfiring engine is dangerous. That is why we partnered with four different financing providers to cover every credit situation. Bad credit, no credit, limited credit — there is an option. Your safety should not depend on whether you have $800 in your checking account right now."
+        heading: "Why Payment Programs Matter",
+        content: "We see it every week — a Cleveland driver comes in with a serious safety issue, gets the diagnosis, and then has to choose between fixing the car and paying rent. That is not a choice anyone should have to make. Driving on bad brakes, worn tires, or a misfiring engine is dangerous. That is why we partnered with four different payment-program providers to cover every credit situation. Bad credit, no credit, limited credit — there is an option. Your safety should not depend on whether you have $800 in your checking account right now."
       },
       {
-        heading: "Our Four Financing Providers",
-        content: "We work with four financing companies, each with different approval criteria. Acima Credit is a lease-to-own option that requires no credit check — approval is based on income and banking history, with a 90-day same-as-cash option. Snap Finance works with bad credit and no credit, using income verification rather than credit score, with a 100-day same-as-cash option. Koalafi offers the highest approval amounts up to $7,500 for larger repairs. American First Finance rounds out our lineup with no-credit-needed lease-to-own and a 90-day same-as-cash option. Between these four providers, we get most applicants approved for the repairs they need."
+        heading: "Our Four Payment Program Providers",
+        content: "We work with four providers, each with different approval criteria. Acima Credit is a lease-to-own option that requires no credit check — approval is based on income and banking history, with a 90-day same-as-cash option. Snap Finance works with bad credit and no credit, using income verification rather than credit score, with a 100-day same-as-cash option. Koalafi offers the highest approval amounts up to $7,500 for larger repairs. American First Finance rounds out our lineup with no-credit-needed lease-to-own and a 90-day same-as-cash option. Between these four providers, we get most applicants approved for the repairs they need."
       },
       {
         heading: "How It Works — $10 Down, Same-Day Approval",
-        content: "The process is simple. We diagnose your vehicle and give you the repair estimate. You apply with one or more providers — applications take 5 minutes on your phone. Most approvals come back in minutes. Once approved, we perform the repair and you make payments according to the plan terms. Most providers require as little as $10 down. Payment terms range from 3 to 24 months depending on the provider and the amount financed. Interest rates vary — some providers offer promotional 0 percent APR, others have higher rates for higher-risk borrowers. We explain all the terms before you commit."
+        content: "The process is simple. We diagnose your vehicle and give you the repair estimate. You apply with one or more providers — applications take 5 minutes on your phone. Most approvals come back in minutes. Once approved, we perform the repair and you make payments according to the plan terms. Most providers require as little as $10 down. Payment terms range from 3 to 24 months depending on the provider and the amount. Interest rates vary — some providers offer promotional 0 percent APR, others have higher rates for higher-risk borrowers. We explain all the terms before you commit."
       },
       {
-        heading: "What You Can Finance",
-        content: "Financing covers all repair and maintenance services — brakes, tires, engine repair, transmission work, diagnostics, suspension, electrical, and more. Minimum amounts vary by provider, typically $200 to $500 minimum. Maximum financing amounts range from $3,000 to $10,000 depending on the provider and your approval. You can also finance preventive maintenance like timing belt replacements and fluid services — investing in maintenance now prevents expensive emergency repairs later."
+        heading: "What You Can Cover With a Payment Program",
+        content: "Payment programs cover all repair and maintenance services — brakes, tires, engine repair, transmission work, diagnostics, suspension, electrical, and more. Minimum amounts vary by provider, typically $200 to $500 minimum. Maximum amounts range from $3,000 to $10,000 depending on the provider and your approval. You can also use a payment program for preventive maintenance like timing belt replacements and fluid services — investing in maintenance now prevents expensive emergency repairs later."
       },
       {
         heading: "Get Approved Today",

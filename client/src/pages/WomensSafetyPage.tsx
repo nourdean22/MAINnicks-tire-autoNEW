@@ -1,7 +1,7 @@
 /**
  * /womens-safety — Women's Safety & Pit Stop Experience page
  * Addresses safety concerns for women getting car service in Cleveland.
- * Highlights the "stay in your car" drop-off model vs. traditional waiting rooms.
+ * Highlights the "stay in your car" tire-install model + drop-off-and-go for repairs vs. traditional shops that hold your car hostage in a lobby.
  */
 
 import PageLayout from "@/components/PageLayout";
@@ -12,7 +12,7 @@ import { Shield, X, Check } from "lucide-react";
 /* ─── COMPARISON DATA ──────────────────────────────────── */
 
 const OLD_WAY = [
-  "Sit alone in a waiting room with strangers",
+  "Forced to hand over your keys and sit in a lobby for hours",
   "Pressure to approve repairs on the spot",
   "No way to verify what's actually being done",
   "Stuck without transportation for hours",
@@ -21,6 +21,7 @@ const OLD_WAY = [
 ];
 
 const PIT_STOP_WAY = [
+  "Sit in your car while we do your tire — the crew works outside",
   "Drop off and go — Uber code provided on request",
   "Every repair explained before work begins, no pressure",
   "Photo and video updates sent directly to your phone",
