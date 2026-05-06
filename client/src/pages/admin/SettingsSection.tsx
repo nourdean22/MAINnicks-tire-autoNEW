@@ -698,6 +698,8 @@ interface VapiCallRow {
   endedReason?: string;
   cost?: number;
   summary?: string;
+  structuredData?: Record<string, unknown>;
+  successEvaluation?: string;
 }
 
 function VapiPanel() {
@@ -718,8 +720,20 @@ function VapiPanel() {
     },
     onError: (err: { message: string }) => toast.error("Create failed: " + err.message),
   });
+  const updateAssistant = trpc.vapi.updateAssistant.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success("Assistant updated · prompt + tools + settings re-pushed");
+        utils.vapi.status.invalidate();
+      } else {
+        toast.error("Update failed: " + (result.error || "unknown"));
+      }
+    },
+    onError: (err: { message: string }) => toast.error("Update failed: " + err.message),
+  });
 
   const connected = status?.connected ?? false;
+  const firstAssistantId = status?.assistants?.[0]?.id;
 
   return (
     <div className={`bg-card border ${connected ? "border-emerald-500/30" : "border-amber-500/30"} p-4 space-y-4`}>
@@ -765,10 +779,22 @@ function VapiPanel() {
         </div>
       )}
 
-      {/* Assistants */}
+      {/* Assistants + Update button */}
       {status?.assistants && status.assistants.length > 0 && (
-        <div className="space-y-1.5">
-          <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-foreground/50">Configured Assistants</p>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-foreground/50">Configured Assistants</p>
+            {firstAssistantId && (
+              <button
+                onClick={() => updateAssistant.mutate({ assistantId: firstAssistantId, serverUrl: "https://nickstire.org/api/webhooks/vapi" })}
+                disabled={updateAssistant.isPending}
+                className="flex items-center gap-1.5 border border-primary/30 text-primary bg-primary/5 px-3 py-1 text-[10px] font-bold tracking-wide hover:bg-primary/10 disabled:opacity-50"
+              >
+                {updateAssistant.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                {updateAssistant.isPending ? "PUSHING..." : "PUSH LATEST CONFIG"}
+              </button>
+            )}
+          </div>
           {status.assistants.map((a: { id: string; name: string; createdAt: string }) => (
             <div key={a.id} className="flex items-center justify-between gap-3 text-[11px] py-1.5 border-b border-border/10">
               <span className="text-foreground font-medium truncate">{a.name}</span>
@@ -776,33 +802,100 @@ function VapiPanel() {
               <span className="text-foreground/40 shrink-0">{new Date(a.createdAt).toLocaleDateString()}</span>
             </div>
           ))}
+          <p className="text-[10px] text-foreground/40 italic mt-1">
+            Push Latest Config = re-deploys the optimal Vapi assistant settings (Deepgram nova-2-phonecall, GPT-4o, ElevenLabs Adam turbo, smart endpointing, voicemail detection, structured-data analysis, tire-first prompt).
+          </p>
         </div>
       )}
 
-      {/* Recent calls */}
+      {/* Recent calls — enriched with structured data + success eval */}
       {connected && callsData?.calls && callsData.calls.length > 0 && (
-        <details className="border-t border-border/10 pt-3">
+        <details className="border-t border-border/10 pt-3" open>
           <summary className="cursor-pointer text-[11px] font-bold tracking-wider text-foreground/50 hover:text-foreground/80">
             RECENT CALLS · LAST {callsData.calls.length}
           </summary>
-          <div className="mt-2 space-y-1.5">
+          <div className="mt-2 space-y-3">
             {(callsData.calls as VapiCallRow[]).map((c) => {
               const date = c.startedAt ? new Date(c.startedAt) : null;
               const day = date ? date.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—";
               const time = date ? date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : "";
               const dur = c.durationSeconds ? `${Math.round(c.durationSeconds)}s` : "—";
               const cost = c.cost ? `$${c.cost.toFixed(2)}` : "—";
-              const reasonColor =
-                c.endedReason?.includes("error") ? "text-red-400" :
-                c.endedReason?.includes("hangup") || c.endedReason?.includes("customer") ? "text-emerald-400" :
+              const sd = c.structuredData ?? {};
+              const callType = sd.callType as string | undefined;
+              const outcome = sd.outcome as string | undefined;
+              const sentiment = sd.sentiment as string | undefined;
+              const followUpNeeded = sd.followUpNeeded as boolean | undefined;
+              const tireSize = sd.tireSize as string | undefined;
+              const vehicle = sd.vehicle as string | undefined;
+
+              const successColor =
+                c.successEvaluation === "PASS" ? "bg-emerald-500/15 text-emerald-400" :
+                c.successEvaluation === "FAIL" ? "bg-red-500/15 text-red-400" :
+                "bg-foreground/10 text-foreground/40";
+              const sentimentColor =
+                sentiment === "positive" ? "text-emerald-400" :
+                sentiment === "negative" ? "text-red-400" :
                 "text-foreground/50";
+              const callTypeColor =
+                callType === "tire_inquiry" ? "bg-primary/15 text-primary" :
+                callType === "booking" ? "bg-emerald-500/15 text-emerald-400" :
+                callType === "complaint" ? "bg-red-500/15 text-red-400" :
+                "bg-blue-500/15 text-blue-400";
+
               return (
-                <div key={c.id} className="flex items-center gap-3 text-[11px] py-1 border-b border-border/10">
-                  <span className="text-foreground/40 w-20 shrink-0">{day} {time}</span>
-                  <span className="font-mono text-foreground/60 w-28 shrink-0">{c.customerNumber || "Unknown"}</span>
-                  <span className="text-foreground/50 w-12 shrink-0">{dur}</span>
-                  <span className="text-emerald-400/60 w-14 shrink-0">{cost}</span>
-                  <span className={`${reasonColor} truncate flex-1`}>{c.endedReason || "—"}</span>
+                <div key={c.id} className="border border-border/20 p-3 space-y-2">
+                  {/* Header row */}
+                  <div className="flex items-center gap-3 flex-wrap text-[11px]">
+                    <span className="text-foreground/40 shrink-0">{day} {time}</span>
+                    <span className="font-mono text-foreground shrink-0">{c.customerNumber || "Unknown"}</span>
+                    <span className="text-foreground/50 shrink-0">{dur}</span>
+                    <span className="text-emerald-400/60 shrink-0">{cost}</span>
+                    {callType && (
+                      <span className={`px-2 py-0.5 rounded font-bold tracking-wider text-[9px] ${callTypeColor}`}>
+                        {callType.replace("_", " ").toUpperCase()}
+                      </span>
+                    )}
+                    {c.successEvaluation && (
+                      <span className={`px-2 py-0.5 rounded font-bold tracking-wider text-[9px] ${successColor}`}>
+                        {c.successEvaluation}
+                      </span>
+                    )}
+                    {followUpNeeded && (
+                      <span className="px-2 py-0.5 rounded font-bold tracking-wider text-[9px] bg-amber-500/15 text-amber-400">
+                        FOLLOW UP
+                      </span>
+                    )}
+                  </div>
+                  {/* Summary */}
+                  {c.summary && (
+                    <p className="text-[12px] text-foreground/70 leading-relaxed">{c.summary}</p>
+                  )}
+                  {/* Structured data badges */}
+                  {(tireSize || vehicle || outcome || sentiment) && (
+                    <div className="flex flex-wrap gap-2 text-[10px]">
+                      {tireSize && (
+                        <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-mono">
+                          {tireSize}
+                        </span>
+                      )}
+                      {vehicle && (
+                        <span className="px-2 py-0.5 rounded bg-foreground/5 text-foreground/60">
+                          {vehicle}
+                        </span>
+                      )}
+                      {outcome && (
+                        <span className="px-2 py-0.5 rounded bg-foreground/5 text-foreground/60">
+                          → {outcome.replace("_", " ")}
+                        </span>
+                      )}
+                      {sentiment && (
+                        <span className={`px-2 py-0.5 rounded bg-foreground/5 ${sentimentColor}`}>
+                          {sentiment}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
