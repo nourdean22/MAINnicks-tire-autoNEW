@@ -1,19 +1,28 @@
 /**
- * ResponsivePhoto — drop-in replacement for <img> on photos that have
- * a `-mobile.webp` sibling.
+ * ResponsivePhoto — drop-in replacement for <img> with optional
+ * mobile-variant optimization.
  *
- * Browsers under 768px viewport download the mobile variant (~85-180 KB)
- * instead of the desktop variant (~200-470 KB). 50-80% mobile bandwidth
- * savings per image, captures the Lighthouse "Improve image delivery"
- * 329 KiB win.
+ * When `disableMobile` is `false` (opt-in), browsers under 768px viewport
+ * download a `-mobile.webp` sibling (~85-180 KB) instead of the desktop
+ * variant (~200-470 KB). 50-80% mobile bandwidth savings per image.
  *
  * Convention: if `src` is `/photo.webp`, the mobile variant is expected
  * at `/photo-mobile.webp` (same /public directory). Generated via the
  * scripts/optimize-photos.mjs one-time build.
  *
+ * 2026-05-06 wave-17 · DEFAULT FLIPPED TO disableMobile=true. The wave-16
+ * pro photo pack lives at /photos/ and ships WITHOUT -mobile variants.
+ * The previous default tried to load a non-existent /photos/...-mobile.webp,
+ * which Railway's SPA fallback served as text/html → broken images on
+ * mobile across About/City/Diagnose/Neighborhood/Seasonal pages.
+ *
+ * Pages that still want mobile-variant download must now explicitly pass
+ * disableMobile={false}. Future: regenerate -mobile siblings for the new
+ * pack via the optimize-photos script and flip the default back.
+ *
  * Usage:
  *   <ResponsivePhoto
- *     src="/storefront-day.webp"
+ *     src="/photos/shop-exterior-hero.webp"
  *     alt="Real shop photo"
  *     className="w-full h-full object-cover"
  *     loading="lazy"
@@ -31,7 +40,11 @@ interface ResponsivePhotoProps {
   fetchPriority?: "high" | "low" | "auto";
   /** Override breakpoint for the mobile <source>. Default: 768px. */
   mobileBreakpoint?: number;
-  /** Disable mobile-variant if you know the file doesn't have a -mobile sibling. */
+  /**
+   * Enable the mobile-variant <source>. Default: true (off) since the
+   * wave-16 pro pack doesn't have -mobile siblings. Set explicitly to
+   * `false` if you know the file has a verified -mobile sibling.
+   */
   disableMobile?: boolean;
   /**
    * 2026-05-05 — wrap the <picture> in a `.photo-depth` span so the
@@ -49,7 +62,7 @@ export default function ResponsivePhoto({
   loading = "lazy",
   fetchPriority,
   mobileBreakpoint = 768,
-  disableMobile = false,
+  disableMobile = true,
   withDepth,
 }: ResponsivePhotoProps) {
   const mobileSrc = src.replace(/(\.\w+)$/, "-mobile$1");
