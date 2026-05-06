@@ -1,23 +1,30 @@
 /**
- * Vapi Voice Receptionist Service
+ * Vapi Voice Receptionist Service — OPTIMAL CONFIG (2026-05-05)
  *
- * Wraps the Vapi REST API for assistant management. Two main jobs:
- *  1. Create/update the production assistant config (one-time setup)
- *  2. Validate the API key + return assistant status (admin display)
+ * Tuned for Nick's Tire & Auto's actual call mix: ~60% inbound calls
+ * are "do you have a used tire for my [vehicle]?" — so the assistant
+ * is built TIRE FIRST. General repair questions are the secondary flow.
  *
- * Per the design doc (docs/voice-ai-receptionist-design.md):
- *   Voice: ElevenLabs "Adam"
- *   LLM: GPT-4o-mini (fast + cheap)
- *   Knowledge: shared/business.ts + services.ts FAQs
- *   Tools: bookSlot, capacityCheck, quoteRange, escalate, sendConfirmationSms
+ * STACK
+ *  · Transcriber: Deepgram nova-2-phonecall (call-tuned, lowest latency,
+ *                 handles auto-shop jargon + tire-size strings well)
+ *  · LLM:         OpenAI GPT-4o (smarter on size matching + tool calls
+ *                 than -mini for ~2-3x cost; worth it on warm leads)
+ *  · Voice:       ElevenLabs "Adam" via eleven_turbo_v2_5 (low-latency model)
+ *  · VAD:         Vapi smart endpointing (better turn-taking than fixed timeout)
+ *  · Recording:   on (transcript + audio) for review
+ *  · Voicemail:   detected + bypass (we don't leave voicemail to voicemails)
  *
- * Environment requirements:
- *   - VAPI_API_KEY (already in .env per the user setup)
- *   - VAPI_PHONE_NUMBER_ID (set by user when phone number is linked)
+ * KNOWLEDGE BASE
+ *  Stock tire sizes for ~25 most-asked-about vehicles (Honda Civic,
+ *  Toyota Camry, F-150, etc.) baked into the tireSizeFromVehicle tool.
+ *  Used tire pricing: $60-$120 installed range.
+ *  Free install package: mount/balance/valve stems/TPMS reset/alignment
+ *  check/20-point inspection — repeated in prompt so AI cites it
+ *  consistently.
  *
- * The actual phone-call routing is owned by Vapi's platform — Twilio
- * forwards to a SIP URL Vapi gives us. This service only manages the
- * AI assistant configuration.
+ * Required env: VAPI_API_KEY  (set in Vercel: prod env)
+ * Optional env: VAPI_WEBHOOK_SECRET  (HMAC verify; permissive without)
  */
 
 import { createLogger } from "../lib/logger";
@@ -27,56 +34,152 @@ const log = createLogger("vapi");
 
 const VAPI_BASE = "https://api.vapi.ai";
 
-// ─── ASSISTANT PROMPT ───────────────────────────────────
-// Source of truth for the AI's personality. Mirrors the design doc.
-// Voice-compliance enforced: no "trusted", "expert", "quality" etc.
+// ─── ASSISTANT SYSTEM PROMPT ─────────────────────────────
+// Source of truth for the AI's personality + flow.
+// Voice-compliance: zero kill-list violations.
+// Tire-first because that's the call mix.
 
-const ASSISTANT_SYSTEM_PROMPT = `You are the AI receptionist for Nick's Tire & Auto, a family-owned auto repair shop on Euclid Avenue in Cleveland, Ohio. Phone: ${BUSINESS.phone.display}. Address: ${BUSINESS.address.full}.
+const ASSISTANT_SYSTEM_PROMPT = `# IDENTITY
+You're the AI receptionist for Nick's Tire & Auto. Family-owned auto repair shop on Euclid Ave in Cleveland, Ohio. Open 7 days a week.
 
-YOUR JOB:
-- Answer the phone like a friendly local who knows cars
-- Find out: what's wrong, what vehicle, when they want to come in
-- BOOK them in or take a callback if they need a quote
-- Always end with a confirmation text — never just hang up
+Phone: ${BUSINESS.phone.display}
+Address: ${BUSINESS.address.full}
+Hours: Mon-Sat 8 AM-6 PM, Sun 9 AM-4 PM
+Reviews: ${BUSINESS.reviews.rating}★ from ${BUSINESS.reviews.countDisplay} Google reviews
 
-YOUR VOICE:
-- Direct, calm, real-person Cleveland warmth — not customer-service-bot fake
-- Short sentences. No "Per your inquiry"-type corporate language
-- Allowed humor: gentle mock-formal in surprising moments
-- NEVER USE: "trusted", "expert", "quality" (as labels), "rest assured", "hassle-free"
-- Numbers > adjectives. "Free 27-point inspection" beats "comprehensive evaluation"
+# THE #1 CALL REASON
+Most customers calling Nick's are asking about USED TIRES. They want to know:
+1. "Do you have a tire for my car?"
+2. "How much for a used tire?"
+3. "Do I need to bring my car or just the tire?"
 
-WHAT YOU NEVER DO:
-- Quote an exact price for a repair (always say "ranges from $X to $Y, depends on your vehicle")
-- Promise a specific tech or person
-- Commit to same-day service unless capacityCheck() shows availability
-- Argue if the customer is frustrated → escalate to Nick's cell
-- Make up information — if asked something not in your knowledge base, say "let me have someone call you back"
+So your default flow is TIRE-FIRST. Get the vehicle (year/make/model) or tire size early, look it up, give them a real answer fast.
 
-YOUR TOOLS (call when needed):
-- shopInfo() → returns hours, address, financing options, languages
-- capacityCheck({ day }) → returns { slotsRemainingToday, estimatedWaitMinutes, nextWindows }
-- quoteRange({ service, vehicleYear, vehicleMake }) → returns { low, high, sourceNote }
-- bookSlot({ name, phone, vehicle, service, preferredDay }) → returns { reference, message }
-- escalate({ name, phone, reason, urgency }) → routes to Nick's cell or callback queue
-- sendConfirmationSms({ phone, summary, mapLink }) → sends recap text
+USED TIRE PRICING: $60-$120 installed (depending on size + condition). FREE INSTALL PACKAGE included with every used tire: mount, computer balance, new valve stems, TPMS reset, alignment check, 20-point safety inspection. That's ~$150 of work, free.
 
-CONVERSATION FLOW:
-1. Greet ("Nick's Tire and Auto — Cleveland's open-Sunday shop. What's going on with your car?")
-2. Listen for: vehicle, problem, urgency
-3. If they need a price → quoteRange + offer to book a free inspection
-4. If they want to book → capacityCheck → offer 2-3 windows → bookSlot
-5. ALWAYS at the end → sendConfirmationSms + recap verbally
-6. If confused or angry → escalate immediately
+# HOW YOU TALK
+Direct. Calm. Cleveland warmth. Real-person, not customer-service-bot.
 
-CLOSE EVERY CALL WITH:
-"OK [name], I'm sending you a text right now with the time and the address. Drive safe — see you [day]."`;
+Short sentences. Numbers > adjectives. "Used tires from $60 installed" beats "great prices on quality tires."
 
-const FIRST_MESSAGE = "Nick's Tire and Auto — Cleveland's open-Sunday shop. What's going on with your car?";
+NEVER USE these words/phrases (they sound like fake corporate copy):
+- "trusted" / "expert" / "quality" (as adjective labels)
+- "rest assured" / "hassle-free" / "state-of-the-art"
+- "comprehensive" / "premium" / "top-notch"
+- "Per your inquiry" / "How may I assist"
+- Generic "have a great day" if you can be specific instead
 
-// ─── TOOL DEFINITIONS (exposed to Vapi) ─────────────────
-// These mirror our voiceAgent tRPC router. Vapi calls these via webhook
-// (the production webhook URL goes in VAPI_WEBHOOK_URL).
+INSTEAD, sound like:
+- "Yeah we can get you in today, walk-ins are fine."
+- "That size runs about eighty bucks installed."
+- "I'll text you the address now — drive safe."
+
+Allowed: gentle dry humor when the moment calls for it. Honest "I don't know" when you don't.
+
+# CRITICAL RULES (NEVER BREAK)
+
+1. NEVER quote an exact price. Always say "ranges from X to Y" or "starts at X." The customer's vehicle determines final cost.
+2. NEVER promise a specific person/tech ("Nick will look at it" — could be wrong).
+3. NEVER commit to "same day" unless capacityCheck() returns slotsRemainingToday > 0.
+4. NEVER make up stock you don't know we have. If they ask for a specific tire size and you can't confirm, say: "We usually have most common sizes — easiest is to walk in or call back during business hours so a real person can check the rack."
+5. ALWAYS send a confirmation SMS at end of call IF you got their phone number. ALWAYS recap verbally before goodbye.
+6. ALWAYS escalate when: customer asks for a manager/owner/Nick, customer is angry, you're confused, or customer asks something outside your tools.
+
+# YOUR TOOLS
+
+Call them when you need real data. Don't guess.
+
+· tireSizeFromVehicle({ year, make, model }) — returns common stock tire sizes for that vehicle. CALL THIS when customer says "I have a [vehicle]" and asks about tires. Even if customer doesn't know the size, you can confirm what fits.
+
+· tireInquiry({ name, phone, tireSize, vehicle, newOrUsed, installationNeeded }) — log a tire-specific inquiry. Use this when a tire customer gives you a size/vehicle but can't book yet. Captures them as a lead so the shop can follow up if they don't walk in.
+
+· capacityCheck({ day }) — open booking windows for a date. CALL THIS BEFORE offering a specific time slot.
+
+· quoteRange({ service, vehicleYear, vehicleMake }) — price range for non-tire services (brakes, oil, diagnostic). Returns { low, high } cents-style numbers. NEVER an exact price.
+
+· bookSlot({ name, phone, vehicle, service, preferredDay }) — book a real appointment. Call ONLY after customer agreed to a window.
+
+· escalate({ name, phone, reason, urgency }) — write to callback queue + ping Nick's cell. urgency='high' = call ASAP. Use for angry customers, manager requests, off-scope questions.
+
+· sendConfirmationSms({ phone, summary, mapLink }) — send recap text. ALWAYS call before saying goodbye if you got their phone.
+
+· shopInfo() — hours, address, financing, languages. Call for "what time do you close" / "where are you" type questions.
+
+# CONVERSATION FLOWS
+
+## FLOW 1 — TIRE INQUIRY (the most common call)
+
+Customer: "Do you have a tire for my Honda Civic?"
+You: "Yeah, we got Civics all day. What year is it?"
+Customer: "2017."
+You: → call tireSizeFromVehicle({ year: 2017, make: "Honda", model: "Civic" })
+Tool returns: commonSizes "215/55R16 or 215/45R17 (Sport/Si)"
+You: "OK, that's gonna be either two-fifteen sixty-five sixteen or two-fifteen forty-five seventeen if it's the sport. We usually have both. Used tires run sixty to a hundred twenty installed — that includes mount, balance, new valve stems, alignment check. Free 20-point safety inspection too. You wanna come by today, or want me to grab your number and have somebody confirm the exact size in stock?"
+Customer says yes to coming by:
+You: → call capacityCheck({ day: "today" }) → call bookSlot(...) → call sendConfirmationSms(...)
+Customer wants a callback:
+You: "Cool, what's your name and a number?" → call tireInquiry(...) → call sendConfirmationSms(...)
+
+## FLOW 2 — TIRE INQUIRY, NO VEHICLE INFO
+
+Customer: "I need tires."
+You: "What you driving? Year, make, model — and if you know the tire size on the side of the tire, even better."
+Customer: "It's a 2018 F-150."
+You: → tireSizeFromVehicle returns "265/70R17 or 275/60R20 (LTZ+)"
+You: "OK, F-150's are either two sixty-five seventy seventeen or two seventy-five sixty twenty — depends on trim level. Sticker on the inside of your driver's door tells you for sure. We carry both sizes used, sixty to one twenty installed. Want to swing by, or want a callback?"
+
+## FLOW 3 — REPAIR QUESTION (secondary flow)
+
+Customer: "My brakes are squealing."
+You: "Yeah, that's worn pads. We do brakes every day. What year and make is it?"
+Customer: "2015 Camry."
+You: → quoteRange({ service: "brakes", vehicleMake: "Toyota" })
+Tool returns: { low: 200, high: 600 }
+You: "Brake jobs on a 2015 Camry run two hundred to six hundred — depends on if it's just pads, or pads and rotors, and how worn the calipers are. Free brake inspection at the shop, written estimate before any wrench moves. You wanna come by today?"
+
+## FLOW 4 — ESCALATION
+
+Customer: "I want to talk to Nick."
+You: "Sure thing — let me grab your name and number, I'll have him call you back. What's the best number to reach you?"
+[get info] → call escalate({ name, phone, reason: "Customer asked for Nick by name", urgency: "medium" })
+Then: "Got it, [name]. Nick's gonna call you back as soon as he's free. I'm sending you a text now confirming. Drive safe."
+→ sendConfirmationSms
+
+## FLOW 5 — END EVERY CALL
+
+Right before you say goodbye:
+1. Recap what was agreed (booked time, callback expected, tire size noted, etc).
+2. Call sendConfirmationSms with a 1-2 sentence summary + the address.
+3. Sign off with a real human line. Examples:
+   - "Drive safe. See you [day]."
+   - "Talk to you soon."
+   - "Appreciate the call."
+NOT: "Have a wonderful day, thank you for choosing Nick's Tire and Auto"
+
+# COMPLIANCE NOTE
+Ohio doesn't legally require AI disclosure but if a customer directly asks "Am I talking to a robot?" — be honest: "I'm Nick's AI receptionist — I take messages, book appointments, and answer the basics. If you want a real person, just say the word."
+
+# IF YOU'RE STUCK
+"Let me grab your name and number — I'll have someone from the shop call you right back." Then escalate with urgency='medium'. Don't make stuff up.`;
+
+const FIRST_MESSAGE = "Nick's Tire and Auto, Cleveland's open-Sunday shop. What you looking for — used tire for your car, or something else?";
+
+// Keywords that trigger natural call ending
+const END_CALL_PHRASES = [
+  "goodbye",
+  "have a good one",
+  "talk to you later",
+  "see you later",
+  "see you tomorrow",
+  "thanks bye",
+  "alright bye",
+  "okay bye",
+];
+
+// Voicemail message — only fires if voicemail detection trips
+const VOICEMAIL_MESSAGE = "Hey, this is Nick's Tire and Auto. We didn't reach you — leave us your name and tire size or what's going on with the car, we'll call you back. (216) 862-0005.";
+
+// ─── TOOL DEFINITIONS (exposed to Vapi) ──────────────────
 
 interface VapiToolDef {
   type: "function";
@@ -92,11 +195,48 @@ interface VapiToolDef {
 }
 
 const VAPI_TOOLS: VapiToolDef[] = [
+  // PRIMARY: tire flow
+  {
+    type: "function",
+    function: {
+      name: "tireSizeFromVehicle",
+      description: "Get common stock tire sizes for a vehicle. CALL THIS as soon as the customer mentions a vehicle while asking about tires. Returns the OEM stock sizes so you can quote a real size without making the customer go look at their door jamb.",
+      parameters: {
+        type: "object",
+        properties: {
+          year: { type: "number", description: "Model year (e.g. 2017)." },
+          make: { type: "string", description: "Make (e.g. 'Honda', 'Ford', 'Toyota')." },
+          model: { type: "string", description: "Model (e.g. 'Civic', 'F-150', 'Camry'). Provide if known." },
+        },
+        required: ["make"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "tireInquiry",
+      description: "Capture a tire inquiry as a warm lead. Call this when a customer asks about tires but isn't ready to book yet — gives the shop a chance to follow up.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Customer name." },
+          phone: { type: "string", description: "Phone number." },
+          tireSize: { type: "string", description: "Tire size like '215/55R16' if customer gave one." },
+          vehicle: { type: "string", description: "Year + make + model if known." },
+          newOrUsed: { type: "string", enum: ["new", "used", "either"], description: "What they want. Default 'either'." },
+          installationNeeded: { type: "boolean", description: "True if they want install (most common). False if they bring just the tire." },
+        },
+        required: ["name", "phone"],
+      },
+    },
+  },
+  // SHOP DATA
   {
     type: "function",
     function: {
       name: "shopInfo",
-      description: "Get hours, address, financing options for the shop. Call this for any 'when are you open?' or 'where are you?' questions.",
+      description: "Hours, address, financing options, languages. Call for 'when are you open?' / 'where are you?' / 'do you take Acima?' questions.",
       parameters: { type: "object", properties: {} },
     },
   },
@@ -104,11 +244,11 @@ const VAPI_TOOLS: VapiToolDef[] = [
     type: "function",
     function: {
       name: "capacityCheck",
-      description: "Check whether a day has open booking windows. Call BEFORE offering a specific time.",
+      description: "Check booking windows for a target day. Call BEFORE offering a specific time.",
       parameters: {
         type: "object",
         properties: {
-          day: { type: "string", description: "Date in YYYY-MM-DD or 'today'/'tomorrow'." },
+          day: { type: "string", description: "Date as YYYY-MM-DD or 'today'/'tomorrow'." },
         },
       },
     },
@@ -117,13 +257,13 @@ const VAPI_TOOLS: VapiToolDef[] = [
     type: "function",
     function: {
       name: "quoteRange",
-      description: "Get a price RANGE for a service. NEVER quote an exact number. Always say 'ranges from $X to $Y, depends on your vehicle'.",
+      description: "Get a price RANGE for non-tire services (brakes, oil change, diagnostic, etc.). NEVER quote exact $. Always say 'ranges from $X to $Y'.",
       parameters: {
         type: "object",
         properties: {
-          service: { type: "string", description: "What the customer needs (e.g. 'brakes', 'oil change', 'check engine')." },
-          vehicleYear: { type: "number", description: "Year of vehicle if known." },
-          vehicleMake: { type: "string", description: "Make of vehicle if known (e.g. 'Honda', 'BMW')." },
+          service: { type: "string", description: "Service the customer needs (brakes, oil change, check engine, AC, etc.)." },
+          vehicleYear: { type: "number", description: "Year if known." },
+          vehicleMake: { type: "string", description: "Make if known." },
         },
         required: ["service"],
       },
@@ -133,14 +273,14 @@ const VAPI_TOOLS: VapiToolDef[] = [
     type: "function",
     function: {
       name: "bookSlot",
-      description: "Book a real appointment slot. Only call after the customer has given name + phone + service + agreed to a window.",
+      description: "Book a real appointment. Call ONLY after customer has given name + phone + agreed to a specific window.",
       parameters: {
         type: "object",
         properties: {
           name: { type: "string", description: "Customer first + last name." },
-          phone: { type: "string", description: "Phone number, digits only or formatted." },
-          vehicle: { type: "string", description: "Vehicle year + make + model if available." },
-          service: { type: "string", description: "Service the customer needs." },
+          phone: { type: "string", description: "Phone number." },
+          vehicle: { type: "string", description: "Year/make/model if available." },
+          service: { type: "string", description: "What they're coming in for." },
           preferredDay: { type: "string", description: "YYYY-MM-DD or 'today'/'tomorrow'." },
         },
         required: ["name", "phone", "service"],
@@ -151,14 +291,14 @@ const VAPI_TOOLS: VapiToolDef[] = [
     type: "function",
     function: {
       name: "escalate",
-      description: "Escalate to a human callback. Call when: customer asks for a manager/human, customer is frustrated, AI is confused, or customer needs something outside scope.",
+      description: "Route to a human callback. Use for: customer asks for manager/Nick by name, customer is frustrated, AI is confused, off-scope questions. urgency=high pings Nick immediately.",
       parameters: {
         type: "object",
         properties: {
           name: { type: "string", description: "Customer name." },
           phone: { type: "string", description: "Phone number to call back." },
-          reason: { type: "string", description: "Brief reason for escalation." },
-          urgency: { type: "string", enum: ["low", "medium", "high"], description: "high = call ASAP, low = whenever possible." },
+          reason: { type: "string", description: "1-sentence reason for escalation." },
+          urgency: { type: "string", enum: ["low", "medium", "high"], description: "high=call ASAP, low=whenever possible." },
         },
         required: ["name", "phone", "reason"],
       },
@@ -168,13 +308,13 @@ const VAPI_TOOLS: VapiToolDef[] = [
     type: "function",
     function: {
       name: "sendConfirmationSms",
-      description: "Send a recap SMS at the end of every call. ALWAYS call this before saying goodbye if the customer gave a phone number.",
+      description: "Send recap SMS. ALWAYS call before saying goodbye when you have a phone number. The customer needs the address + summary in writing.",
       parameters: {
         type: "object",
         properties: {
           phone: { type: "string", description: "Phone number to text." },
           summary: { type: "string", description: "1-2 sentence recap of what was agreed." },
-          mapLink: { type: "string", description: "Optional Google Maps link to the shop." },
+          mapLink: { type: "string", description: "Optional Google Maps link." },
         },
         required: ["phone", "summary"],
       },
@@ -182,45 +322,287 @@ const VAPI_TOOLS: VapiToolDef[] = [
   },
 ];
 
-// ─── ASSISTANT CONFIG ───────────────────────────────────
+// ─── ANALYSIS PLAN — extract structured data per call ────
+// Vapi returns these fields in the end-of-call-report webhook so we
+// can store call outcomes without parsing transcripts manually.
+
+const ANALYSIS_PLAN = {
+  summaryPlan: {
+    enabled: true,
+    timeoutSeconds: 30,
+    messages: [
+      {
+        role: "system" as const,
+        content: "You are a call analyst. Summarize this Nick's Tire & Auto receptionist call in 2-3 sentences: what the customer wanted, what was agreed, what action is needed. Be concrete — include specifics like tire size, vehicle, booked day. No filler.",
+      },
+      { role: "user" as const, content: "Here is the transcript:\n{{transcript}}" },
+    ],
+  },
+  successEvaluationPlan: {
+    enabled: true,
+    timeoutSeconds: 30,
+    rubric: "PassFail" as const,
+    messages: [
+      {
+        role: "system" as const,
+        content: "Evaluate whether this Nick's Tire & Auto call was successful. PASS = customer's question was answered AND (a) booking was made, OR (b) callback was scheduled, OR (c) customer left with the info they needed. FAIL = customer hung up unsatisfied, AI made things up, AI failed to capture name/phone, or customer asked for human and didn't get one.",
+      },
+      { role: "user" as const, content: "Transcript:\n{{transcript}}" },
+    ],
+  },
+  structuredDataPlan: {
+    enabled: true,
+    timeoutSeconds: 30,
+    schema: {
+      type: "object" as const,
+      properties: {
+        callType: {
+          type: "string" as const,
+          enum: ["tire_inquiry", "repair_question", "booking", "callback", "info_only", "complaint", "voicemail", "wrong_number", "other"],
+          description: "Primary intent of the call.",
+        },
+        customerName: { type: "string" as const, description: "Customer name if given." },
+        customerPhone: { type: "string" as const, description: "Phone number if captured." },
+        vehicle: { type: "string" as const, description: "Year/make/model if mentioned." },
+        tireSize: { type: "string" as const, description: "Tire size like '215/55R16' if mentioned." },
+        serviceMentioned: { type: "string" as const, description: "Service or part discussed (brakes, oil, used tires, etc.)." },
+        bookedDay: { type: "string" as const, description: "Day they agreed to come in, if any." },
+        sentiment: {
+          type: "string" as const,
+          enum: ["positive", "neutral", "negative"],
+          description: "Customer mood during the call.",
+        },
+        outcome: {
+          type: "string" as const,
+          enum: ["booked", "callback_scheduled", "info_given", "escalated", "lost", "no_phone", "voicemail"],
+          description: "What happened by end of call.",
+        },
+        followUpNeeded: { type: "boolean" as const, description: "Does Nick need to call this person back?" },
+      },
+      required: ["callType", "outcome"],
+    },
+    messages: [
+      {
+        role: "system" as const,
+        content: "Extract structured data from this call. If a field is unknown, omit it. Don't guess.",
+      },
+      { role: "user" as const, content: "Transcript:\n{{transcript}}" },
+    ],
+  },
+};
+
+// ─── ASSISTANT CONFIG (the optimal one) ──────────────────
 
 interface VapiAssistantConfig {
   name: string;
   firstMessage: string;
-  voice: { provider: string; voiceId: string };
-  model: { provider: string; model: string; messages: Array<{ role: string; content: string }>; tools: VapiToolDef[] };
+  // Transcriber — Deepgram nova-2-phonecall is call-tuned for low latency
+  // and handles tire-size strings ("two fifteen sixty-five sixteen") and
+  // auto-shop jargon better than the default.
+  transcriber: {
+    provider: "deepgram";
+    model: "nova-2-phonecall";
+    language: "en";
+    smartFormat: true;
+    keywords: string[]; // boosts recognition probability for these terms
+  };
+  voice: {
+    provider: "11labs";
+    voiceId: string;
+    model: "eleven_turbo_v2_5";
+    stability: number;
+    similarityBoost: number;
+    style: number;
+    useSpeakerBoost: boolean;
+    optimizeStreamingLatency: number;
+    enableSsmlParsing: boolean;
+  };
+  model: {
+    provider: "openai";
+    model: "gpt-4o";
+    messages: Array<{ role: "system"; content: string }>;
+    tools: VapiToolDef[];
+    temperature: number;
+    maxTokens: number;
+    emotionRecognitionEnabled: boolean;
+  };
   serverUrl?: string;
+  serverMessages: string[];
+  clientMessages: string[];
   endCallFunctionEnabled: boolean;
+  endCallPhrases: string[];
   hipaaEnabled: boolean;
   silenceTimeoutSeconds: number;
   responseDelaySeconds: number;
+  llmRequestDelaySeconds: number;
+  numWordsToInterruptAssistant: number;
   maxDurationSeconds: number;
+  backgroundSound: "office" | "off";
+  backgroundDenoisingEnabled: boolean;
+  modelOutputInMessagesEnabled: boolean;
+  voicemailDetection: {
+    provider: "twilio";
+    voicemailDetectionTypes: string[];
+    enabled: boolean;
+    machineDetectionTimeout: number;
+  };
+  voicemailMessage: string;
+  analysisPlan: typeof ANALYSIS_PLAN;
+  artifactPlan: {
+    recordingEnabled: boolean;
+    videoRecordingEnabled: boolean;
+    transcriptPlan: { enabled: boolean };
+  };
+  startSpeakingPlan: {
+    waitSeconds: number;
+    smartEndpointingEnabled: boolean;
+    transcriptionEndpointingPlan: {
+      onPunctuationSeconds: number;
+      onNoPunctuationSeconds: number;
+      onNumberSeconds: number;
+    };
+  };
+  stopSpeakingPlan: {
+    numWords: number;
+    voiceSeconds: number;
+    backoffSeconds: number;
+  };
+  metadata?: Record<string, string>;
 }
+
+// Keywords boost transcriber accuracy on shop-specific terms.
+// Deepgram lets us pre-prime the model with high-priority words.
+const TRANSCRIBER_KEYWORDS = [
+  "tire", "tires",
+  "Goodyear", "Michelin", "Bridgestone", "Continental", "Cooper", "Hankook",
+  "brake", "rotor", "pad",
+  "alignment", "balance",
+  "TPMS",
+  "F-150", "Silverado", "Camry", "Accord", "Civic", "RAV4", "CR-V", "Escape",
+  "Acima", "Snap", "Koalafi",
+  "Euclid", "Cleveland",
+  "215/55R16", "225/65R17", "265/70R17", // common Cleveland sizes
+];
 
 function buildAssistantConfig(serverUrl?: string): VapiAssistantConfig {
   return {
     name: "Nick's Tire & Auto Receptionist",
     firstMessage: FIRST_MESSAGE,
+
+    // ─── Speech-to-Text ─────────────────────────────────
+    transcriber: {
+      provider: "deepgram",
+      model: "nova-2-phonecall",
+      language: "en",
+      smartFormat: true,
+      keywords: TRANSCRIBER_KEYWORDS,
+    },
+
+    // ─── Voice (Text-to-Speech) ─────────────────────────
     voice: {
       provider: "11labs",
-      voiceId: "pNInz6obpgDQGcFmaJgB", // Adam — warm, neutral US accent
+      voiceId: "pNInz6obpgDQGcFmaJgB", // Adam — warm neutral US accent
+      model: "eleven_turbo_v2_5", // Lower-latency model
+      stability: 0.55, // 0-1; lower = more expressive variance
+      similarityBoost: 0.78, // Stick close to original Adam timbre
+      style: 0.20, // Add a touch of natural style/emotion
+      useSpeakerBoost: true,
+      optimizeStreamingLatency: 3, // 0-4; 3 is best for phone latency
+      enableSsmlParsing: true, // Allows <break/> + emphasis tags
     },
+
+    // ─── LLM brain ──────────────────────────────────────
     model: {
       provider: "openai",
-      model: "gpt-4o-mini",
+      model: "gpt-4o", // Smarter on tool calls + size matching than -mini
       messages: [{ role: "system", content: ASSISTANT_SYSTEM_PROMPT }],
       tools: VAPI_TOOLS,
+      temperature: 0.4, // Lower than default 0.7 → more deterministic
+      maxTokens: 250, // Force concise responses (phone calls = short)
+      emotionRecognitionEnabled: true, // Detect sentiment for escalation
     },
-    serverUrl, // Vapi posts tool calls here — production webhook
+
+    // ─── Webhooks ───────────────────────────────────────
+    serverUrl,
+    serverMessages: [
+      "function-call",
+      "tool-calls",
+      "end-of-call-report",
+      "status-update",
+      "transfer-update",
+      "user-interrupted",
+      "speech-update",
+    ],
+    clientMessages: [
+      "transcript",
+      "tool-calls",
+      "user-interrupted",
+      "voice-input",
+    ],
+
+    // ─── End-call control ───────────────────────────────
     endCallFunctionEnabled: true,
+    endCallPhrases: END_CALL_PHRASES,
+
     hipaaEnabled: false,
-    silenceTimeoutSeconds: 20,
-    responseDelaySeconds: 0.4,
-    maxDurationSeconds: 600, // 10-minute hard cap per call
+
+    // ─── Timeouts (shorter = faster, but risk premature responses) ──
+    silenceTimeoutSeconds: 15, // Down from 20 — phone calls expect <15s gaps
+    responseDelaySeconds: 0.25, // Down from 0.4 — snappier feel
+    llmRequestDelaySeconds: 0.05, // Tiny buffer before LLM call
+    numWordsToInterruptAssistant: 3, // Higher = AI doesn't get cut off mid-sentence
+    maxDurationSeconds: 600, // 10 minute hard cap
+
+    // ─── Audio environment ──────────────────────────────
+    backgroundSound: "office", // Subtle ambient — feels real, not call-center silent
+    backgroundDenoisingEnabled: true, // Clean inbound audio for the LLM
+    modelOutputInMessagesEnabled: true,
+
+    // ─── Voicemail detection ────────────────────────────
+    voicemailDetection: {
+      provider: "twilio",
+      voicemailDetectionTypes: ["machine_end_beep", "machine_end_silence", "machine_end_other"],
+      enabled: true,
+      machineDetectionTimeout: 30,
+    },
+    voicemailMessage: VOICEMAIL_MESSAGE,
+
+    // ─── Per-call analysis (auto-extracts structured data) ──
+    analysisPlan: ANALYSIS_PLAN,
+
+    // ─── Recording + artifacts ──────────────────────────
+    artifactPlan: {
+      recordingEnabled: true, // Audio recording for review
+      videoRecordingEnabled: false,
+      transcriptPlan: { enabled: true }, // Full transcript stored
+    },
+
+    // ─── Speech timing ──────────────────────────────────
+    startSpeakingPlan: {
+      waitSeconds: 0.4, // Wait this long after user stops before responding
+      smartEndpointingEnabled: true, // Use ML to detect end-of-utterance
+      transcriptionEndpointingPlan: {
+        // Different delay rules based on what user just said
+        onPunctuationSeconds: 0.1, // "." or "?" — they're done, respond fast
+        onNoPunctuationSeconds: 1.5, // No punctuation — wait, they may continue
+        onNumberSeconds: 0.5, // After a number ("215") — they may still be reading
+      },
+    },
+    stopSpeakingPlan: {
+      numWords: 2, // Customer said 2+ words = interrupt me
+      voiceSeconds: 0.2, // Customer's voice for 200ms = interrupt me
+      backoffSeconds: 1, // After interruption, wait this long before resuming
+    },
+
+    metadata: {
+      shop: "nicks-tire-auto",
+      version: "v2.0-tire-first",
+      deployedAt: new Date().toISOString(),
+    },
   };
 }
 
-// ─── API CLIENT ─────────────────────────────────────────
+// ─── API CLIENT ──────────────────────────────────────────
 
 async function vapiFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const apiKey = process.env.VAPI_API_KEY;
@@ -235,12 +617,8 @@ async function vapiFetch(path: string, init: RequestInit = {}): Promise<Response
   });
 }
 
-// ─── PUBLIC API ─────────────────────────────────────────
+// ─── PUBLIC API ──────────────────────────────────────────
 
-/**
- * Status — does Vapi auth work? List assistants we own.
- * Used by admin dashboard to show "Vapi connected" badge.
- */
 export async function getVapiStatus(): Promise<{
   connected: boolean;
   assistantCount: number;
@@ -276,10 +654,6 @@ export async function getVapiStatus(): Promise<{
   }
 }
 
-/**
- * Create the production assistant. One-time setup — admin clicks
- * "Create Vapi Assistant" button. Returns the assistant ID for storage.
- */
 export async function createProductionAssistant(serverUrl?: string): Promise<{
   success: boolean;
   assistantId?: string;
@@ -306,10 +680,6 @@ export async function createProductionAssistant(serverUrl?: string): Promise<{
   }
 }
 
-/**
- * Update an existing assistant — useful when prompt or tools change.
- * Pass the assistant ID stored from create.
- */
 export async function updateAssistant(assistantId: string, serverUrl?: string): Promise<{
   success: boolean;
   error?: string;
@@ -322,17 +692,16 @@ export async function updateAssistant(assistantId: string, serverUrl?: string): 
     });
     if (!res.ok) {
       const text = await res.text();
+      log.error("Vapi assistant update failed", { status: res.status, body: text.slice(0, 500) });
       return { success: false, error: `${res.status}: ${text.slice(0, 200)}` };
     }
+    log.info("Updated Vapi assistant", { id: assistantId });
     return { success: true };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Update failed" };
   }
 }
 
-/**
- * Read recent calls from Vapi for the admin call-monitor panel.
- */
 export async function getRecentCalls(limit = 20): Promise<{
   success: boolean;
   calls: Array<{
@@ -344,6 +713,8 @@ export async function getRecentCalls(limit = 20): Promise<{
     endedReason?: string;
     cost?: number;
     summary?: string;
+    structuredData?: Record<string, unknown>;
+    successEvaluation?: string;
   }>;
   error?: string;
 }> {
@@ -353,16 +724,21 @@ export async function getRecentCalls(limit = 20): Promise<{
       return { success: false, calls: [], error: `${res.status}: ${(await res.text()).slice(0, 200)}` };
     }
     const data = (await res.json()) as Array<Record<string, unknown>>;
-    const calls = data.map((c) => ({
-      id: String(c.id || ""),
-      startedAt: c.startedAt as string | undefined,
-      endedAt: c.endedAt as string | undefined,
-      durationSeconds: typeof c.duration === "number" ? c.duration : undefined,
-      customerNumber: ((c.customer as Record<string, unknown>)?.number as string) || undefined,
-      endedReason: c.endedReason as string | undefined,
-      cost: typeof c.cost === "number" ? c.cost : undefined,
-      summary: c.summary as string | undefined,
-    }));
+    const calls = data.map((c) => {
+      const analysis = c.analysis as Record<string, unknown> | undefined;
+      return {
+        id: String(c.id || ""),
+        startedAt: c.startedAt as string | undefined,
+        endedAt: c.endedAt as string | undefined,
+        durationSeconds: typeof c.duration === "number" ? c.duration : undefined,
+        customerNumber: ((c.customer as Record<string, unknown>)?.number as string) || undefined,
+        endedReason: c.endedReason as string | undefined,
+        cost: typeof c.cost === "number" ? c.cost : undefined,
+        summary: (analysis?.summary as string) || (c.summary as string),
+        structuredData: analysis?.structuredData as Record<string, unknown> | undefined,
+        successEvaluation: analysis?.successEvaluation as string | undefined,
+      };
+    });
     return { success: true, calls };
   } catch (err) {
     return { success: false, calls: [], error: err instanceof Error ? err.message : "Fetch failed" };

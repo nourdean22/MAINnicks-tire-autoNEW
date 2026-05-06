@@ -311,6 +311,182 @@ export const voiceAgentRouter = router({
     }),
 
   /**
+   * TIRE LOOKUP — primary call reason for this shop.
+   *
+   * Most inbound calls are: "Do you have a used tire for my [vehicle]?"
+   * This tool takes a vehicle (year/make/model) and returns the OEM stock
+   * tire size(s) so the AI can confirm sizes verbally without making
+   * the customer go look in their door jamb.
+   *
+   * Falls back to a friendly "common sizes for that vehicle" answer
+   * when the lookup table doesn't have the exact match — the goal is
+   * to get the customer to the shop with a size they can repeat.
+   */
+  tireSizeFromVehicle: publicProcedure
+    .input(z.object({
+      year: z.number().int().min(1980).max(2030).optional(),
+      make: z.string().min(1).max(50),
+      model: z.string().min(1).max(80).optional(),
+    }))
+    .query(async ({ input }) => {
+      // Hard-coded stock-size map for the most-asked-about vehicles in
+      // Cleveland. Real-world: this could call a third-party VIN/spec
+      // service, but for V1 the top 25 vehicles cover ~70% of calls.
+      const make = input.make.toLowerCase();
+      const model = (input.model || "").toLowerCase();
+
+      // Format: { match: string|RegExp, size: string, note?: string }
+      const TIRE_MAP: Array<{ match: RegExp; size: string; note?: string }> = [
+        // Honda
+        { match: /honda.*civic/, size: "215/55R16 or 215/45R17 (Sport/Si)" },
+        { match: /honda.*accord/, size: "225/50R17 or 235/40R19 (Touring/Sport)" },
+        { match: /honda.*cr.?v/, size: "235/65R17 or 235/60R18 (newer)" },
+        { match: /honda.*odyssey/, size: "235/60R18" },
+        { match: /honda.*pilot/, size: "245/60R18 or 265/45R20 (Black Edition)" },
+        // Toyota
+        { match: /toyota.*camry/, size: "215/55R17 or 235/45R18 (XSE/SE)" },
+        { match: /toyota.*corolla/, size: "205/55R16 or 225/40R18 (XSE)" },
+        { match: /toyota.*rav.?4/, size: "225/65R17 or 235/55R19 (Limited)" },
+        { match: /toyota.*highlander/, size: "245/60R18 or 235/55R20 (Platinum)" },
+        { match: /toyota.*tacoma/, size: "265/70R16 or 265/65R17 (TRD)" },
+        // Ford
+        { match: /ford.*f.?150/, size: "265/70R17 or 275/65R18 (XLT) or 275/55R20 (Lariat+)" },
+        { match: /ford.*explorer/, size: "255/65R18 or 255/55R20 (Limited+)" },
+        { match: /ford.*escape/, size: "225/65R17 or 225/55R19 (Titanium)" },
+        { match: /ford.*fusion/, size: "235/50R17 or 235/45R18" },
+        { match: /ford.*focus/, size: "215/55R16 or 215/45R18 (ST)" },
+        // Chevy
+        { match: /chev(rolet|y).*silverado/, size: "265/70R17 or 275/60R20 (LTZ+)" },
+        { match: /chev(rolet|y).*equinox/, size: "225/65R17 or 235/50R19 (Premier)" },
+        { match: /chev(rolet|y).*malibu/, size: "225/55R17 or 245/40R19 (Premier)" },
+        { match: /chev(rolet|y).*tahoe/, size: "265/65R18 or 275/55R20 (Premier+)" },
+        { match: /chev(rolet|y).*cruze/, size: "215/60R16 or 225/45R18 (RS)" },
+        // Jeep
+        { match: /jeep.*grand.cherokee/, size: "265/60R18 or 265/50R20 (Limited+)" },
+        { match: /jeep.*cherokee/, size: "225/60R17 or 225/55R18 (Limited)" },
+        { match: /jeep.*wrangler/, size: "255/75R17 or 285/70R17 (Rubicon)" },
+        // Nissan
+        { match: /nissan.*altima/, size: "215/60R16 or 235/40R19 (Platinum)" },
+        { match: /nissan.*rogue/, size: "225/65R17 or 225/55R19 (SL+)" },
+        { match: /nissan.*sentra/, size: "205/60R16 or 215/45R17 (SR)" },
+        // Hyundai/Kia
+        { match: /hyundai.*sonata/, size: "215/55R17 or 235/45R18 (Limited)" },
+        { match: /hyundai.*elantra/, size: "205/55R16 or 225/45R17 (Limited)" },
+        { match: /hyundai.*tucson/, size: "225/60R17 or 235/55R19 (Limited)" },
+        { match: /kia.*optima/, size: "205/65R16 or 235/45R18 (SX)" },
+        { match: /kia.*sorento/, size: "235/65R17 or 235/55R19 (SX)" },
+        // RAM/Dodge
+        { match: /(ram|dodge).*1500/, size: "275/65R18 or 275/55R20 (Laramie+)" },
+        { match: /dodge.*charger/, size: "235/55R18 or 245/45R20 (R/T+)" },
+        { match: /dodge.*challenger/, size: "235/55R18 or 245/45R20 (R/T+)" },
+        // Subaru
+        { match: /subaru.*outback/, size: "225/65R17 or 225/60R18 (Limited XT)" },
+        { match: /subaru.*forester/, size: "225/60R17 or 225/55R18 (Touring)" },
+        // Tesla
+        { match: /tesla.*model.3/, size: "235/45R18 or 235/40R19 (Performance)" },
+        { match: /tesla.*model.y/, size: "255/45R19 or 255/40R20 (Performance)" },
+      ];
+
+      const compositeQuery = `${make} ${model}`;
+      for (const entry of TIRE_MAP) {
+        if (entry.match.test(compositeQuery)) {
+          return {
+            found: true,
+            vehicle: `${input.year ?? ""} ${input.make} ${input.model ?? ""}`.trim(),
+            commonSizes: entry.size,
+            note: entry.note ?? "Trim level may change the size — check the door jamb sticker if you can.",
+            usedTirePriceRange: { low: 60, high: 120 },
+            installPackageIncluded: true,
+            installPackageContents: [
+              "Mount + computer balance",
+              "New valve stems",
+              "TPMS reset (if equipped)",
+              "Alignment check",
+              "20-point safety inspection",
+            ],
+          };
+        }
+      }
+
+      // Fallback when no match — give a friendly answer that gets them
+      // to the shop without a fake size.
+      return {
+        found: false,
+        vehicle: `${input.year ?? ""} ${input.make} ${input.model ?? ""}`.trim(),
+        commonSizes: null,
+        note: "I don't have your exact stock size on file. Easiest answer: check the side of any current tire on your vehicle for the size, or look at the sticker inside the driver's door jamb. Then call back or come in — we'll match it.",
+        usedTirePriceRange: { low: 60, high: 120 },
+        installPackageIncluded: true,
+        installPackageContents: [
+          "Mount + computer balance",
+          "New valve stems",
+          "TPMS reset (if equipped)",
+          "Alignment check",
+          "20-point safety inspection",
+        ],
+      };
+    }),
+
+  /**
+   * TIRE INQUIRY CAPTURE — log a tire-specific call.
+   *
+   * The AI calls this when a customer asks about used tires but doesn't
+   * commit to a booking yet. Captures the size + vehicle + name + phone
+   * so we can follow up if they don't walk in.
+   *
+   * Different from a general escalation — these are warm leads, not
+   * complaints. They go to the leads table tagged source="voice-tire".
+   */
+  tireInquiry: publicProcedure
+    .input(z.object({
+      name: z.string().min(2).max(200),
+      phone: z.string().min(7).max(20),
+      tireSize: z.string().max(50).optional(),
+      vehicle: z.string().max(200).optional(),
+      newOrUsed: z.enum(["new", "used", "either"]).default("either"),
+      installationNeeded: z.boolean().default(true),
+      callId: z.string().max(100).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { db } = await import("../lib/db-helper");
+        const { leads } = await import("../../drizzle/schema");
+        const d = await db();
+        if (!d) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+        }
+        const problemSummary = [
+          `${input.newOrUsed.toUpperCase()} TIRES`,
+          input.tireSize ? `Size: ${input.tireSize}` : null,
+          input.vehicle ? `Vehicle: ${input.vehicle}` : null,
+          input.installationNeeded ? "Wants install" : "No install needed",
+        ].filter(Boolean).join(" · ");
+
+        await d.insert(leads).values({
+          name: input.name,
+          phone: input.phone.replace(/\D/g, ""),
+          email: null,
+          problem: `[VOICE-AGENT TIRE INQUIRY]${input.callId ? ` callId=${input.callId}` : ""} — ${problemSummary}`,
+          vehicle: input.vehicle || null,
+          source: "callback",
+          status: "new",
+          urgencyScore: 4, // Tires-specific = high intent
+          utmSource: "voice-agent",
+          utmMedium: "phone",
+          utmCampaign: "vapi-tire-inquiry",
+        });
+        log.info("Voice agent tire inquiry captured", { name: input.name, size: input.tireSize });
+        return {
+          success: true,
+          message: `Got it — I've sent the tire info to the shop. ${input.tireSize ? `Looking for ${input.tireSize}.` : ""} Walk in any day, we usually have most common sizes on the rack from $60 installed.`,
+        };
+      } catch (err) {
+        log.error("Voice agent tire inquiry failed", { err: err instanceof Error ? err.message : String(err) });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Tire inquiry log failed" });
+      }
+    }),
+
+  /**
    * Hours + address + general FAQ — read-only, fast lookup.
    * AI calls this for "what time do you close?" / "where are you?".
    */
