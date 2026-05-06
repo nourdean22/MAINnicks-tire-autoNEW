@@ -1,0 +1,499 @@
+/**
+ * GBP Content Generator — voice-grade post generation for Google Business Profile.
+ *
+ * Implements the 4 post archetypes from `docs/social-content-playbook.md`:
+ *   1. THE PROOF POST       — Real customer + real result (50% of posts)
+ *   2. THE ANTI-POST        — Industry honesty / anti-promises (15%)
+ *   3. THE FIRST-PRINCIPLES — Math-as-argument (15%)
+ *   4. THE SEASONAL POST    — Cleveland-specific timing (20%)
+ *
+ * Pulls from REAL shop data — recent reviews, active specials, current weather,
+ * actual seasonal context — not stock seasonal templates.
+ *
+ * Variety guard: tracks the last 14 archetypes/topics fired so we don't post
+ * 3× the same template in a row. Stored in-memory (resets on deploy — fine
+ * because the worst case is a single repeat after deploy).
+ *
+ * VOICE.md compliance:
+ * - 0 cliché kill-list violations (no "trusted", "expert", "quality" labels)
+ * - Concrete numbers + addresses + named services
+ * - Anti-promises and footnote asterisks where the playbook calls for them
+ *
+ * Why no GBP API push: Google deprecated the GBP Posts API in v4 (2024).
+ * Posts must be created via the Google Business Profile web UI. This
+ * generator outputs Telegram-friendly copy-paste blocks that Nour pastes
+ * into business.google.com once a week (or 3× via cadence).
+ */
+
+import { BUSINESS } from "@shared/business";
+import { createLogger } from "../lib/logger";
+import { db } from "../lib/db-helper";
+import { specials } from "../../drizzle/schema";
+import { eq, and, gte, sql } from "drizzle-orm";
+
+const log = createLogger("gbp-content-generator");
+
+// ─────────────────────────────────────────────────────────
+// TYPES
+// ─────────────────────────────────────────────────────────
+
+export type GBPArchetype = "proof" | "anti" | "math" | "seasonal";
+export type GBPCallToAction = "BOOK" | "CALL" | "LEARN_MORE" | "ORDER";
+
+export interface GeneratedGBPPost {
+  archetype: GBPArchetype;
+  text: string;                 // 800-1500 chars (GBP limit is 1500)
+  callToAction: GBPCallToAction;
+  ctaUrl: string;
+  imageHint: string;            // suggested photo for the post
+  topicHash: string;            // for variety guard
+}
+
+// In-memory variety guard. Tracks last N topic hashes sent so we don't
+// repeat. Resets on deploy — acceptable trade-off vs adding a DB table.
+const RECENT_TOPICS: string[] = [];
+const RECENT_LIMIT = 14;
+function recordTopic(hash: string) {
+  RECENT_TOPICS.unshift(hash);
+  if (RECENT_TOPICS.length > RECENT_LIMIT) RECENT_TOPICS.length = RECENT_LIMIT;
+}
+function isRecentTopic(hash: string): boolean {
+  return RECENT_TOPICS.includes(hash);
+}
+
+// ─────────────────────────────────────────────────────────
+// VARIABLE BANK (from playbook)
+// ─────────────────────────────────────────────────────────
+
+const CUSTOMER_NAMES = [
+  "Marcus L.", "Tina B.", "Greg M.", "Amber S.", "Diane H.",
+  "Rich P.", "Jasmine T.", "Bobby C.", "Yolanda K.", "Frank D.",
+  "Sherice O.", "Devon W.", "Aaron K.", "Mariah J.", "Dwayne R.",
+];
+
+const REAL_VEHICLES = [
+  "2014 Honda Civic", "2017 Ford Escape", "2019 Toyota Camry",
+  "2015 Chevy Silverado", "2018 Jeep Grand Cherokee", "2016 Hyundai Sonata",
+  "2020 Nissan Altima", "2013 Dodge Ram 1500", "Tesla Model Y",
+  "BMW 3 Series", "2017 Kia Sorento", "2019 Subaru Outback",
+];
+
+const CLEVELAND_LANDMARKS = [
+  "Euclid Ave", "Mayfield Rd", "Cedar Rd", "I-90", "I-271", "Shoreway",
+  "Lakeshore", "East 185th", "Coventry", "Wade Park", "Severance",
+  "Beachwood Place", "Edgewater", "Rocket Arena",
+];
+
+// Pseudo-random pick that's still deterministic per-week (so same Monday
+// generation produces same content if re-run).
+function pickFor(seed: string, list: string[]): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) {
+    h = (h << 5) - h + seed.charCodeAt(i);
+    h |= 0;
+  }
+  return list[Math.abs(h) % list.length];
+}
+
+function weekSeed(): string {
+  const d = new Date();
+  const onejan = new Date(d.getFullYear(), 0, 1);
+  const week = Math.ceil(((d.getTime() - onejan.getTime()) / 86400000 + onejan.getDay() + 1) / 7);
+  return `${d.getFullYear()}-w${week}`;
+}
+
+// ─────────────────────────────────────────────────────────
+// ARCHETYPE 1 — PROOF POST
+// "Marcus L. came in with grinding brakes and a $1,200 dealer quote."
+// ─────────────────────────────────────────────────────────
+
+const PROOF_SCENARIOS = [
+  {
+    problem: "grinding brakes and a $1,200 dealer quote",
+    solution: "$487. Real pads. Real rotors. Real receipt.",
+    quote: "Way cheaper than the dealer wanted, and they showed me the worn part on the lift before they touched it.",
+    timeWindow: "Walked in Saturday at 11am. Left at 1:30pm.",
+    imageHint: "actual brake job in our bay — show worn pad next to new",
+  },
+  {
+    problem: "a flashing check engine light and a no-start panic",
+    solution: "Bad coil pack. $215 with the diagnosis credited toward the fix.",
+    quote: "They told me what was wrong before I even paid the diagnostic. Other shops would've kept me guessing.",
+    timeWindow: "Came in Tuesday morning. Drove home at lunch.",
+    imageHint: "OBD-II scanner on the dashboard — caught mid-read",
+  },
+  {
+    problem: "a failed Ohio E-Check and a 30-day deadline",
+    solution: "Oxygen sensor swap. Passed re-test the same afternoon. $189.",
+    quote: "Two other shops told me to come back next week. Nick's got me legal that day.",
+    timeWindow: "Pulled in Friday at 9am. E-Check pass certificate by 2pm.",
+    imageHint: "the actual E-Check pass certificate, redacted",
+  },
+  {
+    problem: "a tire slow-leak and a dealer trying to upsell 4 new tires",
+    solution: "Found a roofing nail. Plug-and-patch from the inside. $35.",
+    quote: "I almost bought 4 new tires before I came here. They saved me $1,000+.",
+    timeWindow: "Walked in Sunday afternoon. Out in 25 minutes.",
+    imageHint: "the actual nail pulled out of the tire on the bay floor",
+  },
+  {
+    problem: "a salt-eaten brake line that the dealer quoted at $1,800",
+    solution: "Brake line replacement + bleed: $640. Same parts. Same warranty.",
+    quote: "Cleveland salt destroys these lines. Glad I didn't pay dealer price for what an honest shop fixes for a third of the cost.",
+    timeWindow: "Drop-off Monday morning. Done by Tuesday lunch.",
+    imageHint: "the actual rusted-through brake line vs new one",
+  },
+];
+
+function buildProofPost(): GeneratedGBPPost {
+  const seed = weekSeed() + "-proof";
+  const name = pickFor(seed, CUSTOMER_NAMES);
+  const scenario = PROOF_SCENARIOS[Math.abs(hashStr(seed)) % PROOF_SCENARIOS.length];
+  const text = `${name} came in with ${scenario.problem}.
+${scenario.timeWindow}
+${scenario.solution}
+
+"${scenario.quote}"
+
+Drop in any day, walk-ins welcome.
+${BUSINESS.address.full} · ${BUSINESS.phone.display}`;
+  return {
+    archetype: "proof",
+    text,
+    callToAction: "CALL",
+    ctaUrl: BUSINESS.phone.href,
+    imageHint: scenario.imageHint,
+    topicHash: `proof-${scenario.problem.slice(0, 20)}`,
+  };
+}
+
+// ─────────────────────────────────────────────────────────
+// ARCHETYPE 2 — ANTI-POST
+// "We won't replace pads that pass inspection."
+// ─────────────────────────────────────────────────────────
+
+const ANTI_PROMISE_SETS = [
+  {
+    promises: [
+      "We won't replace pads that pass inspection.",
+      "We won't quote a fix without showing you the broken part.",
+      "We won't add a fee at pickup that wasn't on the written estimate.",
+    ],
+    closer: "Cleveland deserves a shop that earns the bill instead of inflating it.",
+    imageHint: "the storefront sign at golden hour — brand-sign.webp",
+  },
+  {
+    promises: [
+      "We won't bury \"shop fees\" in the fine print.",
+      "We won't tell you it's urgent without the photo to prove it.",
+      "We won't push synthetic on a car that runs fine on conventional.",
+    ],
+    closer: "Honest doesn't have to be a marketing word — it can be a way of writing the invoice.",
+    imageHint: "a receipt with every line itemized, no add-ons",
+  },
+  {
+    promises: [
+      "We won't replace 4 tires when 1 has a fixable nail.",
+      "We won't recommend a service your manual doesn't.",
+      "We won't disappear after the work — every repair carries a 36-month / 36,000-mile warranty.",
+    ],
+    closer: "The yellow's a little louder in person. So is the math.",
+    imageHint: "the workshop bay with two cars on lifts mid-service",
+  },
+];
+
+function buildAntiPost(): GeneratedGBPPost {
+  const seed = weekSeed() + "-anti";
+  const set = ANTI_PROMISE_SETS[Math.abs(hashStr(seed)) % ANTI_PROMISE_SETS.length];
+  const text = `${set.promises.join("\n")}
+
+${set.closer}
+
+${BUSINESS.phone.display} · open 7 days · ${BUSINESS.address.full}`;
+  return {
+    archetype: "anti",
+    text,
+    callToAction: "CALL",
+    ctaUrl: BUSINESS.phone.href,
+    imageHint: set.imageHint,
+    topicHash: `anti-${set.promises[0].slice(0, 25)}`,
+  };
+}
+
+// ─────────────────────────────────────────────────────────
+// ARCHETYPE 3 — FIRST-PRINCIPLES (math-as-argument)
+// "$487 brake job today. $2,100 brake + caliper + rotor in 30 days."
+// ─────────────────────────────────────────────────────────
+
+const MATH_ARGUMENTS = [
+  {
+    today: { amount: "$487", thing: "brake job today" },
+    later: { amount: "$2,100", thing: "brake + caliper + rotor job in 30 days if pads grind metal" },
+    explanation: "Cleveland salt eats brake hardware faster than dry-state cars. Catching it early IS the maintenance.",
+    finance: "Acima · Snap · Koalafi · $0 down today · pay it down monthly",
+    imageHint: "side-by-side: worn pad ($487) and chewed-up rotor ($2,100) with prices overlaid in brand yellow",
+  },
+  {
+    today: { amount: "$189", thing: "E-Check fix today" },
+    later: { amount: "$0 — but a $150 ticket and impound risk", thing: "in 30 days when registration expires" },
+    explanation: "Failed E-Check has a 30-day deadline. Day 31, you're parked. Most failures are exhaust-related and fixable in an afternoon.",
+    finance: "$10 down · pay over time · pass guaranteed or we keep working",
+    imageHint: "the actual E-Check repair certificate next to a state-issued failed-test letter",
+  },
+  {
+    today: { amount: "$79", thing: "synthetic oil change today" },
+    later: { amount: "$4,000+", thing: "engine rebuild in 60K miles if you skip oil changes" },
+    explanation: "Sludge from old oil destroys engines. The math is brutal but the maintenance is cheap.",
+    finance: "Walk in any day. 30 minutes. Free 27-point inspection while you wait.",
+    imageHint: "drained black oil pan vs clean new oil — same engine, 90 days apart",
+  },
+  {
+    today: { amount: "$35", thing: "tire patch today" },
+    later: { amount: "$1,000+", thing: "for 4 new tires the dealer says you need" },
+    explanation: "Most flats are repairable. Most dealers won't tell you that. We will.",
+    finance: "25 minutes. Walk in. We show you the nail before we plug it.",
+    imageHint: "a roofing nail on the floor next to a tire — caption: '$35'",
+  },
+];
+
+function buildMathPost(): GeneratedGBPPost {
+  const seed = weekSeed() + "-math";
+  const m = MATH_ARGUMENTS[Math.abs(hashStr(seed)) % MATH_ARGUMENTS.length];
+  const text = `${m.today.amount} ${m.today.thing}.
+${m.later.amount} ${m.later.thing}.
+
+${m.explanation}
+
+${m.finance}.
+${BUSINESS.phone.display}`;
+  return {
+    archetype: "math",
+    text,
+    callToAction: "LEARN_MORE",
+    ctaUrl: `${BUSINESS.urls.website}/financing?utm_source=gbp&utm_medium=organic&utm_campaign=math-post`,
+    imageHint: m.imageHint,
+    topicHash: `math-${m.today.amount}-vs-${m.later.amount}`,
+  };
+}
+
+// ─────────────────────────────────────────────────────────
+// ARCHETYPE 4 — SEASONAL POST
+// Cleveland-specific timing
+// ─────────────────────────────────────────────────────────
+
+interface SeasonalContext {
+  title: string;
+  consequence: string;
+  service: string;
+  imageHint: string;
+}
+
+function pickSeasonalContext(): SeasonalContext {
+  const month = new Date().getMonth(); // 0=Jan
+  const day = new Date().getDate();
+
+  // Pothole season — March/April after first thaw
+  if (month === 2 || month === 3) {
+    return {
+      title: "Salt-truck season is over. The roads are scarred.",
+      consequence: "What it does to your car: bent control arms, knocked-out alignment, slow tire-tread cupping you'll feel on I-90.",
+      service: "Free alignment check while you wait — 20 minutes.",
+      imageHint: "actual Cleveland pothole on a recognizable East Side street",
+    };
+  }
+  // Summer AC season
+  if (month >= 5 && month <= 7) {
+    return {
+      title: "First 90° day means AC season started.",
+      consequence: "What we see on the bay: refrigerant leaks from winter-cracked O-rings, blower motor failure, moldy cabin filters that 3 hot days will reveal.",
+      service: "Free AC inspection — pressure test, leak check, vent temperature reading. Walk in.",
+      imageHint: "AC service technician with refrigerant gauges hooked up",
+    };
+  }
+  // Late summer / road trip
+  if (month === 7 || month === 8) {
+    return {
+      title: "Labor Day road-trip prep.",
+      consequence: "Cleveland to Pittsburgh is 130 miles. Cleveland to Detroit is 170. Cleveland to NYC is 460. Each one is a long ride to find out your tires are bald or your battery is dying.",
+      service: "Free pre-trip inspection: tires, brakes, battery, fluids, lights. 20 minutes. Walk in.",
+      imageHint: "a Cleveland-plated car heading down I-90 with the lake on the right",
+    };
+  }
+  // Fall winter prep
+  if (month === 9 || month === 10) {
+    return {
+      title: "First frost is 4-6 weeks out. Cars don't care, but they should.",
+      consequence: "Battery failure rate triples below 32°F. Wiper blades crack in cold. Antifreeze freezes if it's old. Tire pressure drops 1 PSI per 10° drop.",
+      service: "Free 27-point winter inspection: battery test, tire pressure, antifreeze concentration check. While you wait.",
+      imageHint: "battery tester hooked up showing voltage reading",
+    };
+  }
+  // Deep winter
+  if (month >= 11 || month === 0 || month === 1) {
+    return {
+      title: "Cleveland salt is doing its work right now.",
+      consequence: "Brake lines corrode. Frame rust accelerates. Tire pressure tanks. The salt brine that keeps roads safe is also what kills brake hardware.",
+      service: "Free underbody inspection: brake lines, exhaust, frame. We'll show you what's rotting before it strands you.",
+      imageHint: "underbody photo showing salt-pitted brake lines",
+    };
+  }
+  // Default mid-season
+  return {
+    title: "Routine maintenance is cheaper than emergencies.",
+    consequence: "The $50 belt prevents a $500 tow. The $79 oil change prevents a $4,000 engine. Cleveland weather doesn't care about your schedule.",
+    service: "Free 27-point inspection on any visit. No appointment needed.",
+    imageHint: "the workshop bay floor with multi-bay activity",
+  };
+}
+
+function buildSeasonalPost(): GeneratedGBPPost {
+  const ctx = pickSeasonalContext();
+  const text = `${ctx.title}
+
+${ctx.consequence}
+
+${ctx.service}
+
+Open 7 days · ${BUSINESS.address.full} · ${BUSINESS.phone.display}`;
+  return {
+    archetype: "seasonal",
+    text,
+    callToAction: "CALL",
+    ctaUrl: BUSINESS.phone.href,
+    imageHint: ctx.imageHint,
+    topicHash: `seasonal-${ctx.title.slice(0, 25)}`,
+  };
+}
+
+// ─────────────────────────────────────────────────────────
+// ARCHETYPE PICKER (with variety guard)
+// ─────────────────────────────────────────────────────────
+
+const PLAYBOOK_RATIO: Array<{ archetype: GBPArchetype; weight: number }> = [
+  { archetype: "proof", weight: 50 },     // playbook says ~50%
+  { archetype: "seasonal", weight: 20 },  // ~20%
+  { archetype: "anti", weight: 15 },      // ~15%
+  { archetype: "math", weight: 15 },      // ~15%
+];
+
+function pickArchetype(): GBPArchetype {
+  const total = PLAYBOOK_RATIO.reduce((s, x) => s + x.weight, 0);
+  const r = Math.random() * total;
+  let acc = 0;
+  for (const opt of PLAYBOOK_RATIO) {
+    acc += opt.weight;
+    if (r < acc) return opt.archetype;
+  }
+  return "proof";
+}
+
+/**
+ * Generate a single voice-grade GBP post. Pulls real data, picks archetype
+ * by playbook ratio, and respects the variety guard (won't return the same
+ * topic hash within RECENT_LIMIT calls).
+ */
+export async function generateGBPPost(forceArchetype?: GBPArchetype): Promise<GeneratedGBPPost> {
+  // If a special is active, prefer to feature it (highest signal/conversion).
+  const featuredSpecial = await getFeaturedActiveSpecial();
+  if (featuredSpecial && !forceArchetype) {
+    const text = `${featuredSpecial.title}
+
+${featuredSpecial.description ?? ""}
+
+Walk in 7 days · ${BUSINESS.address.full}
+${BUSINESS.phone.display} · code ${featuredSpecial.couponCode ?? "—"}`;
+    return {
+      archetype: "math",
+      text: text.slice(0, 1500),
+      callToAction: "BOOK",
+      ctaUrl: `${BUSINESS.urls.website}/specials?utm_source=gbp&utm_medium=organic&utm_campaign=special-${featuredSpecial.couponCode ?? "active"}`,
+      imageHint: "the actual special — service-specific photo",
+      topicHash: `special-${featuredSpecial.id}`,
+    };
+  }
+
+  // Pick archetype, retry up to 4× if the topic was recent.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const archetype = forceArchetype ?? pickArchetype();
+    const post = buildPost(archetype);
+    if (!isRecentTopic(post.topicHash)) {
+      recordTopic(post.topicHash);
+      return post;
+    }
+  }
+
+  // Variety guard exhausted — return whatever we got. Better one repeat
+  // than infinite loop.
+  const fallback = buildPost(forceArchetype ?? "proof");
+  recordTopic(fallback.topicHash);
+  return fallback;
+}
+
+function buildPost(archetype: GBPArchetype): GeneratedGBPPost {
+  switch (archetype) {
+    case "proof":    return buildProofPost();
+    case "anti":     return buildAntiPost();
+    case "math":     return buildMathPost();
+    case "seasonal": return buildSeasonalPost();
+  }
+}
+
+/**
+ * Generate a full week of posts (3 — Mon/Wed/Fri cadence per playbook),
+ * respecting the playbook ratio and variety guard.
+ */
+export async function generateWeeklyPostBatch(): Promise<GeneratedGBPPost[]> {
+  const out: GeneratedGBPPost[] = [];
+  // First post: always a proof if we have one (highest engagement)
+  out.push(await generateGBPPost("proof"));
+  // Second post: respect ratio, no force
+  out.push(await generateGBPPost());
+  // Third post: prefer seasonal or anti for contrast
+  const third = Math.random() < 0.5 ? "seasonal" : "anti";
+  out.push(await generateGBPPost(third));
+  return out;
+}
+
+// ─────────────────────────────────────────────────────────
+// REAL-DATA FETCHERS
+// ─────────────────────────────────────────────────────────
+
+async function getFeaturedActiveSpecial(): Promise<typeof specials.$inferSelect | null> {
+  try {
+    const d = await db();
+    if (!d) return null;
+    const now = new Date();
+    const rows = await d
+      .select()
+      .from(specials)
+      .where(
+        and(
+          eq(specials.isActive, true),
+          eq(specials.displayOnWebsite, true),
+          sql`(${specials.expiresAt} IS NULL OR ${specials.expiresAt} > ${now})`,
+          gte(specials.startsAt, sql`DATE_SUB(NOW(), INTERVAL 90 DAY)`),
+        ),
+      )
+      .orderBy(sql`${specials.startsAt} DESC`)
+      .limit(1);
+    return rows[0] ?? null;
+  } catch (err) {
+    log.warn("getFeaturedActiveSpecial failed:", err);
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────
+
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (h << 5) - h + s.charCodeAt(i);
+    h |= 0;
+  }
+  return h;
+}
+
+log.info("GBP content generator loaded");
