@@ -6,7 +6,7 @@
  */
 import React, { useEffect, useState, lazy, Suspense } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
-import { StatCard, PageHeader, LoadingState, EmptyState } from "./shared";
+import { StatCard, PageHeader, LoadingState, EmptyState, SectionInsightStrip } from "./shared";
 
 // Inferred from tRPC AppRouter — admin audit §3 follow-up.
 type ListedCustomer = NonNullable<RouterOutputs["customers"]["list"]>["customers"][number];
@@ -741,6 +741,12 @@ export default function CustomersSection() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="Customers"
+        subtitle="Loyalty · coupons · customer drawer · spend tiers · churn risk"
+        icon={<UserCheck className="w-5 h-5" />}
+      />
+      <SectionInsightStrip section="customers" />
       {/* Sub-tabs: Customers | Loyalty | Coupons */}
       <div className="flex items-center gap-1 border-b border-border/40">
         {([

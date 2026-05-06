@@ -15,7 +15,7 @@
 import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { PageHeader, LoadingState } from "./shared";
+import { PageHeader, LoadingState, SectionInsightStrip } from "./shared";
 import {
   RotateCcw, Send, Phone, User, Clock, AlertTriangle,
   CheckCircle2, Calendar, Edit2, X, Sparkles,
@@ -94,6 +94,7 @@ export default function ReEngagementSection() {
           </>
         }
       />
+      <SectionInsightStrip section="reEngagement" />
 
       {isLoading ? (
         <LoadingState />

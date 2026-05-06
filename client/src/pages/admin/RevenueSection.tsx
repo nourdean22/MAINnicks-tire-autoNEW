@@ -28,7 +28,7 @@ import {
   AreaChart, Area, CartesianGrid,
 } from "recharts";
 
-import { CHART_COLORS, CHART_THEME, PageHeader, LoadingState } from "./shared";
+import { CHART_COLORS, CHART_THEME, PageHeader, LoadingState, SectionInsightStrip } from "./shared";
 
 function formatCents(cents: number): string {
   return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -54,6 +54,12 @@ export default function RevenueSection() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="Revenue & Shop"
+        subtitle="Daily flow · invoices · work orders · tier breakdown · forecasting · ALG mirror is the source of truth"
+        icon={<TrendingUp className="w-5 h-5" />}
+      />
+      <SectionInsightStrip section="revenue" />
       {/* Section-level tabs — wraps on mobile */}
       <div className="flex flex-wrap items-center gap-1 border-b border-border/20 pb-0">
         {REVENUE_TABS.map((t) => (

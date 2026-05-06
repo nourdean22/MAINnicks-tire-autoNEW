@@ -10,7 +10,7 @@ import { trpc, type RouterOutputs } from "@/lib/trpc";
 // ContentSection cleanups).
 type CallEvent = RouterOutputs["callTracking"]["list"][number];
 type Callback = NonNullable<RouterOutputs["callback"]["list"]>[number];
-import { StatCard, CHART_COLORS, CHART_THEME, PageHeader } from "./shared";
+import { StatCard, CHART_COLORS, CHART_THEME, PageHeader, SectionInsightStrip } from "./shared";
 import {
   Phone, PhoneCall, MapPin, Loader2, Clock, AlertTriangle,
   TrendingUp, BarChart3, Users, CheckCircle2, XCircle, MessageSquare,
@@ -120,6 +120,7 @@ export default function CallTrackingSection() {
         subtitle="Phone-click attribution, callback queue, missed-call recovery. Twilio webhook fires the moment a call status changes."
         icon={<PhoneCall className="w-5 h-5" />}
       />
+      <SectionInsightStrip section="callTrackingView" />
       {/* ─── METRICS ─── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <StatCard

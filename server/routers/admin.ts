@@ -317,6 +317,214 @@ export const adminDashboardRouter = router({
       };
     }
   }),
+
+  /**
+   * Section Insight — single actionable callout for a specific admin
+   * section. Returns the highest-priority signal RELEVANT TO THAT SECTION,
+   * not the global Today's Brief.
+   *
+   * Used by the InsightStrip primitive at the top of each section so
+   * Nour sees "for Customers: 12 lapsed VIPs need outreach" or "for
+   * Revenue: MTD pace is 8% behind".
+   *
+   * Returns null when no actionable signal — section just renders no strip.
+   */
+  sectionInsight: adminProcedure
+    .input(z.object({
+      section: z.enum([
+        "customers", "revenue", "leads", "campaigns", "callTrackingView",
+        "declinedEstimates", "noShowRisk", "reEngagement", "content",
+        "intelligence", "settings", "trafficFunnel", "snapDashboard",
+      ]),
+    }))
+    .query(async ({ input }) => {
+      try {
+        const { getDb } = await import("../db");
+        const d = await getDb();
+        if (!d) return null;
+        const { sql, eq, and, gte, isNull } = await import("drizzle-orm");
+
+        switch (input.section) {
+          case "customers": {
+            // Lapsed VIP customers — high LTV, haven't visited in 6+ months
+            try {
+              const { customers } = await import("../../drizzle/schema");
+              const sixMonthsAgo = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
+              const [vipLapsed] = await d
+                .select({ count: sql<number>`count(*)` })
+                .from(customers)
+                .where(and(
+                  sql`${customers.totalSpent} >= 50000`, // $500+ lifetime spend (cents)
+                  sql`${customers.lastVisitDate} < ${sixMonthsAgo}`,
+                ));
+              const cnt = Number(vipLapsed?.count || 0);
+              if (cnt >= 3) {
+                return {
+                  variant: "primary" as const,
+                  message: `Lapsed VIPs (>$500 lifetime, no visit in 6+ months) — these are your highest-LTV winback targets.`,
+                  metric: `${cnt} VIPs lapsed`,
+                  cta: { label: "Run Win-Back", section: "reEngagement" },
+                };
+              }
+            } catch (e) { void e; }
+            return null;
+          }
+          case "revenue": {
+            // MTD pace vs target
+            try {
+              const { invoices } = await import("../../drizzle/schema");
+              const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+              const dayOfMonth = new Date().getDate();
+              const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+              const [mtd] = await d
+                .select({ total: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)` })
+                .from(invoices)
+                .where(and(
+                  gte(invoices.invoiceDate, monthStart),
+                  eq(invoices.paymentStatus, "paid"),
+                ));
+              const mtdRevenue = Number(mtd?.total || 0) / 100;
+              const targetMonthly = 60000; // baseline target
+              const expectedAtThisPoint = (targetMonthly * dayOfMonth) / daysInMonth;
+              const pace = mtdRevenue / expectedAtThisPoint;
+              if (pace < 0.85 && dayOfMonth > 7) {
+                const gap = Math.round(expectedAtThisPoint - mtdRevenue);
+                return {
+                  variant: "warning" as const,
+                  message: `Revenue MTD is below pace for monthly target. Push specials, fire win-back, follow up declined work.`,
+                  metric: `~$${gap.toLocaleString()} behind pace`,
+                  cta: { label: "Open Outreach", section: "campaigns" },
+                };
+              }
+              if (pace > 1.15) {
+                return {
+                  variant: "success" as const,
+                  message: `MTD revenue is running ahead of pace — strong month so far.`,
+                  metric: `+${Math.round((pace - 1) * 100)}% vs target`,
+                  cta: { label: "See Details", section: "revenue" },
+                };
+              }
+            } catch (e) { void e; }
+            return null;
+          }
+          case "leads": {
+            // Stale unactioned leads
+            try {
+              const { leads } = await import("../../drizzle/schema");
+              const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+              const [stale] = await d
+                .select({ count: sql<number>`count(*)` })
+                .from(leads)
+                .where(and(
+                  eq(leads.status, "new"),
+                  sql`${leads.createdAt} < ${oneDayAgo}`,
+                ));
+              const cnt = Number(stale?.count || 0);
+              if (cnt > 0) {
+                return {
+                  variant: "warning" as const,
+                  message: `Leads sitting unactioned for 24+ hours. Conversion drops 80% after the first day.`,
+                  metric: `${cnt} stale lead${cnt === 1 ? "" : "s"}`,
+                  cta: { label: "Open Leads", section: "leads" },
+                };
+              }
+            } catch (e) { void e; }
+            return null;
+          }
+          case "callTrackingView": {
+            // Pending callbacks
+            try {
+              const { callbackRequests } = await import("../../drizzle/schema");
+              const [pending] = await d
+                .select({ count: sql<number>`count(*)` })
+                .from(callbackRequests)
+                .where(sql`${callbackRequests.status} IN ('new', 'pending')`);
+              const cnt = Number(pending?.count || 0);
+              if (cnt > 0) {
+                return {
+                  variant: "danger" as const,
+                  message: `Customers waiting for a return call. Every hour drops conversion ~10%.`,
+                  metric: `${cnt} callback${cnt === 1 ? "" : "s"} pending`,
+                  cta: { label: "Call them", section: "callTrackingView" },
+                };
+              }
+            } catch (e) { void e; }
+            return null;
+          }
+          case "declinedEstimates": {
+            // Walk-aways pending recovery
+            try {
+              const { algEstimates } = await import("../../drizzle/schema");
+              const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
+              const [wa] = await d
+                .select({
+                  count: sql<number>`count(*)`,
+                  total: sql<number>`COALESCE(SUM(${algEstimates.estimatedAmount}), 0)`,
+                })
+                .from(algEstimates)
+                .where(and(
+                  isNull(algEstimates.matchedInvoiceId),
+                  gte(algEstimates.estimateDate, sixtyDaysAgo),
+                ));
+              const cnt = Number(wa?.count || 0);
+              const total = Math.round(Number(wa?.total || 0) / 100);
+              if (cnt > 0) {
+                return {
+                  variant: "primary" as const,
+                  message: `Walked-away estimates from last 60 days. SMS recovery cron targets these — set FEATURE_DECLINED_RECOVERY=1 to activate.`,
+                  metric: `$${total.toLocaleString()} recoverable`,
+                  cta: { label: "See Status", section: "settings", settingsTab: "shopdriver" },
+                };
+              }
+            } catch (e) { void e; }
+            return null;
+          }
+          case "reEngagement": {
+            // Negative reviews from last 7 days
+            try {
+              const { reviewReplies } = await import("../../drizzle/schema");
+              const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+              const [neg] = await d
+                .select({ count: sql<number>`count(*)` })
+                .from(reviewReplies)
+                .where(and(
+                  sql`${reviewReplies.reviewRating} <= 2`,
+                  gte(reviewReplies.reviewDate, sevenDaysAgo),
+                  sql`(${reviewReplies.status} IS NULL OR ${reviewReplies.status} IN ('draft', 'pending'))`,
+                ));
+              const cnt = Number(neg?.count || 0);
+              if (cnt > 0) {
+                return {
+                  variant: "danger" as const,
+                  message: `Negative reviews waiting for response. Public reply within 24h preserves trust score.`,
+                  metric: `${cnt} review${cnt === 1 ? "" : "s"}`,
+                  cta: { label: "Open Re-engagement", section: "reEngagement" },
+                };
+              }
+            } catch (e) { void e; }
+            return null;
+          }
+          case "settings": {
+            // ALG mirror health + env-flag status
+            const featureRecovery = process.env.FEATURE_DECLINED_RECOVERY === "1";
+            const vapiKey = !!process.env.VAPI_API_KEY;
+            if (!featureRecovery && vapiKey) {
+              return {
+                variant: "info" as const,
+                message: `Vapi receptionist is connected. FEATURE_DECLINED_RECOVERY is still off — flip it to activate the SMS recovery cron for walk-away estimates.`,
+                metric: "1 env flag pending",
+                cta: { label: "ShopDriver HQ", section: "settings", settingsTab: "shopdriver" },
+              };
+            }
+            return null;
+          }
+          default:
+            return null;
+        }
+      } catch (err) {
+        return null;
+      }
+    }),
 });
 
 export const analyticsRouter = router({
