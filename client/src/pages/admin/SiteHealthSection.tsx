@@ -4,8 +4,9 @@
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import {
-  Activity, BarChart3, CheckCircle2, ExternalLink, Eye, FileSpreadsheet, Gauge, Globe, Loader2, MapPin, PieChart, RefreshCw, Search, Sparkles, Star, TrendingUp, XCircle
+  Activity, BarChart3, CheckCircle2, ExternalLink, Eye, FileSpreadsheet, Gauge, Globe, Loader2, MapPin, PieChart, RefreshCw, Search, Sparkles, Star, TrendingUp, XCircle, Heart
 } from "lucide-react";
+import { PageHeader } from "./shared";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
   ResponsiveContainer, PieChart as RPieChart, Pie, Cell, Legend
@@ -27,6 +28,11 @@ export default function SiteHealthSection() {
 
   return (
     <div className="space-y-8">
+      <PageHeader
+        title="Site Health"
+        subtitle="Domain status · search rankings · review velocity · GA4 + GSC · vendor uptime"
+        icon={<Heart className="w-5 h-5" />}
+      />
       {/* Domain Status */}
       <div className="bg-card border border-border/30 p-6">
         <h3 className="font-bold text-sm tracking-wide text-foreground mb-5 flex items-center gap-2">

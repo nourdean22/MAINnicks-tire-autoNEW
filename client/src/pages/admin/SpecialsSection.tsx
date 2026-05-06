@@ -4,7 +4,8 @@
 import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2, XCircle, Zap } from "lucide-react";
+import { Loader2, XCircle, Zap, Tag } from "lucide-react";
+import { PageHeader } from "./shared";
 
 type Special = RouterOutputs["specials"]["getActive"][number];
 
@@ -76,8 +77,12 @@ export default function SpecialsSection() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="font-bold text-xl text-foreground tracking-wider">ACTIVE SPECIALS</h2>
+      <PageHeader
+        title="Specials"
+        subtitle="Active promotions · coupon codes · service-specific discounts. These rotate into the NotificationBar across the site."
+        icon={<Tag className="w-5 h-5" />}
+      />
+      <div className="flex items-center justify-end">
         <div className="flex items-center gap-2">
           {(!specials || specials.length <= 1) && (
             <button

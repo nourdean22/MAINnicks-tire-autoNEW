@@ -4,7 +4,7 @@
  */
 import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
-import { StatCard } from "./shared";
+import { StatCard, PageHeader } from "./shared";
 
 // tRPC-inferred types — server router was fixed in same commit
 // (drizzle $inferSelect on (c: any) leakages), so RouterOutputs
@@ -448,6 +448,11 @@ export default function WinBackSection() {
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        title="Win-Back Campaigns"
+        subtitle="Multi-step SMS sequences for lapsed customers · 30/60/90/180-day cohorts · campaign performance + recent sends"
+        icon={<RotateCcw className="w-5 h-5" />}
+      />
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatCard label="Total Campaigns" value={stats?.totalCampaigns ?? 0} icon={<RotateCcw className="w-4 h-4" />} />

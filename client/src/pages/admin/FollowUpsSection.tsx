@@ -11,6 +11,7 @@ type RecentFollowUp = NonNullable<RouterOutputs["followUps"]["recent"]>[number];
 import {
   Loader2, Send, RefreshCw, CheckCircle2, Clock, MessageSquare, Star, AlertCircle
 } from "lucide-react";
+import { PageHeader } from "./shared";
 
 const TYPE_CONFIG: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
   follow_up: { icon: <MessageSquare className="w-3.5 h-3.5" />, color: "text-blue-400 bg-blue-500/10", label: "THANK YOU" },
@@ -49,14 +50,12 @@ export default function FollowUpsSection() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-bold text-2xl text-foreground tracking-wider">FOLLOW-UP MANAGER</h2>
-          <p className="text-foreground/50 text-[12px] mt-1">
-            Automated thank-you and review request messages for completed bookings
-          </p>
-        </div>
+      <PageHeader
+        title="Follow-Ups"
+        subtitle="Automated thank-you + review-request SMS for completed bookings · pending queue + recent activity"
+        icon={<Send className="w-5 h-5" />}
+      />
+      <div className="flex items-center justify-end">
         <button
           onClick={() => runFollowUps.mutate()}
           disabled={runFollowUps.isPending}

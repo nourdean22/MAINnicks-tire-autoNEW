@@ -5,7 +5,7 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
-  StatCard, UrgencyBadge, ActivityIcon, StatusDot,
+  StatCard, UrgencyBadge, ActivityIcon, StatusDot, PageHeader,
   BOOKING_STATUS_CONFIG, LEAD_STATUS_CONFIG, TIME_LABELS, CHART_COLORS,
   type BookingStatus, type LeadStatus,
 } from "./shared";
@@ -66,7 +66,11 @@ export default function LoyaltyAdminSection() {
 
   return (
     <div className="space-y-8">
-      <h2 className="font-bold text-xl text-foreground tracking-wider">LOYALTY PROGRAM</h2>
+      <PageHeader
+        title="Loyalty Program"
+        subtitle="Award points · manage rewards · track redemption ROI · cheapest-cost reward = most accessible"
+        icon={<Trophy className="w-5 h-5" />}
+      />
 
       {/* ROI Metrics */}
       {!rewardsLoading && rewardStats.totalRewards > 0 && (
