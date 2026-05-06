@@ -23,6 +23,7 @@
 import InternalLinks from "./InternalLinks";
 import ResponsivePhoto from "./ResponsivePhoto";
 import RelatedServices from "./RelatedServices";
+import ServiceReviewsBlock from "./ServiceReviewsBlock";
 import PageLayout from "./PageLayout";
 import { SEOHead, Breadcrumbs } from "./SEO";
 import LocalBusinessSchema from "./LocalBusinessSchema";
@@ -507,6 +508,18 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
               priceCurrency: "USD",
               availability: "https://schema.org/InStock",
             })),
+            // AggregateRating drives the ★ rich-snippet in Google search.
+            // Same numbers used everywhere on the brand — single source
+            // of truth (BUSINESS.reviews.rating / count). Google requires
+            // ratingValue + reviewCount + bestRating + worstRating for
+            // the snippet to render.
+            aggregateRating: {
+              "@type": "AggregateRating",
+              ratingValue: 4.9,
+              reviewCount: 1700,
+              bestRating: 5,
+              worstRating: 1,
+            },
             url: `https://nickstire.org${config.canonicalPath}`,
           }),
         }}
@@ -542,6 +555,20 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
           asking "is it worth it?" The fear stats answer with quantified risk. */}
       <FearStatsSection config={config} />
       <IncludedSection config={config} />
+      {/* Real-customer review block — pulled from reviewReplies via
+          serviceReviews.forService. Surfaces 4-5 star reviews mentioning
+          this service. Lands AFTER pricing (reduces sticker-shock) and
+          BEFORE loss-aversion (loads the "but does it work?" answer
+          before the closer). Component renders nothing if no matching
+          reviews are found, so unsupported services degrade gracefully. */}
+      <section className="py-8 lg:py-12 bg-[oklch(0.065_0.004_260)]">
+        <div className="container">
+          <ServiceReviewsBlock
+            service={config.bookingService}
+            serviceTitle={config.serviceType ?? config.h1}
+          />
+        </div>
+      </section>
       {/* Loss-aversion BEFORE FAQ — animated on scroll-in, last conversion
           push before the cooldown FAQ section. */}
       <LossSection config={config} />
