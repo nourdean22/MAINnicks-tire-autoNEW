@@ -172,10 +172,16 @@ function Hero() {
           >
             <StampLetters text="Pull up for tires." delay={0.3} />
             <br />
+            {/* 2026-05-06 wave-22 · drop text-gradient-yellow so the "Drop
+                off for repairs." line is the same solid #FDB913 brand yellow
+                as the rest of the site (CTA buttons, $60 callout, "Don't let
+                the problem get bigger.", trust-strip stars). The gradient
+                was washing out at small/mid sizes and didn't match the
+                brand-yellow used everywhere else. */}
             <StampLetters
               text="Drop off for repairs."
               delay={0.55}
-              className="text-[#FDB913] text-gradient-yellow"
+              className="text-[#FDB913]"
             />
           </h1>
 
@@ -185,13 +191,26 @@ function Hero() {
               from $60 · written estimate before any wrench moves ·
               payment programs (NOT "financing", banned word).
               Closes on the loss-aversion anchor. */}
+          {/* 2026-05-06 wave-22 · subhead repositioned to stay clear of the
+              storefront sign on the right of the photo:
+              · max-w-lg (512px) → max-w-sm (384px) keeps the FCFS copy in
+                the dark-gradient left third of the hero
+              · text size dropped one notch (text-lg/xl/2xl → text-base/lg/xl)
+                so denser copy fits the narrower column without wrapping
+                aggressively
+              · drop-shadow added to match the H1 readability stack in case
+                any character clips into the sign edge at unusual viewports */}
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
-            className="mt-6 text-lg sm:text-xl lg:text-2xl font-sans text-[#A0A0A0] max-w-lg body-pretty"
+            className="mt-6 text-base sm:text-lg lg:text-xl font-sans text-[#D4D4D4] max-w-sm body-pretty"
+            style={{
+              textShadow:
+                "0 1px 6px rgba(0,0,0,0.95), 0 0 14px rgba(0,0,0,0.6)",
+            }}
           >
-            Cleveland's first-come-first-served shop on Euclid Ave. Walk in 7 days. Used tires from <span className="text-[#FDB913]">$60</span> installed. Written estimate before any wrench moves. Payment programs available on the spot. <span className="text-[#FDB913]">Don't let the problem get bigger.</span>
+            Cleveland's first-come-first-served shop on Euclid Ave. Walk in 7 days. Used tires from <span className="text-[#FDB913] font-semibold">$60</span> installed. Written estimate before any wrench moves. Payment programs on the spot. <span className="text-[#FDB913] font-semibold">Don't let the problem get bigger.</span>
           </motion.p>
 
           {/* 2026-05-06 audit fix · 3-CTA stack per HOMEPAGE_MOCKUP:
