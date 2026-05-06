@@ -285,7 +285,7 @@ export default function CarCareGuidePage() {
                 QUESTIONS ABOUT YOUR <span className="text-primary">VEHICLE</span>?
               </h2>
               <p className="mt-4 text-foreground/70 text-lg max-w-xl mx-auto">
-                Our technicians are here to help. Call us, book online, or use our free diagnostic tool.
+                Our technicians are here to help. Call us, schedule a drop-off online, or use our free diagnostic tool.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in justify-center">
                 <a

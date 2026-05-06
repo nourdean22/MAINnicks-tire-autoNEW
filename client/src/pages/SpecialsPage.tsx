@@ -475,8 +475,8 @@ export default function SpecialsPage() {
               },
               {
                 num: "02",
-                title: "Book or Call",
-                desc: "Click \"Claim This Offer\" to book online, or call and mention the special.",
+                title: "Drop-Off or Call",
+                desc: "Click \"Claim This Offer\" to schedule a drop-off, or call and mention the special.",
               },
               {
                 num: "03",
@@ -508,7 +508,7 @@ export default function SpecialsPage() {
               Ready to <span className="text-primary">Save</span>?
             </h2>
             <p className="mt-4 text-foreground/70 text-lg max-w-xl mx-auto">
-              Call us or book online to schedule your service. Mention any special and we will apply
+              Call us or schedule a drop-off online. Mention any special and we will apply
               the discount.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">

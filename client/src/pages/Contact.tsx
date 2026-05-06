@@ -187,7 +187,7 @@ export default function Contact() {
                   </div>
 
                   <p className="text-sm text-foreground/60 mt-4">
-                    We accept all major cards, Apple Pay, Google Pay, and offer <Link href="/financing?utm_source=contact" className="text-emerald-400">lease-to-own &amp; financing options</Link>.
+                    We accept all major cards, Apple Pay, Google Pay, plus <Link href="/financing?utm_source=contact" className="text-emerald-400">lease-to-own &amp; payment programs</Link>.
                   </p>
 
                   {/* Google Business Profile */}

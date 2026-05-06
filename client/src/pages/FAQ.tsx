@@ -36,7 +36,7 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: "General",
     question: "Do I need an appointment?",
-    answer: `Walk-ins are always welcome. However, scheduling an appointment ensures we can get you in faster and have the right parts ready. You can book online through our website or call us at ${BUSINESS.phone.display}.`
+    answer: `No appointments needed — Nick's is first-come, first-served, 7 days a week. Walk in any time during open hours. If you want to skip the wait, you can schedule a drop-off online through our website or call us at ${BUSINESS.phone.display} so we have the right parts ready.`
   },
   {
     category: "General",

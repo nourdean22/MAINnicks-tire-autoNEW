@@ -210,7 +210,7 @@ export default function ChatWidget() {
                       }}
                       className="w-full text-left text-[12px] text-foreground/60 hover:text-foreground border border-[oklch(0.17_0.004_260)] rounded-lg px-3 py-3 hover:border-foreground/15 hover:bg-foreground/[0.03] transition-all"
                     >
-                      📅 Book an appointment
+                      📅 Schedule a drop-off
                     </button>
                     <button
                       onClick={() => {

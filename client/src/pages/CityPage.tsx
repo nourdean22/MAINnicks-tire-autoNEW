@@ -376,9 +376,9 @@ export default function CityPage() {
             </FadeIn>
 
             <div className="mt-8 flex flex-wrap justify-center gap-4 stagger-in text-sm text-foreground/50">
-              <Link href="/financing" className="text-emerald-400 hover:underline">Financing from $10 down</Link>
+              <Link href="/financing" className="text-emerald-400 hover:underline">Payment programs from $10 down</Link>
               <span className="text-foreground/20">|</span>
-              <Link href="/booking" className="hover:text-primary transition-colors">Book online</Link>
+              <Link href="/booking" className="hover:text-primary transition-colors">Schedule drop-off</Link>
               <span className="text-foreground/20">|</span>
               <Link href="/diagnose" className="hover:text-primary transition-colors">Diagnose my car</Link>
               <span className="text-foreground/20">|</span>
@@ -508,7 +508,7 @@ export default function CityPage() {
               <FadeIn delay={0.05}>
                 <div className="border border-border/40 p-6 bg-card/30 rounded-lg">
                   <h3 className="font-semibold font-bold text-lg text-foreground mb-3">Do I need an appointment, or can I just walk in?</h3>
-                  <p className="text-foreground/70 leading-relaxed">Walk-ins are welcome for most services including oil changes, tire work, brake inspections, and diagnostics. We work on a first-come, first-served basis. If you want to guarantee a specific time, you can <Link href="/booking" className="text-nick-blue-light hover:underline">book online</Link> or call us at {BUSINESS.phone.display}. We're open {BUSINESS.hours.display} and Sundays 9 AM to 4 PM.</p>
+                  <p className="text-foreground/70 leading-relaxed">No appointments — Nick's is first-come, first-served, 7 days a week. Pull up any time during open hours and we'll get you in line. If you want to skip the wait, <Link href="/booking" className="text-nick-blue-light hover:underline">schedule a drop-off online</Link> or call {BUSINESS.phone.display}. We're open {BUSINESS.hours.display} and Sundays 9 AM to 4 PM.</p>
                 </div>
               </FadeIn>
               <FadeIn delay={0.1}>
