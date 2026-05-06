@@ -28,19 +28,24 @@ export default function ServiceReviewsBlock({ service, serviceTitle }: ServiceRe
   if (isLoading) return null;
   if (!data?.reviews?.length) return null;
 
+  // Component owns its own section wrapper — that way callers can drop
+  // it inline and still get clean vertical rhythm + bg distinction. When
+  // no reviews match, we return null above and no empty band renders.
   return (
-    <FadeIn>
-      <div className="mt-16">
-        <span className="font-mono text-nick-blue-light text-sm tracking-wide">Real Reviews</span>
-        <h3 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground mt-2 tracking-tight">
-          WHAT CLEVELAND DRIVERS SAY ABOUT OUR{" "}
-          <span className="text-primary">{serviceTitle.toUpperCase()}</span>
-        </h3>
-        <p className="mt-3 text-foreground/70 text-sm">
-          Recent verified reviews from customers who got this exact service.
-        </p>
+    <section className="py-12 lg:py-16 bg-[oklch(0.065_0.004_260)] border-t border-border/50">
+      <div className="container">
+        <FadeIn>
+          <div>
+            <span className="font-mono text-nick-blue-light text-sm tracking-wide">Real Reviews</span>
+            <h3 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground mt-2 tracking-tight">
+              WHAT CLEVELAND DRIVERS SAY ABOUT OUR{" "}
+              <span className="text-primary">{serviceTitle.toUpperCase()}</span>
+            </h3>
+            <p className="mt-3 text-foreground/70 text-sm">
+              Recent verified reviews from customers who got this exact service.
+            </p>
 
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
           {data.reviews.map((review, i) => (
             <FadeIn key={i} delay={i * 0.1}>
               <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-5 h-full flex flex-col">
@@ -75,8 +80,10 @@ export default function ServiceReviewsBlock({ service, serviceTitle }: ServiceRe
               </div>
             </FadeIn>
           ))}
-        </div>
+            </div>
+          </div>
+        </FadeIn>
       </div>
-    </FadeIn>
+    </section>
   );
 }
