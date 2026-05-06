@@ -80,54 +80,102 @@ export function createSeasonalPost(season: { title: string; services: string[]; 
 }
 
 /**
- * Auto-generate a GBP post and send via Telegram for manual posting.
- * Until we have GBP API access, this gives Nour copy-paste content weekly.
+ * Auto-generate GBP posts and send via Telegram for manual posting.
+ *
+ * 2026-05-05 upgrade: was 1 cliché-laden seasonal post once per week.
+ * Now generates a FULL WEEK of 3 voice-grade posts every Sunday night
+ * via the new gbpContentGenerator (4 archetypes from social-content
+ * playbook + variety guard + real-data integration).
+ *
+ * Why Sunday batch: Nour copies all 3 posts in one Telegram thread
+ * Sunday evening, then pastes them into business.google.com on Mon
+ * (proof), Wed (math/anti), Fri (seasonal). Compounds local SEO via
+ * GBP posting frequency without daily mental load.
+ *
+ * GBP Posts API was deprecated in 2024 — copy-paste is the only path.
  */
 export async function generateAndNotifyGBPPost(): Promise<{ recordsProcessed: number; details: string }> {
   try {
-    // Only generate weekly (check day — run on Mondays)
+    // Run only on Sundays (or first run after deploy if last-run-day check is added)
     const day = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, weekday: "long" });
-    if (day !== "Monday") return { recordsProcessed: 0, details: "Not Monday — skipping GBP post" };
+    if (day !== "Sunday") {
+      return { recordsProcessed: 0, details: `Skip — runs Sundays only (today is ${day})` };
+    }
 
-    const month = new Date().getMonth();
-    const isWinter = month >= 10 || month <= 2;
-    const isSummer = month >= 5 && month <= 7;
+    const { generateWeeklyPostBatch } = await import("./gbpContentGenerator");
+    const posts = await generateWeeklyPostBatch();
 
-    let post: GBPPost;
-    if (isWinter) {
-      post = createSeasonalPost({
-        title: "Winter Prep at Nick's Tire & Auto",
-        services: ["Battery Test (FREE)", "Tire Check", "Coolant Flush", "Wiper Blades"],
-        promoIdea: "Cleveland winters are brutal. Get your car ready before the first snow. Walk-ins welcome!",
-      });
-    } else if (isSummer) {
-      post = createSeasonalPost({
-        title: "Summer Road Trip Ready?",
-        services: ["A/C Check", "Tire Rotation", "Brake Inspection", "Oil Change"],
-        promoIdea: "Planning a road trip? Make sure your vehicle is ready. Free multi-point inspection this month!",
-      });
-    } else {
-      post = createSeasonalPost({
-        title: "Your Car Deserves Honest Repair",
-        services: ["Full Diagnosis", "Brakes", "Tires", "Maintenance"],
-        promoIdea: "Family-owned shop in Euclid. Honest pricing, quality work. Walk-ins welcome 7 days a week.",
-      });
+    if (posts.length === 0) {
+      return { recordsProcessed: 0, details: "Generator returned 0 posts" };
     }
 
     const { sendTelegram } = await import("./telegram");
+
+    // One Telegram message per post — easier to copy individually.
+    // Plus a header message with the schedule.
+    const today = new Date().toLocaleDateString("en-US", {
+      timeZone: BUSINESS.timezone, weekday: "long", month: "short", day: "numeric",
+    });
     await sendTelegram(
-      `📝 WEEKLY GBP POST — Copy & paste to Google Business Profile:\n\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `${post.text}\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `Type: ${post.type} | CTA: ${post.callToAction}\n` +
-      `Post at: business.google.com → Posts → Add update`
+      `📝 GBP POSTS — Week of ${today}\n\n` +
+      `${posts.length} voice-grade posts ready for the week.\n` +
+      `Suggested schedule:\n` +
+      `· Monday morning: Post #1 (${posts[0].archetype})\n` +
+      `· Wednesday morning: Post #2 (${posts[1]?.archetype ?? "—"})\n` +
+      `· Friday morning: Post #3 (${posts[2]?.archetype ?? "—"})\n\n` +
+      `Each post message below has:\n` +
+      `  • Copy-paste body\n` +
+      `  • Suggested CTA + URL\n` +
+      `  • Image hint\n\n` +
+      `Paste at: business.google.com → Posts → Add update`,
     );
 
-    return { recordsProcessed: 1, details: "GBP post sent to Telegram" };
+    let i = 1;
+    for (const p of posts) {
+      const archetypeLabel = p.archetype.toUpperCase();
+      await sendTelegram(
+        `━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `POST #${i} · ${archetypeLabel}\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `${p.text}\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `🔗 CTA: ${p.callToAction}\n` +
+        `🔗 URL: ${p.ctaUrl}\n` +
+        `📸 Image: ${p.imageHint}`,
+      );
+      i++;
+    }
+
+    return {
+      recordsProcessed: posts.length,
+      details: `Generated ${posts.length} voice-grade GBP posts (${posts.map((p) => p.archetype).join(", ")}) → Telegram batch`,
+    };
   } catch (err: unknown) {
     return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
+}
+
+/**
+ * Manual one-off post generator — admin-triggered.
+ * Returns the post text + Telegram-ready payload without auto-sending.
+ * Used by admin "Generate GBP Post" button.
+ */
+export async function generateOneOffGBPPost(forceArchetype?: "proof" | "anti" | "math" | "seasonal"): Promise<{
+  archetype: string;
+  text: string;
+  callToAction: string;
+  ctaUrl: string;
+  imageHint: string;
+}> {
+  const { generateGBPPost } = await import("./gbpContentGenerator");
+  const post = await generateGBPPost(forceArchetype);
+  return {
+    archetype: post.archetype,
+    text: post.text,
+    callToAction: post.callToAction,
+    ctaUrl: post.ctaUrl,
+    imageHint: post.imageHint,
+  };
 }
 
 log.info("GBP auto-poster loaded");
