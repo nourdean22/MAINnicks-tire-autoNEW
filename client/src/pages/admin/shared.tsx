@@ -98,22 +98,27 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "REVENUE",
     items: [
+      // 2026-05-06 Elon-deeper-cut · removed from sidebar (still URL-
+      // accessible via TAB_ALIASES):
+      //   - noShowRisk     → folded conceptually into Leads (it's a
+      //                       filter on the same lead pool)
+      //   - walkInCalc     → promoted to a Cmd+K quick action (it's a
+      //                       tool, not a destination)
       { id: "revenue", label: "Revenue & Shop", icon: <TrendingUp className="w-4 h-4" /> },
       { id: "declinedEstimates", label: "Declined Work", icon: <AlertTriangle className="w-4 h-4" /> },
-      { id: "noShowRisk", label: "No-Show Risk", icon: <AlertTriangle className="w-4 h-4" /> },
       { id: "snapDashboard", label: "Snap Finance", icon: <CreditCard className="w-4 h-4" /> },
-      { id: "walkInCalc", label: "Walk-In Quote", icon: <DollarSign className="w-4 h-4" /> },
     ],
   },
   {
     label: "GROW",
     items: [
+      // 2026-05-06 Elon-deeper-cut · removed from sidebar:
+      //   - reEngagement     → consolidated into Outreach Hub as a tab
+      //   - conversionPreview→ tucked under Settings (verification tool)
       { id: "trafficFunnel", label: "Traffic → Revenue", icon: <TrendingUp className="w-4 h-4" /> },
       { id: "campaigns", label: "Outreach Hub", icon: <Send className="w-4 h-4" /> },
-      { id: "reEngagement", label: "Re-engagement", icon: <RotateCcw className="w-4 h-4" /> },
       { id: "content", label: "Content & AI", icon: <FileText className="w-4 h-4" /> },
       { id: "intelligence", label: "Intelligence", icon: <Brain className="w-4 h-4" /> },
-      { id: "conversionPreview", label: "Conversion Preview", icon: <Sparkles className="w-4 h-4" /> },
     ],
   },
   {
@@ -121,8 +126,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       // Bottom-pinned utility: NOUR OS Bridge is a sync widget, not a
       // daily destination. Settings holds ShopDriver, System Health,
-      // Compliance, and Integrations as tabs (deep-link via
-      // ?tab=settings&settingsTab=health).
+      // Compliance, Integrations, and Conversion Preview as tabs.
       { id: "commandCenter", label: "NOUR OS Bridge", icon: <Zap className="w-4 h-4" /> },
       { id: "settings", label: "Settings", icon: <Settings className="w-4 h-4" /> },
     ],
