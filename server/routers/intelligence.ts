@@ -15,6 +15,7 @@ import {
   analyzeGeography,
   analyzeBottlenecks,
   analyzeDeclinedWork,
+  analyzeUnmatchedAlgEstimates,
   generateFullIntelligenceReport,
   forecastSeasonalDemand,
   analyzeGeographicRevenue,
@@ -98,6 +99,13 @@ export const intelligenceRouter = router({
   geography: adminProcedure.query(async () => analyzeGeography()),
   bottlenecks: adminProcedure.query(async () => analyzeBottlenecks()),
   declinedWork: adminProcedure.query(async () => analyzeDeclinedWork()),
+  /**
+   * Walk-away ALG estimates — whole quotes that never converted to invoice.
+   * Different signal than declinedWork (which is per-line items inside an
+   * accepted invoice). This surfaces customers who walked away entirely.
+   * Returns 0s gracefully when alg_estimates is empty.
+   */
+  walkAwayEstimates: adminProcedure.query(async () => analyzeUnmatchedAlgEstimates()),
 
   // ── New Intelligence Engines ──
 

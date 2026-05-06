@@ -17,7 +17,7 @@
  */
 
 import { getDb } from "../db";
-import { invoices, customers, customerMetrics, leads, bookings, chatSessions, callEvents, workOrders, reviewRequests } from "../../drizzle/schema";
+import { invoices, customers, customerMetrics, leads, bookings, chatSessions, callEvents, workOrders, reviewRequests, algEstimates } from "../../drizzle/schema";
 import { sql, eq, gte, lte, and, asc } from "drizzle-orm";
 import { BUSINESS } from "@shared/business";
 
@@ -797,6 +797,117 @@ export async function analyzeDeclinedWork() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// #5b WALK-AWAY ESTIMATES (alg_estimates with no matched invoice)
+// ═══════════════════════════════════════════════════════════
+/**
+ * Pulls ALG walk-in estimates that NEVER converted to an invoice.
+ *
+ * Different signal from analyzeDeclinedWork():
+ *  - analyzeDeclinedWork() = LINE ITEMS the customer said no to inside a
+ *    work order they otherwise accepted (partial decline).
+ *  - analyzeUnmatchedAlgEstimates() = WHOLE estimates where the customer
+ *    walked away entirely (full decline / no work done).
+ *
+ * The latter is the bigger recovery opportunity per Nick's business model
+ * (FCFS walk-ins → either close in-person or lose the job entirely).
+ *
+ * Source of truth: `alg_estimates` table populated by
+ * server/services/shopDriverEstimateSync.ts via the
+ * shopdriver-estimate-mirror cron.
+ *
+ * Returns 0s gracefully when:
+ *   - Table is empty (estimate sync hasn't fired yet or endpoint unmapped)
+ *   - DB is unreachable
+ * Brain consumers can still render — they just won't surface the section.
+ */
+export async function analyzeUnmatchedAlgEstimates(): Promise<{
+  unmatchedCount: number;
+  unmatchedValueCents: number;
+  unmatchedValueDollars: number;
+  recoveryWindow: { last7d: number; last30d: number; last60d: number };
+  recoverableEstimate: number;
+  topUnmatched: Array<{ name: string; phone: string | null; service: string | null; amountCents: number; estimateDate: string; daysOld: number }>;
+  conversionRate: number;
+  totalEstimates: number;
+}> {
+  const d = await db();
+  const now = new Date();
+  const sevenAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const thirtyAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const sixtyAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+  // Pull all estimates from last 60 days. Limit 500 to keep this lightweight.
+  const recent = await d
+    .select({
+      id: algEstimates.id,
+      customerName: algEstimates.customerName,
+      customerPhone: algEstimates.customerPhone,
+      serviceDescription: algEstimates.serviceDescription,
+      estimatedAmount: algEstimates.estimatedAmount,
+      estimateDate: algEstimates.estimateDate,
+      matchedInvoiceId: algEstimates.matchedInvoiceId,
+    })
+    .from(algEstimates)
+    .where(gte(algEstimates.estimateDate, sixtyAgo))
+    .limit(500);
+
+  type EstimateRow = {
+    id: number;
+    customerName: string;
+    customerPhone: string | null;
+    serviceDescription: string | null;
+    estimatedAmount: number;
+    estimateDate: Date;
+    matchedInvoiceId: number | null;
+  };
+  const totalEstimates = recent.length;
+  const unmatched = (recent as EstimateRow[]).filter((e) => !e.matchedInvoiceId);
+  const unmatchedValueCents = unmatched.reduce((sum: number, e: EstimateRow) => sum + (e.estimatedAmount || 0), 0);
+
+  const last7d = unmatched.filter((e: EstimateRow) => e.estimateDate && new Date(e.estimateDate) >= sevenAgo).length;
+  const last30d = unmatched.filter((e: EstimateRow) => e.estimateDate && new Date(e.estimateDate) >= thirtyAgo).length;
+  const last60d = unmatched.length;
+
+  // Top 5 by amount (most expensive walk-aways = biggest leverage)
+  const topUnmatched = [...unmatched]
+    .sort((a: EstimateRow, b: EstimateRow) => (b.estimatedAmount || 0) - (a.estimatedAmount || 0))
+    .slice(0, 5)
+    .map((e: EstimateRow) => {
+      const days = e.estimateDate
+        ? Math.floor((now.getTime() - new Date(e.estimateDate).getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+      return {
+        name: e.customerName,
+        phone: e.customerPhone,
+        service: e.serviceDescription,
+        amountCents: e.estimatedAmount || 0,
+        estimateDate: e.estimateDate ? new Date(e.estimateDate).toISOString().slice(0, 10) : "",
+        daysOld: days,
+      };
+    });
+
+  // Match rate = matched / total. NaN-safe.
+  const conversionRate = totalEstimates > 0
+    ? Math.round(((totalEstimates - unmatched.length) / totalEstimates) * 100)
+    : 0;
+
+  // Recovery rate per industry standard: 25% for 7-day SMS, 15% for 30-day
+  // (Nick's FCFS model probably outperforms but use industry as floor).
+  const recoverableCents = Math.round(unmatchedValueCents * 0.20);
+
+  return {
+    unmatchedCount: unmatched.length,
+    unmatchedValueCents,
+    unmatchedValueDollars: Math.round(unmatchedValueCents / 100),
+    recoveryWindow: { last7d, last30d, last60d },
+    recoverableEstimate: Math.round(recoverableCents / 100),
+    topUnmatched,
+    conversionRate,
+    totalEstimates,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
 // #6 SEASONAL DEMAND FORECASTING
 // ═══════════════════════════════════════════════════════════
 
@@ -1102,7 +1213,7 @@ export async function analyzeServiceBundles(): Promise<{
 // ═══════════════════════════════════════════════════════════
 
 export async function generateFullIntelligenceReport() {
-  const [forecast, crossSell, leadScores, attribution, ltv, chatDemand, callAttr, fleet, geo, bottlenecks, declined, seasonal, geoRevenue, bundles] = await Promise.all([
+  const [forecast, crossSell, leadScores, attribution, ltv, chatDemand, callAttr, fleet, geo, bottlenecks, declined, walkAwayEstimates, seasonal, geoRevenue, bundles] = await Promise.all([
     forecastRevenue().catch(e => ({ error: String(e) })),
     generateCrossSellRecommendations().catch(e => ({ error: String(e) })),
     scoreLeads().catch(e => ({ error: String(e) })),
@@ -1114,12 +1225,15 @@ export async function generateFullIntelligenceReport() {
     analyzeGeography().catch(e => ({ error: String(e) })),
     analyzeBottlenecks().catch(e => ({ error: String(e) })),
     analyzeDeclinedWork().catch(e => ({ error: String(e) })),
+    // NEW 2026-05-05 — full walk-aways from ALG estimates (different signal
+    // than the per-line declined work above). Brain now sees both.
+    analyzeUnmatchedAlgEstimates().catch(e => ({ error: String(e) })),
     forecastSeasonalDemand().catch(e => ({ error: String(e) })),
     analyzeGeographicRevenue().catch(e => ({ error: String(e) })),
     analyzeServiceBundles().catch(e => ({ error: String(e) })),
   ]);
 
-  return { forecast, crossSell, leadScores, attribution, ltv, chatDemand, callAttr, fleet, geo, bottlenecks, declined, seasonal, geoRevenue, bundles, generatedAt: new Date().toISOString() };
+  return { forecast, crossSell, leadScores, attribution, ltv, chatDemand, callAttr, fleet, geo, bottlenecks, declined, walkAwayEstimates, seasonal, geoRevenue, bundles, generatedAt: new Date().toISOString() };
 }
 
 // ═══════════════════════════════════════════════════════════
