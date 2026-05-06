@@ -137,14 +137,15 @@ function Hero() {
             and use clamp()-style fluid sizing so the H1 fits on 1 line per
             tagline across all viewports while staying visually massive on
             true desktop. */}
-        {/* 2026-05-06 wave-20 · max-w-[58%] keeps H1 in the LEFT/dark
+        {/* 2026-05-06 wave-21 · max-w-[58%] keeps H1 in the LEFT/dark
             sky portion of the photo so the text doesn't bleed across
             the bright yellow storefront sign on the right.
-            mt-28 sm:mt-32 lg:mt-24 compensates for the removed BrandMark
-            (which used to take up ~112px of vertical space). Without
-            this padding, the items-center flex container shifted the
-            H1 too high, causing it to overlap the sticky nav. */}
-        <div className="max-w-full lg:max-w-[58%] mt-28 sm:mt-32 lg:mt-24">
+            mt-40 sm:mt-48 lg:mt-40 pushes H1 below the fixed nav
+            (which is z-50 + ~107px tall when the closed-banner is up).
+            Wave-20's mt-24 (96px) at lg only pushed H1 to y=57 which
+            still hid the top half behind the nav. Bumped to mt-40
+            (160px) at lg+ to give H1 a clear ~120px starting position. */}
+        <div className="max-w-full lg:max-w-[58%] mt-40 sm:mt-48 lg:mt-40">
           {/* 2026-05-06 wave-19 · BrandMark removed from hero. It was
               rendering a "CLEVELAND TOUGH" tagline banner that visually
               overlapped with the SiteNavbar wordmark — both said NICK'S
