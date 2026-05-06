@@ -16,7 +16,7 @@ interface LinkItem {
 const ALL_LINKS: LinkItem[] = [
   // Core services
   { href: "/tires", label: "Tire Shop Near Me", desc: "New & used tires, mounting, balancing, TPMS — walk-ins" },
-  { href: "/brakes", label: "Brake Repair Cleveland", desc: "Expert brake repair — walk-ins welcome" },
+  { href: "/brakes", label: "Brake Repair Cleveland", desc: "Pads, rotors, calipers, brake lines — walk-ins" },
   { href: "/diagnostics", label: "Check Engine Light Near Me", desc: "Free scan with repair — OBD-II diagnostics" },
   { href: "/emissions", label: "Emissions & E-Check", desc: "Ohio E-Check repair and testing" },
   { href: "/oil-change", label: "Oil Change Cleveland", desc: "Quick oil change service — conventional and synthetic" },
@@ -37,7 +37,7 @@ const ALL_LINKS: LinkItem[] = [
   { href: "/services", label: "All Services", desc: "Complete list of everything we do" },
   { href: "/specials", label: "Specials & Coupons", desc: "Current deals and discounts" },
   { href: "/reviews", label: "Customer Reviews", desc: `4.9 stars from ${BUSINESS.reviews.countDisplay} reviews` },
-  { href: "/blog", label: "Repair Tips Blog", desc: "Expert car care advice" },
+  { href: "/blog", label: "Repair Tips Blog", desc: "Cleveland-specific car care notes from the bay" },
   { href: "/guides", label: "Auto Repair Guides", desc: "In-depth guides from Cleveland mechanics" },
   { href: "/guides/how-to-read-tire-size", label: "How to Read Tire Size", desc: "Complete guide to tire size markings" },
   { href: "/guides/when-to-replace-tires", label: "When to Replace Tires", desc: "Tread depth, age, and warning signs" },
@@ -55,9 +55,9 @@ const ALL_LINKS: LinkItem[] = [
   // City pages for local SEO
   { href: "/cleveland-auto-repair", label: "Cleveland Auto Repair", desc: "Serving Cleveland drivers 7 days a week" },
   { href: "/euclid-auto-repair", label: "Euclid Auto Repair", desc: "Your neighborhood auto shop on Euclid Ave" },
-  { href: "/lakewood-auto-repair", label: "Lakewood Auto Repair", desc: "Lakewood's trusted tire and repair shop" },
+  { href: "/lakewood-auto-repair", label: "Lakewood Auto Repair", desc: "Lakewood drivers — 15-min drive on I-90" },
   { href: "/parma-auto-repair", label: "Parma Auto Repair", desc: "Serving Parma with honest auto repair" },
-  { href: "/shaker-heights-auto-repair", label: "Shaker Heights Auto Repair", desc: "Quality service for Shaker Heights vehicles" },
+  { href: "/shaker-heights-auto-repair", label: "Shaker Heights Auto Repair", desc: "Shaker Heights drivers — open 7 days, walk-ins welcome" },
   { href: "/cleveland-heights-auto-repair", label: "Cleveland Heights Repair", desc: "Trusted by Cleveland Heights drivers" },
   { href: "/mentor-auto-repair", label: "Mentor Auto Repair", desc: "Mentor's go-to for tires and repair" },
   // Hub pages

@@ -121,7 +121,7 @@ function PackageBanner({ packageData }: { packageData: any }) {
           {/* Quick highlights — always visible */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
             {[
-              { icon: <Wrench className="w-4 h-4" />, label: "Professional Mounting", sub: "Expert installation" },
+              { icon: <Wrench className="w-4 h-4" />, label: "Professional Mounting", sub: "Hunter Road Force balancers" },
               { icon: <Gauge className="w-4 h-4" />, label: "Computer Balancing", sub: "Vibration-free ride" },
               { icon: <ShieldCheck className="w-4 h-4" />, label: "Free Flat Repair", sub: "First 12 months" },
               { icon: <BadgeCheck className="w-4 h-4" />, label: "20-Point Inspection", sub: "Included free" },
@@ -1076,7 +1076,7 @@ export default function TireFinder() {
                         <BadgeCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                         <div>
                           <p className="text-xs font-medium text-foreground">Thousands of Five-Star Reviews</p>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">Cleveland's most trusted tire shop. Real reviews from real drivers.</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">1,700+ Google reviews · 4.9★ from real Cleveland drivers.</p>
                         </div>
                       </div>
                     </div>
@@ -1386,7 +1386,7 @@ export default function TireFinder() {
               </div>
               <p className="text-lg text-foreground font-medium mb-1">{BUSINESS.reviews.rating} Stars — {BUSINESS.reviews.countDisplay} Reviews</p>
               <p className="text-sm text-muted-foreground">
-                Cleveland's most trusted tire shop. Serving Euclid, Lakewood, Parma, and all of Northeast Ohio.
+                Cleveland's Euclid Ave tire shop — serving Euclid, Lakewood, Parma, and all of Northeast Ohio.
               </p>
             </div>
           </div>
