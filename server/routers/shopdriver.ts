@@ -298,6 +298,25 @@ export const shopdriverRouter = router({
     }),
 
   /**
+   * Probe estimate endpoints — returns what each candidate URL responds
+   * with so we can figure out which one Moe's ShopDriver tenant exposes.
+   * Doesn't upsert; observation only.
+   *
+   * Use case: alg_estimates is empty in production. We need to know
+   * which endpoint actually works on Moe's tenant. Run this once, find
+   * the working endpoint, hardcode it as the first probe candidate.
+   */
+  probeEstimateEndpoints: adminProcedure.mutation(async () => {
+    const { probeEstimateEndpoints } = await import("../services/shopDriverEstimateSync");
+    const results = await probeEstimateEndpoints();
+    return {
+      total: results.length,
+      working: results.filter((r) => r.status === 200 && r.contentType.includes("json") && (r.itemCount ?? 0) > 0).length,
+      results,
+    };
+  }),
+
+  /**
    * Status of declined-work recovery feature. Shows whether the
    * FEATURE_DECLINED_RECOVERY env flag is set + how many estimates are
    * eligible for follow-up + total recoverable $.

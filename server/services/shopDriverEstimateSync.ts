@@ -205,13 +205,32 @@ function normalizeEstimateJson(raw: Record<string, unknown>): RawEstimate | null
 
 async function fetchEstimates(token: string): Promise<RawEstimate[]> {
   // Endpoint probe order — different ShopDriver tenants expose different
-  // names. The primary candidates came from SPA bundle inspection; we
-  // fall back through a list until one returns JSON with items.
+  // names. The primary candidates came from SPA bundle inspection. As of
+  // 2026-05-05 production probe returned 0 results from the original 4
+  // candidates, so we expanded the list significantly. If JSON probe
+  // fails, falls through to HTML scrape of the SPA's Estimates page.
   const endpoints = [
+    // Original 4 probe candidates
     "/api/Estimate/listEstimates?pageNumber=1&pageSize=500",
     "/api/ticket/listEstimates?pageNumber=1&pageSize=500",
     "/api/Estimate/list?pageNumber=1&pageSize=500",
     "/api/Report/listEstimates?pageNumber=1&pageSize=500",
+    // Common ShopDriver patterns — different tenants expose different names
+    "/api/Ticket/listOpenEstimates?pageNumber=1&pageSize=500",
+    "/api/Estimate/listOpen?pageNumber=1&pageSize=500",
+    "/api/Estimates?pageNumber=1&pageSize=500",
+    "/api/Customer/listEstimates?pageNumber=1&pageSize=500",
+    // Date-range variants — some tenants require dates
+    `/api/Estimate/list?fromDate=${dateNDaysAgo(60)}&toDate=${todayISO()}`,
+    `/api/ticket/listEstimates?fromDate=${dateNDaysAgo(60)}&toDate=${todayISO()}`,
+    // Singular without "/list"
+    "/api/Estimate?pageNumber=1&pageSize=500",
+    "/api/Estimate/getAll?pageNumber=1&pageSize=500",
+    // Search-style (some tenants only expose this)
+    "/api/Search/estimates?query=&pageNumber=1&pageSize=500",
+    // Report-style (matches getInvoiceReport pattern)
+    "/api/Report/getEstimateReport?pageNumber=1&pageSize=500",
+    "/api/Report/getEstimates?pageNumber=1&pageSize=500",
   ];
 
   for (const endpoint of endpoints) {
@@ -243,6 +262,9 @@ async function fetchEstimates(token: string): Promise<RawEstimate[]> {
           ((data as Record<string, unknown>).items as unknown[]) ||
           ((data as Record<string, unknown>).result as unknown[]) ||
           ((data as Record<string, unknown>).results as unknown[]) ||
+          ((data as Record<string, unknown>).records as unknown[]) ||
+          ((data as Record<string, unknown>).rows as unknown[]) ||
+          ((data as Record<string, unknown>).list as unknown[]) ||
           [];
       const list = Array.isArray(items) ? items : [];
       if (list.length === 0) {
@@ -262,7 +284,278 @@ async function fetchEstimates(token: string): Promise<RawEstimate[]> {
     }
   }
 
-  log.warn("No estimate data returned from any endpoint");
+  // ─── HTML SCRAPE FALLBACK ──────────────────────────────
+  // None of the JSON endpoints returned data. Try scraping the ALG portal's
+  // Estimates page HTML. The portal renders estimates as a server-side
+  // table; we extract rows via regex. Less reliable than JSON but better
+  // than empty.
+  log.info("All JSON endpoints empty/failed — trying HTML scrape fallback");
+  try {
+    const htmlEstimates = await fetchEstimatesViaHtml(token);
+    if (htmlEstimates.length > 0) {
+      log.info(`HTML scrape returned ${htmlEstimates.length} estimates`);
+      return htmlEstimates;
+    }
+  } catch (err) {
+    log.warn("HTML scrape fallback failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  log.warn("No estimate data returned from any endpoint or HTML scrape");
+  return [];
+}
+
+// ─── ESTIMATE ENDPOINT DIAGNOSTIC ──────────────────────
+// Pings every JSON + HTML endpoint candidate and returns what each one
+// said. Used by admin "Discover Estimate Endpoints" button. Doesn't
+// upsert — just observes — so it's safe to run for diagnostics.
+//
+// Returns the actual status code, content-type, body sample, and item
+// count for each candidate. Lets us figure out which endpoint name
+// Moe's ShopDriver tenant actually exposes.
+export async function probeEstimateEndpoints(): Promise<Array<{
+  endpoint: string;
+  type: "json" | "html";
+  status: number;
+  contentType: string;
+  bytes: number;
+  itemCount: number | null;
+  firstChars: string;
+}>> {
+  const token = await authenticate();
+  if (!token) {
+    return [{
+      endpoint: "/api/login",
+      type: "json",
+      status: 0,
+      contentType: "auth_failed",
+      bytes: 0,
+      itemCount: null,
+      firstChars: "Authentication failed — could not get session token",
+    }];
+  }
+
+  const jsonEndpoints = [
+    "/api/Estimate/listEstimates?pageNumber=1&pageSize=10",
+    "/api/ticket/listEstimates?pageNumber=1&pageSize=10",
+    "/api/Estimate/list?pageNumber=1&pageSize=10",
+    "/api/Report/listEstimates?pageNumber=1&pageSize=10",
+    "/api/Ticket/listOpenEstimates?pageNumber=1&pageSize=10",
+    "/api/Estimate/listOpen?pageNumber=1&pageSize=10",
+    "/api/Estimates?pageNumber=1&pageSize=10",
+    "/api/Estimate?pageNumber=1&pageSize=10",
+    "/api/Estimate/getAll?pageNumber=1&pageSize=10",
+    "/api/Search/estimates?query=&pageNumber=1&pageSize=10",
+    "/api/Report/getEstimateReport?pageNumber=1&pageSize=10",
+    "/api/Customer/listEstimates?pageNumber=1&pageSize=10",
+    `/api/Estimate/list?fromDate=${dateNDaysAgo(60)}&toDate=${todayISO()}`,
+  ];
+
+  const htmlEndpoints = [
+    `${SHOPDRIVER_BASE}/Estimate/list`,
+    `${SHOPDRIVER_BASE}/Estimates`,
+    `${SHOPDRIVER_BASE}/Estimate`,
+    `${SHOPDRIVER_BASE}/Reports/Estimates`,
+    `${SHOPDRIVER_BASE}/Customer/Estimates`,
+  ];
+
+  const results: Array<{
+    endpoint: string;
+    type: "json" | "html";
+    status: number;
+    contentType: string;
+    bytes: number;
+    itemCount: number | null;
+    firstChars: string;
+  }> = [];
+
+  // JSON probes
+  for (const path of jsonEndpoints) {
+    const url = `${SHOPDRIVER_API}${path}`;
+    try {
+      const res = await fetch(url, {
+        headers: buildHeaders(token),
+        signal: AbortSignal.timeout(10000),
+      });
+      const body = await res.text();
+      const ct = res.headers.get("content-type") || "";
+      let itemCount: number | null = null;
+      if (ct.includes("json")) {
+        try {
+          const data = JSON.parse(body) as Record<string, unknown> | unknown[];
+          if (Array.isArray(data)) {
+            itemCount = data.length;
+          } else {
+            const pickArr = (k: string) =>
+              Array.isArray((data as Record<string, unknown>)[k])
+                ? ((data as Record<string, unknown>)[k] as unknown[]).length
+                : 0;
+            itemCount =
+              pickArr("estimates") || pickArr("tickets") || pickArr("data") ||
+              pickArr("items") || pickArr("result") || pickArr("results") ||
+              pickArr("records") || pickArr("rows") || pickArr("list") || 0;
+          }
+        } catch {
+          itemCount = null;
+        }
+      }
+      results.push({
+        endpoint: path,
+        type: "json",
+        status: res.status,
+        contentType: ct,
+        bytes: body.length,
+        itemCount,
+        firstChars: body.slice(0, 200),
+      });
+    } catch (err) {
+      results.push({
+        endpoint: path,
+        type: "json",
+        status: 0,
+        contentType: "error",
+        bytes: 0,
+        itemCount: null,
+        firstChars: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  // HTML probes
+  for (const url of htmlEndpoints) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          ...buildHeaders(token),
+          "Accept": "text/html,application/xhtml+xml",
+        },
+        redirect: "follow",
+        signal: AbortSignal.timeout(10000),
+      });
+      const body = await res.text();
+      const ct = res.headers.get("content-type") || "";
+      // Estimate row count via regex (rough)
+      const rowMatch = body.match(/<tr[^>]*data-(?:estimate|ticket)-id="/gi);
+      const itemCount = rowMatch ? rowMatch.length : null;
+      results.push({
+        endpoint: url.replace(SHOPDRIVER_BASE, ""),
+        type: "html",
+        status: res.status,
+        contentType: ct,
+        bytes: body.length,
+        itemCount,
+        firstChars: body.slice(0, 200),
+      });
+    } catch (err) {
+      results.push({
+        endpoint: url,
+        type: "html",
+        status: 0,
+        contentType: "error",
+        bytes: 0,
+        itemCount: null,
+        firstChars: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  return results;
+}
+
+// ─── HTML SCRAPE FALLBACK ─────────────────────────────────
+// When none of the JSON endpoints work, we fall back to scraping the
+// ALG portal's Estimates page. The portal is a SPA but server-renders
+// the initial table for SEO, so we can extract via regex.
+
+function dateNDaysAgo(days: number): string {
+  const d = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  return d.toISOString().slice(0, 10);
+}
+
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Last-resort HTML scrape of the ALG Estimates page.
+ * Tries multiple URL patterns + extracts table rows via regex.
+ *
+ * NOTE: this is fragile by nature — DOM structure can change without
+ * notice. Per probe, log the first 500 chars of HTML so we can debug
+ * when ShopDriver redesigns the page.
+ */
+async function fetchEstimatesViaHtml(token: string): Promise<RawEstimate[]> {
+  const htmlEndpoints = [
+    `${SHOPDRIVER_BASE}/Estimate/list`,
+    `${SHOPDRIVER_BASE}/Estimates`,
+    `${SHOPDRIVER_BASE}/Estimate`,
+    `${SHOPDRIVER_BASE}/Reports/Estimates`,
+    `${SHOPDRIVER_BASE}/Customer/Estimates`,
+  ];
+
+  for (const url of htmlEndpoints) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          ...buildHeaders(token),
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+        redirect: "follow",
+        signal: AbortSignal.timeout(20000),
+      });
+      log.info(`HTML scrape probe: ${url} → ${res.status}`);
+      if (!res.ok) continue;
+
+      const html = await res.text();
+      // Quick sanity: if this is the SPA shell (no estimates content), bail.
+      if (html.length < 5000) continue;
+      if (!/estimate/i.test(html)) continue;
+
+      // Look for table rows. ShopDriver typically renders <tr> with
+      // data-id or class containing "estimate".
+      const rows: RawEstimate[] = [];
+      // Pattern 1: <tr data-estimate-id="..."> ... </tr>
+      const rowPattern = /<tr[^>]*data-(?:estimate|ticket)-id="([^"]+)"[^>]*>([\s\S]*?)<\/tr>/gi;
+      let m: RegExpExecArray | null;
+      while ((m = rowPattern.exec(html)) !== null) {
+        const id = m[1];
+        const inner = m[2];
+        const cells = [...inner.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((mm) =>
+          mm[1].replace(/<[^>]+>/g, "").trim(),
+        );
+        if (cells.length < 3) continue;
+
+        // Heuristic column order: [estimate#, date, customer, vehicle, amount]
+        // Different tenants reorder; try multiple positions for amount.
+        const amountCell = cells.find((c) => /\$[\d,]+/.test(c)) || "0";
+        const amountCents = parseDollarsToCents(amountCell);
+        const dateCell = cells.find((c) => /\d{1,2}\/\d{1,2}\/\d{2,4}/.test(c)) || "";
+        const customerCell = cells.find((c) => c.length > 3 && !/\$|\d{1,2}\/\d{1,2}/.test(c)) || "Unknown";
+        const vehicleCell = cells.find((c) => /\d{4}.*[A-Za-z]/.test(c)) || null;
+
+        rows.push({
+          externalId: id,
+          customerName: customerCell,
+          customerPhone: null,
+          vehicleInfo: vehicleCell,
+          serviceDescription: null,
+          estimatedAmount: amountCents,
+          estimateDate: dateCell ? new Date(dateCell) : new Date(),
+        });
+      }
+
+      if (rows.length > 0) {
+        log.info(`HTML scrape extracted ${rows.length} estimates from ${url}`);
+        return rows;
+      }
+      // Otherwise try next URL
+    } catch (err) {
+      log.warn(`HTML scrape ${url} failed`, {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
   return [];
 }
 

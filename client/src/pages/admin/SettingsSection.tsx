@@ -388,6 +388,9 @@ export default function SettingsSection() {
         </div>
       )}
 
+      {/* 2026-05-05 — ESTIMATE ENDPOINT DIAGNOSTIC */}
+      <EstimateEndpointDiagnosticPanel />
+
       {/* 2026-05-05 — ALG PROBE BUDGET PANEL */}
       <AlgProbeBudgetPanel />
 
@@ -426,6 +429,127 @@ export default function SettingsSection() {
       {/* Feature Flags */}
       <FeatureFlagsPanel />
       </div>
+      )}
+    </div>
+  );
+}
+
+// ─── ESTIMATE ENDPOINT DIAGNOSTIC ─────────────────────────
+// Pings 13 JSON endpoints + 5 HTML pages on Moe's ShopDriver tenant to
+// figure out which one actually returns estimate data. Once we find a
+// working endpoint, alg_estimates can populate and the recovery flow
+// (7d/30d SMS, walk-away strip on Overview, brain digest) all activate.
+
+interface EstimateProbeResult {
+  endpoint: string;
+  type: "json" | "html";
+  status: number;
+  contentType: string;
+  bytes: number;
+  itemCount: number | null;
+  firstChars: string;
+}
+
+function EstimateEndpointDiagnosticPanel() {
+  const [results, setResults] = useState<EstimateProbeResult[] | null>(null);
+  const [working, setWorking] = useState<number>(0);
+  const probe = trpc.shopdriver.probeEstimateEndpoints.useMutation({
+    onSuccess: (data) => {
+      setResults(data.results);
+      setWorking(data.working);
+      toast.success(`Probed ${data.total} endpoints · ${data.working} returned estimates`);
+    },
+    onError: (err: { message: string }) => toast.error("Probe failed: " + err.message),
+  });
+
+  return (
+    <div className="bg-card border border-border/30 p-4 space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h3 className="font-bold text-sm text-foreground tracking-wide">
+            ESTIMATE ENDPOINT DISCOVERY
+          </h3>
+          <p className="text-foreground/50 text-[11px] mt-0.5 max-w-xl">
+            alg_estimates table is empty because we don't know which ShopDriver endpoint Moe's tenant exposes. This pings 13 JSON + 5 HTML candidates and shows exactly what each one says. Once we find a working one, walk-away recovery activates.
+          </p>
+        </div>
+        <button
+          onClick={() => probe.mutate()}
+          disabled={probe.isPending}
+          className="flex items-center gap-2 bg-amber-500/15 text-amber-400 border border-amber-500/30 px-4 py-2 font-bold text-xs tracking-wide hover:bg-amber-500/25 disabled:opacity-50"
+        >
+          {probe.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+          DISCOVER ENDPOINTS
+        </button>
+      </div>
+
+      {results && results.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-3 text-[11px]">
+            <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-bold">
+              {working} working
+            </span>
+            <span className="px-2 py-0.5 rounded bg-foreground/10 text-foreground/60 font-bold">
+              {results.filter((r) => r.status === 200).length} 200 OK
+            </span>
+            <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 font-bold">
+              {results.filter((r) => r.status === 404).length} 404
+            </span>
+            <span className="px-2 py-0.5 rounded bg-red-500/15 text-red-400 font-bold">
+              {results.filter((r) => r.status === 401 || r.status === 403).length} auth-failed
+            </span>
+          </div>
+          <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
+            {results.map((r, i) => {
+              const isWorking = r.status === 200 && r.contentType.includes("json") && (r.itemCount ?? 0) > 0;
+              const isJsonOk = r.status === 200 && r.contentType.includes("json");
+              const statusColor =
+                isWorking ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" :
+                isJsonOk ? "bg-blue-500/15 text-blue-400 border-blue-500/30" :
+                r.status === 200 ? "bg-foreground/10 text-foreground/60 border-border/20" :
+                r.status === 404 ? "bg-amber-500/10 text-amber-400 border-amber-500/30" :
+                "bg-red-500/10 text-red-400 border-red-500/30";
+              return (
+                <div key={i} className={`border ${statusColor} p-2.5 text-[11px]`}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono text-foreground/40 w-12 shrink-0">{r.type.toUpperCase()}</span>
+                    <span className="font-bold w-12 shrink-0">{r.status}</span>
+                    <span className="font-mono text-foreground truncate flex-1">{r.endpoint}</span>
+                    {r.itemCount !== null && r.itemCount > 0 && (
+                      <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold whitespace-nowrap">
+                        {r.itemCount} items
+                      </span>
+                    )}
+                    <span className="text-foreground/40 whitespace-nowrap">{r.bytes}b</span>
+                  </div>
+                  {(isWorking || isJsonOk) && (
+                    <p className="text-foreground/50 text-[10px] mt-1 font-mono truncate">{r.firstChars}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {working > 0 && (
+            <div className="border-t border-emerald-500/30 pt-3 mt-3 bg-emerald-500/5 -mx-4 px-4 -mb-4 pb-4">
+              <p className="text-emerald-400 text-[12px] font-bold">
+                ✓ Found {working} working endpoint{working > 1 ? "s" : ""} — alg_estimates will populate on next probe!
+              </p>
+              <p className="text-foreground/50 text-[11px] mt-1">
+                Trigger a manual refresh from the panel below to start the import.
+              </p>
+            </div>
+          )}
+          {working === 0 && (
+            <div className="border-t border-amber-500/30 pt-3 mt-3 bg-amber-500/5 -mx-4 px-4 -mb-4 pb-4">
+              <p className="text-amber-400 text-[12px] font-bold">
+                ⚠ No working JSON endpoints — HTML scrape fallback will run on next probe.
+              </p>
+              <p className="text-foreground/50 text-[11px] mt-1">
+                ShopDriver tenant doesn't expose any of the 13 JSON candidate names. The estimate sync will fall through to HTML scraping the portal's Estimates page (less reliable but better than nothing).
+              </p>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
