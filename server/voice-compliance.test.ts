@@ -166,3 +166,44 @@ describe("VOICE.md Compliance — meta-description length (≤170 chars)", () =>
     expect(violations).toEqual([]);
   });
 });
+
+// ─── Component-level scan ───────────────────────────────
+// Some hardcoded marketing copy lives in TSX components, not data files.
+// LocalBusinessSchema.tsx in particular ships a long `description` field
+// to every page — it's the single highest-leverage string for both Google
+// rich results and AI-search citation, so it MUST stay voice-compliant.
+//
+// We scan as plain text (read the file). Cheap + catches regressions
+// the data-file scan above misses.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const COMPONENT_FILES_TO_SCAN = [
+  "client/src/components/LocalBusinessSchema.tsx",
+];
+
+describe("VOICE.md Compliance — component-level marketing copy", () => {
+  for (const file of COMPONENT_FILES_TO_SCAN) {
+    it(`${file} has zero kill-list violations`, () => {
+      const fullPath = join(process.cwd(), file);
+      const content = readFileSync(fullPath, "utf-8");
+      const violations: Array<{ rule: string; snippet: string }> = [];
+      for (const rule of KILL_LIST) {
+        // Pull match + small surrounding context for allowlist check
+        const matches = content.matchAll(new RegExp(rule.pattern.source, "gi"));
+        for (const match of matches) {
+          if (match.index === undefined) continue;
+          const start = Math.max(0, match.index - 30);
+          const end = Math.min(content.length, match.index + match[0].length + 30);
+          const context = content.slice(start, end);
+          const matchedAllowed = rule.allowedContexts.some((ctx) =>
+            context.toLowerCase().includes(ctx.toLowerCase()),
+          );
+          if (matchedAllowed) continue;
+          violations.push({ rule: rule.label, snippet: context.replace(/\n/g, " ") });
+        }
+      }
+      expect(violations).toEqual([]);
+    });
+  }
+});
