@@ -568,21 +568,20 @@ function PullUpBand() {
   return (
     <section className="relative overflow-hidden">
       <div className="relative h-[420px] sm:h-[520px] lg:h-[600px] overflow-hidden">
-        {/* 2026-05-06 wave-26 · PullUpBand uses /brand-sign.webp as a
-            full-bleed trust band. With object-center (=center 50% 50%)
-            on a section that runs ~1090×600 (aspect 1.82:1) vs the
-            source's ~1.6:1 ratio, the photo scales to fill width and
-            the LEFT/CENTER is shown. Result: viewers saw "IRE & AUT" +
-            "AUTO REPAIR (216" — the right side of the sign + the rest
-            of the phone number got cropped. Anchor objectPosition to
-            "right 60%" so the full phone number "(216) 862-0005" and
-            the address block on the right side of the storefront are
-            visible. Same fix applied to SignFeature.tsx in wave-25. */}
+        {/* 2026-05-06 wave-27 · /brand-sign.webp is a 1600×239 panoramic
+            banner (aspect 6.69:1). The PullUpBand container is ~1090×600
+            (aspect 1.82:1), so object-fit:cover would zoom the photo 4×
+            and crop ~73% of the sign horizontally regardless of object-
+            position. Switched to object-fit:contain so the FULL sign
+            and phone number "(216) 862-0005" stay readable end-to-end.
+            The existing top + side gradient overlays absorb the vertical
+            letterbox so the band still reads as a dramatic full-bleed
+            trust anchor. */}
         <img
           src="/brand-sign.webp"
           alt="Nick's Tire & Auto storefront on Euclid Avenue Cleveland — yellow sign reading TIRE & AUTO REPAIR with phone (216) 862-0005, address 17625, Mechanic on Duty"
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ objectPosition: "right 60%" }}
+          className="absolute inset-0 w-full h-full object-contain"
+          style={{ objectPosition: "center center" }}
           loading="lazy"
         />
         {/* Multi-direction fades so overlay copy stays legible regardless of crop */}

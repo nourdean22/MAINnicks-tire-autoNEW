@@ -79,26 +79,25 @@ export function SignFeature() {
           {/* RIGHT — sign photo, full bleed in container */}
           <div className="order-1 lg:order-2 relative">
             <figure className="relative aspect-[4/3] sm:aspect-[16/10] overflow-hidden rounded-xl photo-depth ken-burns-target">
-              {/* 2026-05-06 wave-25 · brand-sign.webp is wider than the
-                  figure's 16/10 (desktop) and 4/3 (mobile) aspect ratios,
-                  so object-fit:cover crops the sides. With "center center"
-                  the RIGHT side of the sign was getting clipped — readers
-                  saw "TIRE & AU" + "(216) 862" instead of the full
-                  "TIRE & AUTO REPAIR · (216) 862-0005" plus the address
-                  block. Anchor the right edge so the most identity-rich
-                  portion of the sign (the phone number + "AUTO REPAIR"
-                  badge) is always fully visible. Vertical biased to 55%
-                  so the sign body sits center-stage and the tree-line
-                  above it is cropped slightly more aggressively. */}
+              {/* 2026-05-06 wave-27 · brand-sign.webp is a 1600×239
+                  panoramic banner crop (aspect 6.69:1). object-fit:cover
+                  inside a 16/10 figure forces a 4× vertical zoom and
+                  shows only ~27% of the sign horizontally — no
+                  object-position can recover the full headline.
+                  Switched to object-fit:contain so the FULL sign,
+                  including "TIRE & AUTO REPAIR · (216) 862-0005" and
+                  the address block, always reads. The figure's dark
+                  background absorbs the vertical letterbox, and the
+                  bottom-fade overlay keeps the caption pin legible. */}
               <img
                 src="/brand-sign.webp"
                 alt="The Nick's Tire & Auto storefront sign on Euclid Avenue, Cleveland, OH — yellow letters reading TIRE & AUTO REPAIR with phone (216) 862-0005, two stories, visible from Lakeshore Boulevard"
                 width={1600}
-                height={1000}
+                height={239}
                 loading="lazy"
                 decoding="async"
-                className="absolute inset-0 w-full h-full object-cover"
-                style={{ objectPosition: "right 55%" }}
+                className="absolute inset-0 w-full h-full object-contain"
+                style={{ objectPosition: "center center" }}
               />
               {/* Photo grain — subtle film texture */}
               <div className="absolute inset-0 photo-grain pointer-events-none mix-blend-overlay opacity-[0.14]" />

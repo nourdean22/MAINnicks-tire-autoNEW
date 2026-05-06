@@ -19,10 +19,18 @@ export default function SiteFooter() {
           memory anchor before the user leaves the page. The photo does the heavy lifting:
           real building, real Euclid Ave block, real phone number visible in the sign. */}
       <div className="relative h-[220px] sm:h-[300px] lg:h-[360px] overflow-hidden bg-[#0B0B0B]">
+        {/* 2026-05-06 wave-27 · /brand-sign.webp is 1600×239 (panorama,
+            aspect 6.69:1). Inside the footer banner (1090×220–360,
+            aspect ~3–5:1) object-fit:cover would zoom 1.5–4× and clip
+            the sides of the sign, defeating the "real sign, real
+            phone" trust play. Switched to object-fit:contain so the
+            FULL sign reads end-to-end. Existing top + side gradient
+            overlays cover the vertical letterbox elegantly. */}
         <img
           src="/brand-sign.webp"
           alt="Nick's Tire & Auto signage on Euclid Ave Cleveland — Mechanic on duty, tires, brakes, auto repair, (216) 862-0005"
-          className="absolute inset-0 w-full h-full object-cover object-center"
+          className="absolute inset-0 w-full h-full object-contain"
+          style={{ objectPosition: "center center" }}
           loading="lazy"
         />
         {/* Bottom-fade for legibility of the overlay copy */}
