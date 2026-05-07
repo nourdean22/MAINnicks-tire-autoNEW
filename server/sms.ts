@@ -489,8 +489,21 @@ function checkDailyLimit(phone: string): boolean {
 
 /**
  * Send an SMS message via Twilio (with circuit breaker + smart timing).
+ *
+ * KILL SWITCH: when SMS_KILL_SWITCH=true is set in env, this short-circuits
+ * immediately and returns a degraded response. Used during Twilio outages
+ * so phone-AI flows (Nick) don't sit on a 15s circuit-breaker timeout
+ * during a live call. Set the env var to instantly disable all outbound
+ * SMS without redeploying. Set it back to anything else (or unset) to
+ * re-enable.
  */
 export async function sendSms(to: string, body: string, opts?: SendSmsOptions): Promise<SmsResult> {
+  // ─── Kill switch (Twilio outage / billing pause / migration) ────
+  if (process.env.SMS_KILL_SWITCH === "true") {
+    log.warn("SMS kill switch active, skipping send", { to: to.slice(-4) });
+    return { success: false, error: "sms_disabled" };
+  }
+
   const client = getTwilioClient();
   const from = getFromNumber();
 
