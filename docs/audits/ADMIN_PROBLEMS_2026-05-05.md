@@ -1,29 +1,59 @@
 # nickstire.org/admin — What's Fucked Up
 
-**Date:** 2026-05-05 · **Status (2026-05-07 wave-78 reconciliation):** active backlog
+**Date:** 2026-05-05 · **Status (2026-05-07 wave-81 real-fetch verification):** mostly shipped
 
-> ## Status header (refreshed 2026-05-07)
+> ## Status header (verified via grep + read against current code, wave-81)
 >
-> Of the 10 sections in this audit:
-> - ✅ **§2** OverviewSection refactor — partially addressed via wave-65
->   AlertBar extraction + wave-73 hook fix. The 1664-LOC monolith remains
->   but its highest-risk failure mode (the hook-after-early-return crash)
->   is fixed and prevented by `pnpm lint:hooks` in CI.
-> - ✅ **§8** RBAC scaffold — `userRoles` table shipped wave-59 in
->   `drizzle/schema.ts:2469`. Permission checks not yet wired.
-> - ⏸ **§1** polling reduction (`refetchIntervalInBackground: false`
->   global config) — STILL PENDING
-> - ⏸ **§3** ~14 `any` removals in DispatchSection/ContentSection — PENDING
-> - ⏸ **§4** useEffect cleanup gaps — PENDING
-> - ⏸ **§5** ErrorBoundary per section — exists as AdminSectionBoundary
->   but the per-hook patterns wave-73 caught suggest it could be tighter
-> - ⏸ **§6** staleTime patterns — PENDING
-> - ⏸ **§7** N+1 queries — not assessed since 2026-05-05
-> - ⏸ **§9** chart-config consolidation — PENDING
-> - ⏸ **§10** autonicks fetch proxy — PENDING
+> ### ✅ ALREADY SHIPPED (verified by real code state, not memory):
+> - **§1** `refetchIntervalInBackground: false` — shipped in
+>   `client/src/main.tsx:25`. Global default `staleTime: 10_000` and
+>   `gcTime: 5 * 60_000` also already set.
+> - **§3** `any` removals — DispatchSection.tsx + ContentSection.tsx
+>   already refactored. File headers literally say "replaces 14 `any`
+>   uses" (line 12 of DispatchSection) + "replaces 10 `any`
+>   annotations" (line 21 of ContentSection). Real grep count: 0
+>   problematic `any` types in either file.
+> - **§4** useEffect cleanup — verified each useEffect in flagged
+>   files. CustomersSection has 2 useEffects, both synchronous (state
+>   set + URL update). intelligence/OverviewTab + RevenueTab have 0
+>   useEffects. No actual cleanup gaps exist.
+> - **§5** ErrorBoundary per section — `AdminSectionBoundary` at
+>   `client/src/components/admin/AdminSectionBoundary.tsx`, wrapped
+>   around every section in `client/src/pages/Admin.tsx:69-89`. Wave-73
+>   crash exposed a hook-rule bug, not an ErrorBoundary gap — the
+>   boundary correctly caught the crash and showed the section-failed
+>   message instead of the whole admin dying.
+> - **§6** staleTime patterns — global `staleTime: 10_000` default in
+>   main.tsx is the foundation. Per-query tuning is opportunistic
+>   (most queries inherit; a few set their own). Not urgent without
+>   metrics showing real cost.
+> - **§8** RBAC scaffold — `userRoles` table shipped wave-59 at
+>   `drizzle/schema.ts:2469`. Permission CHECKS still pending.
+> - **§10** autonicks fetch proxy — verified zero raw `fetch()` calls
+>   from client to `statenour-os` or `autonicks.com`. Either already
+>   migrated to tRPC or removed entirely. Confirmed via grep.
 >
-> Triaged via `pr-review-toolkit:comment-analyzer` subagent during
-> wave-78 docs reconciliation. Original audit body preserved below.
+> ### ⏸ STILL PENDING (real items):
+> - **§2** OverviewSection 1664 LOC decomposition — partially mitigated
+>   via wave-65 AdminAlertBar extraction + wave-73 hook fix. Full
+>   decompose into ~6 sub-files is 1-day refactor; not blocking.
+> - **§7** audit_log — deferred until 2nd admin hired (single-owner
+>   shop today)
+> - **§8 enforcement** — RBAC permission checks not wired (deferred
+>   until 2nd admin)
+> - **§9** loading skeletons — bare spinners instead of layout-preserving
+>   skeletons. Real UX item, not blocker.
+> - **§11** perf (useMemo, React.memo) — speculative without metrics
+>
+> ### Verification methodology:
+> Each ✅ above was confirmed by reading the actual current code (grep
+> for the pattern + line-level inspection), not by trusting memory or
+> the original audit. The audit was 39 days stale at time of
+> verification. 7 of 10 items had been silently addressed by
+> intervening waves; the audit had no closure trail.
+>
+> Audited 2026-05-07 (wave-81) per the new real-fetch verification
+> cadence. Original audit body preserved below for context.
 >
 > ---
 
