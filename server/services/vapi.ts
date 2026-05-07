@@ -393,6 +393,7 @@ Use bookSlot when:
 - customer wants drop-off scheduled
 
 Use transferCall when:
+- caller explicitly asks for a transfer, to speak to a manager, to be connected, or to talk to a person — TRANSFER IMMEDIATELY without asking what they want to discuss. Do NOT assume the topic. Do NOT assume tires. Do NOT pitch anything before transferring. Just call transferCall.
 - used tire availability requires manager/rack check
 - vehicle is already at shop
 - customer is upset
@@ -506,8 +507,14 @@ const VAPI_TOOLS: VapiToolDef[] = [
       {
         type: "number",
         number: `+1${BUSINESS.phone.raw}`, // PLACEHOLDER fallback · main shop +12168620005 · live value owned by VAPI dashboard
-        message: "Hold on, transferring you to the manager so he can physically check the rack and confirm.",
-        description: "Forward the live call to the manager for human handoff. Use for: used tire availability checks (manager physically looks at the rack), customers whose vehicle is currently at the shop, manager/owner requests, angry customers, complex repair questions requiring a human estimator, language barriers we can't bridge.",
+        // 2026-05-08 wave-92 · message is context-neutral. Earlier version
+        // assumed tire context ("...physically check the rack...") which
+        // leaked into transfers requested for non-tire reasons. The pre-
+        // transfer message should work for ANY reason a caller is being
+        // forwarded. The caller's actual reason gets handled by the human
+        // who picks up — Nick doesn't need to summarize it.
+        message: "Hold on, I'll get you over to the manager.",
+        description: "Forward the live call to a human. Use whenever the caller asks to be transferred / wants a manager / wants to talk to a person, OR for: used tire availability checks, vehicle already at the shop, manager/owner requests, upset customers, complex repair questions, language barriers. NEVER assume the topic of the transfer — just transfer.",
       },
     ],
   },
