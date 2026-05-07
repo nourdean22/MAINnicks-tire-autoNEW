@@ -202,7 +202,7 @@ export default function UrgencyWidget() {
                   </div>
                 ) : submitted ? (
                   <div className="flex items-center gap-2 rounded bg-emerald-500/10 border border-emerald-500/30 px-3 py-2 text-xs font-semibold text-emerald-400">
-                    <Check className="w-3.5 h-3.5" /> Got it — we'll text you in 5 min
+                    <Check className="w-3.5 h-3.5" /> On it. Text within 15 min during open hours.
                   </div>
                 ) : (
                   <form onSubmit={handleSubmit} className="flex gap-2">
