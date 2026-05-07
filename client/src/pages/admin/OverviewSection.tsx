@@ -25,6 +25,7 @@ import {
 } from "recharts";
 import WebVitalsPanel from "./WebVitalsPanel";
 import { openDrilldown } from "@/components/admin/DrilldownDrawer";
+import AdminAlertBar, { type AdminAlert } from "@/components/admin/AdminAlertBar";
 
 const TOOLTIP_STYLE = {
   background: "oklch(0.12 0.005 260)",
@@ -593,6 +594,27 @@ export default function OverviewSection() {
   const urgentLeads = stats.leads.urgent ?? 0;
   const healthScore = masterReport?.summary?.score ?? null;
   const algConnected = algStatus?.connected ?? null;
+
+  // wave-64 — operational alerts surfaced at top of dashboard via
+  // AdminAlertBar. Per ADMIN_PHILOSOPHY: empty bar = everything's fine.
+  // ALG offline = CRIT (every revenue number depends on the ALG mirror;
+  // when it's offline, dashboard numbers are stale + invoice flow blocked).
+  // Existing ALG status pill remains as wallpaper-tier informational signal.
+  const adminAlerts: AdminAlert[] = useMemo(() => {
+    const out: AdminAlert[] = [];
+    if (algConnected === false) {
+      out.push({
+        id: "alg-offline",
+        severity: "crit",
+        message: "ALG (Auto Labor Guide) integration offline. Revenue + invoice numbers are stale.",
+        href: "/admin?tab=settings&settingsTab=integrations",
+        ctaLabel: "Fix",
+        dismissable: false,
+      });
+    }
+    return out;
+  }, [algConnected]);
+
   // Prefer shopLoad.activeWOs — it's the strict "physically in shop right now"
   // count (in_progress / waiting_parts / quality_check, fresh in last 7d).
   // Fallback uses workOrderStats.inProgress (NOT .active) because .active
@@ -643,6 +665,12 @@ export default function OverviewSection() {
 
   return (
     <div className="space-y-6">
+      {/* wave-64 — operational alerts (severity-stratified, dismissable).
+          Empty render when no alerts. Promotes critical signals (ALG
+          offline, etc.) above the fold without taking screen space when
+          everything's fine. */}
+      <AdminAlertBar alerts={adminAlerts} />
+
       {/* 2026-05-05 — TODAY'S BRIEF: top actionable signals at top of admin */}
       <TodayBriefStrip />
 
