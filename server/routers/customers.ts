@@ -4,7 +4,7 @@
 import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { eq, like, or, sql, desc, asc } from "drizzle-orm";
-import { customers, customerMetrics, bookings, leads, callbackRequests, callEvents, invoices, workOrders } from "../../drizzle/schema";
+import { customers, customerMetrics, bookings, leads, callbackRequests, callEvents, invoices, workOrders, algEstimates } from "../../drizzle/schema";
 import { logAdminAction } from "../services/auditTrail";
 import { predictCustomerLTV, generateCrossSellRecommendations, forecastRevenue } from "../services/intelligenceEngines";
 import { csvSafe } from "../sanitize";
@@ -23,7 +23,7 @@ export const customersRouter = router({
         pageSize: z.number().default(25),
         search: z.string().max(200).optional(),
         segment: z.enum(["all", "recent", "lapsed", "new", "unknown"]).default("all"),
-        sortBy: z.enum(["name", "visits", "lastVisit", "totalSpent", "firstVisit", "created"]).default("lastVisit"),
+        sortBy: z.enum(["name", "visits", "lastVisit", "totalSpent", "firstVisit", "created", "declined", "backlog"]).default("lastVisit"),
         sortDir: z.enum(["asc", "desc"]).default("desc"),
         /** Filter by last visit within N days */
         lastVisitDays: z.number().optional(),
@@ -33,6 +33,10 @@ export const customersRouter = router({
         minVisits: z.number().optional(),
         /** Filter customers with vehicles */
         hasVehicle: z.boolean().optional(),
+        /** Filter to only customers with unmatched ALG estimates (declined work) */
+        hasDeclined: z.boolean().optional(),
+        /** Filter to only customers with active (non-completed) work orders */
+        hasBacklog: z.boolean().optional(),
       }).optional()
     )
     .query(async ({ input }) => {
@@ -63,6 +67,22 @@ export const customersRouter = router({
       }
       if (input?.hasVehicle) {
         conditions.push(sql`${customers.vehicleMake} IS NOT NULL AND ${customers.vehicleMake} != ''`);
+      }
+      if (input?.hasDeclined) {
+        // Customer has at least one ALG estimate that never matched an invoice
+        conditions.push(sql`EXISTS (
+          SELECT 1 FROM alg_estimates
+          WHERE alg_estimates.customer_phone = ${customers.phone}
+          AND alg_estimates.matched_invoice_id IS NULL
+        )`);
+      }
+      if (input?.hasBacklog) {
+        // Customer has at least one open work order
+        conditions.push(sql`EXISTS (
+          SELECT 1 FROM work_orders
+          WHERE work_orders.customer_id = CAST(${customers.id} AS CHAR)
+          AND work_orders.status NOT IN ('completed', 'picked_up', 'closed', 'cancelled')
+        )`);
       }
       if (search) {
         // Escape LIKE wildcards to prevent pattern injection (% and _ are SQL LIKE wildcards)
@@ -132,23 +152,63 @@ export const customersRouter = router({
           daysSinceLastVisit: customerMetrics.daysSinceLastVisit,
           churnRisk: customerMetrics.churnRisk,
           isVip: customerMetrics.isVip,
+          // ─── ALG declined-work aggregate (unmatched estimates by phone) ───
+          // Sum of ALG estimate amounts where matched_invoice_id IS NULL.
+          // Indexed by alg_estimates.customer_phone (idx_alg_est_phone).
+          declinedValue: sql<number>`COALESCE((
+            SELECT SUM(estimated_amount) FROM alg_estimates
+            WHERE alg_estimates.customer_phone = ${customers.phone}
+            AND alg_estimates.matched_invoice_id IS NULL
+          ), 0)`,
+          declinedCount: sql<number>`COALESCE((
+            SELECT COUNT(*) FROM alg_estimates
+            WHERE alg_estimates.customer_phone = ${customers.phone}
+            AND alg_estimates.matched_invoice_id IS NULL
+          ), 0)`,
+          // ─── Active backlog aggregate (open work orders by customer ID) ───
+          // Sum of WO totals (dollars) for non-terminal statuses, converted to cents
+          // for consistency with totalSpent. Indexed by work_orders.customer_id.
+          backlogValueCents: sql<number>`COALESCE((
+            SELECT ROUND(SUM(total) * 100) FROM work_orders
+            WHERE work_orders.customer_id = CAST(${customers.id} AS CHAR)
+            AND work_orders.status NOT IN ('completed', 'picked_up', 'closed', 'cancelled')
+          ), 0)`,
+          backlogCount: sql<number>`COALESCE((
+            SELECT COUNT(*) FROM work_orders
+            WHERE work_orders.customer_id = CAST(${customers.id} AS CHAR)
+            AND work_orders.status NOT IN ('completed', 'picked_up', 'closed', 'cancelled')
+          ), 0)`,
         })
         .from(customers)
         .leftJoin(customerMetrics, eq(customers.id, customerMetrics.customerId));
 
       if (whereClause) dataQuery.where(whereClause);
 
-      const sortColumn = sortBy === "name" ? customers.firstName
-        : sortBy === "visits" ? customers.totalVisits
-        : sortBy === "totalSpent" ? customers.totalSpent
-        : sortBy === "firstVisit" ? customers.firstVisitDate
-        : sortBy === "created" ? customers.createdAt
-        : customers.lastVisitDate;
-
-      const results = await dataQuery
-        .orderBy(sortFn(sortColumn))
-        .limit(pageSize)
-        .offset(offset);
+      // Sortable by aggregate columns too — those need raw SQL because
+      // they reference subqueries the ORM doesn't know about as columns.
+      let results;
+      if (sortBy === "declined") {
+        results = await dataQuery
+          .orderBy(sql.raw(`declinedValue ${sortDir.toUpperCase()}`))
+          .limit(pageSize)
+          .offset(offset);
+      } else if (sortBy === "backlog") {
+        results = await dataQuery
+          .orderBy(sql.raw(`backlogValueCents ${sortDir.toUpperCase()}`))
+          .limit(pageSize)
+          .offset(offset);
+      } else {
+        const sortColumn = sortBy === "name" ? customers.firstName
+          : sortBy === "visits" ? customers.totalVisits
+          : sortBy === "totalSpent" ? customers.totalSpent
+          : sortBy === "firstVisit" ? customers.firstVisitDate
+          : sortBy === "created" ? customers.createdAt
+          : customers.lastVisitDate;
+        results = await dataQuery
+          .orderBy(sortFn(sortColumn))
+          .limit(pageSize)
+          .offset(offset);
+      }
 
       return {
         customers: results,
@@ -790,14 +850,24 @@ export const customersRouter = router({
     }
   }),
 
-  /** Customer 360 — service history from invoices by phone (lazy loaded on expand) */
+  /**
+   * Customer 360 — service history by phone (lazy loaded on expand).
+   *
+   * Returns three categories:
+   *  - invoices         · paid jobs (revenue captured)
+   *  - declinedEstimates · ALG walk-in estimates that never converted
+   *                        (matched_invoice_id IS NULL = lost sales,
+   *                         recovery candidates)
+   *  - openWorkOrders   · active work orders not yet completed/picked-up
+   *                        (current backlog for this customer)
+   */
   history: adminProcedure
-    .input(z.object({ phone: z.string().max(20) }))
+    .input(z.object({ phone: z.string().max(20), customerId: z.number().optional() }))
     .query(async ({ input }) => {
       const d = await db();
-      if (!d) return { invoices: [] };
+      if (!d) return { invoices: [], declinedEstimates: [], openWorkOrders: [] };
 
-      const results = await d
+      const invoiceResults = await d
         .select({
           id: invoices.id,
           invoiceNumber: invoices.invoiceNumber,
@@ -815,6 +885,78 @@ export const customersRouter = router({
         .orderBy(desc(invoices.invoiceDate))
         .limit(10);
 
-      return { invoices: results };
+      // ALG estimates by phone — only unmatched (declined work)
+      let declinedEstimates: Array<{
+        id: number;
+        externalId: string;
+        serviceDescription: string | null;
+        vehicleInfo: string | null;
+        estimatedAmount: number;
+        estimateDate: Date;
+        followUp7dSent: number;
+        followUp30dSent: number;
+      }> = [];
+      try {
+        declinedEstimates = await d
+          .select({
+            id: algEstimates.id,
+            externalId: algEstimates.externalId,
+            serviceDescription: algEstimates.serviceDescription,
+            vehicleInfo: algEstimates.vehicleInfo,
+            estimatedAmount: algEstimates.estimatedAmount,
+            estimateDate: algEstimates.estimateDate,
+            followUp7dSent: algEstimates.followUp7dSent,
+            followUp30dSent: algEstimates.followUp30dSent,
+          })
+          .from(algEstimates)
+          .where(
+            sql`${algEstimates.customerPhone} = ${input.phone} AND ${algEstimates.matchedInvoiceId} IS NULL`
+          )
+          .orderBy(desc(algEstimates.estimateDate))
+          .limit(10);
+      } catch (err) {
+        log.warn("[Customers] ALG estimates lookup failed:", err instanceof Error ? err.message : err);
+      }
+
+      // Open work orders — match by customerId via varchar cast (same pattern as activityTimeline)
+      let openWorkOrders: Array<{
+        id: string;
+        orderNumber: string;
+        status: string;
+        serviceDescription: string | null;
+        vehicleMake: string | null;
+        vehicleModel: string | null;
+        total: string | null;
+        promisedAt: Date | null;
+        createdAt: Date;
+      }> = [];
+      try {
+        openWorkOrders = await d
+          .select({
+            id: workOrders.id,
+            orderNumber: workOrders.orderNumber,
+            status: workOrders.status,
+            serviceDescription: workOrders.serviceDescription,
+            vehicleMake: workOrders.vehicleMake,
+            vehicleModel: workOrders.vehicleModel,
+            total: workOrders.total,
+            promisedAt: workOrders.promisedAt,
+            createdAt: workOrders.createdAt,
+          })
+          .from(workOrders)
+          .where(sql`${workOrders.customerId} IN (
+            SELECT CAST(id AS CHAR) FROM customers WHERE phone = ${input.phone}
+          ) AND ${workOrders.status} NOT IN ('completed', 'picked_up', 'closed', 'cancelled')`)
+          .orderBy(desc(workOrders.createdAt))
+          .limit(10);
+      } catch (err) {
+        log.warn("[Customers] Open WO lookup failed:", err instanceof Error ? err.message : err);
+      }
+
+      return {
+        invoices: invoiceResults,
+        declinedEstimates,
+        openWorkOrders,
+      };
     }),
 });

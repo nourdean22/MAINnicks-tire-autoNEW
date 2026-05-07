@@ -11,6 +11,8 @@ import { StatCard, PageHeader, LoadingState, EmptyState, SectionInsightStrip, Ta
 // Inferred from tRPC AppRouter — admin audit §3 follow-up.
 type ListedCustomer = NonNullable<RouterOutputs["customers"]["list"]>["customers"][number];
 type CustomerHistoryInvoice = NonNullable<RouterOutputs["customers"]["history"]>["invoices"][number];
+type CustomerDeclinedEstimate = NonNullable<RouterOutputs["customers"]["history"]>["declinedEstimates"][number];
+type CustomerOpenWorkOrder = NonNullable<RouterOutputs["customers"]["history"]>["openWorkOrders"][number];
 type TimelineEvent = NonNullable<RouterOutputs["customers"]["timeline"]>[number];
 import {
   Users, Search, ChevronLeft, ChevronRight, Phone, Mail,
@@ -18,7 +20,7 @@ import {
   ArrowUpDown, Filter, Eye, X, Download, Send, CheckCircle2,
   MessageSquare, StickyNote, RefreshCw, Loader2, Crown,
   ShieldAlert, Clock, ChevronDown, ChevronUp, DollarSign,
-  Car, ExternalLink, Hash
+  Car, ExternalLink, Hash, Wrench, FileWarning
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -525,7 +527,7 @@ function Customer360Panel({ customer, onSmsClick }: {
 
   return (
     <tr>
-      <td colSpan={8} className="p-0">
+      <td colSpan={10} className="p-0">
         <div className="bg-background/50 border-t border-b border-primary/10 px-4 py-4 space-y-4">
           {/* Header */}
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -610,8 +612,8 @@ function Customer360Panel({ customer, onSmsClick }: {
             )}
           </div>
 
-          {/* Stats Row — 4 cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* Stats Row — 6 cards (added DECLINED + BACKLOG aggregates) */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <div className="bg-card border border-border/20 p-3">
               <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1">TOTAL SPENT</span>
               <span className={`font-bold text-xl ${customer.totalSpent > 0 ? "text-emerald-400" : "text-foreground/30"}`}>
@@ -639,6 +641,38 @@ function Customer360Panel({ customer, onSmsClick }: {
               }`}>
                 {daysAgo != null ? daysAgo : "--"}
               </span>
+            </div>
+            {/* DECLINED — recovery opportunity */}
+            <div className={`bg-card border p-3 ${customer.declinedValue > 0 ? "border-amber-500/30" : "border-border/20"}`}>
+              <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1">
+                <FileWarning className="w-3 h-3 inline mr-1" />DECLINED
+              </span>
+              {customer.declinedValue > 0 ? (
+                <div className="flex items-baseline gap-1.5 flex-wrap">
+                  <span className="font-bold text-xl text-amber-400">
+                    ${Math.round(customer.declinedValue / 100).toLocaleString()}
+                  </span>
+                  <span className="text-[9px] text-foreground/40 tracking-wider">{customer.declinedCount} EST</span>
+                </div>
+              ) : (
+                <span className="font-bold text-xl text-foreground/30">--</span>
+              )}
+            </div>
+            {/* BACKLOG — open work orders */}
+            <div className={`bg-card border p-3 ${customer.backlogValueCents > 0 ? "border-blue-500/30" : "border-border/20"}`}>
+              <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1">
+                <Wrench className="w-3 h-3 inline mr-1" />BACKLOG
+              </span>
+              {customer.backlogValueCents > 0 ? (
+                <div className="flex items-baseline gap-1.5 flex-wrap">
+                  <span className="font-bold text-xl text-blue-400">
+                    ${Math.round(customer.backlogValueCents / 100).toLocaleString()}
+                  </span>
+                  <span className="text-[9px] text-foreground/40 tracking-wider">{customer.backlogCount} OPEN</span>
+                </div>
+              ) : (
+                <span className="font-bold text-xl text-foreground/30">--</span>
+              )}
             </div>
           </div>
 
@@ -728,13 +762,131 @@ function Customer360Panel({ customer, onSmsClick }: {
               </div>
             )}
           </div>
+
+          {/* DECLINED WORK — unmatched ALG estimates (recovery opportunities) */}
+          {historyData?.declinedEstimates && historyData.declinedEstimates.length > 0 && (
+            <div className="bg-card border border-amber-500/20 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-mono text-[9px] text-amber-400 tracking-wider">
+                  <FileWarning className="w-3 h-3 inline mr-1" />
+                  DECLINED WORK — RECOVERY OPPORTUNITIES ({historyData.declinedEstimates.length})
+                </span>
+                <span className="font-mono text-[10px] text-amber-400">
+                  ${Math.round(historyData.declinedEstimates.reduce((sum: number, e: CustomerDeclinedEstimate) => sum + e.estimatedAmount, 0) / 100).toLocaleString()} total
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-amber-500/10">
+                      <th className="text-left py-1.5 pr-3 text-[9px] text-foreground/40 tracking-wider">DATE</th>
+                      <th className="text-left py-1.5 pr-3 text-[9px] text-foreground/40 tracking-wider">EST #</th>
+                      <th className="text-left py-1.5 pr-3 text-[9px] text-foreground/40 tracking-wider">SERVICE</th>
+                      <th className="text-left py-1.5 pr-3 text-[9px] text-foreground/40 tracking-wider">VEHICLE</th>
+                      <th className="text-right py-1.5 pr-3 text-[9px] text-foreground/40 tracking-wider">QUOTED</th>
+                      <th className="text-left py-1.5 text-[9px] text-foreground/40 tracking-wider">FOLLOW-UP</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyData.declinedEstimates.map((est: CustomerDeclinedEstimate) => (
+                      <tr key={est.id} className="border-b border-amber-500/5">
+                        <td className="py-1.5 pr-3 text-foreground/50 whitespace-nowrap">
+                          {new Date(est.estimateDate).toLocaleDateString()}
+                        </td>
+                        <td className="py-1.5 pr-3 text-foreground/60 font-mono">
+                          {est.externalId}
+                        </td>
+                        <td className="py-1.5 pr-3 text-foreground/70 max-w-[200px] truncate">
+                          {est.serviceDescription || "—"}
+                        </td>
+                        <td className="py-1.5 pr-3 text-foreground/50 max-w-[120px] truncate">
+                          {est.vehicleInfo || "—"}
+                        </td>
+                        <td className="py-1.5 pr-3 text-right font-mono text-amber-400 whitespace-nowrap">
+                          ${Math.round(est.estimatedAmount / 100).toLocaleString()}
+                        </td>
+                        <td className="py-1.5">
+                          {est.followUp30dSent ? (
+                            <span className="text-[9px] tracking-wider font-bold px-1.5 py-0.5 text-foreground/40 bg-foreground/5">30D SENT</span>
+                          ) : est.followUp7dSent ? (
+                            <span className="text-[9px] tracking-wider font-bold px-1.5 py-0.5 text-blue-400 bg-blue-500/10">7D SENT</span>
+                          ) : (
+                            <span className="text-[9px] tracking-wider font-bold px-1.5 py-0.5 text-red-400 bg-red-500/10">PENDING</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ACTIVE BACKLOG — open work orders */}
+          {historyData?.openWorkOrders && historyData.openWorkOrders.length > 0 && (
+            <div className="bg-card border border-blue-500/20 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-mono text-[9px] text-blue-400 tracking-wider">
+                  <Wrench className="w-3 h-3 inline mr-1" />
+                  ACTIVE BACKLOG — OPEN WORK ORDERS ({historyData.openWorkOrders.length})
+                </span>
+                <span className="font-mono text-[10px] text-blue-400">
+                  ${Math.round(historyData.openWorkOrders.reduce((sum: number, w: CustomerOpenWorkOrder) => sum + (w.total ? Number(w.total) : 0), 0)).toLocaleString()} total
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-blue-500/10">
+                      <th className="text-left py-1.5 pr-3 text-[9px] text-foreground/40 tracking-wider">CREATED</th>
+                      <th className="text-left py-1.5 pr-3 text-[9px] text-foreground/40 tracking-wider">WO #</th>
+                      <th className="text-left py-1.5 pr-3 text-[9px] text-foreground/40 tracking-wider">SERVICE</th>
+                      <th className="text-left py-1.5 pr-3 text-[9px] text-foreground/40 tracking-wider">VEHICLE</th>
+                      <th className="text-left py-1.5 pr-3 text-[9px] text-foreground/40 tracking-wider">PROMISED</th>
+                      <th className="text-right py-1.5 pr-3 text-[9px] text-foreground/40 tracking-wider">QUOTED</th>
+                      <th className="text-left py-1.5 text-[9px] text-foreground/40 tracking-wider">STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyData.openWorkOrders.map((wo: CustomerOpenWorkOrder) => (
+                      <tr key={wo.id} className="border-b border-blue-500/5">
+                        <td className="py-1.5 pr-3 text-foreground/50 whitespace-nowrap">
+                          {new Date(wo.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="py-1.5 pr-3 text-foreground/60 font-mono">
+                          {wo.orderNumber}
+                        </td>
+                        <td className="py-1.5 pr-3 text-foreground/70 max-w-[200px] truncate">
+                          {wo.serviceDescription || "—"}
+                        </td>
+                        <td className="py-1.5 pr-3 text-foreground/50 max-w-[120px] truncate">
+                          {[wo.vehicleMake, wo.vehicleModel].filter(Boolean).join(" ") || "—"}
+                        </td>
+                        <td className="py-1.5 pr-3 text-foreground/50 whitespace-nowrap text-[10px]">
+                          {wo.promisedAt ? new Date(wo.promisedAt).toLocaleDateString() : "—"}
+                        </td>
+                        <td className="py-1.5 pr-3 text-right font-mono text-blue-400 whitespace-nowrap">
+                          {wo.total ? `$${Math.round(Number(wo.total)).toLocaleString()}` : "—"}
+                        </td>
+                        <td className="py-1.5">
+                          <span className="text-[9px] tracking-wider font-bold px-1.5 py-0.5 text-blue-400 bg-blue-500/10">
+                            {(wo.status || "draft").replace(/_/g, " ").toUpperCase()}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </td>
     </tr>
   );
 }
 
-type SortByExt = "name" | "visits" | "lastVisit" | "totalSpent" | "firstVisit" | "created";
+type SortByExt = "name" | "visits" | "lastVisit" | "totalSpent" | "firstVisit" | "created" | "declined" | "backlog";
 
 export default function CustomersSection() {
   // URL-persistent tab state (matches Settings pattern via ?customersTab=...)
@@ -803,6 +955,8 @@ function CustomersList() {
   const [exporting, setExporting] = useState(false);
   const [minVisits, setMinVisits] = useState<number | undefined>();
   const [lastVisitDays, setLastVisitDays] = useState<number | undefined>();
+  const [hasDeclined, setHasDeclined] = useState(false);
+  const [hasBacklog, setHasBacklog] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
   const { data: stats } = trpc.customers.stats.useQuery(undefined, { refetchInterval: 30000 });
@@ -812,10 +966,12 @@ function CustomersList() {
     pageSize,
     search: search || undefined,
     segment,
-    sortBy: sortBy as SortBy,
+    sortBy,
     sortDir,
     minVisits,
     lastVisitDays,
+    hasDeclined: hasDeclined || undefined,
+    hasBacklog: hasBacklog || undefined,
   }, { refetchInterval: 30000 });
 
   const enrichMutation = trpc.customers.enrich.useMutation({
@@ -837,7 +993,7 @@ function CustomersList() {
 
   const totalPages = Math.ceil((listData?.total ?? 0) / pageSize);
 
-  function toggleSort(col: SortBy) {
+  function toggleSort(col: SortByExt) {
     if (sortBy === col) { setSortDir(d => d === "asc" ? "desc" : "asc"); }
     else { setSortBy(col); setSortDir("desc"); }
     setPage(1);
@@ -1023,13 +1179,34 @@ function CustomersList() {
                 <option value="visits">Visit Count</option>
                 <option value="lastVisit">Last Visit</option>
                 <option value="firstVisit">First Visit</option>
+                <option value="declined">Declined Value</option>
+                <option value="backlog">Backlog Value</option>
                 <option value="name">Name</option>
                 <option value="created">Date Added</option>
               </select>
             </div>
-            {(minVisits || lastVisitDays) && (
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] text-foreground/40 tracking-wider block mb-1">RECOVERY / BACKLOG</label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setHasDeclined(!hasDeclined); setPage(1); }}
+                  className={`px-3 py-1.5 text-[10px] tracking-wider transition-colors flex items-center gap-1 ${hasDeclined ? "bg-amber-500/10 text-amber-400 border border-amber-500/30" : "bg-background border border-border/30 text-foreground/50 hover:text-foreground"}`}
+                  title="Show only customers with unmatched ALG estimates"
+                >
+                  <FileWarning className="w-3 h-3" /> HAS DECLINED
+                </button>
+                <button
+                  onClick={() => { setHasBacklog(!hasBacklog); setPage(1); }}
+                  className={`px-3 py-1.5 text-[10px] tracking-wider transition-colors flex items-center gap-1 ${hasBacklog ? "bg-blue-500/10 text-blue-400 border border-blue-500/30" : "bg-background border border-border/30 text-foreground/50 hover:text-foreground"}`}
+                  title="Show only customers with open work orders"
+                >
+                  <Wrench className="w-3 h-3" /> HAS BACKLOG
+                </button>
+              </div>
+            </div>
+            {(minVisits || lastVisitDays || hasDeclined || hasBacklog) && (
               <button
-                onClick={() => { setMinVisits(undefined); setLastVisitDays(undefined); setPage(1); }}
+                onClick={() => { setMinVisits(undefined); setLastVisitDays(undefined); setHasDeclined(false); setHasBacklog(false); setPage(1); }}
                 className="self-end px-3 py-1.5 text-xs text-red-400 hover:text-red-300 tracking-wider"
               >
                 Clear Filters
@@ -1045,6 +1222,8 @@ function CustomersList() {
             { label: "Segment", value: segment, default: "all", onClear: () => { setSegment("all"); setPage(1); } },
             { label: "Min Visits", value: minVisits ? String(minVisits) : "", default: "", onClear: () => { setMinVisits(undefined); setPage(1); }, displayValue: minVisits ? `${minVisits}+` : undefined },
             { label: "Last Visit", value: lastVisitDays ? String(lastVisitDays) : "", default: "", onClear: () => { setLastVisitDays(undefined); setPage(1); }, displayValue: lastVisitDays ? `≤${lastVisitDays}d` : undefined },
+            { label: "Has Declined", value: hasDeclined ? "1" : "", default: "", onClear: () => { setHasDeclined(false); setPage(1); }, displayValue: hasDeclined ? "ALG est unmatched" : undefined },
+            { label: "Has Backlog", value: hasBacklog ? "1" : "", default: "", onClear: () => { setHasBacklog(false); setPage(1); }, displayValue: hasBacklog ? "Open WOs" : undefined },
             { label: "Sort", value: sortBy, default: "totalSpent", onClear: () => { setSortBy("totalSpent"); setPage(1); }, displayValue: sortBy === "totalSpent" ? undefined : sortBy },
           ]}
           onClearAll={() => {
@@ -1052,6 +1231,8 @@ function CustomersList() {
             setSegment("all");
             setMinVisits(undefined);
             setLastVisitDays(undefined);
+            setHasDeclined(false);
+            setHasBacklog(false);
             setSortBy("totalSpent");
             setSortDir("desc");
             setPage(1);
@@ -1081,6 +1262,16 @@ function CustomersList() {
                   Visits <ArrowUpDown className="w-3 h-3" />
                 </button>
               </th>
+              <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide hidden md:table-cell" title="Unmatched ALG estimates — recovery opportunities">
+                <button onClick={() => toggleSort("declined")} className="flex items-center gap-1 hover:text-foreground/60">
+                  <FileWarning className="w-3 h-3" /> Declined <ArrowUpDown className="w-3 h-3" />
+                </button>
+              </th>
+              <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide hidden lg:table-cell" title="Open work orders — current backlog">
+                <button onClick={() => toggleSort("backlog")} className="flex items-center gap-1 hover:text-foreground/60">
+                  <Wrench className="w-3 h-3" /> Backlog <ArrowUpDown className="w-3 h-3" />
+                </button>
+              </th>
               <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide hidden md:table-cell">Vehicle</th>
               <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide hidden sm:table-cell">
                 <button onClick={() => toggleSort("lastVisit")} className="flex items-center gap-1 hover:text-foreground/60">
@@ -1093,13 +1284,13 @@ function CustomersList() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={7} className="p-8 text-center text-foreground/30">
+                <td colSpan={9} className="p-8 text-center text-foreground/30">
                   <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
                 </td>
               </tr>
             ) : listData?.customers.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-8 text-center text-foreground/30 text-[12px]">
+                <td colSpan={9} className="p-8 text-center text-foreground/30 text-[12px]">
                   No customers found
                 </td>
               </tr>
@@ -1166,6 +1357,38 @@ function CustomersList() {
                       <span className={c.totalVisits > 0 ? "text-foreground" : "text-foreground/30"}>
                         {c.totalVisits || "\u2014"}
                       </span>
+                    </td>
+
+                    {/* Declined work (ALG unmatched estimates) */}
+                    <td className="p-3 hidden md:table-cell" title={c.declinedCount ? `${c.declinedCount} ALG estimate${c.declinedCount === 1 ? "" : "s"} never converted` : "No declined work"}>
+                      {c.declinedValue > 0 ? (
+                        <div className="flex flex-col">
+                          <span className="font-mono text-[12px] text-amber-400">
+                            ${Math.round(c.declinedValue / 100).toLocaleString()}
+                          </span>
+                          <span className="text-[9px] text-foreground/40 tracking-wider">
+                            {c.declinedCount} EST
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-foreground/20 text-[11px]">{"\u2014"}</span>
+                      )}
+                    </td>
+
+                    {/* Active backlog (open work orders) */}
+                    <td className="p-3 hidden lg:table-cell" title={c.backlogCount ? `${c.backlogCount} open work order${c.backlogCount === 1 ? "" : "s"}` : "No active backlog"}>
+                      {c.backlogValueCents > 0 ? (
+                        <div className="flex flex-col">
+                          <span className="font-mono text-[12px] text-blue-400">
+                            ${Math.round(c.backlogValueCents / 100).toLocaleString()}
+                          </span>
+                          <span className="text-[9px] text-foreground/40 tracking-wider">
+                            {c.backlogCount} OPEN
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-foreground/20 text-[11px]">{"\u2014"}</span>
+                      )}
                     </td>
 
                     {/* Vehicle */}
