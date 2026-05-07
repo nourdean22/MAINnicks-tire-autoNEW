@@ -880,118 +880,172 @@ function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose: () =>
             </div>
           ) : (
             <>
-              <dl className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <dt className="text-[10px] uppercase tracking-wider text-foreground/40">Caller</dt>
-                  <dd className="font-medium">{details.customerName || fmtPhone(details.customerNumber)}</dd>
-                </div>
-                <div>
-                  <dt className="text-[10px] uppercase tracking-wider text-foreground/40">Time</dt>
-                  <dd className="font-mono tabular-nums text-[13px]">
-                    {details.createdAt ? new Date(details.createdAt).toLocaleString() : "—"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-[10px] uppercase tracking-wider text-foreground/40">Duration</dt>
-                  <dd className="font-mono tabular-nums">{fmtDuration(details.durationSeconds)}</dd>
-                </div>
-                <div>
-                  <dt className="text-[10px] uppercase tracking-wider text-foreground/40">End reason</dt>
-                  <dd className={prettyReason(details.endedReason).color + " font-medium"}>
-                    {prettyReason(details.endedReason).label}
-                  </dd>
-                </div>
-                {details.cost !== null && (
-                  <div>
-                    <dt className="text-[10px] uppercase tracking-wider text-foreground/40">Cost</dt>
-                    <dd className="font-mono tabular-nums">${details.cost.toFixed(3)}</dd>
-                  </div>
-                )}
-                {details.successEvaluation && (
-                  <div>
-                    <dt className="text-[10px] uppercase tracking-wider text-foreground/40">VAPI Success Eval</dt>
-                    <dd className="text-[12px]">{details.successEvaluation}</dd>
-                  </div>
-                )}
-              </dl>
+              {/* Wave-90 — TRANSCRIPT FIRST. Operator wants to read what was
+                  actually said as the primary content; metadata grid is below. */}
 
-              {details.summary && (
-                <div className="rounded border border-border/30 bg-card/40 p-3">
-                  <div className="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">Summary</div>
-                  <div className="text-[13px] leading-relaxed">{details.summary}</div>
-                </div>
-              )}
+              {/* Compact one-line strip: caller · time · duration · end reason */}
+              <div className="flex items-center gap-2 text-[12px] flex-wrap pb-3 border-b border-border/20">
+                <span className="font-bold text-foreground">
+                  {details.customerName || fmtPhone(details.customerNumber)}
+                </span>
+                <span className="text-foreground/30">·</span>
+                <span className="font-mono tabular-nums text-foreground/70">
+                  {fmtDuration(details.durationSeconds)}
+                </span>
+                <span className="text-foreground/30">·</span>
+                <span className={prettyReason(details.endedReason).color + " font-medium"}>
+                  {prettyReason(details.endedReason).label}
+                </span>
+                <span className="text-foreground/30">·</span>
+                <span className="font-mono tabular-nums text-foreground/50 text-[11px]">
+                  {details.createdAt ? new Date(details.createdAt).toLocaleString() : "—"}
+                </span>
+              </div>
 
-              {details.toolCalls.length > 0 && (
-                <div className="rounded border border-primary/20 bg-primary/5 p-3">
-                  <div className="text-[10px] uppercase tracking-wider text-primary/80 mb-2">
-                    Tool calls ({details.toolCalls.length})
-                  </div>
-                  <ul className="space-y-1.5">
-                    {details.toolCalls.map((tc, i) => (
-                      <li key={i} className="text-[12px]">
-                        <span className="font-mono font-bold text-primary">{tc.name}</span>
-                        {tc.time !== undefined && <span className="text-foreground/40 ml-2">@{Math.round(tc.time)}s</span>}
-                        <pre className="mt-0.5 text-[11px] text-foreground/60 font-mono whitespace-pre-wrap break-all bg-background/40 rounded p-1.5">
-                          {tc.args}
-                        </pre>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
+              {/* Recording — keeps prime real estate so you can listen while reading */}
               {details.recordingUrl && (
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">Recording</div>
-                  <audio controls src={details.recordingUrl} className="w-full" />
+                <div className="rounded border border-border/30 bg-card/40 p-2 flex items-center gap-2">
+                  <span className="text-[10px] uppercase tracking-wider text-foreground/40 shrink-0">
+                    Recording
+                  </span>
+                  <audio controls src={details.recordingUrl} className="flex-1 h-8" />
                 </div>
               )}
 
-              {details.messages.length > 0 ? (
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider text-foreground/40 mb-2">
-                    Transcript ({details.messages.length} messages)
-                  </div>
-                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                    {details.messages.map((msg, i) => {
-                      const isUser = msg.role === "user";
-                      const isBot = msg.role === "bot" || msg.role === "assistant";
-                      return (
-                        <div
-                          key={i}
-                          className={`text-[12px] leading-relaxed rounded p-2 ${
-                            isUser
-                              ? "bg-blue-500/10 border-l-2 border-blue-500/50"
-                              : isBot
-                              ? "bg-emerald-500/10 border-l-2 border-emerald-500/50"
-                              : "bg-foreground/5 border-l-2 border-foreground/20"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className="text-[9px] uppercase tracking-wider font-bold text-foreground/50">
-                              {isBot ? "Nick" : msg.role}
-                            </span>
-                            {msg.secondsFromStart !== null && (
-                              <span className="text-[9px] font-mono text-foreground/30">
-                                {Math.round(msg.secondsFromStart || 0)}s
-                              </span>
-                            )}
-                          </div>
-                          {msg.message && <div className="text-foreground/90">{msg.message}</div>}
+              {/* TRANSCRIPT — primary content. Only conversation turns
+                  (caller + Nick); system prompts + tool/function messages
+                  filtered out (they dominate otherwise — the system prompt
+                  is the entire AI identity ~2KB of text). For raw
+                  message stream incl. system + tool, use "Open in VAPI". */}
+              {(() => {
+                const conversation = details.messages.filter(
+                  (m) => m.role === "user" || m.role === "bot" || m.role === "assistant",
+                );
+                if (conversation.length === 0 && !details.transcript) {
+                  return (
+                    <div className="text-center py-8 text-[12px] text-foreground/40">
+                      No conversation captured for this call.
+                      {details.messages.length > 0 && (
+                        <div className="mt-1 text-[11px]">
+                          ({details.messages.length} system/tool message{details.messages.length === 1 ? "" : "s"} hidden — open in VAPI for raw stream)
                         </div>
-                      );
-                    })}
+                      )}
+                    </div>
+                  );
+                }
+                if (conversation.length === 0 && details.transcript) {
+                  return (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider font-bold text-foreground/60 mb-2">
+                        Transcript
+                      </div>
+                      <pre className="text-[13px] leading-relaxed whitespace-pre-wrap font-sans bg-card/40 border border-border/30 rounded p-3">
+                        {details.transcript}
+                      </pre>
+                    </div>
+                  );
+                }
+                return (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] uppercase tracking-wider font-bold text-foreground/60">
+                        Transcript ({conversation.length} {conversation.length === 1 ? "turn" : "turns"})
+                      </span>
+                      <span className="text-[10px] text-foreground/30">
+                        <span className="inline-block w-2 h-2 rounded-full bg-blue-400 mr-1 align-middle" />
+                        Caller
+                        <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 ml-3 mr-1 align-middle" />
+                        Nick
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {conversation.map((msg, i) => {
+                        const isUser = msg.role === "user";
+                        return (
+                          <div
+                            key={i}
+                            className={`text-[13px] leading-relaxed rounded p-2.5 ${
+                              isUser
+                                ? "bg-blue-500/10 border-l-2 border-blue-500/50"
+                                : "bg-emerald-500/10 border-l-2 border-emerald-500/50"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="text-[9px] uppercase tracking-wider font-bold text-foreground/50">
+                                {isUser ? "Caller" : "Nick"}
+                              </span>
+                              {msg.secondsFromStart !== null && (
+                                <span className="text-[9px] font-mono text-foreground/30">
+                                  {Math.round(msg.secondsFromStart || 0)}s
+                                </span>
+                              )}
+                            </div>
+                            {msg.message && <div className="text-foreground/90">{msg.message}</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
+                );
+              })()}
+
+              {/* Below-transcript: secondary detail (collapsed by default) */}
+              <details className="rounded border border-border/30 bg-card/30">
+                <summary className="cursor-pointer px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-foreground/60 hover:text-foreground select-none">
+                  Call detail + tool calls{details.toolCalls.length > 0 ? ` (${details.toolCalls.length})` : ""}
+                </summary>
+                <div className="px-3 py-3 border-t border-border/20 space-y-3">
+                  {/* Metadata grid */}
+                  <dl className="grid grid-cols-2 gap-3 text-sm">
+                    {details.cost !== null && (
+                      <div>
+                        <dt className="text-[10px] uppercase tracking-wider text-foreground/40">Cost</dt>
+                        <dd className="font-mono tabular-nums">${details.cost.toFixed(3)}</dd>
+                      </div>
+                    )}
+                    {details.successEvaluation && (
+                      <div>
+                        <dt className="text-[10px] uppercase tracking-wider text-foreground/40">VAPI Success Eval</dt>
+                        <dd className="text-[12px]">{details.successEvaluation}</dd>
+                      </div>
+                    )}
+                    <div>
+                      <dt className="text-[10px] uppercase tracking-wider text-foreground/40">Call ID</dt>
+                      <dd className="font-mono text-[11px] text-foreground/70 break-all">{details.id}</dd>
+                    </div>
+                  </dl>
+
+                  {/* Summary (AI-generated) */}
+                  {details.summary && (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">AI Summary</div>
+                      <div className="text-[12px] leading-relaxed text-foreground/80">{details.summary}</div>
+                    </div>
+                  )}
+
+                  {/* Tool calls */}
+                  {details.toolCalls.length > 0 && (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-primary/80 mb-2">
+                        Tool calls
+                      </div>
+                      <ul className="space-y-1.5">
+                        {details.toolCalls.map((tc, i) => (
+                          <li key={i} className="text-[12px]">
+                            <span className="font-mono font-bold text-primary">{tc.name}</span>
+                            {tc.time !== undefined && (
+                              <span className="text-foreground/40 ml-2">@{Math.round(tc.time)}s</span>
+                            )}
+                            <pre className="mt-0.5 text-[11px] text-foreground/60 font-mono whitespace-pre-wrap break-all bg-background/40 rounded p-1.5">
+                              {tc.args}
+                            </pre>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
-              ) : details.transcript ? (
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">Transcript</div>
-                  <pre className="text-[12px] whitespace-pre-wrap font-sans bg-card/40 border border-border/30 rounded p-3">
-                    {details.transcript}
-                  </pre>
-                </div>
-              ) : null}
+              </details>
             </>
           )}
         </div>
