@@ -162,7 +162,6 @@ Wave 22-61 deploys completed. Verified:
 | Item | Effort | Notes |
 |---|---|---|
 | `pnpm add @sentry/react` + DSN env var | 15 min | Server-side Sentry shim ready |
-| UptimeRobot signup + ping `/api/_health` | 10 min | External uptime check |
 | GSC URL Inspection on remaining 12 pages | ~5 min/day for 3 days | Throttled to 10/day |
 | Stack confirmation: MySQL or Postgres? | info | Schema is MySQL but memory says Postgres; affects optimization patterns |
 | Run `pnpm test:ai-evals` to validate blog seeder | 1 min | Eval harness shipped wave-62 |
