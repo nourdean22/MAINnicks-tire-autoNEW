@@ -13,7 +13,7 @@ export default function MavisAlternative() {
       slug="mavis-tire-alternative-cleveland"
       seoTitle="Mavis Tire Alternative Cleveland · No Surprise Fees | Nick's"
       seoDescription="Mavis advertised tire price low? Final invoice high? Nick's Tire & Auto on Euclid Ave: walk-in 7 days, written estimate up front, used tires from $60 installed."
-      intro="Mavis Discount Tire wins the advertised tire-only price. They lose the rest of the receipt. Read 100 Mavis reviews on Google or Yelp and you'll see the same line ten times: \"final cost was way more than the quote.\" That's because the labor + valve stems + TPMS service + disposal fees aren't in the advertised number. Nick's Tire & Auto on Euclid Ave puts all of that in the estimate before the wrench moves. Walk in any day we're awake including Sunday. Used tires from $60 installed when a used tire fits. Same yellow sign. Same real address."
+      intro="Mavis Discount Tire wins the advertised tire-only price. They lose the rest of the receipt. Read 100 Mavis reviews on Google or Yelp and you'll see the same line ten times: 'final cost was way more than the quote.' That's because the labor + valve stems + TPMS service + disposal fees aren't in the advertised number. Nick's Tire & Auto on Euclid Ave puts all of that in the estimate before the wrench moves. Walk in any day we're awake including Sunday. Used tires from $60 installed when a used tire fits. Same yellow sign. Same real address."
       extraFaqs={[
         {
           question: "Why does Mavis Tire have so many surprise charges at checkout?",
