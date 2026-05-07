@@ -565,6 +565,33 @@ export default function OverviewSection() {
       });
   }, [allBookings, todayKey]);
 
+  // wave-64 / wave-65 — operational alerts surfaced at top of dashboard via
+  // AdminAlertBar. Per ADMIN_PHILOSOPHY: empty bar = everything's fine.
+  // ALG offline = CRIT (every revenue number depends on the ALG mirror;
+  // when it's offline, dashboard numbers are stale + invoice flow blocked).
+  // Existing ALG status pill remains as wallpaper-tier informational signal.
+  //
+  // CRITICAL: useMemo MUST be called above the early-return guard below.
+  // Otherwise on first render (isLoading=true) the hook is skipped, then
+  // on next render (stats arrives) the hook runs — React throws
+  // "Rendered more hooks than during the previous render."
+  // (Real-fetch verification on /admin caught this; typecheck did not.)
+  const algConnectedForAlerts = algStatus?.connected ?? null;
+  const adminAlerts: AdminAlert[] = useMemo(() => {
+    const out: AdminAlert[] = [];
+    if (algConnectedForAlerts === false) {
+      out.push({
+        id: "alg-offline",
+        severity: "crit",
+        message: "ALG (Auto Labor Guide) integration offline. Revenue + invoice numbers are stale.",
+        href: "/admin?tab=settings&settingsTab=integrations",
+        ctaLabel: "Fix",
+        dismissable: false,
+      });
+    }
+    return out;
+  }, [algConnectedForAlerts]);
+
   if (isLoading || !stats) {
     return <LoadingState label="Loading dashboard..." />;
   }
@@ -594,26 +621,6 @@ export default function OverviewSection() {
   const urgentLeads = stats.leads.urgent ?? 0;
   const healthScore = masterReport?.summary?.score ?? null;
   const algConnected = algStatus?.connected ?? null;
-
-  // wave-64 — operational alerts surfaced at top of dashboard via
-  // AdminAlertBar. Per ADMIN_PHILOSOPHY: empty bar = everything's fine.
-  // ALG offline = CRIT (every revenue number depends on the ALG mirror;
-  // when it's offline, dashboard numbers are stale + invoice flow blocked).
-  // Existing ALG status pill remains as wallpaper-tier informational signal.
-  const adminAlerts: AdminAlert[] = useMemo(() => {
-    const out: AdminAlert[] = [];
-    if (algConnected === false) {
-      out.push({
-        id: "alg-offline",
-        severity: "crit",
-        message: "ALG (Auto Labor Guide) integration offline. Revenue + invoice numbers are stale.",
-        href: "/admin?tab=settings&settingsTab=integrations",
-        ctaLabel: "Fix",
-        dismissable: false,
-      });
-    }
-    return out;
-  }, [algConnected]);
 
   // Prefer shopLoad.activeWOs — it's the strict "physically in shop right now"
   // count (in_progress / waiting_parts / quality_check, fresh in last 7d).
