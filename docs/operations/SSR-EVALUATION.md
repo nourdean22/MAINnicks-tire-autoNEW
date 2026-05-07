@@ -1,5 +1,12 @@
 # SSR Migration Evaluation
 
+> **Status (2026-05-07 wave-78):** Recommendation still STANDS. T11.1
+> (route-registry validator) is SHIPPED — `scripts/validate-route-registry.mjs`
+> wired to `pnpm validate:routes` and `pnpm verify`. Prerender pipeline
+> hardened (wave-71/72 meta-divergence + length harness). No SSR
+> migration triggers (CWV plateau, Google bot-UA penalty) detected
+> in current GSC data.
+
 **Question:** Should nickstire.org migrate from Vite SPA + build-time
 prerender to a runtime SSR framework (Next.js, Remix, TanStack Start,
 or vike)?

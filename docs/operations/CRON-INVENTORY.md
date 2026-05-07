@@ -5,7 +5,15 @@ Organized by the tier it runs in (`server/cron/scheduler.ts`).
 
 If you add a new job, update this doc in the **same commit**.
 
-Last audited: 2026-04-22
+Last audited: 2026-04-22 · **Stale flag: 2026-05-07 wave-78**
+
+> **Drift detected:** This inventory has fallen out of sync. Source of
+> truth is `server/cron/scheduler.ts` + `server/cron/jobs/*.ts`. Several
+> listed jobs have no corresponding files; several real jobs aren't
+> listed (e.g. `declinedWorkRecovery`, `morningBrief`,
+> `appointmentReminders`). Regenerate from scheduler before relying on
+> this file for incident response. The "update in same commit"
+> contract has decayed.
 
 ---
 

@@ -1,5 +1,16 @@
 # Business Continuity — Nick's Tire & Auto
-Generated: 2026-03-29
+Generated: 2026-03-29 · **Stale flag: 2026-05-07 wave-78**
+
+> **Drift to fix on next refresh** (preserved here vs. silent decay):
+> - AI provider order: Venice → Ollama Cloud Pro → OpenAI → Anthropic
+>   (per `MEMORY.md` arsenal_integrations; doc still lists OpenAI as
+>   primary)
+> - Add VAPI line `+1 216 424 9249` and statenour-os recovery to
+>   critical systems map (added 2026-05-05 / 2026-04-19)
+> - Cross-reference `docs/OBSERVABILITY.md` (wave-51) for SLI/SLO +
+>   incident response — that's the current playbook
+> - Recovery time + redundancy column needs validation against actual
+>   Railway/TiDB current SLAs
 
 ## Critical Systems Map
 

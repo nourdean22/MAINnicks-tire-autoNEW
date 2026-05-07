@@ -1,13 +1,22 @@
 # Deployment Checklist — Nick's Tire & Auto
-Generated: 2026-03-29
+Generated: 2026-03-29 · **Refreshed 2026-05-07 wave-78**
+
+> **Note:** Railway auto-deploys on push to `main`. Most of this
+> checklist runs automatically via `pnpm verify` (env-validate +
+> typecheck + lint + lint:source + lint:hooks + validate:routes +
+> tests + build). Manual gates below are for the items the verify
+> pipeline doesn't catch.
 
 ## Pre-Deploy (every deploy)
 
-- [ ] `npm run build` passes locally
-- [ ] TypeScript compiles without errors (`npx tsc --noEmit`)
+- [ ] `pnpm verify` passes locally (replaces individual `npm run build`
+      / `tsc --noEmit` / test gates with a single chain)
 - [ ] No new required env vars added without updating Railway / production env
 - [ ] No `console.log` of secrets or sensitive customer data introduced
 - [ ] Rate limits haven't been raised (verify AI=20/hr, forms=10/hr)
+- [ ] If SEO HTML changed: run `pnpm regen` locally OR rely on weekly
+      prerender refresh cron (regen is heavy; weekly is fine for most
+      content changes)
 
 ## For schema changes (DB migrations)
 

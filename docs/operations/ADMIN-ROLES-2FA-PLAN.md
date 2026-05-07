@@ -1,5 +1,11 @@
 # Admin Roles + 2FA — Design Plan
 
+> **Status (2026-05-07 wave-78 reconciliation):**
+> **Multi-admin roles SCHEMA SHIPPED** — `userRoles` table in
+> `drizzle/schema.ts:2469` (wave-59) with owner/manager/mechanic/
+> accountant/viewer roles. Permission CHECKS not yet wired. The
+> 2FA portion below is STILL PENDING and unchanged.
+
 Status: **DESIGN COMPLETE, IMPL DEFERRED** (2026-04-22).
 Blocker: implementing a second auth factor requires a session-flow refactor
 that is risky to do without a staging environment. Tracked here so when we
