@@ -507,6 +507,26 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        // Wave-100: refresh materialized declined-work + active-backlog
+        // aggregates per customer. Runs hourly so the customers admin
+        // always sees fresh recovery numbers without correlated subqueries.
+        name: "customer-metrics-refresh",
+        businessHoursOnly: false,
+        handler: async () => {
+          try {
+            const { refreshCustomerMetrics } = await import("../services/customerMetricsRefresh");
+            const result = await refreshCustomerMetrics();
+            return {
+              recordsProcessed: result.customersUpdated,
+              details: `Refreshed ${result.customersUpdated} customer_metrics aggregates in ${result.durationMs}ms`,
+            };
+          } catch (e) {
+            log.warn("[cron/scheduler] customer-metrics-refresh failed:", e);
+            return { details: "Metrics refresh skipped" };
+          }
+        },
+      },
+      {
         name: "intelligence-engines-live", // Cross-sell, LTV, lead scoring, attribution — runs BEFORE autopilot so it has fresh data
         businessHoursOnly: true,
         handler: async () => {
