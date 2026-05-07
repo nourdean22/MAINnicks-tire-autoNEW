@@ -102,6 +102,73 @@ const RANKED_PROVIDERS: RankedProvider[] = [
   },
 ];
 
+/* ─── AcimaBannerWithFallback ──────────────────────────────────
+ *
+ * Renders the Acima 1300x250 marketing banner from S3, but falls
+ * back to a styled text-only Acima callout if the image fails to
+ * load. The image is commonly blocked by ad-blockers / privacy
+ * filters because the host (marketing.acimacredit.com) is on most
+ * tracker lists. Without the fallback, blocked users see a
+ * 942x0 broken image space inside a dark border. */
+function AcimaBannerWithFallback() {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  if (imgFailed) {
+    return (
+      <a
+        href={ACIMA_BANNER.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block rounded-2xl overflow-hidden border border-[#2A2A2A] hover:border-[#FDB913]/40 transition-colors bg-gradient-to-r from-[#1a1a1a] via-[#1f1f1f] to-[#1a1a1a] p-6 sm:p-7"
+        aria-label="Apply to Acima Leasing — no credit needed, opens in new tab"
+      >
+        <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+          <div className="flex-shrink-0">
+            <span className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-[#FDB913]/15 text-[#FDB913] font-extrabold text-xl tracking-tight">
+              A
+            </span>
+          </div>
+          <div className="flex-1 text-center sm:text-left">
+            <p className="text-[10px] uppercase tracking-[0.18em] font-bold text-[#FDB913] mb-1">
+              No credit needed
+            </p>
+            <p className="text-foreground font-semibold text-base sm:text-lg leading-snug">
+              Acima Leasing — get pre-qualified in 60 seconds.
+            </p>
+            <p className="text-foreground/60 text-xs sm:text-sm mt-1">
+              Soft check, no impact to your score. Up to $4,000 approved.
+            </p>
+          </div>
+          <div className="flex-shrink-0">
+            <span className="inline-flex items-center gap-2 bg-[#FDB913] text-[#0A0A0A] px-5 py-2.5 rounded-md font-bold text-sm">
+              Apply now
+              <ArrowRight className="w-4 h-4" />
+            </span>
+          </div>
+        </div>
+      </a>
+    );
+  }
+
+  return (
+    <a
+      href={ACIMA_BANNER.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block rounded-2xl overflow-hidden border border-[#2A2A2A] hover:border-[#FDB913]/30 transition-colors"
+    >
+      <img
+        alt={ACIMA_BANNER.alt}
+        src={ACIMA_BANNER.imgSrc}
+        style={{ width: "100%", maxWidth: "1300px" }}
+        className="mx-auto"
+        loading="lazy"
+        onError={() => setImgFailed(true)}
+      />
+    </a>
+  );
+}
+
 /* ─── CostOfWaitingBlock ────────────────────────────────────── */
 function CostOfWaitingBlock() {
   return (
@@ -580,23 +647,17 @@ export default function Financing() {
       </section>
 
       {/* ─── Acima banner ─────────────────────────────────── */}
+      {/* 2026-05-06 wave-29 · the Acima banner image is hosted on
+          marketing.acimacredit.com (S3) and is commonly blocked by
+          ad-blockers / privacy filters. When blocked, the bare
+          <img> rendered as a 942×0 broken-image space inside a
+          dark border. AcimaBannerWithFallback wraps the <img> with
+          an onError that swaps in a styled text-only Acima callout
+          so privacy-aware customers still see a clean CTA. */}
       <section className="bg-[#111111] pb-2">
         <div className="container max-w-5xl">
           <FadeIn>
-            <a
-              href={ACIMA_BANNER.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-2xl overflow-hidden border border-[#2A2A2A] hover:border-[#FDB913]/30 transition-colors"
-            >
-              <img
-                alt={ACIMA_BANNER.alt}
-                src={ACIMA_BANNER.imgSrc}
-                style={{ width: "100%", maxWidth: "1300px" }}
-                className="mx-auto"
-                loading="lazy"
-              />
-            </a>
+            <AcimaBannerWithFallback />
           </FadeIn>
         </div>
       </section>
