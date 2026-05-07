@@ -567,7 +567,12 @@ function WhyUs() {
 function PullUpBand() {
   return (
     <section className="relative overflow-hidden">
-      <div className="relative h-[420px] sm:h-[520px] lg:h-[600px] overflow-hidden">
+      {/* 2026-05-06 wave-30 · mobile band was h-[420px] which made the
+          contain'd 6.69:1 panorama render as a ~57px sliver inside a tall
+          mostly-empty band. Trimmed mobile to h-[260px] so the sign fills
+          a larger fraction of the band; sm+ keeps the dramatic taller
+          band where wider viewports give the panorama room to read. */}
+      <div className="relative h-[260px] sm:h-[420px] lg:h-[520px] overflow-hidden">
         {/* 2026-05-06 wave-27 · /brand-sign.webp is a 1600×239 panoramic
             banner (aspect 6.69:1). The PullUpBand container is ~1090×600
             (aspect 1.82:1), so object-fit:cover would zoom the photo 4×

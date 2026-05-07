@@ -78,7 +78,14 @@ export function SignFeature() {
 
           {/* RIGHT — sign photo, full bleed in container */}
           <div className="order-1 lg:order-2 relative">
-            <figure className="relative aspect-[4/3] sm:aspect-[16/10] overflow-hidden rounded-xl photo-depth ken-burns-target">
+            {/* 2026-05-06 wave-30 · mobile container was aspect-[4/3]
+                (1.33:1) which letterboxed the 6.69:1 panoramic sign
+                heavily — the image rendered as a thin sliver in the
+                middle of mostly-empty dark space at narrow widths.
+                Tightened to aspect-[5/2] (2.5:1) on mobile so the sign
+                fills more of the visible area; sm+ keeps 16/10 since
+                the wider viewport already absorbs the letterbox. */}
+            <figure className="relative aspect-[5/2] sm:aspect-[16/10] overflow-hidden rounded-xl photo-depth ken-burns-target">
               {/* 2026-05-06 wave-27 · brand-sign.webp is a 1600×239
                   panoramic banner crop (aspect 6.69:1). object-fit:cover
                   inside a 16/10 figure forces a 4× vertical zoom and
