@@ -3,20 +3,20 @@
  *
  * Triggers:
  *   - Desktop: mouseleave from top edge of viewport (clientY <= 0)
- *   - Mobile/touch: history popstate (back button) — only if scrolled past 25%
+ *   - Mobile/touch: gated by 8s arm timer; modal opens on next mouseleave
  *
- * Once shown, suppressed for 24h via localStorage. Doesn't fire on /admin
- * or /booking (the user is already converting).
+ * Once shown, suppressed for 24h via localStorage. Doesn't fire on
+ * /admin, /booking, or /contact (the user is already converting).
  *
- * Per the conversion-overhaul spec (`docs/CONVERSION-OVERHAUL-V1.1.md`):
- *   - Catastrophic-scenario microcopy on the headline
- *   - Two CTAs: "RESERVE MY SPOT" (primary) and "I'LL RISK IT" (guilt
- *     microcopy as the dismiss option, not a true exit)
- *   - Inline phone capture so the user can act in one tap, no extra page load
+ * Brand-voice copy (post wave-28 FCFS audit + wave-46 voice operators):
+ *   - Headline: "Don't break down before you fix it." (catastrophic-scenario)
+ *   - Sub: explicit 15-min text-back promise + FCFS clarity
+ *   - Primary CTA: "TEXT ME AN ESTIMATE" (action verb, what user gets)
+ *   - Dismiss microcopy: "I'll risk it" (anti-pattern naming, on-brand)
  *
- * Compliance: scarcity language ("3 other Cleveland drivers attempting…")
- * is generic and behaviorally honest — multiple visitors do try the same
- * times. We don't manufacture specific fake counts.
+ * No countdowns, no fake scarcity counts. The 15-minute estimate-back
+ * promise is verifiable + matches the booking-page promise (single
+ * source of truth for the brand commitment).
  */
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -164,7 +164,7 @@ export default function ExitIntentModal() {
               </form>
             ) : (
               <div className="flex items-center gap-2 rounded bg-emerald-500/10 border border-emerald-500/30 px-3 py-3 text-sm font-semibold text-emerald-400">
-                <Check className="w-4 h-4" /> Got it — we'll text you in 5 min
+                <Check className="w-4 h-4" /> On it. We'll text within 15 min during open hours.
               </div>
             )}
           </motion.div>
