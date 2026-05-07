@@ -983,6 +983,21 @@ function CustomersList() {
     onError: () => toast.error("Enrichment failed"),
   });
 
+  // Wave-100: manual refresh of materialized declined+backlog aggregates.
+  // Login auto-fires this — button is for operator's "the numbers look
+  // stale, force a recompute" moments. Local DB only, no ALG hit.
+  const refreshMetricsMutation = trpc.customers.refreshMetrics.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success(`Recomputed ${result.customersUpdated} customer aggregates · ${result.durationMs}ms`);
+        utils.customers.list.invalidate();
+      } else {
+        toast.error("Metrics refresh failed");
+      }
+    },
+    onError: () => toast.error("Metrics refresh failed"),
+  });
+
   const retryCampaign = trpc.customers.retryCampaign.useMutation({
     onSuccess: (result) => {
       toast.success(`Sent ${result.sent} texts (${result.failed} failed). ${result.remaining} remaining.`);
@@ -1128,6 +1143,15 @@ function CustomersList() {
           >
             {enrichMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
             Sync Data
+          </button>
+          <button
+            onClick={() => refreshMetricsMutation.mutate()}
+            disabled={refreshMetricsMutation.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs tracking-wide bg-card border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50 whitespace-nowrap"
+            title="Recompute declined-work + backlog totals from local DB. No ALG fetch. Auto-runs on login."
+          >
+            {refreshMetricsMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+            Recompute
           </button>
         </div>
 
