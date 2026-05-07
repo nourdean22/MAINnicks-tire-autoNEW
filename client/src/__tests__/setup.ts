@@ -28,3 +28,19 @@ if (typeof globalThis.ResizeObserver === "undefined") {
 if (typeof window !== "undefined") {
   window.scrollTo = () => {};
 }
+
+// Polyfill matchMedia for jsdom (used by ScrollProgressBar, theme detection,
+// responsive components). Returns a default-false MediaQueryList shaped object
+// so component code that calls .matches / .addEventListener doesn't throw.
+if (typeof window !== "undefined" && typeof window.matchMedia === "undefined") {
+  window.matchMedia = (query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},      // legacy
+    removeListener: () => {},   // legacy
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  }) as unknown as MediaQueryList;
+}
