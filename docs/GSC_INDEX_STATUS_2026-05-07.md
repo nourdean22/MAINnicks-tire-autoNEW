@@ -90,18 +90,27 @@ the `_valueTracker` reset trick to recognize a programmatic value change.
 
 ---
 
-## Next-tier SEO indexing tasks (not in this audit)
+## Pillar articles (3 of 3 indexed) — added wave-84
 
-- 3 wave-35-37 pillar articles (`/blog/complete-cleveland-tire-guide`,
-  `/blog/cleveland-auto-repair-owners-manual`,
-  `/blog/cleveland-pothole-salt-damage-guide`) — should be inspected
-  similarly to confirm indexed
-- ~30 existing blog spoke articles — wave-38 cross-links these to
-  pillars; status of pillar links flowing through SERPs is a separate
-  metric (impressions / position) not captured by URL inspection alone
+| URL | Status |
+|---|---|
+| `/blog/complete-cleveland-tire-guide` | ✅ URL is on Google |
+| `/blog/cleveland-auto-repair-owners-manual` | ✅ URL is on Google |
+| `/blog/cleveland-pothole-salt-damage-guide` | ✅ URL is on Google |
 
-These can be checked via GSC Performance tab over the next 14 days as
-ranking data accumulates.
+**Combined SEO authority cluster: 17 of 17 pages indexed.**
+- 14 wave-33 competitor pages
+- 3 wave-35-37 pillar articles
+
+The hub-and-spoke topology is fully crawlable + discoverable in
+Google's index.
+
+## Next-tier SEO observability (not URL Inspection)
+
+The ~30 existing blog spoke articles are cross-linked to pillars per
+wave-38, but ranking + impression flow can only be measured via GSC
+Performance tab (impressions, clicks, position) over a 14-day window
+as data accumulates. Not a one-shot inspection task.
 
 ---
 
