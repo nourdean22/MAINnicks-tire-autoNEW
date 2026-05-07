@@ -144,15 +144,16 @@ instead of `console.log("drop created")`.
 Railway captures stdout, so this lights up dashboards on the Railway side
 without additional infra.
 
-### 3. Synthetic monitoring (uptime checks)
+### 3. Synthetic monitoring (uptime checks) — SKIPPED per Nour
 
-Recommendation: external uptime check pinging `/api/_health` every 60s
-from a different region.
+External uptime check (UptimeRobot / BetterStack / Cronitor pinging
+`/api/_health`) was originally recommended here. Nour has indicated
+this isn't a priority — Railway's own health monitoring + Sentry
+error capture is sufficient coverage at current scale.
 
-**Free tier options:** UptimeRobot, BetterStack, Cronitor.
-
-This catches the case where the site is unreachable from outside Railway
-even if Railway thinks it's healthy.
+If site availability becomes a felt problem (customers reporting
+"site was down for an hour I didn't know about"), revisit. Until
+then, this layer stays unimplemented.
 
 ### 4. Real User Monitoring (RUM) dashboard
 
@@ -240,14 +241,15 @@ as needed).
 
 1. **Sentry on client + server** — catches the unknown-unknowns (JS errors,
    server 5xx) you don't even know to look for
-2. **Structured server logging** — replace console.log with pino
-3. **External uptime check** — UptimeRobot 60s ping on /api/_health
+2. **Structured server logging** — already in place via server/lib/logger.ts
+3. ~~External uptime check~~ — SKIPPED per Nour (Railway health + Sentry
+   coverage is enough at current scale)
 4. **Booking-flow-specific tracking** — every step of the booking funnel
    has analytics events; track funnel drop-off
 5. **Error budget dashboard** — admin section showing current SLO compliance
 6. **Alert routing via Twilio + Resend** — wire alerts to actual channels
 
-Each step is independently shippable. Don't try to ship all 6 at once.
+Each step is independently shippable. Don't try to ship all at once.
 
 ---
 
@@ -259,8 +261,8 @@ Each step is independently shippable. Don't try to ship all 6 at once.
   upgrade to error.
 - ❌ **Coupling alerts to deployments.** A deploy that touches ad code
   shouldn't fire deploy-monitoring alerts about ad load. Tag deploys.
-- ❌ **Building custom monitoring infra.** Sentry / UptimeRobot / Datadog
-  exist. Don't reinvent.
+- ❌ **Building custom monitoring infra.** Sentry / Datadog exist.
+  Don't reinvent.
 
 ---
 
