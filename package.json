@@ -25,9 +25,10 @@
     "lint": "prettier --check README.md CONTRIBUTING.md SECURITY.md .env.example package.json scripts/env-validate.mjs .github/pull_request_template.md .github/ISSUE_TEMPLATE/*.md .github/workflows/*.yml docs/integrations/INTEGRATION_REGISTRY.md docs/operations/LOAD_BEARING_SYSTEMS.md",
     "lint:fix": "prettier --write README.md CONTRIBUTING.md SECURITY.md .env.example package.json scripts/env-validate.mjs .github/pull_request_template.md .github/ISSUE_TEMPLATE/*.md .github/workflows/*.yml docs/integrations/INTEGRATION_REGISTRY.md docs/operations/LOAD_BEARING_SYSTEMS.md",
     "lint:source": "node scripts/lint-source.mjs",
+    "lint:hooks": "node scripts/audit-hook-after-return.mjs",
     "validate:routes": "node scripts/validate-route-registry.mjs",
     "env:validate": "node scripts/env-validate.mjs",
-    "verify": "pnpm run env:validate && pnpm run check && pnpm run lint && pnpm run lint:source && pnpm run validate:routes && pnpm run test && pnpm run build"
+    "verify": "pnpm run env:validate && pnpm run check && pnpm run lint && pnpm run lint:source && pnpm run lint:hooks && pnpm run validate:routes && pnpm run test && pnpm run build"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

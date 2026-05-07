@@ -127,6 +127,19 @@
      Tokenized from waves 22-42 polish work + DESIGN_PHILOSOPHY.md
      + EMOTION_MAP.md. Future commits should reference these instead
      of hardcoding. Updating one var here propagates site-wide.
+
+     ADOPTION STATUS (2026-05-07 wave-76 audit):
+     - admin tokens (--data-up/-down/-info/-warn/-crit, --bg-card-raised,
+       --ring-neutral, --inset-highlight, --dur-admin-snap) are ACTIVELY
+       CONSUMED via wave-50/54/64/65 components.
+     - customer-facing tokens (--brand-yellow, --ease-magnetic, --ring-yellow,
+       etc.) are DEFINED but consumers use hardcoded values directly
+       (e.g., 31 hardcoded `cubic-bezier(0.32, 0.72, 0, 1)` instead of
+       `var(--ease-magnetic)`). Honest 50% completion.
+     - Migration policy: opportunistic. When changing a curve or color,
+       define it once here and update consumers. Don't refactor consumers
+       just to consume tokens — readability of inline values is OK at
+       current scale.
      ═══════════════════════════════════════════════════════ */
 
   /* ─── BRAND COLORS (semantic, not just hex) ─── */
