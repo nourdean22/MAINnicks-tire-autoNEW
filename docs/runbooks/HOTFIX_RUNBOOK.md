@@ -4,12 +4,12 @@
 
 ```bash
 cd nickstire-fresh
-git pull origin seo-schema-fixes
+git pull origin main
 # Make minimal fix
 pnpm run build                    # Verify
 git add <changed-files>
 git commit -m "hotfix: <what broke>"
-git push origin seo-schema-fixes  # Railway auto-deploys
+git push origin main  # Railway auto-deploys
 ```
 
 ## If local repo might be corrupted
@@ -17,11 +17,11 @@ git push origin seo-schema-fixes  # Railway auto-deploys
 ```bash
 git clone https://github.com/nourdean22/MAINnicks-tire-autoNEW.git hotfix-temp
 cd hotfix-temp
-git checkout seo-schema-fixes
+git checkout main
 pnpm install
 # Make minimal fix
 pnpm run build
-git push origin seo-schema-fixes
+git push origin main
 # After verified: delete hotfix-temp
 ```
 

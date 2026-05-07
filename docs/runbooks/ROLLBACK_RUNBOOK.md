@@ -5,16 +5,21 @@
 ```bash
 git log --oneline -10          # Find last good commit
 git revert HEAD                # Create a revert commit (safe, preserves history)
-git push origin seo-schema-fixes
+git push origin main
 ```
 Railway auto-deploys. Site recovers in ~2 minutes.
 
-## Hard Rollback (multiple commits)
+## Hard Rollback (multiple commits) — DESTRUCTIVE
+
+> ⚠️ **`git push --force` rewrites remote history.** Anyone else with a
+> clone will need to re-clone or rebase. Only use when revert isn't
+> sufficient (e.g., commits leaked secrets that must be erased).
+> Prefer `git revert` for almost every case.
 
 ```bash
 git log --oneline -10                    # Find the good commit hash
 git reset --hard <good-commit-hash>      # WARNING: destroys local changes
-git push origin seo-schema-fixes --force # WARNING: rewrites remote history
+git push origin main --force             # WARNING: rewrites remote history
 ```
 
 ## After Rollback
@@ -27,7 +32,7 @@ git push origin seo-schema-fixes --force # WARNING: rewrites remote history
 
 ## Railway-Specific
 
-- Railway auto-deploys on push to `seo-schema-fixes`
+- Railway auto-deploys on push to `main`
 - Deploy takes ~2-3 minutes
 - Check deploy status at railway.app dashboard
 - If deploy fails, Railway keeps the previous version running

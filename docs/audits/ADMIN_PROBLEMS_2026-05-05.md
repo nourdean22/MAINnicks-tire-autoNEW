@@ -1,6 +1,32 @@
 # nickstire.org/admin — What's Fucked Up
 
-**Date:** 2026-05-05
+**Date:** 2026-05-05 · **Status (2026-05-07 wave-78 reconciliation):** active backlog
+
+> ## Status header (refreshed 2026-05-07)
+>
+> Of the 10 sections in this audit:
+> - ✅ **§2** OverviewSection refactor — partially addressed via wave-65
+>   AlertBar extraction + wave-73 hook fix. The 1664-LOC monolith remains
+>   but its highest-risk failure mode (the hook-after-early-return crash)
+>   is fixed and prevented by `pnpm lint:hooks` in CI.
+> - ✅ **§8** RBAC scaffold — `userRoles` table shipped wave-59 in
+>   `drizzle/schema.ts:2469`. Permission checks not yet wired.
+> - ⏸ **§1** polling reduction (`refetchIntervalInBackground: false`
+>   global config) — STILL PENDING
+> - ⏸ **§3** ~14 `any` removals in DispatchSection/ContentSection — PENDING
+> - ⏸ **§4** useEffect cleanup gaps — PENDING
+> - ⏸ **§5** ErrorBoundary per section — exists as AdminSectionBoundary
+>   but the per-hook patterns wave-73 caught suggest it could be tighter
+> - ⏸ **§6** staleTime patterns — PENDING
+> - ⏸ **§7** N+1 queries — not assessed since 2026-05-05
+> - ⏸ **§9** chart-config consolidation — PENDING
+> - ⏸ **§10** autonicks fetch proxy — PENDING
+>
+> Triaged via `pr-review-toolkit:comment-analyzer` subagent during
+> wave-78 docs reconciliation. Original audit body preserved below.
+>
+> ---
+
 **Method:** static analysis of `client/src/pages/admin/` (20 sections, 15.6K LOC), `Admin.tsx`/`AdminContent.tsx`, `server/routers/admin.ts`, plus pattern scans for code smells.
 **Tone:** brutal. The user asked.
 
