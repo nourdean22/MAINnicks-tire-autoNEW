@@ -6,6 +6,7 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { PageHeader } from "./shared";
+import { SkeletonTable, SkeletonPanel } from "@/components/admin/AdminSkeletons";
 import {
   Wrench, Clock, AlertTriangle, User, ChevronRight, Plus, RefreshCw,
   Package, Truck, CheckCircle2, XCircle, Timer, Phone, MapPin,
@@ -539,7 +540,7 @@ function PendingPartsView({ onSelectWO }: { onSelectWO: (id: string) => void }) 
     onSuccess: () => { utils.workOrders.pendingParts.invalidate(); utils.workOrders.list.invalidate(); },
   });
 
-  if (isLoading) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-primary/60" /></div>;
+  if (isLoading) return <SkeletonTable rows={5} cells={4} />;
   if (!parts?.length) return <div className="text-center py-20 text-foreground/30 text-sm">No pending parts</div>;
 
   const bySupplier = parts.reduce((acc: Record<string, PendingPart[]>, p: PendingPart) => {
@@ -676,7 +677,7 @@ function PickupQueueView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
     onSuccess: () => { utils.workOrders.pickupQueue.invalidate(); utils.workOrders.list.invalidate(); utils.workOrders.stats.invalidate(); },
   });
 
-  if (isLoading) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-primary/60" /></div>;
+  if (isLoading) return <SkeletonPanel rows={4} />;
   if (!queue?.length) return <div className="text-center py-20 text-foreground/30 text-sm">No vehicles ready for pickup</div>;
 
   return (

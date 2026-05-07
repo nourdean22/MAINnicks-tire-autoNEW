@@ -26,6 +26,7 @@ import {
 import WebVitalsPanel from "./WebVitalsPanel";
 import { openDrilldown } from "@/components/admin/DrilldownDrawer";
 import AdminAlertBar, { type AdminAlert } from "@/components/admin/AdminAlertBar";
+import { SkeletonOverview } from "@/components/admin/AdminSkeletons";
 
 const TOOLTIP_STYLE = {
   background: "oklch(0.12 0.005 260)",
@@ -593,7 +594,10 @@ export default function OverviewSection() {
   }, [algConnectedForAlerts]);
 
   if (isLoading || !stats) {
-    return <LoadingState label="Loading dashboard..." />;
+    // Wave-82 — layout-preserving skeleton instead of bare spinner.
+    // §9 of ADMIN_PROBLEMS audit: skeletons reduce perceived load time
+    // and prevent the layout-shift jump when data arrives.
+    return <SkeletonOverview />;
   }
 
   // ─── DERIVED DATA ────────────────────────────────────
