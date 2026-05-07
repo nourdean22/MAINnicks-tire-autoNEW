@@ -1,18 +1,21 @@
 # Dev Workflow — Local + CI Guardrails
 
+> **Refreshed 2026-05-07 wave-78** — husky already initialized (the
+> bootstrap "Enable it once" section was removed since it confused
+> contributors); pre-commit hook gained `pnpm lint:hooks` (wave-76)
+> for React Rules-of-Hooks enforcement.
+
 ## Local hooks
 
-**Husky pre-commit** lives at `.husky/pre-commit`. It runs:
+**Husky pre-commit** at `.husky/pre-commit` runs:
 1. `pnpm run lint:source` — custom source linter (no console.* in server, any/sql counts)
 2. `pnpm run check` — TypeScript
 3. `pnpm run test --bail=1` — bail on first test failure
+4. `pnpm run lint:hooks` — `audit-hook-after-return.mjs` (wave-76, prevents
+   the wave-65-style hook-after-early-return crash)
 
-**Enable it once:**
-```bash
-pnpm add -D husky
-pnpm exec husky init
-# The .husky/pre-commit file is already in place; it'll be activated.
-```
+The hook is already active. Running `pnpm install` re-applies it via the
+`prepare` script if it ever falls off.
 
 If a hook run is too slow, bypass with `git commit --no-verify` (avoid
 unless you have a very good reason; CI will still block on push).

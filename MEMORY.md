@@ -12,7 +12,7 @@ Read **`CLAUDE.md`** (repo root) for operating rules. Use this file as a **route
 | Cron / background | `server/cron/scheduler.ts`, `server/cron/jobs/` |
 | DB schema | `drizzle/schema.ts` |
 | Declined work recovery | `server/services/declinedWorkRecovery.ts`, `dispatch.declinedLedger` / `markRecovered` / `recordDeclineOutreach` |
-| Env reference | `.env.example`, `docs/security/ENV_AUDIT.md` |
+| Env reference | `.env.example` (canonical) |
 | Site usage (URLs, admin paths) | `USAGE-MANUAL.md` |
 
 ## After substantive changes
