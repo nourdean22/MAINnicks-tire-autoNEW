@@ -25,31 +25,34 @@ export default function NotFound() {
               404
             </h1>
 
-            {/* Headline */}
+            {/* 2026-05-07 wave-46 copy engineering — copywriting-
+                psychologist + loss-aversion frame applied. Names the
+                friction the user just hit (wrong page = wasted click)
+                AND immediately offers two ways to recover (homepage or
+                symptom-based diagnose). Concrete + specific + memorable;
+                Cleveland-tough register preserved. */}
             <h2 className="font-heading text-2xl md:text-3xl font-bold text-white uppercase tracking-wide mt-4">
-              This page does not exist.
+              Wrong page. Same shop.
             </h2>
 
-            {/* Subheadline */}
             <p className="text-white/50 text-lg mt-4 max-w-md mx-auto leading-relaxed">
-              Like the muffler on a Civic with a fart can. We're better at finding car problems than missing ones — pull up to the homepage.
+              We can't find this URL. We can probably find what's wrong with your car, though. Pull up to the homepage — or describe your symptom and we'll match it to a likely fix.
             </p>
 
-            {/* CTAs */}
             <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 href="/"
-                className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-black px-8 py-4 rounded-lg font-bold text-sm tracking-wide hover:bg-[#FDB913]/90 transition-colors"
+                className="group inline-flex items-center justify-center gap-2 bg-[#FDB913] text-black px-8 py-4 rounded-lg font-bold text-sm tracking-wide shadow-[0_4px_20px_rgba(253,185,19,0.35)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:shadow-[0_6px_28px_rgba(253,185,19,0.55)] active:scale-[0.98]"
               >
-                Go Home
-                <ArrowRight className="w-4 h-4" />
+                Pull up to home
+                <ArrowRight className="w-4 h-4 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-1" />
               </Link>
               <Link
                 href="/diagnose"
-                className="inline-flex items-center justify-center gap-2 border-2 border-[#FDB913] text-[#FDB913] px-8 py-4 rounded-lg font-bold text-sm tracking-wide hover:bg-[#FDB913]/10 transition-colors"
+                className="group inline-flex items-center justify-center gap-2 border-2 border-[#FDB913] text-[#FDB913] px-8 py-4 rounded-lg font-bold text-sm tracking-wide transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[#FDB913]/10 active:scale-[0.98]"
               >
-                <Wrench className="w-4 h-4" />
-                Diagnose My Car
+                <Wrench className="w-4 h-4 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:rotate-[12deg]" />
+                Diagnose my car
               </Link>
             </div>
           </div>
