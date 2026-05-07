@@ -498,8 +498,12 @@ function normalizeInvoiceJson(raw: any): RawInvoice {
     totalAmount: typeof amount === "number" ? Math.round(amount * 100) : parseDollarsToCents(String(amount)),
     date: raw.date || raw.invoiceDate || raw.createdAt || raw.ticketDate || raw.accessedDate || new Date().toISOString(),
     service: raw.serviceDescription || raw.description || raw.service || raw.vehicleDescription || raw.services?.join(", ") || "",
+    // Wave-99 fix: ALG's listRecentTickets returns year/make/model (no
+    // "vehicle" prefix). Older endpoints used the prefixed names so
+    // both fallbacks remain. Empty string is dropped by .filter(Boolean).
     vehicleInfo: raw.vehicleDescription || raw.vehicleInfo || raw.vehicle ||
-      [raw.vehicleYear, raw.vehicleMake, raw.vehicleModel].filter(Boolean).join(" ") || undefined,
+      [raw.year || raw.vehicleYear, raw.make || raw.vehicleMake, raw.model || raw.vehicleModel]
+        .filter(Boolean).join(" ").trim() || undefined,
     paymentMethod: raw.paymentMethod || raw.payType || "other",
     paymentStatus: raw.paymentStatus || raw.status || "paid",
     partsCost: raw.partsCost != null ? Math.round(Number(raw.partsCost) * 100) : 0,
