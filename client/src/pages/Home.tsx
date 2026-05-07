@@ -146,7 +146,16 @@ function Hero() {
             Wave-20's mt-24 (96px) at lg only pushed H1 to y=57 which
             still hid the top half behind the nav. Bumped to mt-40
             (160px) at lg+ to give H1 a clear ~120px starting position. */}
-        <div className="max-w-full lg:max-w-[58%] mt-40 sm:mt-48 lg:mt-40">
+        {/* 2026-05-07 wave-41 · mobile sign-visibility fix.
+            H1 was overlapping the storefront sign in the vertical mobile
+            hero photo (shopfront-clear-vertical-sign-bays.webp 1122×1402).
+            Sign sits at y=107-428 in the mobile container after object-
+            cover scale; H1 was at y=160-240. Bumping mobile mt-40 → mt-80
+            (320px) so H1 starts below the sign's visible zone. sm
+            breakpoint (640+) keeps mt-48; lg keeps mt-40 (desktop wide
+            photo has the sign anchored right where H1 has max-w-[58%]
+            constraint, no overlap). */}
+        <div className="max-w-full lg:max-w-[58%] mt-80 sm:mt-48 lg:mt-40">
           {/* 2026-05-06 wave-19 · BrandMark removed from hero. It was
               rendering a "CLEVELAND TOUGH" tagline banner that visually
               overlapped with the SiteNavbar wordmark — both said NICK'S
