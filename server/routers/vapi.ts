@@ -232,6 +232,130 @@ export const vapiRouter = router({
   }),
 
   /**
+   * Read current transferCall destination from VAPI assistant.
+   * Operator wants to see "where calls go right now" without logging
+   * into the VAPI dashboard. Uses live API (uncached) — the operator
+   * just changed something elsewhere is the worst case for stale.
+   */
+  getTransferDestination: adminProcedure.query(async () => {
+    try {
+      // Find assistant. We assume one production assistant; if multiple,
+      // pick the first.
+      const assistants = await vapiApiFetch<Array<{ id: string; name: string }>>(
+        "/assistant?limit=10",
+      );
+      if (!assistants.length) {
+        return { ok: false as const, error: "No VAPI assistant configured" };
+      }
+      const assistantId = assistants[0].id;
+      const assistant = await vapiApiFetch<{
+        id: string;
+        name?: string;
+        model?: { tools?: Array<{ type: string; destinations?: Array<{ type: string; number: string; message?: string; description?: string }> }> };
+      }>(`/assistant/${assistantId}`);
+      const tools = assistant.model?.tools || [];
+      const transfer = tools.find((t) => t.type === "transferCall");
+      const dest = transfer?.destinations?.[0];
+      return {
+        ok: true as const,
+        assistantId,
+        assistantName: assistant.name || null,
+        currentNumber: dest?.number || null,
+        currentMessage: dest?.message || null,
+      };
+    } catch (err) {
+      log.warn("getTransferDestination failed", { error: err instanceof Error ? err.message : String(err) });
+      return {
+        ok: false as const,
+        error: err instanceof TRPCError ? err.message : "VAPI API unreachable",
+      };
+    }
+  }),
+
+  /**
+   * Update the transferCall destination number on the live VAPI
+   * assistant. Surgical PATCH — fetches the full assistant, mutates
+   * only the transferCall tool's destination[0].number, and PATCHes
+   * back the modified `model` object. All other tools + prompt remain
+   * untouched.
+   */
+  setTransferDestination: adminProcedure
+    .input(z.object({
+      phoneNumber: z.string()
+        .regex(/^\+1\d{10}$/, "Phone must be E.164 format starting with +1 (e.g. +12168620005)")
+        .max(20),
+      message: z.string().max(200).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const assistants = await vapiApiFetch<Array<{ id: string }>>("/assistant?limit=10");
+      if (!assistants.length) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "No VAPI assistant" });
+      }
+      const assistantId = assistants[0].id;
+
+      // Fetch full assistant config
+      const assistant = await vapiApiFetch<{
+        model?: { tools?: Array<Record<string, unknown>>; [k: string]: unknown };
+      }>(`/assistant/${assistantId}`);
+
+      const tools = (assistant.model?.tools || []).slice();
+      const idx = tools.findIndex((t) => t.type === "transferCall");
+      if (idx < 0) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Assistant has no transferCall tool — re-run vapi-update-assistant.ts to add it",
+        });
+      }
+      const existingDestinations = (tools[idx].destinations as Array<Record<string, unknown>>) || [];
+      const existingFirst = existingDestinations[0] || {};
+      const newDestinations = [
+        {
+          ...existingFirst,
+          type: "number",
+          number: input.phoneNumber,
+          message: input.message || existingFirst.message || "Transferring you now.",
+        },
+        ...existingDestinations.slice(1),
+      ];
+      tools[idx] = { ...tools[idx], destinations: newDestinations };
+
+      // Surgical PATCH — only change the model.tools array; preserve everything else
+      const patchBody = {
+        model: { ...(assistant.model || {}), tools },
+      };
+
+      const apiKey = process.env.VAPI_API_KEY!;
+      const patchRes = await fetch(`${VAPI_BASE}/assistant/${assistantId}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(patchBody),
+      });
+      if (!patchRes.ok) {
+        const body = await patchRes.text();
+        log.error("VAPI PATCH failed", { status: patchRes.status, body: body.slice(0, 400) });
+        throw new TRPCError({
+          code: "BAD_GATEWAY",
+          message: `VAPI PATCH ${patchRes.status}`,
+        });
+      }
+      // Invalidate the readonly cache (none currently set for this key, but
+      // be explicit so future caching doesn't go stale)
+      cache.delete(`transferDest_${assistantId}`);
+      log.info("VAPI transfer destination updated", {
+        assistantId,
+        newNumber: input.phoneNumber,
+      });
+      return {
+        ok: true as const,
+        assistantId,
+        newNumber: input.phoneNumber,
+      };
+    }),
+
+  /**
    * Single-call detail with messages + transcript + tool-call invocations.
    * For the call drawer.
    */
