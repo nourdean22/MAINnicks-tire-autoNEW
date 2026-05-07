@@ -149,13 +149,23 @@ export const vapiRouter = router({
    * `ok: false` with zeros (not throws) when VAPI is unreachable, so
    * the dashboard renders gracefully.
    */
-  todayMetrics: adminProcedure.query(async () => {
-    return memoize("todayMetrics", async () => {
-      const today = startOfDay(new Date());
-      const iso = today.toISOString();
+  todayMetrics: adminProcedure
+    .input(z.object({
+      sinceISO: z.string().datetime().optional(),
+      untilISO: z.string().datetime().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const sinceISO = input?.sinceISO;
+      const untilISO = input?.untilISO;
+      // Cache key includes range so different windows don't collide
+      const key = `metrics_${sinceISO || "today"}_${untilISO || "now"}`;
+      return memoize(key, async () => {
+        const since = sinceISO ? new Date(sinceISO) : startOfDay(new Date());
+        const sinceQ = since.toISOString();
+        const untilQ = untilISO ? `&createdAtLe=${encodeURIComponent(untilISO)}` : "";
       try {
         const calls = await vapiApiFetch<VapiCallSummary[]>(
-          `/call?createdAtGe=${encodeURIComponent(iso)}&limit=200`,
+          `/call?createdAtGe=${encodeURIComponent(sinceQ)}${untilQ}&limit=500`,
         );
         const total = calls.length;
         const inbound = calls.filter((c) => c.type === "inboundPhoneCall").length;
@@ -185,7 +195,7 @@ export const vapiRouter = router({
           endReasons,
         };
       } catch (err) {
-        log.warn("todayMetrics failed", { error: err instanceof Error ? err.message : String(err) });
+        log.warn("metrics failed", { error: err instanceof Error ? err.message : String(err) });
         return {
           ok: false as const, error: "VAPI API unreachable",
           total: 0, inbound: 0, outbound: 0, web: 0,
@@ -194,20 +204,29 @@ export const vapiRouter = router({
           endReasons: {} as Record<string, number>,
         };
       }
-    });
-  }),
+      });
+    }),
 
   /**
-   * Today's call list (max 50, newest first) — used by the recent
-   * calls table in the Voice Receptionist admin section.
+   * Call list for the selected range (max 200, newest first).
+   * Default range = today only. Pass sinceISO + untilISO to widen.
    */
-  todayCalls: adminProcedure.query(async () => {
-    return memoize("todayCalls", async () => {
-      const today = startOfDay(new Date());
-      const iso = today.toISOString();
+  todayCalls: adminProcedure
+    .input(z.object({
+      sinceISO: z.string().datetime().optional(),
+      untilISO: z.string().datetime().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const sinceISO = input?.sinceISO;
+      const untilISO = input?.untilISO;
+      const key = `calls_${sinceISO || "today"}_${untilISO || "now"}`;
+      return memoize(key, async () => {
+        const since = sinceISO ? new Date(sinceISO) : startOfDay(new Date());
+        const sinceQ = since.toISOString();
+        const untilQ = untilISO ? `&createdAtLe=${encodeURIComponent(untilISO)}` : "";
       try {
         const calls = await vapiApiFetch<VapiCallSummary[]>(
-          `/call?createdAtGe=${encodeURIComponent(iso)}&limit=50`,
+          `/call?createdAtGe=${encodeURIComponent(sinceQ)}${untilQ}&limit=200`,
         );
         const sorted = [...calls].sort(
           (a, b) =>
@@ -229,7 +248,7 @@ export const vapiRouter = router({
           successEvaluation: c.analysis?.successEvaluation || null,
         }));
       } catch (err) {
-        log.warn("todayCalls failed", { error: err instanceof Error ? err.message : String(err) });
+        log.warn("calls list failed", { error: err instanceof Error ? err.message : String(err) });
         return [] as Array<{
           id: string; type: string; createdAt: string | null;
           startedAt: string | null; endedAt: string | null;
@@ -238,8 +257,8 @@ export const vapiRouter = router({
           cost: number | null; summary: string | null; successEvaluation: string | null;
         }>;
       }
-    });
-  }),
+      });
+    }),
 
   /**
    * Read current transferCall destination from VAPI assistant.
