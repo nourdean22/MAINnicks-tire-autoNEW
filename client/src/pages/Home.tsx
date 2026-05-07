@@ -24,6 +24,7 @@ import FastPaths from "@/components/FastPaths";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
 import Eyebrow from "@/components/Eyebrow";
+import CountUpNumber from "@/components/CountUpNumber";
 import ShopStatusWidget from "@/components/ShopStatusWidget";
 import UberDropoffWidget from "@/components/UberDropoffWidget";
 import PhotoRibbon from "@/components/PhotoRibbon";
@@ -337,12 +338,20 @@ function TrustNumbers() {
     retry: 1,
   });
   const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
+  const rating = googleData?.rating ?? BUSINESS.reviews.rating;
 
-  const stats = [
-    { value: String(googleData?.rating ?? BUSINESS.reviews.rating), label: "Google Rating" },
-    { value: `${totalReviews.toLocaleString()}+`, label: "5-Star Reviews" },
-    { value: "ON-SPOT", label: "Payment Programs" },
-    { value: "Same Day", label: "Walk-Ins · Open Sunday" },
+  // 2026-05-07 wave-45 · design-spells: stats now count up from 0 to
+  // their target when scrolled into view. The two numeric stats (rating
+  // + review count) get the magnetic count-up animation. The two
+  // non-numeric stats stay static (they're already declarative).
+  const stats: Array<
+    | { kind: "count"; to: number; decimals?: number; suffix?: string; label: string }
+    | { kind: "static"; value: string; label: string }
+  > = [
+    { kind: "count", to: rating, decimals: 1, label: "Google Rating" },
+    { kind: "count", to: totalReviews, suffix: "+", label: "5-Star Reviews" },
+    { kind: "static", value: "ON-SPOT", label: "Payment Programs" },
+    { kind: "static", value: "Same Day", label: "Walk-Ins · Open Sunday" },
   ];
 
   return (
@@ -352,7 +361,18 @@ function TrustNumbers() {
           {stats.map((s, i) => (
             <FadeIn key={s.label} delay={i * 0.1}>
               <div className={`text-center ${i > 0 ? "lg:border-l lg:border-border" : ""}`}>
-                <div className="text-3xl lg:text-4xl font-bold text-[#FDB913] tracking-tight font-mono text-gradient-yellow letterpress-gold">{s.value}</div>
+                <div className="text-3xl lg:text-4xl font-bold text-[#FDB913] tracking-tight font-mono text-gradient-yellow letterpress-gold">
+                  {s.kind === "count" ? (
+                    <CountUpNumber
+                      to={s.to}
+                      decimals={s.decimals}
+                      suffix={s.suffix}
+                      duration={1400}
+                    />
+                  ) : (
+                    s.value
+                  )}
+                </div>
                 <div className="mt-1 text-sm text-foreground/40 font-medium">{s.label}</div>
               </div>
             </FadeIn>

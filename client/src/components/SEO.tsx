@@ -185,6 +185,19 @@ export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
  * Fires analytics events AND logs to the database for admin dashboard visibility.
  */
 export function trackPhoneClick(source: string) {
+  // 2026-05-07 wave-45 · design-spells haptic feedback: short 25ms
+  // vibration on tap (mobile only — Vibration API is no-op on desktop).
+  // Fits the EUCLID GRIT brand register because it's a tactile mechanical
+  // signal, not a digital ping. The Cleveland-tough analog: pressing a
+  // physical button on a tool. Try/catch because some browsers (iOS
+  // Safari) don't expose vibrate; failing silently is correct.
+  if (typeof window !== "undefined" && "vibrate" in navigator) {
+    try {
+      navigator.vibrate(25);
+    } catch {
+      // ignored — not all browsers permit vibration
+    }
+  }
   // Fire analytics event if umami is available
   if (typeof window !== "undefined" && window.umami) {
     window.umami.track("phone_click", { source });
