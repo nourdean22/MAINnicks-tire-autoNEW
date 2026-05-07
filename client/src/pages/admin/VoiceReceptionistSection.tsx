@@ -294,32 +294,34 @@ export default function VoiceReceptionistSection() {
 //
 // Operator pain point this fixes: managers swap depending on who's on
 // shift, and the transferCall destination has historically required
-// logging into the VAPI dashboard to change. This card surfaces the
-// current number inline + lets the operator change it in one click.
+// logging into the VAPI dashboard to change.
 //
-// Only valid US E.164 numbers (+1 + 10 digits) are accepted — VAPI
-// rejects anything else. Common destinations are pre-filled as quick
-// chips so the most common changes are zero-typing.
-// Hardcoded reset target: the main shop landline. Always reaches whoever
-// is at the front counter, so it's the safe default when the manager-on-shift
-// isn't reachable. Operators can type any +1 number directly in the input
-// for one-off destinations (mobile cells, etc.).
-const QUICK_DESTINATIONS: Array<{ label: string; number: string; description: string }> = [
-  {
-    label: "Shop Landline · Reset",
-    number: "+12168620005",
-    description: "(216) 862-0005 · always reaches whoever's at the front counter",
-  },
-];
+// Wave-87: this card surfaces the current number + inline edit.
+// Wave-88: per-shift presets stored in shop_settings render as
+//          one-click chips. "Save current as preset" lets operators
+//          build their library — Manager A cell, Manager B cell,
+//          Owner cell, etc. The Shop Landline reset chip is always
+//          present as a safe fallback even if presets are empty.
+
+const SHOP_LANDLINE_RESET = {
+  label: "Shop Landline · Reset",
+  number: "+12168620005",
+  description: "(216) 862-0005 · always reaches the front counter",
+};
 
 function TransferDestinationCard() {
   const utils = trpc.useUtils();
   const { data: dest, isLoading } = trpc.vapi.getTransferDestination.useQuery(undefined, {
     refetchInterval: 5 * 60_000, // 5 min — operator usually changes once + monitors
   });
+  const { data: presets = [] } = trpc.vapi.listTransferPresets.useQuery(undefined, {
+    staleTime: 60_000,
+  });
   const [editing, setEditing] = useState(false);
   const [draftNumber, setDraftNumber] = useState("");
   const [draftMessage, setDraftMessage] = useState("");
+  const [showSavePreset, setShowSavePreset] = useState(false);
+  const [newPresetLabel, setNewPresetLabel] = useState("");
 
   const setDest = trpc.vapi.setTransferDestination.useMutation({
     onSuccess: (result) => {
@@ -330,6 +332,23 @@ function TransferDestinationCard() {
     onError: (err) => {
       toast.error(`Failed to update: ${err.message.slice(0, 100)}`);
     },
+  });
+
+  const savePreset = trpc.vapi.saveTransferPreset.useMutation({
+    onSuccess: () => {
+      toast.success(`Preset saved: ${newPresetLabel}`);
+      utils.vapi.listTransferPresets.invalidate();
+      setShowSavePreset(false);
+      setNewPresetLabel("");
+    },
+    onError: (err) => toast.error(`Failed to save preset: ${err.message.slice(0, 80)}`),
+  });
+
+  const deletePreset = trpc.vapi.deleteTransferPreset.useMutation({
+    onSuccess: () => {
+      utils.vapi.listTransferPresets.invalidate();
+    },
+    onError: (err) => toast.error(`Failed to delete: ${err.message.slice(0, 80)}`),
   });
 
   const startEdit = () => {
@@ -349,8 +368,25 @@ function TransferDestinationCard() {
     });
   };
 
-  const useQuick = (q: typeof QUICK_DESTINATIONS[number]) => {
-    setDest.mutate({ phoneNumber: q.number });
+  const usePreset = (number: string, message?: string) => {
+    setDest.mutate({ phoneNumber: number, message });
+  };
+
+  const handleSavePresetSubmit = () => {
+    const label = newPresetLabel.trim();
+    if (!label) {
+      toast.error("Give the preset a label first");
+      return;
+    }
+    if (!draftNumber.match(/^\+1\d{10}$/)) {
+      toast.error("Type a valid E.164 number first");
+      return;
+    }
+    savePreset.mutate({
+      label,
+      number: draftNumber,
+      message: draftMessage || undefined,
+    });
   };
 
   if (isLoading) {
@@ -460,25 +496,105 @@ function TransferDestinationCard() {
         )}
       </div>
 
-      {/* Quick-pick chips when editing */}
+      {/* Quick-pick chips when editing — saved presets + landline reset */}
       {editing && (
         <div className="mt-3 pt-3 border-t border-border/20">
-          <div className="text-[10px] font-bold tracking-[0.15em] uppercase text-foreground/40 mb-2">
-            Quick destinations
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {QUICK_DESTINATIONS.map((q) => (
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-foreground/40">
+              Quick destinations {presets.length > 0 && <span className="text-foreground/30 ml-1">({presets.length})</span>}
+            </span>
+            {!showSavePreset && (
               <button
-                key={q.label}
-                onClick={() => useQuick(q)}
-                disabled={setDest.isPending}
-                className="text-left bg-background border border-border/40 hover:border-primary/40 rounded-md px-3 py-2 text-xs transition-colors disabled:opacity-50 group"
+                onClick={() => setShowSavePreset(true)}
+                disabled={!draftNumber.match(/^\+1\d{10}$/) || setDest.isPending}
+                className="text-[10px] font-bold tracking-wider uppercase text-primary hover:underline disabled:opacity-30 disabled:no-underline"
+                title="Save the current draft number as a labeled preset"
               >
-                <div className="font-bold tracking-wide group-hover:text-primary transition-colors">{q.label}</div>
-                <div className="text-[10px] text-foreground/50 mt-0.5">{q.description}</div>
+                + Save current as preset
               </button>
-            ))}
+            )}
           </div>
+
+          {/* Inline save-preset prompt */}
+          {showSavePreset && (
+            <div className="mb-3 p-2.5 rounded bg-primary/5 border border-primary/20 flex items-center gap-2 flex-wrap">
+              <input
+                type="text"
+                placeholder='Label (e.g. "Manager Joe", "Owner cell")'
+                value={newPresetLabel}
+                onChange={(e) => setNewPresetLabel(e.target.value)}
+                maxLength={40}
+                autoFocus
+                className="bg-background border border-border/40 rounded-md px-2.5 py-1.5 text-xs flex-1 min-w-[180px] focus:border-primary focus:outline-none"
+              />
+              <button
+                onClick={handleSavePresetSubmit}
+                disabled={savePreset.isPending}
+                className="inline-flex items-center gap-1 bg-primary text-primary-foreground px-2.5 py-1.5 rounded-md text-[11px] font-bold tracking-wide hover:opacity-90 disabled:opacity-50"
+              >
+                {savePreset.isPending ? (
+                  <span className="w-3 h-3 border border-primary-foreground/40 border-t-primary-foreground rounded-full animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-3 h-3" />
+                )}
+                Save preset
+              </button>
+              <button
+                onClick={() => { setShowSavePreset(false); setNewPresetLabel(""); }}
+                className="text-[11px] text-foreground/50 hover:text-foreground px-2 py-1.5"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            {/* Saved presets */}
+            {presets.map((p) => (
+              <div key={p.label} className="relative group">
+                <button
+                  onClick={() => usePreset(p.number, p.message)}
+                  disabled={setDest.isPending}
+                  className="text-left bg-background border border-border/40 hover:border-primary/50 rounded-md pl-3 pr-7 py-2 text-xs transition-colors disabled:opacity-50"
+                >
+                  <div className="font-bold tracking-wide">{p.label}</div>
+                  <div className="text-[10px] text-foreground/50 mt-0.5 font-mono tabular-nums">
+                    {fmtPhone(p.number)}
+                  </div>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (confirm(`Delete preset "${p.label}"?`)) {
+                      deletePreset.mutate({ label: p.label });
+                    }
+                  }}
+                  disabled={deletePreset.isPending}
+                  title="Delete preset"
+                  aria-label={`Delete preset ${p.label}`}
+                  className="absolute top-1 right-1 w-5 h-5 rounded text-foreground/30 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+
+            {/* Hardcoded landline reset — always present as safe fallback */}
+            <button
+              onClick={() => usePreset(SHOP_LANDLINE_RESET.number)}
+              disabled={setDest.isPending}
+              className="text-left bg-background border border-border/40 hover:border-primary/40 rounded-md px-3 py-2 text-xs transition-colors disabled:opacity-50 group"
+            >
+              <div className="font-bold tracking-wide group-hover:text-primary transition-colors">{SHOP_LANDLINE_RESET.label}</div>
+              <div className="text-[10px] text-foreground/50 mt-0.5">{SHOP_LANDLINE_RESET.description}</div>
+            </button>
+          </div>
+
+          {presets.length === 0 && (
+            <p className="text-[10px] text-foreground/40 mt-2 italic">
+              No presets saved yet. Type a number above and click "Save current as preset" to build your shift roster.
+            </p>
+          )}
         </div>
       )}
     </div>
