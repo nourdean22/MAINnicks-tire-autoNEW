@@ -1110,6 +1110,12 @@ export const invoices = mysqlTable("invoices", {
   index("idx_invoice_customer").on(table.customerName),
   index("idx_invoice_date").on(table.invoiceDate),
   index("idx_invoice_payment_status").on(table.paymentStatus),
+  // Wave-97 additions — fix unindexed scans flagged by audit
+  index("idx_invoice_customer_id").on(table.customerId),
+  index("idx_invoice_customer_phone").on(table.customerPhone),
+  index("idx_invoice_source").on(table.source),
+  // Composite for the most common dashboard query (last-N paid revenue)
+  index("idx_invoice_date_status").on(table.invoiceDate, table.paymentStatus),
 ]);
 
 export type Invoice = typeof invoices.$inferSelect;
@@ -1228,6 +1234,9 @@ export const algEstimates = mysqlTable("alg_estimates", {
   index("idx_alg_est_phone").on(t.customerPhone),
   index("idx_alg_est_date").on(t.estimateDate),
   index("idx_alg_est_unmatched").on(t.matchedInvoiceId, t.estimateDate),
+  // Wave-97 — admin search by customer name + filter by source
+  index("idx_alg_est_customer_name").on(t.customerName),
+  index("idx_alg_est_source").on(t.source),
 ]);
 
 export type AlgEstimate = typeof algEstimates.$inferSelect;
