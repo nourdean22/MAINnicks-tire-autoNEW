@@ -193,6 +193,53 @@
   --z-nav: 50;
   --z-modal: 60;
   --z-toast: 70;
+
+  /* ═══════════════════════════════════════════════════════
+     2026-05-07 wave-50 · ADMIN-SPECIFIC TOKENS (Operator's Cockpit)
+     Per docs/ADMIN_PHILOSOPHY.md, admin uses a different design
+     language than customer-facing. These tokens are scoped semantically
+     to admin work (data colors, dense layout) and live alongside
+     (not replacing) the EUCLID GRIT tokens above.
+     ═══════════════════════════════════════════════════════ */
+
+  /* ─── ADMIN DATA COLORS (semantic state communication) ─── */
+  --data-up: #22c55e;               /* positive delta, "above target" */
+  --data-up-soft: rgba(34, 197, 94, 0.15);
+  --data-down: #ef4444;             /* negative delta, "below target" */
+  --data-down-soft: rgba(239, 68, 68, 0.15);
+  --data-neutral: #a1a1aa;          /* static / unchanged */
+  --data-info: #3b82f6;             /* informational signal */
+  --data-info-soft: rgba(59, 130, 246, 0.15);
+  --data-warn: #f59e0b;             /* attention required, not critical */
+  --data-warn-soft: rgba(245, 158, 11, 0.15);
+  --data-crit: #dc2626;             /* critical — act now */
+  --data-crit-soft: rgba(220, 38, 38, 0.15);
+  --data-purple: #a855f7;           /* unique semantic class — explicitly
+                                       allowed in admin (banned customer-
+                                       facing) because admin user reads
+                                       data-color semantics differently */
+  --data-purple-soft: rgba(168, 85, 247, 0.15);
+
+  /* ─── ADMIN-SPECIFIC SPACING (denser than customer-facing) ─── */
+  --pad-admin-section: 1rem;        /* py-4 — admin section default */
+  --pad-admin-section-lg: 1.5rem;   /* lg:py-6 */
+  --pad-admin-card: 0.75rem;        /* p-3 — admin card default */
+  --pad-admin-card-lg: 1rem;        /* lg:p-4 */
+  --gap-admin: 0.75rem;             /* gap-3 — admin grid default */
+  --gap-admin-lg: 1rem;             /* lg:gap-4 */
+
+  /* ─── ADMIN MOTION DURATIONS (snappier than customer-facing) ─── */
+  --dur-admin-snap: 100ms;          /* most admin transitions */
+  --dur-admin-action: 200ms;        /* primary action buttons */
+  --dur-admin-skeleton: 0ms;        /* loading skeletons appear instantly */
+
+  /* ─── ADMIN TYPOGRAPHY SIZING (smaller than customer-facing) ─── */
+  --admin-h1-size: 1.5rem;          /* text-2xl base */
+  --admin-h1-size-lg: 1.875rem;     /* lg:text-3xl */
+  --admin-h2-size: 1.125rem;        /* text-lg base */
+  --admin-h2-size-lg: 1.25rem;      /* lg:text-xl */
+  --admin-body-size: 0.875rem;      /* text-sm — denser body */
+  --admin-label-size: 0.625rem;     /* 10px uppercase data labels */
 }
 
 /* ═══════════════════════════════════════════════════════
