@@ -304,12 +304,18 @@ function LenderHierarchy({ onApply }: { onApply: (id: string) => void }) {
               >
               {/* Tier badge — top */}
               <div className="flex items-center justify-between mb-4">
+                {/* 2026-05-07 wave-44 DFII fix: was bg-violet-500/20
+                    text-violet-200 — purple/violet is the SaaS-AI fingerprint
+                    explicitly forbidden by DESIGN_PHILOSOPHY.md. Swapped for
+                    emerald accent which reads "approved/special" without
+                    the AI-template feel and stays in the EUCLID GRIT
+                    palette range. */}
                 <span
                   className={`text-[10px] font-bold tracking-[0.18em] px-2.5 py-1 rounded-md uppercase ${
                     isPrimary
                       ? "bg-[#FDB913] text-black"
                       : p.tier === "max"
-                        ? "bg-violet-500/20 text-violet-200 border border-violet-500/30"
+                        ? "bg-emerald-500/15 text-emerald-200 border border-emerald-500/30"
                         : "bg-[#2A2A2A] text-white/70"
                   }`}
                 >
