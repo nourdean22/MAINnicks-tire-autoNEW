@@ -85,6 +85,7 @@ export default function EmailNewsletterCapture() {
             type="email"
             inputMode="email"
             autoComplete="email"
+            enterKeyHint="next"
             placeholder="you@email.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -94,6 +95,8 @@ export default function EmailNewsletterCapture() {
           <input
             type="text"
             inputMode="numeric"
+            autoComplete="postal-code"
+            enterKeyHint="send"
             pattern="[0-9]*"
             maxLength={5}
             placeholder="ZIP"
