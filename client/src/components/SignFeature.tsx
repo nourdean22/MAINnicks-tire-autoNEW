@@ -18,6 +18,7 @@
 import { MapPin, Phone } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { trackPhoneClick } from "@/components/SEO";
+import Eyebrow from "@/components/Eyebrow";
 
 export function SignFeature() {
   return (
@@ -32,9 +33,7 @@ export function SignFeature() {
         <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1.4fr] gap-8 lg:gap-12 items-center">
           {/* LEFT — copy block */}
           <div className="order-2 lg:order-1">
-            <p className="text-[11px] font-semibold tracking-[0.18em] text-[#FDB913] uppercase mb-3">
-              17625 Euclid Ave · Cleveland · OH
-            </p>
+            <Eyebrow dropShadow={false}>17625 Euclid Ave · Cleveland · OH</Eyebrow>
             <h2
               id="sign-feature-heading"
               className="font-heading text-3xl sm:text-4xl lg:text-5xl font-extrabold uppercase text-foreground tracking-tight leading-[0.9] headline-balance"
@@ -46,24 +45,24 @@ export function SignFeature() {
               We're not a Yelp ghost. We're not an ad with no address. We're the yellow sign on Euclid Avenue you've passed a hundred times. Pull in any day we're awake — which is all of them — and you'll find a lift, a flashlight, and an estimate before any wrench moves.
             </p>
 
-            {/* Address + map + call CTA */}
+            {/* Address + map + call CTA — wave-31 magnetic upgrade */}
             <div className="mt-6 flex flex-col sm:flex-row gap-3 flex-wrap">
               <a
                 href={BUSINESS.urls.googleBusiness}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 bg-[#FDB913] text-[#0A0A0A] px-5 py-3 rounded-md font-semibold text-sm hover:bg-[#FDB913]/90 transition-colors btn-premium"
+                className="group inline-flex items-center gap-2 bg-[#FDB913] text-[#0A0A0A] px-5 py-3 rounded-md font-semibold text-sm shadow-[0_4px_20px_rgba(253,185,19,0.3)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[#FDB913] hover:shadow-[0_6px_28px_rgba(253,185,19,0.5)] active:scale-[0.98] btn-premium"
                 aria-label="Get directions to Nick's Tire and Auto on Euclid Ave"
               >
-                <MapPin className="w-4 h-4" />
+                <MapPin className="w-4 h-4 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-y-[-2px]" />
                 Directions to the sign
               </a>
               <a
                 href={BUSINESS.phone.href}
                 onClick={() => trackPhoneClick("sign-feature")}
-                className="inline-flex items-center gap-2 border-2 border-[#FDB913]/60 text-[#FDB913] px-5 py-3 rounded-md font-semibold text-sm hover:bg-[#FDB913]/10 transition-colors"
+                className="group inline-flex items-center gap-2 border-2 border-[#FDB913]/60 text-[#FDB913] px-5 py-3 rounded-md font-semibold text-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[#FDB913]/10 hover:border-[#FDB913] active:scale-[0.98]"
               >
-                <Phone className="w-4 h-4" />
+                <Phone className="w-4 h-4 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:rotate-[-8deg]" />
                 {BUSINESS.phone.display}
               </a>
             </div>

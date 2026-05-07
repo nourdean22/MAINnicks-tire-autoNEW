@@ -10,9 +10,21 @@ interface FadeInProps {
   children: React.ReactNode;
   className?: string;
   delay?: number;
+  /**
+   * 2026-05-06 wave-31 · cinematic mode: heavier translate (16 → 0),
+   * blur transition (md → 0), longer duration (800ms), and a custom
+   * cubic-bezier that simulates real-world mass. Opt-in via prop so
+   * existing FadeIn usages keep their familiar 0.6s ease-out behavior.
+   */
+  cinematic?: boolean;
 }
 
-export default function FadeIn({ children, className = "", delay = 0 }: FadeInProps) {
+export default function FadeIn({
+  children,
+  className = "",
+  delay = 0,
+  cinematic = false,
+}: FadeInProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
 
@@ -41,15 +53,24 @@ export default function FadeIn({ children, className = "", delay = 0 }: FadeInPr
     };
   }, []);
 
+  const duration = cinematic ? 0.85 : 0.6;
+  const easing = cinematic ? "cubic-bezier(0.32, 0.72, 0, 1)" : "ease-out";
+  const initialTranslate = cinematic ? "translateY(64px)" : "translateY(20px)";
+  const initialFilter = cinematic ? "blur(12px)" : "none";
+
   return (
     <div
       ref={ref}
       className={className}
       style={{
         opacity: isVisible ? 1 : 0,
-        transform: isVisible ? "translateY(0)" : "translateY(20px)",
-        transition: `opacity 0.6s ease-out ${delay}s, transform 0.6s ease-out ${delay}s`,
-        willChange: isVisible ? "auto" : "opacity, transform",
+        transform: isVisible ? "translateY(0)" : initialTranslate,
+        filter: isVisible ? "blur(0px)" : initialFilter,
+        transition:
+          `opacity ${duration}s ${easing} ${delay}s, ` +
+          `transform ${duration}s ${easing} ${delay}s, ` +
+          `filter ${duration}s ${easing} ${delay}s`,
+        willChange: isVisible ? "auto" : "opacity, transform, filter",
       }}
     >
       {children}
