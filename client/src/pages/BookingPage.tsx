@@ -19,9 +19,10 @@
 
 import { useMemo } from "react";
 import { Link } from "wouter";
-import { Clock, Phone, Wrench, ShieldCheck, MessageSquare, AlertCircle } from "lucide-react";
+import { Clock, Phone, Wrench, ShieldCheck, MessageSquare, AlertCircle, Star } from "lucide-react";
 
 import BookingWizard from "@/components/BookingWizard";
+import CountUpNumber from "@/components/CountUpNumber";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
@@ -290,6 +291,31 @@ export default function BookingPage() {
           <p className="text-foreground/65 text-lg max-w-xl mx-auto">
             Tell us what's going on with your car. We'll call back within 15 minutes during open hours with a written estimate before any wrench moves. First-come, first-served — pull up any day we're open.
           </p>
+
+          {/* 2026-05-07 wave-47 · social-proof-architect: review proof
+              shown at the moment of decision (right before the form).
+              Star widget + count-up review counter + brand-yellow rating
+              integrate directly into the booking hero so the visitor's
+              last visual before committing is "1,700+ Cleveland drivers
+              already chose this." Count-up animates from 0 on scroll-in
+              for the magic-tier moment that wave-45 codified. */}
+          <div className="mt-6 inline-flex items-center gap-3 px-4 py-2.5 rounded-full bg-[#FDB913]/[0.06] border border-[#FDB913]/25">
+            <span className="flex gap-0.5">
+              {[...Array(5)].map((_, i) => (
+                <Star key={i} className="w-4 h-4 fill-[#FDB913] text-[#FDB913]" />
+              ))}
+            </span>
+            <span className="text-[#FDB913] font-bold text-sm tracking-tight">
+              <CountUpNumber to={BUSINESS.reviews.rating} decimals={1} duration={1100} />
+            </span>
+            <span className="text-foreground/45 text-sm">
+              from{" "}
+              <span className="text-foreground/85 font-semibold">
+                <CountUpNumber to={BUSINESS.reviews.count} suffix="+" duration={1400} />
+              </span>{" "}
+              Cleveland drivers
+            </span>
+          </div>
         </div>
 
         {/* Live capacity banner — real data */}
