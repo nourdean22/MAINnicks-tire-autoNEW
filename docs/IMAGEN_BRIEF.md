@@ -1,9 +1,12 @@
 # Imagen Brief — Custom Visual Assets for Nickstire
 
-> Pre-baked prompts for the imagen skill (Gemini 3 Pro Image preview)
-> to generate custom hero/illustration visuals tied to the nickstire
-> brand. Generated 2026-05-07 (wave-48). Run when `GEMINI_API_KEY` is
-> configured in env.
+> Pre-baked prompts for generating custom hero/illustration visuals
+> tied to the nickstire brand. Generated 2026-05-07 (wave-48), pivoted
+> wave-69 to use autonicks.com Nick AI image generation (operator's
+> existing personal-OS image pipeline) instead of Gemini.
+>
+> **No GEMINI_API_KEY required.** Drop these prompts into Nick AI
+> chat at autonicks.com when ready to render.
 
 ---
 
@@ -31,12 +34,22 @@ generic photo-pack imagery on:
 
 ## How to run
 
-Prerequisites:
-1. Set `GEMINI_API_KEY` in `.env`
-2. Verify imagen skill scripts exist at
-   `~/.claude/skills/imagen/scripts/generate_image.py`
+Pivoted wave-69 — use autonicks.com Nick AI chat (operator's existing
+image-gen pipeline) instead of standing up a separate Gemini API key.
 
-Then for each prompt below:
+For each prompt below:
+1. Open autonicks.com Nick AI chat
+2. Paste the prompt verbatim
+3. Save the result to `client/public/images/generated/{filename}.webp`
+4. Wire into the page per the "Where it goes" line in each prompt
+
+If/when a programmatic image-gen workflow becomes useful (e.g.,
+generating dozens of variants for A/B testing), the imagen skill at
+`~/.claude/skills/imagen/scripts/generate_image.py` can be wired up
+with a key. For one-off custom hero shots and OG images, the
+autonicks.com path is faster and cheaper.
+
+Original Gemini-based approach (kept as fallback / reference):
 
 ```bash
 python ~/.claude/skills/imagen/scripts/generate_image.py \

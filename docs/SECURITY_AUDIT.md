@@ -22,12 +22,29 @@ opportunities** and confirms the rest.
 |---|---|---|
 | HTTPS-only | ✅ | Railway edge enforces |
 | HSTS | ✅ | `max-age=63072000; includeSubDomains; preload` |
-| HSTS preload registered | ⚠️ | Header includes `preload` directive but registration at hstspreload.org not confirmed |
+| HSTS preload registered | 🚫 | INTENTIONALLY SKIPPED — see below |
 | TLS version | ✅ | Railway defaults to TLS 1.2+ |
 
-**Hardening opportunity #1:** Submit `nickstire.org` at
-`hstspreload.org` to register in browser preload lists. Active on first
-visit even before HSTS header parsed.
+**HSTS preload registration — INTENTIONALLY SKIPPED (wave-69 audit
+correction).** Initial recommendation was to submit at hstspreload.org,
+but the authoritative source itself states:
+
+> "Many browsers (Chrome, Safari) will automatically upgrade all HTTP
+> navigations to HTTPS, regardless of the domain's HSTS policy. HSTS
+> preloading only provides value when these upgrades fail in the
+> presence of an active attacker. The benefits provided by HSTS
+> preloading are minimal compared to the benefits provided by HSTS.
+> While HSTS is recommended, **HSTS preloading is not recommended**."
+
+Plus the rollback risk: "inclusion in the preload list cannot easily
+be undone. Domains can be removed, but it takes months for a change
+to reach users with a Chrome update." One-way door for marginal benefit.
+
+The existing HSTS header (`max-age=63072000; includeSubDomains; preload`)
+is already maxed out on the parts that matter. Browsers honor the
+header the moment they see it. Registration in the preload list is
+deferred indefinitely unless a specific threat model emerges that
+the marginal first-visit protection would address.
 
 ### 2. HTTP security headers ✅
 
@@ -249,11 +266,26 @@ Generate a per-request `nonce-XXXX` and apply to inline scripts.
 Effort: 4-8 hours including testing GTM/Meta Pixel integrations
 under stricter CSP.
 
-### 🟢 #3 (low leverage, low effort) — RBAC schema scaffold
+### 🟢 #3 (low leverage, low effort) — RBAC schema scaffold — ✅ DONE wave-59
 
-Add `user_roles` table per the schema sketch above. Don't build
-permission checks yet; just have the table ready. Cost: 30 min for
-the migration.
+`user_roles` table scaffolded in `drizzle/schema.ts` with userId/role
+columns + composite unique index + per-column indexes + optional
+expiresAt for time-limited grants. Permission checks not yet wired —
+table sits ready for the first second-user case.
+
+---
+
+### Updated hardening status (post wave-69)
+
+| # | Item | Status | Wave |
+|---|---|---|---|
+| 1 (orig) | HSTS preload submission | 🚫 Skipped (upstream says not recommended) | 69 |
+| 1 (revised) | Webhook signature verification | ✅ Already done | 58 |
+| 2 | CSP nonces | ⏸ Future work (4-8h) | — |
+| 3 | RBAC schema scaffold | ✅ Done | 59 |
+
+Net: 2 of 3 closed, 1 deferred (CSP nonces — still optional, gated on
+appetite for stricter CSP at the cost of GTM/Meta Pixel testing time).
 
 ---
 
