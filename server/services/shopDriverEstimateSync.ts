@@ -263,39 +263,63 @@ function normalizeTicketAsEstimate(raw: Record<string, unknown>): RawEstimate {
 }
 
 async function fetchEstimates(token: string): Promise<RawEstimate[]> {
-  // ─── PRIMARY PATH (wave-97): /api/ticket/listRecentTickets ──
+  // ─── PRIMARY PATH (wave-97 + wave-98 pagination): /api/ticket/listRecentTickets ──
   // The mirror service uses this same endpoint to pull invoices. It
   // returns BOTH invoices (ticketType=0) and estimates (ticketType=1)
   // mixed together. We filter for estimate-type rows and route them
   // here. Confirmed working 2026-05-07 against production tenant.
-  // Falls through to the historical /api/Estimate/* probe list if
-  // this endpoint stops working in a future tenant migration.
-  try {
-    const res = await fetch(
-      `${SHOPDRIVER_API}/api/ticket/listRecentTickets?pageNumber=1&pageSize=500`,
-      { headers: buildHeaders(token), signal: AbortSignal.timeout(30000) }
-    );
-    log.info(`Estimate primary probe: /api/ticket/listRecentTickets → ${res.status}`);
-    if (res.ok && (res.headers.get("content-type") || "").includes("application/json")) {
+  //
+  // Wave-98: walk pages 1-3 so the live cron picks up estimates beyond
+  // the most-recent 50 tickets. Each page is 50 (server-capped).
+  // Throttle 1s between pages to avoid session pressure.
+  const MAX_PAGES = 3;
+  const PAGE_SIZE = 50;
+  const collected: RawEstimate[] = [];
+  let primaryPathSucceeded = false;
+
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    try {
+      const res = await fetch(
+        `${SHOPDRIVER_API}/api/ticket/listRecentTickets?pageNumber=${page}&pageSize=${PAGE_SIZE}`,
+        { headers: buildHeaders(token), signal: AbortSignal.timeout(30000) }
+      );
+      log.info(`Estimate primary probe: page ${page} → ${res.status}`);
+      if (!res.ok) {
+        if (page === 1) break;
+        // Mid-pagination failure — keep what we have
+        break;
+      }
+      if (!(res.headers.get("content-type") || "").includes("application/json")) break;
+
       const data = await res.json() as Array<Record<string, unknown>>;
       const tickets = Array.isArray(data) ? data : [];
-      // Estimates: ticketType === 1, OR (no invoiceNumber but has estimateNumber)
+      if (tickets.length === 0) break;
+
+      primaryPathSucceeded = true;
       const estimateTickets = tickets.filter((t) => {
         if (t.ticketType === 1) return true;
         const inv = t.invoiceNumber;
         const est = t.estimateNumber;
         return (inv == null || inv === 0) && est != null && est !== 0;
       });
-      log.info(`listRecentTickets returned ${tickets.length} total · ${estimateTickets.length} are estimates`);
-      if (estimateTickets.length > 0) {
-        const normalized = estimateTickets.map((t) => normalizeTicketAsEstimate(t));
-        return normalized;
-      }
+      log.info(`Page ${page}: ${tickets.length} tickets · ${estimateTickets.length} estimates`);
+      collected.push(...estimateTickets.map((t) => normalizeTicketAsEstimate(t)));
+
+      // Last page reached
+      if (tickets.length < PAGE_SIZE) break;
+      // Throttle between pages
+      if (page < MAX_PAGES) await new Promise((rs) => setTimeout(rs, 1000));
+    } catch (err) {
+      log.warn(`Primary estimate probe page ${page} failed`, {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      if (page === 1) break;
+      break;
     }
-  } catch (err) {
-    log.warn(`Primary estimate probe (listRecentTickets) failed`, {
-      error: err instanceof Error ? err.message : String(err),
-    });
+  }
+  if (primaryPathSucceeded && collected.length > 0) {
+    log.info(`Estimate primary path: ${collected.length} estimates total across pages`);
+    return collected;
   }
 
   // Endpoint probe order — different ShopDriver tenants expose different
