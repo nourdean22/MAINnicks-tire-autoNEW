@@ -225,6 +225,8 @@ interface RawInvoice {
   partsCost?: number;
   laborCost?: number;
   taxAmount?: number;
+  /** ALG ticket UUID — wave-99: stable cross-system identifier */
+  algTicketId?: string;
 }
 
 /**
@@ -503,6 +505,8 @@ function normalizeInvoiceJson(raw: any): RawInvoice {
     partsCost: raw.partsCost != null ? Math.round(Number(raw.partsCost) * 100) : 0,
     laborCost: raw.laborCost != null ? Math.round(Number(raw.laborCost) * 100) : 0,
     taxAmount: raw.taxAmount != null ? Math.round(Number(raw.taxAmount) * 100) : 0,
+    // Wave-99: capture ALG ticket UUID for stable cross-system linking
+    algTicketId: typeof raw.ticketId === "string" ? raw.ticketId : undefined,
   };
 }
 
@@ -719,7 +723,7 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
 
     try {
       // Check if invoice already exists — UPDATE if it does (tickets evolve from draft → finalized)
-      const existing = await d.select({ id: invoices.id, totalAmount: invoices.totalAmount })
+      const existing = await d.select({ id: invoices.id, totalAmount: invoices.totalAmount, algTicketId: invoices.algTicketId })
         .from(invoices)
         .where(eq(invoices.invoiceNumber, ri.invoiceNumber))
         .limit(1);
@@ -740,6 +744,8 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
         if (ri.taxAmount != null && ri.taxAmount > 0) updates.taxAmount = ri.taxAmount;
         if (ri.customerPhone) updates.customerPhone = normalizePhone(ri.customerPhone);
         if (ri.customerName && ri.customerName !== "Unknown") updates.customerName = ri.customerName;
+        // Backfill algTicketId for rows that pre-date wave-99
+        if (ri.algTicketId && !ex.algTicketId) updates.algTicketId = ri.algTicketId;
 
         if (Object.keys(updates).length > 0) {
           await d.update(invoices).set(updates).where(eq(invoices.id, ex.id));
@@ -813,6 +819,7 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
         paymentStatus,
         invoiceDate: new Date(ri.date),
         source: "shopdriver",
+        algTicketId: ri.algTicketId || null,
       });
       created++;
     } catch (err) {
