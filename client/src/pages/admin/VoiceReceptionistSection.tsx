@@ -31,6 +31,9 @@ import {
   AlertCircle,
   Edit2,
   Save,
+  ExternalLink,
+  Search,
+  ArrowUpDown,
   X,
   CheckCircle2,
 } from "lucide-react";
@@ -48,6 +51,28 @@ import {
   Tooltip,
 } from "recharts";
 import { CHART_THEME } from "./shared";
+
+// ─── VAPI dashboard URL helpers (wave-89) ───────────────────
+// Operator wants escape hatches into the VAPI dashboard for things
+// the admin doesn't expose (advanced assistant tuning, phone-number
+// config, account billing, etc.). All open in a new tab.
+const VAPI_DASHBOARD_BASE = "https://dashboard.vapi.ai";
+const VAPI_LINKS = {
+  callLogs: `${VAPI_DASHBOARD_BASE}/calls`,
+  phoneNumbers: `${VAPI_DASHBOARD_BASE}/phone-numbers`,
+  assistants: `${VAPI_DASHBOARD_BASE}/assistants`,
+  callDetail: (callId: string) => `${VAPI_DASHBOARD_BASE}/calls/${callId}`,
+  assistantDetail: (assistantId: string) =>
+    `${VAPI_DASHBOARD_BASE}/assistants/${assistantId}`,
+};
+
+// ─── Sort / filter types (wave-89) ──────────────────────────
+type SortMode = "newest" | "longest" | "shortest";
+const SORT_LABELS: Record<SortMode, string> = {
+  newest: "Newest first",
+  longest: "Longest first",
+  shortest: "Shortest first",
+};
 
 // ─── Helpers ────────────────────────────────────────────────
 function fmtDuration(seconds: number): string {
@@ -88,9 +113,89 @@ function prettyReason(reason: string): { label: string; color: string } {
   return REASON_PRETTY[reason] || { label: reason.replace(/-/g, " "), color: "text-foreground/60" };
 }
 
+// ─── Header dashboard-links + filter chip helpers (wave-89) ─
+
+function VapiDashboardLinks({ assistantId }: { assistantId: string | null }) {
+  const linkClass =
+    "inline-flex items-center gap-1 text-[11px] font-semibold tracking-wider uppercase " +
+    "text-foreground/60 hover:text-primary border border-border/40 hover:border-primary/40 " +
+    "rounded px-2 py-1 transition-colors";
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <a
+        href={assistantId ? VAPI_LINKS.assistantDetail(assistantId) : VAPI_LINKS.assistants}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={linkClass}
+        title="Edit Nick's prompt, tools, model in VAPI"
+      >
+        Assistant <ExternalLink className="w-3 h-3" />
+      </a>
+      <a
+        href={VAPI_LINKS.callLogs}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={linkClass}
+        title="Full call history (beyond today) in VAPI"
+      >
+        All Calls <ExternalLink className="w-3 h-3" />
+      </a>
+      <a
+        href={VAPI_LINKS.phoneNumbers}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={linkClass}
+        title="Phone number config + routing rules"
+      >
+        Phone Lines <ExternalLink className="w-3 h-3" />
+      </a>
+    </div>
+  );
+}
+
+function FilterChip({
+  label, count, active, onClick, tone = "neutral",
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+  tone?: string;
+}) {
+  // Tone => active background tint per end-reason
+  const tones: Record<string, string> = {
+    "customer-ended-call":     "bg-blue-500/15 border-blue-500/40 text-blue-400",
+    "assistant-ended-call":    "bg-emerald-500/15 border-emerald-500/40 text-emerald-400",
+    "assistant-forwarded-call":"bg-amber-500/15 border-amber-500/40 text-amber-400",
+    neutral:                   "bg-primary/15 border-primary/40 text-primary",
+  };
+  const activeClass = tones[tone] || tones.neutral;
+  return (
+    <button
+      onClick={onClick}
+      className={
+        "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] " +
+        "border transition-colors " +
+        (active
+          ? activeClass
+          : "border-border/30 text-foreground/55 hover:border-foreground/30 hover:text-foreground/80")
+      }
+    >
+      <span>{label}</span>
+      <span className={"text-[10px] tabular-nums " + (active ? "" : "text-foreground/40")}>
+        {count}
+      </span>
+    </button>
+  );
+}
+
 // ─── Section ────────────────────────────────────────────────
 export default function VoiceReceptionistSection() {
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
+  // Wave-89 — sort + filter state
+  const [sortMode, setSortMode] = useState<SortMode>("newest");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [reasonFilter, setReasonFilter] = useState<string | null>(null); // null = "all"
 
   const { data: metrics, isLoading: metricsLoading } = trpc.vapi.todayMetrics.useQuery(undefined, {
     refetchInterval: 60_000,
@@ -98,9 +203,46 @@ export default function VoiceReceptionistSection() {
   const { data: calls, isLoading: callsLoading } = trpc.vapi.todayCalls.useQuery(undefined, {
     refetchInterval: 60_000,
   });
+  const { data: vapiStatus } = trpc.vapi.status.useQuery(undefined, { staleTime: 5 * 60_000 });
 
-  const callsList = calls ?? [];
+  const rawCalls = calls ?? [];
   const m = metrics ?? null;
+  const assistantId = vapiStatus?.assistants?.[0]?.id ?? null;
+
+  // Wave-89 — apply filters + sort to derive the rendered list
+  const callsList = (() => {
+    let list = [...rawCalls];
+
+    // Reason filter
+    if (reasonFilter) {
+      list = list.filter((c) => c.endedReason === reasonFilter);
+    }
+
+    // Search filter (caller phone, customer name, summary)
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter((c) => {
+        const num = (c.customerNumber || "").toLowerCase();
+        const name = (c.customerName || "").toLowerCase();
+        const summary = (c.summary || "").toLowerCase();
+        return num.includes(q) || name.includes(q) || summary.includes(q);
+      });
+    }
+
+    // Sort
+    if (sortMode === "longest") {
+      list.sort((a, b) => b.durationSeconds - a.durationSeconds);
+    } else if (sortMode === "shortest") {
+      list.sort((a, b) => a.durationSeconds - b.durationSeconds);
+    } else {
+      list.sort(
+        (a, b) =>
+          new Date(b.createdAt || 0).getTime() -
+          new Date(a.createdAt || 0).getTime(),
+      );
+    }
+    return list;
+  })();
 
   const reasonsChart = m
     ? Object.entries(m.endReasons).map(([reason, count]) => ({
@@ -122,6 +264,7 @@ export default function VoiceReceptionistSection() {
             ? { label: `${m.total} CALLS TODAY`, variant: "success" }
             : { label: "QUIET DAY", variant: "neutral" }
         }
+        actions={<VapiDashboardLinks assistantId={assistantId} />}
       />
 
       {/* ─── Transfer destination quick-control ─────── */}
@@ -225,15 +368,97 @@ export default function VoiceReceptionistSection() {
         </Panel>
       </div>
 
-      {/* ─── Recent calls table ────────────────────────── */}
-      <Panel title="Today's Calls" subtitle="Click any row to see transcript + tool calls" padding="none">
+      {/* ─── Recent calls table — wave-89 sort + filter controls ───── */}
+      <Panel
+        title="Today's Calls"
+        subtitle={
+          searchQuery || reasonFilter
+            ? `Showing ${callsList.length} of ${rawCalls.length} calls · click any row to see transcript`
+            : "Click any row to see transcript + tool calls"
+        }
+        padding="none"
+      >
+        {/* Sort + filter controls */}
+        {rawCalls.length > 0 && (
+          <div className="px-4 py-3 border-b border-border/20 bg-foreground/[0.01] space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Search */}
+              <div className="relative flex-1 min-w-[180px] max-w-[280px]">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-foreground/30 pointer-events-none" />
+                <input
+                  type="search"
+                  placeholder="Search number / name / summary"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-background border border-border/30 rounded pl-7 pr-2.5 py-1.5 text-[12px] text-foreground placeholder:text-foreground/30 focus:border-primary/50 focus:outline-none"
+                />
+              </div>
+
+              {/* Sort dropdown */}
+              <div className="relative inline-flex items-center gap-1.5">
+                <ArrowUpDown className="w-3.5 h-3.5 text-foreground/40" />
+                <select
+                  value={sortMode}
+                  onChange={(e) => setSortMode(e.target.value as SortMode)}
+                  className="bg-background border border-border/30 rounded px-2 py-1.5 text-[12px] text-foreground focus:border-primary/50 focus:outline-none"
+                >
+                  {(Object.keys(SORT_LABELS) as SortMode[]).map((mode) => (
+                    <option key={mode} value={mode}>{SORT_LABELS[mode]}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Reset chip — show only when something is filtered */}
+              {(searchQuery || reasonFilter) && (
+                <button
+                  onClick={() => { setSearchQuery(""); setReasonFilter(null); }}
+                  className="text-[11px] text-foreground/50 hover:text-foreground border border-border/30 hover:border-primary/40 rounded px-2 py-1.5 transition-colors"
+                >
+                  Reset filters
+                </button>
+              )}
+            </div>
+
+            {/* Reason filter chips */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] uppercase tracking-wider text-foreground/40 mr-1">Filter:</span>
+              <FilterChip
+                label="All"
+                count={rawCalls.length}
+                active={reasonFilter === null}
+                onClick={() => setReasonFilter(null)}
+                tone="neutral"
+              />
+              {m && Object.entries(m.endReasons).sort((a, b) => b[1] - a[1]).map(([reason, count]) => {
+                const pretty = prettyReason(reason);
+                return (
+                  <FilterChip
+                    key={reason}
+                    label={pretty.label}
+                    count={count}
+                    active={reasonFilter === reason}
+                    onClick={() => setReasonFilter(reasonFilter === reason ? null : reason)}
+                    tone={reason}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {callsLoading ? (
           <SkeletonTable rows={6} cells={5} />
-        ) : callsList.length === 0 ? (
+        ) : callsList.length === 0 && rawCalls.length === 0 ? (
           <EmptyState
             icon={<PhoneCall className="w-8 h-8" />}
             title="No calls yet today"
             subtitle="Calls appear here within ~60 seconds of ending."
+          />
+        ) : callsList.length === 0 ? (
+          <EmptyState
+            icon={<Search className="w-8 h-8" />}
+            title="No calls match the filter"
+            subtitle="Try clearing the search or selecting a different reason."
           />
         ) : (
           <div className="divide-y divide-border/20">
@@ -625,13 +850,24 @@ function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose: () =>
             <h3 className="text-sm font-bold tracking-wide">Call detail</h3>
             <p className="text-[11px] text-foreground/50 font-mono">{callId.slice(0, 16)}…</p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-foreground/50 hover:text-foreground text-xl leading-none px-2"
-            aria-label="Close"
-          >
-            ×
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              href={VAPI_LINKS.callDetail(callId)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold tracking-wider uppercase text-foreground/60 hover:text-primary border border-border/40 hover:border-primary/40 rounded px-2 py-1 transition-colors"
+              title="Open this call in the VAPI dashboard (recordings, raw events, etc.)"
+            >
+              Open in VAPI <ExternalLink className="w-3 h-3" />
+            </a>
+            <button
+              onClick={onClose}
+              className="text-foreground/50 hover:text-foreground text-xl leading-none px-2"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
         <div className="p-4 space-y-4">
