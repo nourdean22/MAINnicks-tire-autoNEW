@@ -342,10 +342,28 @@ async function fetchInvoices(token: string): Promise<RawInvoice[]> {
           : (data.invoices || data.tickets || data.data || data.items || data.result || data.results || []);
         const list = Array.isArray(items) ? items : [];
         if (list.length > 0) {
-          log.info(`Fetched ${list.length} invoices from ${endpoint} (JSON)`, {
+          // Wave-97 fix: filter out tickets that are pure estimates BEFORE
+          // mapping. ALG's /api/ticket/listRecentTickets returns BOTH
+          // invoices (ticketType=0) AND estimates (ticketType=1). The
+          // estimate sync handles ticketType=1 separately. Routing both
+          // through this path was creating UUID-numbered "invoices" with
+          // paymentStatus=paid — inflating revenue by ~65% pre-fix.
+          const invoiceOnly = list.filter((t: Record<string, unknown>) => {
+            // ticketType 1 = estimate. ticketType 0 = invoice (or
+            // converted estimate where invoiceNumber is now set).
+            if (t.ticketType === 1) return false;
+            // Belt-and-suspenders: any row missing invoiceNumber but
+            // with estimateNumber is an estimate, drop it.
+            const inv = t.invoiceNumber;
+            const est = t.estimateNumber;
+            if ((inv == null || inv === 0) && est != null && est !== 0) return false;
+            return true;
+          });
+          const droppedCount = list.length - invoiceOnly.length;
+          log.info(`Fetched ${list.length} tickets from ${endpoint} (JSON) — keeping ${invoiceOnly.length} invoices, dropped ${droppedCount} estimate-only rows`, {
             sampleKeys: list[0] ? Object.keys(list[0]).slice(0, 15) : [],
           });
-          return list.map(normalizeInvoiceJson);
+          return invoiceOnly.map(normalizeInvoiceJson);
         }
         // Log empty but valid responses for debugging
         log.info(`${endpoint} returned JSON but 0 items`, { keys: Object.keys(data), type: typeof data });
@@ -412,8 +430,12 @@ function normalizeCustomerJson(raw: any): RawCustomer {
 
 function normalizeInvoiceJson(raw: any): RawInvoice {
   const amount = raw.totalAmount || raw.total || raw.amount || raw.grandTotal || 0;
+  // Wave-97 fix: prefer real invoice number; fall back to ticketNumber
+  // but NEVER to ticketId (UUID). UUID-as-invoice-number was creating
+  // unmatchable rows that masked actual missing-invoice-number bugs.
+  const realInvoiceNumber = raw.invoiceNumber || raw.ticketNumber;
   return {
-    invoiceNumber: String(raw.invoiceNumber || raw.ticketNumber || raw.ticketId || raw.id || ""),
+    invoiceNumber: realInvoiceNumber != null && realInvoiceNumber !== 0 ? String(realInvoiceNumber) : "",
     customerName: raw.customerName || raw.customer?.name ||
       [raw.firstName, raw.lastName].filter(Boolean).join(" ") ||
       [raw.customer?.firstName, raw.customer?.lastName].filter(Boolean).join(" ") || "Unknown",
@@ -518,15 +540,24 @@ function parseInvoiceHtml(html: string): RawInvoice[] {
     const phone = phoneMatch ? `${phoneMatch[1]}${phoneMatch[2]}${phoneMatch[3]}` : "";
 
     if (customerName || ticketNum) {
+      // CRITICAL: only push Invoice rows. Estimate rows belong in
+      // alg_estimates and are pulled by shopDriverEstimateSync.ts via
+      // the JSON API. Routing them through this fallback path was
+      // polluting the invoices table with non-revenue rows that
+      // inflated job counts and broke avg-ticket math (wave-97 fix).
+      if (ticketType !== "Invoice") {
+        log.info(`Skipping ${ticketType}# ${ticketNum} from HTML scrape — estimates handled by estimate-sync service`);
+        continue;
+      }
       invoices.push({
-        invoiceNumber: `${ticketType}# ${ticketNum}`,
+        invoiceNumber: `Invoice# ${ticketNum}`,
         customerName,
         customerPhone: phone,
         totalAmount: amount,
         date,
-        service: `${ticketType} - ${vehicle}`,
+        service: `Invoice - ${vehicle}`,
         vehicleInfo: vehicle || undefined,
-        paymentStatus: ticketType === "Invoice" ? "paid" : "pending",
+        paymentStatus: "paid",
       });
     }
   }

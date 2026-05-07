@@ -384,12 +384,16 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         paymentMethodsRes,
         totalCustRes, vipCustRes,
       ] = await Promise.all([
-        d.select({ count: sql<number>`count(*)` }).from(invoices).where(gte(invoices.invoiceDate, todayStart)),
-        d.select({ count: sql<number>`count(*)` }).from(invoices).where(gte(invoices.invoiceDate, weekAgo)),
-        d.select({ count: sql<number>`count(*)` }).from(invoices).where(gte(invoices.invoiceDate, monthStart)),
-        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(gte(invoices.invoiceDate, todayStart), eq(invoices.paymentStatus, "paid"))),
-        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(gte(invoices.invoiceDate, weekAgo), eq(invoices.paymentStatus, "paid"))),
-        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(gte(invoices.invoiceDate, monthStart), eq(invoices.paymentStatus, "paid"))),
+        // Wave-97 fix: counts now use the SAME population as revenue
+        // (paid-only AND invoiceNumber NOT LIKE 'Estimate#%' to filter
+        // any leaked rows still in the table pre-cleanup). This makes
+        // avgTicket = revenue/count math consistent.
+        d.select({ count: sql<number>`count(*)` }).from(invoices).where(and(gte(invoices.invoiceDate, todayStart), eq(invoices.paymentStatus, "paid"), sql`${invoices.invoiceNumber} NOT LIKE 'Estimate#%'`)),
+        d.select({ count: sql<number>`count(*)` }).from(invoices).where(and(gte(invoices.invoiceDate, weekAgo), eq(invoices.paymentStatus, "paid"), sql`${invoices.invoiceNumber} NOT LIKE 'Estimate#%'`)),
+        d.select({ count: sql<number>`count(*)` }).from(invoices).where(and(gte(invoices.invoiceDate, monthStart), eq(invoices.paymentStatus, "paid"), sql`${invoices.invoiceNumber} NOT LIKE 'Estimate#%'`)),
+        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(gte(invoices.invoiceDate, todayStart), eq(invoices.paymentStatus, "paid"), sql`${invoices.invoiceNumber} NOT LIKE 'Estimate#%'`)),
+        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(gte(invoices.invoiceDate, weekAgo), eq(invoices.paymentStatus, "paid"), sql`${invoices.invoiceNumber} NOT LIKE 'Estimate#%'`)),
+        d.select({ total: sql<number>`COALESCE(SUM(totalAmount), 0)` }).from(invoices).where(and(gte(invoices.invoiceDate, monthStart), eq(invoices.paymentStatus, "paid"), sql`${invoices.invoiceNumber} NOT LIKE 'Estimate#%'`)),
         d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(gte(algEstimates.estimateDate, todayStart)),
         d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(gte(algEstimates.estimateDate, weekAgo)),
         d.select({ count: sql<number>`count(*)` }).from(algEstimates).where(gte(algEstimates.estimateDate, monthStart)),

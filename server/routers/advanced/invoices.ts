@@ -11,6 +11,7 @@ import { eq, desc, gte, lte, and, sql, asc } from "drizzle-orm";
 import {
   jobAssignments, invoices, customerMetrics, kpiSnapshots, portalSessions,
   bookings, customers, technicians, reviewRequests, leads, serviceHistory,
+  algEstimates,
 } from "../../../drizzle/schema";
 
 import { db } from "../../lib/db-helper";
@@ -505,7 +506,20 @@ export const invoicesRouter = router({
       };
     }),
 
-  /** Declined estimates — pending invoices that never converted (recovery pipeline) */
+  /**
+   * Declined estimates — REAL ALG estimates that never converted to a
+   * paid invoice. Backed by `alg_estimates` table (matched_invoice_id
+   * IS NULL = customer walked).
+   *
+   * Wave-97 fix: previously this read from `invoices WHERE
+   * paymentStatus = 'pending'` which conflated three different things:
+   *  (a) real declined estimates,
+   *  (b) unpaid real invoices for completed work,
+   *  (c) HTML-scraped Estimate# rows that leaked into the wrong table.
+   *
+   * Now sources from the canonical declined-work table. Output shape
+   * preserved for the existing UI (DeclinedEstimatesSection).
+   */
   declined: adminProcedure
     .input(z.object({
       days: z.number().default(30),
@@ -518,37 +532,61 @@ export const invoicesRouter = router({
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
 
-      // Pending invoices = estimates that didn't convert
-      const pending = await d.select().from(invoices)
+      // Unmatched ALG estimates within the window — declined work
+      const declined = await d
+        .select({
+          id: algEstimates.id,
+          externalId: algEstimates.externalId,
+          customerName: algEstimates.customerName,
+          customerPhone: algEstimates.customerPhone,
+          vehicleInfo: algEstimates.vehicleInfo,
+          serviceDescription: algEstimates.serviceDescription,
+          totalAmount: algEstimates.estimatedAmount, // alias to keep UI shape
+          invoiceDate: algEstimates.estimateDate,    // alias to keep UI shape
+          followUp7dSent: algEstimates.followUp7dSent,
+          followUp30dSent: algEstimates.followUp30dSent,
+          recoveryNote: algEstimates.recoveryNote,
+        })
+        .from(algEstimates)
         .where(and(
-          eq(invoices.paymentStatus, "pending"),
-          gte(invoices.invoiceDate, cutoff),
+          gte(algEstimates.estimateDate, cutoff),
+          sql`${algEstimates.matchedInvoiceId} IS NULL`,
         ))
-        .orderBy(desc(invoices.invoiceDate))
+        .orderBy(desc(algEstimates.estimateDate))
         .limit(200);
 
-      // Count how many previously-pending invoices eventually got paid (recovery rate)
+      // Recovery rate = matched / total ALG estimates over last 90d
       const allTimeCutoff = new Date();
       allTimeCutoff.setDate(allTimeCutoff.getDate() - 90);
-      const [recoveredResult] = await d.select({
+      const [matchedResult] = await d.select({
         count: sql<number>`count(*)`,
-      }).from(invoices).where(and(
-        eq(invoices.paymentStatus, "paid"),
-        gte(invoices.invoiceDate, allTimeCutoff),
+      }).from(algEstimates).where(and(
+        gte(algEstimates.estimateDate, allTimeCutoff),
+        sql`${algEstimates.matchedInvoiceId} IS NOT NULL`,
       ));
-      const [totalEstimatesResult] = await d.select({
+      const [totalEstResult] = await d.select({
         count: sql<number>`count(*)`,
-      }).from(invoices).where(gte(invoices.invoiceDate, allTimeCutoff));
+      }).from(algEstimates).where(gte(algEstimates.estimateDate, allTimeCutoff));
 
-      const recovered = recoveredResult?.count ?? 0;
-      const totalEstimates = totalEstimatesResult?.count ?? 0;
-      const recoveryRate = totalEstimates > 0 ? Math.round((recovered / totalEstimates) * 100) : 0;
+      const recovered = matchedResult?.count ?? 0;
+      const totalEstimates90d = totalEstResult?.count ?? 0;
+      const recoveryRate = totalEstimates90d > 0 ? Math.round((recovered / totalEstimates90d) * 100) : 0;
 
-      const total = pending.length;
-      const recoverable = pending.reduce((sum: number, inv: typeof pending[number]) => sum + (inv.totalAmount || 0), 0);
+      // Map status field for UI compatibility — derive from follow-up flags
+      const estimatesShaped = declined.map((e: typeof declined[number]) => ({
+        ...e,
+        // UI uses paymentStatus to color-code: "partial" = follow-up scheduled
+        paymentStatus: e.followUp30dSent ? "30d-sent" : e.followUp7dSent ? "partial" : "pending",
+      }));
+
+      const total = estimatesShaped.length;
+      const recoverable = estimatesShaped.reduce(
+        (sum: number, e: typeof estimatesShaped[number]) => sum + (e.totalAmount || 0),
+        0
+      );
 
       return {
-        estimates: pending,
+        estimates: estimatesShaped,
         total,
         recoverable: Math.round(recoverable / 100),
         recovered,
@@ -556,7 +594,10 @@ export const invoicesRouter = router({
       };
     }),
 
-  /** Mark a declined estimate for follow-up */
+  /**
+   * Mark a declined ALG estimate as "followed up" — bumps the 7d flag.
+   * Wave-97: now updates the correct table (alg_estimates instead of invoices).
+   */
   markFollowUp: adminProcedure
     .input(z.object({
       id: z.number(),
@@ -564,8 +605,9 @@ export const invoicesRouter = router({
     .mutation(async ({ input }) => {
       const d = await db();
       if (!d) throw new Error("Database not available");
-      // Update to partial status to indicate follow-up scheduled
-      await d.update(invoices).set({ paymentStatus: "partial" }).where(eq(invoices.id, input.id));
+      await d.update(algEstimates)
+        .set({ followUp7dSent: 1, followUp7dSentAt: new Date() })
+        .where(eq(algEstimates.id, input.id));
       return { success: true };
     }),
 });
