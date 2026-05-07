@@ -306,86 +306,139 @@ async function fetchCustomers(token: string): Promise<RawCustomer[]> {
  */
 async function fetchInvoices(token: string): Promise<RawInvoice[]> {
   // Real endpoints discovered from SPA bundle (axios baseURL = /api)
-  // API uses pageNumber + pageSize query params for pagination
+  // API uses pageNumber + pageSize. Confirmed pageSize is server-capped
+  // at 50 regardless of what we ask for (probe 2026-05-07).
+  //
+  // Wave-98 wired multi-page pagination. Each cron probe walks pages
+  // 1 → MAX_PAGES_PER_PROBE so re-syncs catch updates to invoices that
+  // are slightly older than the last 50 tickets. Three pages × 50/page
+  // = 150 most-recent tickets, ~3 weeks of activity at this shop's
+  // ~7/day pace. That covers the realistic "invoice was edited after
+  // creation" window without hammering ALG.
+  const MAX_PAGES_PER_PROBE = 3;
+  const PAGE_SIZE = 50;
+
+  // Endpoint short list — try each in priority order. First one that
+  // returns data wins; we don't fall through to the others mid-probe.
   const endpoints = [
-    "/api/ticket/listRecentTickets?pageNumber=1&pageSize=500",
-    "/api/ticket/listTicketSessions?pageNumber=1&pageSize=500",
-    "/api/Report/listTotalSales?pageNumber=1&pageSize=500",
-    "/api/Search/getTicketSearch?pageNumber=1&pageSize=500",
+    "/api/ticket/listRecentTickets",
+    "/api/ticket/listTicketSessions",
+    "/api/Report/listTotalSales",
+    "/api/Search/getTicketSearch",
   ];
 
-  for (const endpoint of endpoints) {
-    try {
-      const res = await fetch(`${SHOPDRIVER_API}${endpoint}`, {
-        headers: HEADERS(token),
-        signal: AbortSignal.timeout(30000),
-      });
+  for (const baseEndpoint of endpoints) {
+    const allInvoices: RawInvoice[] = [];
+    let pagesWalked = 0;
+    let endpointSucceeded = false;
+    let endpointSkipped = false;
 
-      // Log every attempt for endpoint discovery
-      log.info(`Invoice endpoint probe: ${endpoint} → ${res.status} ${res.headers.get("content-type") || "no-type"}`);
+    for (let page = 1; page <= MAX_PAGES_PER_PROBE; page++) {
+      const endpoint = `${baseEndpoint}?pageNumber=${page}&pageSize=${PAGE_SIZE}`;
+      try {
+        const res = await fetch(`${SHOPDRIVER_API}${endpoint}`, {
+          headers: HEADERS(token),
+          signal: AbortSignal.timeout(30000),
+        });
 
-      // Detect expired token
-      if (isSessionKicked(res)) {
-        log.warn(`Token expired on ${endpoint}`);
-        invalidateSession();
-        return [];
-      }
+        // Log every attempt for endpoint discovery
+        log.info(`Invoice endpoint probe: ${endpoint} → ${res.status} ${res.headers.get("content-type") || "no-type"}`);
 
-      if (!res.ok) continue;
+        // Detect expired token — bail out completely
+        if (isSessionKicked(res)) {
+          log.warn(`Token expired on ${endpoint}`);
+          invalidateSession();
+          return [];
+        }
 
-      const contentType = res.headers.get("content-type") || "";
+        if (!res.ok) {
+          if (page === 1) {
+            // Endpoint doesn't work — try the next one
+            endpointSkipped = true;
+            break;
+          }
+          // Mid-pagination failure — keep what we have, stop paging
+          break;
+        }
 
-      if (contentType.includes("application/json")) {
-        const data = await res.json();
-        // Handle various response shapes
-        const items = Array.isArray(data) ? data
-          : (data.invoices || data.tickets || data.data || data.items || data.result || data.results || []);
-        const list = Array.isArray(items) ? items : [];
-        if (list.length > 0) {
-          // Wave-97 fix: filter out tickets that are pure estimates BEFORE
-          // mapping. ALG's /api/ticket/listRecentTickets returns BOTH
-          // invoices (ticketType=0) AND estimates (ticketType=1). The
-          // estimate sync handles ticketType=1 separately. Routing both
-          // through this path was creating UUID-numbered "invoices" with
-          // paymentStatus=paid — inflating revenue by ~65% pre-fix.
+        const contentType = res.headers.get("content-type") || "";
+
+        if (contentType.includes("application/json")) {
+          const data = await res.json();
+          const items = Array.isArray(data) ? data
+            : (data.invoices || data.tickets || data.data || data.items || data.result || data.results || []);
+          const list = Array.isArray(items) ? items : [];
+
+          if (list.length === 0) {
+            // No more pages
+            if (page === 1) {
+              log.info(`${endpoint} returned JSON but 0 items`, { keys: Object.keys(data), type: typeof data });
+              endpointSkipped = true;
+            }
+            break;
+          }
+
+          endpointSucceeded = true;
+          pagesWalked = page;
+
+          // Wave-97 filter: drop estimate-only tickets (ticketType=1)
           const invoiceOnly = list.filter((t: Record<string, unknown>) => {
-            // ticketType 1 = estimate. ticketType 0 = invoice (or
-            // converted estimate where invoiceNumber is now set).
             if (t.ticketType === 1) return false;
-            // Belt-and-suspenders: any row missing invoiceNumber but
-            // with estimateNumber is an estimate, drop it.
             const inv = t.invoiceNumber;
             const est = t.estimateNumber;
             if ((inv == null || inv === 0) && est != null && est !== 0) return false;
             return true;
           });
-          const droppedCount = list.length - invoiceOnly.length;
-          log.info(`Fetched ${list.length} tickets from ${endpoint} (JSON) — keeping ${invoiceOnly.length} invoices, dropped ${droppedCount} estimate-only rows`, {
-            sampleKeys: list[0] ? Object.keys(list[0]).slice(0, 15) : [],
-          });
-          return invoiceOnly.map(normalizeInvoiceJson);
-        }
-        // Log empty but valid responses for debugging
-        log.info(`${endpoint} returned JSON but 0 items`, { keys: Object.keys(data), type: typeof data });
-      }
 
-      // HTML fallback — parse table rows (for /recent page on SPA base)
-      if (contentType.includes("text/html")) {
-        const html = await res.text();
-        if (isSessionKicked(res, html)) {
-          log.warn(`Login page returned on ${endpoint} — token was invalid`);
-          invalidateSession();
-          return [];
+          const droppedCount = list.length - invoiceOnly.length;
+          log.info(`Page ${page} from ${baseEndpoint}: ${list.length} tickets → ${invoiceOnly.length} invoices (dropped ${droppedCount} estimate-only)`);
+
+          allInvoices.push(...invoiceOnly.map(normalizeInvoiceJson));
+
+          // Less-than-pageSize signals last page reached
+          if (list.length < PAGE_SIZE) {
+            log.info(`Page ${page} returned ${list.length} < ${PAGE_SIZE}, no more pages`);
+            break;
+          }
+
+          // Throttle between pages to keep the shop counter session healthy
+          if (page < MAX_PAGES_PER_PROBE) {
+            await new Promise((rs) => setTimeout(rs, 1000));
+          }
+          continue;
         }
-        const invoices = parseInvoiceHtml(html);
-        if (invoices.length > 0) {
-          log.info(`Scraped ${invoices.length} invoices from ${endpoint} (HTML)`);
-          return invoices;
+
+        // HTML fallback only relevant for page 1 (older endpoints)
+        if (page === 1 && contentType.includes("text/html")) {
+          const html = await res.text();
+          if (isSessionKicked(res, html)) {
+            log.warn(`Login page returned on ${endpoint} — token was invalid`);
+            invalidateSession();
+            return [];
+          }
+          const htmlInvoices = parseInvoiceHtml(html);
+          if (htmlInvoices.length > 0) {
+            log.info(`Scraped ${htmlInvoices.length} invoices from ${endpoint} (HTML)`);
+            return htmlInvoices;
+          }
+          endpointSkipped = true;
+          break;
         }
+      } catch (err) {
+        log.warn(`Endpoint ${endpoint} failed`, { error: err instanceof Error ? err.message : String(err) });
+        if (page === 1) {
+          endpointSkipped = true;
+          break;
+        }
+        break;
       }
-    } catch (err) {
-      log.warn(`Endpoint ${endpoint} failed`, { error: err instanceof Error ? err.message : String(err) });
     }
+
+    if (endpointSucceeded && allInvoices.length > 0) {
+      log.info(`Total: ${allInvoices.length} invoices across ${pagesWalked} pages from ${baseEndpoint}`);
+      return allInvoices;
+    }
+    if (!endpointSkipped) break;
   }
 
   // Last resort: try scraping the SPA /recent page (it renders tickets client-side)
