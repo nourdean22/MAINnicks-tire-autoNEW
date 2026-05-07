@@ -376,15 +376,18 @@ specification per channel.
 | UrgencyWidget copy review | Not in audit, found via sweep | ✅ Done (wave-67) |
 | Booking-page form-field above-input labels | Listed as future work | ✅ Already correct (verified wave-67) |
 | Sentry client SDK install | Gated on DSN env | ⏸ Still gated |
-| HSTS preload submission | Operational, browser action | ⏸ Still pending |
-| Imagen prompts execution | Gated on GEMINI_API_KEY | ⏸ Still gated |
+| HSTS preload submission | Operational, browser action | 🚫 Dropped (wave-69) — hstspreload.org itself says preloading is "not recommended"; upgrade benefits already covered by HSTS header that's live |
+| Imagen prompts execution | Gated on GEMINI_API_KEY | 🔄 Pivoted (wave-69) — use autonicks.com Nick AI chat (operator's existing image-gen pipeline). No GEMINI_API_KEY needed. |
 | `pnpm test:ai-evals` baseline | Gated on API key for content gen | ⏸ Still gated |
 | GSC URL Inspection on remaining 12 comparison pages | Throttled, manual | ⏸ Still pending |
 
-The 5 remaining "⏸" items are all blocked on either external secrets
+The 3 remaining "⏸" items are blocked on either external secrets
 (API keys) or operational browser actions Nour or an authenticated
 user must take. No further autonomous progress possible on those
 without unblocking events.
+
+Two items resolved in wave-69 audit: HSTS preload (dropped — upstream
+guidance) + Imagen path (pivoted — use existing autonicks.com pipeline).
 
 ---
 
