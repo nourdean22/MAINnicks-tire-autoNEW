@@ -29,6 +29,7 @@ import {
 } from "recharts";
 
 import { CHART_COLORS, CHART_THEME, PageHeader, LoadingState, SectionInsightStrip, TabBar } from "./shared";
+import { SkeletonKpiGrid, SkeletonChart } from "@/components/admin/AdminSkeletons";
 
 function formatCents(cents: number): string {
   return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -112,8 +113,9 @@ function RevenueContent() {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      <div className="space-y-6">
+        <SkeletonKpiGrid cols={4} />
+        <SkeletonChart height={280} />
       </div>
     );
   }

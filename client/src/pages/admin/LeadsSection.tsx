@@ -5,6 +5,7 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { SkeletonPanel } from "@/components/admin/AdminSkeletons";
 import {
   StatCard, UrgencyBadge, ActivityIcon, StatusDot, PageHeader, LoadingState, EmptyState, SectionInsightStrip,
   BOOKING_STATUS_CONFIG, LEAD_STATUS_CONFIG, TIME_LABELS, CHART_COLORS,
@@ -206,11 +207,7 @@ function KanbanBoard({ leadsData, onUpdate, isLoading }: {
   }, [leadsData]);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <SkeletonPanel rows={6} />;
   }
 
   return (
