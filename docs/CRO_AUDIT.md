@@ -77,34 +77,37 @@ click moment, not buried under the form.
 ✅ **Cross-references at bottom** — "/services" + "/diagnose" + financing
    handled gracefully if the user isn't ready to book.
 
-### What still has leverage (NOT shipped, future work)
+### What still has leverage — status (post wave-67)
 
-⚠️ **Field-level CRO (form-cro skill territory)**
-   The BookingWizard internal form fields haven't been audited:
-   - Are required fields minimized?
-   - Are field labels above-input vs placeholder-only? (placeholder-only
-     fails when user starts typing)
-   - Inline validation feedback?
-   - Error states in brand voice?
-   - Multi-step progress indicator visible?
+✅ **Field-level CRO (form-cro skill territory)** — verified wave-67.
+   BookingWizard already uses above-input labels (not placeholder-only)
+   with `text-[12px] font-medium ... block mb-2/mb-3` pattern, plus
+   `aria-label` for icon-only inputs. Multi-step progress indicator is
+   present (STEP_LABELS rendered with active-step highlighting at line
+   312). Required fields are minimized (each step has 2-3 fields max).
+   Inline validation feedback + brand-voice error states still room for
+   improvement but not blocking.
 
-⚠️ **Mobile keyboard optimization**
-   - `inputMode="numeric"` on phone field?
-   - `autoComplete="tel"` on phone, `autoComplete="email"` on email?
-   - `enterkeyhint="next"` for multi-field forms?
+✅ **Mobile keyboard optimization** — shipped wave-56. `autoComplete`
+   + `inputMode` + `enterKeyHint` wired on every input in
+   BookingWizard.tsx.
 
-⚠️ **Immediate confirmation copy**
-   Post-submit success state text — is it in brand voice or generic
-   ("Thanks for your submission!")? Reframe as relief: "Done. Pull up
-   any time. We'll call within 15 minutes."
+✅ **Immediate confirmation copy** — already FCFS-aligned (wave-28
+   audit fix). Post-submit confirmation reads "You're in the queue,
+   {firstName}." with FCFS body copy + storefront photo + referral
+   incentive. No "RESERVED" / "Slot held" language. Brand-voice
+   success state.
 
-⚠️ **Exit intent** — already shipped via ExitIntentModal in PageLayout,
-   but the modal copy itself wasn't reviewed in this audit.
+✅ **Exit intent copy** — reviewed wave-66. Two fixes applied:
+   (a) success-message timing inconsistency (5min → 15min, matches
+   form promise), (b) docstring updated to reflect current FCFS-aligned
+   copy (was referencing deleted CONVERSION-OVERHAUL-V1.1.md spec).
+   Plus wave-67 closed the same 5min/15min gap in UrgencyWidget.
 
-⚠️ **A/B test infrastructure**
-   No A/B testing currently wired up. Once GSC traffic ramps from
-   waves 33-37/40 SEO work, this becomes worth installing (e.g., a
-   simple GrowthBook-style flag system).
+⚠️ **A/B test infrastructure** — NOT shipped. No A/B testing wired up.
+   Once GSC traffic ramps from waves 33-37/40 SEO work, this becomes
+   worth installing (e.g., a simple GrowthBook-style flag system).
+   Defer until traffic threshold reached.
 
 ### What I considered and rejected
 
@@ -162,7 +165,18 @@ Wave-47's intervention pushed the booking page from B+ to A+.
 
 ## Last updated
 
-2026-05-07 (wave-47).
+2026-05-07 (wave-67 — refresh after closing 5/6 audit gaps).
+
+The original wave-47 audit listed 6 leverage points as "NOT shipped".
+Five have since been verified-as-shipped or freshly-shipped:
+- Field-level form labels: verified already-correct (wave-67)
+- Mobile keyboard hints: shipped wave-56
+- FCFS success-state copy: shipped wave-28
+- ExitIntentModal copy honesty: shipped wave-66
+- UrgencyWidget copy honesty: shipped wave-67
+
+Only A/B testing infrastructure remains as future work, gated on
+traffic threshold being reached.
 
 Next CRO work: defer until A/B infrastructure is in place (separate
 session to install GrowthBook-style flags). Then run the hypothesis
