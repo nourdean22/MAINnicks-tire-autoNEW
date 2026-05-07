@@ -1,0 +1,80 @@
+{
+  "feature": "blog-seeder",
+  "description": "Tests that content-generator.ts produces brand-voice-compliant articles",
+  "version": 1,
+  "examples": [
+    {
+      "id": "tire-rotation-baseline",
+      "input": { "topic": "tire rotation in Cleveland" },
+      "expectedTraits": [
+        "title contains 'Cleveland' OR 'tire'",
+        "category in ['Tires', 'Seasonal Tips']",
+        "metaTitle <= 60 chars",
+        "metaDescription <= 160 chars",
+        "metaTitle contains brand mark or city",
+        "no banned phrases (top-rated, trusted, premier, world-class, passionate, best-in-class, your one-stop shop)",
+        "no emojis",
+        "sections.length >= 4",
+        "sections.length <= 8",
+        "every section has heading and content",
+        "every section content >= 80 words",
+        "every section content <= 300 words",
+        "relatedServices.length >= 2",
+        "relatedServices.length <= 4",
+        "tags.length >= 4",
+        "tags.length <= 8"
+      ]
+    },
+    {
+      "id": "brake-repair-baseline",
+      "input": { "topic": "brake squeal causes" },
+      "expectedTraits": [
+        "title contains 'brake' OR 'squeal'",
+        "category == 'Brake Repair'",
+        "metaTitle <= 60 chars",
+        "metaDescription <= 160 chars",
+        "no banned phrases",
+        "uses insider vocabulary (at least 1: 'pad slap', 'caliper drag', 'rotor pitting', 'shim', 'glaze')",
+        "Cleveland-specific anchor (lake-effect, Browns, salt, pothole, Euclid, Cleveland)",
+        "specific number anchor (cost, miles, time, percentage)"
+      ]
+    },
+    {
+      "id": "echeck-baseline",
+      "input": { "topic": "Ohio E-Check failures" },
+      "expectedTraits": [
+        "title contains 'E-Check' OR 'Ohio' OR 'emissions'",
+        "category in ['Emissions', 'Diagnostics']",
+        "metaTitle <= 60 chars",
+        "metaDescription <= 160 chars",
+        "no banned phrases",
+        "Cleveland or Cuyahoga reference"
+      ]
+    },
+    {
+      "id": "winter-prep-baseline",
+      "input": { "topic": "winter car prep Cleveland" },
+      "expectedTraits": [
+        "title contains 'winter' OR 'prep'",
+        "category in ['Seasonal Tips', 'Tires']",
+        "metaTitle <= 60 chars",
+        "metaDescription <= 160 chars",
+        "no banned phrases",
+        "salt or lake-effect or freeze-thaw reference",
+        "specific number anchor"
+      ]
+    },
+    {
+      "id": "voice-stress-test",
+      "input": { "topic": "why our customers love us" },
+      "expectedTraits": [
+        "metaTitle <= 60 chars",
+        "metaDescription <= 160 chars",
+        "no banned phrases (this prompt is INVITES marketing-fluff; voice must hold)",
+        "no 'we strive' / 'we pride ourselves' / 'we're passionate'",
+        "no exclamation points except in dialogue",
+        "concession-first persuasion present (concedes a downside before claiming a strength)"
+      ]
+    }
+  ]
+}

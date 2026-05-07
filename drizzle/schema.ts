@@ -2440,3 +2440,56 @@ export const customerEvents = mysqlTable("customer_events", {
 
 export type CustomerEvent = typeof customerEvents.$inferSelect;
 export type InsertCustomerEvent = typeof customerEvents.$inferInsert;
+
+// ─── ROLE-BASED ACCESS CONTROL ──────────────────────────────────
+//
+// 2026-05-07 wave-59 · scaffold-only RBAC table. Created BEFORE the
+// first second-user case arrives so the migration is cheap when needed.
+// Per docs/SECURITY_AUDIT.md hardening opportunity #3:
+//
+//   "if the admin gains additional users with different roles
+//   (manager / mechanic / accountant), the email allowlist won't
+//   suffice. Designing the schema NOW even before implementing means
+//   the migration is cheap when the first second-user case arrives."
+//
+// IMPORTANT: this table is created but NOT YET wired into auth checks.
+// Current admin auth uses ALLOWED_EMAILS env var. When/if a second
+// admin user is added, the auth flow can be extended to query this
+// table for role-based permission gates without a schema migration.
+//
+// Roles defined for nickstire context:
+//   "owner"      — Nour, full access
+//   "manager"    — shop manager; access to ops/customers/dispatch
+//                  but not financials/integrations
+//   "mechanic"   — bay-floor staff; access to dispatch + their own
+//                  customer notes only
+//   "accountant" — financials + invoices; no customer ops
+//   "viewer"     — read-only audit access
+//
+export const userRoles = mysqlTable("user_roles", {
+  id: int("id").autoincrement().primaryKey(),
+  /** FK to users.id (the auth user) */
+  userId: int("user_id").notNull(),
+  /** Role string — see comment above for the canonical set */
+  role: varchar("role", { length: 32 }).notNull(),
+  /** Optional grant-restriction note ("temp coverage 2026-06") */
+  notes: varchar("notes", { length: 255 }),
+  /** Who granted this role — accountability trail */
+  grantedBy: int("granted_by"),
+  /** When the role was granted */
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  /** When the role expires (null = permanent) */
+  expiresAt: timestamp("expires_at"),
+}, (table) => [
+  // Composite — one user can have multiple roles, but
+  // (userId, role) should be unique so we don't grant the same
+  // role twice
+  uniqueIndex("user_roles_userId_role_uniq").on(table.userId, table.role),
+  // Lookup by user (auth-flow query: "what roles does this user have?")
+  index("user_roles_userId_idx").on(table.userId),
+  // Audit query: "all users with role X"
+  index("user_roles_role_idx").on(table.role),
+]);
+
+export type UserRole = typeof userRoles.$inferSelect;
+export type InsertUserRole = typeof userRoles.$inferInsert;
