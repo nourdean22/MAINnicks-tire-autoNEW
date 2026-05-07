@@ -203,7 +203,101 @@ function normalizeEstimateJson(raw: Record<string, unknown>): RawEstimate | null
   };
 }
 
+/**
+ * Wave-97: normalize a /api/ticket/listRecentTickets row (which has
+ * ticketType + invoiceNumber + estimateNumber) into a RawEstimate.
+ * This is the primary path now that we know the API response shape.
+ *
+ * Key field map:
+ *   - external_id ← String(estimateNumber) when present, else ticketId
+ *   - estimateDate ← raw.estimateDate (ALG sets this even on tickets
+ *     that later become invoices, so it captures the original quote
+ *     date — perfect for declined-work-recovery cron timing)
+ *   - estimatedAmount ← raw.total (in dollars, multiply by 100)
+ *   - vehicle ← year + make + model (denormalized in this endpoint)
+ */
+function normalizeTicketAsEstimate(raw: Record<string, unknown>): RawEstimate {
+  const estimateNumber = raw.estimateNumber;
+  const ticketId = raw.ticketId as string | undefined;
+  const externalId = estimateNumber != null && estimateNumber !== 0
+    ? String(estimateNumber)
+    : (ticketId || `unknown-${Date.now()}`);
+
+  const firstName = (raw.firstName as string) || "";
+  const lastName = (raw.lastName as string) || "";
+  const businessName = (raw.businessName as string) || "";
+  const customerName = businessName || `${firstName} ${lastName}`.trim() || "Unknown";
+
+  const phoneRaw =
+    (raw.primaryNumber as string) ||
+    (raw.secondaryNumber as string) ||
+    "";
+
+  const totalRaw = raw.total as number | string | undefined;
+  const amountCents = typeof totalRaw === "number"
+    ? Math.round(totalRaw * 100)
+    : parseDollarsToCents(String(totalRaw ?? "0"));
+
+  const dateRaw =
+    (raw.estimateDate as string | undefined) ||
+    (raw.invoiceDate as string | undefined) ||
+    (raw.customerDateCreated as string | undefined) ||
+    new Date().toISOString();
+  const parsed = new Date(dateRaw);
+  const estimateDate = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+
+  const year = raw.year ? String(raw.year) : "";
+  const make = (raw.make as string) || "";
+  const model = (raw.model as string) || "";
+  const vehicleInfo = [year, make, model].filter(Boolean).join(" ") || null;
+
+  return {
+    externalId,
+    customerName,
+    customerPhone: normalizePhone(phoneRaw) || null,
+    vehicleInfo,
+    serviceDescription: (raw.description as string) || null,
+    estimatedAmount: amountCents,
+    estimateDate,
+  };
+}
+
 async function fetchEstimates(token: string): Promise<RawEstimate[]> {
+  // ─── PRIMARY PATH (wave-97): /api/ticket/listRecentTickets ──
+  // The mirror service uses this same endpoint to pull invoices. It
+  // returns BOTH invoices (ticketType=0) and estimates (ticketType=1)
+  // mixed together. We filter for estimate-type rows and route them
+  // here. Confirmed working 2026-05-07 against production tenant.
+  // Falls through to the historical /api/Estimate/* probe list if
+  // this endpoint stops working in a future tenant migration.
+  try {
+    const res = await fetch(
+      `${SHOPDRIVER_API}/api/ticket/listRecentTickets?pageNumber=1&pageSize=500`,
+      { headers: buildHeaders(token), signal: AbortSignal.timeout(30000) }
+    );
+    log.info(`Estimate primary probe: /api/ticket/listRecentTickets → ${res.status}`);
+    if (res.ok && (res.headers.get("content-type") || "").includes("application/json")) {
+      const data = await res.json() as Array<Record<string, unknown>>;
+      const tickets = Array.isArray(data) ? data : [];
+      // Estimates: ticketType === 1, OR (no invoiceNumber but has estimateNumber)
+      const estimateTickets = tickets.filter((t) => {
+        if (t.ticketType === 1) return true;
+        const inv = t.invoiceNumber;
+        const est = t.estimateNumber;
+        return (inv == null || inv === 0) && est != null && est !== 0;
+      });
+      log.info(`listRecentTickets returned ${tickets.length} total · ${estimateTickets.length} are estimates`);
+      if (estimateTickets.length > 0) {
+        const normalized = estimateTickets.map((t) => normalizeTicketAsEstimate(t));
+        return normalized;
+      }
+    }
+  } catch (err) {
+    log.warn(`Primary estimate probe (listRecentTickets) failed`, {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   // Endpoint probe order — different ShopDriver tenants expose different
   // names. The primary candidates came from SPA bundle inspection. As of
   // 2026-05-05 production probe returned 0 results from the original 4
@@ -486,7 +580,12 @@ function todayISO(): string {
  * when ShopDriver redesigns the page.
  */
 async function fetchEstimatesViaHtml(token: string): Promise<RawEstimate[]> {
+  // /recent is the proven page (operator screenshot 2026-05-07). It mixes
+  // Invoice# + Estimate# rows in nested <table> blocks. We extract only
+  // Estimate# rows here. The /Estimate/* URLs are SPA route guesses that
+  // historically returned empty bodies — kept as last-resort fallbacks.
   const htmlEndpoints = [
+    `${SHOPDRIVER_BASE}/recent`,
     `${SHOPDRIVER_BASE}/Estimate/list`,
     `${SHOPDRIVER_BASE}/Estimates`,
     `${SHOPDRIVER_BASE}/Estimate`,
@@ -512,10 +611,57 @@ async function fetchEstimatesViaHtml(token: string): Promise<RawEstimate[]> {
       if (html.length < 5000) continue;
       if (!/estimate/i.test(html)) continue;
 
-      // Look for table rows. ShopDriver typically renders <tr> with
-      // data-id or class containing "estimate".
       const rows: RawEstimate[] = [];
-      // Pattern 1: <tr data-estimate-id="..."> ... </tr>
+
+      // ─── Pattern 0 — /recent page format (nested <table> blocks) ──
+      // The proven format from operator's 2026-05-07 screenshot. Each
+      // ticket block contains "Invoice# XXXX" or "Estimate# XXXX",
+      // customer "LASTNAME, FIRSTNAME", vehicle, date, total.
+      // Mirrors parseInvoiceHtml in shopDriverMirror.ts but Estimate-only.
+      if (url.endsWith("/recent")) {
+        const blocks = html.split(/<table/gi).slice(1);
+        for (const block of blocks) {
+          const text = block
+            .replace(/<style[\s\S]*?<\/style>/gi, "")
+            .replace(/<script[\s\S]*?<\/script>/gi, "")
+            .replace(/<[^>]+>/g, " ")
+            .replace(/&nbsp;/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+          const estimateMatch = text.match(/Estimate#\s*(\d+)/i);
+          if (!estimateMatch) continue; // skip Invoice# blocks — those go to invoices mirror
+
+          const estimateNum = estimateMatch[1];
+          const nameMatch = text.match(/([A-Z][A-Za-z'\-]+,\s*[A-Z][A-Za-z'\-\s]+)/);
+          const customerName = nameMatch ? nameMatch[1].trim() : "Unknown";
+          const dateMatch = text.match(/(\d{2}\/\d{2}\/\d{4})/);
+          const dateStr = dateMatch ? dateMatch[1] : "";
+          const amountMatch = text.match(/Total:\s*\$([0-9,]+\.\d{2})/i) || text.match(/\$([0-9,]+\.\d{2})/);
+          const amountCents = amountMatch ? parseDollarsToCents(amountMatch[1]) : 0;
+          const vehicleMatch = text.match(/\d{4}\s+[A-Z][A-Za-z\s\*\-]+/);
+          const vehicle = vehicleMatch ? vehicleMatch[0].trim() : null;
+          const phoneMatch = text.match(/\((\d{3})\)\s*(\d{3})-(\d{4})/);
+          const phone = phoneMatch ? `${phoneMatch[1]}${phoneMatch[2]}${phoneMatch[3]}` : null;
+
+          rows.push({
+            externalId: estimateNum,
+            customerName,
+            customerPhone: phone,
+            vehicleInfo: vehicle,
+            serviceDescription: null,
+            estimatedAmount: amountCents,
+            estimateDate: dateStr ? new Date(dateStr) : new Date(),
+          });
+        }
+        if (rows.length > 0) {
+          log.info(`HTML scrape (/recent) extracted ${rows.length} estimates`);
+          return rows;
+        }
+        continue;
+      }
+
+      // ─── Pattern 1 — explicit data-estimate-id rows on /Estimate pages ──
       const rowPattern = /<tr[^>]*data-(?:estimate|ticket)-id="([^"]+)"[^>]*>([\s\S]*?)<\/tr>/gi;
       let m: RegExpExecArray | null;
       while ((m = rowPattern.exec(html)) !== null) {

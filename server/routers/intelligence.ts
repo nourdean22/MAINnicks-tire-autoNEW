@@ -290,9 +290,12 @@ export const intelligenceRouter = router({
     }
 
     // 2. Pending invoices > 7 days old
+    // Wave-97 fix: filter out HTML-scraped Estimate# rows that leaked
+    // into the invoices table — those are NOT pending invoices, they
+    // are declined estimates and live in alg_estimates.
     type PendingInvoice = { id: number; customerName: string | null; customerPhone: string | null; totalAmount: number; invoiceDate: string | Date };
     const pendingInvoices = await safeRowQuery<PendingInvoice>(d,
-      rawSql`SELECT id, customerName, customerPhone, totalAmount, invoiceDate FROM invoices WHERE paymentStatus = 'pending' AND invoiceDate < DATE_SUB(NOW(), INTERVAL 7 DAY) ORDER BY totalAmount DESC LIMIT 8`
+      rawSql`SELECT id, customerName, customerPhone, totalAmount, invoiceDate FROM invoices WHERE paymentStatus = 'pending' AND invoiceNumber NOT LIKE 'Estimate#%' AND invoiceDate < DATE_SUB(NOW(), INTERVAL 7 DAY) ORDER BY totalAmount DESC LIMIT 8`
     );
     for (const inv of pendingInvoices) {
       const amt = Math.round(Number(inv.totalAmount || 0) / 100);
