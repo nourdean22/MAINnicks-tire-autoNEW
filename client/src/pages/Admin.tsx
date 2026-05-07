@@ -45,6 +45,7 @@ const WalkInCalculatorSection = lazy(() => import("./admin/WalkInCalculatorSecti
 const SnapDashboardSection = lazy(() => import("./admin/SnapDashboardSection"));
 const TrafficFunnelSection = lazy(() => import("./admin/TrafficFunnelSection"));
 const ConversionPreviewSection = lazy(() => import("./admin/ConversionPreviewSection"));
+const VoiceReceptionistSection = lazy(() => import("./admin/VoiceReceptionistSection"));
 // Settings tab sub-sections — kept because they're consumed INSIDE SettingsSection,
 // but not rendered as top-level routes anymore (Settings page handles them).
 // AdminContent.tsx still routes here for /admin/content.
@@ -85,6 +86,7 @@ function SectionContent({ section }: { section: AdminSection }) {
         {section === "snapDashboard" && <SnapDashboardSection />}
         {section === "trafficFunnel" && <TrafficFunnelSection />}
         {section === "conversionPreview" && <ConversionPreviewSection />}
+        {section === "voiceReceptionist" && <VoiceReceptionistSection />}
       </Suspense>
     </AdminSectionBoundary>
   );
@@ -117,6 +119,12 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   reengage: "reEngagement",
   conversionpreview: "conversionPreview",
   preview: "conversionPreview",
+
+  // Voice Receptionist (VAPI) — wave-86
+  voicereceptionist: "voiceReceptionist",
+  voice: "voiceReceptionist",
+  vapi: "voiceReceptionist",
+  receptionist: "voiceReceptionist",
 
   // Settings sub-tabs (the old standalone sections are now Settings tabs)
   health: "settings",
