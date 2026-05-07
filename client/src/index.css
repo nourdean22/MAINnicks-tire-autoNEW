@@ -121,6 +121,78 @@
   --surface-raised: #141414;
   --surface-elevated: #1A1A1A;
   --surface-overlay: #222222;
+
+  /* ═══════════════════════════════════════════════════════
+     2026-05-07 wave-43 · DESIGN-SYSTEM TOKENS
+     Tokenized from waves 22-42 polish work + DESIGN_PHILOSOPHY.md
+     + EMOTION_MAP.md. Future commits should reference these instead
+     of hardcoding. Updating one var here propagates site-wide.
+     ═══════════════════════════════════════════════════════ */
+
+  /* ─── BRAND COLORS (semantic, not just hex) ─── */
+  --brand-yellow: #FDB913;          /* sodium-vapor working-class yellow — sign + primary CTAs */
+  --brand-yellow-soft: #FDB913cc;   /* hover state, subtle accents */
+  --brand-yellow-glow: rgba(253, 185, 19, 0.40);   /* focus rings, subtle glow */
+  --brand-yellow-shadow: rgba(253, 185, 19, 0.35); /* CTA shadow base */
+  --brand-yellow-shadow-hover: rgba(253, 185, 19, 0.55); /* CTA shadow on hover */
+  --brand-red: #ef4444;             /* CALL NOW emergency CTA — reserved for actually-urgent */
+  --brand-red-shadow: rgba(239, 68, 68, 0.35);
+  --brand-red-shadow-hover: rgba(239, 68, 68, 0.45);
+
+  /* ─── DEEP BACKGROUND SCALE (cool-bias dark) ─── */
+  --bg-deepest: #050505;            /* OLED-deep, used in card insets */
+  --bg-deep: oklch(0.06 0.004 260); /* page background variant — cinema-black w/ cool bias */
+  --bg-card-base: oklch(0.055 0.003 260); /* section bg one notch up from page */
+  --bg-card-raised: #141414;        /* card surface */
+  --bg-card-elevated: #1A1A1A;      /* lender tier inner core */
+  --bg-card-overlay: #222222;       /* highest elevation */
+
+  /* ─── TYPOGRAPHY COLORS ─── */
+  --fg-primary: #F5F5F5;            /* headings + primary copy (warm off-white) */
+  --fg-body: #D4D4D4;               /* body copy */
+  --fg-mute: #A0A0A0;               /* captions, microcopy */
+  --fg-mute-deep: #707070;          /* footer + de-emphasized */
+
+  /* ─── HAIRLINE / BEZEL RINGS (Double-Bezel pattern from wave-32) ─── */
+  --ring-yellow: rgba(253, 185, 19, 0.30);   /* primary card outlines */
+  --ring-yellow-strong: rgba(253, 185, 19, 0.50);
+  --ring-neutral: rgba(255, 255, 255, 0.06); /* secondary card outlines */
+  --ring-neutral-strong: rgba(255, 255, 255, 0.12);
+  --bezel-tint-yellow: rgba(253, 185, 19, 0.08);  /* outer-shell bg tint */
+  --bezel-tint-neutral: rgba(255, 255, 255, 0.025);
+  --inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.04); /* card inner highlight */
+
+  /* ─── EASING CURVES (motion vocabulary from wave-31) ─── */
+  --ease-magnetic: cubic-bezier(0.32, 0.72, 0, 1);  /* signature curve — spring/mass simulation */
+  --ease-snappy: cubic-bezier(0.4, 0, 0.2, 1);       /* utility transitions */
+  --ease-cinematic: cubic-bezier(0.16, 1, 0.3, 1);   /* entrance reveals */
+
+  /* ─── DURATIONS ─── */
+  --dur-snap: 200ms;                /* color/opacity transitions */
+  --dur-magnetic: 500ms;            /* signature hover/press */
+  --dur-cinematic: 850ms;            /* entrance reveals */
+
+  /* ─── SECTION PADDING SCALE ─── */
+  --pad-section-tight: 3rem;        /* py-12 — utility sections */
+  --pad-section-tight-lg: 4rem;     /* lg:py-16 */
+  --pad-section: 5rem;              /* py-20 — most content */
+  --pad-section-lg: 7rem;           /* lg:py-28 */
+  --pad-section-premium: 5rem;      /* py-20 — marquee */
+  --pad-section-premium-lg: 8rem;   /* lg:py-32 — marquee desktop */
+
+  /* ─── COMPONENT RADII (Double-Bezel concentric) ─── */
+  --radius-bezel-outer: 1.5rem;     /* p-[3px] outer shell */
+  --radius-bezel-inner: calc(1.5rem - 3px); /* inner core */
+  --radius-card: 1rem;
+  --radius-button: 0.5rem;
+  --radius-pill: 9999px;
+
+  /* ─── Z-INDEX RESERVATIONS ─── */
+  --z-grain: 30;                    /* site-wide photo-grain overlay */
+  --z-sticky-trust: 40;
+  --z-nav: 50;
+  --z-modal: 60;
+  --z-toast: 70;
 }
 
 /* ═══════════════════════════════════════════════════════
