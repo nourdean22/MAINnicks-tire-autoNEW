@@ -230,19 +230,17 @@ webhook URLs and trigger side effects.
 
 ## Three hardening opportunities (ranked by leverage)
 
-### 🔴 #1 (high leverage, low effort) — Verify webhook signatures
+### 🔴 #1 — Webhook signature verification — ✅ ALREADY DONE (wave-58 audit correction)
 
-For each external webhook receiver:
-- Stripe webhook: verify with `stripe.webhooks.constructEvent`
-- Twilio webhook: verify with HMAC-SHA1 + `X-Twilio-Signature`
-- VAPI webhook: verify with whatever VAPI's signing convention is
-- Resend / Mailgun / etc.: same
+After deeper audit, all 5 webhook receivers ARE already signature-verified:
+- ✅ Stripe webhook: `stripe.webhooks.constructEvent` (server/_core/index.ts:854)
+- ✅ Twilio webhook: `validateTwilioRequest` middleware (server/middleware/twilioValidation.ts)
+- ✅ Messenger webhook: `X-Hub-Signature-256` HMAC-SHA256 (server/_core/index.ts:933)
+- ✅ Snap webhook: `X-Snap-Signature` HMAC + `timingSafeEqual` (server/_core/statenour-bridge-routes.ts)
+- ✅ VAPI webhook: `x-vapi-signature` HMAC-SHA256 + `VAPI_WEBHOOK_SECRET` (server/routes/webhooks/vapi.ts)
 
-Without this: any internet user can POST fake webhook events and
-trigger side effects (bogus payments, fake call records, etc.).
-
-Effort: 1-2 hours per webhook integration. Already-existing webhooks
-should be retrofitted.
+Original audit was overstating the gap. This security control is
+already in production. Move on to #2 + #3.
 
 ### 🟡 #2 (medium leverage, medium effort) — CSP nonces
 
