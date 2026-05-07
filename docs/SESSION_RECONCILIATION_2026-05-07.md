@@ -302,6 +302,92 @@ changes from this session:
 
 ---
 
+## Supplemental: waves 64-67 (post-reconciliation continuation)
+
+After the reconciliation doc was first written, four additional waves
+shipped to close out remaining audit gaps + adopt unused primitives.
+
+### Wave-64 · admin StatCard + KpiTile kaizen upgrade
+- `client/src/pages/admin/shared.tsx` — surgical primitive upgrade.
+  Single file edit; ~30 admin StatCard call sites + every KpiTile call
+  site benefit without touching consumers. Adds: animated count-up via
+  `CountUpNumber` (when value is numeric or matches `$X,XXX` / `XX/100`
+  / `X%` / pure-int patterns), `tabular-nums` + `font-mono` for hardware
+  alignment, `var(--data-up)`/`var(--data-down)` tokens replacing
+  hardcoded emerald/red trend colors. Freeform strings ("Loading…",
+  "—", "Healthy") render as-is. Existing display contract preserved.
+- `docs/DATABASE_AUDIT.md` — stack confirmed MySQL/TiDB after reading
+  `drizzle.config.ts` (`dialect: "mysql"`), `server/db.ts`
+  (`drizzle-orm/mysql2` + `mysql2/promise`), schema (`mysqlTable`),
+  retry-logic error code (`ER_DUP_ENTRY`). Memory file's stale
+  "Postgres" claim corrected. DATABASE_AUDIT recommendations now
+  unblocked from this gating concern.
+
+### Wave-65 · AdminAlertBar wired to OverviewSection
+- `client/src/pages/admin/OverviewSection.tsx` — installs AdminAlertBar
+  (built wave-54, sat unused) at top of CEO dashboard. Wire one real
+  signal: ALG integration offline = CRIT (every revenue + invoice
+  number on the dashboard descends from the ALG mirror; offline =
+  numbers stale + invoice flow blocked). Existing ALG status pill
+  retained as wallpaper-tier informational signal. Per
+  ADMIN_PHILOSOPHY: empty alerts bar = everything's fine. Component
+  returns null at 0px when no alerts.
+
+### Wave-66 · ExitIntentModal copy honesty pass
+- `client/src/components/conversion/ExitIntentModal.tsx` — two fixes.
+  (a) Success-message timing inconsistency: form copy promised "within
+  15 minutes during open hours", success state said "we'll text you in
+  5 min". Aligned to "On it. We'll text within 15 min during open
+  hours." — single source of truth for the brand commitment, matches
+  booking-page promise. (b) Stale docstring referenced "RESERVE MY
+  SPOT" CTA + a now-deleted CONVERSION-OVERHAUL-V1.1.md spec. Wave-28
+  audit had already replaced that with FCFS-aligned copy. Updated
+  docstring to reflect current code + which audits applied. Provenance
+  hygiene.
+
+### Wave-67 · UrgencyWidget brand promise alignment
+- `client/src/components/conversion/UrgencyWidget.tsx` — same identical
+  "5 min" success string fixed. Aligned to "On it. Text within 15 min
+  during open hours." Brand-promise audit now complete: every capture
+  flow on the customer-facing site says 15 min for text-back estimate
+  (single channel SLA) and 30 min for voice callback (different
+  channel SLA in CallbackModal — intentional, kept).
+
+### Brand-promise SLA matrix (post wave-67)
+
+| Surface | Channel | Promise |
+|---|---|---|
+| BookingPage form copy + NextSteps | Either text or call | within 15 min |
+| BookingWizard post-submit confirmation | Text estimate | within 15 min |
+| ExitIntentModal form + success | Text estimate | within 15 min |
+| UrgencyWidget success | Text estimate | within 15 min |
+| CallbackModal success | Voice callback | within 30 min |
+
+No mixed signals. Brand commitment now sourced from single SLA
+specification per channel.
+
+### Status of original "still pending" items (post-reconciliation)
+
+| Item | Wave-62 status | Current status |
+|---|---|---|
+| Stack confirmation (MySQL or Postgres) | Info question | ✅ Confirmed MySQL/TiDB (wave-64) |
+| AdminStatCard + AdminAlertBar adoption | Built but unused | ✅ Adopted (waves 64-65) |
+| ExitIntentModal copy review | Listed as future work | ✅ Done (wave-66) |
+| UrgencyWidget copy review | Not in audit, found via sweep | ✅ Done (wave-67) |
+| Booking-page form-field above-input labels | Listed as future work | ✅ Already correct (verified wave-67) |
+| Sentry client SDK install | Gated on DSN env | ⏸ Still gated |
+| HSTS preload submission | Operational, browser action | ⏸ Still pending |
+| Imagen prompts execution | Gated on GEMINI_API_KEY | ⏸ Still gated |
+| `pnpm test:ai-evals` baseline | Gated on API key for content gen | ⏸ Still gated |
+| GSC URL Inspection on remaining 12 comparison pages | Throttled, manual | ⏸ Still pending |
+
+The 5 remaining "⏸" items are all blocked on either external secrets
+(API keys) or operational browser actions Nour or an authenticated
+user must take. No further autonomous progress possible on those
+without unblocking events.
+
+---
+
 ## Last updated
 
 2026-05-07. This document is the canonical reference for what landed
