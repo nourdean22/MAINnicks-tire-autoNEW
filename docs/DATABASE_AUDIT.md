@@ -29,23 +29,21 @@ schema. There's likely room for 20-30 more indexes on read-hot paths.
 
 ---
 
-## ⚠️ Stack mismatch flag
+## ✅ Stack confirmed: MySQL/TiDB
 
-Schema is **MySQL**:
-```ts
-import { ... } from "drizzle-orm/mysql-core";
-export const users = mysqlTable("users", { ... });
-```
+Verified 2026-05-07 (wave-64) by reading source-of-truth files:
+- `drizzle.config.ts` → `dialect: "mysql"`
+- `server/db.ts` → `import { drizzle } from "drizzle-orm/mysql2"` + `mysql2/promise` pool
+- `drizzle/schema.ts` → `mysqlTable(...)` everywhere
+- Error codes used in retry logic: `ER_DUP_ENTRY` (MySQL-only)
 
-Memory says "Database: Neon Postgres."
+Memory file's "Database: Neon Postgres" claim was stale — the canonical
+CLAUDE.md project header correctly says "MySQL/TiDB" and the code matches.
 
-Either the memory is outdated, OR the schema is being run against MySQL/TiDB
-(memory header says "MySQL/TiDB"). The OBSERVABILITY.md doc + this audit
-were drafted assuming Postgres conventions; they apply ~90% to MySQL but
-INDEX syntax + EXPLAIN output + some optimization patterns differ.
-
-**Action:** Nour to confirm the actual production database. If MySQL/TiDB,
-postgres-best-practices recommendations need adaptation.
+**Implication:** all index recommendations below MUST use MySQL `ALTER TABLE
+... ADD INDEX` syntax (or drizzle's `index().on(...)` declarations). EXPLAIN
+output is MySQL-shaped. Postgres-specific patterns (partial indexes via WHERE,
+expression indexes via functional notation, pg_stat_statements) DON'T apply.
 
 ---
 

@@ -11,6 +11,7 @@ import {
   BarChart3, PhoneCall, Download, CreditCard, Zap, Brain, Tag,
   Shield, Package, ListOrdered, Search, Sparkles,
 } from "lucide-react";
+import CountUpNumber from "@/components/CountUpNumber";
 
 // ─── TYPES ──────────────────────────────────────────────
 // 2026-04-24 admin audit: down from 45 sections to 16 active routes.
@@ -258,6 +259,69 @@ export function navigateToAdminSection(section: AdminSection, opts?: { settingsT
   );
 }
 
+/**
+ * renderStatValue — value-shape detector for the legacy StatCard. The
+ * StatCard used to render `value` as raw text. Wave-64 upgrades it to:
+ *   • detect pure-number values → animate with CountUpNumber
+ *   • detect `$X,XXX` revenue values → animate the numeric portion, keep prefix
+ *   • detect `XX/100` score values → animate the numerator, keep denominator
+ *   • leave freeform strings ("Loading...", "—", "Healthy") as-is
+ *
+ * Numeric formatting preserves the existing display contract — the only
+ * change is the count-up animation on first viewport entry.
+ */
+function renderStatValue(value: string | number): React.ReactNode {
+  // Pure number → straight count-up
+  if (typeof value === "number") {
+    if (Number.isNaN(value) || !Number.isFinite(value)) return String(value);
+    return <CountUpNumber to={value} duration={900} />;
+  }
+
+  // Strings — try common KPI shapes
+  const s = value;
+
+  // "$X,XXX" or "$X.XX" → strip prefix, parse, animate. Preserves "$" prefix.
+  if (s.startsWith("$")) {
+    const rest = s.slice(1).replace(/,/g, "");
+    const num = Number(rest);
+    if (!Number.isNaN(num) && Number.isFinite(num)) {
+      const decimals = rest.includes(".") ? (rest.split(".")[1]?.length ?? 0) : 0;
+      return <CountUpNumber to={num} prefix="$" duration={900} decimals={decimals} />;
+    }
+  }
+
+  // "XX/100" or "XX/YY" score → animate numerator, keep "/YY"
+  const scoreMatch = s.match(/^(\d+(?:\.\d+)?)(\/\d+(?:\.\d+)?)$/);
+  if (scoreMatch) {
+    const num = Number(scoreMatch[1]);
+    if (!Number.isNaN(num) && Number.isFinite(num)) {
+      return <CountUpNumber to={num} suffix={scoreMatch[2]} duration={900} />;
+    }
+  }
+
+  // "X%" → animate numeric, keep "%"
+  const pctMatch = s.match(/^(\d+(?:\.\d+)?)%$/);
+  if (pctMatch) {
+    const num = Number(pctMatch[1]);
+    if (!Number.isNaN(num) && Number.isFinite(num)) {
+      const decimals = pctMatch[1].includes(".") ? (pctMatch[1].split(".")[1]?.length ?? 0) : 0;
+      return <CountUpNumber to={num} suffix="%" duration={900} decimals={decimals} />;
+    }
+  }
+
+  // Plain integer-looking string ("23", "1,250") → parse + animate
+  const plainMatch = s.match(/^[\d,]+$/);
+  if (plainMatch) {
+    const num = Number(s.replace(/,/g, ""));
+    if (!Number.isNaN(num) && Number.isFinite(num)) {
+      return <CountUpNumber to={num} duration={900} />;
+    }
+  }
+
+  // Freeform string fallback — render as-is.
+  return s;
+}
+
 export function StatCard({ label, value, icon, color = "text-foreground", trend, trendLabel, onClick, targetSection, settingsTab, className }: {
   label: string;
   value: string | number;
@@ -274,16 +338,21 @@ export function StatCard({ label, value, icon, color = "text-foreground", trend,
   /** Optional Tailwind className override — useful for grid-span hierarchy */
   className?: string;
 }) {
+  // wave-64 \u2014 surgical KPI upgrade: animated count-up for numeric values,
+  // tabular-nums for hardware-style alignment, data-tokens for trend colors.
+  // Preserves freeform string values ("Loading...", "\u2014", "85/100") as-is.
+  const renderedValue = renderStatValue(value);
+
   const inner = (
     <>
       <div className="flex items-start justify-between mb-2.5">
         <span className="text-[11px] font-medium text-muted-foreground tracking-wide">{label}</span>
         <div className="text-muted-foreground/30 group-hover:text-primary/50 transition-colors">{icon}</div>
       </div>
-      <div className={`font-bold text-2xl tracking-tight number-animate ${color} ${String(value).startsWith('$') ? 'revenue-glow' : ''}`}>{value}</div>
+      <div className={`font-bold text-2xl tracking-tight tabular-nums number-animate ${color} ${String(value).startsWith('$') ? 'revenue-glow' : ''}`}>{renderedValue}</div>
       {trendLabel && (
         <div className={`mt-2 text-[10px] font-medium tracking-wide flex items-center gap-1 ${
-          trend === "up" ? "text-emerald-400" : trend === "down" ? "text-red-400" : "text-muted-foreground"
+          trend === "up" ? "text-[var(--data-up)]" : trend === "down" ? "text-[var(--data-down)]" : "text-muted-foreground"
         }`}>
           {trend === "up" && "\u2191"}{trend === "down" && "\u2193"} {trendLabel}
         </div>
@@ -979,9 +1048,10 @@ export function KpiTile({
     warning: "border-amber-500/30 bg-amber-500/[0.03]",
     danger: "border-red-500/30 bg-red-500/[0.03]",
   };
+  // wave-64 — same KPI upgrade as StatCard above. Tokens for trend colors.
   const trendColor =
-    trend === "up" ? "text-emerald-400" :
-    trend === "down" ? "text-red-400" :
+    trend === "up" ? "text-[var(--data-up)]" :
+    trend === "down" ? "text-[var(--data-down)]" :
     "text-foreground/40";
   const trendArrow = trend === "up" ? "↑" : trend === "down" ? "↓" : "·";
   const Wrapper: React.ElementType = onClick ? "button" : "div";
@@ -994,7 +1064,7 @@ export function KpiTile({
         <span className="text-[10px] font-bold text-foreground/50 tracking-[0.15em] uppercase">{label}</span>
         {icon && <div className="text-foreground/30">{icon}</div>}
       </div>
-      <div className="font-bold text-3xl text-foreground tracking-tight number-animate">{value}</div>
+      <div className="font-bold text-3xl text-foreground tracking-tight tabular-nums number-animate">{renderStatValue(value)}</div>
       {(delta || deltaLabel) && (
         <div className={`mt-2 text-[11px] font-medium ${trendColor} flex items-center gap-1`}>
           <span>{trendArrow}</span>
