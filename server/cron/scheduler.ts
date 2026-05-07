@@ -506,26 +506,12 @@ export function startTieredScheduler(): void {
           } catch (e) { log.warn("[cron/scheduler] operation failed:", e); return { details: "Segmentation skipped" }; }
         },
       },
-      {
-        // Wave-100: refresh materialized declined-work + active-backlog
-        // aggregates per customer. Runs hourly so the customers admin
-        // always sees fresh recovery numbers without correlated subqueries.
-        name: "customer-metrics-refresh",
-        businessHoursOnly: false,
-        handler: async () => {
-          try {
-            const { refreshCustomerMetrics } = await import("../services/customerMetricsRefresh");
-            const result = await refreshCustomerMetrics();
-            return {
-              recordsProcessed: result.customersUpdated,
-              details: `Refreshed ${result.customersUpdated} customer_metrics aggregates in ${result.durationMs}ms`,
-            };
-          } catch (e) {
-            log.warn("[cron/scheduler] customer-metrics-refresh failed:", e);
-            return { details: "Metrics refresh skipped" };
-          }
-        },
-      },
+      // Wave-100 update (2026-05-08): customer-metrics-refresh moved OFF
+      // the cron tier per operator directive — it now fires from the
+      // OAuth login callback instead. Reason: cron probes were triggering
+      // background ALG sessions that kicked the shop counter's live
+      // login. Login-triggered keeps refresh to user moments only.
+      // See server/_core/oauth.ts line ~131 for the trigger.
       {
         name: "intelligence-engines-live", // Cross-sell, LTV, lead scoring, attribution — runs BEFORE autopilot so it has fresh data
         businessHoursOnly: true,

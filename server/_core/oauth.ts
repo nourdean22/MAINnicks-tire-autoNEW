@@ -132,9 +132,26 @@ export function registerOAuthRoutes(app: Express) {
         // ONLY automatic probe trigger besides the 3 AM overnight job.
         // Fire-and-forget — don't block the login redirect on it. The
         // probe budget will dedup if a recent probe already happened.
-        import("../services/algProbeBudget").then(({ requestAlgProbe }) =>
-          requestAlgProbe("admin_login", { detail: userInfo.email ?? undefined }),
-        ).catch((err) => log.warn("[OAuth] alg login-probe failed:", err));
+        //
+        // Wave-100 (2026-05-08) — chain customer_metrics refresh after
+        // the probe lands. ALG probes can pull new invoices/estimates;
+        // we want the materialized declined/backlog aggregates to
+        // reflect them before the operator opens the customers admin.
+        // Operator's directive: "make it on login because [the cron]
+        // logs them out when the system logs into alg" — moved off the
+        // cron tier into login-triggered to avoid extra ALG sessions.
+        import("../services/algProbeBudget").then(async ({ requestAlgProbe }) => {
+          await requestAlgProbe("admin_login", { detail: userInfo.email ?? undefined });
+          // Probe done (or deduped) — refresh metrics from local DB.
+          // No ALG hit, just SUM/COUNT joins; <500ms typical.
+          try {
+            const { refreshCustomerMetrics } = await import("../services/customerMetricsRefresh");
+            const result = await refreshCustomerMetrics();
+            log.info(`[OAuth] post-login metrics refresh: ${result.customersUpdated} rows · ${result.durationMs}ms`);
+          } catch (err) {
+            log.warn("[OAuth] post-login metrics refresh failed:", err);
+          }
+        }).catch((err) => log.warn("[OAuth] alg login-probe failed:", err));
       }
 
       res.redirect(302, dest);

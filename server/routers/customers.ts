@@ -802,6 +802,27 @@ export const customersRouter = router({
     }
   }),
 
+  /**
+   * Wave-100: manual metrics refresh trigger.
+   * Login auto-fires this — but operator can force a fresh recompute
+   * from the admin UI if they suspect data went stale (e.g. after a
+   * manual ALG sync). Pure-local DB joins, no ALG fetch, ~500ms.
+   */
+  refreshMetrics: adminProcedure.mutation(async () => {
+    try {
+      const { refreshCustomerMetrics } = await import("../services/customerMetricsRefresh");
+      const result = await refreshCustomerMetrics();
+      return {
+        success: true,
+        customersUpdated: result.customersUpdated,
+        durationMs: result.durationMs,
+      };
+    } catch (err) {
+      log.error("[Customers] Metrics refresh failed:", err instanceof Error ? err.message : err);
+      return { success: false, customersUpdated: 0, durationMs: 0 };
+    }
+  }),
+
   /** Customer forecast — revenue projections relevant to customer behavior */
   customerForecast: adminProcedure.query(async () => {
     try {
