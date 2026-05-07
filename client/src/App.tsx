@@ -105,6 +105,25 @@ const MoesTireBridgePage = lazy(() => import("./pages/MoesTireBridgePage"));
 // Sunday muffler/exhaust niche capture (GSC-driven, May 2026)
 const SundayMufflerPage = lazy(() => import("./pages/SundayMufflerPage"));
 
+// 2026-05-06 wave-33 · Competitor comparison pages (high-intent
+// SEO capture for "[chain] alternative" + "vs" + roundup searches).
+// Honest comparisons in brand voice; FAQPage + LocalBusiness schema
+// on every page for AI-search citation.
+const ConradsAlternative = lazy(() => import("./pages/compare/ConradsAlternative"));
+const MavisAlternative = lazy(() => import("./pages/compare/MavisAlternative"));
+const DiscountTireAlternative = lazy(() => import("./pages/compare/DiscountTireAlternative"));
+const FirestoneAlternative = lazy(() => import("./pages/compare/FirestoneAlternative"));
+const MonroAlternative = lazy(() => import("./pages/compare/MonroAlternative"));
+const BigOAlternative = lazy(() => import("./pages/compare/BigOAlternative"));
+const NtbAlternative = lazy(() => import("./pages/compare/NtbAlternative"));
+const NicksVsConrads = lazy(() => import("./pages/compare/NicksVsConrads"));
+const NicksVsMavis = lazy(() => import("./pages/compare/NicksVsMavis"));
+const NicksVsFirestone = lazy(() => import("./pages/compare/NicksVsFirestone"));
+const BestTireShopsCleveland = lazy(() => import("./pages/compare/BestTireShopsCleveland"));
+const BestConradsAlternativesCleveland = lazy(() => import("./pages/compare/BestConradsAlternativesCleveland"));
+const ConradsVsMavis = lazy(() => import("./pages/compare/ConradsVsMavis"));
+const FirestoneVsDiscountTire = lazy(() => import("./pages/compare/FirestoneVsDiscountTire"));
+
 function Router() {
   const [location, setLocation] = useLocation();
 
@@ -345,6 +364,22 @@ function Router() {
             {/* Legal pages */}
             <Route path={"/privacy-policy"} component={PrivacyPolicy} />
             <Route path={"/terms"} component={Terms} />
+            {/* 2026-05-06 wave-33 · 14 competitor comparison pages */}
+            <Route path={"/conrads-tire-alternative-cleveland"} component={ConradsAlternative} />
+            <Route path={"/mavis-tire-alternative-cleveland"} component={MavisAlternative} />
+            <Route path={"/discount-tire-alternative-cleveland"} component={DiscountTireAlternative} />
+            <Route path={"/firestone-alternative-cleveland"} component={FirestoneAlternative} />
+            <Route path={"/monro-mr-tire-alternative-cleveland"} component={MonroAlternative} />
+            <Route path={"/big-o-tires-alternative-cleveland"} component={BigOAlternative} />
+            <Route path={"/ntb-alternative-cleveland"} component={NtbAlternative} />
+            <Route path={"/nicks-tire-vs-conrads-cleveland"} component={NicksVsConrads} />
+            <Route path={"/nicks-tire-vs-mavis-cleveland"} component={NicksVsMavis} />
+            <Route path={"/nicks-tire-vs-firestone-cleveland"} component={NicksVsFirestone} />
+            <Route path={"/best-tire-shops-cleveland"} component={BestTireShopsCleveland} />
+            <Route path={"/best-conrads-tire-alternatives-cleveland"} component={BestConradsAlternativesCleveland} />
+            <Route path={"/conrads-vs-mavis-tire-cleveland"} component={ConradsVsMavis} />
+            <Route path={"/firestone-vs-discount-tire-cleveland"} component={FirestoneVsDiscountTire} />
+
             <Route path={"/404"} component={NotFound} />
             {/* Final fallback route */}
             <Route component={NotFound} />
