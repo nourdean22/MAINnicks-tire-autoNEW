@@ -260,10 +260,17 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
               Reduces no-show rate via concrete-place anchoring. */}
           <div className="mx-auto max-w-md mt-4 rounded-lg overflow-hidden border border-foreground/10">
             <div className="relative h-[140px] sm:h-[160px]">
+              {/* 2026-05-06 wave-28 · brand-sign.webp is a 1600x239
+                  panorama. This h-[140-160px] band container is 6.7-7.7:1
+                  which is *close* to the image's 6.69:1, so cover almost
+                  fits — but at narrower viewports the aspect drifts and
+                  cropping appears. Switched to contain for predictable
+                  rendering across all viewports. */}
               <img
                 src="/brand-sign.webp"
                 alt="Nick's Tire & Auto storefront on Euclid Ave Cleveland — pull up to 17625 Euclid Ave"
-                className="absolute inset-0 w-full h-full object-cover object-center"
+                className="absolute inset-0 w-full h-full object-contain"
+                style={{ objectPosition: "center center" }}
                 loading="lazy"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />

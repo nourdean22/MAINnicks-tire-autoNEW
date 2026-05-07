@@ -634,10 +634,16 @@ export default function Financing() {
           The storefront photo answers that question without saying it. */}
       <section className="relative overflow-hidden">
         <div className="relative h-[360px] sm:h-[440px] lg:h-[500px] overflow-hidden">
+          {/* 2026-05-06 wave-28 · /brand-sign.webp is 1600x239 panorama
+              (6.69:1). At this h-[360-500px] band (~2.17-3:1) cover would
+              zoom 2x+ and crop the sides. Switched to contain so the
+              FULL sign + (216) 862-0005 reads. Same fix wave-27 applied
+              to SignFeature, PullUpBand, SiteFooter. */}
           <img
             src="/brand-sign.webp"
             alt="Nick's Tire & Auto storefront on Euclid Avenue Cleveland — payment programs on the spot at 17625 Euclid Ave"
-            className="absolute inset-0 w-full h-full object-cover object-center"
+            className="absolute inset-0 w-full h-full object-contain"
+            style={{ objectPosition: "center center" }}
             loading="lazy"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#111111] via-[#111111]/40 to-transparent" />
