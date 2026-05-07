@@ -20,7 +20,7 @@ export type AdminSection =
   | "commandCenter" | "overview" | "leads" | "content" | "customers"
   | "campaigns" | "settings" | "revenue" | "callTrackingView" | "intelligence"
   | "declinedEstimates" | "reEngagement" | "noShowRisk" | "walkInCalc"
-  | "snapDashboard" | "trafficFunnel" | "conversionPreview";
+  | "snapDashboard" | "trafficFunnel" | "conversionPreview" | "voiceReceptionist";
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -93,6 +93,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "overview", label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
       { id: "leads", label: "Leads & Estimates", icon: <Users className="w-4 h-4" />, badge: "leads" },
       { id: "callTrackingView", label: "Call Tracking", icon: <PhoneCall className="w-4 h-4" />, badge: "callbacks" },
+      { id: "voiceReceptionist", label: "Voice Receptionist", icon: <Phone className="w-4 h-4" /> },
       { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
     ],
   },
@@ -147,6 +148,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   settings: "Settings & System",
   revenue: "Revenue & Shop",
   callTrackingView: "Call Tracking",
+  voiceReceptionist: "Voice Receptionist",
   intelligence: "Intelligence",
   declinedEstimates: "Declined Work",
   reEngagement: "Re-engagement",
