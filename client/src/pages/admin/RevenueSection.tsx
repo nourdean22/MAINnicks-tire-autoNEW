@@ -15,6 +15,7 @@ import {
   Zap, Star, Clock, Activity, Plus, X, Trash2, Edit2, FileText, Search,
   ArrowRight, AlertTriangle, CheckCircle2, Wrench, CreditCard, Tag,
   MessageSquare, ArrowUp, ArrowDown, ChevronUp, ChevronDown,
+  Car, Phone, Mail, ExternalLink, Hash,
 } from "lucide-react";
 
 const SpecialsSection = lazy(() => import("./SpecialsSection"));
@@ -160,6 +161,10 @@ interface InvoiceItem {
   serviceDescription?: string;
   total: number;
   totalAmount?: number;
+  partsCost?: number;
+  laborCost?: number;
+  taxAmount?: number;
+  vehicleInfo?: string;
   paymentMethod?: string;
   paymentStatus?: string;
   source?: string;
@@ -907,6 +912,7 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<"date" | "amount">("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const { data, isLoading } = trpc.invoices.list.useQuery({ search: search || undefined, limit: 50 });
   const utils = trpc.useUtils();
 
@@ -987,9 +993,29 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
             </div>
             <div className="col-span-2"></div>
           </div>
-          {sortedItems.map((inv: InvoiceItem, _iIdx: number) => (
-            <div key={inv.id} className="stagger-in grid grid-cols-12 gap-2 items-center px-4 py-3 bg-card border border-border/20 hover:border-border/40 transition-colors" style={{ animationDelay: `${_iIdx * 40}ms` }}>
-              <div className="col-span-1 text-[10px] text-foreground/30">{inv.invoiceNumber || inv.id}</div>
+          {sortedItems.map((inv: InvoiceItem, _iIdx: number) => {
+            const isExpanded = expandedId === inv.id;
+            const total = inv.totalAmount ?? inv.total ?? 0;
+            const parts = inv.partsCost ?? 0;
+            const labor = inv.laborCost ?? 0;
+            const tax = inv.taxAmount ?? 0;
+            const partsPct = total > 0 ? Math.round((parts / total) * 100) : 0;
+            const laborPct = total > 0 ? Math.round((labor / total) * 100) : 0;
+            const taxPct = total > 0 ? Math.round((tax / total) * 100) : 0;
+            return (
+            <React.Fragment key={inv.id}>
+            <div
+              className={`stagger-in grid grid-cols-12 gap-2 items-center px-4 py-3 bg-card border ${isExpanded ? "border-primary/30" : "border-border/20 hover:border-border/40"} transition-colors cursor-pointer`}
+              style={{ animationDelay: `${_iIdx * 40}ms` }}
+              onClick={() => setExpandedId(isExpanded ? null : inv.id)}
+            >
+              <div className="col-span-1 text-[10px] text-foreground/30 flex items-center gap-1">
+                {isExpanded
+                  ? <ChevronUp className="w-3 h-3 text-primary shrink-0" />
+                  : <ChevronDown className="w-3 h-3 text-foreground/20 shrink-0" />
+                }
+                {inv.invoiceNumber || inv.id}
+              </div>
               <div className="col-span-3">
                 <span className="font-bold text-xs text-foreground block truncate">{inv.customerName}</span>
                 {inv.customerPhone && <span className="font-mono text-[9px] text-foreground/30">{inv.customerPhone}</span>}
@@ -1009,14 +1035,14 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
                   {inv.paymentStatus?.toUpperCase()}
                 </span>
               </div>
-              <div className="col-span-1 font-bold text-sm text-primary">{formatCents(inv.totalAmount ?? inv.total ?? 0)}</div>
+              <div className="col-span-1 font-bold text-sm text-primary">{formatCents(total)}</div>
               <div className="col-span-1 text-[9px] text-foreground/30">
                 {new Date(inv.invoiceDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               </div>
-              <div className="col-span-2 flex items-center gap-1 justify-end">
+              <div className="col-span-2 flex items-center gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
                 {(inv.paymentStatus === "pending" || inv.paymentStatus === "partial") && inv.customerPhone && (
                   <a
-                    href={`sms:${inv.customerPhone}?body=Hi ${inv.customerName?.split(" ")[0] || ""}, this is Nick's Tire %26 Auto. Your invoice of ${formatCents(inv.totalAmount ?? inv.total ?? 0)} is still outstanding. Reply or call us to settle. Thanks!`}
+                    href={`sms:${inv.customerPhone}?body=Hi ${inv.customerName?.split(" ")[0] || ""}, this is Nick's Tire %26 Auto. Your invoice of ${formatCents(total)} is still outstanding. Reply or call us to settle. Thanks!`}
                     className="p-1 text-foreground/20 hover:text-blue-400 transition-colors"
                     title="SMS follow-up"
                   >
@@ -1034,7 +1060,118 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
                 </button>
               </div>
             </div>
-          ))}
+            {/* Expanded detail panel — shows breakdown we capture from ALG */}
+            {isExpanded && (
+              <div className="stagger-in bg-background/40 border-l-2 border-primary/30 px-6 py-4 -mt-1 mb-1 space-y-3">
+                {/* Vehicle + Customer secondary info */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1">
+                      <Car className="w-3 h-3 inline mr-1" />VEHICLE
+                    </span>
+                    <span className="text-xs text-foreground">
+                      {inv.vehicleInfo || <span className="italic text-foreground/30">No vehicle on invoice</span>}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1">
+                      <Hash className="w-3 h-3 inline mr-1" />SOURCE
+                    </span>
+                    <span className="text-xs text-foreground/70 uppercase">
+                      {inv.source || "manual"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1">
+                      <Calendar className="w-3 h-3 inline mr-1" />DATE
+                    </span>
+                    <span className="text-xs text-foreground/70">
+                      {new Date(inv.invoiceDate).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Cost breakdown */}
+                <div>
+                  <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-2">
+                    <DollarSign className="w-3 h-3 inline mr-1" />COST BREAKDOWN
+                  </span>
+                  {(parts > 0 || labor > 0 || tax > 0) ? (
+                    <div className="space-y-2">
+                      {/* Visual proportion bar */}
+                      <div className="flex h-2 bg-foreground/5 overflow-hidden">
+                        {parts > 0 && <div className="bg-blue-500/60" style={{ width: `${partsPct}%` }} title={`Parts ${partsPct}%`} />}
+                        {labor > 0 && <div className="bg-emerald-500/60" style={{ width: `${laborPct}%` }} title={`Labor ${laborPct}%`} />}
+                        {tax > 0 && <div className="bg-amber-500/60" style={{ width: `${taxPct}%` }} title={`Tax ${taxPct}%`} />}
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="bg-card border border-border/20 p-2.5">
+                          <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-0.5">PARTS</span>
+                          <div className="flex items-baseline gap-2">
+                            <span className="font-bold text-base text-blue-400">{parts > 0 ? formatCents(parts) : "—"}</span>
+                            {parts > 0 && <span className="text-[9px] text-foreground/40">{partsPct}%</span>}
+                          </div>
+                        </div>
+                        <div className="bg-card border border-border/20 p-2.5">
+                          <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-0.5">LABOR</span>
+                          <div className="flex items-baseline gap-2">
+                            <span className="font-bold text-base text-emerald-400">{labor > 0 ? formatCents(labor) : "—"}</span>
+                            {labor > 0 && <span className="text-[9px] text-foreground/40">{laborPct}%</span>}
+                          </div>
+                        </div>
+                        <div className="bg-card border border-border/20 p-2.5">
+                          <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-0.5">TAX</span>
+                          <div className="flex items-baseline gap-2">
+                            <span className="font-bold text-base text-amber-400">{tax > 0 ? formatCents(tax) : "—"}</span>
+                            {tax > 0 && <span className="text-[9px] text-foreground/40">{taxPct}%</span>}
+                          </div>
+                        </div>
+                        <div className="bg-card border border-primary/30 p-2.5">
+                          <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-0.5">TOTAL</span>
+                          <span className="font-bold text-base text-primary">{formatCents(total)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-foreground/40 italic">
+                      No parts/labor breakdown on this invoice. (ALG returns rolled-up totals only — for the full job/tire breakdown, click "OPEN IN ALG" below.)
+                    </p>
+                  )}
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/10">
+                  {inv.customerPhone && (
+                    <>
+                      <a
+                        href={`tel:${inv.customerPhone}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-wider bg-card border border-border/30 text-foreground/60 hover:text-primary hover:border-primary/30 transition-colors"
+                      >
+                        <Phone className="w-3 h-3" /> CALL
+                      </a>
+                      <a
+                        href={`sms:${inv.customerPhone}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-wider bg-card border border-border/30 text-foreground/60 hover:text-blue-400 hover:border-blue-400/30 transition-colors"
+                      >
+                        <MessageSquare className="w-3 h-3" /> SMS
+                      </a>
+                    </>
+                  )}
+                  <a
+                    href="https://secure.autolaborexperts.com/recent"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-wider bg-card border border-purple-500/20 text-purple-400 hover:bg-purple-500/5 transition-colors"
+                    title="Opens ALG Recent Tickets — search for this invoice number to see the full line-item breakdown"
+                  >
+                    <ExternalLink className="w-3 h-3" /> OPEN IN ALG
+                  </a>
+                </div>
+              </div>
+            )}
+            </React.Fragment>
+            );
+          })}
           <div className="text-center py-2">
             <span className="font-mono text-[9px] text-foreground/20">{data?.total ?? 0} total invoices</span>
           </div>
