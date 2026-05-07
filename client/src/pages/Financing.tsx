@@ -694,7 +694,11 @@ export default function Financing() {
           customers comparing pricing pages and wondering "is this real?"
           The storefront photo answers that question without saying it. */}
       <section className="relative overflow-hidden">
-        <div className="relative h-[360px] sm:h-[440px] lg:h-[500px] overflow-hidden">
+        {/* 2026-05-06 wave-30 · mobile h-[360px] over-letterboxed the
+            contain'd 6.69:1 panorama. Trimmed mobile to h-[220px] so the
+            sign reads at a useful size on phones; sm+ keeps the dramatic
+            bands. */}
+        <div className="relative h-[220px] sm:h-[360px] lg:h-[440px] overflow-hidden">
           {/* 2026-05-06 wave-28 · /brand-sign.webp is 1600x239 panorama
               (6.69:1). At this h-[360-500px] band (~2.17-3:1) cover would
               zoom 2x+ and crop the sides. Switched to contain so the

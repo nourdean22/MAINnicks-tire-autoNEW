@@ -18,7 +18,11 @@ export default function SiteFooter() {
       {/* Voice-led "pull up" overlay turns a global trust strip into a final-impression
           memory anchor before the user leaves the page. The photo does the heavy lifting:
           real building, real Euclid Ave block, real phone number visible in the sign. */}
-      <div className="relative h-[220px] sm:h-[300px] lg:h-[360px] overflow-hidden bg-[#0B0B0B]">
+      {/* 2026-05-06 wave-30 · mobile h-[220px] left visible letterbox above
+          and below the contain'd 6.69:1 panorama. Tightened mobile to
+          h-[160px] so the sign fills more of the visible area; sm+ keeps
+          taller bands where the wider viewport absorbs the letterbox. */}
+      <div className="relative h-[160px] sm:h-[240px] lg:h-[320px] overflow-hidden bg-[#0B0B0B]">
         {/* 2026-05-06 wave-27 · /brand-sign.webp is 1600×239 (panorama,
             aspect 6.69:1). Inside the footer banner (1090×220–360,
             aspect ~3–5:1) object-fit:cover would zoom 1.5–4× and clip
