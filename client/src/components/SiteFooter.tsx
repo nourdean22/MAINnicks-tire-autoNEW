@@ -183,6 +183,11 @@ export default function SiteFooter() {
                   { href: "/diagnose", label: "Diagnose My Car" },
                   { href: "/financing", label: "Payment Programs" },
                   { href: "/specials", label: "Specials" },
+                  // 2026-05-06 wave-34 · entry point to the comparison hub
+                  // (14 honest competitor comparisons). Internal link gives
+                  // Googlebot a crawl path beyond the sitemap and a real
+                  // user-discoverable nav route.
+                  { href: "/best-tire-shops-cleveland", label: "Compare Cleveland Tire Shops" },
                   { href: "/careers", label: "Careers" },
                   { href: "/estimate", label: "Cost Estimator" },
                   { href: "/fleet", label: "Fleet" },
