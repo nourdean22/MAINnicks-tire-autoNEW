@@ -3923,6 +3923,77 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     ],
     relatedServices: ["/fleet"],
     tags: ["fleet maintenance Cleveland", "fleet repair program", "commercial vehicle maintenance", "fleet tire service", "business vehicle repair"]
+  },
+  // 2026-05-06 wave-35 · PILLAR ARTICLE #1 — "Complete Cleveland Tire
+  // Guide". Hub-and-spoke topology: this 2500+ word pillar covers every
+  // major tire decision a Cleveland driver makes, with topical bridges
+  // to ~6 existing supporting articles (when-to-replace-tires,
+  // winter-tires-cleveland, best-tires-for-cleveland-winter, used-tires-
+  // cleveland-guide, how-often-rotate-tires, tpms-sensor-replacement-
+  // cost, run-flat-tires-vs-regular, used-tires-near-me-cleveland).
+  // First of three pillars planned per the SEO authority cluster build.
+  {
+    slug: "complete-cleveland-tire-guide",
+    title: "The Complete Cleveland Tire Guide",
+    metaTitle: "Cleveland Tire Guide · Sidewall to Salt Damage | Nick's",
+    metaDescription: "Reading the sidewall, used vs new math, Cleveland pothole reality, the chains' free-services trap — honest tire guide from a mechanic on Euclid Ave.",
+    category: "Tires",
+    publishDate: "2026-05-06",
+    readTime: "12 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-tires-AWxeiFZmv6FQocUMfiJvWb.webp",
+    excerpt: "Most tire guides are written by tire chains. This one isn't. The sidewall numbers, the used-vs-new math, the chain free-services trap, the Cleveland pothole reality, and how to actually pick a shop — from a mechanic-owned shop on Euclid Ave.",
+    sections: [
+      {
+        heading: "Why this guide exists",
+        content: "Most tire guides on the internet are written by tire chains. Read one start to finish and you'll notice the same thing: every section ends with a recommendation to buy tires from the chain that wrote it. That's not a guide. That's a brochure with paragraphs. The actual knowledge a Cleveland driver needs — what the sidewall numbers mean, when used tires beat new ones, whether you really need dedicated winter tires for your Ohio commute, what the free-services warranty actually costs you in flexibility — that part rarely gets written down honestly. So we wrote it. Twelve sections, no upsell, mechanic-owned shop on Euclid Ave. Read what's useful, skip what isn't, pull up when you're ready."
+      },
+      {
+        heading: "Reading the sidewall — every number explained",
+        content: "Look at any tire and you'll see a string like 215/55R16 91H or 235/65R17 104H. Six pieces of information packed into ten characters. The first number (215) is the tire width in millimeters from sidewall to sidewall. The second (55) is the aspect ratio — sidewall height as a percentage of width, so 55% of 215mm = 118mm sidewall. The R means radial construction (every modern tire). The next number (16) is the wheel diameter in inches. The 91 is the load index — how much weight the tire can carry (91 = 1,356 lbs per tire). The H is the speed rating (H = 130 mph max, V = 149, W = 168, Y = 186). Speed ratings matter even if you'll never go that fast — higher ratings mean stiffer sidewalls, which absorb pothole impacts better and resist sidewall blowouts. Cleveland drivers should not go below H rating on a passenger car."
+      },
+      {
+        heading: "The used-tire math the chains don't show you",
+        content: "Most tire chains don't sell used tires. Corporate policy. The reasons are real — liability, warranty consistency, brand standards. We respect that. But the math the chains don't show you: a used tire from $60 installed × 4 = $240 out the door. A comparable new tire at $200 each + $80 install fees = $880. Same car. Same driving. $640 difference. Used tires are not always the right call — bald is bald, age cracking is age cracking, and a used tire on a high-speed-rated sports car probably isn't a fit. But for the Toyota Camry that does 12 miles a day on Euclid Ave, a $60 used tire with 7/32\" of tread will outlast the $200 new one's relevance to the car's resale value. We sell used tires from $60 installed at Nick's, and every used tire passes a 4-point inspection (tread depth, sidewall integrity, bead seat, age date) stricter than the Ohio driver's test. If a used tire is wrong for your car, we tell you and put new ones on instead."
+      },
+      {
+        heading: "Winter, all-season, all-weather — the Ohio reality",
+        content: "Tire chains push dedicated winter tires hard. The reality for most Cleveland drivers: a quality all-season tire handles 90% of Ohio winters fine. Where dedicated winter tires actually pay off is the 10% — Snowbelt commutes through Chesterland or Chardon, hilly streets in Cleveland Heights and Shaker Heights that don't get salted as fast, drivers who absolutely cannot risk being late after a lake-effect dump. The middle option that almost nobody talks about: all-weather tires (look for the Three Peak Mountain Snowflake symbol on the sidewall — 3PMSF). These are all-season tires that have passed actual winter traction testing. Better than regular all-seasons, less expensive than dedicated winters, no need to swap tires twice a year. For most Cleveland drivers without a Snowbelt commute, a 3PMSF-rated all-weather is the right answer. We help match tires to your actual commute, not the chain's monthly tire-rotation promo."
+      },
+      {
+        heading: "When to replace — the penny test isn't enough",
+        content: "The Lincoln penny test (insert head-down, replace if you see Lincoln's whole head) measures down to 2/32 inch — the legal minimum. The honest threshold is 4/32 inch. Studies from Consumer Reports and AAA both show wet-traction performance falls off a cliff between 4 and 2/32 — stopping distances at highway speed double in the rain. Replace at 4/32, not 2/32. Use a quarter (replace if you see Washington's whole head) instead of a penny — that gives you the right cutoff. Beyond tread depth, age matters. Rubber compound degrades regardless of how much tread is left. The 4-digit DOT code on the sidewall (after 'DOT' and a few letters/numbers, ends in WWYY format) tells you the manufacture week and year. A tire stamped 3719 was made the 37th week of 2019. Replace any tire over 6 years old even if the tread looks fine — sidewall integrity drops past that point and pothole sidewall blowouts become a real risk on Cleveland roads."
+      },
+      {
+        heading: "The 'free services' trap vs honest free services",
+        content: "Discount Tire's free flat repair, free balance, free rotation for the lifetime of the tire is genuinely valuable — IF you stay loyal forever. The trap: you can't take that warranty to the shop closer to your office, or the indie shop your buddy recommends, or to Nick's on Euclid Ave when your tire blows on a Sunday and Discount Tire is closed. Lifetime warranties chain you. Honest free services don't. At Nick's, every tire we install — new or used — gets free mount, free balance, free valve stems, free TPMS reset, and a free alignment check. Same visit, no warranty paperwork, no lifetime lock-in. Different model: pay fair market on the tire, get the install services bundled honestly. If you're a Discount Tire loyalist who lives near a store and won't ever shop elsewhere, their model is great. If you want the option to walk into any tire shop in town, ours is."
+      },
+      {
+        heading: "Tire rotation — every 5,000 miles, every time",
+        content: "Tires don't wear evenly. Front tires on a front-wheel-drive car (the majority of cars on Cleveland roads) wear ~30% faster than rear because they handle steering, braking, and most of the vehicle's weight. Skip rotations and the front tires hit the replacement threshold while the rears still have 50% of their tread. That's $400-800 of rear tire life thrown away. Rotation interval: every 5,000 miles, every oil change, every time. Cost: $20-40 at most shops, free with any service at Nick's. Pattern: front-wheel-drive cars cross-rotate (front tires go to opposite-side rear, rear tires move straight forward). Rear-wheel and all-wheel drive use different patterns. Don't overthink it — your shop knows. Just don't skip it. A $20 rotation every 5,000 miles is the cheapest tire-life extender available."
+      },
+      {
+        heading: "TPMS sensors — what they cost, why salt matters",
+        content: "Tire pressure monitoring system (TPMS) sensors are the small electronic units inside each wheel that report air pressure to your dashboard. Federal law has required them since 2008. Cleveland salt + freeze-thaw cycle eats the aluminum valve stems on TPMS sensors faster than in milder climates. Typical TPMS sensor lifespan: 5-10 years. When they fail, you'll see the TPMS warning light stay on permanently or flash on startup. Replacement cost: $40-80 per sensor + $20-30 install per wheel. Skip the replacement and you can technically drive — but you lose the early warning for slow leaks (which Cleveland potholes cause regularly), wrong tire pressure costs you 1-3% fuel economy, and underinflation accelerates tire wear by ~20%. The TPMS light isn't a suggestion. We replace TPMS sensors as part of normal tire installs at Nick's — show up, we'll quote it in writing before any wrench moves."
+      },
+      {
+        heading: "Run-flat vs regular — when each makes sense",
+        content: "Run-flat tires let you drive 50 miles at 50 mph after a complete air loss. The trade-offs: ride is harder, prices are 30-50% higher, replacement options are narrower, repairs after a puncture aren't always possible. BMW, MINI, some Mercedes, and a few other brands come with run-flats from the factory. The factory case for run-flats: those cars often don't include a spare tire, so without run-flats you're stranded after a puncture. The case against run-flats: if you don't mind the spare-tire-and-jack drill (or have AAA), regular tires give you smoother ride, lower cost, and broader replacement options. You can switch a BMW from run-flats to regular tires — no engineering reason it won't work. The car will ride better and tire bills will drop. Just make sure you have a spare or a roadside-assistance plan, because a flat in regular tires means you're not driving home on it."
+      },
+      {
+        heading: "The Cleveland pothole reality",
+        content: "Tire shops in Cleveland do 3-4x the bent-rim, sidewall-bulge, and alignment-knocked-out business of tire shops in Phoenix. Salt corrodes road surfaces. Freeze-thaw cycles open potholes faster than the city can patch. Peak pothole season is February through April when the cold cracks have widened but the warm spring patches haven't started. Pothole damage shows up four ways: sidewall bulge (visible bubble on the side of the tire — replace immediately, it's a blowout waiting to happen), slow leak (tire loses 5-15 PSI per week — usually a bead-seat issue or a small sidewall puncture), balance issue (steering wheel shake at 55-65 mph — wheel weight got knocked off or the rim is bent), alignment knocked out (car pulls left or right when driving straight, or steering wheel is off-center on a straight road). Best protection: tires with sidewall aspect ratios of 55 or higher (more sidewall = more impact absorption). Lower aspect ratios (40, 35, 30) look sportier but transmit more impact to the rim — a Cleveland-pothole-magnet on Euclid Ave doesn't care that your wheels are 19-inch."
+      },
+      {
+        heading: "How to pick a tire shop",
+        content: "Chains are fine for some things. National warranty (you can get the same tire serviced anywhere). Brand familiarity. Location density. Coupons. Independents are better at other things. Transparent pricing without coupon games. Walk-in flexibility without appointment friction. Used-tire access. Sunday hours (most chains close). Written estimate before any wrench moves. Red flags at any shop: advertised tire price without total-ticket disclosure (the labor + valve stems + TPMS service + disposal fees that get added at checkout). Recommended-services list that grows mid-job past your authorization. 'While we have it on the lift' upsell pressure on adjacent work. Closed Sunday in a 7-day-a-week economy. Green flags: estimate hits your hand in writing before installation. Mechanic shows you the worn part with a flashlight before recommending replacement. Honest about when a $60 used tire fits vs when new is the right call. Open when you're not at work."
+      },
+      {
+        heading: "Pull up to Nick's",
+        content: "Nick's Tire & Auto is at 17625 Euclid Ave, Cleveland, OH 44112. Open Mon-Sat 8am-6pm and Sunday 9am-4pm. The chains close. We don't. First-come-first-served — no appointment system, walk in any day we're awake. Used tires from $60 installed (mount, balance, valve stems, TPMS reset, alignment check, all free). New tires at competitive market rate, with the labor disclosed in writing before the wrench moves. Drop the car off and we'll Uber you back to work; call when it's ready. The yellow sign on Euclid Ave you've probably driven past. (216) 862-0005."
+      }
+    ],
+    relatedServices: ["/tires", "/used-tires-cleveland", "/new-tires-cleveland", "/alignment", "/best-tire-shops-cleveland"],
+    tags: ["Cleveland tire guide", "how to buy tires Cleveland", "tire sizing guide", "tire sidewall numbers", "Ohio winter tires", "Cleveland pothole tire damage", "used vs new tires Cleveland", "tire rotation Cleveland", "TPMS sensors", "all-weather tires Ohio"]
   }
 ];
 
