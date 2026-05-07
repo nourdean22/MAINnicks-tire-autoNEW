@@ -72,8 +72,14 @@ const CORE_PAGES: RouteEntry[] = [
     path: "/contact",
     priority: 0.8,
     changefreq: "monthly",
-    title: "Contact Nick's Tire & Auto — Cleveland OH",
-    description: "Visit Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112. Call (216) 862-0005. Open Mon-Sat 8AM-6PM, Sun 9AM-4PM. Walk-ins welcome.",
+    // 2026-05-07 GSC tune: was "Contact Nick's Tire & Auto — Cleveland OH"
+    // — generic brand-led title got 493 impressions / 0 clicks in 90 days.
+    // Google was showing this page for "phone / hours / address" intent
+    // queries; the title didn't promise to answer those. Front-loading
+    // the actual phone number + address + 7-day-open signal so the SERP
+    // result IS the answer the searcher was looking for.
+    title: "Nick's Tire & Auto · (216) 862-0005 · 17625 Euclid Ave",
+    description: "Call Nick's Tire & Auto at (216) 862-0005. 17625 Euclid Ave, Cleveland OH 44112. Mon-Sat 8a-6p, Sun 9a-4p. Walk-ins 7 days. Free written estimate before any work.",
     group: "core",
     sitemap: true,
     prerender: true,
@@ -163,8 +169,16 @@ const SERVICE_PAGES: RouteEntry[] = [
     path: "/diagnostics",
     priority: 0.9,
     changefreq: "monthly",
-    title: "Check Engine Light Cleveland — Free Code Scan | Nick's Tire",
-    description: "Check engine light on in Cleveland? Free OBD-II scan, exact-cause diagnosis. ★4.9 from 1,700+ reviews. Same-day diagnosis. Walk-ins 7 days. (216) 862-0005",
+    // 2026-05-07 GSC tune: was "Check Engine Light Cleveland — Free Code
+    // Scan" — got 430 impressions / 0 clicks in 90 days, indicating the
+    // title was too narrow (check-engine-only) for the broader "car
+    // diagnostic / OBD scan / code pull" queries Google was matching.
+    // Also competing with the dedicated /check-engine-light-diagnostic
+    // page. Broadening to cover the full diagnostic intent space, and
+    // anchoring on the brand-voice differentiator ("real cause" not
+    // parts-cannon) which is the actual reason customers switch to us.
+    title: "Car Diagnostic Cleveland · Code Pull + Real Cause | Nick's",
+    description: "Cleveland car diagnostic at Nick's Tire & Auto — free OBD code pull, real diagnosis (not parts cannon). ★4.9 · 1,700+ reviews. Walk-ins 7 days. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -402,10 +416,17 @@ const CITY_PAGES: RouteEntry[] = [
     path: "/parma-auto-repair",
     priority: 0.8,
     changefreq: "monthly",
-    // High impression page (12K+ imps in 14d) — was at pos 27 with 0 clicks.
-    // Adding ★ rating + price anchors + drive-time as trust/intent signals.
-    title: "Parma Auto Repair — ★4.9 from 1,700+ Reviews | Nick's Tire",
-    description: "Top auto repair near Parma OH. ★4.9 from 1,700+ reviews. Tires from $60, brakes from $149, oil from $39. Walk-ins 7 days. 20 min from Parma. (216) 862-0005",
+    // 2026-05-07 GSC tune (second pass): previous tune (★4.9 from 1,700+
+    // Reviews) ran 736 impressions / 2 clicks at 0.27% CTR — still
+    // underperforming. Hypothesis: searchers for "Parma auto repair"
+    // want LOCAL TO PARMA, and Nick's is on Cleveland's East Side ~20 min
+    // away. The geography mismatch kills CTR no matter how good the
+    // reviews are. Reframing the title around the SPECIFIC value props
+    // that overcome the geography (price + Sunday hours that local Parma
+    // shops don't offer). The drive-time bait isn't enough; the
+    // money-and-time bait might be.
+    title: "Parma Auto Repair · Used Tires $60 · Open Sundays | Nick's",
+    description: "Parma drivers — Nick's Tire & Auto. Used tires from $60 installed (chains won't sell them). Open Sundays 9a-4p when local shops close. ★4.9 · 1,700+ reviews. (216) 862-0005",
     group: "city",
     sitemap: true,
     prerender: true,
