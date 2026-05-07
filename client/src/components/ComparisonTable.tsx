@@ -3,7 +3,8 @@
  * Desktop: full table. Mobile: card-based layout.
  * Dark background, gold accent for Nick's column.
  */
-import { Check, X, AlertTriangle } from "lucide-react";
+import { Check, X, AlertTriangle, ArrowRight } from "lucide-react";
+import { Link } from "wouter";
 import { BUSINESS } from "@shared/business";
 
 type Status = "yes" | "no" | "warn";
@@ -141,6 +142,26 @@ export default function ComparisonTable() {
         <div className="max-w-3xl mx-auto bg-[#141414] border border-[#2A2A2A] rounded-2xl p-4 lg:p-6">
           <DesktopTable />
           <MobileCards />
+        </div>
+
+        {/* 2026-05-06 wave-39 · funnel home-page visitors to the named
+            comparison hub. The table above is generic (Nick's vs
+            Dealership vs Chain Shop). The hub names the actual chains —
+            Conrad's, Mavis, Firestone, NTB, Discount Tire, Monro, Big O
+            — and runs head-to-head on each. Highest-traffic surface on
+            the site → 14 high-intent comparison pages. */}
+        <div className="max-w-3xl mx-auto mt-8 text-center">
+          <p className="text-foreground/55 text-sm sm:text-base mb-4 body-pretty">
+            Want the named matchup? See how Nick's compares to Conrad's, Mavis,
+            Firestone, NTB, Discount Tire, Monro, and Big O — head-to-head, no spin.
+          </p>
+          <Link
+            href="/best-tire-shops-cleveland"
+            className="group inline-flex items-center gap-2 bg-[#FDB913] text-[#0A0A0A] px-6 py-3 rounded-lg font-bold text-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:shadow-[0_4px_20px_rgba(253,185,19,0.4)] active:scale-[0.98]"
+          >
+            See the named comparison
+            <ArrowRight className="w-4 h-4 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-1" />
+          </Link>
         </div>
       </div>
     </section>
