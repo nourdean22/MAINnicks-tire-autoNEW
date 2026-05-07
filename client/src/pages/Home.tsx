@@ -226,32 +226,23 @@ function Hero() {
               Red CALL NOW · Yellow SCHEDULE DROP-OFF · Outline GET DIRECTIONS.
               Mobile thumb-tested. "SCHEDULE DROP-OFF" is the FCFS-affirming
               substitute for "Book" / "Reserve" / "Hold a Bay" (banned). */}
-          {/* 2026-05-06 wave-31 · hero CTAs upgraded with agency-tier
-              magnetic physics:
-              · custom cubic-bezier (0.32, 0.72, 0, 1) — simulates real
-                spring/mass instead of linear/ease-in-out
-              · active:scale-[0.98] — tactile press feedback
-              · group-hover translate on the conversion CTA's nested
-                ArrowRight badge — the icon physically advances toward
-                the booking section the moment the cursor enters
-              · SCHEDULE DROP-OFF gets a button-in-button trailing arrow
-                in a black/12 nested square so the conversion CTA wins
-                the visual race against the red CALL NOW chip */}
+          {/* 2026-05-06 wave-32 · hero CTAs reordered per ui-ux principle:
+              SCHEDULE DROP-OFF moves to FIRST position — this is the
+              lowest-friction primary conversion (form drop + Uber
+              pickup) and already wins the visual race with the
+              wave-31 button-in-button arrow. CALL NOW slides to second
+              as the high-intent / urgent fallback. GET DIRECTIONS
+              stays last as the navigational reference.
+
+              Magnetic physics from wave-31 preserved on all three:
+              custom cubic-bezier, active:scale, group-hover icon
+              choreography. */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.7, ease: "easeOut" }}
             className="mt-8 flex flex-col sm:flex-row gap-3"
           >
-            <a
-              href={BUSINESS.phone.href}
-              onClick={() => trackPhoneClick("hero")}
-              className="group inline-flex items-center justify-center gap-2 bg-red-500 text-white px-7 py-3.5 rounded-lg font-bold text-lg shadow-[0_4px_24px_rgba(239,68,68,0.35)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-red-600 hover:shadow-[0_6px_32px_rgba(239,68,68,0.45)] active:scale-[0.98] btn-premium"
-              aria-label={`Call Nick's Tire and Auto at ${BUSINESS.phone.display}`}
-            >
-              <Phone className="w-5 h-5 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:rotate-[-8deg]" />
-              CALL NOW
-            </a>
             <a
               href="#booking"
               className="group relative inline-flex items-center bg-[#FDB913] text-[#0A0A0A] pl-7 pr-2 py-2 rounded-lg font-bold text-lg shadow-[0_4px_24px_rgba(253,185,19,0.35)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[#FDB913] hover:shadow-[0_6px_32px_rgba(253,185,19,0.55)] active:scale-[0.98] btn-premium"
@@ -261,6 +252,15 @@ function Hero() {
               <span className="ml-2 inline-flex items-center justify-center w-9 h-9 rounded-md bg-black/12 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-1 group-hover:-translate-y-[1px] group-hover:bg-black/16">
                 <ArrowRight className="w-4 h-4" />
               </span>
+            </a>
+            <a
+              href={BUSINESS.phone.href}
+              onClick={() => trackPhoneClick("hero")}
+              className="group inline-flex items-center justify-center gap-2 bg-red-500 text-white px-7 py-3.5 rounded-lg font-bold text-lg shadow-[0_4px_24px_rgba(239,68,68,0.35)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-red-600 hover:shadow-[0_6px_32px_rgba(239,68,68,0.45)] active:scale-[0.98] btn-premium"
+              aria-label={`Call Nick's Tire and Auto at ${BUSINESS.phone.display}`}
+            >
+              <Phone className="w-5 h-5 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:rotate-[-8deg]" />
+              CALL NOW
             </a>
             <a
               href="https://www.google.com/maps/dir//Nick's+Tire+And+Auto+Euclid,+17625+Euclid+Ave,+Cleveland,+OH+44112"
@@ -357,7 +357,7 @@ function TrustNumbers() {
 // ─── USED TIRES CALLOUT — "Too good to be true" hook ────
 function UsedTiresCallout() {
   return (
-    <section className="bg-[#FDB913] py-12 lg:py-16 relative overflow-hidden">
+    <section className="bg-[#FDB913] py-20 lg:py-28 relative overflow-hidden">
       {/* CSS-only spinning tire decoration — pure border-radius +
           conic-gradient + radial, zero asset bytes. Sells the
           dimensional feel without WebGL or GLB downloads. Hidden
@@ -857,7 +857,7 @@ function WeatherBanner() {
 // Tone gradient: danger (red) for urgent / warning (amber) / info (yellow).
 function TriageGrid() {
   return (
-    <section className="bg-[oklch(0.055_0.004_260)] py-16 lg:py-20 border-t border-border/30">
+    <section className="bg-[oklch(0.055_0.004_260)] py-20 lg:py-32 border-t border-border/30">
       <div className="container">
         <FadeIn>
           <div className="text-center mb-10">
@@ -1040,7 +1040,7 @@ function SafetyFactsSection() {
 // directly into the financing CTA.
 function LossOpportunitySection() {
   return (
-    <section className="bg-background py-16 border-t border-border/30">
+    <section className="bg-background py-20 lg:py-28 border-t border-border/30">
       <div className="container">
         <FadeIn>
           <div className="text-center mb-10 max-w-2xl mx-auto">

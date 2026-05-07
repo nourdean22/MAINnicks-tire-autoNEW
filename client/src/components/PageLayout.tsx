@@ -33,6 +33,18 @@ export default function PageLayout({
 
   return (
     <div className="min-h-screen flex flex-col">
+      {/* 2026-05-06 wave-32 · site-wide ambient grain layer.
+          A fixed pointer-events-none pseudo-element sits above the
+          background but below all interactive content (z-30 keeps it
+          under sticky nav z-50 + modals). 3% opacity with mix-blend
+          overlay sells the "real photo on Euclid Ave" texture across
+          every page surface — the hero already has a similar
+          .photo-grain class scoped to itself; this generalizes it.
+          Performance-safe: GPU-only, no scroll listeners, no reflow. */}
+      <div
+        className="pointer-events-none fixed inset-0 z-30 photo-grain opacity-[0.04] mix-blend-overlay"
+        aria-hidden="true"
+      />
       {/* ScrollProgressBar — yellow fill + rolling CSS tire on desktop.
           Ambient brand reinforcement on every customer-facing page. */}
       <ScrollProgressBar />
