@@ -218,6 +218,13 @@
       "when": 1778073645869,
       "tag": "0030_flat_xavin",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1778270400000,
+      "tag": "0031_wave97_invoice_alg_indexes",
+      "breakpoints": true
     }
   ]
 }
