@@ -159,20 +159,22 @@ Wave 22-61 deploys completed. Verified:
 
 ### Operational (Nour does these — not Claude-shippable)
 
-| Item | Effort | Notes |
-|---|---|---|
-| `pnpm add @sentry/react` + DSN env var | 15 min | Server-side Sentry shim ready |
-| GSC URL Inspection on remaining 12 pages | ~5 min/day for 3 days | Throttled to 10/day |
-| Stack confirmation: MySQL or Postgres? | info | Schema is MySQL but memory says Postgres; affects optimization patterns |
-| Run `pnpm test:ai-evals` to validate blog seeder | 1 min | Eval harness shipped wave-62 |
+Refreshed wave-84 against current state:
+
+| Item | Status |
+|---|---|
+| ~~`pnpm add @sentry/react` + DSN env var~~ | 🚫 Dropped — Nour not paying for Sentry |
+| GSC URL Inspection on remaining 12 pages + 3 pillars | ✅ Done waves 83-84 — 17/17 INDEXED |
+| ~~Stack confirmation: MySQL or Postgres?~~ | ✅ Done wave-64 — confirmed MySQL/TiDB |
+| Run `pnpm test:ai-evals` to validate blog seeder | ⏸ Need Venice key in local .env (or comment out OPENAI_BASE_URL to fall back to OpenAI) |
 
 ### Code (Claude-shippable but not done this session)
 
 | Item | Reason | Recommended |
 |---|---|---|
-| Sentry client SDK install in main.tsx | Requires `pnpm add` (Nour) | Ship after install lands |
-| Apply DATABASE_AUDIT.md indexes via migration | Requires stack confirmation | Ship after Nour confirms MySQL vs Postgres |
-| Apply AdminStatCard to OverviewSection KPIs | Refactor risk in 1852-line file | Incremental: do as ad-hoc work touches sections |
+| ~~Sentry client SDK install in main.tsx~~ | 🚫 Dropped — not paying for Sentry |
+| Apply DATABASE_AUDIT.md indexes via migration | Stack confirmed MySQL — ready to ship | Run during a deploy window |
+| ~~Apply AdminStatCard to OverviewSection KPIs~~ | Wave-64 upgraded legacy StatCard instead; AdminStatCard deleted in wave-76 | — |
 | CSP nonces (replace `'unsafe-inline'`) | Risk of breaking GTM/Pixel without testing | Schedule dedicated test session |
 | Alert routing to Twilio/Resend | Operational decisions on thresholds | Defer until conversion data informs threshold |
 | Migrate admin sections to `--pad-admin-section` tokens | Incremental, low priority | Touch each section as it gets edited for other reasons |
@@ -375,13 +377,13 @@ specification per channel.
 | ExitIntentModal copy review | Listed as future work | ✅ Done (wave-66) |
 | UrgencyWidget copy review | Not in audit, found via sweep | ✅ Done (wave-67) |
 | Booking-page form-field above-input labels | Listed as future work | ✅ Already correct (verified wave-67) |
-| Sentry client SDK install | Gated on DSN env | ⏸ Still gated |
+| Sentry client SDK install | Gated on DSN env | 🚫 Dropped (wave-84) — Nour confirmed not paying for Sentry. Server-side shim still in place if a free alternative is wired later. |
 | HSTS preload submission | Operational, browser action | 🚫 Dropped (wave-69) — hstspreload.org itself says preloading is "not recommended"; upgrade benefits already covered by HSTS header that's live |
 | Imagen prompts execution | Gated on GEMINI_API_KEY | 🔄 Pivoted (wave-69) — use autonicks.com Nick AI chat (operator's existing image-gen pipeline). No GEMINI_API_KEY needed. |
-| `pnpm test:ai-evals` baseline | Gated on API key for content gen | ⏸ Still gated |
-| GSC URL Inspection on remaining 12 comparison pages | Throttled, manual | ⏸ Still pending |
+| `pnpm test:ai-evals` baseline | Gated on local Venice key | ⏸ Still gated — local .env has `OPENAI_BASE_URL=https://api.venice.ai/api` but no `VENICE_API_KEY`. Either paste the key or comment out the base URL to fall back to OpenAI. |
+| GSC URL Inspection on remaining 12 comparison pages | Throttled, manual | ✅ Done (wave-83) — all 14 INDEXED. Plus 3 pillars (wave-84) — also INDEXED. 17/17 cluster confirmed in Google. |
 
-The 3 remaining "⏸" items are blocked on either external secrets
+The 1 remaining "⏸" item is the ai-evals key. Sentry dropped, GSC done. Of the original 5 gated items, only ai-evals remains, and that just needs the operator to paste the Venice key.
 (API keys) or operational browser actions Nour or an authenticated
 user must take. No further autonomous progress possible on those
 without unblocking events.
