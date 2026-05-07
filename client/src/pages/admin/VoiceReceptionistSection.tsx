@@ -29,7 +29,12 @@ import {
   Clock,
   TrendingUp,
   AlertCircle,
+  Edit2,
+  Save,
+  X,
+  CheckCircle2,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   SkeletonKpiGrid,
   SkeletonTable,
@@ -118,6 +123,9 @@ export default function VoiceReceptionistSection() {
             : { label: "QUIET DAY", variant: "neutral" }
         }
       />
+
+      {/* ─── Transfer destination quick-control ─────── */}
+      <TransferDestinationCard />
 
       {/* ─── KPI Tiles ──────────────────────────────────── */}
       {metricsLoading || !m ? (
@@ -277,6 +285,201 @@ export default function VoiceReceptionistSection() {
           callId={selectedCallId}
           onClose={() => setSelectedCallId(null)}
         />
+      )}
+    </div>
+  );
+}
+
+// ─── Transfer Destination Card ─────────────────────────────
+//
+// Operator pain point this fixes: managers swap depending on who's on
+// shift, and the transferCall destination has historically required
+// logging into the VAPI dashboard to change. This card surfaces the
+// current number inline + lets the operator change it in one click.
+//
+// Only valid US E.164 numbers (+1 + 10 digits) are accepted — VAPI
+// rejects anything else. Common destinations are pre-filled as quick
+// chips so the most common changes are zero-typing.
+// Hardcoded reset target: the main shop landline. Always reaches whoever
+// is at the front counter, so it's the safe default when the manager-on-shift
+// isn't reachable. Operators can type any +1 number directly in the input
+// for one-off destinations (mobile cells, etc.).
+const QUICK_DESTINATIONS: Array<{ label: string; number: string; description: string }> = [
+  {
+    label: "Shop Landline · Reset",
+    number: "+12168620005",
+    description: "(216) 862-0005 · always reaches whoever's at the front counter",
+  },
+];
+
+function TransferDestinationCard() {
+  const utils = trpc.useUtils();
+  const { data: dest, isLoading } = trpc.vapi.getTransferDestination.useQuery(undefined, {
+    refetchInterval: 5 * 60_000, // 5 min — operator usually changes once + monitors
+  });
+  const [editing, setEditing] = useState(false);
+  const [draftNumber, setDraftNumber] = useState("");
+  const [draftMessage, setDraftMessage] = useState("");
+
+  const setDest = trpc.vapi.setTransferDestination.useMutation({
+    onSuccess: (result) => {
+      toast.success(`Calls now forward to ${fmtPhone(result.newNumber)}`);
+      utils.vapi.getTransferDestination.invalidate();
+      setEditing(false);
+    },
+    onError: (err) => {
+      toast.error(`Failed to update: ${err.message.slice(0, 100)}`);
+    },
+  });
+
+  const startEdit = () => {
+    setDraftNumber(dest?.ok ? dest.currentNumber || "" : "");
+    setDraftMessage(dest?.ok ? dest.currentMessage || "" : "");
+    setEditing(true);
+  };
+
+  const submit = () => {
+    if (!draftNumber.match(/^\+1\d{10}$/)) {
+      toast.error("Number must be E.164 format: +1 followed by 10 digits");
+      return;
+    }
+    setDest.mutate({
+      phoneNumber: draftNumber,
+      message: draftMessage || undefined,
+    });
+  };
+
+  const useQuick = (q: typeof QUICK_DESTINATIONS[number]) => {
+    setDest.mutate({ phoneNumber: q.number });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="bg-card border border-border/30 rounded p-4">
+        <div className="h-4 w-40 bg-foreground/10 animate-pulse rounded mb-2" />
+        <div className="h-7 w-56 bg-foreground/15 animate-pulse rounded" />
+      </div>
+    );
+  }
+
+  if (!dest?.ok) {
+    return (
+      <div className="bg-card border border-red-500/30 rounded p-4 flex items-start gap-3">
+        <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="text-sm font-bold text-red-400">Transfer destination unknown</div>
+          <div className="text-[12px] text-foreground/60 mt-0.5">
+            {dest?.error || "VAPI API unreachable. Calls may still be forwarding correctly — check the VAPI dashboard directly."}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-card border border-primary/20 rounded p-4">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <PhoneForwarded className="w-4 h-4 text-primary/80" />
+            <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/50">
+              Calls forward to
+            </span>
+          </div>
+          {editing ? (
+            <div className="space-y-2 mt-1">
+              <div className="flex items-center gap-2">
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  enterKeyHint="done"
+                  value={draftNumber}
+                  onChange={(e) => setDraftNumber(e.target.value)}
+                  placeholder="+12168620005"
+                  className="bg-background border border-border/40 rounded-md px-3 py-2 text-sm font-mono w-56 focus:border-primary focus:outline-none"
+                  autoFocus
+                  disabled={setDest.isPending}
+                />
+                <button
+                  onClick={submit}
+                  disabled={setDest.isPending}
+                  className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-3 py-2 rounded-md text-xs font-bold tracking-wide hover:opacity-90 disabled:opacity-50 transition-opacity"
+                >
+                  {setDest.isPending ? (
+                    <span className="w-3 h-3 border border-primary-foreground/40 border-t-primary-foreground rounded-full animate-spin" />
+                  ) : (
+                    <Save className="w-3.5 h-3.5" />
+                  )}
+                  Save
+                </button>
+                <button
+                  onClick={() => setEditing(false)}
+                  disabled={setDest.isPending}
+                  className="inline-flex items-center gap-1.5 text-foreground/60 hover:text-foreground px-2 py-2 text-xs transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Cancel
+                </button>
+              </div>
+              <input
+                type="text"
+                value={draftMessage}
+                onChange={(e) => setDraftMessage(e.target.value)}
+                placeholder="What Nick says before transferring (optional)"
+                className="bg-background border border-border/40 rounded-md px-3 py-1.5 text-[12px] w-full max-w-md focus:border-primary focus:outline-none"
+                disabled={setDest.isPending}
+                maxLength={200}
+              />
+              <p className="text-[10px] text-foreground/40">
+                Format: +1 followed by 10 digits (e.g. +12168620005)
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-baseline gap-3 flex-wrap">
+              <div className="font-mono font-bold text-2xl tracking-tight text-foreground tabular-nums">
+                {dest.currentNumber ? fmtPhone(dest.currentNumber) : "—"}
+              </div>
+              {dest.currentMessage && (
+                <div className="text-[11px] text-foreground/50 italic max-w-md">
+                  "{dest.currentMessage.slice(0, 100)}{dest.currentMessage.length > 100 ? "…" : ""}"
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {!editing && (
+          <button
+            onClick={startEdit}
+            className="inline-flex items-center gap-1.5 text-foreground/60 hover:text-foreground border border-border/40 hover:border-primary/50 px-3 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-colors"
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+            Change
+          </button>
+        )}
+      </div>
+
+      {/* Quick-pick chips when editing */}
+      {editing && (
+        <div className="mt-3 pt-3 border-t border-border/20">
+          <div className="text-[10px] font-bold tracking-[0.15em] uppercase text-foreground/40 mb-2">
+            Quick destinations
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {QUICK_DESTINATIONS.map((q) => (
+              <button
+                key={q.label}
+                onClick={() => useQuick(q)}
+                disabled={setDest.isPending}
+                className="text-left bg-background border border-border/40 hover:border-primary/40 rounded-md px-3 py-2 text-xs transition-colors disabled:opacity-50 group"
+              >
+                <div className="font-bold tracking-wide group-hover:text-primary transition-colors">{q.label}</div>
+                <div className="text-[10px] text-foreground/50 mt-0.5">{q.description}</div>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
