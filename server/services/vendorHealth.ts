@@ -462,36 +462,30 @@ async function checkAutoLabor(): Promise<VendorHealthResult> {
     };
   }
 
+  // Wave-100 (2026-05-08): switched from active /api/auth/login probe to
+  // PASSIVE state check. Reason: ALG only allows ONE session per user.
+  // Every login opens a fresh JWT and kicks the shop counter's session,
+  // which the cashier needs for ringing customers up. The vendor-health
+  // cron fires every 15 min — that's 96 sessions/day if the probe ever
+  // worked. Pre-fix the URL was wrong (silent fail, accidentally safe).
+  // Now we check mirror-internal state instead.
   try {
-    const res = await withTimeout(
-      fetch("https://secure.autolaborexperts.com/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "Origin": "https://secure.autolaborexperts.com",
-          "Referer": "https://secure.autolaborexperts.com/",
-        },
-        body: JSON.stringify({ username, password }),
-        redirect: "manual",
-      }),
-      5000
-    );
-
-    const setCookies = res.headers.getSetCookie?.() || [];
-    const hasCookie = setCookies.some(c => c.length > 10);
-    const isSuccess = hasCookie || res.status === 302 || res.status === 200;
+    const { checkMirrorHealth } = await import("./shopDriverMirror");
+    const health = await checkMirrorHealth();
     const latency = Date.now() - start;
 
+    // checkMirrorHealth returns recordsProcessed: 0 when stale/failed,
+    // 1 when last sync was fresh.
+    const isHealthy = health.recordsProcessed > 0;
     trackApiCost("Auto Labor Guide", 0);
-    updateSLA("Auto Labor Guide", isSuccess, latency);
+    updateSLA("Auto Labor Guide", isHealthy, latency);
 
     return {
       vendor: "Auto Labor Guide",
-      status: isSuccess ? "healthy" : "degraded",
+      status: isHealthy ? "healthy" : "degraded",
       checks: [
         { name: "credentials", passed: true, latencyMs: 0 },
-        { name: "auth_probe", passed: isSuccess, latencyMs: latency, error: isSuccess ? undefined : `Auth returned ${res.status}, no session cookie` },
+        { name: "passive_health", passed: isHealthy, latencyMs: latency, error: isHealthy ? undefined : health.details },
       ],
       checkedAt: new Date().toISOString(),
     };
@@ -503,7 +497,7 @@ async function checkAutoLabor(): Promise<VendorHealthResult> {
       status: "down",
       checks: [
         { name: "credentials", passed: true, latencyMs: 0 },
-        { name: "auth_probe", passed: false, latencyMs: latency, error: (err as Error).message },
+        { name: "passive_health", passed: false, latencyMs: latency, error: (err as Error).message },
       ],
       checkedAt: new Date().toISOString(),
     };

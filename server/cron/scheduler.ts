@@ -469,33 +469,17 @@ export function startTieredScheduler(): void {
           return runAutoActions();
         },
       },
-      {
-        name: "auto-labor-guide-sync", // Auto Labor Guide data sync
-        businessHoursOnly: true,
-        handler: async () => {
-          // SHOP-PROTECT: ALG auth kicks the shop's browser session.
-          const { runIfAdminActive } = await import("../lib/adminActivity");
-          const result = await runIfAdminActive(
-            async () => {
-              const { pullRecentTickets } = await import("../services/shopDriverSync");
-              const tickets = await pullRecentTickets();
-              if (tickets.length > 0) {
-                const { remember } = await import("../services/nickMemory");
-                await remember({
-                  type: "insight",
-                  content: `ALG sync: ${tickets.length} recent tickets pulled. Latest: ${tickets.slice(0, 3).map((t: Record<string, unknown>) => `${t.customerName || "?"} ($${t.totalAmount || 0})`).join(", ")}`,
-                  source: "alg_sync",
-                  confidence: 0.8,
-                });
-              }
-              return { recordsProcessed: tickets.length, details: `${tickets.length} ALG tickets synced` };
-            },
-            { jobName: "auto-labor-guide-sync" },
-          );
-          if ("skipped" in result) return { details: result.reason };
-          return result;
-        },
-      },
+      // ─── REMOVED 2026-05-08 (wave-100): auto-labor-guide-sync ───
+      // Per operator directive: ALL ALG-touching crons consolidated to
+      // login-triggered + manual-trigger paths only. The mirror probe
+      // fires on admin login (server/_core/oauth.ts) + on operator's
+      // "Sync Data" button click. The hourly cron was redundant + would
+      // kick the shop counter's session every time operator was on admin
+      // during business hours. Deleted intentionally.
+      //
+      // Side note: the function it called (shopDriverSync.pullRecentTickets)
+      // also has a broken auth URL — silent fail. shopDriverMirror.runFullMirror
+      // is the working path, fired via algProbeBudget.requestAlgProbe.
       {
         name: "customer-segment-refresh",
         businessHoursOnly: true,
@@ -1104,8 +1088,14 @@ export function startTieredScheduler(): void {
       {
         name: "alg-auto-discovery", // Probe ShopDriver API for new endpoints
         handler: async () => {
-          // SHOP-PROTECT: ALG endpoint discovery auths heavily. Only when Nour
-          // is on admin so we don't kick the shop counter out of ShopDriver.
+          // SHOP-PROTECT (wave-100, 2026-05-08): TWO gates now.
+          // (1) Admin must have been active within the last 60 min, AND
+          // (2) Shop must be CLOSED (outside Mon-Sat 8-18, Sun 9-16 ET).
+          // Auto-discovery opens a fresh ALG JWT which kicks the shop
+          // counter's live session. Only fire when the shop isn't ringing.
+          if (isBusinessHours()) {
+            return { details: "skipped: shop is open (admin can still discover via manual probe button)" };
+          }
           const { runIfAdminActive } = await import("../lib/adminActivity");
           const result = await runIfAdminActive(
             async () => {
