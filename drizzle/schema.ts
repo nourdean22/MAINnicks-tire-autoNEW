@@ -1102,6 +1102,9 @@ export const invoices = mysqlTable("invoices", {
   invoiceDate: timestamp("invoiceDate").defaultNow().notNull(),
   /** Source of the record */
   source: mysqlEnum("source", ["shopdriver", "manual", "stripe"]).default("manual").notNull(),
+  /** ALG ticket UUID — captured from ShopDriver listRecentTickets so we
+   * have a stable identifier independent of invoiceNumber. Wave-99. */
+  algTicketId: varchar("algTicketId", { length: 64 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
@@ -1116,6 +1119,8 @@ export const invoices = mysqlTable("invoices", {
   index("idx_invoice_source").on(table.source),
   // Composite for the most common dashboard query (last-N paid revenue)
   index("idx_invoice_date_status").on(table.invoiceDate, table.paymentStatus),
+  // Wave-99: stable lookup by ALG ticket UUID
+  index("idx_invoice_alg_ticket").on(table.algTicketId),
 ]);
 
 export type Invoice = typeof invoices.$inferSelect;

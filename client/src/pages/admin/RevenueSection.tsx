@@ -168,6 +168,7 @@ interface InvoiceItem {
   paymentMethod?: string;
   paymentStatus?: string;
   source?: string;
+  algTicketId?: string | null;
 }
 
 // DashboardView receives complex tRPC query results — typed at call sites instead
@@ -1158,11 +1159,15 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
                     </>
                   )}
                   <a
-                    href="https://secure.autolaborexperts.com/recent"
+                    href={inv.algTicketId
+                      ? `https://secure.autolaborexperts.com/ticket/${inv.algTicketId}`
+                      : "https://secure.autolaborexperts.com/recent"}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-wider bg-card border border-purple-500/20 text-purple-400 hover:bg-purple-500/5 transition-colors"
-                    title="Opens ALG Recent Tickets — search for this invoice number to see the full line-item breakdown"
+                    title={inv.algTicketId
+                      ? "Opens this ticket directly in ALG (full job/labor/parts breakdown)"
+                      : "Opens ALG Recent Tickets — search for this invoice number"}
                   >
                     <ExternalLink className="w-3 h-3" /> OPEN IN ALG
                   </a>
