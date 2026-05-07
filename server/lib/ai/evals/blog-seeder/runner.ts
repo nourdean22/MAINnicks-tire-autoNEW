@@ -4,15 +4,19 @@
  * example fails the threshold.
  *
  * Usage:
- *   pnpm tsx server/lib/ai/evals/blog-seeder/runner.ts
+ *   pnpm test:ai-evals
  *
  * Pass threshold: 90% of criteria must pass per example. (Some criteria
  * are heuristic — concession-first, insider vocab — and aren't always
  * present in legitimate output. 90% allows for that without permitting
  * broad regressions.)
  *
- * Wave-62 (2026-05-07).
+ * Wave-62 (2026-05-07). Wave-70 added dotenv loading so the runner
+ * picks up OPENAI_API_KEY (or VENICE_API_KEY) from .env when run
+ * locally. Required because content-generator.ts → invokeLLM throws
+ * when no key is configured.
  */
+import "dotenv/config";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
