@@ -17,7 +17,7 @@ export interface RouteEntry {
   /** SEO meta description — max 160 chars */
   description: string;
   /** Group for organizational purposes */
-  group: "core" | "service" | "city" | "neighborhood" | "seo-service" | "vehicle" | "problem" | "seasonal" | "utility" | "legal" | "landing" | "blog" | "tire-size" | "vehicle-service";
+  group: "core" | "service" | "city" | "neighborhood" | "seo-service" | "vehicle" | "problem" | "seasonal" | "utility" | "legal" | "landing" | "blog" | "tire-size" | "vehicle-service" | "comparison";
   /** Whether to include in sitemap (false for auth-gated, landing pages, etc.) */
   sitemap: boolean;
   /** Whether to prerender this page */
@@ -993,6 +993,32 @@ const LEGAL_PAGES: RouteEntry[] = [
   },
 ];
 
+// ─── COMPETITOR COMPARISON PAGES (14 high-intent SEO captures) ────
+// 2026-05-06 wave-33 · honest comparisons in brand voice with FAQPage
+// + LocalBusiness schema. Targets "[chain] alternative", "[A] vs [B]",
+// and "best [chain] alternatives" search brackets. Single source of
+// truth: client/src/data/competitors.ts.
+const COMPARISON_PAGES: RouteEntry[] = [
+  // Format 1: Alternative (singular) — switch intent
+  { path: "/conrads-tire-alternative-cleveland", priority: 0.85, changefreq: "monthly", title: "Conrad's Tire Alternative Cleveland · Open Sundays | Nick's", description: "Tired of Conrad's? Nick's Tire & Auto on Euclid Ave is open 7 days, walk-in any time, used tires from $60 installed. Written estimate before any wrench moves.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/mavis-tire-alternative-cleveland", priority: 0.85, changefreq: "monthly", title: "Mavis Tire Alternative Cleveland · No Surprise Fees | Nick's", description: "Mavis advertised tire price low? Final invoice high? Nick's Tire & Auto on Euclid Ave: walk-in 7 days, written estimate up front, used tires from $60 installed.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/discount-tire-alternative-cleveland", priority: 0.8, changefreq: "monthly", title: "Discount Tire Alternative Cleveland · One-Stop Shop | Nick's", description: "Discount Tire is tires only — they can't do brakes, oil, or alignment. Nick's Tire & Auto: tires + brakes + repair under one roof, open 7 days, walk-in any time.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/firestone-alternative-cleveland", priority: 0.8, changefreq: "monthly", title: "Firestone Alternative Cleveland · No Chain Pricing | Nick's", description: "Firestone wants $200/hr labor, an appointment, and a Firestone credit card. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, transparent pricing, real address.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/monro-mr-tire-alternative-cleveland", priority: 0.75, changefreq: "monthly", title: "Monro / Mr. Tire Alternative Cleveland · One Standard | Nick's", description: "Monro and Mr. Tire quality varies wildly store-to-store. Nick's Tire & Auto on Euclid Ave: one shop, one crew, one standard. Walk-in 7 days, written estimate up front.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/big-o-tires-alternative-cleveland", priority: 0.7, changefreq: "monthly", title: "Big O Tires Alternative Cleveland · Closer, Honest, Open Sundays | Nick's", description: "Big O has only a handful of Cleveland locations. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $60, the estimate in writing before any wrench moves.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/ntb-alternative-cleveland", priority: 0.7, changefreq: "monthly", title: "NTB Alternative Cleveland · After the Mavis Acquisition | Nick's", description: "NTB became Mavis in 2021. Same surprise-checkout pattern, same closed Sundays. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires $60, estimate up front.", group: "comparison", sitemap: true, prerender: true },
+  // Format 3: You vs Competitor — direct head-to-head
+  { path: "/nicks-tire-vs-conrads-cleveland", priority: 0.8, changefreq: "monthly", title: "Nick's Tire & Auto vs Conrad's Cleveland · Honest Compare", description: "Conrad's vs Nick's Tire & Auto in Cleveland. Hours, pricing, walk-in policy, used tires, written estimates — head-to-head, no spin.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/nicks-tire-vs-mavis-cleveland", priority: 0.8, changefreq: "monthly", title: "Nick's Tire & Auto vs Mavis Cleveland · Honest Compare", description: "Mavis advertised tire price low? Total ticket high? Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $60, the estimate in writing before the wrench moves.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/nicks-tire-vs-firestone-cleveland", priority: 0.75, changefreq: "monthly", title: "Nick's Tire & Auto vs Firestone Cleveland · Honest Compare", description: "Firestone wants premium chain pricing and an appointment. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, transparent labor, used tires from $60, written estimate up front.", group: "comparison", sitemap: true, prerender: true },
+  // Format 2: Roundup (plural) — research intent
+  { path: "/best-tire-shops-cleveland", priority: 0.85, changefreq: "monthly", title: "Best Tire Shops Cleveland · 7 Honest Picks Ranked | Nick's", description: "The honest ranking of Cleveland tire shops. Nick's, Conrad's, Mavis, Discount Tire, Firestone, Monro, Big O — sorted by walk-in policy, Sunday hours, used tire access.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/best-conrads-tire-alternatives-cleveland", priority: 0.75, changefreq: "monthly", title: "Best Conrad's Tire Alternatives Cleveland · 6 Honest Picks | Nick's", description: "Looking for Conrad's Tire alternatives in Cleveland? 6 ranked options — Nick's Tire & Auto, Mavis, Discount Tire, Firestone, Monro, Big O. Honest comparison.", group: "comparison", sitemap: true, prerender: true },
+  // Format 4: Third-party comparisons — ride competitor-vs-competitor traffic
+  { path: "/conrads-vs-mavis-tire-cleveland", priority: 0.7, changefreq: "monthly", title: "Conrad's vs Mavis Tire Cleveland · Honest Compare + 3rd Option", description: "Conrad's Tire vs Mavis Discount Tire in Cleveland. Hours, pricing, walk-ins, used tires — head-to-head. Plus the third option neither chain wants you to know about.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/firestone-vs-discount-tire-cleveland", priority: 0.7, changefreq: "monthly", title: "Firestone vs Discount Tire Cleveland · Honest Compare + 3rd Option", description: "Firestone vs Discount Tire in Cleveland. Tires, brakes, alignment, pricing — head-to-head. Plus the third option that does Sunday + walk-in + used tires.", group: "comparison", sitemap: true, prerender: true },
+];
+
 // ─── NON-SITEMAP PAGES (landing pages, admin, etc.) ──────
 const EXCLUDED_PAGES: RouteEntry[] = [
   { path: "/portal", priority: 0, changefreq: "monthly", title: "Customer Portal — Nick's Tire & Auto", description: "Nick's Tire & Auto customer portal. View invoices, service history, and manage your account.", group: "utility", sitemap: false, prerender: false },
@@ -1035,6 +1061,7 @@ export const ALL_ROUTES: RouteEntry[] = [
   ...PROBLEM_PAGES,
   ...SEASONAL_PAGES,
   ...TIRE_SIZE_ROUTE_PAGES,
+  ...COMPARISON_PAGES,
   ...UTILITY_PAGES,
   ...LEGAL_PAGES,
   ...EXCLUDED_PAGES,
