@@ -281,13 +281,27 @@ function LenderHierarchy({ onApply }: { onApply: (id: string) => void }) {
         const provider = FINANCING_PROVIDERS.find((fp) => fp.id === p.id);
         return (
           <FadeIn key={p.id} delay={i * 0.1}>
+            {/* 2026-05-06 wave-32 · Double-Bezel (Doppelrand): outer
+                shell with subtle bg + hairline ring acts as a "tray"
+                holding the inner core card. Concentric radii
+                (1.5rem outer / 1.25rem inner) sell the nested
+                hardware feel. Primary tier gets a brand-yellow ring
+                instead of neutral so the decoy hierarchy stays
+                obvious at a glance. */}
             <div
-              className={`relative bg-[#1A1A1A] border rounded-2xl p-6 lg:p-7 flex flex-col h-full transition-colors ${
+              className={`relative h-full rounded-[1.5rem] p-[3px] transition-colors ${
                 isPrimary
-                  ? "border-[#FDB913] shadow-[0_0_25px_rgba(253,185,19,0.1)]"
-                  : "border-[#2A2A2A] hover:border-white/20"
+                  ? "bg-[#FDB913]/[0.08] ring-1 ring-[#FDB913]/30"
+                  : "bg-white/[0.025] ring-1 ring-white/[0.06]"
               }`}
             >
+              <div
+                className={`relative bg-[#1A1A1A] border rounded-[calc(1.5rem-3px)] p-6 lg:p-7 flex flex-col h-full transition-colors shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${
+                  isPrimary
+                    ? "border-[#FDB913] shadow-[0_0_25px_rgba(253,185,19,0.12),inset_0_1px_0_rgba(255,255,255,0.08)]"
+                    : "border-[#2A2A2A] hover:border-white/20"
+                }`}
+              >
               {/* Tier badge — top */}
               <div className="flex items-center justify-between mb-4">
                 <span
@@ -344,6 +358,7 @@ function LenderHierarchy({ onApply }: { onApply: (id: string) => void }) {
                 APPLY WITH {p.name.split(" ")[0].toUpperCase()}
                 <ArrowRight className="w-4 h-4" />
               </a>
+            </div>
             </div>
           </FadeIn>
         );

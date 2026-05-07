@@ -29,7 +29,7 @@ export function SignFeature() {
       {/* Decorative halftone for "shop manual" texture */}
       <div className="halftone-light absolute inset-0 pointer-events-none" />
 
-      <div className="container py-14 lg:py-20 relative">
+      <div className="container py-20 lg:py-32 relative">
         <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1.4fr] gap-8 lg:gap-12 items-center">
           {/* LEFT — copy block */}
           <div className="order-2 lg:order-1">
