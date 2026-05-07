@@ -3994,6 +3994,151 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     ],
     relatedServices: ["/tires", "/used-tires-cleveland", "/new-tires-cleveland", "/alignment", "/best-tire-shops-cleveland"],
     tags: ["Cleveland tire guide", "how to buy tires Cleveland", "tire sizing guide", "tire sidewall numbers", "Ohio winter tires", "Cleveland pothole tire damage", "used vs new tires Cleveland", "tire rotation Cleveland", "TPMS sensors", "all-weather tires Ohio"]
+  },
+  // 2026-05-06 wave-36 · PILLAR ARTICLE #2 — "Cleveland Auto Repair
+  // Owner's Manual". Hub for the brakes/oil/diagnostics/transmission/
+  // electrical/exhaust/AC supporting articles. Sister to wave-35's
+  // Tire Guide pillar; together they form the brakes/tires authority
+  // cluster covering ~80% of customer queries.
+  {
+    slug: "cleveland-auto-repair-owners-manual",
+    title: "The Cleveland Auto Repair Owner's Manual",
+    metaTitle: "Cleveland Auto Repair Owner's Manual | Nick's Tire & Auto",
+    metaDescription: "Brakes, oil, suspension, electrical, transmission — the honest Cleveland auto repair guide. The recommended-services trap, dealer math, what to fix when.",
+    category: "Auto Repair",
+    publishDate: "2026-05-06",
+    readTime: "14 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "Most auto repair guides are written by parts manufacturers or dealer service departments — every section ends with a recommendation to buy more parts. This one's different. The honest sequence of what to fix when, the recommended-services trap, and what Cleveland salt does to cars that Phoenix shops never see.",
+    sections: [
+      {
+        heading: "Why this guide exists",
+        content: "Most auto repair guides are written by parts manufacturers, dealer service departments, or auto-chain marketing teams. Read enough of them and you'll notice the pattern: every section ends with the suggestion to buy a part, schedule a service, or upgrade to a 'premium' fluid. That's not a guide. That's a sales sequence broken into headings. The actual knowledge a Cleveland driver needs — how to read a recommended-services list without getting upsold, when synthetic oil actually matters vs when conventional is fine, what salt does to your brake lines that the inspection report doesn't mention, how to tell a battery problem from an alternator problem at the side of the road — that part rarely gets written down honestly. So we wrote it. Mechanic-owned shop on Euclid Ave, no parts kickback, fourteen sections."
+      },
+      {
+        heading: "The honest repair sequence — what to fix when",
+        content: "Not all repairs are equal. The honest priority order: safety, drivability, longevity, comfort. Safety is brakes, steering, tires, lights — fix these the day they fail. Drivability is the car running at all (battery, alternator, fuel system, ignition) — fix these the week they fail. Longevity is fluids, belts, filters, suspension wear items — fix these on schedule, not when they break. Comfort is AC, heated seats, sound systems — fix when budget allows. The chain pattern is to mix these up — recommend longevity work as if it's safety, urgent-tier the comfort work into your invoice. Every recommended-services list should be sorted into those four buckets before you sign. If the shop won't sort it for you, find another shop."
+      },
+      {
+        heading: "Brakes — the system, not just the pads",
+        content: "Most brake jobs are pads + rotors. That's what you'll be quoted. The full brake system is bigger: pads, rotors, calipers, brake lines, hardware (springs and shims), master cylinder, ABS module, fluid. In Cleveland, the salt-corrosion problems show up on calipers (seizing), brake lines (rust-pitting on the rear), and hardware (rusted slide pins). When you bring a car in for a brake job, ask the shop to check the entire system — not just measure pad thickness. A $300 pad-and-rotor job that ignores a slowly-rusting rear brake line is a fix that fails in 18 months when the line ruptures. Real brake-job pricing in Cleveland 2026: $250-$450 per axle (pads + rotors, parts + labor). Caliper replacement adds $100-200 per side. Brake fluid flush every 3 years adds $80-120. The full system inspection should be free. We do it at Nick's whether or not you buy work from us."
+      },
+      {
+        heading: "Oil change — synthetic vs conventional, the honest math",
+        content: "Synthetic oil costs more per change. Conventional oil costs more in total over the life of the engine because you change it more often. The math: synthetic at 7,500-mile interval × $80/change = $0.0107/mile. Conventional at 3,000-mile interval × $50/change = $0.0167/mile. Synthetic wins by ~36% over a 100,000-mile car. The exception: severe-duty conditions (heavy towing, lots of short trips, extreme cold) push the synthetic interval down toward 5,000 — still cheaper per mile than conventional. The dealer scam: 'manufacturer-recommended' synthetic at 3,000-mile intervals. That's neither what the manufacturer recommends nor what the oil needs. Read your owner's manual — it'll specify the actual interval. For most modern cars, the answer is 5,000-7,500 miles on synthetic. We do honest oil changes at Nick's — synthetic from $79, no upsell on filters that don't need changing yet."
+      },
+      {
+        heading: "Battery vs alternator — telling them apart",
+        content: "Both kill the car, both make it hard to start, both cause electrical weirdness. The clean test: jump the car and drive it. If it starts and runs fine after the jump but won't restart 30 minutes later → battery (jumping refilled it, but the alternator isn't keeping it charged because the battery is dead and won't hold). If it starts and runs fine and starts again next morning → battery was just discharged from a parasitic drain or cold weather. If it starts after the jump but dies while driving → alternator (it's not generating; the engine ran on the residual battery charge from the jump until that ran out). If you have a multimeter, check voltage with engine running: 13.8-14.4V is healthy alternator. 12.0-12.6V engine running means the alternator isn't charging. Battery cost in Cleveland 2026: $130-220 installed depending on group size. Alternator: $400-650 installed. Diagnose before replacing — replacing the wrong one doesn't fix the actual problem."
+      },
+      {
+        heading: "Check engine light — diagnostic, not parts-cannon",
+        content: "The check engine light tells you the car's computer detected something outside parameters. It does not tell you what part is broken. The chain pattern is to read the code and replace the part the code points at. That works ~50% of the time. The other 50%: a code that says 'oxygen sensor' is actually a vacuum leak that's reading false-lean to the sensor; a code that says 'misfire cylinder 3' is actually a fuel injector on cylinder 1 starving cylinder 3 of fuel; a code that says 'catalytic converter inefficiency' is an upstream oxygen sensor that's slowly degrading. Real diagnostic work means the shop reads the codes, then verifies the actual cause with live data, smoke testing, swap testing, or visual inspection. That takes 30-60 minutes of labor. A code-reader-and-replace shop charges you for the part and labor. A real diagnostic shop charges you for the diagnostic time and tells you the actual fix. We do the second kind at Nick's."
+      },
+      {
+        heading: "Transmission — fluid, not gearbox (usually)",
+        content: "Transmission problems get diagnosed wrong constantly. The chain pattern: 'shifting hard' = $4,500 transmission rebuild. The reality: 8 out of 10 shifting complaints in 2010s+ vehicles are fluid-related (low fluid, dirty fluid, contaminated fluid) or sensor-related (failing solenoid, bad input/output speed sensor). A $250 transmission fluid service or $400 solenoid replacement fixes the problem. The remaining 2 out of 10 are real transmission failures that need rebuild or replacement. Don't authorize transmission rebuild or replacement without the shop demonstrating the actual mechanical failure — fluid sample analysis, scan-tool data showing erratic gear-ratio errors, or physical inspection through the inspection plug. If the shop can't show you the failure, they don't know what they're diagnosing. Get a second opinion before signing a $4,500 transmission job."
+      },
+      {
+        heading: "Suspension — what Cleveland roads break first",
+        content: "Cleveland's freeze-thaw + pothole + salt combination breaks suspension components in a specific order. Year 4-6: bushings (control arm, sway bar, motor mount) — clunking over bumps, vague steering. Year 6-8: struts/shocks — bouncy ride, longer stopping distances on rough roads. Year 8-10: ball joints, tie rod ends — clunking when turning, alignment that won't hold. Year 10+: control arms themselves, rusted-through subframe components on the worst-affected cars. Average Cleveland suspension job in 2026: $300-600 per corner (struts), $200-400 per side (control arms), $150-300 (tie rod ends). The shop should drive the car on a rough road and identify which corner is making which noise. A 'we'll just replace everything' quote without diagnosis is overselling. A 'just struts' quote when bushings are also worn is underselling. Honest diagnosis takes 20 minutes of road-test plus 20 minutes of underbody inspection."
+      },
+      {
+        heading: "AC + heat — refrigerant leak vs compressor",
+        content: "Cleveland summers don't get extreme but the AC failure pattern is consistent. Year 5-8: refrigerant leak through the high-pressure line or condenser (cooled at first, gets weak over weeks) — fix is leak detection + line/condenser repair + recharge ($200-500). Year 8-12: compressor clutch failure (no AC at all, or intermittent) — fix is clutch or full compressor ($500-1,200 installed). Year 10+: evaporator core leak inside the dashboard — labor-heavy repair ($1,200-2,000) because the dash has to come out. Heat failure is usually the heater core (rare, expensive — sometimes worth a junk car) or the blend door actuator (common, $200-400). Don't authorize AC work without a leak test — recharging a system that has a leak just buys you 3 weeks before it leaks out again. The shop should evacuate the system and pull a vacuum to test for leaks before recharging."
+      },
+      {
+        heading: "Exhaust + muffler — small holes vs catalytic converter",
+        content: "Small exhaust leaks (loud rumble at idle, gets louder when accelerating) are usually a rusted-through pipe section ($150-350 to weld in a patch or replace the pipe section). The repair is straightforward. Catalytic converter problems are different. Symptoms: engine performance loss, fuel economy drop, P0420 or P0430 trouble code, rotten-egg sulfur smell. Replacement cost: $400-1,200 for aftermarket cat-back replacement, $1,200-2,400 for OEM with manufacturer warranty. The thieves' favorite — Cleveland has had a wave of catalytic converter theft since 2020. If yours got stolen, file a police report and your insurance may cover replacement. Aftermarket converters are legal as long as they're EPA-certified — verify the part's EPA cert before installing; otherwise it'll fail E-Check."
+      },
+      {
+        heading: "The recommended-services list trap",
+        content: "Walk into most chain shops with a $50 oil change and walk out with a $400 'recommended services' list: cabin air filter, engine air filter, brake fluid flush, transmission fluid flush, coolant flush, fuel injector service, throttle body service, induction system cleaning. Some of those are real — cabin filter every 15-25k miles, engine air filter every 30-45k, brake fluid every 3 years. The rest are upsells timed wrong (transmission flush at every visit, coolant at half the interval the manufacturer recommends, throttle body 'service' for a part that doesn't need it). The honest read: bring the recommended-services list home. Compare it to your owner's manual. Anything not in the manual is optional. Anything in the manual but timed earlier than the manual specifies is a suggestion, not a need. Anything timed at the manufacturer's interval should probably be done. Shop pressure to 'do it now while we have the car' is the pressure to find another shop."
+      },
+      {
+        heading: "How to pick an auto repair shop in Cleveland",
+        content: "Chains are fine for some things — national warranty on tires (you can service them anywhere), brand familiarity, frequent coupons. Independents are better at others — diagnosis quality (single-shop indies care about each car because they see them again), transparent labor rates, used parts when used works, walk-in flexibility, written estimate before any wrench moves. Red flags at any shop: refusal to put the estimate in writing before installation. Recommended-services list that grows mid-job past your authorization. 'While we have it on the lift' upsell pressure. Closed Sunday in a 7-day-a-week city. Refusal to show you the worn part. Green flags: estimate in writing before installation. Mechanic walks you under the car with a flashlight to see the worn part. Honest about when used works vs when new is the call. Open when you're not at work. Picks up the phone with their actual name, not a call-center routing menu."
+      },
+      {
+        heading: "Pull up to Nick's",
+        content: "Nick's Tire & Auto is at 17625 Euclid Ave, Cleveland, OH 44112. Open Mon-Sat 8am-6pm and Sunday 9am-4pm. The chains close. We don't. First-come-first-served, no appointment system, walk in any day we're awake. Brakes, oil, diagnostics, transmission, suspension, electrical, AC, exhaust — full-service mechanical repair under one roof. Written estimate before any wrench moves. The mechanic quoting your work is the mechanic doing it. The yellow sign on Euclid Ave you've probably driven past. (216) 862-0005."
+      }
+    ],
+    relatedServices: ["/brakes", "/oil-change", "/diagnostics", "/transmission", "/electrical", "/best-tire-shops-cleveland"],
+    tags: ["Cleveland auto repair guide", "honest auto repair Cleveland", "auto repair owner's manual", "recommended services trap", "synthetic oil Cleveland", "battery alternator diagnosis", "transmission diagnosis", "suspension Cleveland", "auto repair shop how to pick"]
+  },
+  // 2026-05-06 wave-37 · PILLAR ARTICLE #3 — "Cleveland Pothole + Salt
+  // Damage Guide". Hyper-local hub for Cleveland-specific road damage:
+  // pothole impact taxonomy, salt corrosion timeline, undercarriage
+  // inspection, alignment + tire sidewall + brake line + fuel line
+  // failures unique to Northeast Ohio. Closes the three-pillar SEO
+  // authority cluster (tires + auto repair + Cleveland-specific
+  // damage). Together with the wave-33 14 competitor pages, this
+  // forms the topical authority moat: pillars (broad) → supporting
+  // articles (specific) → comparison pages (intent) → service pages
+  // (conversion).
+  {
+    slug: "cleveland-pothole-salt-damage-guide",
+    title: "The Cleveland Pothole + Salt Damage Guide",
+    metaTitle: "Cleveland Pothole + Salt Damage Guide | Nick's",
+    metaDescription: "Cleveland salt + potholes break cars in specific ways — sidewall bulges, brake-line corrosion, bent rims, alignment knockouts. The honest diagnostic guide.",
+    category: "Cleveland-Specific",
+    publishDate: "2026-05-06",
+    readTime: "13 min read",
+    heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-main-DE7GKwfCThaBL66r78QWkU.webp",
+    excerpt: "Cleveland's freeze-thaw cycle, lake-effect snow, and 30,000+ tons of road salt every winter break cars in specific ways that Phoenix and Atlanta shops never see. The visual diagnostic guide for sidewall bulges, brake-line corrosion, bent rims, and alignment knockouts — from a mechanic-owned shop on Euclid Ave that handles them every week.",
+    sections: [
+      {
+        heading: "Why Cleveland roads are different",
+        content: "Cleveland's road damage isn't just bad luck. It's three forces compounding: lake-effect snow drops 60-100 inches annually on the East Side; the City of Cleveland alone applies 30,000+ tons of road salt every winter; and the freeze-thaw cycle (water freezes overnight, expands, melts at 9am, water seeps deeper, freezes again) opens cracks in pavement faster than the city can patch them. The result is a road environment that breaks cars in specific ways Phoenix and Atlanta shops never see. Tire shops in Cleveland do 3-4x the bent-rim and sidewall-blowout business of tire shops in dry climates. Brake-line replacement is a common job here — almost unheard-of out west. Undercarriage rust drives car-replacement decisions that mileage alone wouldn't justify. This guide covers what to watch for, when to fix it, and which problems are actually claimable through the city's pothole-damage program."
+      },
+      {
+        heading: "Pothole damage taxonomy",
+        content: "Hit a pothole hard, then assess in five places before driving home. (1) Sidewall — visible bulge or bubble on the side of the tire = blowout waiting to happen, replace immediately. (2) Slow leak — air pressure dropping 5-15 PSI per week = bead-seat cracked or small sidewall puncture, get it patched or replaced. (3) Bent rim — steering wheel shake at 55-65 mph that wasn't there before = aluminum wheel deformed at the impact point, can sometimes be re-rolled ($75-150) or needs replacement ($150-450 used, $300-900 new). (4) Alignment knock — car pulls left or right driving straight, or steering wheel sits off-center = control arm bushing or tie rod ends got displaced; alignment service ($90-150) usually fixes it but verify the underlying parts are OK. (5) Suspension damage — clunking over bumps that wasn't there before = strut top mount, ball joint, or sway bar end-link compromised; needs underbody inspection. Drive carefully on the way home. If the steering pulls hard or the tire is visibly damaged, call for a tow."
+      },
+      {
+        heading: "Salt corrosion timeline — year by year",
+        content: "Cleveland salt eats steel on a predictable schedule for cars that aren't garaged. Year 1-3: cosmetic surface rust on rocker panels, wheel arches, exhaust hangers. Year 3-5: brake rotor pitting (the rust pattern visible on the rotor face after a wash) and exhaust system component thinning (small holes start to develop). Year 5-7: brake line surface rust starts (lines look orange-coated; not yet leaking but the protective coating is gone). Year 7-9: brake line wall thinning to the point of failure (sudden brake pedal loss is the classic Cleveland brake line rupture); fuel line corrosion in similar locations; subframe rust on the worst-affected cars. Year 9+: structural rust on rocker panels, frame rails, suspension mounting points. The most dangerous failures are brake lines and fuel lines — they fail without warning, and you find out at a stoplight. Annual undercarriage inspection (free at most reputable shops, free at Nick's) catches these before they fail."
+      },
+      {
+        heading: "Brake lines + fuel lines — the silent killers",
+        content: "Brake lines are 3/16\" steel tubes running from the master cylinder to each wheel. Cleveland salt corrodes them from the outside in. Failure mode: the tube wall thins, then bursts. Symptom: brake pedal sinks to the floor with a loud hiss. The car stops via the parking brake or emergency-stop maneuvers — a parked-mode-only situation if it happens at speed. Replacement cost: $200-400 per line for the rusted section, $400-800 for full-system replacement on a badly-affected car. Fuel lines run from the tank to the engine and follow the same corrosion timeline. Failure mode: fuel leak, gasoline smell, fire risk. Replacement: $300-700 per affected line. Cars over 8 years old with no garaging history should get an annual brake-line + fuel-line inspection. Most shops won't proactively check unless asked. Ask. We do it free at Nick's whether or not you buy work from us."
+      },
+      {
+        heading: "Suspension — what potholes break first",
+        content: "Cleveland suspension component failure follows a pothole-driven order. First to go: bushings (control-arm, sway-bar end-link, motor-mount). Symptoms: clunking over bumps, vague steering feel, occasional steering-wheel oscillation at low speed. Second: struts/shocks. Symptoms: bouncy ride that takes 3+ bounces to settle, longer stopping distances on rough pavement, body roll in turns that wasn't there before. Third: ball joints + tie rod ends. Symptoms: clunking when turning the wheel, alignment that won't hold (you align it, drives fine for 2 weeks, drifts back). Fourth: control arms themselves (when the bushings have been ignored long enough that the metal arm cracks or the ball joint integrated into it fails). Pothole impact accelerates this whole sequence. A bad pothole hit can take a 4-year-old strut to failure overnight. After any hard pothole impact, get an underbody inspection within a week even if the car drives 'fine'."
+      },
+      {
+        heading: "Alignment — when to get it checked",
+        content: "Wheel alignment is three angles per wheel: camber (tilt), caster (steering pivot), toe (point in / point out). Hit a pothole hard and any of those can shift. Symptoms: car pulls left or right driving straight on a flat road; steering wheel sits off-center when the car is going straight; tire wear pattern is uneven across the tread (inner edge wearing faster, outer edge wearing faster). Get an alignment check after any of: pothole impact strong enough to feel through the steering wheel; new tires installed (most shops include a basic alignment check); steering or suspension parts replaced; clear pull or off-center steering wheel. Alignment service in Cleveland 2026: $90-150 for a 2-wheel alignment, $130-200 for a 4-wheel alignment (which is what almost every modern car needs). The lifetime alignment programs at chain shops can pay off if you keep the car 5+ years and stay loyal to the chain — the trade-off is being locked into chain alignment forever. We do per-visit alignments at honest market rates."
+      },
+      {
+        heading: "Bent rim — repair or replace?",
+        content: "Pothole hits an aluminum wheel hard, the rim deforms inward at the impact point. Steel wheels are cheaper to begin with and don't usually bend (they crack). Aluminum wheels bend and can often be repaired. Repair process: specialized rim shops re-roll the bent section using hydraulic dies. Cost in Cleveland 2026: $75-150 per wheel for a straight-bend repair. Replacement: used wheel from a salvage yard ($150-450), aftermarket replacement ($200-600), OEM replacement from a dealer ($400-1,200). When repair makes sense: minor bend, no cracking, intact tire bead seal, wheel passes a balance test after repair. When replacement makes sense: significant bend, hairline cracks visible (cracks propagate), repaired wheel that won't hold balance after re-balancing, factory-finish wheel where appearance matters for resale. Most everyday Cleveland drivers go with used-wheel replacement. We help diagnose at Nick's and refer to local rim-repair specialists when repair is the right call."
+      },
+      {
+        heading: "Undercarriage rust — what to inspect annually",
+        content: "Cleveland-area cars over 5 years old benefit from annual undercarriage inspection. What the inspection covers: rocker panels (rust-through risk), wheel arches (cosmetic but signals more rust above), exhaust system (hangers, pipe sections, muffler integrity), brake lines (visible corrosion + tube wall thinning), fuel lines (same), subframe and frame rails (structural integrity), suspension mounting points (where struts and control arms attach), spare-tire well (water collection point that hides rust until it's through). Most shops will do this inspection free if you ask. We do it free at Nick's whether or not you buy work from us — partly because some of what we find is safety-critical (brake/fuel line failures), and we'd rather you know before it ruptures. Best timing: annually in late October before the winter salt season starts, OR in April after spring revealing-thaw exposes the worst of last winter's damage."
+      },
+      {
+        heading: "Winter prep — what to check before November",
+        content: "Cleveland winter prep is more than tires. Annual pre-winter checklist: (1) Tires — tread depth >= 4/32\" or 3PMSF rated all-weather, pressures set to manufacturer spec (cold weather drops tire pressure ~1 PSI per 10°F). (2) Battery — full load test (parts stores do this free); replace if it tests below 75% capacity, because cold reduces effective capacity another 30%. (3) Wipers — replace any blade older than 12 months; winter blades resist ice buildup. (4) Coolant — check freeze protection (should test to -30°F or better; bottom of the radiator is what freezes first if the mix is off). (5) Brakes — measure pad thickness; salt-fueled rotor pitting accelerates pad wear in winter. (6) Heat — verify heat from all vents; broken blend door actuators are common and you don't want to find out in February. (7) Underbody coating — annual undercoating treatment ($75-150) extends rust-free life by 2-4 years for cars without garaging. We do the full pre-winter inspection at Nick's — walk-ins welcome through October."
+      },
+      {
+        heading: "Spring damage assessment — what to check in April",
+        content: "April is when Cleveland's worst-pothole season ends and spring damage becomes visible. Annual spring inspection checklist: (1) Tire sidewalls — look for bulges/bubbles you missed during the winter when the tire was dirty. (2) Wheel alignment — pothole season knocks alignment out; spring is the natural reset. (3) Suspension — bounce test each corner (push down hard, release; should rebound and settle in 1-2 cycles, not bounce 3+ times). (4) Steering — drive on a smooth road; any pull or off-center wheel didn't exist at this severity in November. (5) Brakes — feel for pulsation in the pedal (warped rotors from heat-cycling salt-corroded rotors); listen for squeal that wasn't there in fall. (6) Undercarriage rust — visible reddish-orange staining on the suspension components signals salt-saturation that needs underbody wash + inspection. (7) Wipers — winter blades are toast by April; switch to summer blades for better wet-weather performance. April + October are the two annual inspection windows that matter for Cleveland cars."
+      },
+      {
+        heading: "Cleveland pothole damage claims — the real process",
+        content: "Cleveland and surrounding municipalities have pothole damage claim programs, but they're not generous. The process: (1) Document the pothole — photo with the car visible for context, location coordinates if possible, time and date. (2) Get the damage repaired and keep the itemized invoice. (3) File a claim with the relevant entity (City of Cleveland for city streets, Cuyahoga County for county roads, ODOT for state routes). Cleveland's claim form is at clevelandohio.gov; processing time is 60-90 days. (4) The city denies most claims using the 'prior notice' defense — they have to have known about the specific pothole and failed to fix it within a reasonable time. So claims for newly-formed potholes are usually denied. The successful claims tend to be for potholes that have been on the road and reported for weeks. Don't expect quick reimbursement. The economic reality: most Cleveland drivers absorb pothole damage cost themselves, factor it into the cost of living here, and choose tires/wheels/sidewalls that resist impact damage."
+      },
+      {
+        heading: "Pull up to Nick's",
+        content: "Nick's Tire & Auto is at 17625 Euclid Ave, Cleveland, OH 44112. Open Mon-Sat 8am-6pm and Sunday 9am-4pm. The chains close. We don't. First-come-first-served, walk in any day we're awake. Pothole damage assessments, alignment after impact, brake-line + fuel-line inspections, undercarriage rust evaluation, wheel-bend diagnosis — all under one roof. Annual pre-winter and spring damage inspections free whether or not you buy work from us. Used tires from $60 installed when a used tire fits the car. Written estimate before any wrench moves. The yellow sign on Euclid Ave you've probably driven past. (216) 862-0005."
+      }
+    ],
+    relatedServices: ["/alignment", "/tires", "/brakes", "/general-repair", "/best-tire-shops-cleveland"],
+    tags: ["Cleveland pothole damage", "Cleveland salt damage cars", "pothole tire damage", "brake line corrosion Cleveland", "undercarriage rust Cleveland", "Cleveland alignment after pothole", "bent rim repair Cleveland", "Cleveland winter car prep", "spring car damage assessment", "Cleveland pothole claim"]
   }
 ];
 
