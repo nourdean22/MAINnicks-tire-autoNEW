@@ -18,6 +18,9 @@ import { z } from "zod";
 import { router, adminProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { createLogger } from "../lib/logger";
+import { getDb } from "../db";
+import { shopSettings } from "../../drizzle/schema";
+import { eq } from "drizzle-orm";
 
 const log = createLogger("vapi");
 
@@ -97,6 +100,13 @@ function startOfDay(d: Date): Date {
   const out = new Date(d);
   out.setHours(0, 0, 0, 0);
   return out;
+}
+
+// ─── Transfer preset shape (wave-88) ───────────────────
+interface TransferPreset {
+  label: string;
+  number: string;
+  message?: string;
 }
 
 export const vapiRouter = router({
@@ -353,6 +363,108 @@ export const vapiRouter = router({
         assistantId,
         newNumber: input.phoneNumber,
       };
+    }),
+
+  // ─── Per-shift transfer presets (wave-88) ──────────────
+  // Persisted in shop_settings under key="vapi_transfer_presets" as a
+  // JSON array. Operator's "Manager A cell / Manager B cell / Owner
+  // cell" library — save once, one-click swap based on shift.
+
+  /**
+   * List saved transfer-destination presets.
+   */
+  listTransferPresets: adminProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [] as TransferPreset[];
+    const [row] = await db
+      .select()
+      .from(shopSettings)
+      .where(eq(shopSettings.key, "vapi_transfer_presets"))
+      .limit(1);
+    if (!row?.value) return [] as TransferPreset[];
+    try {
+      const parsed = JSON.parse(row.value) as unknown;
+      if (!Array.isArray(parsed)) return [] as TransferPreset[];
+      return parsed
+        .filter((p): p is TransferPreset =>
+          typeof p === "object" && p !== null &&
+          typeof (p as Record<string, unknown>).label === "string" &&
+          typeof (p as Record<string, unknown>).number === "string",
+        );
+    } catch {
+      return [] as TransferPreset[];
+    }
+  }),
+
+  /**
+   * Save a preset (upsert by label). Labels are unique — saving with
+   * an existing label updates that preset.
+   */
+  saveTransferPreset: adminProcedure
+    .input(z.object({
+      label: z.string().min(1).max(40),
+      number: z.string().regex(/^\+1\d{10}$/, "E.164 +1 + 10 digits"),
+      message: z.string().max(200).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      const [row] = await db.select().from(shopSettings).where(eq(shopSettings.key, "vapi_transfer_presets")).limit(1);
+      const current: TransferPreset[] = row?.value
+        ? (JSON.parse(row.value) as TransferPreset[]).filter((p) => typeof p === "object")
+        : [];
+      const trimmedLabel = input.label.trim();
+      const idx = current.findIndex((p) => p.label === trimmedLabel);
+      const next: TransferPreset = {
+        label: trimmedLabel,
+        number: input.number,
+        ...(input.message ? { message: input.message } : {}),
+      };
+      if (idx >= 0) current[idx] = next;
+      else current.push(next);
+
+      // Cap at 12 presets — beyond that, the chip wall is unreadable
+      const capped = current.slice(0, 12);
+      const json = JSON.stringify(capped);
+
+      if (row) {
+        await db.update(shopSettings)
+          .set({ value: json, updatedBy: "admin" })
+          .where(eq(shopSettings.id, row.id));
+      } else {
+        await db.insert(shopSettings).values({
+          key: "vapi_transfer_presets",
+          value: json,
+          label: "VAPI transfer destination presets",
+          category: "general",
+          updatedBy: "admin",
+        });
+      }
+      return { ok: true as const, presets: capped };
+    }),
+
+  /**
+   * Delete a preset by label.
+   */
+  deleteTransferPreset: adminProcedure
+    .input(z.object({ label: z.string().min(1).max(40) }))
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      const [row] = await db.select().from(shopSettings).where(eq(shopSettings.key, "vapi_transfer_presets")).limit(1);
+      if (!row?.value) return { ok: true as const, presets: [] };
+      try {
+        const current = (JSON.parse(row.value) as TransferPreset[]).filter((p) => typeof p === "object");
+        const next = current.filter((p) => p.label !== input.label.trim());
+        await db.update(shopSettings)
+          .set({ value: JSON.stringify(next), updatedBy: "admin" })
+          .where(eq(shopSettings.id, row.id));
+        return { ok: true as const, presets: next };
+      } catch {
+        return { ok: false as const, error: "Failed to parse current presets" };
+      }
     }),
 
   /**
