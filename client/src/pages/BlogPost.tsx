@@ -21,6 +21,7 @@ import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import {
   Phone, Clock, ChevronRight, ArrowLeft, ArrowRight, Tag,
   ListTree, AlertTriangle, ShieldCheck, MessageSquare, CreditCard,
+  BookOpen,
 } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { BUSINESS } from "@shared/business";
@@ -129,6 +130,110 @@ const CATEGORY_TO_SERVICE: Record<string, { slug: string; label: string; pitch: 
   Electrical: { slug: "diagnostics", label: "Electrical Diagnostics", pitch: "Battery, alternator, starter testing free with any repair. Wiring + parasitic-draw work at $120/hr." },
   Transmission: { slug: "transmission", label: "Transmission Service", pitch: "Fluid + filter from $179. Full diagnostic before any major work — we tell you if a rebuild beats a repair." },
 };
+
+/* ─── PILLAR CALLOUT — hub-and-spoke topology activator ─────────
+ *
+ * Each blog article gets an automatic outbound link to the pillar
+ * article that covers its topic broadly. This activates the hub-
+ * and-spoke topology built in waves 35-37 — the three pillars
+ * (Tire Guide / Auto Repair Manual / Pothole-Salt Damage Guide)
+ * gain ~30+ inbound internal links instantly, without editing
+ * any of the existing supporting articles.
+ *
+ * Map: category → pillar slug. If the article IS the pillar, the
+ * callout is suppressed.
+ */
+const CATEGORY_TO_PILLAR: Record<string, { slug: string; title: string; subtitle: string }> = {
+  "Tires": {
+    slug: "complete-cleveland-tire-guide",
+    title: "The Complete Cleveland Tire Guide",
+    subtitle: "Sidewall numbers, used vs new math, free-services traps, and the Cleveland pothole reality — the full 2,500-word pillar.",
+  },
+  "Brake Repair": {
+    slug: "cleveland-auto-repair-owners-manual",
+    title: "The Cleveland Auto Repair Owner's Manual",
+    subtitle: "The honest sequence of what to fix when, the recommended-services trap, and how to read a brake-job quote without getting upsold.",
+  },
+  "Diagnostics": {
+    slug: "cleveland-auto-repair-owners-manual",
+    title: "The Cleveland Auto Repair Owner's Manual",
+    subtitle: "Check engine light, transmission fluid vs gearbox, battery vs alternator — the diagnostic-vs-parts-cannon distinction.",
+  },
+  "Engine Repair": {
+    slug: "cleveland-auto-repair-owners-manual",
+    title: "The Cleveland Auto Repair Owner's Manual",
+    subtitle: "From oil-change math to electrical diagnosis to the recommended-services trap — the full 3,000-word pillar.",
+  },
+  "Emissions": {
+    slug: "cleveland-auto-repair-owners-manual",
+    title: "The Cleveland Auto Repair Owner's Manual",
+    subtitle: "How to read a check-engine-light quote, the diagnostic-vs-parts-cannon distinction, and the full 3,000-word repair pillar.",
+  },
+  "Transmission": {
+    slug: "cleveland-auto-repair-owners-manual",
+    title: "The Cleveland Auto Repair Owner's Manual",
+    subtitle: "Why 8 of 10 'transmission problems' are actually fluid or sensor issues — plus the full repair pillar.",
+  },
+  "Auto Repair": {
+    slug: "cleveland-auto-repair-owners-manual",
+    title: "The Cleveland Auto Repair Owner's Manual",
+    subtitle: "The full 3,000-word repair pillar — brakes, oil, suspension, electrical, and the honest sequence of what to fix when.",
+  },
+  "Cleveland-Specific": {
+    slug: "cleveland-pothole-salt-damage-guide",
+    title: "The Cleveland Pothole + Salt Damage Guide",
+    subtitle: "What 30,000 tons of road salt + freeze-thaw + lake-effect actually do to cars — the visual diagnostic guide.",
+  },
+  "Fleet Services": {
+    slug: "cleveland-auto-repair-owners-manual",
+    title: "The Cleveland Auto Repair Owner's Manual",
+    subtitle: "The full repair pillar — useful for any fleet manager assessing service vendors and recommended-services lists.",
+  },
+};
+
+interface PillarCalloutProps {
+  category: string;
+  /** Slug of the current article — used to suppress the callout on the pillar itself */
+  currentSlug: string;
+}
+
+function PillarCallout({ category, currentSlug }: PillarCalloutProps) {
+  const pillar = CATEGORY_TO_PILLAR[category];
+  if (!pillar) return null;
+  if (pillar.slug === currentSlug) return null;
+
+  return (
+    <FadeIn>
+      <div className="mt-12 rounded-[1.5rem] p-[3px] bg-[#FDB913]/[0.06] ring-1 ring-[#FDB913]/30">
+        <div className="bg-[#141414] rounded-[calc(1.5rem-3px)] p-6 lg:p-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+          <div className="flex items-start gap-4">
+            <div className="w-11 h-11 rounded-xl bg-[#FDB913]/15 text-[#FDB913] flex items-center justify-center flex-shrink-0">
+              <BookOpen className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] uppercase tracking-[0.22em] text-[#FDB913] font-bold mb-1">
+                Read the full pillar
+              </p>
+              <h3 className="font-heading text-xl sm:text-2xl font-extrabold text-foreground tracking-tight uppercase leading-tight mb-2">
+                {pillar.title}
+              </h3>
+              <p className="text-foreground/65 text-sm sm:text-base leading-relaxed mb-4 body-pretty">
+                {pillar.subtitle}
+              </p>
+              <Link
+                href={`/blog/${pillar.slug}`}
+                className="group inline-flex items-center gap-2 bg-[#FDB913] text-[#0A0A0A] px-5 py-2.5 rounded-md font-bold text-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:shadow-[0_4px_20px_rgba(253,185,19,0.4)] active:scale-[0.98]"
+              >
+                Read the full guide
+                <ArrowRight className="w-4 h-4 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-1" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </FadeIn>
+  );
+}
 
 /**
  * MidArticleCTA — a single, contextual conversion block injected after
@@ -554,6 +659,15 @@ export default function BlogPost() {
                   )}
                 </FadeIn>
               ))}
+
+              {/* 2026-05-06 wave-38 · Pillar callout — auto-cross-link
+                  every supporting article to its corresponding pillar.
+                  Sits after article body + before Tags so it reads as
+                  natural editorial flow ("liked this? here's the full
+                  guide") rather than an ad. Suppresses on the pillar
+                  itself. Activates the hub-and-spoke topology built
+                  in waves 35-37. */}
+              <PillarCallout category={article.category} currentSlug={article.slug} />
 
               {/* Tags */}
               {article.tags.length > 0 && (
