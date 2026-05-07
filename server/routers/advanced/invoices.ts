@@ -175,6 +175,101 @@ export const invoicesRouter = router({
       return { success: true };
     }),
 
+  /**
+   * Tire Sales Report — surfaces tire-specific revenue from
+   * serviceDescription text matching. ALG doesn't expose per-line-item
+   * data via REST API, so this is the next-best granular view: filter
+   * invoices where serviceDescription mentions tires, then aggregate.
+   *
+   * Wave-99. Tested live: 193 historical tire jobs · $91,231 total
+   * revenue · 191 unique customers · top job "REPLACE TIRES (4 WHEELS)".
+   */
+  tireSalesReport: adminProcedure
+    .input(z.object({ months: z.number().default(12) }).optional())
+    .query(async ({ input }) => {
+      const d = await db();
+      if (!d) return {
+        totals: { jobs: 0, revenue: 0, avgTicket: 0, uniqueCustomers: 0 },
+        byMonth: [],
+        topJobs: [],
+        topCustomers: [],
+      };
+      const months = input?.months ?? 12;
+
+      // Aggregate totals
+      const [totalsRow] = await d.execute(sql`
+        SELECT
+          COUNT(*) AS jobs,
+          ROUND(SUM(totalAmount)/100, 0) AS revenue,
+          ROUND(AVG(totalAmount)/100, 0) AS avg_ticket,
+          COUNT(DISTINCT customerName) AS unique_customers
+        FROM invoices
+        WHERE source='shopdriver' AND paymentStatus='paid'
+          AND invoiceDate >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(months))} MONTH)
+          AND (serviceDescription LIKE '%tire%' OR serviceDescription LIKE '%TIRE%')
+      `) as [Array<{ jobs: number; revenue: number | null; avg_ticket: number | null; unique_customers: number }>];
+      const totals = totalsRow[0] || { jobs: 0, revenue: 0, avg_ticket: 0, unique_customers: 0 };
+
+      // By month
+      const [byMonthRows] = await d.execute(sql`
+        SELECT DATE_FORMAT(invoiceDate, '%Y-%m') AS month,
+               COUNT(*) AS jobs,
+               ROUND(SUM(totalAmount)/100, 0) AS revenue
+        FROM invoices
+        WHERE source='shopdriver' AND paymentStatus='paid'
+          AND invoiceDate >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(months))} MONTH)
+          AND (serviceDescription LIKE '%tire%' OR serviceDescription LIKE '%TIRE%')
+        GROUP BY month ORDER BY month ASC
+      `) as [Array<{ month: string; jobs: number; revenue: number | null }>];
+
+      // Top job descriptions
+      const [topJobsRows] = await d.execute(sql`
+        SELECT serviceDescription, COUNT(*) AS jobs,
+               ROUND(SUM(totalAmount)/100, 0) AS revenue
+        FROM invoices
+        WHERE source='shopdriver' AND paymentStatus='paid'
+          AND invoiceDate >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(months))} MONTH)
+          AND (serviceDescription LIKE '%tire%' OR serviceDescription LIKE '%TIRE%')
+        GROUP BY serviceDescription ORDER BY jobs DESC LIMIT 10
+      `) as [Array<{ serviceDescription: string; jobs: number; revenue: number | null }>];
+
+      // Top customers by tire-job spend
+      const [topCustomersRows] = await d.execute(sql`
+        SELECT customerName, customerPhone, COUNT(*) AS jobs,
+               ROUND(SUM(totalAmount)/100, 0) AS spent
+        FROM invoices
+        WHERE source='shopdriver' AND paymentStatus='paid'
+          AND invoiceDate >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(months))} MONTH)
+          AND (serviceDescription LIKE '%tire%' OR serviceDescription LIKE '%TIRE%')
+        GROUP BY customerName, customerPhone ORDER BY spent DESC LIMIT 10
+      `) as [Array<{ customerName: string; customerPhone: string | null; jobs: number; spent: number | null }>];
+
+      return {
+        totals: {
+          jobs: Number(totals.jobs) || 0,
+          revenue: Number(totals.revenue) || 0,
+          avgTicket: Number(totals.avg_ticket) || 0,
+          uniqueCustomers: Number(totals.unique_customers) || 0,
+        },
+        byMonth: byMonthRows.map((r) => ({
+          month: r.month,
+          jobs: Number(r.jobs) || 0,
+          revenue: Number(r.revenue) || 0,
+        })),
+        topJobs: topJobsRows.map((r) => ({
+          description: r.serviceDescription,
+          jobs: Number(r.jobs) || 0,
+          revenue: Number(r.revenue) || 0,
+        })),
+        topCustomers: topCustomersRows.map((r) => ({
+          customerName: r.customerName,
+          customerPhone: r.customerPhone,
+          jobs: Number(r.jobs) || 0,
+          spent: Number(r.spent) || 0,
+        })),
+      };
+    }),
+
   /** Revenue dashboard stats */
   stats: adminProcedure
     .input(z.object({ days: z.number().default(30) }).optional())
