@@ -290,6 +290,12 @@ export const voiceAgentRouter = router({
    * Send the recap SMS at end of call. Always called by the AI per
    * the conversation flow — AI says "I'll text you the address right
    * now" and this fires.
+   *
+   * GRACEFUL DEGRADATION: when SMS_KILL_SWITCH is on (Twilio outage),
+   * sendSms returns { success: false, error: "sms_disabled" }. We pass
+   * that back as `degraded: true` so the VAPI prompt can teach Nick to
+   * verbally confirm the address instead of pretending a text went out.
+   * The lead is still captured server-side either way.
    */
   sendConfirmationSms: publicProcedure
     .input(z.object({
@@ -302,8 +308,22 @@ export const voiceAgentRouter = router({
         const { sendSms } = await import("../sms");
         const body = `${input.summary}\n\n📍 17625 Euclid Ave, Cleveland\n📞 (216) 862-0005\n${input.mapLink || "https://nickstire.org/contact"}`;
         const result = await sendSms(input.phone, body);
-        log.info("Voice agent SMS sent", { phone: input.phone.slice(-4), success: result.success });
-        return { sent: result.success, sid: result.sid, error: result.error };
+        const degraded = !result.success && result.error === "sms_disabled";
+        log.info("Voice agent SMS sent", {
+          phone: input.phone.slice(-4),
+          success: result.success,
+          degraded,
+        });
+        return {
+          sent: result.success,
+          sid: result.sid,
+          error: result.error,
+          degraded,
+          // Friendly verbal recap Nick should READ ALOUD when degraded
+          verbalRecap: degraded
+            ? "Texts are temporarily down — I'll just say it out loud: 17625 Euclid Avenue, Cleveland, 4 4 1 1 2. Phone is 2 1 6 8 6 2 0 0 0 5. We're first-come, first-served Monday through Saturday 8 to 6, Sunday 9 to 4."
+            : undefined,
+        };
       } catch (err) {
         log.error("Voice agent SMS failed", { err: err instanceof Error ? err.message : String(err) });
         return { sent: false, error: err instanceof Error ? err.message : "SMS send failed" };
