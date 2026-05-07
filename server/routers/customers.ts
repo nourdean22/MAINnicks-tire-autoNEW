@@ -69,19 +69,16 @@ export const customersRouter = router({
         conditions.push(sql`${customers.vehicleMake} IS NOT NULL AND ${customers.vehicleMake} != ''`);
       }
       if (input?.hasDeclined) {
-        // Customer has at least one ALG estimate that never matched an invoice
+        // Wave-100: was EXISTS subquery, now reads materialized column
         conditions.push(sql`EXISTS (
-          SELECT 1 FROM alg_estimates
-          WHERE alg_estimates.customer_phone = ${customers.phone}
-          AND alg_estimates.matched_invoice_id IS NULL
+          SELECT 1 FROM customer_metrics m
+          WHERE m.customerId = ${customers.id} AND m.declinedValue > 0
         )`);
       }
       if (input?.hasBacklog) {
-        // Customer has at least one open work order
         conditions.push(sql`EXISTS (
-          SELECT 1 FROM work_orders
-          WHERE work_orders.customer_id = CAST(${customers.id} AS CHAR)
-          AND work_orders.status NOT IN ('completed', 'picked_up', 'closed', 'cancelled')
+          SELECT 1 FROM customer_metrics m
+          WHERE m.customerId = ${customers.id} AND m.backlogValueCents > 0
         )`);
       }
       if (search) {
@@ -152,63 +149,34 @@ export const customersRouter = router({
           daysSinceLastVisit: customerMetrics.daysSinceLastVisit,
           churnRisk: customerMetrics.churnRisk,
           isVip: customerMetrics.isVip,
-          // ─── ALG declined-work aggregate (unmatched estimates by phone) ───
-          // Sum of ALG estimate amounts where matched_invoice_id IS NULL.
-          // Indexed by alg_estimates.customer_phone (idx_alg_est_phone).
-          declinedValue: sql<number>`COALESCE((
-            SELECT SUM(estimated_amount) FROM alg_estimates
-            WHERE alg_estimates.customer_phone = ${customers.phone}
-            AND alg_estimates.matched_invoice_id IS NULL
-          ), 0)`,
-          declinedCount: sql<number>`COALESCE((
-            SELECT COUNT(*) FROM alg_estimates
-            WHERE alg_estimates.customer_phone = ${customers.phone}
-            AND alg_estimates.matched_invoice_id IS NULL
-          ), 0)`,
-          // ─── Active backlog aggregate (open work orders by customer ID) ───
-          // Sum of WO totals (dollars) for non-terminal statuses, converted to cents
-          // for consistency with totalSpent. Indexed by work_orders.customer_id.
-          backlogValueCents: sql<number>`COALESCE((
-            SELECT ROUND(SUM(total) * 100) FROM work_orders
-            WHERE work_orders.customer_id = CAST(${customers.id} AS CHAR)
-            AND work_orders.status NOT IN ('completed', 'picked_up', 'closed', 'cancelled')
-          ), 0)`,
-          backlogCount: sql<number>`COALESCE((
-            SELECT COUNT(*) FROM work_orders
-            WHERE work_orders.customer_id = CAST(${customers.id} AS CHAR)
-            AND work_orders.status NOT IN ('completed', 'picked_up', 'closed', 'cancelled')
-          ), 0)`,
+          // Wave-100: materialized aggregates from customer_metrics.
+          // Replaces 4 correlated subqueries per row (was 100 subqueries
+          // per page load) with a single LEFT JOIN. Refreshed by the
+          // customerMetricsRefresh service on a cron schedule.
+          declinedValue: customerMetrics.declinedValue,
+          declinedCount: customerMetrics.declinedCount,
+          backlogValueCents: customerMetrics.backlogValueCents,
+          backlogCount: customerMetrics.backlogCount,
         })
         .from(customers)
         .leftJoin(customerMetrics, eq(customers.id, customerMetrics.customerId));
 
       if (whereClause) dataQuery.where(whereClause);
 
-      // Sortable by aggregate columns too — those need raw SQL because
-      // they reference subqueries the ORM doesn't know about as columns.
-      let results;
-      if (sortBy === "declined") {
-        results = await dataQuery
-          .orderBy(sql.raw(`declinedValue ${sortDir.toUpperCase()}`))
-          .limit(pageSize)
-          .offset(offset);
-      } else if (sortBy === "backlog") {
-        results = await dataQuery
-          .orderBy(sql.raw(`backlogValueCents ${sortDir.toUpperCase()}`))
-          .limit(pageSize)
-          .offset(offset);
-      } else {
-        const sortColumn = sortBy === "name" ? customers.firstName
-          : sortBy === "visits" ? customers.totalVisits
-          : sortBy === "totalSpent" ? customers.totalSpent
-          : sortBy === "firstVisit" ? customers.firstVisitDate
-          : sortBy === "created" ? customers.createdAt
-          : customers.lastVisitDate;
-        results = await dataQuery
-          .orderBy(sortFn(sortColumn))
-          .limit(pageSize)
-          .offset(offset);
-      }
+      // Wave-100: sortable by materialized aggregates via direct
+      // column reference (was raw SQL alias before).
+      const sortColumn = sortBy === "name" ? customers.firstName
+        : sortBy === "visits" ? customers.totalVisits
+        : sortBy === "totalSpent" ? customers.totalSpent
+        : sortBy === "firstVisit" ? customers.firstVisitDate
+        : sortBy === "created" ? customers.createdAt
+        : sortBy === "declined" ? customerMetrics.declinedValue
+        : sortBy === "backlog" ? customerMetrics.backlogValueCents
+        : customers.lastVisitDate;
+      const results = await dataQuery
+        .orderBy(sortFn(sortColumn))
+        .limit(pageSize)
+        .offset(offset);
 
       return {
         customers: results,

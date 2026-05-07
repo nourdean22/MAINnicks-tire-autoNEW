@@ -1055,6 +1055,14 @@ export const customerMetrics = mysqlTable("customer_metrics", {
   isVip: int("isVip").default(0).notNull(),
   /** Predicted next visit date */
   predictedNextVisit: timestamp("predictedNextVisit"),
+  /** Wave-100: materialized declined-work value (cents) — sum of unmatched
+   * ALG estimates by phone. Updated by metricsRefresh cron. */
+  declinedValue: int("declinedValue").default(0).notNull(),
+  declinedCount: int("declinedCount").default(0).notNull(),
+  /** Wave-100: materialized active-backlog value (cents) — sum of open
+   * work order totals by customer. Updated by metricsRefresh cron. */
+  backlogValueCents: int("backlogValueCents").default(0).notNull(),
+  backlogCount: int("backlogCount").default(0).notNull(),
   /** Last computed timestamp */
   computedAt: timestamp("computedAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
