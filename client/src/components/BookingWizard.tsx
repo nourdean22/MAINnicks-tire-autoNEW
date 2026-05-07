@@ -677,12 +677,16 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                 </label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-nick-teal/40" />
+                  {/* 2026-05-07 wave-56 · mobile-keyboard hints +
+                      autoComplete for browser autofill speed. */}
                   <input
                     type="text"
                     required
                     value={formData.name}
                     onChange={(e) => update("name", e.target.value)}
                     aria-label="Your name"
+                    autoComplete="name"
+                    enterKeyHint="next"
                     className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                     placeholder="John Smith"
                   />
@@ -701,6 +705,9 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                     value={formData.phone}
                     onChange={(e) => update("phone", formatPhone(e.target.value))}
                     aria-label="Phone number"
+                    autoComplete="tel"
+                    inputMode="tel"
+                    enterKeyHint="next"
                     className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                     placeholder={BUSINESS.phone.placeholder}
                   />
@@ -718,6 +725,9 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                     value={formData.email}
                     onChange={(e) => update("email", e.target.value)}
                     aria-label="Email address"
+                    autoComplete="email"
+                    inputMode="email"
+                    enterKeyHint="next"
                     className="w-full bg-background/60 border border-border/50 rounded-md text-foreground pl-10 pr-4 py-3 text-[13px] focus:border-primary focus:ring-1 focus:ring-nick-yellow/30 focus:outline-none transition-all"
                     placeholder="you@email.com"
                   />
