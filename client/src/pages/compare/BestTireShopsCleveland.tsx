@@ -15,7 +15,7 @@ export default function BestTireShopsCleveland() {
       seoTitle="Best Tire Shops Cleveland · 7 Honest Picks Ranked | Nick's"
       seoDescription="The honest ranking of Cleveland tire shops. Nick's, Conrad's, Mavis, Discount Tire, Firestone, Monro, Big O — sorted by walk-in policy, Sunday hours, used tire access."
       h1="Best tire shops in Cleveland — the honest ranking"
-      intro="Most \"best tire shops in Cleveland\" lists are paid placement or copied off Yelp. This one's different. Below: seven shops Cleveland drivers actually use, ranked by what matters when you actually need work done — walk-in availability, Sunday hours, written-estimate-before-the-wrench, used tire access, and how often the receipt matches the verbal quote. Nick's leads on those axes. The chains lead on location count and warranty paperwork. You decide which matters more for your car."
+      intro="Most 'best tire shops in Cleveland' lists are paid placement or copied off Yelp. This one's different. Below: seven shops Cleveland drivers actually use, ranked by what matters when you actually need work done — walk-in availability, Sunday hours, written-estimate-before-the-wrench, used tire access, and how often the receipt matches the verbal quote. Nick's leads on those axes. The chains lead on location count and warranty paperwork. You decide which matters more for your car."
       roundupCompetitors={[
         COMPETITORS.conrads,
         COMPETITORS["discount-tire"],
