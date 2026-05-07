@@ -14,8 +14,15 @@ const CONFIG: ServicePageConfig = {
   // 2026-05-06 wave-16 · pro photo pack: diagnostics page hero per
   // PLACEMENT_GUIDE.md — interior service bay with car on lift
   heroImage: "/photos/interior-service-bay-car-lift.webp",
-  title: "Check Engine Light Cleveland — Free Code Pull, Plain English | Nick's",
-  description: "Cleveland diagnostic shop where a code pull is free and the explanation is in real English. Same-day repair on most codes. Walk-ins 7 days. 4.9★ 1,700+ reviews.",
+  // 2026-05-07 GSC tune: was "Check Engine Light Cleveland — Free Code
+  // Pull, Plain English" — 430 imps / 0 clicks in 90 days. Title was
+  // too narrow (check-engine-only) for the broader "car diagnostic /
+  // OBD scan" queries Google was matching, AND it competes with the
+  // dedicated /check-engine-light-diagnostic page. Broadening to cover
+  // the full diagnostic-intent space, anchored on the brand-voice
+  // differentiator (real cause, not parts-cannon repair).
+  title: "Car Diagnostic Cleveland · Code Pull + Real Cause | Nick's",
+  description: "Cleveland car diagnostic at Nick's Tire & Auto — free OBD code pull, real diagnosis (not parts cannon). ★4.9 · 1,700+ reviews. Walk-ins 7 days. (216) 862-0005",
   eyebrow: "CHECK ENGINE LIGHT · CLEVELAND'S NOISE TRANSLATOR",
   h1: "THE LIGHT'S ON.\nWE FIND OUT *WHY* — NOT GUESS.",
   sub: "Check engine light on, flashing, or playing peek-a-boo? Pull up to Nick's on Euclid Ave for a free code pull — that's mechanic for OBD-II scan. We tell you what the code means in real English, not engineer-speak, and what the fix actually costs, before you authorize a single wrench. Most scans wrap up before your coffee's cold. Most codes fixed same day. 30+ years diagnosing every weird Cleveland-car symptom you can name — and a few we still can't.",

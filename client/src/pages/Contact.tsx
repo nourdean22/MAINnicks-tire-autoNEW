@@ -78,9 +78,13 @@ export default function Contact() {
 
   return (
     <PageLayout showChat={true}>
+      {/* 2026-05-07 GSC tune: was "Contact Nick's Tire & Auto · Cleveland
+          · Walk-Ins Always Welcome" — 493 imps / 0 clicks in 90 days.
+          Front-load phone + address + 7-day-open in the title so the SERP
+          result IS the answer to the searcher's intent. */}
       <SEOHead
-        title="Contact Nick's Tire & Auto · Cleveland · Walk-Ins Always Welcome"
-        description={`Pull up to ${BUSINESS.address.full}. Open ${BUSINESS.hours.display}. Walk-ins always welcome — no appointment, no awkward small talk required. Call ${BUSINESS.phone.display}.`}
+        title="Nick's Tire & Auto · (216) 862-0005 · 17625 Euclid Ave"
+        description={`Call Nick's Tire & Auto at ${BUSINESS.phone.display}. ${BUSINESS.address.full}. Open ${BUSINESS.hours.display}. Walk-ins 7 days. Free written estimate before any work.`}
         canonicalPath="/contact"
       />
       <Breadcrumbs items={[{ label: "Contact", href: "/contact" }]} />
