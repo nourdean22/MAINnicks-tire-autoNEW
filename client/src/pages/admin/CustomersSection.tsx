@@ -476,6 +476,56 @@ function InlineSms({ customerId, firstName }: { customerId: number; firstName: s
   );
 }
 
+/**
+ * Wave-102: outbound follow-up call trigger.
+ *
+ * Operator clicks → fires the VAPI follow-up assistant at the customer.
+ * Asks them how the work held up + asks for word-of-mouth referrals.
+ * 3-minute hard cap.
+ */
+function FollowUpButton({ customerName, phone, totalVisits }: {
+  customerName: string;
+  phone: string;
+  totalVisits: number;
+}) {
+  const mutation = trpc.vapi.makeFollowUpCall.useMutation({
+    onSuccess: (result) => {
+      if (result.success && result.callId) {
+        toast.success(`Follow-up call queued (${result.callId.slice(0, 8)}...). Nick is dialing now.`);
+      } else {
+        toast.error(`Follow-up failed: ${result.error || "unknown error"}`);
+      }
+    },
+    onError: (err) => toast.error(`Follow-up failed: ${err.message}`),
+  });
+
+  if (totalVisits === 0) return null; // Don't follow up with someone who's never been in
+
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        const last = prompt(
+          `Call ${customerName.split(" ")[0]} for a post-repair follow-up?\n\nWhat was their last service? (e.g. "tires", "brake job", "oil change", or leave blank for "recent visit")`,
+          ""
+        );
+        if (last === null) return; // cancelled
+        mutation.mutate({
+          customerName,
+          phone,
+          lastService: last.trim() || "recent visit",
+        });
+      }}
+      disabled={mutation.isPending}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-wider bg-card border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50 transition-colors"
+      title="Trigger Nick's follow-up call (3 min, asks for referrals)"
+    >
+      {mutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Phone className="w-3 h-3" />}
+      FOLLOW UP
+    </button>
+  );
+}
+
 /** Customer 360 expandable detail panel — lazy-loaded service history */
 function Customer360Panel({ customer, onSmsClick }: {
   customer: ListedCustomer;
@@ -584,6 +634,13 @@ function Customer360Panel({ customer, onSmsClick }: {
                 >
                   <ExternalLink className="w-3 h-3" /> ALG
                 </a>
+              )}
+              {customer.phone && (
+                <FollowUpButton
+                  customerName={`${customer.firstName} ${customer.lastName || ""}`.trim()}
+                  phone={customer.phone}
+                  totalVisits={customer.totalVisits}
+                />
               )}
             </div>
           </div>

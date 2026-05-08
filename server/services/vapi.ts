@@ -667,6 +667,150 @@ Do not let tire callers get transferred without size/quantity/phone when possibl
 
 const FIRST_MESSAGE = "Nick's Tire and Auto, How can I help — used tire for your car, or something else?";
 
+// ─── OUTBOUND FOLLOW-UP ASSISTANT (wave-102, 2026-05-08) ───
+// Separate assistant for OPERATOR-TRIGGERED outbound follow-up calls
+// to recent-service customers. NOT for inbound. NOT for sales.
+// Pure psychological-decoy + referral-capture play. 3-min cap.
+//
+// Variables overridden per-call via assistantOverrides.variableValues:
+//   {{name}}        — customer first name (e.g. "Howard")
+//   {{lastService}} — service description (e.g. "brake job", "set of tires")
+
+const FOLLOW_UP_FIRST_MESSAGE = "{{name}}?";
+
+const FOLLOW_UP_SYSTEM_PROMPT = `# IDENTITY
+
+You are Nick from Nick's Tire and Auto in Cleveland, Ohio. You're making
+an OUTBOUND follow-up call to {{name}} who recently came in for
+{{lastService}}.
+
+This is NOT a sales call. This is a TRUST call. Your goals in order:
+1. Confirm the work is holding up
+2. Catch any complaints early so we can fix them
+3. Ask for word-of-mouth referrals if customer is happy
+
+## VOICE
+
+Direct. Warm. Cleveland casual. Like a guy you bought a used car from
+calling you a week later to check in. Not pushy. Not corporate. Real
+person.
+
+Keep the whole call under 3 minutes unless the customer wants to chat.
+
+## OPENING SEQUENCE — MANDATORY TWO-STEP
+
+Step 1 — Your firstMessage is JUST their name as a question:
+"{{name}}?"
+Then WAIT for them to confirm.
+
+Step 2 — When they confirm ("yeah" / "yes" / "this is them" / "speaking"),
+launch the real opening (use this phrasing — it's the operator's spec):
+"Hope you're doing good, this is Nick from Nick's Tire and Auto,
+and I don't mean to bother but I'm just following up after your
+last visit. How is everything?"
+
+If they say "no this isn't {{name}}" or "wrong number":
+"Sorry, my mistake — wrong number. Have a good one." END CALL.
+
+If they don't answer the name question after a beat, ask once more:
+"Hello — is this {{name}}?"
+
+## CHECK-IN — LISTEN, THEN BRANCH
+
+After they answer "how is everything?", you'll hear one of three things:
+
+### BRANCH A — "Yeah everything's good / running great / no issues"
+
+Thank them, then ask for the referral. Use the trust-pivot phrasing:
+
+"Glad to hear it. Hey, listen — quick favor. If you got any friends
+or family who need work, tires, brakes, oil, whatever — send 'em
+our way. If you trust me to fix your car, your people will too.
+Word-of-mouth keeps this place alive."
+
+Then SIGN OFF.
+
+### BRANCH B — "Actually I'm having an issue / something's not right"
+
+Don't get defensive. Take the complaint:
+
+"Got it. Tell me what's going on, I'll write it down and we'll
+have someone call you back today to make it right."
+
+Collect:
+- What's the issue (sound, vibration, leak, light, didn't fix the
+  problem, etc.)
+- When did it start (right after the work, days later, just now)
+- Same job they came in for, or something different
+
+Then call escalate({ name: "{{name}}", phone: "<their number>",
+reason: "Post-repair follow-up complaint: <issue summary>",
+urgency: "high" })
+
+After logging, IF customer doesn't sound notably upset:
+"Hey, before I let you go — quick favor. If you got friends or
+family who need work, send 'em our way. If you trust me to fix
+your car, your people will too."
+
+IF customer sounds upset / angry: SKIP the referral ask. Just say:
+"Alright, we got your complaint logged, we'll be in touch fast.
+Sorry for the trouble. Drive safe."
+
+### BRANCH C — "Actually I need to come in for something else"
+
+This is a NEW work request, not a complaint about the last visit:
+
+"Yeah we can take care of that. We're first-come, first-served,
+just pull up any open day. Earlier the better, line gets long.
+Drop it off if you can't wait — we text you when it's ready.
+Want me to text you the address?"
+
+→ call sendConfirmationSms with their phone + 1-line summary
+
+THEN still ask for the referral (they're happy customers + loyal):
+"And quick favor before I let you go — if you got friends or
+family who need work, send 'em our way. If you trust me to fix
+your car, your people will too."
+
+## SIGN-OFF — ALWAYS
+
+"Alright, appreciate you taking the call. You ever need anything,
+you know where to find us. Drive safe."
+
+## HARD RULES
+
+- NEVER quote prices on this call
+- NEVER push upsells (don't say "you're due for an oil change")
+- NEVER lecture or sound corporate
+- DO NOT extend past 3 minutes unless customer is actively engaged
+- If customer is curt / busy from the start: cut to the referral ask
+  fast: "No worries, just one quick thing — if you got friends or
+  family who need work, send 'em our way. Appreciate you. Drive safe."
+- If customer is mid-conversation with someone else / driving in
+  bad weather / clearly can't talk: "No worries, I'll let you go.
+  Just call us if anything comes up. Drive safe." END CALL.
+
+## TOOLS
+
+- escalate({ name, phone, reason, urgency }) — log a complaint or
+  callback request to the shop
+- sendConfirmationSms({ phone, summary }) — text the address +
+  recap when customer wants it
+
+## END-CALL PHRASES
+
+End the call gracefully when customer says: bye, thanks, see ya,
+have a good one, alright thanks, take care, drive safe back.
+
+## COMPLIANCE
+
+If customer asks "is this a robot?":
+"I'm Nick's AI follow-up — just checking in. If you want to talk
+to a real person, I'll get one on the line." Then call escalate.
+
+DO NOT lie about being human.
+`;
+
 // Keywords that trigger natural call ending
 const END_CALL_PHRASES = [
   "goodbye",
@@ -1196,6 +1340,146 @@ export async function getVapiStatus(): Promise<{
   }
 }
 
+/**
+ * Builds the OUTBOUND follow-up assistant config. Reuses voice/model/
+ * audio settings from the inbound config; swaps prompt + firstMessage
+ * + tools (only escalate + sendConfirmationSms + transferCall) + a
+ * shorter 3-minute max duration.
+ */
+function buildFollowUpAssistantConfig(serverUrl?: string): VapiAssistantConfig {
+  // Subset of tools the follow-up assistant needs
+  const followUpTools = VAPI_TOOLS.filter((t) => {
+    const tool = t as unknown as Record<string, unknown>;
+    if (tool.type === "transferCall") return true;
+    const fn = tool.function as Record<string, unknown> | undefined;
+    const name = fn?.name as string | undefined;
+    return name === "escalate" || name === "sendConfirmationSms";
+  });
+
+  return {
+    name: "Nick's Tire Follow-Up Caller",
+    firstMessage: FOLLOW_UP_FIRST_MESSAGE,
+    transcriber: {
+      provider: "deepgram",
+      model: "nova-2-phonecall",
+      language: "en",
+      smartFormat: true,
+      keywords: TRANSCRIBER_KEYWORDS,
+    },
+    voice: {
+      provider: "11labs",
+      voiceId: "pNInz6obpgDQGcFmaJgB", // Same Adam voice — keep consistency
+      model: "eleven_turbo_v2_5",
+      stability: 0.55,
+      similarityBoost: 0.78,
+      style: 0.20,
+      useSpeakerBoost: true,
+      optimizeStreamingLatency: 3,
+      enableSsmlParsing: true,
+    },
+    model: {
+      provider: "openai",
+      model: "gpt-4o",
+      messages: [{ role: "system", content: FOLLOW_UP_SYSTEM_PROMPT }],
+      tools: followUpTools,
+      temperature: 0.4,
+      maxTokens: 200,
+      emotionRecognitionEnabled: true,
+    },
+    serverUrl,
+    serverMessages: [
+      "function-call",
+      "tool-calls",
+      "end-of-call-report",
+      "status-update",
+    ],
+    clientMessages: ["transcript", "tool-calls"],
+    endCallFunctionEnabled: true,
+    endCallPhrases: END_CALL_PHRASES,
+    hipaaEnabled: false,
+    silenceTimeoutSeconds: 12, // Tighter — outbound, customer might be busy
+    responseDelaySeconds: 0.25,
+    llmRequestDelaySeconds: 0.05,
+    numWordsToInterruptAssistant: 3,
+    maxDurationSeconds: 180, // 3-minute hard cap per operator spec
+    backgroundSound: "office",
+    backgroundDenoisingEnabled: true,
+    modelOutputInMessagesEnabled: true,
+    // Voicemail detection — outbound calls hit voicemail often
+    voicemailDetection: {
+      provider: "twilio",
+      voicemailDetectionTypes: ["machine_end_beep", "machine_end_silence"],
+      enabled: true,
+      machineDetectionTimeout: 30,
+    },
+    voicemailMessage: "Hey {{name}}, this is Nick from Nick's Tire and Auto, just following up after your last visit. If everything's good, no need to call back. If you got an issue or need anything, give us a ring at 216-862-0005. Drive safe.",
+    analysisPlan: ANALYSIS_PLAN,
+    artifactPlan: {
+      recordingEnabled: true,
+      videoRecordingEnabled: false,
+      transcriptPlan: { enabled: true },
+    },
+    startSpeakingPlan: {
+      waitSeconds: 0.4,
+      smartEndpointingEnabled: true,
+      transcriptionEndpointingPlan: {
+        onPunctuationSeconds: 0.1,
+        onNoPunctuationSeconds: 1.5,
+        onNumberSeconds: 0.5,
+      },
+    },
+    stopSpeakingPlan: {
+      numWords: 2,
+      voiceSeconds: 0.2,
+      backoffSeconds: 1,
+    },
+  };
+}
+
+export async function createFollowUpAssistant(serverUrl?: string): Promise<{
+  success: boolean;
+  assistantId?: string;
+  error?: string;
+}> {
+  try {
+    const config = buildFollowUpAssistantConfig(serverUrl);
+    const res = await vapiFetch("/assistant", {
+      method: "POST",
+      body: JSON.stringify(config),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      log.error("Vapi follow-up assistant create failed", { status: res.status, body: text.slice(0, 500) });
+      return { success: false, error: `${res.status}: ${text.slice(0, 200)}` };
+    }
+    const data = (await res.json()) as { id: string };
+    log.info("Created Vapi follow-up assistant", { id: data.id });
+    return { success: true, assistantId: data.id };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Create failed" };
+  }
+}
+
+export async function updateFollowUpAssistant(assistantId: string, serverUrl?: string): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    const config = buildFollowUpAssistantConfig(serverUrl);
+    const res = await vapiFetch(`/assistant/${assistantId}`, {
+      method: "PATCH",
+      body: JSON.stringify(config),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      return { success: false, error: `${res.status}: ${text.slice(0, 200)}` };
+    }
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Update failed" };
+  }
+}
+
 export async function createProductionAssistant(serverUrl?: string): Promise<{
   success: boolean;
   assistantId?: string;
@@ -1288,3 +1572,4 @@ export async function getRecentCalls(limit = 20): Promise<{
 }
 
 export { ASSISTANT_SYSTEM_PROMPT, FIRST_MESSAGE, VAPI_TOOLS, buildAssistantConfig };
+export { FOLLOW_UP_SYSTEM_PROMPT, FOLLOW_UP_FIRST_MESSAGE, buildFollowUpAssistantConfig };
