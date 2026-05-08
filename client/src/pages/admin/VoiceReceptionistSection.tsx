@@ -874,6 +874,18 @@ function TransferDestinationCard() {
         )}
       </div>
 
+      {/* wave-109: explain that this number doubles as the on-duty alert target */}
+      {!editing && dest.currentNumber && (
+        <div className="mt-3 px-3 py-2 bg-primary/5 border border-primary/20 rounded-md">
+          <p className="text-[11px] text-foreground/60 leading-relaxed">
+            <strong className="text-foreground/80">Doubles as the on-duty alert number.</strong>{" "}
+            Every new booking, lead, callback, and emergency from nickstire.org
+            also fires an SMS to this number from 216-862-0005. Change it here
+            and alerts auto-route to the new manager within 5 min.
+          </p>
+        </div>
+      )}
+
       {/* Quick-pick chips when editing — saved presets + landline reset */}
       {editing && (
         <div className="mt-3 pt-3 border-t border-border/20">

@@ -272,6 +272,16 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        // wave-109: ping the F25e shop SMS gateway. Telegram alert if
+        // last-seen > 30 min — without this we'd only learn it's offline
+        // when a customer-facing send fails, which is too late.
+        name: "sms-gateway-health",
+        handler: async () => {
+          const { runSmsGatewayHealthMonitor } = await import("./jobs/smsGatewayHealthMonitor");
+          return runSmsGatewayHealthMonitor();
+        },
+      },
+      {
         name: "dashboard-sync",
         handler: async () => {
           const { processDashboardSync } = await import("./jobs/dashboardSync");
