@@ -11,7 +11,7 @@ type DeclinedEstimate = NonNullable<RouterOutputs["invoices"]["declined"]>["esti
 import { StatCard, PageHeader, SectionInsightStrip, useUrlFilter, FilterChips } from "./shared";
 import {
   Loader2, AlertTriangle, DollarSign, Phone, MessageSquare,
-  TrendingUp, Clock, Filter, Flame,
+  TrendingUp, Clock, Filter, Flame, CheckSquare, Square, Send, Zap,
 } from "lucide-react";
 
 type TimeFilter = "7" | "30" | "all";
@@ -60,8 +60,36 @@ export default function DeclinedEstimatesSection() {
   const [sortMode, setSortMode] = useState<SortMode>("score");
   const [minAmount, setMinAmount] = useState<number>(0);
 
+  // Wave-101: bulk SMS multi-select
+  const [bulkMode, setBulkMode] = useState<boolean>(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
   const { data, isLoading } = trpc.invoices.declined.useQuery({ days });
   const utils = trpc.useUtils();
+
+  const bulkFollowUpMutation = trpc.invoices.bulkFollowUp.useMutation({
+    onSuccess: (result) => {
+      const failedReasons = result.results
+        .filter(r => !r.sent)
+        .reduce((acc: Record<string, number>, r) => {
+          const k = r.reason || "unknown";
+          acc[k] = (acc[k] || 0) + 1;
+          return acc;
+        }, {});
+      const reasonStr = Object.entries(failedReasons).map(([k, v]) => `${v} ${k}`).join(", ");
+      if (result.killSwitchOn) {
+        toast.error(`SMS_KILL_SWITCH is on — 0 sent. Flip the env var on Railway when Twilio is back.`);
+      } else if (result.sentCount > 0) {
+        toast.success(`Sent ${result.sentCount} of ${result.sentCount + result.failedCount}${reasonStr ? ` (${reasonStr})` : ""}`);
+      } else {
+        toast.error(`0 sent · failures: ${reasonStr}`);
+      }
+      setSelectedIds(new Set());
+      setBulkMode(false);
+      utils.invoices.declined.invalidate();
+    },
+    onError: (err) => toast.error(`Bulk SMS failed: ${err.message}`),
+  });
 
   const markFollowUp = trpc.invoices.markFollowUp.useMutation({
     onSuccess: () => {
@@ -215,6 +243,78 @@ export default function DeclinedEstimatesSection() {
         </div>
       )}
 
+      {/* Wave-101: bulk action toolbar */}
+      <div className="flex items-center justify-between flex-wrap gap-2 bg-card border border-border/30 px-4 py-2.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => {
+              setBulkMode(!bulkMode);
+              if (bulkMode) setSelectedIds(new Set());
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-wider font-bold transition-colors ${
+              bulkMode
+                ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                : "bg-foreground/5 text-foreground/60 border border-border/30 hover:text-foreground"
+            }`}
+          >
+            {bulkMode ? <CheckSquare className="w-3 h-3" /> : <Square className="w-3 h-3" />}
+            {bulkMode ? "EXIT BULK" : "BULK SELECT"}
+          </button>
+          {bulkMode && (
+            <>
+              <button
+                onClick={() => {
+                  // Auto-select top 10 by current sort (which defaults to SCORE)
+                  const top10 = estimates.slice(0, 10).map((e: DeclinedEstimate) => e.id);
+                  setSelectedIds(new Set(top10));
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-wider font-bold bg-foreground/5 text-foreground/60 border border-border/30 hover:text-foreground"
+              >
+                <Zap className="w-3 h-3" /> SELECT TOP 10
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set(estimates.slice(0, 25).map((e: DeclinedEstimate) => e.id)))}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-wider font-bold bg-foreground/5 text-foreground/60 border border-border/30 hover:text-foreground"
+              >
+                <Zap className="w-3 h-3" /> TOP 25
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="px-3 py-1.5 text-[10px] tracking-wider font-bold text-foreground/40 hover:text-foreground/70"
+              >
+                CLEAR
+              </button>
+            </>
+          )}
+        </div>
+        {bulkMode && selectedIds.size > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-foreground/50">
+              {selectedIds.size} selected · ${estimates
+                .filter((e: DeclinedEstimate) => selectedIds.has(e.id))
+                .reduce((s: number, e: DeclinedEstimate) => s + Math.round((e.totalAmount || 0) / 100), 0)
+                .toLocaleString()} potential recovery
+            </span>
+            <button
+              onClick={() => {
+                if (!confirm(`Send 7-day follow-up SMS to ${selectedIds.size} customers? Twilio rate-limit handling is built in. SMS_KILL_SWITCH is respected.`)) return;
+                bulkFollowUpMutation.mutate({ ids: Array.from(selectedIds), tier: "7d" });
+              }}
+              disabled={bulkFollowUpMutation.isPending}
+              className="flex items-center gap-1.5 px-4 py-1.5 text-[11px] tracking-wider font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30 disabled:opacity-50"
+            >
+              {bulkFollowUpMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+              SEND 7D SMS
+            </button>
+          </div>
+        )}
+        {bulkMode && selectedIds.size === 0 && (
+          <span className="text-[10px] text-foreground/30 tracking-wider">
+            Tap cards to select · or use SELECT TOP 10/25 above
+          </span>
+        )}
+      </div>
+
       {/* Active Filter Chips — auto-hides when range is at default */}
       <FilterChips
         chips={[
@@ -251,18 +351,42 @@ export default function DeclinedEstimatesSection() {
             const isStale = daysOld >= 21;
             const score = Math.round(recoveryScore(est));
             const isHotPriority = sortMode === "score" && score >= 150;
+            const isSelected = selectedIds.has(est.id);
 
             return (
               <div
                 key={est.id}
-                className={`bg-card border p-4 flex items-center gap-4 flex-wrap ${
-                  isUrgent
+                onClick={() => {
+                  if (!bulkMode) return;
+                  setSelectedIds(prev => {
+                    const next = new Set(prev);
+                    if (next.has(est.id)) next.delete(est.id);
+                    else next.add(est.id);
+                    return next;
+                  });
+                }}
+                className={`bg-card border p-4 flex items-center gap-4 flex-wrap transition-colors ${
+                  bulkMode
+                    ? isSelected
+                      ? "border-emerald-500/50 bg-emerald-500/5 cursor-pointer"
+                      : "border-border/30 cursor-pointer hover:border-foreground/20"
+                    : isUrgent
                     ? "border-amber-500/30"
                     : isStale
                     ? "border-red-500/20"
                     : "border-border/30"
                 }`}
               >
+                {/* Bulk-mode checkbox */}
+                {bulkMode && (
+                  <div className="shrink-0">
+                    {isSelected
+                      ? <CheckSquare className="w-4 h-4 text-emerald-400" />
+                      : <Square className="w-4 h-4 text-foreground/30" />
+                    }
+                  </div>
+                )}
+
                 {/* Customer Info */}
                 <div className="flex-1 min-w-[200px]">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -324,8 +448,8 @@ export default function DeclinedEstimatesSection() {
                   <p className="text-[10px] text-foreground/30">estimated</p>
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-2 shrink-0">
+                {/* Actions — stopPropagation so they don't trigger card-select */}
+                <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                   {est.customerPhone && (
                     <a
                       href={`tel:${est.customerPhone}`}

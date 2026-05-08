@@ -57,7 +57,9 @@ function formatMoney(cents: number): string {
   return `$${Math.round(cents / 100)}`;
 }
 
-function buildSevenDayMessage(params: {
+// Wave-101: exported so the bulk-SMS tRPC endpoint can reuse the
+// same templates the cron uses. Keeps message tone consistent.
+export function buildSevenDayMessage(params: {
   name: string;
   amountCents: number;
   service: string | null;
@@ -72,7 +74,7 @@ function buildSevenDayMessage(params: {
   );
 }
 
-function buildThirtyDayMessage(params: {
+export function buildThirtyDayMessage(params: {
   name: string;
   amountCents: number;
 }): string {
@@ -82,6 +84,8 @@ function buildThirtyDayMessage(params: {
     `(216) 862-0005. Reply STOP to opt out.`
   );
 }
+
+export { firstName as parseFirstName };
 
 export async function runDeclinedWorkRecovery(): Promise<RecoveryResult> {
   if (!isBusinessHours()) {

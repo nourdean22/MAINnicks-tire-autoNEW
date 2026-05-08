@@ -705,4 +705,107 @@ export const invoicesRouter = router({
         .where(eq(algEstimates.id, input.id));
       return { success: true };
     }),
+
+  /**
+   * Wave-101: bulk follow-up SMS to N declined ALG estimates.
+   *
+   * Operator picks targets in the UI (multi-select or "top N by score")
+   * and this endpoint loops through them with a 250ms gap, sending the
+   * 7d follow-up template, marking each as followUp7dSent on success.
+   *
+   * Respects:
+   *   - SMS_KILL_SWITCH env var (returns degraded:true if set)
+   *   - sendSms internal cooldown (5 min between sends to same phone)
+   *   - sendSms daily limit (max 8 SMS/phone/24h)
+   *   - customers.smsOptOut TCPA flag (sendSms checks this)
+   *
+   * Returns per-id outcome so the UI can show which sent / which failed.
+   */
+  bulkFollowUp: adminProcedure
+    .input(z.object({
+      ids: z.array(z.number()).min(1).max(50),
+      tier: z.enum(["7d", "30d"]).default("7d"),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) throw new Error("Database not available");
+
+      // SMS kill-switch awareness — short-circuit cleanly if disabled
+      const killSwitchOn = process.env.SMS_KILL_SWITCH === "true";
+
+      // Fetch all targets in one query
+      const rows = await d
+        .select({
+          id: algEstimates.id,
+          customerName: algEstimates.customerName,
+          customerPhone: algEstimates.customerPhone,
+          estimatedAmount: algEstimates.estimatedAmount,
+          serviceDescription: algEstimates.serviceDescription,
+          followUp7dSent: algEstimates.followUp7dSent,
+          followUp30dSent: algEstimates.followUp30dSent,
+        })
+        .from(algEstimates)
+        .where(sql`${algEstimates.id} IN (${sql.join(input.ids.map(id => sql`${id}`), sql`, `)})`);
+
+      const { sendSms } = await import("../../sms");
+      const { buildSevenDayMessage, buildThirtyDayMessage, parseFirstName } =
+        await import("../../cron/jobs/declinedWorkRecovery");
+
+      const results: Array<{
+        id: number;
+        sent: boolean;
+        reason?: string;
+      }> = [];
+
+      for (const row of rows) {
+        if (!row.customerPhone) {
+          results.push({ id: row.id, sent: false, reason: "no_phone" });
+          continue;
+        }
+        if (killSwitchOn) {
+          results.push({ id: row.id, sent: false, reason: "kill_switch" });
+          continue;
+        }
+        // Already sent this tier? Skip.
+        const alreadySent = input.tier === "7d" ? row.followUp7dSent : row.followUp30dSent;
+        if (alreadySent) {
+          results.push({ id: row.id, sent: false, reason: "already_sent" });
+          continue;
+        }
+
+        const name = parseFirstName(row.customerName);
+        const body = input.tier === "7d"
+          ? buildSevenDayMessage({ name, amountCents: row.estimatedAmount, service: row.serviceDescription })
+          : buildThirtyDayMessage({ name, amountCents: row.estimatedAmount });
+
+        try {
+          const smsResult = await sendSms(row.customerPhone, body, { transactional: false });
+          if (smsResult.success) {
+            // Mark sent on success
+            const updateField = input.tier === "7d"
+              ? { followUp7dSent: 1, followUp7dSentAt: new Date() }
+              : { followUp30dSent: 1, followUp30dSentAt: new Date() };
+            await d.update(algEstimates).set(updateField).where(eq(algEstimates.id, row.id));
+            results.push({ id: row.id, sent: true });
+          } else {
+            results.push({ id: row.id, sent: false, reason: smsResult.error || "send_failed" });
+          }
+        } catch (err) {
+          results.push({ id: row.id, sent: false, reason: err instanceof Error ? err.message : "unknown_error" });
+        }
+
+        // Small gap between sends — Twilio handles bursts but be polite
+        await new Promise((rs) => setTimeout(rs, 250));
+      }
+
+      const sentCount = results.filter(r => r.sent).length;
+      const failedCount = results.length - sentCount;
+
+      return {
+        sentCount,
+        failedCount,
+        killSwitchOn,
+        results,
+      };
+    }),
 });
