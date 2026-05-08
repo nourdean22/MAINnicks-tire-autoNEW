@@ -598,31 +598,34 @@ function checkDailyLimit(phone: string): boolean {
 }
 
 /**
- * Send an SMS message via Twilio (with circuit breaker + smart timing).
+ * Send an SMS message (Twilio or shop gateway, with circuit breaker +
+ * smart timing).
  *
- * KILL SWITCH: when SMS_KILL_SWITCH=true is set in env, this short-circuits
- * immediately and returns a degraded response. Used during Twilio outages
- * so phone-AI flows (Nick) don't sit on a 15s circuit-breaker timeout
- * during a live call. Set the env var to instantly disable all outbound
- * SMS without redeploying. Set it back to anything else (or unset) to
- * re-enable.
+ * KILL SWITCH: when SMS_KILL_SWITCH=true is set in env, the **Twilio**
+ * path short-circuits immediately and returns a degraded response.
+ * Used during Twilio outages so phone-AI flows (Nick) don't sit on a
+ * 15s circuit-breaker timeout during a live call.
+ *
+ * Wave-106: the kill switch NO LONGER blocks the shop-gateway path
+ * (opts.via === "shop"). The shop gateway is independent of Twilio —
+ * it routes through the F25e on Verizon. So when Twilio is down we
+ * leave SMS_KILL_SWITCH=true to skip the broken Twilio path, while
+ * VAPI / admin / booking flows that opt in via:"shop" keep working.
+ *
+ * Set SMS_KILL_SWITCH=false (or unset) when Twilio is restored.
  */
 export async function sendSms(to: string, body: string, opts?: SendSmsOptions): Promise<SmsResult> {
-  // ─── Kill switch (Twilio outage / billing pause / migration) ────
-  if (process.env.SMS_KILL_SWITCH === "true") {
-    log.warn("SMS kill switch active, skipping send", { to: to.slice(-4) });
-    return { success: false, error: "sms_disabled" };
-  }
-
   // Normalize phone first — both routes need it
   const normalizedEarly = normalizePhone(to);
   if (!normalizedEarly) {
     return { success: false, error: `Invalid phone number: ${to}` };
   }
 
-  // ─── Wave-103: shop gateway routing ───
+  // ─── Wave-103/106: shop gateway routing (NOT blocked by kill switch) ───
   // Caller explicitly opted in via opts.via === "shop" → try Capevace
   // gateway first, fall back to Twilio + Telegram alert on failure.
+  // Kill switch is checked AFTER this so an active kill switch still
+  // allows shop-gateway sends to flow through the F25e.
   if (opts?.via === "shop") {
     const gw = await sendSmsViaShopGateway(normalizedEarly, body);
     if (gw.success) {
@@ -636,6 +639,17 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
     log.warn(`Shop gateway failed (${gw.error}) — falling back to Twilio for ${normalizedEarly.slice(-4)}`);
     await alertShopGatewayFallback(gw.error || "unknown", normalizedEarly);
     // Drop through to normal Twilio flow below
+  }
+
+  // ─── Kill switch (Twilio-only — wave-106) ────────────
+  // Blocks the Twilio path when SMS_KILL_SWITCH=true. Shop gateway
+  // already returned above if it succeeded; if we're here, either the
+  // caller didn't opt-in to shop, or shop fell back. Either way we're
+  // about to hit Twilio — and if Twilio is down, this short-circuits
+  // before the 15s circuit-breaker timeout slows things down.
+  if (process.env.SMS_KILL_SWITCH === "true") {
+    log.warn("SMS kill switch active (Twilio path) — skipping send", { to: to.slice(-4) });
+    return { success: false, error: "sms_disabled" };
   }
 
   const client = getTwilioClient();
