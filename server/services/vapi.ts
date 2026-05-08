@@ -475,7 +475,7 @@ The fix is to make YOU collect the tire request first, explain that used tires r
 Do not pretend you checked inventory.
 Do not let tire callers get transferred without size/quantity/phone when possible.`;
 
-const FIRST_MESSAGE = "Nick's Tire and Auto, Cleveland's open-Sunday shop. What you looking for — used tire for your car, or something else?";
+const FIRST_MESSAGE = "Nick's Tire and Auto, How can I help — used tire for your car, or something else?";
 
 // Keywords that trigger natural call ending
 const END_CALL_PHRASES = [
