@@ -186,9 +186,10 @@ SEO pages for local search — each targets "[city] auto repair":
 
 ### Sending SMS to a Customer
 1. Go to Admin → **SMS**
-2. Select customer or enter number
-3. Type message, send
-4. Powered by Twilio integration
+2. Open a conversation from the Conversations panel (or use Send Manual SMS for a one-off)
+3. Type your reply, hit Send (or ⌘/Ctrl + Enter)
+4. **Customer receives the text from 216-862-0005** (the shop's real Verizon line via the F25e gateway). Twilio is the automatic fallback if the F25e is offline.
+5. The Gateway Status card at the top of the SMS page shows live online/offline state for both paths.
 
 ### Running a Win-Back Campaign
 1. Admin → **Win-Back** shows customers who haven't visited in X days

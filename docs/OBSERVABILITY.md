@@ -63,7 +63,9 @@ A SLO (Service Level Objective) is the target threshold for that signal.
 
 | SLI | Metric | SLO target |
 |---|---|---|
-| **Twilio SMS deliverability** | % of sent SMS that deliver | ≥ 95% |
+| **Shop SMS Gateway uptime** | F25e last-seen age (cron `sms-gateway-health`) | < 30 min always |
+| **Shop SMS Gateway deliverability** | % of `via:"shop"` sends that reach `sms:delivered` | ≥ 98% |
+| **Twilio SMS deliverability** (fallback path) | % of sent SMS that deliver | ≥ 95% |
 | **Resend email deliverability** | % delivered | ≥ 95% |
 | **Stripe webhook ingestion** | % successful | ≥ 99.5% |
 
