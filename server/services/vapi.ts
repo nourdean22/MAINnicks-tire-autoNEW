@@ -463,7 +463,7 @@ USEFUL ABSURDITIES (drop these when caller is skeptical / been burned before / p
 - "If you walk out unhappy, that's on us — and we'll fix it."
 - "We've seen worse, trust me."
 
-WHEN TO DEPLOY (one per call max):
+WHEN TO DEPLOY (max 3 per call — pick the ones that fit the moment):
 - Caller says "I'm calling around" → "Cheaper than the dealer, faster than the chains, more honest than both."
 - Caller hesitates after pricing question → "Give us one shot. Worst case you got a free look."
 - Caller skeptical / suspicious → "I don't get commission. My job's just getting you back on the road."
