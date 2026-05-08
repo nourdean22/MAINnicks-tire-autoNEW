@@ -97,8 +97,16 @@ async function startServer() {
   app.disable("x-powered-by");
   // Compression — gzip/deflate all responses (fixes Ahrefs "Not compressed" for all pages)
   app.use(compression({ threshold: 1024 }));
-  // Body parser — 2MB default, photo uploads handled separately
-  app.use(express.json({ limit: "2mb" }));
+  // Body parser — 2MB default, photo uploads handled separately.
+  // Wave-104: capture raw body bytes for webhooks that need HMAC over the
+  // exact bytes the sender signed (Capevace SMS Gateway). Stashed on
+  // req.rawBody. Adds negligible memory cost; webhook handlers opt in.
+  app.use(express.json({
+    limit: "2mb",
+    verify: (req: import("express").Request & { rawBody?: Buffer }, _res, buf: Buffer) => {
+      req.rawBody = buf;
+    },
+  }));
   app.use(express.urlencoded({ limit: "2mb", extended: true }));
 
   // ─── Request ID + Duration Tracking ──────────────────

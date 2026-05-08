@@ -90,15 +90,16 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
   // ─── Signature validation ────────────────────────
   const secret = process.env.SHOP_SMS_GATEWAY_WEBHOOK_SECRET;
   if (secret) {
-    // We need the raw body for HMAC. Express has parsed JSON by this
-    // point; reconstruct from req.body. (Capevace signs the raw bytes
-    // they sent, which match JSON.stringify of the parsed object for
-    // their payload format.)
-    const rawForHmac = JSON.stringify(req.body);
+    // Capevace signs the raw bytes it sent. Use req.rawBody (stashed
+    // by the express.json verify callback in _core/index.ts) — NOT
+    // JSON.stringify(req.body), which would reformat the bytes (key
+    // ordering, whitespace, escape sequences) and break HMAC equality.
+    const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
     const sig = req.header("X-Signature") || req.header("x-signature");
-    if (!verifySignature(rawForHmac, sig, secret)) {
+    if (!rawBody || !verifySignature(rawBody, sig, secret)) {
       log.warn("SMS gateway webhook rejected — bad signature", {
         sig: (sig || "").slice(0, 20),
+        hasRawBody: !!rawBody,
       });
       res.status(401).json({ error: "invalid_signature" });
       return;
