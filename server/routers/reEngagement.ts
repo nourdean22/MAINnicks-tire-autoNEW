@@ -78,7 +78,8 @@ export const reEngagementRouter = router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const result = await sendSms(input.phone, input.body);
+      // Wave-108: re-engagement via shop gateway (admin-triggered, 1:1)
+      const result = await sendSms(input.phone, input.body, { via: "shop" });
 
       if (result.success) {
         logAdminAction({

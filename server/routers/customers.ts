@@ -536,7 +536,8 @@ export const customersRouter = router({
       if (!customer) return { success: false, error: "Customer not found" };
 
       const { sendSms } = await import("../sms");
-      const result = await sendSms(customer.phone, input.message);
+      // Wave-108: admin → customer messages via shop gateway (Twilio fallback).
+      const result = await sendSms(customer.phone, input.message, { via: "shop" });
 
       // Audit trail — log SMS sends for Nick AI learning
       if (result.success) {
@@ -610,7 +611,9 @@ export const customersRouter = router({
           ? `Hi ${name}, this is ${STORE_NAME}. Thank you for trusting us with your vehicle!\n\nA quick Google review means a lot to us:\n${REVIEW_URL}\n\nRefer a friend: ${REFER_URL}\nWe'd love to see you again. — Nick's Team ${STORE_PHONE}`
           : `Hi ${name}, thank you for choosing ${STORE_NAME}! We truly appreciate your business.\n\nGot 30 sec? A Google review helps other Cleveland drivers find honest repair:\n${REVIEW_URL}\n\nRefer a friend: ${REFER_URL}\n— Nick's Team ${STORE_PHONE}`;
 
-        const result = await sendSms(c.phone, msg);
+        // Wave-108: review-request batch via shop gateway so customer
+        // sees the same shop number on the request as on prior visits.
+        const result = await sendSms(c.phone, msg, { via: "shop" });
         if (result.success) {
           sent++;
           await d.update(customers)

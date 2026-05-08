@@ -367,25 +367,104 @@ export const loyaltyRouter = router({
 });
 
 export const smsRouter = router({
+  /**
+   * Send a test SMS. Defaults to via:"shop" (the F25e at 216-862-0005)
+   * since that's the primary path; falls back to Twilio automatically
+   * if the shop gateway is offline.
+   */
   sendTest: adminProcedure
-    .input(z.object({ phone: z.string().min(7).max(20) }))
+    .input(z.object({
+      phone: z.string().min(7).max(20),
+      via: z.enum(["shop", "twilio"]).default("shop"),
+    }))
     .mutation(async ({ input }) => {
-      const result = await sendSms(input.phone, "This is a test message from Nick's Tire & Auto. If you received this, SMS notifications are working correctly. — Nick's Team");
-      return result;
+      const body = input.via === "shop"
+        ? "Test from Nick's Tire & Auto — this is the shop's real line at 216-862-0005."
+        : "Test from Nick's Tire & Auto — this is the Twilio fallback line.";
+      return sendSms(input.phone, body, { via: input.via });
     }),
+  /** Send a custom SMS to any number. Defaults to shop gateway. */
   sendManual: adminProcedure
     .input(z.object({
       phone: z.string().min(7).max(20),
       message: z.string().min(1).max(1600),
+      via: z.enum(["shop", "twilio"]).default("shop"),
     }))
     .mutation(async ({ input }) => {
-      return sendSms(input.phone, input.message);
+      return sendSms(input.phone, input.message, { via: input.via });
     }),
+  /**
+   * Wave-108: status now reports BOTH SMS providers.
+   *  - shopGateway: F25e via Capevace cloud (primary)
+   *  - twilio: legacy Twilio account (fallback)
+   * Operator sees at a glance which paths are live.
+   */
   status: adminProcedure.query(() => {
-    const configured = !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER);
+    const twilioConfigured = !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER);
+    const shopConfigured = !!(process.env.SHOP_SMS_GATEWAY_USERNAME && process.env.SHOP_SMS_GATEWAY_PASSWORD);
+    const killSwitch = process.env.SMS_KILL_SWITCH === "true";
     return {
-      configured,
-      fromNumber: configured ? process.env.TWILIO_PHONE_NUMBER : null,
+      // Primary path
+      shopGateway: {
+        configured: shopConfigured,
+        fromNumber: shopConfigured ? "+12168620005" : null,
+        // Lives in eventBus; lastSeen filled in by gatewayHealth query
+      },
+      // Fallback
+      twilio: {
+        configured: twilioConfigured,
+        fromNumber: twilioConfigured ? process.env.TWILIO_PHONE_NUMBER : null,
+        killSwitchActive: killSwitch, // true = Twilio path blocked
+      },
+      // Legacy compat (kept so existing UI doesn't break)
+      configured: twilioConfigured,
+      fromNumber: twilioConfigured ? process.env.TWILIO_PHONE_NUMBER : null,
     };
+  }),
+  /**
+   * Wave-108: live shop gateway health.
+   * Hits Capevace's /device endpoint to read the F25e's lastSeen
+   * timestamp + name. Online if lastSeen < 10 min ago.
+   */
+  gatewayHealth: adminProcedure.query(async () => {
+    const username = process.env.SHOP_SMS_GATEWAY_USERNAME;
+    const password = process.env.SHOP_SMS_GATEWAY_PASSWORD;
+    const baseUrl = process.env.SHOP_SMS_GATEWAY_URL || "https://api.sms-gate.app/3rdparty/v1";
+    if (!username || !password) {
+      return { configured: false as const, online: false, lastSeen: null, deviceName: null, error: "SHOP_SMS_GATEWAY_USERNAME/PASSWORD not set" };
+    }
+    const auth = Buffer.from(`${username}:${password}`).toString("base64");
+    try {
+      const res = await fetch(`${baseUrl}/device`, {
+        headers: { Authorization: `Basic ${auth}` },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) {
+        return { configured: true as const, online: false, lastSeen: null, deviceName: null, error: `Capevace /device returned ${res.status}` };
+      }
+      const devices = (await res.json()) as Array<{ id: string; name?: string; lastSeen?: string }>;
+      if (!devices.length) {
+        return { configured: true as const, online: false, lastSeen: null, deviceName: null, error: "No devices registered" };
+      }
+      const dev = devices[0];
+      const lastSeenMs = dev.lastSeen ? new Date(dev.lastSeen).getTime() : 0;
+      const ageMin = lastSeenMs ? Math.round((Date.now() - lastSeenMs) / 60_000) : 999;
+      return {
+        configured: true as const,
+        online: ageMin < 10,
+        lastSeen: dev.lastSeen || null,
+        ageMinutes: ageMin,
+        deviceName: dev.name || null,
+        deviceId: dev.id,
+      };
+    } catch (err) {
+      return {
+        configured: true as const,
+        online: false,
+        lastSeen: null,
+        deviceName: null,
+        error: err instanceof Error ? err.message : "Unreachable",
+      };
+    }
   }),
 });

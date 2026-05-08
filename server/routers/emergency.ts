@@ -206,11 +206,16 @@ export const emergencyRouter = router({
         ).catch((e) => { log.warn("[routers/emergency] fire-and-forget failed:", e); });
 
         // IMMEDIATE SMS to owner about the emergency request
+        // Wave-108: NOT via shop gateway — STORE_OWNER_PHONE may equal
+        // 216-862-0005 (the F25e itself), which would loop. Twilio path
+        // is correct here since the shop owner sees alerts from a
+        // different number (Twilio 216-769-9977 = clearly NOT a customer).
         withRetry(
           () =>
             sendSms(
               STORE_OWNER_PHONE,
-              `🚨 AFTER-HOURS REQUEST: ${name} (${phone}) — ${vehicle || "Vehicle info not provided"} — ${problem}`
+              `🚨 AFTER-HOURS REQUEST: ${name} (${phone}) — ${vehicle || "Vehicle info not provided"} — ${problem}`,
+              { transactional: true }
             ),
           { maxRetries: 2, baseDelayMs: 500, label: "emergency-owner-sms" }
         ).catch((err) => {
@@ -225,11 +230,13 @@ export const emergencyRouter = router({
         });
 
         // SMS confirmation to customer with next open time
+        // Wave-108: customer-facing → shop gateway so they see it from 216-862-0005
         withRetry(
           () =>
             sendSms(
               phone,
-              `Thanks ${name}! We received your emergency request. Our next available time is ${nextOpenTime}. Call us then at (216) 862-0005. - Nick's Tire & Auto`
+              `Thanks ${name}! We received your emergency request. Our next available time is ${nextOpenTime}. Call us then at (216) 862-0005. - Nick's Tire & Auto`,
+              { via: "shop", transactional: true }
             ),
           { maxRetries: 2, baseDelayMs: 500, label: "emergency-customer-sms" }
         ).catch((err) => {

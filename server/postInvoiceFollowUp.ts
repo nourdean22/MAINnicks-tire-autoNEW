@@ -114,7 +114,9 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
           continue;
         }
 
-        const smsResult = await sendSms(customer.phone, message);
+        // Wave-108: post-invoice review request via shop gateway so the
+        // customer recognizes the sender (same line they paid through).
+        const smsResult = await sendSms(customer.phone, message, { via: "shop" });
 
         if (smsResult.success) {
           // Mark as sent in database

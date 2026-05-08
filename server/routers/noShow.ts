@@ -57,7 +57,8 @@ export const noShowRouter = router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      const result = await sendSms(input.phone, input.body);
+      // Wave-108: no-show outreach via shop gateway (admin-triggered, customer-facing)
+      const result = await sendSms(input.phone, input.body, { via: "shop" });
       if (result.success) {
         logAdminAction({
           action: "customer.sms_sent",
