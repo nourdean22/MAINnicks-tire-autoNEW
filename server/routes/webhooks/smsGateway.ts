@@ -46,17 +46,39 @@ interface SmsGatewayEvent {
 }
 
 /**
- * Verify HMAC-SHA256 signature against raw request body.
- * SMS Gateway sends `X-Signature: sha256=<hex>`.
+ * Verify HMAC-SHA256 signature on a Capevace SMS Gateway webhook.
+ *
+ * Per docs.sms-gate.app/features/webhooks/, Capevace signs the
+ * concatenation of the raw request body and the X-Timestamp header
+ * value: `HMAC-SHA256(secret, rawBody + timestamp)`. The result is
+ * sent as a hex string in the X-Signature header.
+ *
+ * Replay protection: the timestamp must be within ±5 minutes of now.
  */
-function verifySignature(rawBody: Buffer | string, signatureHeader: string | undefined, secret: string): boolean {
-  if (!signatureHeader) return false;
+const TIMESTAMP_WINDOW_SECONDS = 300; // ±5 min
+
+function verifySignature(
+  rawBody: Buffer | string,
+  signatureHeader: string | undefined,
+  timestampHeader: string | undefined,
+  secret: string,
+): boolean {
+  if (!signatureHeader || !timestampHeader) return false;
   const provided = signatureHeader.replace(/^sha256=/, "").trim();
   if (!provided) return false;
 
+  // Replay-protection: timestamp must be within ±5min of server time
+  const ts = Number(timestampHeader);
+  if (!Number.isFinite(ts)) return false;
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (Math.abs(nowSec - ts) > TIMESTAMP_WINDOW_SECONDS) return false;
+
+  const bodyStr = typeof rawBody === "string" ? rawBody : rawBody.toString("utf8");
+  const message = bodyStr + timestampHeader;
+
   const computed = crypto
     .createHmac("sha256", secret)
-    .update(typeof rawBody === "string" ? rawBody : rawBody.toString("utf8"))
+    .update(message)
     .digest("hex");
 
   // Constant-time compare
@@ -90,15 +112,17 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
   // ─── Signature validation ────────────────────────
   const secret = process.env.SHOP_SMS_GATEWAY_WEBHOOK_SECRET;
   if (secret) {
-    // Capevace signs the raw bytes it sent. Use req.rawBody (stashed
-    // by the express.json verify callback in _core/index.ts) — NOT
-    // JSON.stringify(req.body), which would reformat the bytes (key
-    // ordering, whitespace, escape sequences) and break HMAC equality.
+    // Capevace signs HMAC-SHA256(secret, rawBody + timestamp) where
+    // timestamp comes from X-Timestamp header. We use req.rawBody
+    // (stashed by the express.json verify callback in _core/index.ts)
+    // — NOT JSON.stringify(req.body), which would reformat the bytes.
     const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
     const sig = req.header("X-Signature") || req.header("x-signature");
-    if (!rawBody || !verifySignature(rawBody, sig, secret)) {
+    const ts = req.header("X-Timestamp") || req.header("x-timestamp");
+    if (!rawBody || !verifySignature(rawBody, sig, ts, secret)) {
       log.warn("SMS gateway webhook rejected — bad signature", {
         sig: (sig || "").slice(0, 20),
+        ts: ts || "(missing)",
         hasRawBody: !!rawBody,
       });
       res.status(401).json({ error: "invalid_signature" });
