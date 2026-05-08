@@ -78,7 +78,8 @@ export async function detectNoShows(): Promise<{ recordsProcessed: number; detai
       for (const b of noShows.filter((n) => n.phone)) {
         try {
           const firstName = (String(b.name || "there")).split(" ")[0];
-          await sendSms(String(b.phone), `Hi ${firstName}, we noticed you may have missed your drop-off at Nick's Tire & Auto. We'd love to get you back in — call us at (216) 862-0005 or schedule a drop-off at nickstire.org. First-come, first-served, 7 days a week.`);
+          // Wave-108: no-show outreach via shop gateway (1:1)
+          await sendSms(String(b.phone), `Hi ${firstName}, we noticed you may have missed your drop-off at Nick's Tire & Auto. We'd love to get you back in — call us at (216) 862-0005 or schedule a drop-off at nickstire.org. First-come, first-served, 7 days a week.`, { via: "shop" });
           smsSent++;
         } catch (err) { log.warn("detectNoShows: SMS send failed", { error: err instanceof Error ? err.message : String(err) }); }
         if (smsSent >= 5) break; // Rate limit
@@ -133,7 +134,8 @@ export async function autoCleanStaleBookings(): Promise<{ recordsProcessed: numb
       for (const b of stale.filter((s) => s.phone && !(s.adminNotes && String(s.adminNotes).includes("[AUTO] No-show")))) {
         try {
           const firstName = (String(b.name || "there")).split(" ")[0];
-          await sendSms(String(b.phone), `Hi ${firstName}! Your booking at Nick's Tire & Auto has expired. Need to reschedule? Call (216) 862-0005 or visit nickstire.org — drop-offs welcome!`);
+          // Wave-108: expired-booking rebook via shop gateway (1:1)
+          await sendSms(String(b.phone), `Hi ${firstName}! Your booking at Nick's Tire & Auto has expired. Need to reschedule? Call (216) 862-0005 or visit nickstire.org — drop-offs welcome!`, { via: "shop" });
           smsSent++;
         } catch (err) { log.warn("autoCleanStaleBookings: rebook SMS failed", { error: err instanceof Error ? err.message : String(err) }); }
         if (smsSent >= 10) break;
@@ -173,7 +175,8 @@ export async function escalateStaleCallbacks(): Promise<{ recordsProcessed: numb
       for (const cb of stale.filter((c) => c.phone)) {
         try {
           const firstName = (String(cb.name || "there")).split(" ")[0];
-          await sendSms(String(cb.phone), `Hi ${firstName}, we haven't forgotten about you! We'll be calling you back shortly regarding your request. — Nick's Tire & Auto (216) 862-0005`);
+          // Wave-108: callback fallback via shop gateway (1:1)
+          await sendSms(String(cb.phone), `Hi ${firstName}, we haven't forgotten about you! We'll be calling you back shortly regarding your request. — Nick's Tire & Auto (216) 862-0005`, { via: "shop" });
           smsSent++;
           // Mark as "no-answer" — SMS sent but no actual call made yet
           await d.execute(sql`UPDATE callback_requests SET status = 'no-answer', notes = CONCAT(COALESCE(notes, ''), '\nAuto-SMS: we will call you back'), calledAt = NOW() WHERE id = ${cb.id}`);
@@ -454,14 +457,14 @@ export async function closeReferralLoop(): Promise<{ recordsProcessed: number; d
         const referrerFirst = (String(ref.referrerName || "there")).split(" ")[0];
         const refereeFirst = (String(ref.refereeName || "there")).split(" ")[0];
 
-        // SMS the referrer
+        // SMS the referrer  (Wave-108: shop gateway, 1:1)
         if (ref.referrerPhone) {
-          await sendSms(String(ref.referrerPhone), `Great news, ${referrerFirst}! ${refereeFirst} just visited Nick's. Your $25 credit is active — mention it on your next visit! (216) 862-0005`);
+          await sendSms(String(ref.referrerPhone), `Great news, ${referrerFirst}! ${refereeFirst} just visited Nick's. Your $25 credit is active — mention it on your next visit! (216) 862-0005`, { via: "shop" });
         }
 
-        // SMS the referred customer
+        // SMS the referred customer  (Wave-108: shop gateway, 1:1)
         if (ref.refereePhone) {
-          await sendSms(String(ref.refereePhone), `Welcome to Nick's! ${referrerFirst} sent you — you both have $25 off. Drop off anytime! (216) 862-0005`);
+          await sendSms(String(ref.refereePhone), `Welcome to Nick's! ${referrerFirst} sent you — you both have $25 off. Drop off anytime! (216) 862-0005`, { via: "shop" });
         }
 
         // Update referral status to "visited"
@@ -523,9 +526,11 @@ export async function notifyNewVips(): Promise<{ recordsProcessed: number; detai
 
     for (const vip of vips) {
       try {
+        // Wave-108: VIP notification via shop gateway (1:1, transactional)
         const result = await sendSms(
           String(vip.phone),
-          `You're a Nick's VIP! As a thank you, you get 10% off every visit. Just mention 'VIP' when you drop off. — Nick's Tire & Auto (216) 862-0005`
+          `You're a Nick's VIP! As a thank you, you get 10% off every visit. Just mention 'VIP' when you drop off. — Nick's Tire & Auto (216) 862-0005`,
+          { via: "shop" }
         );
         if (result.success) {
           // Mark as VIP-notified (smsCampaignSent = 2 means VIP notification sent)

@@ -226,7 +226,8 @@ export const leadRouter = router({
       if (input.source === "financing_preapproval") {
         const financingSms = `You may qualify for $0 down financing at Nick's! Bring your ID when you drop off. (216) 862-0005`;
         withRetry(
-          () => sendSms(input.phone, financingSms),
+          // Wave-108: financing preapproval via shop gateway (transactional)
+          () => sendSms(input.phone, financingSms, { via: "shop" }),
           { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (financing preapproval)" }
         ).catch(err => {
           log.error("[SMS] Financing preapproval SMS failed:", err);
@@ -242,7 +243,8 @@ export const leadRouter = router({
         handleAfterHoursCapture({ name, phone, type: "lead" }).catch((e) => { log.warn("[routers/lead] fire-and-forget failed:", e); });
       } else {
         withRetry(
-          () => sendSms(input.phone, leadConfirmationSms(input.name)),
+          // Wave-108: lead confirmation via shop gateway (transactional)
+          () => sendSms(input.phone, leadConfirmationSms(input.name), { via: "shop" }),
           { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (lead confirmation)" }
         ).catch(err => {
           log.error("[SMS] Lead confirmation failed:", err);

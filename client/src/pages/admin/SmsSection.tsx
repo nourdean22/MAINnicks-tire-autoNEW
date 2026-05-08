@@ -14,6 +14,71 @@ import {
 } from "lucide-react";
 import { PageHeader } from "./shared";
 
+// ─── Wave-108: dual-gateway status card ────────────────
+function GatewayStatusCard() {
+  const status = trpc.sms.status.useQuery();
+  const health = trpc.sms.gatewayHealth.useQuery(undefined, {
+    refetchInterval: 60_000, // re-poll every minute
+  });
+
+  const shopConfigured = status.data?.shopGateway?.configured ?? false;
+  const twilioConfigured = status.data?.twilio?.configured ?? false;
+  const killSwitch = status.data?.twilio?.killSwitchActive ?? false;
+  const shopOnline = health.data?.online ?? false;
+  const ageMin = health.data && "ageMinutes" in health.data ? health.data.ageMinutes : null;
+
+  return (
+    <div className="bg-card border border-border/30 p-6">
+      <h3 className="font-bold text-lg text-foreground tracking-[-0.01em] mb-4">SMS GATEWAYS</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Shop Gateway (primary) */}
+        <div className="border border-border/20 p-4 bg-foreground/[0.03]">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-foreground/50 text-[10px] uppercase tracking-[0.2em]">Primary</span>
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${shopConfigured && shopOnline ? "bg-emerald-400" : shopConfigured ? "bg-amber-400" : "bg-red-400"}`} />
+              <span className="text-[11px] text-foreground/60">
+                {!shopConfigured ? "NOT CONFIGURED" : shopOnline ? "ONLINE" : "OFFLINE"}
+              </span>
+            </div>
+          </div>
+          <p className="font-bold text-foreground tracking-[-0.01em]">Shop F25e Gateway</p>
+          <p className="text-foreground/50 text-[13px] mt-1">From: +1 216-862-0005</p>
+          {shopConfigured && (
+            <div className="mt-3 space-y-1 text-[12px] text-foreground/50">
+              {ageMin !== null && (
+                <p>Last seen: {ageMin === 0 ? "just now" : `${ageMin}m ago`}</p>
+              )}
+              {health.data?.deviceName && <p>Device: {health.data.deviceName}</p>}
+              {health.data && "error" in health.data && health.data.error && (
+                <p className="text-amber-400">{health.data.error}</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Twilio (fallback) */}
+        <div className="border border-border/20 p-4 bg-foreground/[0.03]">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-foreground/50 text-[10px] uppercase tracking-[0.2em]">Fallback</span>
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${twilioConfigured && !killSwitch ? "bg-emerald-400" : "bg-amber-400"}`} />
+              <span className="text-[11px] text-foreground/60">
+                {!twilioConfigured ? "NOT CONFIGURED" : killSwitch ? "KILL SWITCH ON" : "READY"}
+              </span>
+            </div>
+          </div>
+          <p className="font-bold text-foreground tracking-[-0.01em]">Twilio</p>
+          <p className="text-foreground/50 text-[13px] mt-1">From: {status.data?.twilio?.fromNumber || "—"}</p>
+          {killSwitch && (
+            <p className="mt-3 text-[12px] text-amber-400">SMS_KILL_SWITCH=true — Twilio path blocked. Shop gateway still works. Set to false on Railway when Twilio is restored.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Wave-105: Conversation thread panel ────────────────
 interface ConversationRow {
   id: number;
@@ -295,33 +360,33 @@ export default function SmsSection() {
     <div className="space-y-8">
       <PageHeader
         title="SMS"
-        subtitle="Customer conversations · status · ad-hoc send. Routes through shop gateway when active, Twilio fallback."
+        subtitle="Customer conversations · gateway status · ad-hoc send. Primary: shop F25e at 216-862-0005. Fallback: Twilio."
         icon={<MessageSquare className="w-5 h-5" />}
       />
 
       {/* Wave-105: Conversations panel — list + thread + reply */}
       <ConversationsPanel />
 
-      {/* Status Card */}
+      {/* Wave-108: dual-gateway status card */}
+      <GatewayStatusCard />
+
+      {/* Auto-send reference */}
       <div className="bg-card border border-border/30 p-6">
-        <h3 className="font-bold text-lg text-foreground tracking-[-0.01em] mb-4">TWILIO STATUS</h3>
-        <div className="flex items-center gap-3">
-          <div className={`w-3 h-3 rounded-full ${smsStatus?.configured ? "bg-emerald-400" : "bg-red-400"}`} />
-          <span className="text-foreground/80">
-            {smsStatus?.configured ? "Connected & Active" : "Not Configured"}
-          </span>
-        </div>
-        {smsStatus?.fromNumber && (
-          <p className="mt-2 text-foreground/50 text-[13px]">From: {smsStatus.fromNumber}</p>
-        )}
-        <div className="mt-4 bg-foreground/5 p-4 border border-border/20">
+        <h3 className="font-bold text-lg text-foreground tracking-[-0.01em] mb-4">AUTO-SEND TRIGGERS</h3>
+        <div className="bg-foreground/5 p-4 border border-border/20">
           <p className="text-foreground/60 text-sm leading-relaxed">
-            <strong className="text-foreground/80">SMS is automatically sent for:</strong><br />
+            <strong className="text-foreground/80">Through 216-862-0005 (shop gateway):</strong><br />
             • Booking confirmations (when customer books online)<br />
-            • Status updates (when you change job stage in Job Board)<br />
-            • Callback confirmations (when customer requests a callback)<br />
-            • 24-hour thank-you follow-ups (automated)<br />
-            • 7-day review request follow-ups (automated)
+            • Drop-off recaps (when car checked in)<br />
+            • Callback confirmations (during business hours)<br />
+            • Nick AI's address text after a phone call<br />
+            • Lead confirmations + financing follow-ups<br />
+            • Manager-on-duty alerts on every new booking/lead/emergency<br /><br />
+            <strong className="text-foreground/80">Through Twilio (fallback / bulk):</strong><br />
+            • Marketing campaigns + winback drips<br />
+            • Review request batches<br />
+            • Cron-based bulk outreach (declined-work recovery, retention)<br />
+            • Anything that fails through the shop gateway (auto-fallback + Telegram alert)
           </p>
         </div>
       </div>

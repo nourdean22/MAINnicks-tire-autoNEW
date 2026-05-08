@@ -96,7 +96,8 @@ export async function processReminderQueue() {
         );
       }
 
-      const result = await sendSms(reminder.phone, message);
+      // Wave-108: appointment reminder via shop gateway (1:1 transactional)
+      const result = await sendSms(reminder.phone, message, { via: "shop" });
       if (result.success) {
         await markReminderSent(reminder.id, result.sid);
         sent++;
