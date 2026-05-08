@@ -299,7 +299,7 @@ async function ensureInitialized(): Promise<void> {
   registerDestination({
     name: "telegram",
     enabled: true,
-    handles: ["emergency_request", "payment_received", "tire_order_placed", "lead_captured", "callback_requested", "booking_completed"],
+    handles: ["emergency_request", "payment_received", "tire_order_placed", "lead_captured", "callback_requested", "booking_completed", "booking_created"],
     softFail: true,
     handler: async (event) => {
       const { sendTelegram } = await import("./telegram");
@@ -315,6 +315,19 @@ async function ensureInitialized(): Promise<void> {
         await sendTelegram(
           `💳 PAYMENT: $${event.data.amount} from ${event.data.customerName}\n` +
           `Invoice: ${event.data.invoiceNumber || "N/A"}`
+        );
+      }
+      // Wave-105: every new booking from nickstire.org → Telegram alert
+      if (event.type === "booking_created") {
+        const service = event.data.service || "service";
+        const vehicle = event.data.vehicle ? `\nVehicle: ${event.data.vehicle}` : "";
+        const urgency = event.data.urgency ? `\nUrgency: ${event.data.urgency}` : "";
+        const ref = event.data.refCode ? `\nRef: ${event.data.refCode}` : "";
+        await sendTelegram(
+          `🆕 NEW BOOKING from nickstire.org\n` +
+          `${event.data.name} — ${event.data.phone}\n` +
+          `Service: ${service}${vehicle}${urgency}${ref}\n` +
+          `⚡ Customer is waiting for confirmation`
         );
       }
       // High-urgency lead = immediate alert with context
@@ -337,6 +350,17 @@ async function ensureInitialized(): Promise<void> {
           `🔴 HIGH-URGENCY LEAD: ${event.data.name} (${event.data.phone})\n` +
           `Source: ${event.data.source} | Urgency: ${event.data.urgencyScore}/5${returnNote}\n` +
           `⚡ Call within 5 minutes — conversion drops 50% after 30 min`
+        );
+      }
+      // Wave-105: every regular lead from nickstire.org → Telegram alert
+      // (high-urgency already alerted above with extra detail; skip those)
+      if (event.type === "lead_captured" && event.data.urgencyScore < 4 && event.data.source !== "emergency") {
+        const source = event.data.source || "site";
+        const message = event.data.message ? `\nMsg: ${String(event.data.message).slice(0, 100)}` : "";
+        await sendTelegram(
+          `🟡 NEW LEAD\n` +
+          `${event.data.name || "Unknown"} — ${event.data.phone || "no phone"}\n` +
+          `Source: ${source}${message}`
         );
       }
       // Callback = someone is waiting
@@ -455,6 +479,69 @@ async function ensureInitialized(): Promise<void> {
         }
         if (lastErr) log.warn("[eventBus:statenour] sync push failed after retries:", lastErr);
       } catch (e) { log.warn("[eventBus:statenour] sync push error:", e); }
+    },
+  });
+
+  // 8. On-Duty Manager SMS — wave-105
+  // Texts the manager whose number is currently configured as the VAPI
+  // transferCall destination (i.e. whoever is on call duty). Pulls the
+  // number live from VAPI (5-min cached). When the operator changes the
+  // VAPI transfer number, alerts auto-route to the new manager.
+  //
+  // Routes via the shop gateway (F25e at 216-862-0005) — works for any
+  // OTHER number (different from F25e itself), so the manager sees the
+  // text from the shop's real line. If F25e is offline, falls back to
+  // Twilio (which may be down — caller is graceful via softFail).
+  registerDestination({
+    name: "manager-on-duty-sms",
+    enabled: true,
+    handles: ["booking_created", "lead_captured", "callback_requested", "emergency_request"],
+    softFail: true,
+    handler: async (event) => {
+      const { getOnDutyManagerPhone } = await import("./vapi");
+      const managerPhone = await getOnDutyManagerPhone();
+      if (!managerPhone) {
+        log.info("[eventBus:manager-sms] no on-duty manager configured — skipping alert");
+        return;
+      }
+
+      // Sanity check: if the on-duty number happens to be the F25e itself
+      // (216-862-0005), the gateway can't text itself. Skip.
+      if (managerPhone.replace(/\D/g, "").endsWith("2168620005")) {
+        log.warn("[eventBus:manager-sms] on-duty manager is the shop gateway phone — skipping (would loop)");
+        return;
+      }
+
+      const data = event.data as Record<string, unknown>;
+      const name = String(data.name || "Unknown");
+      const phone = String(data.phone || "no phone");
+      let body = "";
+
+      if (event.type === "booking_created") {
+        const service = String(data.service || "service");
+        const vehicle = data.vehicle ? `\nVehicle: ${data.vehicle}` : "";
+        const ref = data.refCode ? `\nRef: ${data.refCode}` : "";
+        body = `🆕 BOOKING\n${name} — ${phone}\n${service}${vehicle}${ref}\nNicks Tire site`;
+      } else if (event.type === "lead_captured") {
+        const source = String(data.source || "site");
+        const urgency = data.urgencyScore ? ` (${data.urgencyScore}/5)` : "";
+        const msg = data.message ? `\n${String(data.message).slice(0, 90)}` : "";
+        body = `🆕 LEAD${urgency}\n${name} — ${phone}\nSource: ${source}${msg}`;
+      } else if (event.type === "callback_requested") {
+        const reason = data.reason ? `\n${String(data.reason).slice(0, 90)}` : "";
+        body = `📞 CALLBACK\n${name} — ${phone}${reason}`;
+      } else if (event.type === "emergency_request") {
+        const problem = data.problem ? `\n${String(data.problem).slice(0, 100)}` : "";
+        body = `🚨 EMERGENCY\n${name} — ${phone}${problem}\nCall back ASAP`;
+      }
+      if (!body) return;
+
+      const { sendSms } = await import("../sms");
+      // via:"shop" routes through the F25e gateway (the shop's real
+      // 216-862-0005 number). If that fails, sendSms falls back to
+      // Twilio + fires a Telegram alert — the caller doesn't have to
+      // think about it.
+      await sendSms(managerPhone, body, { via: "shop", transactional: true });
     },
   });
 

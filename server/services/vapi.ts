@@ -1589,3 +1589,67 @@ export async function getRecentCalls(limit = 20): Promise<{
 
 export { ASSISTANT_SYSTEM_PROMPT, FIRST_MESSAGE, VAPI_TOOLS, buildAssistantConfig };
 export { FOLLOW_UP_SYSTEM_PROMPT, FOLLOW_UP_FIRST_MESSAGE, buildFollowUpAssistantConfig };
+
+// ─── Wave-105: On-duty manager phone (VAPI transfer destination) ───
+// Returns the phone number that VAPI's transferCall tool currently
+// forwards live calls to. That's the on-duty manager. We use this for
+// "alert the manager" notifications (booking_created, lead_captured,
+// etc.) so alerts always go to whoever is actually answering calls.
+//
+// 5-min cache to avoid hammering the VAPI API on every event. Falls
+// back to MANAGER_PHONE env var if VAPI is unreachable.
+
+interface OnDutyManagerCache {
+  number: string | null;
+  expiresAt: number;
+}
+let onDutyManagerCache: OnDutyManagerCache | null = null;
+const ON_DUTY_TTL_MS = 5 * 60 * 1000;
+
+export async function getOnDutyManagerPhone(): Promise<string | null> {
+  // Cache hit
+  if (onDutyManagerCache && Date.now() < onDutyManagerCache.expiresAt) {
+    return onDutyManagerCache.number;
+  }
+
+  const apiKey = process.env.VAPI_API_KEY;
+  if (!apiKey) {
+    return process.env.MANAGER_PHONE || null;
+  }
+
+  try {
+    const aRes = await fetch(`${VAPI_BASE}/assistant?limit=10`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!aRes.ok) throw new Error(`assistant list ${aRes.status}`);
+    const assistants = (await aRes.json()) as Array<{ id: string }>;
+    if (!assistants.length) throw new Error("no assistants");
+    const assistantId = assistants[0].id;
+
+    const dRes = await fetch(`${VAPI_BASE}/assistant/${assistantId}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!dRes.ok) throw new Error(`assistant detail ${dRes.status}`);
+    const assistant = (await dRes.json()) as {
+      model?: { tools?: Array<{ type: string; destinations?: Array<{ number?: string }> }> };
+    };
+    const tools = assistant.model?.tools || [];
+    const transfer = tools.find((t) => t.type === "transferCall");
+    const number = transfer?.destinations?.[0]?.number || null;
+
+    onDutyManagerCache = { number, expiresAt: Date.now() + ON_DUTY_TTL_MS };
+    return number;
+  } catch (err) {
+    log.warn("getOnDutyManagerPhone failed; falling back to MANAGER_PHONE env", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return process.env.MANAGER_PHONE || null;
+  }
+}
+
+/** Invalidate the on-duty manager cache (call after setTransferDestination). */
+export function invalidateOnDutyManagerCache(): void {
+  onDutyManagerCache = null;
+}

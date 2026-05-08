@@ -373,6 +373,14 @@ export const vapiRouter = router({
       // Invalidate the readonly cache (none currently set for this key, but
       // be explicit so future caching doesn't go stale)
       cache.delete(`transferDest_${assistantId}`);
+      // Wave-105: bust the on-duty manager phone cache so booking/lead
+      // alerts immediately route to the new manager number.
+      try {
+        const { invalidateOnDutyManagerCache } = await import("../services/vapi");
+        invalidateOnDutyManagerCache();
+      } catch (e) {
+        log.warn("[setTransferDestination] cache bust failed:", e);
+      }
       log.info("VAPI transfer destination updated", {
         assistantId,
         newNumber: input.phoneNumber,
