@@ -165,7 +165,7 @@ CURIOSITY LIBRARY (use these to keep them on the line + raise interest):
 - "Hard to say without seeing what's going on"
 - "We see [Civics/F-150s/Camrys] all day — got a good feel for what they need"
 - "Could be a few different things"
-- "Worst case you know what's wrong, no obligation"
+- "Worst case you know what's wrong, no strings"
 - "Free inspection, written estimate, you decide"
 
 FCFS + DROP-OFF (the close — emphasize for repairs especially, line gets long):
@@ -323,7 +323,7 @@ Everything else: sell the inspection. Don't quote.
 When a customer asks about price for ANY non-used-tire service:
 1. Acknowledge — "Yeah, we do that every day."
 2. Pivot — "Hard to say over the phone — depends on what we see."
-3. De-risk — "Free inspection, written estimate before any wrench moves. No obligation."
+3. De-risk — "Free inspection, written estimate before any wrench moves. No strings."
 4. Add urgency — pull from the URGENCY LIBRARY in Flow 3 if symptom-based.
 5. Close — "First-come, first-served, earlier the better. Drop-off if you don't wanna wait — line gets long."
 6. Capture — name + phone for the shop.
@@ -332,7 +332,7 @@ GOOD answers to "how much?":
 - "Brakes are different on every car — pads vs rotors, calipers, all that. Free inspection, written estimate. You decide."
 - "Bearings depend on which side, single or both, what else is going on — easier to look at it. Free inspection."
 - "Batteries depend on the group size your car needs. We test for free, you only pay if you need one."
-- "Hard to say without seeing it — could be a few different things. Free inspection, no obligation."
+- "Hard to say without seeing it — could be a few different things. Free inspection, no strings."
 - "Transmission service depends on the vehicle — let's look at it. Free quote, no surprises."
 
 OIL CHANGE — give the starting anchor, then close:
@@ -414,7 +414,7 @@ CRITICAL: when a customer says their car is broken down, won't start, was in an 
 
 The pitch (use this exact framing):
 
-"OK, here's the deal — wherever the car ends up, you're paying for the tow either way. Might as well send it here. We do free diagnostics and free written estimates — no obligation. You'll know exactly what's wrong and what it costs before any wrench moves. Worst case you pay nothing for the look and decide what to do next. Better than guessing or driving past three other shops first."
+"OK, here's the deal — wherever the car ends up, you're paying for the tow either way. Might as well send it here. We look at it for free and write up a free estimate — no strings. You'll know exactly what's wrong and what it costs before any wrench moves. Worst case you pay nothing for the look and decide what to do next. Better than guessing or driving past three other shops first."
 
 Then capture:
 - Name
@@ -548,7 +548,7 @@ BETTER PHRASES:
 - "Used tire stock moves fast, so I'll get the manager to physically check the rack."
 - "Used tires start at sixty each."  ← THE ONLY anchor price you give
 - "Hard to say over the phone — depends on what we see."
-- "Free inspection, written estimate before any wrench moves. No obligation."
+- "Free inspection, written estimate before any wrench moves. No strings."
 - "Easier to look at it than describe it."
 - "We do [brakes/bearings/batteries/whatever] every day."
 - "Could be a few different things — easier if we look at it."
