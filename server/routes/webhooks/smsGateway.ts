@@ -1,0 +1,188 @@
+/**
+ * Wave-103 — SMS Gateway webhook (Samsung F25e shop phone).
+ *
+ * The SMS Gateway by Capevace cloud relay (https://sms-gate.app) calls
+ * POST /api/webhooks/sms-gateway whenever the shop's phone receives or
+ * delivers a message. We use it for two things:
+ *
+ *  1. **Inbound customer texts** (event = "sms:received") — the customer
+ *     texted 216-862-0005 directly. We record it in the conversation
+ *     thread + log it in communication_log so the admin SMS dashboard
+ *     shows the real conversation.
+ *
+ *  2. **Delivery receipts** (event = "sms:delivered" / "sms:failed") —
+ *     update delivery stats so the admin can see what got through.
+ *
+ * Signature validation: SMS Gateway signs each request with HMAC-SHA256
+ * using the per-webhook signing key. Header `X-Signature` carries
+ * `sha256=<hex>`. We compare with `SHOP_SMS_GATEWAY_WEBHOOK_SECRET`.
+ *
+ * Docs: https://docs.sms-gate.app/integration/webhooks/
+ */
+
+import { Router, type Request, type Response } from "express";
+import crypto from "node:crypto";
+import { createLogger } from "../../lib/logger";
+import { recordInboundShopSms } from "../../sms";
+
+const log = createLogger("sms-gateway-webhook");
+const router = Router();
+
+interface SmsGatewayEvent {
+  deviceId?: string;
+  event?: string;
+  id?: string;
+  webhookId?: string;
+  payload?: {
+    messageId?: string;
+    phoneNumber?: string;
+    message?: string;
+    receivedAt?: string;
+    sentAt?: string;
+    deliveredAt?: string;
+    failedAt?: string;
+    reason?: string;
+  };
+}
+
+/**
+ * Verify HMAC-SHA256 signature against raw request body.
+ * SMS Gateway sends `X-Signature: sha256=<hex>`.
+ */
+function verifySignature(rawBody: Buffer | string, signatureHeader: string | undefined, secret: string): boolean {
+  if (!signatureHeader) return false;
+  const provided = signatureHeader.replace(/^sha256=/, "").trim();
+  if (!provided) return false;
+
+  const computed = crypto
+    .createHmac("sha256", secret)
+    .update(typeof rawBody === "string" ? rawBody : rawBody.toString("utf8"))
+    .digest("hex");
+
+  // Constant-time compare
+  const a = Buffer.from(provided, "hex");
+  const b = Buffer.from(computed, "hex");
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
+async function logToCommunicationLog(phone: string, body: string, direction: "inbound" | "outbound", metadata: Record<string, unknown>): Promise<void> {
+  try {
+    const { getDb } = await import("../../db");
+    const { communicationLog } = await import("../../../drizzle/schema");
+    const db = await getDb();
+    if (!db) return;
+    await db.insert(communicationLog).values({
+      customerPhone: phone,
+      type: "sms",
+      direction,
+      body: body.slice(0, 5000),
+      metadata,
+    });
+  } catch (err) {
+    log.warn("Failed to log to communication_log", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+router.post("/sms-gateway", async (req: Request, res: Response) => {
+  // ─── Signature validation ────────────────────────
+  const secret = process.env.SHOP_SMS_GATEWAY_WEBHOOK_SECRET;
+  if (secret) {
+    // We need the raw body for HMAC. Express has parsed JSON by this
+    // point; reconstruct from req.body. (Capevace signs the raw bytes
+    // they sent, which match JSON.stringify of the parsed object for
+    // their payload format.)
+    const rawForHmac = JSON.stringify(req.body);
+    const sig = req.header("X-Signature") || req.header("x-signature");
+    if (!verifySignature(rawForHmac, sig, secret)) {
+      log.warn("SMS gateway webhook rejected — bad signature", {
+        sig: (sig || "").slice(0, 20),
+      });
+      res.status(401).json({ error: "invalid_signature" });
+      return;
+    }
+  } else {
+    log.warn("SHOP_SMS_GATEWAY_WEBHOOK_SECRET not set — accepting unsigned request");
+  }
+
+  const event = req.body as SmsGatewayEvent;
+  const eventType = event.event || "";
+  const payload = event.payload || {};
+  const phone = payload.phoneNumber || "";
+  const messageId = payload.messageId || event.id || "";
+
+  log.info("sms_gateway_event", {
+    event: eventType,
+    phone: phone.slice(-4),
+    messageId: messageId.slice(0, 12),
+  });
+
+  try {
+    if (eventType === "sms:received") {
+      // ─── Inbound customer text → 216-862-0005 ────────
+      const body = payload.message || "";
+      if (!phone || !body) {
+        res.status(400).json({ error: "missing_phone_or_message" });
+        return;
+      }
+      const { normalized } = recordInboundShopSms(phone, body, messageId);
+      if (normalized) {
+        // Fire-and-forget DB log
+        logToCommunicationLog(normalized, body, "inbound", {
+          source: "shop_gateway",
+          messageId,
+          deviceId: event.deviceId,
+          receivedAt: payload.receivedAt,
+        }).catch(() => undefined);
+      }
+      res.status(200).json({ received: true });
+      return;
+    }
+
+    if (eventType === "sms:delivered" || eventType === "sms:sent") {
+      // ─── Delivery receipt — record the success ────────
+      log.info("Shop SMS delivered", {
+        messageId: messageId.slice(0, 12),
+        phone: phone.slice(-4),
+      });
+      res.status(200).json({ received: true });
+      return;
+    }
+
+    if (eventType === "sms:failed") {
+      // ─── Delivery failed — log + Telegram alert ─────
+      const reason = payload.reason || "unknown";
+      log.warn("Shop SMS failed", {
+        messageId: messageId.slice(0, 12),
+        phone: phone.slice(-4),
+        reason,
+      });
+      // Fire-and-forget Telegram alert
+      (async () => {
+        try {
+          const { sendTelegram } = await import("../../services/telegram");
+          await sendTelegram(
+            `❌ Shop SMS failed to ${phone.slice(-4)}\nReason: ${reason}\nMessageId: ${messageId.slice(0, 16)}`
+          );
+        } catch {
+          // Don't break the webhook
+        }
+      })();
+      res.status(200).json({ received: true });
+      return;
+    }
+
+    // Unknown event — ack so Capevace doesn't retry forever
+    log.info("Unhandled sms-gateway event type", { event: eventType });
+    res.status(200).json({ received: true, ignored: true });
+  } catch (err) {
+    log.error("sms_gateway webhook error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(200).json({ received: true, error: "internal" });
+  }
+});
+
+export { router as smsGatewayWebhookRouter };

@@ -836,6 +836,14 @@ ${urls.join("\n")}
   const { vapiWebhookRouter } = await import("../routes/webhooks/vapi");
   app.use("/api/webhooks", vapiWebhookRouter);
 
+  // ─── SMS Gateway Webhook (Shop Phone — Samsung F25e) ────
+  // Wave-103 — SMS Gateway by Capevace cloud relay POSTs here for
+  // inbound customer texts to 216-862-0005, plus delivery receipts.
+  // Mounted at /api/webhooks (no Twilio middleware). HMAC validated
+  // inside the router itself.
+  const { smsGatewayWebhookRouter } = await import("../routes/webhooks/smsGateway");
+  app.use("/api/webhooks", smsGatewayWebhookRouter);
+
   // ─── Stripe Webhook ─────────────────────────────────────
   // Receives payment_intent.succeeded events to confirm invoice payments
   // even if the client drops before calling confirmPayment

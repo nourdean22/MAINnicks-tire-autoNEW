@@ -276,6 +276,23 @@ export function getConversationThread(phone: string): ConversationThread | null 
   return conversationThreads.get(normalized) || null;
 }
 
+/**
+ * Wave-103 — record an inbound SMS that arrived through the shop's
+ * SMS Gateway app (customer texted 216-862-0005 directly). Webhook
+ * handler at /api/webhooks/sms-gateway calls this so customer replies
+ * land in the same conversation thread as Twilio-routed traffic.
+ */
+export function recordInboundShopSms(
+  phone: string,
+  body: string,
+  gatewayMessageId?: string
+): { normalized: string | null } {
+  const normalized = normalizePhone(phone);
+  if (!normalized) return { normalized: null };
+  addToThread(normalized, "inbound", body, gatewayMessageId);
+  return { normalized };
+}
+
 /** Get all active conversation threads (for admin) */
 export function getActiveThreads(limit = 20): ConversationThread[] {
   return Array.from(conversationThreads.values())
@@ -436,6 +453,99 @@ interface SendSmsOptions {
   _forceImmediate?: boolean;
   /** Transactional SMS (booking confirmations, status updates) bypass timing restrictions */
   transactional?: boolean;
+  /**
+   * Wave-103 — routing override.
+   * - "twilio" (default): send via Twilio API (current behavior)
+   * - "shop": send via the shop's Verizon line through SMS Gateway app on
+   *   the Samsung F25e. Customer sees the text from 216-862-0005.
+   *   Requires SHOP_SMS_GATEWAY_* env vars + the SMS Gateway app running.
+   *   Falls back to Twilio + Telegram alert if shop gateway is offline.
+   */
+  via?: "twilio" | "shop";
+}
+
+// ─── Wave-103: SMS Gateway (Samsung F25e) integration ───
+// The shop owner's Verizon-line phone runs the SMS Gateway by Capevace
+// app (https://sms-gate.app). Backend POSTs to their cloud relay, the
+// app fires the message via Android's native SmsManager, customer sees
+// the text from the shop's real number 216-862-0005.
+//
+// Env required:
+//   SHOP_SMS_GATEWAY_URL       — base URL (default https://api.sms-gate.app/3rdparty/v1)
+//   SHOP_SMS_GATEWAY_USERNAME  — auth username from the app
+//   SHOP_SMS_GATEWAY_PASSWORD  — auth password from the app
+//
+// If env vars are absent → sendSmsViaShopGateway returns failure
+// immediately and the caller falls back to Twilio.
+
+interface ShopGatewayResult {
+  success: boolean;
+  gatewayMessageId?: string;
+  error?: string;
+}
+
+async function sendSmsViaShopGateway(
+  to: string,
+  body: string
+): Promise<ShopGatewayResult> {
+  const baseUrl = process.env.SHOP_SMS_GATEWAY_URL || "https://api.sms-gate.app/3rdparty/v1";
+  const username = process.env.SHOP_SMS_GATEWAY_USERNAME;
+  const password = process.env.SHOP_SMS_GATEWAY_PASSWORD;
+
+  if (!username || !password) {
+    return {
+      success: false,
+      error: "SHOP_SMS_GATEWAY credentials not configured. Install the SMS Gateway app on the shop's phone and set env vars.",
+    };
+  }
+
+  const auth = Buffer.from(`${username}:${password}`).toString("base64");
+  const payload = {
+    message: body,
+    phoneNumbers: [to],
+  };
+
+  try {
+    const res = await fetch(`${baseUrl}/message`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${auth}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      log.warn("Shop SMS gateway returned non-OK", { status: res.status, body: text.slice(0, 200) });
+      return { success: false, error: `Gateway returned ${res.status}: ${text.slice(0, 100)}` };
+    }
+
+    const data = await res.json() as { id?: string; state?: string };
+    log.info("Shop SMS gateway accepted", { id: data.id, state: data.state, to: to.slice(-4) });
+    return { success: true, gatewayMessageId: data.id };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.error("Shop SMS gateway threw", { error: msg });
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Wave-103 — fire a Telegram alert when the shop gateway falls back to
+ * Twilio. Operator needs to know if the phone went offline so they can
+ * fix it before too many sends bypass the shop number.
+ */
+async function alertShopGatewayFallback(reason: string, to: string): Promise<void> {
+  try {
+    const { sendTelegram } = await import("./services/telegram");
+    await sendTelegram(
+      `⚠️ Shop SMS gateway offline · falling back to Twilio for ${to.slice(-4)}\nReason: ${reason}\n\nCheck the SMS Gateway app on the F25e — it may need to be reopened or the phone may be offline.`
+    );
+  } catch {
+    // Don't break the SMS flow if Telegram is also down
+  }
 }
 
 // Per-phone daily rate limit (capped at 2000 entries, cleaned hourly)
@@ -502,6 +612,30 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
   if (process.env.SMS_KILL_SWITCH === "true") {
     log.warn("SMS kill switch active, skipping send", { to: to.slice(-4) });
     return { success: false, error: "sms_disabled" };
+  }
+
+  // Normalize phone first — both routes need it
+  const normalizedEarly = normalizePhone(to);
+  if (!normalizedEarly) {
+    return { success: false, error: `Invalid phone number: ${to}` };
+  }
+
+  // ─── Wave-103: shop gateway routing ───
+  // Caller explicitly opted in via opts.via === "shop" → try Capevace
+  // gateway first, fall back to Twilio + Telegram alert on failure.
+  if (opts?.via === "shop") {
+    const gw = await sendSmsViaShopGateway(normalizedEarly, body);
+    if (gw.success) {
+      smsStats.totalSent++;
+      smsStats.lastSentAt = new Date().toISOString();
+      updateDeliveryRate();
+      addToThread(normalizedEarly, "outbound", body, gw.gatewayMessageId);
+      return { success: true, sid: gw.gatewayMessageId };
+    }
+    // Fallback path
+    log.warn(`Shop gateway failed (${gw.error}) — falling back to Twilio for ${normalizedEarly.slice(-4)}`);
+    await alertShopGatewayFallback(gw.error || "unknown", normalizedEarly);
+    // Drop through to normal Twilio flow below
   }
 
   const client = getTwilioClient();

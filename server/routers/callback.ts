@@ -95,7 +95,9 @@ export const callbackRouter = router({
       if (isAfterHours()) {
         handleAfterHoursCapture({ name, phone, type: "callback" }).catch(e => log.warn("[callback:submit] after-hours capture failed:", e));
       } else {
-        sendSms(input.phone, callbackConfirmationSms(input.name)).catch(err =>
+        // Wave-103 — callback confirm goes from the shop number so
+        // when Nick actually calls back, the texted number matches.
+        sendSms(input.phone, callbackConfirmationSms(input.name), { via: "shop" }).catch(err =>
           log.error("[SMS] Callback confirmation failed:", err)
         );
       }

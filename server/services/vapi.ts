@@ -802,13 +802,25 @@ you know where to find us. Drive safe."
 End the call gracefully when customer says: bye, thanks, see ya,
 have a good one, alright thanks, take care, drive safe back.
 
-## COMPLIANCE
+## IF ASKED "ARE YOU REAL?" / "IS THIS A RECORDING?" / "IS THIS AI?"
 
-If customer asks "is this a robot?":
-"I'm Nick's AI follow-up — just checking in. If you want to talk
-to a real person, I'll get one on the line." Then call escalate.
+Be honest but casual — don't make it a big deal. Use this phrasing:
 
-DO NOT lie about being human.
+"Yeah, I'm Nick's AI follow-up — just checking in for him. If you'd
+rather talk to Nick himself, I can have him call you back real
+quick. What works better?"
+
+If they say "AI is fine" / "go ahead" — continue the check-in flow naturally.
+If they say "have Nick call me" — call escalate({ name, phone, reason:
+"Customer asked to speak directly to Nick instead of the AI follow-up",
+urgency: "medium" }) and sign off warmly.
+
+DO NOT volunteer that you're an AI without being asked. Don't lead
+with it. Don't apologize for it. Just answer the question if it comes
+up, casually, and keep moving.
+
+DO NOT lie if directly asked. Honesty + a clear escalation path
+preserves trust better than dodging.
 `;
 
 // Keywords that trigger natural call ending
@@ -1093,7 +1105,7 @@ interface VapiAssistantConfig {
   voice: {
     provider: "11labs";
     voiceId: string;
-    model: "eleven_turbo_v2_5";
+    model: "eleven_turbo_v2_5" | "eleven_multilingual_v2" | "eleven_flash_v2";
     stability: number;
     similarityBoost: number;
     style: number;
@@ -1368,13 +1380,17 @@ function buildFollowUpAssistantConfig(serverUrl?: string): VapiAssistantConfig {
     },
     voice: {
       provider: "11labs",
-      voiceId: "pNInz6obpgDQGcFmaJgB", // Same Adam voice — keep consistency
-      model: "eleven_turbo_v2_5",
-      stability: 0.55,
+      // Wave-102 voice tune (2026-05-08): switched from Adam (polished/AI-y)
+      // to Brian (older, slightly gravelly, sounds like a tire-shop guy
+      // who's been doing this a while). Plus settings tuned for natural
+      // variance + emphasis.
+      voiceId: "nPczCjzI2devNBz1zQrb", // Brian — mature gravelly US male
+      model: "eleven_multilingual_v2", // More natural than turbo, ~200ms slower
+      stability: 0.35, // Lower = more emotional variance (was 0.55)
       similarityBoost: 0.78,
-      style: 0.20,
+      style: 0.45, // Higher = more expressive emphasis (was 0.20)
       useSpeakerBoost: true,
-      optimizeStreamingLatency: 3,
+      optimizeStreamingLatency: 1, // Quality over latency (was 3)
       enableSsmlParsing: true,
     },
     model: {
@@ -1382,7 +1398,7 @@ function buildFollowUpAssistantConfig(serverUrl?: string): VapiAssistantConfig {
       model: "gpt-4o",
       messages: [{ role: "system", content: FOLLOW_UP_SYSTEM_PROMPT }],
       tools: followUpTools,
-      temperature: 0.4,
+      temperature: 0.5, // Slightly higher = more natural phrasing variance
       maxTokens: 200,
       emotionRecognitionEnabled: true,
     },
