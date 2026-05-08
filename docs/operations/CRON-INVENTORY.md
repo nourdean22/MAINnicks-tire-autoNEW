@@ -18,12 +18,12 @@ If you add a new job, update this doc in the **same commit**.
 | Tier | Interval | Job count | Purpose |
 |---|---|---|---|
 | heartbeat | every 5 min | 3 | Critical health checks · DB liveness, ALG mirror health, data accuracy |
-| pulse | every 15 min | 10 | Operational pings · vendor health, dashboard sync, abandoned forms, SMS scheduler, work-order overdue, revenue pulse |
+| pulse | every 15 min | 11 | Operational pings · vendor health, dashboard sync, abandoned forms, SMS scheduler, SMS gateway health, work-order overdue, revenue pulse |
 | hourly | every 2 hours | 24 | Intelligence loop · brain sync, intelligence engines, customer enrichment, drip campaigns, escalations |
 | daily | every 24 hours | 40 | Long-running analytics + retention · DB backup, engine health, retention sequences, declined-work recovery, intelligence digests, GSC/GBP pipelines |
 | briefings | every 12 hours | 6 | Owner-facing summaries · morning brief, daily report, weather intel, weekly strategic |
 
-**Total: 83 registered jobs across 5 tiers.**
+**Total: 84 registered jobs across 5 tiers.**
 
 ---
 
@@ -47,6 +47,7 @@ Operational tier. SMS, dashboards, work orders, abandoned forms, vendor health.
 |---|---|
 | `vendor-health` | Probe critical vendor APIs (Twilio, Stripe, Resend, etc.) before syncs run |
 | `cron-failure-observer` | Detect failed cron runs and alert |
+| `sms-gateway-health` | Ping the F25e shop SMS gateway (216-862-0005) — Telegram alert if last-seen > 30min, recovery alert when back. Wave-109. |
 | `dashboard-sync` | Sync admin dashboard tiles to fresh data |
 | `cloud-camera-snapshots` | Periodic snapshot capture (V380/GeoVision) |
 | `abandoned-forms` | Detect partially-filled booking forms and auto-recover |

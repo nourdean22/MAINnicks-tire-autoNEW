@@ -6,7 +6,7 @@
 2. **Static / prerendered** — middleware may serve `prerendered/` for crawlers or configured routes.
 3. **Vite dev / built client** — SPA from `client/`; routing via Wouter.
 4. **API** — `/api/trpc/*` → tRPC router tree (`server/routers/index.ts`).
-5. **Webhooks** — e.g. Twilio under `server/routes/webhooks/`.
+5. **Webhooks** — Twilio + Vapi + SMS Gateway (Capevace) under `server/routes/webhooks/`.
 6. **Cron** — `server/cron/scheduler.ts` runs tiered timers that call job modules in `server/cron/jobs/`.
 
 ## Data
@@ -20,7 +20,7 @@
 |------|--------|
 | Auth / admin context | `server/_core/context.ts`, OAuth in `_core/oauth.ts` |
 | AI routing | `server/lib/ai-gateway.ts` |
-| SMS | `server/sms.ts`, Twilio webhook, `server/routers/smsBot.ts` |
+| SMS (primary: shop gateway, fallback: Twilio) | `server/sms.ts` (`via:"shop"|"twilio"`) · `server/routes/webhooks/smsGateway.ts` (Capevace inbound) · `server/routes/webhooks/twilio.ts` · `server/routers/smsConversations.ts` |
 | Work orders / ShopDriver | `server/services/workOrderService.ts`, `server/routers/shopdriver.ts` |
 | Logging | `server/lib/logger.ts` (`createLogger`) |
 

@@ -34,7 +34,19 @@ Implementation: `resolveReviewDisplay()` in `shared/business.ts`; `getGoogleRevi
 
 - **`0026_work_order_items_decline_recovery.sql`** — adds `decline_outreach_*` and `decline_recovered_at` on `work_order_items` for declined-work recovery tracking. Apply to prod DB before relying on outreach/recovered fields.
 
+## SMS routing (post wave-103, May 2026)
+
+- **Primary path:** Shop SMS Gateway = Capevace `me.capcom.smsgateway` v1.60.0 running on the F25e (Samsung S25 FE) at `216-862-0005` (Verizon line). All customer-facing transactional SMS routes here via `sendSms(phone, body, { via: "shop" })`.
+- **Fallback path:** Twilio (`+1 216-769-9977`). Used for bulk/marketing campaigns + drip sequences + daily owner report. Also auto-falls-back when the shop gateway returns failure (with Telegram alert).
+- **Inbound webhook:** `POST /api/webhooks/sms-gateway` — HMAC-SHA256 over `rawBody + X-Timestamp` header value, ±5min replay window. Verified via `SHOP_SMS_GATEWAY_WEBHOOK_SECRET`.
+- **Health monitor:** Cron `sms-gateway-health` (pulse tier, 15min) pings Capevace `/device`, Telegram alert if F25e last-seen > 30min.
+- **Kill switch:** `SMS_KILL_SWITCH=true` only blocks the Twilio path. Shop gateway sends keep working when the switch is on.
+- **Manager-on-duty alerts:** `eventBus` destination `manager-on-duty-sms` texts the VAPI transferCall destination (current on-duty manager) on every booking_created / lead_captured / callback_requested / emergency_request event. Self-loop guard skips if the on-duty number == 216-862-0005.
+- **Operator runbook:** `docs/SHOP_SMS_GATEWAY_SETUP.md`.
+
 ## Invariants (do not break)
 
 - **ShopDriver / ALG** integration is load-bearing for shop operations — do not remove without explicit owner decision.
 - **Feature flags:** risky features should default off at the code path until explicitly enabled in DB.
+- **Shop SMS Gateway is load-bearing.** ~80% of customer-facing transactional SMS routes through the F25e. Don't remove `via:"shop"` from existing senders without confirming Twilio is healthy + opt-in compliance.
+- **Webhook signature scheme** for the SMS Gateway is HMAC-SHA256 over `body + X-Timestamp`. Don't change this without updating the Capevace app's signing key OR re-signing scheme on both sides.

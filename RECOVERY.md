@@ -59,10 +59,31 @@ Required env vars:
 If 500 on login: verify redirect URI matches in Google Cloud Console.
 OAuth project: see `memory/google_oauth_credentials.md` for details.
 
-## SMS/Twilio Not Working
+## SMS Not Working
 
-Required env vars: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`
-Check: feature flags in DB (`feature_flags` table) — SMS features may be disabled.
+There are two SMS paths post wave-103. Diagnose which one is broken before fixing.
+
+### Quick triage (15 sec)
+
+Open `nickstire.org/admin` → SMS section. The **Gateway Status card** at top shows both paths.
+
+### Shop SMS Gateway (primary, 216-862-0005, F25e)
+
+Required env vars: `SHOP_SMS_GATEWAY_USERNAME`, `SHOP_SMS_GATEWAY_PASSWORD`, `SHOP_SMS_GATEWAY_URL`, `SHOP_SMS_GATEWAY_WEBHOOK_SECRET`.
+
+If status shows "OFFLINE":
+1. Plug in the F25e (battery dead = #1 cause)
+2. Verify wifi/LTE
+3. Open the SMS Gateway app once — toggle Cloud Server ON if needed
+4. Verify "Start on boot" is still ON
+
+Full runbook: `docs/SHOP_SMS_GATEWAY_SETUP.md`.
+
+### Twilio (fallback + bulk)
+
+Required env vars: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`.
+- Check: `SMS_KILL_SWITCH=true` blocks ONLY the Twilio path. Set to `false` (or unset) to re-enable.
+- Check: feature flags in DB (`feature_flags` table) — SMS features may be disabled.
 
 ## Cron Jobs Not Running
 

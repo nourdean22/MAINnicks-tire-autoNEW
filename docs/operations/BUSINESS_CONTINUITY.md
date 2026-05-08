@@ -14,7 +14,8 @@ secrets rotation, monthly checks).
 |---|---|---|
 | **Railway** (server, primary) | All bookings, SMS, AI, admin panel down | ~5 min to redeploy from last good SHA |
 | **TiDB / MySQL** (database) | All data unavailable | TiDB SLA 99.95%; failover auto |
-| **Twilio** (SMS + voice receipt) | Booking confirmations, review requests, callback alerts | SMS queue backs up — drains on recovery |
+| **Shop SMS Gateway** (F25e at 216-862-0005, primary) | ~80% of customer-facing SMS; auto-falls-back to Twilio | Cron `sms-gateway-health` alerts within 30min; Twilio fallback covers the gap |
+| **Twilio** (SMS fallback + bulk + voice receipt) | Bulk campaigns + drip sequences + review batches; backup for shop gateway | Set `SMS_KILL_SWITCH=true` on Railway to short-circuit (only blocks Twilio path; shop gateway still works) |
 | **VAPI** (`+1 216 424 9249` voice receptionist) | After-hours calls hit voicemail; callback queue grows | Forward to mobile via Twilio fallback |
 | **Venice / Ollama Cloud Pro** (primary AI) | AI features fall through to OpenAI → Anthropic | Provider chain auto-fails over |
 | **OpenAI / Anthropic** (AI fallback) | All AI features fail if upstream + Venice + Ollama all down (rare) | Forms still work — manual call follow-up |
@@ -44,11 +45,27 @@ matrix in `server/lib/ai-gateway.ts`.
 
 ## If Twilio goes down
 
-- SMS confirmations stop sending
-- Review request queue backs up (will drain when Twilio is back — no lost requests, see `pulse` tier `sms-scheduler`)
+(post-wave-103: Twilio is now the FALLBACK, not primary. Most customer-facing SMS continues through the shop gateway.)
+
+- Bulk SMS (campaigns, drip sequences, review-request batches, daily report) stops sending — these intentionally stay on Twilio for opt-out compliance and rate-limit handling
+- Customer-facing transactional SMS (booking confirms, drop-off recaps, status updates, lead confirms, etc.) continues — they route via:"shop" through the F25e
+- Set `SMS_KILL_SWITCH=true` on Railway to short-circuit the Twilio path (skips 15s circuit-breaker timeout in voice flows). The kill switch does NOT block the shop gateway path.
 - Inbound voice still routed via Twilio numbers; if entirely down, VAPI line stays up but Twilio-routed inbound is lost
 - Fallback: call customer directly using `OWNER_PHONE` env var
 - Check `https://status.twilio.com/`
+
+---
+
+## If the shop SMS gateway goes down (F25e offline)
+
+- Customer-facing transactional SMS auto-falls-back to Twilio (with Telegram alert per fallback so you see it)
+- Cron `sms-gateway-health` (15-min pulse) fires Telegram alert if F25e last-seen > 30min, recovery alert when back online
+- Recovery checklist in `docs/SHOP_SMS_GATEWAY_SETUP.md`:
+  1. Plug in the F25e (battery dead is #1 cause)
+  2. Verify wifi/LTE
+  3. Open the SMS Gateway app once — toggle Cloud Server on if needed
+  4. Verify "Start on boot" is still ON
+- If both shop gateway AND Twilio are down: customer flow through Telegram alerts to owner; admin can call back manually
 
 ---
 
