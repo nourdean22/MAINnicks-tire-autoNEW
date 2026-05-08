@@ -483,10 +483,9 @@ function InlineSms({ customerId, firstName }: { customerId: number; firstName: s
  * Asks them how the work held up + asks for word-of-mouth referrals.
  * 3-minute hard cap.
  */
-function FollowUpButton({ customerName, phone, totalVisits }: {
+function FollowUpButton({ customerName, phone }: {
   customerName: string;
   phone: string;
-  totalVisits: number;
 }) {
   const mutation = trpc.vapi.makeFollowUpCall.useMutation({
     onSuccess: (result) => {
@@ -498,8 +497,6 @@ function FollowUpButton({ customerName, phone, totalVisits }: {
     },
     onError: (err) => toast.error(`Follow-up failed: ${err.message}`),
   });
-
-  if (totalVisits === 0) return null; // Don't follow up with someone who's never been in
 
   return (
     <button
@@ -639,7 +636,6 @@ function Customer360Panel({ customer, onSmsClick }: {
                 <FollowUpButton
                   customerName={`${customer.firstName} ${customer.lastName || ""}`.trim()}
                   phone={customer.phone}
-                  totalVisits={customer.totalVisits}
                 />
               )}
             </div>

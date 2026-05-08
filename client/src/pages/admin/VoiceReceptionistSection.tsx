@@ -26,6 +26,7 @@ import {
   PhoneCall,
   PhoneForwarded,
   PhoneOff,
+  Phone,
   Clock,
   TrendingUp,
   AlertCircle,
@@ -37,6 +38,7 @@ import {
   Calendar,
   X,
   CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -407,6 +409,9 @@ export default function VoiceReceptionistSection() {
 
       {/* ─── Transfer destination quick-control ─────── */}
       <TransferDestinationCard />
+
+      {/* ─── Wave-102: free-form outbound call trigger ─ */}
+      <OutboundCallCard />
 
       {/* ─── Date range selector (wave-91) ───────────── */}
       <DateRangeSelector
@@ -970,6 +975,110 @@ function TransferDestinationCard() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Wave-102 · Outbound call trigger ───────────────────────
+// Free-form dialer for any number — not gated to existing customers.
+// Uses the same VAPI follow-up assistant + same 3-min cap.
+function OutboundCallCard() {
+  const [phone, setPhone] = useState("");
+  const [name, setName] = useState("");
+  const [lastService, setLastService] = useState("recent visit");
+
+  const mutation = trpc.vapi.makeFollowUpCall.useMutation({
+    onSuccess: (result) => {
+      if (result.success && result.callId) {
+        toast.success(`Call queued (${result.callId.slice(0, 8)}...). Nick is dialing now.`);
+        setPhone("");
+        setName("");
+        setLastService("recent visit");
+      } else {
+        toast.error(`Call failed: ${result.error || "unknown error"}`);
+      }
+    },
+    onError: (err) => toast.error(`Call failed: ${err.message}`),
+  });
+
+  const phoneDigits = phone.replace(/\D/g, "");
+  const phoneValid = phoneDigits.length === 10 || phoneDigits.length === 11;
+
+  return (
+    <div className="bg-card border border-emerald-500/20 p-5">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-8 h-8 bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+          <Phone className="w-4 h-4 text-emerald-400" />
+        </div>
+        <div>
+          <h3 className="font-bold text-sm text-foreground tracking-wider">OUTBOUND CALL</h3>
+          <p className="text-[10px] text-foreground/40">
+            Fire Nick at any number. Follow-up tone · 3-min cap · asks for referrals.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+        <div>
+          <label className="text-[9px] text-foreground/40 tracking-wider uppercase block mb-1">Phone (required)</label>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="216-862-0005"
+            className="w-full bg-background border border-border/30 px-3 py-2 text-sm text-foreground font-mono focus:border-emerald-500/50 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="text-[9px] text-foreground/40 tracking-wider uppercase block mb-1">First name (optional)</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="buddy"
+            className="w-full bg-background border border-border/30 px-3 py-2 text-sm text-foreground focus:border-emerald-500/50 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="text-[9px] text-foreground/40 tracking-wider uppercase block mb-1">What for? (optional)</label>
+          <input
+            type="text"
+            value={lastService}
+            onChange={(e) => setLastService(e.target.value)}
+            placeholder="recent visit"
+            className="w-full bg-background border border-border/30 px-3 py-2 text-sm text-foreground focus:border-emerald-500/50 focus:outline-none"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-[10px] text-foreground/40">
+          Caller ID: <span className="font-mono">+1 216 424 9249</span> · Assistant: <span className="font-mono">Nick's Tire Follow-Up Caller</span>
+        </div>
+        <button
+          onClick={() => {
+            if (!phoneValid) {
+              toast.error("Phone needs to be 10 or 11 digits");
+              return;
+            }
+            const finalName = name.trim() || "buddy";
+            const confirm = window.confirm(
+              `Call ${phone} as a follow-up?\n\nNick will say:\n"${finalName}? ... Hope you're doing good, this is Nick from Nick's Tire and Auto, just following up after your last visit. How is everything?"\n\nProceed?`
+            );
+            if (!confirm) return;
+            mutation.mutate({
+              customerName: finalName,
+              phone,
+              lastService: lastService.trim() || "recent visit",
+            });
+          }}
+          disabled={!phoneValid || mutation.isPending}
+          className="flex items-center gap-2 px-5 py-2 text-[11px] tracking-wider font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {mutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Phone className="w-3.5 h-3.5" />}
+          DIAL NOW
+        </button>
+      </div>
     </div>
   );
 }
