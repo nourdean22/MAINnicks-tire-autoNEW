@@ -127,7 +127,10 @@ export async function sendDropOffConfirmation(workOrderId: string): Promise<void
       `Questions? ${STORE_PHONE_DISPLAY}`,
     ].join(" ");
 
-    await sendSms(ctx.phone, message);
+    // Wave-103 — drop-off confirmation goes through the shop's real
+    // line so the customer sees it from the same number they just
+    // called/dropped off at. Falls back to Twilio if gateway offline.
+    await sendSms(ctx.phone, message, { via: "shop" });
     log.info("Drop-off confirmation sent", { workOrderId, phone: ctx.phone.slice(-4) });
   } catch (err) {
     log.error("Failed to send drop-off confirmation", {

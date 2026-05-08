@@ -362,7 +362,9 @@ export const bookingRouter = router({
       });
 
       withRetry(
-        () => sendSms(input.phone, bookingConfirmationSms(input.name, input.service, refCode)),
+        // Wave-103 — booking confirm rides on the shop's real line
+        // so customer recognizes the number on follow-up texts.
+        () => sendSms(input.phone, bookingConfirmationSms(input.name, input.service, refCode), { via: "shop" }),
         { maxRetries: 3, baseDelayMs: 1000, label: "sendSms (booking confirmation)" }
       ).catch(err => {
         log.error("[SMS] Booking confirmation failed:", err);

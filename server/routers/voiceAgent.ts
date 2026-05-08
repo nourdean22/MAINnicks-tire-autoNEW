@@ -307,7 +307,10 @@ export const voiceAgentRouter = router({
       try {
         const { sendSms } = await import("../sms");
         const body = `${input.summary}\n\n📍 17625 Euclid Ave, Cleveland\n📞 (216) 862-0005\n${input.mapLink || "https://nickstire.org/contact"}`;
-        const result = await sendSms(input.phone, body);
+        // Wave-103 — route through the shop's real number so the
+        // customer sees the text from 216-862-0005 (the same line they
+        // just called). Falls back to Twilio if the gateway is offline.
+        const result = await sendSms(input.phone, body, { via: "shop" });
         const degraded = !result.success && result.error === "sms_disabled";
         log.info("Voice agent SMS sent", {
           phone: input.phone.slice(-4),
