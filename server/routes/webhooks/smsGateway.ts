@@ -172,6 +172,29 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
         messageId: messageId.slice(0, 12),
         phone: phone.slice(-4),
       });
+      // Wave-109: propagate delivery state into the conversation thread
+      // so the admin SMS dashboard shows "delivered" instead of "sent".
+      // Match by twilioSid which we already store as the gateway message
+      // ID for shop sends (col is named after legacy Twilio path).
+      if (messageId) {
+        (async () => {
+          try {
+            const { getDb } = await import("../../db");
+            const { smsMessages } = await import("../../../drizzle/schema");
+            const { eq } = await import("drizzle-orm");
+            const db = await getDb();
+            if (!db) return;
+            const newStatus = eventType === "sms:delivered" ? "delivered" : "sent";
+            await db.update(smsMessages)
+              .set({ status: newStatus })
+              .where(eq(smsMessages.twilioSid, messageId));
+          } catch (err) {
+            log.warn("Failed to update smsMessages status on delivery", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        })();
+      }
       res.status(200).json({ received: true });
       return;
     }
@@ -184,6 +207,23 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
         phone: phone.slice(-4),
         reason,
       });
+      // Wave-109: mark the conversation message as failed in DB
+      if (messageId) {
+        (async () => {
+          try {
+            const { getDb } = await import("../../db");
+            const { smsMessages } = await import("../../../drizzle/schema");
+            const { eq } = await import("drizzle-orm");
+            const db = await getDb();
+            if (!db) return;
+            await db.update(smsMessages)
+              .set({ status: "failed" })
+              .where(eq(smsMessages.twilioSid, messageId));
+          } catch {
+            // Don't break the webhook
+          }
+        })();
+      }
       // Fire-and-forget Telegram alert
       (async () => {
         try {

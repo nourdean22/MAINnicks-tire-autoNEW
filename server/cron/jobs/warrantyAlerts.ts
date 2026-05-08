@@ -65,7 +65,8 @@ export async function processWarrantyAlerts(): Promise<{ recordsProcessed: numbe
       const expiryDate = new Date(w.expiresAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: BUSINESS.timezone });
       const message = `Hi ${firstName}, your warranty on ${w.serviceDescription || "your service"} at Nick's Tire & Auto expires on ${expiryDate}. Schedule a check before it's up: (216) 862-0005`;
 
-      const result = await sendSms(customer.phone, message);
+      // Wave-109: warranty reminder via shop gateway (1:1 transactional)
+      const result = await sendSms(customer.phone, message, { via: "shop" });
       if (result.success) {
         await db.update(warranties)
           .set({ reminderSent: true })
