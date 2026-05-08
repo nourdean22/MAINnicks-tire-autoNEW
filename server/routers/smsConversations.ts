@@ -64,8 +64,11 @@ export const smsConversationsRouter = router({
         // Get or create conversation
         const conversation = await getOrCreateConversation(normalized, cleanName);
 
-        // Send via Twilio
-        const result = await sendSms(normalized, cleanMessage);
+        // Wave-105: route admin replies through the shop gateway (F25e at
+        // 216-862-0005) so customers see the text from the shop's real
+        // number — same line they already trust. Falls back to Twilio if
+        // the gateway is offline.
+        const result = await sendSms(normalized, cleanMessage, { via: "shop" });
 
         // Record the outbound message
         await addSmsMessage({
