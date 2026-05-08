@@ -533,4 +533,97 @@ export const vapiRouter = router({
         };
       });
     }),
+
+  /**
+   * Wave-102 — operator-triggered OUTBOUND follow-up call.
+   *
+   * Fires the follow-up assistant ("Nick's Tire Follow-Up Caller") at
+   * a recent-service customer. Goal: trust + referral capture.
+   *
+   * Customer's first name + last service description get injected as
+   * variables into the prompt and firstMessage.
+   *
+   * Caller ID = the VAPI line +1 216 424 9249 (NOT the shop main).
+   * Call cap: 3 minutes hard.
+   *
+   * Returns the call ID for tracking. Doesn't wait for the call to
+   * complete — fire-and-forget. Operator sees outcome in /admin →
+   * Voice Receptionist call list.
+   */
+  makeFollowUpCall: adminProcedure
+    .input(z.object({
+      customerName: z.string().min(1).max(80),
+      phone: z.string()
+        .regex(/^\+?1?\d{10,11}$/, "Phone must be 10-11 digits")
+        .max(20),
+      lastService: z.string().max(120).default("recent visit"),
+    }))
+    .mutation(async ({ input }) => {
+      const apiKey = process.env.VAPI_API_KEY;
+      const assistantId = process.env.VAPI_FOLLOWUP_ASSISTANT_ID;
+      if (!apiKey) {
+        return { success: false, error: "VAPI_API_KEY not configured" };
+      }
+      if (!assistantId) {
+        return { success: false, error: "VAPI_FOLLOWUP_ASSISTANT_ID not configured. Run scripts/vapi-create-followup-assistant.ts first." };
+      }
+
+      // Normalize phone to E.164
+      const digits = input.phone.replace(/\D/g, "");
+      const e164 = digits.length === 10 ? `+1${digits}` : digits.length === 11 ? `+${digits}` : null;
+      if (!e164) {
+        return { success: false, error: "Invalid phone number — need 10 or 11 digits" };
+      }
+
+      // First name only — strip last name + commas (ALG returns "LASTNAME, FIRSTNAME")
+      const firstName = input.customerName.includes(",")
+        ? input.customerName.split(",")[1]?.trim().split(/\s+/)[0] || "there"
+        : input.customerName.split(/\s+/)[0] || "there";
+
+      // Get the VAPI phone number ID (the inbound assistant's line)
+      const phoneNumbers = await vapiApiFetch<Array<{ id: string; number: string }>>("/phone-number");
+      const ourLine = phoneNumbers.find((p) => p.number === "+12164249249");
+      if (!ourLine) {
+        return { success: false, error: "Could not find the +12164249249 VAPI phone number" };
+      }
+
+      const body = {
+        assistantId,
+        phoneNumberId: ourLine.id,
+        customer: {
+          number: e164,
+          name: firstName,
+        },
+        assistantOverrides: {
+          variableValues: {
+            name: firstName,
+            lastService: input.lastService,
+          },
+        },
+      };
+
+      const res = await fetch(`https://api.vapi.ai/call`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        log.warn("makeFollowUpCall failed", { status: res.status, body: errText.slice(0, 300) });
+        return {
+          success: false,
+          error: `VAPI returned ${res.status}: ${errText.slice(0, 200)}`,
+        };
+      }
+      const data = await res.json() as { id: string; status?: string };
+      log.info("Follow-up call queued", { callId: data.id, name: firstName, phone: e164.slice(-4) });
+      return {
+        success: true,
+        callId: data.id,
+        status: data.status || "queued",
+      };
+    }),
 });
