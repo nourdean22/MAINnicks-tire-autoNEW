@@ -293,7 +293,11 @@ export const vapiRouter = router({
       }>(`/assistant/${assistantId}`);
       const tools = assistant.model?.tools || [];
       const transfer = tools.find((t) => t.type === "transferCall");
-      const dest = transfer?.destinations?.[0];
+      // wave-116 — was destinations[0] blindly. VAPI's destinations array
+      // can include non-number types (sip, etc.); same class as the
+      // wave-113b assistants[0] bug. Find the number-type destination
+      // explicitly. Falls back to [0] only when no number-type exists.
+      const dest = transfer?.destinations?.find((d) => d.type === "number") ?? transfer?.destinations?.[0];
       return {
         ok: true as const,
         assistantId,
@@ -339,7 +343,9 @@ export const vapiRouter = router({
       }>(`/assistant/${picked.id}`);
       const tools = assistant.model?.tools || [];
       const transfer = tools.find((t) => t.type === "transferCall");
-      const dest = transfer?.destinations?.[0];
+      // wave-116 — pick the number-type destination explicitly (see
+      // getTransferDestination above for full rationale).
+      const dest = transfer?.destinations?.find((d) => d.type === "number") ?? transfer?.destinations?.[0];
       return {
         ok: true as const,
         assistantId: picked.id,
@@ -432,16 +438,21 @@ export const vapiRouter = router({
         });
       }
       const existingDestinations = (tools[idx].destinations as Array<Record<string, unknown>>) || [];
-      const existingFirst = existingDestinations[0] || {};
-      const newDestinations = [
-        {
-          ...existingFirst,
-          type: "number",
-          number: input.phoneNumber,
-          message: input.message || existingFirst.message || "Transferring you now.",
-        },
-        ...existingDestinations.slice(1),
-      ];
+      // wave-116 — was destinations[0] blindly (same class as the fixed
+      // assistants[0] bug). Find the existing number-type destination
+      // index so we replace IT, not whatever happens to be at index 0.
+      // If no number-type exists, prepend a new one and keep the rest.
+      const numberIdx = existingDestinations.findIndex((d) => d.type === "number");
+      const targetExisting = numberIdx >= 0 ? existingDestinations[numberIdx] : {};
+      const updatedDest = {
+        ...targetExisting,
+        type: "number",
+        number: input.phoneNumber,
+        message: input.message || (targetExisting as { message?: string }).message || "Transferring you now.",
+      };
+      const newDestinations = numberIdx >= 0
+        ? existingDestinations.map((d, i) => (i === numberIdx ? updatedDest : d))
+        : [updatedDest, ...existingDestinations];
       tools[idx] = { ...tools[idx], destinations: newDestinations };
 
       // Surgical PATCH — only change the model.tools array; preserve everything else
