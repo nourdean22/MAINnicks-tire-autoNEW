@@ -303,7 +303,9 @@ export const intelligenceRouter = router({
         type: "pending_invoice",
         message: `Follow up on $${amt.toLocaleString()} invoice for ${inv.customerName || "Unknown"}`,
         urgency: amt > 500 ? 4 : 3,
-        actionUrl: "/admin?tab=invoices",
+        // wave-110 — was "invoices" (no such tab/alias → blank screen).
+        // Canonical home for invoice work is the Revenue & Shop page.
+        actionUrl: "/admin?tab=revenue",
         phone: inv.customerPhone || null,
       });
     }
