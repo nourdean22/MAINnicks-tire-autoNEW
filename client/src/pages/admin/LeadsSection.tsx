@@ -219,8 +219,13 @@ function KanbanBoard({ leadsData, onUpdate, isLoading }: {
       <div className="flex gap-6 min-w-full pb-4">
         {KANBAN_COLUMNS.map(col => {
           const leads = leadsByStatus[col.status];
+          // wave-124b — Kanban columns were `w-80` (320px) on a 390px
+          // phone viewport. Operator saw 1.2 columns with no scroll
+          // hint. `w-[85vw]` on mobile makes one column nearly fill
+          // the screen so the swipe pattern is obvious; sm+ keeps
+          // the original 320px so 5 columns fit on tablet/desktop.
           return (
-            <div key={col.status} className="flex-shrink-0 w-80">
+            <div key={col.status} className="flex-shrink-0 w-[85vw] sm:w-80">
               {/* Column Header */}
               <div className={`${col.color} border p-4 mb-4`}>
                 <h3 className="font-bold text-lg text-foreground tracking-wider">{col.label}</h3>

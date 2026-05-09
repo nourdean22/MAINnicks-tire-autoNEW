@@ -247,7 +247,10 @@ function NextBestActions() {
               </div>
 
               {/* Action buttons */}
-              <div className="flex items-center gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
+              {/* wave-124b — was opacity-60+hover gate which is invisible-ish
+                  on touch (no hover events). Mobile gets full opacity always;
+                  sm+ keeps the subtle dim/highlight. */}
+              <div className="flex items-center gap-1 shrink-0 opacity-100 sm:opacity-60 sm:group-hover:opacity-100 transition-opacity">
                 {action.phone && (
                   <a
                     href={`tel:${action.phone}`}
@@ -754,7 +757,12 @@ export default function OverviewSection() {
           onClick={() => openDrilldown({ kind: "jobs_closed_today" })}
         />
         <StatCard
-          label="Website Leads"
+          /* wave-124b — was labeled "Website Leads" with value=activeLeads
+             (all `new` + `contacted` leads, no time window) but the click
+             opened fresh_leads drilldown which only shows leads <4h old.
+             Count vs list mismatch. Renamed to "Hot Leads" to match the
+             drilldown's actual scope (4h golden response window). */
+          label="Hot Leads (<4h)"
           value={activeLeads}
           icon={<Users className="w-4 h-4" />}
           color="text-blue-400"
@@ -1160,15 +1168,21 @@ export default function OverviewSection() {
           icon={<CalendarClock className="w-4 h-4" />} color="text-foreground"
           trend={todaysBookings.length > 0 ? "up" : "neutral"}
           trendLabel={`${stats.bookings.thisWeek} this week`}
-          targetSection="leads"
+          /* wave-124b — was targetSection="leads" (wrong table —
+             bookings live in `bookings` not `leads`). Now opens the
+             today_bookings drilldown which already exists. */
+          onClick={() => openDrilldown({ kind: "today_bookings" })}
         />
         <StatCard
           label="Chat Sessions" value={stats.chat.totalSessions}
           icon={<MessageSquare className="w-4 h-4" />} color="text-purple-400"
-          /* wave-110 — was targetSection="leads" (chat sessions ≠ lead DB).
-             Open the fresh-leads drilldown so the operator sees recent
-             conversational entry points rather than the static lead list. */
-          onClick={() => openDrilldown({ kind: "fresh_leads", title: "Chat Sessions → Recent Leads" })}
+          /* wave-124 — was firing fresh_leads (wrong table — chat sessions
+             ≠ leads); drawer always opened to "Nothing to show" while the
+             card displayed a real count. Operator hit this on phone +
+             reported broken click. Now: dedicated chat_sessions kind that
+             actually queries chatSessions table, left-joined to leads so
+             converted sessions show the captured name/phone. */
+          onClick={() => openDrilldown({ kind: "chat_sessions" })}
         />
         <StatCard
           label="Callbacks Pending" value={stats.callbacks?.new ?? 0}
@@ -1280,8 +1294,9 @@ export default function OverviewSection() {
                 {/* SLA Timer */}
                 <SlaTimer dateStr={item.createdAt} />
 
-                {/* Inline actions — show on row hover */}
-                <div className="flex items-center gap-0.5 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
+                {/* Inline actions — wave-124b: visible always on touch,
+                    fade-on-hover only on sm+ */}
+                <div className="flex items-center gap-0.5 shrink-0 opacity-100 sm:opacity-60 sm:group-hover:opacity-100 transition-opacity">
                   {item.phone && (
                     <a
                       href={`tel:${item.phone}`}
