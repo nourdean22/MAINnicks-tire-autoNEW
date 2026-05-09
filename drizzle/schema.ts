@@ -895,7 +895,12 @@ export const customers = mysqlTable("customers", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
-  index("idx_customer_phone").on(table.phone),
+  // wave-116 — phone is now UNIQUE (was a plain index). Migration
+  // 0034_wave116_customer_phone_unique.sql adds the constraint after
+  // operator-side dedupe. Application code (shopdriver import,
+  // shopDriverMirror, customerLookup) treats Duplicate-entry errors
+  // as "race lost; fall through to UPDATE".
+  uniqueIndex("uniq_customer_phone").on(table.phone),
   index("idx_customer_segment").on(table.segment),
   index("idx_customer_last_visit").on(table.lastVisitDate),
   index("idx_customer_als_id").on(table.alsCustomerId),

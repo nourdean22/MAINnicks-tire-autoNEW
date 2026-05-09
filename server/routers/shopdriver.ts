@@ -480,13 +480,38 @@ export const shopdriverRouter = router({
             }).where(eq(customers.id, existing[0].id));
             updatedCount++;
           } else {
-            await d.insert(customers).values({
-              firstName, lastName, phone, phone2, email, address, city, state, zip,
-              customerType, totalVisits,
-              lastVisitDate: lastVisitDate && !isNaN(lastVisitDate.getTime()) ? lastVisitDate : undefined,
-              balanceDue, alsCustomerId, segment,
-            });
-            newCount++;
+            // wave-116 — was a bare INSERT vulnerable to a race: two
+            // concurrent imports both miss the SELECT, both INSERT,
+            // duplicate created. After migration 0034 adds UNIQUE on
+            // phone, the second INSERT throws ER_DUP_ENTRY; catch it
+            // and fall through to UPDATE so the row isn't lost.
+            // Pre-migration this code path is unchanged.
+            try {
+              await d.insert(customers).values({
+                firstName, lastName, phone, phone2, email, address, city, state, zip,
+                customerType, totalVisits,
+                lastVisitDate: lastVisitDate && !isNaN(lastVisitDate.getTime()) ? lastVisitDate : undefined,
+                balanceDue, alsCustomerId, segment,
+              });
+              newCount++;
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              if (/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) {
+                // Race lost — another writer created this customer between
+                // our SELECT and INSERT. Update the existing row with the
+                // fresh fields so we don't lose the operator's data.
+                await d.update(customers).set({
+                  firstName, lastName, email, address, city, state, zip,
+                  phone2, customerType, totalVisits,
+                  lastVisitDate: lastVisitDate && !isNaN(lastVisitDate.getTime()) ? lastVisitDate : undefined,
+                  balanceDue, alsCustomerId, segment,
+                }).where(eq(customers.phone, phone));
+                updatedCount++;
+                log.warn("[ShopDriver] Customer race detected — converted INSERT to UPDATE", { phone });
+              } else {
+                throw err;
+              }
+            }
           }
         } catch (err) {
           log.warn("[ShopDriver] Customer import row skipped:", err instanceof Error ? err.message : err);
@@ -684,19 +709,41 @@ export const shopdriverRouter = router({
           }).where(eq(customers.id, existing[0].id));
           updatedCount++;
         } else {
-          await d.insert(customers).values({
-            firstName,
-            lastName,
-            phone,
-            email: cust.email || null,
-            address: cust.address || cust.street || null,
-            city: cust.city || null,
-            state: cust.state || null,
-            zip: cust.zip || cust.zipCode || null,
-            alsCustomerId: String(cust.id || cust.customerId || ""),
-            segment: "unknown",
-          });
-          newCount++;
+          // wave-116 — race-safe insert (see comment at line ~488 above
+          // for full rationale). Catches Duplicate-entry post-migration
+          // and converts to UPDATE.
+          try {
+            await d.insert(customers).values({
+              firstName,
+              lastName,
+              phone,
+              email: cust.email || null,
+              address: cust.address || cust.street || null,
+              city: cust.city || null,
+              state: cust.state || null,
+              zip: cust.zip || cust.zipCode || null,
+              alsCustomerId: String(cust.id || cust.customerId || ""),
+              segment: "unknown",
+            });
+            newCount++;
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            if (/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) {
+              await d.update(customers).set({
+                firstName, lastName,
+                email: cust.email || undefined,
+                address: cust.address || cust.street || undefined,
+                city: cust.city || undefined,
+                state: cust.state || undefined,
+                zip: cust.zip || cust.zipCode || undefined,
+                alsCustomerId: String(cust.id || cust.customerId || ""),
+              }).where(eq(customers.phone, phone));
+              updatedCount++;
+              log.warn("[ShopDriver] Customer race detected — converted INSERT to UPDATE", { phone });
+            } else {
+              throw err;
+            }
+          }
         }
       }
 
