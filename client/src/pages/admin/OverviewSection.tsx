@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Link } from "wouter";
 import {
   StatCard, ActivityIcon, StatusDot, CHART_COLORS, CHART_THEME, BOOKING_STATUS_CONFIG,
-  PageHeader, LoadingState, navigateToAdminSection, TimestampLabel,
+  PageHeader, LoadingState, navigateToAdminSection,
   type BookingStatus, type AdminSection,
 } from "./shared";
 import {
@@ -695,11 +695,8 @@ export default function OverviewSection() {
           everything's fine. */}
       <AdminAlertBar alerts={adminAlerts} />
 
-      {/* 2026-05-09 — TodayBriefStrip hidden per operator. Was crowding the
-          top of admin with the "$X on the table" call-to-action. Definition
-          kept further down in this file in case we revive it; comment the
-          render to bring it back. */}
-      {/* <TodayBriefStrip /> */}
+      {/* wave-110 — TodayBriefStrip removed entirely (was hidden +
+          definition was zombie). Restore from git history if revived. */}
 
       {/* 2026-05-06 Elon-style hierarchy pass · Today's Revenue gets
           2x span (the single most-checked CEO metric); ALG demoted from
@@ -1763,84 +1760,6 @@ export default function OverviewSection() {
   );
 }
 
-// 2026-05-05 — TODAY'S BRIEF STRIP
-// Pulls trpc.adminDashboard.todaysBrief and renders top 5 actionable
-// callouts at the top of every admin session. Every brief has a CTA
-// that deep-links into the relevant section. Renders nothing if no
-// briefs are flagged (clean shop = clean admin).
-
-const ICON_MAP_BRIEF: Record<string, React.ReactNode> = {
-  phone: <PhoneCall className="w-4 h-4" />,
-  users: <Users className="w-4 h-4" />,
-  dollar: <TrendingUp className="w-4 h-4" />,
-  star: <Star className="w-4 h-4" />,
-  calendar: <CalendarClock className="w-4 h-4" />,
-  tag: <Sparkles className="w-4 h-4" />,
-};
-
-function TodayBriefStrip() {
-  const { data, isLoading } = trpc.adminDashboard.todaysBrief.useQuery(undefined, {
-    refetchInterval: 90_000, // 90s — actionable should feel live
-    staleTime: 30_000,
-  });
-
-  if (isLoading || !data?.briefs?.length) return null;
-
-  const variantClass: Record<string, string> = {
-    primary: "bg-primary/[0.06] border-primary/30 text-primary",
-    warning: "bg-amber-500/[0.05] border-amber-500/30 text-amber-400",
-    danger: "bg-red-500/[0.05] border-red-500/30 text-red-400",
-    info: "bg-blue-500/[0.04] border-blue-500/25 text-blue-400",
-    success: "bg-emerald-500/[0.04] border-emerald-500/25 text-emerald-400",
-  };
-
-  type BriefItem = {
-    id: string;
-    variant: keyof typeof variantClass;
-    icon: string;
-    message: string;
-    metric: string;
-    cta: { label: string; section: string; settingsTab?: string };
-    score: number;
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Brain className="w-4 h-4 text-primary/60" />
-          <h3 className="text-[11px] font-bold tracking-[0.15em] text-foreground/60 uppercase">
-            Today's Brief
-          </h3>
-          <span className="px-1.5 py-0.5 text-[9px] font-bold tracking-wider rounded bg-primary/15 text-primary">
-            {data.briefs.length} action{data.briefs.length === 1 ? "" : "s"}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <TimestampLabel date={data.generatedAt} prefix="·" />
-          <span className="text-[10px] text-foreground/30">auto-refreshes every 90s</span>
-        </div>
-      </div>
-      <div className="space-y-1.5">
-        {(data.briefs as BriefItem[]).map((brief) => (
-          <div
-            key={brief.id}
-            className={`flex items-center gap-3 border ${variantClass[brief.variant]} px-4 py-2.5`}
-          >
-            <div className="shrink-0">{ICON_MAP_BRIEF[brief.icon] || <Bell className="w-4 h-4" />}</div>
-            <div className="flex items-baseline gap-2 flex-wrap min-w-0 flex-1">
-              <span className="font-bold text-sm whitespace-nowrap">{brief.metric}</span>
-              <span className="text-[12px] text-foreground/80 leading-snug">{brief.message}</span>
-            </div>
-            <button
-              onClick={() => navigateToAdminSection(brief.cta.section as AdminSection, brief.cta.settingsTab ? { settingsTab: brief.cta.settingsTab } : undefined)}
-              className={`shrink-0 text-[11px] font-bold tracking-wider px-3 py-1 border rounded ${variantClass[brief.variant]} hover:opacity-80 transition-opacity`}
-            >
-              {brief.cta.label} →
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+// wave-110 — TodayBriefStrip + ICON_MAP_BRIEF deleted (were zombie code:
+// definition existed but render site was commented out). Restore from
+// git history if revived; nothing else in the file references them.
