@@ -334,6 +334,44 @@ export const leadRouter = router({
         const prev = current[0]?.contactNotes || existing;
         setObj.contactNotes = `[LOST: ${lostReason}]${prev ? " | " + prev : ""}`;
       }
+
+      // wave-125 — source-to-revenue attribution. When a lead transitions
+      // to "booked" or "completed", look up the most-recent matching
+      // booking (by phone, last 30d) and stamp bookingId on the lead.
+      // Same for "completed" → look up most-recent invoice. Best-effort
+      // (silent fail) so it never blocks the operator's status change.
+      if (updates.status === "booked" || updates.status === "completed") {
+        try {
+          const [thisLead] = await d.select({ phone: leads.phone, bookingId: leads.bookingId, invoiceId: leads.invoiceId })
+            .from(leads).where(eq(leads.id, id)).limit(1);
+          if (thisLead?.phone) {
+            const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+            if (updates.status === "booked" && !thisLead.bookingId) {
+              const { bookings } = await import("../../drizzle/schema");
+              const { desc: descFn } = await import("drizzle-orm");
+              const [match] = await d.select({ id: bookings.id })
+                .from(bookings)
+                .where(and(eq(bookings.phone, thisLead.phone), gte(bookings.createdAt, thirtyDaysAgo)))
+                .orderBy(descFn(bookings.createdAt))
+                .limit(1);
+              if (match) setObj.bookingId = match.id;
+            }
+            if (updates.status === "completed" && !thisLead.invoiceId) {
+              const { invoices } = await import("../../drizzle/schema");
+              const { desc: descFn } = await import("drizzle-orm");
+              const [match] = await d.select({ id: invoices.id })
+                .from(invoices)
+                .where(and(eq(invoices.customerPhone, thisLead.phone), gte(invoices.invoiceDate, thirtyDaysAgo)))
+                .orderBy(descFn(invoices.invoiceDate))
+                .limit(1);
+              if (match) setObj.invoiceId = match.id;
+            }
+          }
+        } catch (attrErr) {
+          log.warn("[lead.update] revenue attribution failed (non-blocking)", { error: attrErr instanceof Error ? attrErr.message : String(attrErr) });
+        }
+      }
+
       await d.update(leads).set(setObj).where(eq(leads.id, id));
 
       // Audit trail — log status changes and notes updates for Nick AI learning

@@ -199,7 +199,56 @@ router.post("/vapi", async (req: Request, res: Response) => {
           callId: event.call?.id,
           reason: event.call?.endedReason,
         });
-        // Future: write call transcript + outcome to DB for admin review
+        // wave-125 — persist a vapi_call_logs row so calls that didn't
+        // explicitly trigger a callback/booking still appear in the
+        // unified intake feed. Operator can review "today's voice
+        // calls that mentioned brakes" even when the customer hung up
+        // without booking. Best-effort: never blocks the webhook.
+        try {
+          const callId = event.call?.id;
+          if (callId) {
+            const { getDb } = await import("../../db");
+            const { vapiCallLogs } = await import("../../../drizzle/schema");
+            const d = await getDb();
+            if (d) {
+              const summary = (event as { summary?: string; analysis?: { summary?: string } })?.summary
+                ?? (event as { summary?: string; analysis?: { summary?: string } })?.analysis?.summary
+                ?? null;
+              const transcript = (event as { transcript?: string })?.transcript ?? "";
+              // Light heuristic for service mention — extract any mention
+              // of common services from transcript or summary.
+              const text = (typeof transcript === "string" ? transcript : "")
+                + " " + (summary ?? "");
+              const services = ["brake", "tire", "oil change", "alignment", "battery", "engine", "transmission", "ac", "exhaust", "diagnostic", "emission"];
+              const serviceMention = services.find((s) => text.toLowerCase().includes(s)) ?? null;
+              const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
+              await d.insert(vapiCallLogs).values({
+                vapiCallId: String(callId),
+                phoneNumber: customer?.number ?? null,
+                customerName: customer?.name ?? null,
+                durationSeconds: Math.round(((event.call as { startedAt?: string; endedAt?: string })?.endedAt && (event.call as { startedAt?: string })?.startedAt)
+                  ? (new Date((event.call as { endedAt?: string }).endedAt!).getTime() - new Date((event.call as { startedAt?: string }).startedAt!).getTime()) / 1000
+                  : 0),
+                endedReason: event.call?.endedReason ?? null,
+                aiSummary: summary,
+                serviceMention,
+                convertedToLead: 0, // updated later if a lead is created from this call
+                transcriptUrl: (event.call as { transcript?: string; transcriptUrl?: string })?.transcriptUrl ?? null,
+                recordingUrl: (event.call as { recordingUrl?: string })?.recordingUrl ?? null,
+              }).catch((err: unknown) => {
+                // Tolerate dup-key on retry — webhooks can fire twice
+                const msg = err instanceof Error ? err.message : String(err);
+                if (!/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) {
+                  log.warn("vapi_call_logs insert failed", { error: msg });
+                }
+              });
+            }
+          }
+        } catch (persistErr) {
+          log.warn("[vapi webhook] call-end persist failed (non-blocking)", {
+            error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+          });
+        }
         res.json({ ack: true });
         return;
       }

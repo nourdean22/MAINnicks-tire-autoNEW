@@ -23,6 +23,10 @@ const EVENT_CONFIG: Record<string, { icon: React.ReactNode; color: string; bgCol
   call: { icon: <Phone className="w-3.5 h-3.5" />, color: "text-cyan-400", bgColor: "bg-cyan-500/10" },
   workOrder: { icon: <Wrench className="w-3.5 h-3.5" />, color: "text-primary", bgColor: "bg-primary/10" },
   invoice: { icon: <FileText className="w-3.5 h-3.5" />, color: "text-emerald-400", bgColor: "bg-emerald-500/10" },
+  // wave-125 — full journey: chat sessions + AI voice calls now appear
+  // in the customer timeline alongside leads/bookings/invoices.
+  chat: { icon: <MessageSquare className="w-3.5 h-3.5" />, color: "text-purple-400", bgColor: "bg-purple-500/10" },
+  vapi_call: { icon: <Phone className="w-3.5 h-3.5" />, color: "text-violet-400", bgColor: "bg-violet-500/10" },
 };
 
 const STATUS_COLORS: Record<string, string> = {
