@@ -7,7 +7,7 @@ import { z } from "zod";
 import { BUSINESS } from "../../../shared/business";
 
 const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
-import { eq, desc, gte, lte, and, sql, asc } from "drizzle-orm";
+import { eq, desc, gte, lte, and, sql, asc, inArray } from "drizzle-orm";
 import {
   jobAssignments, invoices, customerMetrics, kpiSnapshots, portalSessions,
   bookings, customers, technicians, reviewRequests, leads, serviceHistory,
@@ -840,6 +840,12 @@ export const invoicesRouter = router({
         reason?: string;
       }> = [];
 
+      // wave-121 — collect IDs that succeed for a single batch UPDATE
+      // after the loop (was: per-row UPDATE inside the loop = N round-
+      // trips). The 250ms inter-send delay is intentional for Twilio
+      // rate-limiting; we keep it but defer the DB write.
+      const succeededIds: number[] = [];
+
       for (const row of rows) {
         if (!row.customerPhone) {
           results.push({ id: row.id, sent: false, reason: "no_phone" });
@@ -864,11 +870,7 @@ export const invoicesRouter = router({
         try {
           const smsResult = await sendSms(row.customerPhone, body, { transactional: false });
           if (smsResult.success) {
-            // Mark sent on success
-            const updateField = input.tier === "7d"
-              ? { followUp7dSent: 1, followUp7dSentAt: new Date() }
-              : { followUp30dSent: 1, followUp30dSentAt: new Date() };
-            await d.update(algEstimates).set(updateField).where(eq(algEstimates.id, row.id));
+            succeededIds.push(row.id);
             results.push({ id: row.id, sent: true });
           } else {
             results.push({ id: row.id, sent: false, reason: smsResult.error || "send_failed" });
@@ -879,6 +881,16 @@ export const invoicesRouter = router({
 
         // Small gap between sends — Twilio handles bursts but be polite
         await new Promise((rs) => setTimeout(rs, 250));
+      }
+
+      // wave-121 — single batch UPDATE for all succeeded IDs (was N
+      // separate UPDATEs in-loop). For a 50-row bulk, this is 1 DB
+      // round-trip instead of up to 50.
+      if (succeededIds.length > 0) {
+        const updateField = input.tier === "7d"
+          ? { followUp7dSent: 1, followUp7dSentAt: new Date() }
+          : { followUp30dSent: 1, followUp30dSentAt: new Date() };
+        await d.update(algEstimates).set(updateField).where(inArray(algEstimates.id, succeededIds));
       }
 
       const sentCount = results.filter(r => r.sent).length;

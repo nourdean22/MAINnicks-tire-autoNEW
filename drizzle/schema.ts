@@ -423,7 +423,10 @@ export const customerNotifications = mysqlTable("customer_notifications", {
   status: mysqlEnum("status", ["pending", "sent", "failed"]).default("pending").notNull(),
   sentAt: timestamp("sentAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => [
+  // wave-121 — followUpsRouter.pending polls WHERE status='pending' every 30s
+  index("idx_notification_status").on(table.status),
+]);
 
 export type CustomerNotification = typeof customerNotifications.$inferSelect;
 export type InsertCustomerNotification = typeof customerNotifications.$inferInsert;
@@ -577,7 +580,11 @@ export const callbackRequests = mysqlTable("callback_requests", {
   referrer: varchar("referrer", { length: 500 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  // wave-121 — admin.ts todaysBrief + sectionInsight + getCallbackRequests
+  // all filter WHERE status IN ('new','pending') on 30s polling cadence
+  index("idx_callback_status").on(table.status),
+]);
 
 export type CallbackRequest = typeof callbackRequests.$inferSelect;
 export type InsertCallbackRequest = typeof callbackRequests.$inferInsert;
@@ -1072,7 +1079,11 @@ export const customerMetrics = mysqlTable("customer_metrics", {
   computedAt: timestamp("computedAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => [
+  // wave-121 — customers.list LEFT JOIN customer_metrics ON customer_id
+  // runs every 30s; without this index the JOIN was a full scan
+  index("idx_cm_customer_id").on(table.customerId),
+]);
 
 export type CustomerMetric = typeof customerMetrics.$inferSelect;
 export type InsertCustomerMetric = typeof customerMetrics.$inferInsert;
