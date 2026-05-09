@@ -616,18 +616,37 @@ export const shopdriverRouter = router({
             pm.includes("check") ? "check" :
             pm.includes("financ") ? "financing" : "other";
 
-          await d.insert(invoices).values({
-            invoiceNumber,
-            customerName,
-            customerPhone: normalizePhone(customerPhone) || customerPhone,
-            vehicleInfo: vehicle,
-            totalAmount: amount,
-            paymentStatus: ticket.status === "paid" || ticket.paid ? "paid" : "pending",
-            paymentMethod,
-            source: "shopdriver",
-            serviceDescription: services,
-          });
-          synced++;
+          // wave-116c — race-safe insert (invoices.invoiceNumber is UNIQUE
+          // in schema). Two concurrent imports both miss the SELECT, both
+          // INSERT, second one fails with Duplicate-entry — convert to
+          // UPDATE so the latest data wins, no row is lost.
+          try {
+            await d.insert(invoices).values({
+              invoiceNumber,
+              customerName,
+              customerPhone: normalizePhone(customerPhone) || customerPhone,
+              vehicleInfo: vehicle,
+              totalAmount: amount,
+              paymentStatus: ticket.status === "paid" || ticket.paid ? "paid" : "pending",
+              paymentMethod,
+              source: "shopdriver",
+              serviceDescription: services,
+            });
+            synced++;
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            if (/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) {
+              await d.update(invoices).set({
+                totalAmount: amount,
+                paymentStatus: ticket.status === "paid" || ticket.paid ? "paid" : "pending",
+                serviceDescription: services || undefined,
+              }).where(eq(invoices.invoiceNumber, invoiceNumber));
+              updated++;
+              log.warn("[ShopDriver] Invoice race detected — INSERT → UPDATE", { invoiceNumber });
+            } else {
+              throw err;
+            }
+          }
         }
       }
 
