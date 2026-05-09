@@ -460,15 +460,17 @@ export default function Admin() {
 
       {/* ─── MAIN CONTENT ─── */}
       <main className="flex-1 min-w-0">
-        {/* Top Bar */}
-        <header className="admin-topbar sticky top-0 z-30 flex items-center px-4 lg:px-6 gap-3">
+        {/* Top Bar — wave-130 minimalist: 4 utility buttons normalized to
+            ghost icons (h-9), single visual weight, no boxy chrome. */}
+        <header className="admin-topbar sticky top-0 z-30 flex items-center px-3 lg:px-5 gap-1">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="lg:hidden text-muted-foreground hover:text-foreground p-1.5 rounded-md hover:bg-muted/50 transition-colors"
+            className="lg:hidden inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
+            aria-label="Open sidebar"
           >
             <Menu className="w-4 h-4" />
           </button>
-          <h1 className="text-sm font-semibold text-foreground tracking-tight">
+          <h1 className="text-[14px] font-semibold text-foreground tracking-tight px-2">
             {SECTION_TITLES[section]}
           </h1>
           <div className="flex-1" />
@@ -480,10 +482,11 @@ export default function Admin() {
           <ThemeToggle />
           <Link
             href="/admin/content"
-            className="flex items-center gap-1.5 bg-muted/50 border border-border px-3 py-1.5 rounded-md text-muted-foreground hover:text-primary hover:border-primary/30 transition-all text-xs font-medium"
+            title="AI Content"
+            aria-label="AI Content"
+            className="inline-flex items-center justify-center w-9 h-9 text-muted-foreground hover:text-primary hover:bg-foreground/5 rounded-md transition-colors"
           >
-            <Sparkles className="w-3 h-3" />
-            <span className="hidden sm:inline">AI Content</span>
+            <Sparkles className="w-4 h-4" />
           </Link>
         </header>
 

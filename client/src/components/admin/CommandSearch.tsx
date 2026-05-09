@@ -315,14 +315,16 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
 
   return (
     <>
-      {/* Trigger button */}
+      {/* Trigger button — wave-130 minimalist ghost icon, matches the
+          rest of the topbar utilities. ⌘K hint shows inline on lg+. */}
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 bg-muted/50 border border-border px-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all text-xs"
+        title="Search (⌘K)"
+        aria-label="Search"
+        className="inline-flex items-center justify-center gap-2 h-9 px-2.5 lg:px-3 text-muted-foreground hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
       >
-        <Search className="w-3.5 h-3.5" />
-        <span className="hidden sm:inline">Search...</span>
-        <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-background/50 border border-border/30 rounded text-[10px] text-foreground/30 ml-2">
+        <Search className="w-4 h-4" />
+        <kbd className="hidden lg:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono text-foreground/40 border border-border/40 rounded">
           ⌘K
         </kbd>
       </button>

@@ -22,7 +22,7 @@ export default function ThemeToggle({ className = "" }: Props) {
   return (
     <button
       onClick={toggleTheme}
-      className={`inline-flex items-center justify-center w-9 h-9 rounded-lg border border-border/30 text-muted-foreground hover:text-foreground hover:border-border/60 active:scale-95 transition-all ${className}`}
+      className={`inline-flex items-center justify-center w-9 h-9 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors ${className}`}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       title={isDark ? "Light mode" : "Dark mode"}
     >
