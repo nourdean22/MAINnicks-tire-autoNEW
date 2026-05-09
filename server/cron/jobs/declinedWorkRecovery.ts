@@ -164,60 +164,84 @@ export async function runDeclinedWorkRecovery(): Promise<RecoveryResult> {
   let sent30d = 0;
   let skippedOptOut = 0;
   let skippedNoPhone = 0;
+  let perRowErrors = 0;
+
+  // wave-117 — per-run cap. Even with .limit(100) on the query above,
+  // an unbounded send loop is a Twilio cost runaway risk if the filter
+  // ever widens (e.g. a date math bug). Cap mirrors crossSellOutreach.
+  const MAX_SMS_PER_RUN = 20;
 
   for (const est of unmatched) {
-    if (!est.customerPhone) {
-      skippedNoPhone++;
-      continue;
+    if (sent7d + sent30d >= MAX_SMS_PER_RUN) {
+      log.info(`[declined-recovery] hit per-run cap of ${MAX_SMS_PER_RUN} sends, stopping early`);
+      break;
     }
 
-    // Check SMS opt-out via customers table lookup by last-10 digits
-    const normalized = est.customerPhone.replace(/\D/g, "").slice(-10);
-    const [cust] = await d
-      .select({ smsOptOut: customers.smsOptOut })
-      .from(customers)
-      .where(sql`RIGHT(REPLACE(REPLACE(REPLACE(${customers.phone}, '-', ''), '(', ''), ')', ''), 10) = ${normalized}`)
-      .limit(1);
-    if (cust?.smsOptOut) {
-      skippedOptOut++;
-      continue;
-    }
-
-    const ageMs = now.getTime() - est.estimateDate.getTime();
-    const name = firstName(est.customerName);
-    const amount = est.estimatedAmount || 0;
-
-    // 30-day follow-up takes precedence (more urgent)
-    if (ageMs >= 30 * 24 * 60 * 60 * 1000 && !est.followUp30dSent) {
-      const body = buildThirtyDayMessage({ name, amountCents: amount });
-      const res = await sendSms(est.customerPhone, body);
-      if (res.success) {
-        await d
-          .update(algEstimates)
-          .set({ followUp30dSent: 1, followUp30dSentAt: new Date() })
-          .where(eq(algEstimates.id, est.id));
-        sent30d++;
-        log.info(`30d follow-up sent to ${name} (${formatMoney(amount)} quote)`);
+    // wave-117 — per-row try/catch. Was: any single bad row (DB error
+    // on the followUp30dSent UPDATE, e.g. a missing column on a fresh
+    // deploy) threw and unwound the entire loop, leaving subsequent
+    // estimates unprocessed with no log per skipped row. Now contained:
+    // log + continue.
+    try {
+      if (!est.customerPhone) {
+        skippedNoPhone++;
+        continue;
       }
-      continue;
-    }
 
-    // 7-day follow-up
-    if (ageMs >= 7 * 24 * 60 * 60 * 1000 && !est.followUp7dSent) {
-      const body = buildSevenDayMessage({
-        name,
-        amountCents: amount,
-        service: est.serviceDescription,
+      // Check SMS opt-out via customers table lookup by last-10 digits
+      const normalized = est.customerPhone.replace(/\D/g, "").slice(-10);
+      const [cust] = await d
+        .select({ smsOptOut: customers.smsOptOut })
+        .from(customers)
+        .where(sql`RIGHT(REPLACE(REPLACE(REPLACE(${customers.phone}, '-', ''), '(', ''), ')', ''), 10) = ${normalized}`)
+        .limit(1);
+      if (cust?.smsOptOut) {
+        skippedOptOut++;
+        continue;
+      }
+
+      const ageMs = now.getTime() - est.estimateDate.getTime();
+      const name = firstName(est.customerName);
+      const amount = est.estimatedAmount || 0;
+
+      // 30-day follow-up takes precedence (more urgent)
+      if (ageMs >= 30 * 24 * 60 * 60 * 1000 && !est.followUp30dSent) {
+        const body = buildThirtyDayMessage({ name, amountCents: amount });
+        const res = await sendSms(est.customerPhone, body);
+        if (res.success) {
+          await d
+            .update(algEstimates)
+            .set({ followUp30dSent: 1, followUp30dSentAt: new Date() })
+            .where(eq(algEstimates.id, est.id));
+          sent30d++;
+          log.info(`30d follow-up sent to ${name} (${formatMoney(amount)} quote)`);
+        }
+        continue;
+      }
+
+      // 7-day follow-up
+      if (ageMs >= 7 * 24 * 60 * 60 * 1000 && !est.followUp7dSent) {
+        const body = buildSevenDayMessage({
+          name,
+          amountCents: amount,
+          service: est.serviceDescription,
+        });
+        const res = await sendSms(est.customerPhone, body);
+        if (res.success) {
+          await d
+            .update(algEstimates)
+            .set({ followUp7dSent: 1, followUp7dSentAt: new Date() })
+            .where(eq(algEstimates.id, est.id));
+          sent7d++;
+          log.info(`7d follow-up sent to ${name} (${formatMoney(amount)} quote)`);
+        }
+      }
+    } catch (rowErr) {
+      perRowErrors++;
+      log.warn(`[declined-recovery] estimate ${est.id} failed`, {
+        error: rowErr instanceof Error ? rowErr.message : String(rowErr),
       });
-      const res = await sendSms(est.customerPhone, body);
-      if (res.success) {
-        await d
-          .update(algEstimates)
-          .set({ followUp7dSent: 1, followUp7dSentAt: new Date() })
-          .where(eq(algEstimates.id, est.id));
-        sent7d++;
-        log.info(`7d follow-up sent to ${name} (${formatMoney(amount)} quote)`);
-      }
+      // continue — don't kill the whole batch on one bad row
     }
   }
 
@@ -227,7 +251,8 @@ export async function runDeclinedWorkRecovery(): Promise<RecoveryResult> {
       const { sendTelegram } = await import("../../services/telegram");
       await sendTelegram(
         `📬 DECLINED WORK RECOVERY: ${total} SMS sent (${sent7d} 7-day + ${sent30d} 30-day). ` +
-          `Potential pool: ${formatMoney(totalRecoverableCents)} from ${unmatched.length} quotes.`,
+          `Potential pool: ${formatMoney(totalRecoverableCents)} from ${unmatched.length} quotes.` +
+          (perRowErrors > 0 ? ` ⚠️ ${perRowErrors} row errors — see server logs.` : ""),
       );
     } catch (e) {
       log.warn("[declined-recovery] telegram notify failed:", e);

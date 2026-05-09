@@ -119,10 +119,17 @@ export async function autoCleanStaleBookings(): Promise<{ recordsProcessed: numb
     const stale = rows as RawRow[];
     if (stale.length === 0) return { recordsProcessed: 0, details: "No stale bookings" };
 
-    // Batch-cancel all stale bookings in one query
-    const staleIds = stale.map((b) => b.id);
-    if (staleIds.length > 0) {
-      await d.execute(sql`UPDATE bookings SET status = 'cancelled', updatedAt = NOW() WHERE id IN (${sql.raw(staleIds.join(","))})`);
+    // wave-117 — was `staleIds = stale.map(b => b.id)` then sql.raw()
+    // without integer coercion. Same class of bug as detectNoShows had
+    // before its v1.7 fix (line 66 above). RawRow id values are typed
+    // `unknown`; a non-numeric value would crash the query or open a
+    // future injection path. Coerce to integers and discard anything
+    // that isn't a finite integer.
+    const numericIds = stale
+      .map((b) => Number(b.id))
+      .filter((n): n is number => Number.isFinite(n) && Number.isInteger(n));
+    if (numericIds.length > 0) {
+      await d.execute(sql`UPDATE bookings SET status = 'cancelled', updatedAt = NOW() WHERE id IN (${sql.raw(numericIds.join(","))})`);
     }
 
     // Send "rebook" SMS (gated by feature flag)
