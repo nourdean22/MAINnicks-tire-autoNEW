@@ -84,6 +84,12 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
       .where(
         and(
           eq(customers.smsCampaignSent, 0),
+          // wave-122 (HIGH/TCPA S9) — was missing the smsOptOut filter
+          // that every other outbound SMS job applies (declinedWorkRecovery,
+          // crossSellOutreach, retentionSequences). Without it, any
+          // opted-out customer with a 6-8d visit window received a
+          // marketing SMS — TCPA violation with real legal exposure.
+          eq(customers.smsOptOut, 0),
           gte(customers.lastVisitDate, sixDaysAgo),
           lte(customers.lastVisitDate, eightDaysAgo),
           sql`${customers.phone} IS NOT NULL AND ${customers.phone} != '' AND ${customers.phone} LIKE '+1%'`

@@ -263,13 +263,17 @@ export const voiceAgentRouter = router({
         // Ping Nick via Telegram immediately on high-urgency
         if (input.urgency === "high") {
           try {
+            // wave-122 (MEDIUM S3) — mask phone in Telegram body. Last-4
+            // is enough for operator recognition; full number is in
+            // callback_requests row for the admin tool.
+            const phoneTail = input.phone.replace(/\D/g, "").slice(-4);
             const { sendTelegram } = await import("../services/telegram");
             await sendTelegram(
               `🚨 VOICE AGENT ESCALATION — HIGH URGENCY\n\n` +
-              `${input.name} · ${input.phone}\n` +
+              `${input.name} · ...${phoneTail}\n` +
               `Reason: ${input.reason}\n` +
               (input.callId ? `Call: ${input.callId}\n` : "") +
-              `\nCall back ASAP.`,
+              `\nCall back ASAP — full number in admin > Callbacks.`,
             );
           } catch (e) {
             log.warn("Telegram escalation alert failed", { err: e instanceof Error ? e.message : String(e) });

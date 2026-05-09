@@ -121,12 +121,51 @@ export const paymentsRouter = router({
       const d = await db();
       if (!d) return { success: false, error: "Service unavailable" };
 
+      // wave-122 — load the invoice FIRST to know the real amount we
+      // expect Stripe to confirm. Fetch fields needed for the cross-
+      // check rather than just the existence guard.
+      const [inv] = await d.select({
+        id: invoices.id,
+        totalAmount: invoices.totalAmount,
+        paymentStatus: invoices.paymentStatus,
+      })
+        .from(invoices)
+        .where(and(
+          eq(invoices.invoiceNumber, input.invoiceNumber),
+          eq(invoices.customerPhone, input.phone),
+        ))
+        .limit(1);
+
+      if (!inv) return { success: false, error: "Invoice not found" };
+      if (inv.paymentStatus === "paid") return { success: false, error: "Invoice already paid" };
+
       // Verify payment with Stripe
       const { getPaymentStatus } = await import("../services/payments");
       const status = await getPaymentStatus(input.paymentIntentId);
 
       if (status.status !== "succeeded") {
         return { success: false, error: `Payment not confirmed: ${status.status}` };
+      }
+
+      // wave-122 (CRITICAL S1/S5) — amount verification gate. Prior code
+      // marked the invoice paid based ONLY on Stripe `succeeded` status
+      // without checking that the captured amount matched the invoice
+      // total. Defense-in-depth: if an attacker somehow obtains a
+      // succeeded paymentIntentId for a different (lower) amount in
+      // our Stripe account, this check refuses to apply it to the
+      // invoice. 50 cent tolerance for Stripe's processing-fee rounding.
+      const amountDelta = Math.abs(status.amountReceived - inv.totalAmount);
+      if (amountDelta > 50) {
+        log.warn("[payments.confirmPayment] amount mismatch — refusing to mark paid", {
+          invoiceNumber: input.invoiceNumber,
+          paymentIntentId: input.paymentIntentId,
+          expected: inv.totalAmount,
+          received: status.amountReceived,
+        });
+        return {
+          success: false,
+          error: `Payment amount mismatch (expected ${(inv.totalAmount / 100).toFixed(2)}, received ${(status.amountReceived / 100).toFixed(2)})`,
+        };
       }
 
       // Map payment methods to DB enum
