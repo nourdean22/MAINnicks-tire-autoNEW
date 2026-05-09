@@ -278,17 +278,20 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex">
-      <div className="fixed inset-0 bg-black/60" onClick={onClose} />
-      <div className="ml-auto w-full max-w-lg bg-background border-l border-border/40 overflow-y-auto relative z-10">
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      {/* wave-133 — pb-[env(safe-area-inset-bottom)] so iOS home-indicator
+          area doesn't obscure the bottom action buttons (operator runs
+          from his iPhone). Backdrop also matches wave-131 drawers (0.40). */}
+      <div className="ml-auto w-full max-w-lg bg-background border-l border-border/40 overflow-y-auto relative z-10 pb-[env(safe-area-inset-bottom)]">
         {/* Header */}
         <div className="sticky top-0 bg-background/95 backdrop-blur border-b border-border/30 px-5 py-4 flex items-center justify-between">
           <div>
-            <span className="font-mono font-bold text-sm">{wo.orderNumber}</span>
-            <span className={`ml-2 text-[10px] font-bold tracking-widest px-1.5 py-0.5 rounded border ${prio.bgColor} ${prio.color}`}>
+            <span className="font-mono font-semibold text-sm">{wo.orderNumber}</span>
+            <span className={`ml-2 text-[10px] font-medium tracking-[0.15em] px-1.5 py-0.5 rounded border ${prio.bgColor} ${prio.color}`}>
               {prio.label}
             </span>
           </div>
-          <button onClick={onClose} aria-label="Close" className="text-foreground/40 hover:text-foreground"><XCircle className="w-5 h-5" /></button>
+          <button onClick={onClose} aria-label="Close" className="inline-flex items-center justify-center w-8 h-8 -mr-1 text-foreground/45 hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"><XCircle className="w-4 h-4" /></button>
         </div>
 
         <div className="p-5 space-y-5">

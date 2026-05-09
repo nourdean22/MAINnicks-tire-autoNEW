@@ -361,8 +361,13 @@ export default function LeadsSection() {
     if (sourceFilter !== "all") list = list.filter(l => l.source === sourceFilter);
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
+      // wave-133 — was `l.phone.includes(q)`. LeadItem.phone is
+      // string|null; a null phone (valid — phone is optional)
+      // crashed the whole list with "Cannot read properties of
+      // null (reading 'includes')" the moment the operator typed
+      // anything in the search box.
       list = list.filter(l =>
-        l.name.toLowerCase().includes(q) || l.phone.includes(q) ||
+        l.name.toLowerCase().includes(q) || (l.phone || "").includes(q) ||
         (l.email && l.email.toLowerCase().includes(q)) ||
         (l.vehicle && l.vehicle.toLowerCase().includes(q)) ||
         (l.problem && l.problem.toLowerCase().includes(q))
