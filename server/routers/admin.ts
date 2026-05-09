@@ -875,6 +875,54 @@ export const followUpsRouter = router({
       .orderBy(desc(customerNotifications.createdAt))
       .limit(50);
   }),
+  // wave-115 — per-item cancel: marks a pending follow-up as "skipped"
+  // so it never sends. Useful when the customer already called back or
+  // the booking was canceled.
+  cancel: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const [existing] = await d.select().from(customerNotifications)
+        .where(eq(customerNotifications.id, input.id)).limit(1);
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Follow-up not found" });
+      }
+      if (existing.status !== "pending") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Can only cancel pending follow-ups (this one is "${existing.status}")`,
+        });
+      }
+      await d.update(customerNotifications)
+        .set({ status: "skipped" })
+        .where(eq(customerNotifications.id, input.id));
+      return { ok: true as const, id: input.id };
+    }),
+  // wave-115 — per-item retry: takes a "failed" follow-up and re-queues
+  // it as "pending" so the next runFollowUps() picks it up. Idempotent —
+  // does nothing on already-pending or already-sent rows.
+  retry: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const [existing] = await d.select().from(customerNotifications)
+        .where(eq(customerNotifications.id, input.id)).limit(1);
+      if (!existing) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Follow-up not found" });
+      }
+      if (existing.status !== "failed") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Can only retry failed follow-ups (this one is "${existing.status}")`,
+        });
+      }
+      await d.update(customerNotifications)
+        .set({ status: "pending" })
+        .where(eq(customerNotifications.id, input.id));
+      return { ok: true as const, id: input.id };
+    }),
 });
 
 export const weeklyReportRouter = router({

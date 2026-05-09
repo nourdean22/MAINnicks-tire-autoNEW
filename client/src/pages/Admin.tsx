@@ -244,6 +244,20 @@ export default function Admin() {
     return () => window.removeEventListener("admin:navigate-section", handler);
   }, []);
 
+  // wave-115 — listen for direct customer-drawer requests fired from any
+  // admin surface (at-risk whales row, top-spenders card, NBA actions, etc.)
+  // via openCustomerDrawer(id) helper in shared.tsx.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ customerId: number }>).detail;
+      if (typeof detail?.customerId === "number") {
+        setDrawerCustomerId(detail.customerId);
+      }
+    };
+    window.addEventListener("admin:open-customer-drawer", handler);
+    return () => window.removeEventListener("admin:open-customer-drawer", handler);
+  }, []);
+
   // Pending callback count for badge
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- tRPC returns any from untyped db
   const pendingCallbacks = (callbacks as any[] | undefined)?.filter(
