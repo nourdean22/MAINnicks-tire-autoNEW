@@ -446,7 +446,12 @@ function InlineSms({ customerId, firstName }: { customerId: number; firstName: s
   }
 
   return (
-    <div className="absolute right-0 top-0 z-20 bg-card border border-primary/30 shadow-lg p-3 w-72" onClick={e => e.stopPropagation()}>
+    /* wave-119 — was `right-0 top-0 w-72` absolute. On a 390px phone
+       viewport with the card inset, no guarantee right-edge stayed on-
+       screen. Now: clamps width to viewport-minus-margin and pulls back
+       from the right with `max-w-[calc(100vw-2rem)]` so it never overflows
+       on small viewports. Added `right-2` for breathing room from the edge. */
+    <div className="absolute right-2 top-0 z-30 bg-card border border-primary/30 shadow-lg p-3 w-72 max-w-[calc(100vw-2rem)]" onClick={e => e.stopPropagation()}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] font-bold text-foreground/50 tracking-wider">SMS TO {(firstName || "").toUpperCase()}</span>
         <button onClick={() => setOpen(false)} aria-label="Close" className="text-foreground/30 hover:text-foreground">

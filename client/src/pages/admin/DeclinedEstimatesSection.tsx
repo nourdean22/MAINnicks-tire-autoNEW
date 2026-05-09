@@ -492,7 +492,12 @@ export default function DeclinedEstimatesSection() {
                       MARK FOLLOW-UP
                     </button>
                   )}
-                  {/* wave-115b — permanent dismiss (customer said no, vehicle sold, etc.) */}
+                  {/* wave-115b — permanent dismiss (customer said no, vehicle sold, etc.)
+                      wave-119 — bumped p-1.5 → p-2.5 + min target so it's
+                      tappable on phone (was 20x20, now ~36x36 — close to the
+                      44px Apple HIG; balanced against keeping the dismiss
+                      visually subordinate to MARK FOLLOW-UP).
+                  */}
                   <button
                     onClick={() => {
                       if (confirm(
@@ -505,7 +510,7 @@ export default function DeclinedEstimatesSection() {
                     disabled={dismissEstimate.isPending}
                     aria-label="Dismiss estimate permanently"
                     title="Permanently remove from the recovery queue"
-                    className="p-1.5 text-foreground/30 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                    className="p-2.5 text-foreground/40 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
