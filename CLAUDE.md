@@ -1,3 +1,69 @@
+# Nick's Tire & Auto · agent context
+
+**Repo:** nickstire-dev (deploys to nickstire.org via Railway from `main`)
+**Stack:** Vite 7 + React 19 client / Express 4 + tRPC 11 server / Drizzle ORM / MySQL (TiDB Cloud) / pnpm 9+ / Node 20+
+**Last refreshed:** 2026-05-08 EOD · post wave-109 (F25e SMS gateway live · ALG declined-work pipeline surfaced)
+
+## Quick start
+
+```bash
+pnpm install
+cp .env.example .env       # fill required keys (see .env.example headers)
+pnpm dev                   # API + Vite client (single tsx watch)
+pnpm test                  # vitest run
+pnpm run check             # tsc --noEmit
+pnpm run verify            # MASTER GATE · env + check + lint + source-lint + hooks-lint + route-validate + tests + build
+pnpm run build             # vite build + esbuild server + maybe-prerender
+pnpm run prerender         # regenerate static HTML (DO NOT hand-edit prerendered/)
+pnpm run db:push           # drizzle-kit generate + migrate
+pnpm run validate:routes   # confirm registered routes match handler files
+pnpm run lint:hooks        # catch useState etc. used after early-return
+```
+
+## Layout
+
+| Path | Purpose |
+|---|---|
+| `client/src` | React app · pages · admin |
+| `server/_core/index.ts` | Express entry |
+| `server/routers/` | tRPC routers |
+| `server/services/` | business logic |
+| `server/cron/` | scheduled jobs |
+| `shared/` | constants used by client + server |
+| `drizzle/schema.ts` | source of truth for DB |
+| `drizzle/*.sql` | hand-applied migrations (NOT auto-run) |
+| `prerendered/` | generated static HTML — regenerate, don't hand-edit |
+| `scripts/` | prerender · sitemap · deploy helpers · validators |
+| `docs/integrations/` | INTEGRATION_REGISTRY.md is canonical |
+| `docs/operations/` | LOAD_BEARING_SYSTEMS.md is canonical |
+
+## Gotchas
+
+- **Migrations are hand-applied SQL** — after schema change, apply `drizzle/NNNN_*.sql` to DB then run `pnpm run check`. There is no auto-migrate.
+- **Prerender is generated** — never hand-edit `prerendered/*.html`; run `pnpm run prerender` after NAP/SEO content changes. CI audits this.
+- **`pnpm run verify` is the master gate** — chains env → check → lint → source-lint → hooks-lint → route-validate → tests → build. Run before any push.
+- **Hook ordering audited** — `pnpm run lint:hooks` catches `useState`/etc. used after early-return, which silently breaks React.
+- **Route registry has a validator** — `pnpm run validate:routes` confirms registered routes match handler files. Don't ship without it.
+- **`server/_core/index.ts` is the single Express entry** — there is no `app/` or multi-entry split; all routers mount here.
+
+## Canonical project docs (read before editing)
+
+- `README.md` — full quick start + layout
+- `MEMORY.md` — operator memory index (where to look next)
+- `truth_os.md` — what's true in prod (update when shipping)
+- `architecture_map.md` — request flow
+- `PROTECTED-CORE.md` — files you don't touch without explicit approval
+- `RECOVERY.md` — recovery procedures
+
+## Recent waves (2026-05)
+
+| Wave | What landed |
+|---|---|
+| 103-109 (May 8 EVE) | F25e SMS gateway live · 216-862-0005 primary SMS sender · admin chat UI · manager-on-duty alerts · dual-gateway monitoring |
+| 95-101 (May 7) | ALG declined-work pipeline surfaced ($321K visible · was $0) · estimate-as-invoice leak killed (-$36,909 fake revenue) · cron consolidation · materialized aggregates · bulk-SMS recovery UI |
+
+---
+
 # MASTER OPERATING DIRECTIVE
 
 You are my high-agency strategic advisor, chief of staff, operator, execution partner, research engine, and force-multiplier.
