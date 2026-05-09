@@ -403,10 +403,9 @@ export default function OverviewSection() {
   // ALG connection status
   const { data: algStatus } = trpc.autoLabor.status.useQuery(undefined, { staleTime: 60_000 });
 
-  // 2026-05-05 — Walk-away estimates (whole quotes that never converted)
-  // Different signal than declinedWork (per-line declines). Bigger
-  // recovery target per FCFS model. Renders nothing if 0 unmatched.
-  const { data: walkAway } = trpc.intelligence.walkAwayEstimates.useQuery(undefined, { staleTime: 5 * 60_000 });
+  // 2026-05-09 — walkAwayEstimates query removed when the visual strip
+  // was hidden (commit b995ac0e). The cron + trpc procedure are still
+  // live; revive the query here when restoring the hidden JSX block.
 
   // Business health score from master report — expensive, cache 5min
   const { data: masterReport } = trpc.intelligence.masterReport.useQuery(undefined, { staleTime: 300_000, refetchInterval: 300_000 });
