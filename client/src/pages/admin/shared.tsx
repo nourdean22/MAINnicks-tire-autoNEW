@@ -76,18 +76,30 @@ export type NavGroup = { label: string; items: { id: AdminSection; label: string
  *   5. AUTOMATE (utility tools bottom-pinned, out of daily-use flow)
  *
  * Old groups (4): COMMAND · PIPELINE · OUTREACH · SYSTEM
- * New groups (3 + 1 pinned):
+ * Wave-122 (4): TODAY · REVENUE · GROW · TOOLS
+ * Wave-129c (5): TODAY · CUSTOMERS · MONEY · GROW · SYSTEM
  *
- *   TODAY    — daily operator surface: open this in the morning
- *   REVENUE  — money + risk: where the dollars live
- *   GROW     — long-horizon levers: SEO, content, intelligence
- *   [pinned] — utility: NOUR OS Bridge + Settings
+ *   TODAY      — action queue: what needs me right now
+ *   CUSTOMERS  — the relationships (ledger + how I talk to them)
+ *   MONEY      — dollars: in-flow + recovery + financing
+ *   GROW       — long-horizon levers: traffic, content, intelligence
+ *   SYSTEM     — utility (NOUR OS Bridge + Settings)
  *
- * The same 17 sections, reorganized by what the operator is DOING,
- * not by org-chart taxonomy. Walk-In Quote moved to REVENUE (it's
- * a money tool). NOUR OS Bridge bottom-pinned (it's a sync utility,
- * not a daily destination). Conversion Preview moved to GROW
- * (it's a content/marketing surface).
+ * Why two moves from wave-122:
+ *
+ *   1. Customers leaves TODAY → joins CUSTOMERS group.
+ *      "Customers" is a ledger lookup, not an action-queue item.
+ *      The operator opens TODAY items every shift; Customers is
+ *      occasional ("look up John's history"). Wrong group.
+ *
+ *   2. Outreach Hub leaves GROW → joins CUSTOMERS group.
+ *      Wave-129 made SMS the default Outreach tab — it's now the
+ *      daily texting surface. That's a customer-relationship tool,
+ *      not a long-horizon growth lever like SEO/content.
+ *
+ * Rename rationale: REVENUE → MONEY (broader; Snap Finance is a
+ * financing tool, not revenue). TOOLS → SYSTEM (config + bridge
+ * are system-level, not marketing tools).
  */
 export const NAV_GROUPS: NavGroup[] = [
   {
@@ -97,11 +109,17 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "leads", label: "Leads & Estimates", icon: <Users className="w-4 h-4" />, badge: "leads" },
       { id: "callTrackingView", label: "Call Tracking", icon: <PhoneCall className="w-4 h-4" />, badge: "callbacks" },
       { id: "voiceReceptionist", label: "Voice Receptionist", icon: <Phone className="w-4 h-4" /> },
-      { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
     ],
   },
   {
-    label: "REVENUE",
+    label: "CUSTOMERS",
+    items: [
+      { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
+      { id: "campaigns", label: "Outreach Hub", icon: <Send className="w-4 h-4" /> },
+    ],
+  },
+  {
+    label: "MONEY",
     items: [
       // 2026-05-06 Elon-deeper-cut · removed from sidebar (still URL-
       // accessible via TAB_ALIASES):
@@ -121,13 +139,12 @@ export const NAV_GROUPS: NavGroup[] = [
       //   - reEngagement     → consolidated into Outreach Hub as a tab
       //   - conversionPreview→ tucked under Settings (verification tool)
       { id: "trafficFunnel", label: "Traffic → Revenue", icon: <TrendingUp className="w-4 h-4" /> },
-      { id: "campaigns", label: "Outreach Hub", icon: <Send className="w-4 h-4" /> },
       { id: "content", label: "Content & AI", icon: <FileText className="w-4 h-4" /> },
       { id: "intelligence", label: "Intelligence", icon: <Brain className="w-4 h-4" /> },
     ],
   },
   {
-    label: "TOOLS",
+    label: "SYSTEM",
     items: [
       // Bottom-pinned utility: NOUR OS Bridge is a sync widget, not a
       // daily destination. Settings holds ShopDriver, System Health,
