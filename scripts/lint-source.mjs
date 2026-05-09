@@ -29,6 +29,10 @@ const EXEMPT_FILES = new Set([
   "server/lib/logger.ts",        // the logger itself
   "server/lib/sentry.ts",        // boot-time — logger may not be ready
   "server/_core/index.ts",       // boot-time console
+  // wave-127c — eval runner is a CLI script invoked via `pnpm test:ai-evals`
+  // and writes status to stdout for the human + CI. createLogger() routes to
+  // structured JSON which the eval reporter doesn't read. console is correct.
+  "server/lib/ai/evals/blog-seeder/runner.ts",
 ]);
 
 const ALLOW_CONSOLE_INFO = true;  // console.info is acceptable
