@@ -682,8 +682,11 @@ export default function OverviewSection() {
           everything's fine. */}
       <AdminAlertBar alerts={adminAlerts} />
 
-      {/* 2026-05-05 — TODAY'S BRIEF: top actionable signals at top of admin */}
-      <TodayBriefStrip />
+      {/* 2026-05-09 — TodayBriefStrip hidden per operator. Was crowding the
+          top of admin with the "$X on the table" call-to-action. Definition
+          kept further down in this file in case we revive it; comment the
+          render to bring it back. */}
+      {/* <TodayBriefStrip /> */}
 
       {/* 2026-05-06 Elon-style hierarchy pass · Today's Revenue gets
           2x span (the single most-checked CEO metric); ALG demoted from
