@@ -34,6 +34,54 @@ const log = createLogger("vapi");
 
 const VAPI_BASE = "https://api.vapi.ai";
 
+// ─── ASSISTANT SELECTION (wave-113b) ─────────────────────
+// VAPI returns multiple assistants (inbound Receptionist + outbound
+// Follow-Up Caller). Picking assistants[0] blindly was sending the
+// admin's "manager on duty" updates to the WRONG assistant — the
+// outbound caller — leaving the actual phone-line receptionist
+// pointed at a stale number. This helper resolves the receptionist
+// (inbound) assistant deterministically.
+//
+// Resolution order:
+//   1. VAPI_RECEPTIONIST_ASSISTANT_ID env var (most explicit; preferred
+//      in prod once you have the canonical ID pinned)
+//   2. Name match: "receptionist" (case-insensitive)
+//   3. Exclusion: not "follow-up" / "outbound" / "follow up"
+//   4. Final fallback: assistants[0] with a warn log
+
+export interface VapiAssistantLite {
+  id: string;
+  name?: string;
+}
+
+export function pickReceptionistAssistantId(
+  assistants: VapiAssistantLite[],
+): { id: string; reason: "env" | "name-match" | "name-exclude" | "fallback-first" } | null {
+  if (!assistants.length) return null;
+
+  // 1. Env-pinned ID
+  const pinned = process.env.VAPI_RECEPTIONIST_ASSISTANT_ID;
+  if (pinned) {
+    const hit = assistants.find((a) => a.id === pinned);
+    if (hit) return { id: hit.id, reason: "env" };
+    log.warn("VAPI_RECEPTIONIST_ASSISTANT_ID set but no matching assistant found", { pinned });
+  }
+
+  // 2. Prefer name containing "receptionist"
+  const byName = assistants.find((a) => /receptionist/i.test(a.name || ""));
+  if (byName) return { id: byName.id, reason: "name-match" };
+
+  // 3. Exclude obvious outbound/follow-up assistants
+  const inbound = assistants.find((a) => !/follow.?up|outbound/i.test(a.name || ""));
+  if (inbound) return { id: inbound.id, reason: "name-exclude" };
+
+  // 4. Last resort
+  log.warn("Could not identify receptionist assistant by name; falling back to first", {
+    names: assistants.map((a) => a.name || "(unnamed)"),
+  });
+  return { id: assistants[0].id, reason: "fallback-first" };
+}
+
 // ─── ASSISTANT SYSTEM PROMPT ─────────────────────────────
 // Source of truth for the AI's personality + flow.
 // Voice-compliance: zero kill-list violations.
@@ -1623,9 +1671,15 @@ export async function getOnDutyManagerPhone(): Promise<string | null> {
       signal: AbortSignal.timeout(5000),
     });
     if (!aRes.ok) throw new Error(`assistant list ${aRes.status}`);
-    const assistants = (await aRes.json()) as Array<{ id: string }>;
+    const assistants = (await aRes.json()) as Array<{ id: string; name?: string }>;
     if (!assistants.length) throw new Error("no assistants");
-    const assistantId = assistants[0].id;
+
+    // wave-113b — was assistants[0] blindly; now picks the inbound
+    // Receptionist (not the outbound Follow-Up Caller) so manager-on-
+    // duty alerts go to the same phone callers actually get forwarded to.
+    const picked = pickReceptionistAssistantId(assistants);
+    if (!picked) throw new Error("no receptionist assistant found");
+    const assistantId = picked.id;
 
     const dRes = await fetch(`${VAPI_BASE}/assistant/${assistantId}`, {
       headers: { Authorization: `Bearer ${apiKey}` },
