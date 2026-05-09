@@ -11,7 +11,7 @@ type DeclinedEstimate = NonNullable<RouterOutputs["invoices"]["declined"]>["esti
 import { StatCard, PageHeader, SectionInsightStrip, useUrlFilter, FilterChips } from "./shared";
 import {
   Loader2, AlertTriangle, DollarSign, Phone, MessageSquare,
-  TrendingUp, Clock, Filter, Flame, CheckSquare, Square, Send, Zap,
+  TrendingUp, Clock, Filter, Flame, CheckSquare, Square, Send, Zap, X,
 } from "lucide-react";
 
 type TimeFilter = "7" | "30" | "all";
@@ -97,6 +97,18 @@ export default function DeclinedEstimatesSection() {
       toast.success("Follow-up scheduled");
     },
     onError: (err) => toast.error(err.message),
+  });
+
+  // wave-115b — permanent dismiss for declined estimates the operator
+  // has worked through (customer said no for good, vehicle sold, etc.).
+  // Stored in shop_settings JSON so it persists across syncs without
+  // a schema migration.
+  const dismissEstimate = trpc.invoices.dismissEstimate.useMutation({
+    onSuccess: () => {
+      utils.invoices.declined.invalidate();
+      toast.success("Estimate dismissed — won't appear in the queue again");
+    },
+    onError: (err) => toast.error(err.message.slice(0, 120)),
   });
 
   const rawEstimates = data?.estimates ?? [];
@@ -480,6 +492,23 @@ export default function DeclinedEstimatesSection() {
                       MARK FOLLOW-UP
                     </button>
                   )}
+                  {/* wave-115b — permanent dismiss (customer said no, vehicle sold, etc.) */}
+                  <button
+                    onClick={() => {
+                      if (confirm(
+                        `Permanently dismiss this estimate?\n\n${est.customerName} · $${Math.round((est.totalAmount ?? 0) / 100)}\n\n` +
+                        `It will be removed from the recovery queue and won't reappear. Use this when the customer has said no for good, the vehicle was sold, or it's a duplicate.`
+                      )) {
+                        dismissEstimate.mutate({ id: est.id });
+                      }
+                    }}
+                    disabled={dismissEstimate.isPending}
+                    aria-label="Dismiss estimate permanently"
+                    title="Permanently remove from the recovery queue"
+                    className="p-1.5 text-foreground/30 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             );
