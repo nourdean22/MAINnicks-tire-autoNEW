@@ -2,6 +2,16 @@
  * Services Overview Page — /services
  * Dedicated landing page listing all services for SEO and user navigation.
  * Follows the brand content structure: Problem Hook → Explanation → Authority → CTA
+ *
+ * wave-110 — list now derives from @shared/services SERVICES (single
+ * source of truth). Slug → icon mapping stays local (visual concern,
+ * doesn't belong in canonical data). `alignment` appended manually
+ * because it's a bespoke page (AlignmentPage, not GenericServicePage),
+ * deliberately not in canonical SERVICES.
+ *
+ * Each card's "Common problems we fix" list is derived from the first
+ * 3 entries of canonical `commonSymptoms` (or `signs` as fallback) so
+ * homepage drift is impossible.
  */
 import { Link } from "wouter";
 import PageLayout from "@/components/PageLayout";
@@ -9,114 +19,64 @@ import InternalLinks from "@/components/InternalLinks";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { Phone, ChevronRight, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Star, MapPin, Snowflake, Settings, Battery, Wind, Thermometer, ClipboardCheck, Cable, CircleDot } from "lucide-react";
 import { BUSINESS } from "@shared/business";
+import { SERVICES, type ServiceData } from "@shared/services";
 
-const SERVICES_LIST = [
+// Slug → lucide icon map. Lives here (not in canonical) because it's
+// a visual concern that depends on the specific icon set this page
+// uses. If a new service is added to canonical, add an icon here too.
+const ICON_BY_SLUG: Record<string, React.ReactNode> = {
+  tires: <Gauge className="w-8 h-8" />,
+  brakes: <Shield className="w-8 h-8" />,
+  diagnostics: <Zap className="w-8 h-8" />,
+  emissions: <ThermometerSun className="w-8 h-8" />,
+  "oil-change": <Droplets className="w-8 h-8" />,
+  "general-repair": <Wrench className="w-8 h-8" />,
+  "ac-repair": <Snowflake className="w-8 h-8" />,
+  transmission: <Settings className="w-8 h-8" />,
+  electrical: <Zap className="w-8 h-8" />,
+  battery: <Battery className="w-8 h-8" />,
+  exhaust: <Wind className="w-8 h-8" />,
+  cooling: <Thermometer className="w-8 h-8" />,
+  "pre-purchase-inspection": <ClipboardCheck className="w-8 h-8" />,
+  "belts-hoses": <Cable className="w-8 h-8" />,
+  "starter-alternator": <CircleDot className="w-8 h-8" />,
+  alignment: <Gauge className="w-8 h-8" />,
+};
+
+// Title-Case the canonical UPPERCASE titles for the card display.
+// Canonical stores them as "BRAKES" / "AC & HEATING" for hero headings;
+// the card grid wants Title Case.
+function toTitleCase(s: string): string {
+  return s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Build card-shape from canonical ServiceData. `commonSymptoms` (long-
+// tail SEO phrases) makes a great "Common problems we fix" list. Fall
+// back to `signs` (warning signs) when commonSymptoms isn't populated.
+function toCard(svc: ServiceData) {
+  const problems = (svc.commonSymptoms || svc.signs || []).slice(0, 3);
+  return {
+    slug: svc.slug,
+    title: toTitleCase(svc.title),
+    icon: ICON_BY_SLUG[svc.slug] || <Wrench className="w-8 h-8" />,
+    shortDesc: svc.shortDesc,
+    problems,
+  };
+}
+
+// Bespoke services not in canonical SERVICES (have their own routes
+// and pages, e.g. AlignmentPage). Hand-curated card shape.
+const BESPOKE_EXTRAS = [
   {
-    slug: "tires",
-    title: "Tires",
-    icon: <Gauge className="w-8 h-8" />,
-    shortDesc: "New and used tires, mounting, balancing, rotation, TPMS sensors, and flat repair.",
-    problems: ["Uneven tire wear", "Low tire pressure warning", "Vibration at highway speed"],
-  },
-  {
-    slug: "brakes",
-    title: "Brakes",
-    icon: <Shield className="w-8 h-8" />,
-    shortDesc: "Brake pads, rotors, calipers, brake lines, and ABS diagnostics.",
-    problems: ["Squealing when braking", "Grinding noise", "Brake pedal feels soft"],
-  },
-  {
-    slug: "diagnostics",
-    title: "Diagnostics",
-    icon: <Zap className="w-8 h-8" />,
-    shortDesc: "Check engine light, OBD-II code reading, and advanced computer diagnostics.",
-    problems: ["Check engine light on", "Warning lights on dashboard", "Car running rough"],
-  },
-  {
-    slug: "emissions",
-    title: "Emissions & E-Check",
-    icon: <ThermometerSun className="w-8 h-8" />,
-    shortDesc: "Ohio E-Check diagnosis and repair — oxygen sensors, EVAP leaks, catalytic converters.",
-    problems: ["Failed Ohio E-Check", "Emissions warning light", "High emissions readings"],
-  },
-  {
-    slug: "oil-change",
-    title: "Oil Change",
-    icon: <Droplets className="w-8 h-8" />,
-    shortDesc: "Conventional and synthetic oil changes with filter replacement.",
-    problems: ["Oil change light on", "Dark or dirty oil", "Engine running louder than usual"],
-  },
-  {
-    slug: "general-repair",
-    title: "General Repair",
-    icon: <Wrench className="w-8 h-8" />,
-    shortDesc: "Suspension, steering, exhaust, cooling systems, belts, hoses, and more.",
-    problems: ["Car pulling to one side", "Unusual noises", "Fluid leaks under vehicle"],
-  },
-  {
-    slug: "ac-repair",
-    title: "AC & Heating",
-    icon: <Snowflake className="w-8 h-8" />,
-    shortDesc: "AC recharge, compressor, condenser, evaporator, heater core, and blower motor.",
-    problems: ["AC blowing warm air", "Weak airflow", "Heater not working"],
-  },
-  {
-    slug: "transmission",
-    title: "Transmission",
-    icon: <Settings className="w-8 h-8" />,
-    shortDesc: "Transmission fluid service, diagnostics, solenoid repair, and rebuilds.",
-    problems: ["Transmission slipping", "Hard shifting", "Burning smell"],
-  },
-  {
-    slug: "electrical",
-    title: "Electrical",
-    icon: <Zap className="w-8 h-8" />,
-    shortDesc: "Battery, alternator, starter, wiring, fuses, power windows.",
-    problems: ["Car won't start", "Battery dies overnight", "Dimming lights"],
-  },
-  {
-    slug: "battery",
-    title: "Battery Service",
-    icon: <Battery className="w-8 h-8" />,
-    shortDesc: "Free battery testing and same-day replacement. Don't get stranded.",
-    problems: ["Slow cranking", "Battery light on", "Needed a jump start"],
-  },
-  {
-    slug: "exhaust",
-    title: "Exhaust & Muffler",
-    icon: <Wind className="w-8 h-8" />,
-    shortDesc: "Muffler, catalytic converter, exhaust pipe, manifold, and resonator.",
-    problems: ["Loud exhaust", "Failed E-Check", "Exhaust smell inside car"],
-  },
-  {
-    slug: "cooling",
-    title: "Cooling System",
-    icon: <Thermometer className="w-8 h-8" />,
-    shortDesc: "Radiator, water pump, thermostat, coolant flush, and hose replacement.",
-    problems: ["Engine overheating", "Coolant leak", "Temperature gauge high"],
-  },
-  {
-    slug: "pre-purchase-inspection",
-    title: "Pre-Purchase Inspection",
-    icon: <ClipboardCheck className="w-8 h-8" />,
-    shortDesc: "150+ point used car inspection with written report. Know before you buy.",
-    problems: ["Buying a used car", "Unknown service history", "Too good to be true price"],
-  },
-  {
-    slug: "belts-hoses",
-    title: "Belts & Hoses",
-    icon: <Cable className="w-8 h-8" />,
-    shortDesc: "Serpentine belt, timing belt, radiator hoses, and heater hoses.",
-    problems: ["Squealing on startup", "Visible belt cracks", "Coolant leak from hose"],
-  },
-  {
-    slug: "starter-alternator",
-    title: "Starter & Alternator",
-    icon: <CircleDot className="w-8 h-8" />,
-    shortDesc: "Starter motor and alternator diagnostics and same-day replacement.",
-    problems: ["Clicking no-start", "Battery keeps dying", "Charging system light"],
+    slug: "alignment",
+    title: "Wheel Alignment",
+    icon: ICON_BY_SLUG.alignment,
+    shortDesc: "Precision 4-wheel alignment to extend tire life, improve handling, and stop the steering pull. Same-day in most cases.",
+    problems: ["Steering pulls to one side", "Uneven tire wear", "Crooked steering wheel after pothole"],
   },
 ];
+
+const SERVICES_LIST = [...SERVICES.map(toCard), ...BESPOKE_EXTRAS];
 
 export default function ServicesOverview() {
   return (
@@ -271,10 +231,17 @@ export default function ServicesOverview() {
               <Phone className="w-5 h-5" />
               Call {BUSINESS.phone.display}
             </a>
-            <Link href="/contact" className="inline-flex items-center gap-2 border border-foreground/30 text-foreground px-8 py-4 rounded-full font-medium hover:bg-foreground/5 transition-colors">
+            {/* wave-110 — was /contact (label lie: directions ≠ contact form).
+                Now opens Google Maps with the shop pre-set as destination. */}
+            <a
+              href={BUSINESS.urls.googleMapsDirectionsNamed}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 border border-foreground/30 text-foreground px-8 py-4 rounded-full font-medium hover:bg-foreground/5 transition-colors"
+            >
               Get Directions
               <ChevronRight className="w-5 h-5" />
-            </Link>
+            </a>
           </div>
           <p className="mt-6 text-foreground/50 text-sm">
             {BUSINESS.address.full} — {BUSINESS.hours.display}

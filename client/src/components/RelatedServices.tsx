@@ -5,10 +5,16 @@
  *
  * Usage:
  *   <RelatedServices current="brakes" related={["tires", "diagnostics", "alignment"]} />
+ *
+ * wave-110 — title + desc now derive from canonical @shared/services
+ * SERVICES (single source of truth). Slug → icon mapping stays local
+ * (visual concern). `alignment` lives in BESPOKE_EXTRAS — it's a real
+ * route (AlignmentPage) not in canonical SERVICES.
  */
 
 import { Link } from "wouter";
 import { ArrowRight, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Snowflake } from "lucide-react";
+import { SERVICES } from "@shared/services";
 
 interface ServiceInfo {
   slug: string;
@@ -17,23 +23,67 @@ interface ServiceInfo {
   icon: React.ReactNode;
 }
 
-const SERVICE_MAP: Record<string, ServiceInfo> = {
-  tires: { slug: "tires", title: "Tires", desc: "New & used tires, mounting, balancing, TPMS, flat repair. All major brands at fair prices.", icon: <Gauge className="w-5 h-5" /> },
-  brakes: { slug: "brakes", title: "Brake Repair", desc: "Pads, rotors, calipers, brake lines, ABS diagnostics. We show you the problem first.", icon: <Shield className="w-5 h-5" /> },
-  diagnostics: { slug: "diagnostics", title: "Engine Diagnostics", desc: "Check engine light, OBD-II scanning, advanced computer diagnostics.", icon: <Zap className="w-5 h-5" /> },
-  emissions: { slug: "emissions", title: "Emissions & E-Check", desc: "Ohio E-Check repair and testing. We fix the root cause so you pass the first time.", icon: <ThermometerSun className="w-5 h-5" /> },
-  "oil-change": { slug: "oil-change", title: "Oil Change", desc: "Conventional and synthetic oil changes with filter and multi-point inspection.", icon: <Droplets className="w-5 h-5" /> },
-  "general-repair": { slug: "general-repair", title: "General Repair", desc: "Suspension, steering, exhaust, cooling systems, belts, hoses, and more.", icon: <Wrench className="w-5 h-5" /> },
-  "ac-repair": { slug: "ac-repair", title: "AC & Heating", desc: "AC diagnosis, refrigerant recharge, compressor repair, heater core service.", icon: <Snowflake className="w-5 h-5" /> },
-  transmission: { slug: "transmission", title: "Transmission", desc: "Transmission diagnosis, fluid service, and repair. Shifting problems fixed right.", icon: <Wrench className="w-5 h-5" /> },
-  electrical: { slug: "electrical", title: "Electrical Repair", desc: "Wiring, sensors, modules, and electrical system diagnostics.", icon: <Zap className="w-5 h-5" /> },
-  battery: { slug: "battery", title: "Battery Service", desc: "Free battery testing. Quality replacement batteries with warranty.", icon: <Zap className="w-5 h-5" /> },
-  exhaust: { slug: "exhaust", title: "Exhaust Repair", desc: "Muffler, catalytic converter, exhaust manifold repair and replacement.", icon: <ThermometerSun className="w-5 h-5" /> },
-  cooling: { slug: "cooling", title: "Cooling System", desc: "Radiator, thermostat, water pump, coolant flush, and overheating repair.", icon: <Droplets className="w-5 h-5" /> },
-  alignment: { slug: "alignment", title: "Wheel Alignment", desc: "Precision alignment to extend tire life and improve handling.", icon: <Gauge className="w-5 h-5" /> },
-  "pre-purchase-inspection": { slug: "pre-purchase-inspection", title: "Pre-Purchase Inspection", desc: "Thorough used car inspection before you buy. Know what you're getting.", icon: <Shield className="w-5 h-5" /> },
-  "belts-hoses": { slug: "belts-hoses", title: "Belts & Hoses", desc: "Timing belt, serpentine belt, radiator hoses — prevent breakdowns.", icon: <Gauge className="w-5 h-5" /> },
-  "starter-alternator": { slug: "starter-alternator", title: "Starter & Alternator", desc: "Car won't start? We test and replace starters and alternators.", icon: <Zap className="w-5 h-5" /> },
+// Slug → icon. Adding a new canonical service requires adding the
+// icon here too (else falls back to Wrench).
+const ICON_BY_SLUG: Record<string, React.ReactNode> = {
+  tires: <Gauge className="w-5 h-5" />,
+  brakes: <Shield className="w-5 h-5" />,
+  diagnostics: <Zap className="w-5 h-5" />,
+  emissions: <ThermometerSun className="w-5 h-5" />,
+  "oil-change": <Droplets className="w-5 h-5" />,
+  "general-repair": <Wrench className="w-5 h-5" />,
+  "ac-repair": <Snowflake className="w-5 h-5" />,
+  transmission: <Wrench className="w-5 h-5" />,
+  electrical: <Zap className="w-5 h-5" />,
+  battery: <Zap className="w-5 h-5" />,
+  exhaust: <ThermometerSun className="w-5 h-5" />,
+  cooling: <Droplets className="w-5 h-5" />,
+  alignment: <Gauge className="w-5 h-5" />,
+  "pre-purchase-inspection": <Shield className="w-5 h-5" />,
+  "belts-hoses": <Gauge className="w-5 h-5" />,
+  "starter-alternator": <Zap className="w-5 h-5" />,
+};
+
+// Display-friendly title overrides for the cross-link card UI. Canonical
+// titles are UPPERCASE (e.g. "BRAKES") which is loud in this small format.
+// These are short, punchy, Title Case versions for the cross-link grid only.
+const TITLE_OVERRIDES: Record<string, string> = {
+  brakes: "Brake Repair",
+  diagnostics: "Engine Diagnostics",
+  electrical: "Electrical Repair",
+  exhaust: "Exhaust Repair",
+  emissions: "Emissions & E-Check",
+  "ac-repair": "AC & Heating",
+  "oil-change": "Oil Change",
+  "general-repair": "General Repair",
+  "pre-purchase-inspection": "Pre-Purchase Inspection",
+  "belts-hoses": "Belts & Hoses",
+  "starter-alternator": "Starter & Alternator",
+};
+
+function toTitleCase(s: string): string {
+  return s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+const SERVICE_MAP: Record<string, ServiceInfo> = Object.fromEntries(
+  SERVICES.map((svc) => [
+    svc.slug,
+    {
+      slug: svc.slug,
+      title: TITLE_OVERRIDES[svc.slug] || toTitleCase(svc.title),
+      desc: svc.shortDesc,
+      icon: ICON_BY_SLUG[svc.slug] || <Wrench className="w-5 h-5" />,
+    },
+  ])
+);
+
+// Bespoke services not in canonical SERVICES. AlignmentPage is the
+// owner of /alignment content; this entry is the cross-link card form.
+SERVICE_MAP.alignment = {
+  slug: "alignment",
+  title: "Wheel Alignment",
+  desc: "Precision alignment to extend tire life and improve handling.",
+  icon: ICON_BY_SLUG.alignment || <Gauge className="w-5 h-5" />,
 };
 
 /** Default related service mappings when no explicit list is provided */
@@ -106,7 +156,9 @@ export default function RelatedServices({ current, related, title = "Related Ser
           ))}
         </div>
         <div className="mt-6 flex flex-wrap gap-4 text-xs text-foreground/70">
-          <Link href="/financing" className="hover:text-primary transition-colors">Need financing? Apply in 2 minutes</Link>
+          {/* wave-110 — "financing" is a banned brand word; copy now uses
+              "Payment programs." (link target /financing stays — that's the URL slug). */}
+          <Link href="/financing" className="hover:text-primary transition-colors">Payment programs · Apply in 2 minutes · No credit check</Link>
           <span className="text-foreground/20">|</span>
           <Link href="/booking" className="hover:text-primary transition-colors">Schedule your drop-off online</Link>
           <span className="text-foreground/20">|</span>

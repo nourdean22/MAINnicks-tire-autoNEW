@@ -179,6 +179,14 @@ function Router() {
             <Route path={"/continental-tires-cleveland"} component={TireBrandPage} />
             <Route path={"/tire-shop-near-me"} component={TireShopNearMePage} />
             <Route path={"/auto-repair-near-me"} component={AutoRepairNearMePage} />
+            {/* /general-repair INTENTIONALLY routes to AutoRepairNearMePage,
+                not GenericServicePage. AutoRepairNearMePage targets the
+                "auto repair near me" / "mechanic near me" SEO cluster
+                (~5,400 monthly impressions) and explicitly replaced
+                /general-repair as the landing for that intent. The
+                canonical `general-repair` entry in shared/services.ts
+                exists to feed Home.tsx + ServicesOverview metadata, but
+                the rendered detail page is the near-me variant. */}
             <Route path={"/general-repair"} component={AutoRepairNearMePage} />
             {/* Long-tail services — GenericServicePage reads shared/services.ts */}
             <Route path={"/oil-change"} component={GenericServicePage} />
