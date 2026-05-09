@@ -47,8 +47,8 @@ const SECTION_SHORTCUTS: { id: AdminSection; label: string; keywords: string[]; 
   { id: "customers", label: "Customer Database", keywords: ["customer", "client", "database", "lookup", "loyalty", "winback", "referral"], group: "Revenue" },
 
   // Outreach + Intelligence
-  { id: "campaigns", label: "Outreach Hub", keywords: ["campaign", "outreach", "sms", "email", "review", "follow-up"], group: "Outreach" },
-  { id: "reEngagement", label: "Re-engagement", keywords: ["re-engage", "winback", "dormant", "inactive"], group: "Outreach" },
+  // wave-110 — reEngagement merged into campaigns (Outreach Hub tab)
+  { id: "campaigns", label: "Outreach Hub", keywords: ["campaign", "outreach", "sms", "email", "review", "follow-up", "re-engage", "winback", "dormant", "inactive"], group: "Outreach" },
   { id: "content", label: "Content & AI", keywords: ["content", "post", "social", "blog", "ai", "seo", "specials"], group: "Outreach" },
   { id: "intelligence", label: "Intelligence", keywords: ["intelligence", "brain", "insight", "ai", "analysis"], group: "Intelligence" },
 
@@ -223,7 +223,13 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
       keywords: ["reengage", "re-engage", "winback", "win-back", "dormant"],
       icon: <RefreshCw className="w-4 h-4 text-blue-500" />,
       group: "Action",
-      run: () => onNavigate("reEngagement"),
+      // wave-110 — reEngagement now lives at /admin?tab=campaigns&outreachTab=reengage
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=campaigns&outreachTab=reengage");
+        }
+        onNavigate("campaigns");
+      },
     },
   ], [refreshAlgMutation, generateGbpMutation, onNavigate]);
 

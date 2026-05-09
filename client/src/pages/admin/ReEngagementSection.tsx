@@ -94,7 +94,8 @@ export default function ReEngagementSection() {
           </>
         }
       />
-      <SectionInsightStrip section="reEngagement" />
+      {/* wave-110 — reEngagement absorbed into campaigns; insight strip uses campaigns key */}
+      <SectionInsightStrip section="campaigns" />
 
       {isLoading ? (
         <LoadingState />

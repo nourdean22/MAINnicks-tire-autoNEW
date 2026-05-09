@@ -19,8 +19,11 @@ import CountUpNumber from "@/components/CountUpNumber";
 export type AdminSection =
   | "commandCenter" | "overview" | "leads" | "content" | "customers"
   | "campaigns" | "settings" | "revenue" | "callTrackingView" | "intelligence"
-  | "declinedEstimates" | "reEngagement" | "noShowRisk" | "walkInCalc"
+  | "declinedEstimates" | "noShowRisk" | "walkInCalc"
   | "snapDashboard" | "trafficFunnel" | "conversionPreview" | "voiceReceptionist";
+// 2026-05-09 — `reEngagement` removed from AdminSection union. Was a zombie
+// top-level route after the wave-103 era half-migration to OutreachHub.
+// Now lives ONLY as the 6th OutreachHub tab (campaigns?outreachTab=reengage).
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -151,7 +154,6 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   voiceReceptionist: "Voice Receptionist",
   intelligence: "Intelligence",
   declinedEstimates: "Declined Work",
-  reEngagement: "Re-engagement",
   noShowRisk: "No-Show Risk",
   walkInCalc: "Walk-In Quote",
   snapDashboard: "Snap Finance",
@@ -786,7 +788,7 @@ const VARIANT_CLASS: Record<string, string> = {
 
 type SectionInsightSection =
   | "customers" | "revenue" | "leads" | "campaigns" | "callTrackingView"
-  | "declinedEstimates" | "noShowRisk" | "reEngagement" | "content"
+  | "declinedEstimates" | "noShowRisk" | "content"
   | "intelligence" | "settings" | "trafficFunnel" | "snapDashboard";
 
 export function SectionInsightStrip({ section }: { section: SectionInsightSection }) {

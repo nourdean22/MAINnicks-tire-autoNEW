@@ -5,7 +5,7 @@
  * Tesla-style: one clean surface, tabs to navigate, all tools in one place.
  */
 import { useState, useEffect, lazy, Suspense } from "react";
-import { Send, MessageSquare, Star, RotateCcw, Timer, Loader2 } from "lucide-react";
+import { Send, MessageSquare, Star, RotateCcw, Timer, Loader2, Phone } from "lucide-react";
 import { PageHeader, TabBar } from "./shared";
 
 const SmsSection = lazy(() => import("./SmsSection"));
@@ -13,8 +13,12 @@ const FollowUpsSection = lazy(() => import("./FollowUpsSection"));
 const CampaignsSection = lazy(() => import("./CampaignsSection"));
 const ReviewRequestsSection = lazy(() => import("./ReviewRequestsSection"));
 const WinBackSection = lazy(() => import("./WinBackSection"));
+// Wave-2026-05-09 — ReEngagement absorbed as 6th tab (was a zombie top-level
+// route per audit). Section file deleted; the page is now reachable only via
+// /admin?tab=campaigns&outreachTab=reengage.
+const ReEngagementSection = lazy(() => import("./ReEngagementSection"));
 
-type OutreachTab = "campaigns" | "sms" | "followups" | "reviews" | "winback";
+type OutreachTab = "campaigns" | "sms" | "followups" | "reviews" | "winback" | "reengage";
 
 const TABS: { id: OutreachTab; label: string; icon: React.ReactNode }[] = [
   { id: "campaigns", label: "Campaigns", icon: <MessageSquare className="w-3.5 h-3.5" /> },
@@ -22,6 +26,7 @@ const TABS: { id: OutreachTab; label: string; icon: React.ReactNode }[] = [
   { id: "followups", label: "Follow-Ups", icon: <Timer className="w-3.5 h-3.5" /> },
   { id: "reviews", label: "Reviews", icon: <Star className="w-3.5 h-3.5" /> },
   { id: "winback", label: "Win-Back", icon: <RotateCcw className="w-3.5 h-3.5" /> },
+  { id: "reengage", label: "Re-Engage", icon: <Phone className="w-3.5 h-3.5" /> },
 ];
 
 function TabSpinner() {
@@ -32,7 +37,7 @@ function TabSpinner() {
   );
 }
 
-const VALID_OUTREACH_TABS: OutreachTab[] = ["campaigns", "sms", "followups", "reviews", "winback"];
+const VALID_OUTREACH_TABS: OutreachTab[] = ["campaigns", "sms", "followups", "reviews", "winback", "reengage"];
 
 export default function OutreachHubSection() {
   // URL-persistent ?outreachTab=...
@@ -71,6 +76,7 @@ export default function OutreachHubSection() {
         {tab === "followups" && <FollowUpsSection />}
         {tab === "reviews" && <ReviewRequestsSection />}
         {tab === "winback" && <WinBackSection />}
+        {tab === "reengage" && <ReEngagementSection />}
       </Suspense>
     </div>
   );
