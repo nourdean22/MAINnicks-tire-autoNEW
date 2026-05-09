@@ -259,6 +259,37 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     const flags = await getAllFlags();
     return { flags: flags.map(f => ({ key: f.key, enabled: Boolean(f.value) })), count: flags.length };
   },
+
+  // ─── GSC / Search Console (added 2026-05-09) ──────────────
+  // Backs the statenour-os AI COO so it stops fabricating GSC numbers.
+  // Both actions delegate to helpers in pipelines/gsc-data.ts so the
+  // bridge + admin-tRPC routes share a single source of truth.
+  // Pipeline at server/pipelines/gsc-data.ts populates search_performance
+  // nightly via Google Service Account.
+  "gsc_summary": async (filters) => {
+    const { getGscSummary } = await import("../pipelines/gsc-data");
+    const today = new Date().toISOString().slice(0, 10);
+    const thirtyAgo = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
+    return getGscSummary({
+      startDate: String(filters.from || thirtyAgo),
+      endDate: String(filters.to || today),
+    });
+  },
+
+  "gsc_top_queries": async (filters) => {
+    const { getTopQueries } = await import("../pipelines/gsc-data");
+    const today = new Date().toISOString().slice(0, 10);
+    const thirtyAgo = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
+    const limit = Math.min(50, Math.max(1, Number(filters.limit || 10)));
+    const from = String(filters.from || thirtyAgo);
+    const to = String(filters.to || today);
+    const queries = await getTopQueries({
+      startDate: from,
+      endDate: to,
+      limit,
+    });
+    return { from, to, queries, count: queries.length };
+  },
 };
 
 export function registerNourOsQueryRoute(app: Express): void {
