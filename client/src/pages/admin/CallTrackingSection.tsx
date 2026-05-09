@@ -121,7 +121,10 @@ export default function CallTrackingSection() {
         icon={<PhoneCall className="w-5 h-5" />}
       />
       <SectionInsightStrip section="callTrackingView" />
-      {/* ─── METRICS ─── */}
+      {/* ─── METRICS ─── wave-127b — Missed/Pending now scrolls to the
+          queue below (the actionable one). The other 4 cards stay
+          display-only because they're aggregate readouts with no
+          honest filter target on this section. */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <StatCard
           label="Total Calls" value={callTracking?.totalCalls ?? 0}
@@ -139,6 +142,14 @@ export default function CallTrackingSection() {
           color={pendingCallbacks.length > 0 ? "text-red-400" : "text-emerald-400"}
           trend={pendingCallbacks.length > 0 ? "up" : "neutral"}
           trendLabel={pendingCallbacks.length > 0 ? "Needs follow-up" : "All clear"}
+          onClick={() => {
+            const q = document.getElementById("missed-call-queue");
+            if (q) {
+              q.scrollIntoView({ behavior: "smooth", block: "start" });
+              q.classList.add("ring-2", "ring-red-400/60");
+              setTimeout(() => q.classList.remove("ring-2", "ring-red-400/60"), 1500);
+            }
+          }}
         />
         <StatCard
           label="Callbacks Total" value={stats?.callbacks?.total ?? 0}
@@ -153,7 +164,7 @@ export default function CallTrackingSection() {
 
       {/* ─── MISSED CALL QUEUE ─── */}
       {pendingCallbacks.length > 0 && (
-        <div className="stat-card !p-5 !border-red-500/20">
+        <div id="missed-call-queue" className="stat-card !p-5 !border-red-500/20">
           <h3 className="text-xs font-semibold text-red-400 tracking-wide uppercase mb-3 flex items-center gap-2">
             <AlertTriangle className="w-3.5 h-3.5" />
             Missed Call Queue
