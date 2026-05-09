@@ -158,19 +158,24 @@ export default function DeclinedEstimatesSection() {
         </div>
       </div>
 
-      {/* Stat Cards */}
+      {/* Stat Cards — wave-127 — clickable filters. DECLINED → all
+          (clears time filter), RECOVERABLE → sort by $, AVG → sort by $.
+          Recovery Rate stays display-only (it's an aggregate readout,
+          not a filterable dimension). */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="DECLINED ESTIMATES"
           value={total}
           icon={<AlertTriangle className="w-4 h-4" />}
           color={total > 0 ? "text-amber-400" : "text-foreground"}
+          onClick={() => { setFilter("all"); setSortMode("date"); setMinAmount(0); }}
         />
         <StatCard
           label="RECOVERABLE REVENUE"
           value={`$${recoverable.toLocaleString()}`}
           icon={<DollarSign className="w-4 h-4" />}
           color="text-emerald-400"
+          onClick={() => { setFilter("all"); setSortMode("amount"); }}
         />
         <StatCard
           label="RECOVERY RATE"
@@ -182,6 +187,7 @@ export default function DeclinedEstimatesSection() {
           label="AVG ESTIMATE"
           value={`$${avgEstimate.toLocaleString()}`}
           icon={<DollarSign className="w-4 h-4" />}
+          onClick={() => setSortMode("amount")}
         />
       </div>
 

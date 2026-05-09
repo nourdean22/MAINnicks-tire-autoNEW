@@ -1075,14 +1075,60 @@ function CustomersList() {
 
   return (
     <div className="space-y-6">
-      {/* Stats Row */}
+      {/* Stats Row — wave-127 — clickable filters. 6/8 wire to existing
+          server-side filter state (segment + minVisits + sortBy). With Email
+          and Commercial stay display-only because the server query has no
+          column filter for those — wiring them would require API scope creep. */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-        <StatCard label="Total Customers" value={stats?.total ?? 0} icon={<Users className="w-4 h-4" />} color="text-foreground" />
-        <StatCard label="With Visits" value={stats?.withVisits ?? 0} icon={<UserCheck className="w-4 h-4" />} color="text-emerald-400" />
-        <StatCard label="VIP (3+)" value={stats?.vipCount ?? 0} icon={<Crown className="w-4 h-4" />} color="text-amber-400" />
-        <StatCard label="Total Revenue" value={`$${Math.round((stats?.totalRevenue ?? 0) / 100).toLocaleString()}`} icon={<span className="text-[14px]">💰</span>} color="text-emerald-400" />
-        <StatCard label="Recent" value={stats?.recent ?? 0} icon={<UserCheck className="w-4 h-4" />} color="text-emerald-400" />
-        <StatCard label="Lapsed" value={stats?.lapsed ?? 0} icon={<AlertTriangle className="w-4 h-4" />} color="text-amber-400" />
+        <StatCard
+          label="Total Customers"
+          value={stats?.total ?? 0}
+          icon={<Users className="w-4 h-4" />}
+          color="text-foreground"
+          onClick={() => {
+            setSegment("all");
+            setMinVisits(undefined);
+            setLastVisitDays(undefined);
+            setHasDeclined(false);
+            setHasBacklog(false);
+            setPage(1);
+          }}
+        />
+        <StatCard
+          label="With Visits"
+          value={stats?.withVisits ?? 0}
+          icon={<UserCheck className="w-4 h-4" />}
+          color="text-emerald-400"
+          onClick={() => { setSegment("all"); setMinVisits(1); setPage(1); }}
+        />
+        <StatCard
+          label="VIP (3+)"
+          value={stats?.vipCount ?? 0}
+          icon={<Crown className="w-4 h-4" />}
+          color="text-amber-400"
+          onClick={() => { setSegment("all"); setMinVisits(3); setSortBy("visits"); setSortDir("desc"); setPage(1); }}
+        />
+        <StatCard
+          label="Total Revenue"
+          value={`$${Math.round((stats?.totalRevenue ?? 0) / 100).toLocaleString()}`}
+          icon={<span className="text-[14px]">💰</span>}
+          color="text-emerald-400"
+          onClick={() => { setSegment("all"); setSortBy("totalSpent"); setSortDir("desc"); setPage(1); }}
+        />
+        <StatCard
+          label="Recent"
+          value={stats?.recent ?? 0}
+          icon={<UserCheck className="w-4 h-4" />}
+          color="text-emerald-400"
+          onClick={() => { setSegment("recent"); setPage(1); }}
+        />
+        <StatCard
+          label="Lapsed"
+          value={stats?.lapsed ?? 0}
+          icon={<AlertTriangle className="w-4 h-4" />}
+          color="text-amber-400"
+          onClick={() => { setSegment("lapsed"); setPage(1); }}
+        />
         <StatCard label="With Email" value={stats?.withEmail ?? 0} icon={<Mail className="w-4 h-4" />} color="text-blue-400" />
         <StatCard label="Commercial" value={stats?.commercial ?? 0} icon={<Building2 className="w-4 h-4" />} color="text-purple-400" />
       </div>
