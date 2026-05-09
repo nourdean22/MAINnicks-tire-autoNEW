@@ -76,8 +76,25 @@ async function findPlaceFromText(query: string): Promise<string | null> {
     if (data.status !== "OK" || !data.candidates?.length) return null;
 
     const placeId = data.candidates[0].place_id;
+    if (!placeId) {
+      log.warn("[competitorMonitor] Place candidate has no place_id", { query, candidate: data.candidates[0] });
+      return null;
+    }
+    // wave-116d — cached placeId locks the competitor identity for the
+    // process lifetime. If Google returns multiple candidates (ambiguous
+    // query), we always pick [0] but log every candidate's name so the
+    // operator can audit if a wrong competitor got locked. Fix mismatches
+    // by clearing resolvedPlaceIds[query] (process restart) or making
+    // the query more specific.
+    if (data.candidates.length > 1) {
+      log.warn("[competitorMonitor] Ambiguous query — multiple Place candidates", {
+        query,
+        chosen: { placeId, name: data.candidates[0].name },
+        otherCandidates: data.candidates.slice(1, 5).map((c: any) => ({ placeId: c.place_id, name: c.name })),
+      });
+    }
     resolvedPlaceIds[query] = placeId; // cache it
-    log.info("Resolved Place ID", { query, placeId });
+    log.info("Resolved Place ID", { query, placeId, candidateCount: data.candidates.length });
     return placeId;
   } catch (err) {
     log.warn("Place text search failed", { query, err });

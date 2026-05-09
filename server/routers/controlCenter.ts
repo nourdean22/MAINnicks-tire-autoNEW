@@ -194,7 +194,14 @@ export const controlCenterRouter = router({
           .where(and(eq(leads.status, "contacted"), sql`${leads.createdAt} < ${twoDaysAgo}`)),
         d.select({ count: sql<number>`count(*)` }).from(smsMessages)
           .where(and(eq(smsMessages.status, "failed"), gte(smsMessages.createdAt, yesterday)))
-          .catch(() => [{ count: 0 }]),
+          // wave-116d — was silent fallback to 0; now logs at warn so a
+          // failing query doesn't look identical to "no failed SMS today"
+          // on the operator's command surface. Still returns 0 so the UI
+          // never crashes — just leaves a trail.
+          .catch((err: unknown) => {
+            log.warn("[controlCenter] failedSms count query failed", { error: err instanceof Error ? err.message : String(err) });
+            return [{ count: 0 }];
+          }),
         d.select({ count: sql<number>`count(*)` }).from(leads)
           .where(and(eq(leads.status, "new"), gte(leads.createdAt, todayStart))),
       ]);
