@@ -39,7 +39,8 @@ const CampaignsSection = lazy(() => import("./admin/OutreachHubSection"));
 const CommandCenterSection = lazy(() => import("./admin/CommandCenterSection"));
 const IntelligenceSection = lazy(() => import("./admin/IntelligenceSection"));
 const DeclinedEstimatesSection = lazy(() => import("./admin/DeclinedEstimatesSection"));
-const ReEngagementSection = lazy(() => import("./admin/ReEngagementSection"));
+// 2026-05-09 — ReEngagementSection no longer rendered as top-level route.
+// File still exists; consumed by OutreachHubSection as the 6th tab.
 const NoShowRiskSection = lazy(() => import("./admin/NoShowRiskSection"));
 const WalkInCalculatorSection = lazy(() => import("./admin/WalkInCalculatorSection"));
 const SnapDashboardSection = lazy(() => import("./admin/SnapDashboardSection"));
@@ -80,7 +81,6 @@ function SectionContent({ section }: { section: AdminSection }) {
         {section === "callTrackingView" && <CallTrackingSection />}
         {section === "intelligence" && <IntelligenceSection />}
         {section === "declinedEstimates" && <DeclinedEstimatesSection />}
-        {section === "reEngagement" && <ReEngagementSection />}
         {section === "noShowRisk" && <NoShowRiskSection />}
         {section === "walkInCalc" && <WalkInCalculatorSection />}
         {section === "snapDashboard" && <SnapDashboardSection />}
@@ -115,8 +115,11 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   quote: "walkInCalc",
   noshowrisk: "noShowRisk",
   noshow: "noShowRisk",
-  reengagement: "reEngagement",
-  reengage: "reEngagement",
+  // 2026-05-09 — Re-engagement absorbed into OutreachHub as 6th tab. All
+  // legacy ReEngagement aliases now resolve to OutreachHub (`campaigns`).
+  // Operator can drill to the Re-Engage tab via outreachTab=reengage.
+  reengagement: "campaigns",
+  reengage: "campaigns",
   conversionpreview: "conversionPreview",
   preview: "conversionPreview",
 
@@ -150,11 +153,13 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   exports: "overview",
   exportview: "overview",
   financing: "snapDashboard",
-  autofollowup: "reEngagement",
-  reviewrequests: "reEngagement",
-  reviews: "reEngagement",
-  winback: "reEngagement",
-  sms: "reEngagement",
+  // 2026-05-09 — All Outreach-style aliases redirect to OutreachHub (`campaigns`)
+  // instead of the now-deleted reEngagement standalone route.
+  autofollowup: "campaigns",
+  reviewrequests: "campaigns",
+  reviews: "campaigns",
+  winback: "campaigns",
+  sms: "campaigns",
   specials: "content",
   coupons: "content",
   qa: "content",
@@ -162,7 +167,7 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   jobs: "customers",
   inspections: "overview",
   loyalty: "customers",
-  followups: "reEngagement",
+  followups: "campaigns",
   tireorders: "overview",
   warranty: "customers",
   inventory: "overview",
