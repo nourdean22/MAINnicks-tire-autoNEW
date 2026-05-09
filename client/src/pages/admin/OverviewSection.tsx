@@ -768,15 +768,17 @@ export default function OverviewSection() {
       </div>
 
       {/* ALG status pill — demoted from hero tile. Visible but not loud.
-          Green check = wallpaper; red = something to actually do. */}
+          Green check = wallpaper; red = something to actually do.
+          wave-110 — clicking always lands on the ShopDriver settings tab
+          regardless of state (was href="#" when connected, dead link). */}
       <Link
-        href={algConnected === false ? "/admin?tab=settings&settingsTab=integrations" : "#"}
-        className={`inline-flex items-center gap-2 text-[11px] font-mono tracking-wider uppercase px-3 py-1.5 rounded-full border transition-colors ${
+        href="/admin?tab=settings&settingsTab=shopdriver"
+        className={`inline-flex items-center gap-2 text-[11px] font-mono tracking-wider uppercase px-3 py-1.5 rounded-full border transition-colors cursor-pointer ${
           algConnected === null
-            ? "border-border/30 text-muted-foreground"
+            ? "border-border/30 text-muted-foreground hover:text-foreground"
             : algConnected
-            ? "border-emerald-500/20 text-emerald-400 bg-emerald-500/5"
-            : "border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500/20 cursor-pointer"
+            ? "border-emerald-500/20 text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10"
+            : "border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500/20"
         }`}
       >
         <Plug className="w-3 h-3" />
@@ -1031,11 +1033,23 @@ export default function OverviewSection() {
                 <div className="pt-1">
                   <p className="text-[8px] text-red-400 font-bold uppercase mb-0.5">High-Value Going Quiet</p>
                   {custIntel.atRiskWhales.slice(0, 3).map((w: AtRiskWhale, i: number) => (
-                    <div key={i} className="flex items-center gap-2 py-0.5 text-[11px]">
+                    /* wave-110 — at-risk whale rows are now clickable.
+                       Backend doesn't yet return customerId on this shape;
+                       click navigates to Customers section where the
+                       operator can spot the row in the table. Tighter
+                       drilldown (open customer drawer directly) is a TODO
+                       once `id` is added to the atRiskWhales payload. */
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => navigateToAdminSection("customers")}
+                      className="w-full flex items-center gap-2 py-0.5 text-[11px] hover:bg-primary/5 rounded px-1 transition-colors text-left"
+                      aria-label={`Open Customers — ${w.name}`}
+                    >
                       <span className="text-foreground/80 flex-1 truncate">{w.name}</span>
                       <span className="font-bold text-primary">${w.totalSpent.toLocaleString()}</span>
                       <span className="text-red-400 text-[9px] font-mono">{String(w.daysSince)}d</span>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
@@ -1121,7 +1135,10 @@ export default function OverviewSection() {
         <StatCard
           label="Chat Sessions" value={stats.chat.totalSessions}
           icon={<MessageSquare className="w-4 h-4" />} color="text-purple-400"
-          targetSection="leads"
+          /* wave-110 — was targetSection="leads" (chat sessions ≠ lead DB).
+             Open the fresh-leads drilldown so the operator sees recent
+             conversational entry points rather than the static lead list. */
+          onClick={() => openDrilldown({ kind: "fresh_leads", title: "Chat Sessions → Recent Leads" })}
         />
         <StatCard
           label="Callbacks Pending" value={stats.callbacks?.new ?? 0}
@@ -1300,7 +1317,9 @@ export default function OverviewSection() {
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
           {[
             { href: "/admin/content", icon: <Sparkles className="w-4 h-4 text-primary" />, label: "AI Content" },
-            { onClick: () => toast.info('Navigate to Customers \u2192 Send Next 50'), icon: <Send className="w-4 h-4 text-emerald-400" />, label: "Resume SMS" },
+            /* wave-110 \u2014 was a toast.info no-op. Now actually navigates
+               to Customers where the SMS bulk-send UI lives. */
+            { onClick: () => navigateToAdminSection("customers"), icon: <Send className="w-4 h-4 text-emerald-400" />, label: "Resume SMS" },
             { href: sheetInfo?.url || '#', external: true, icon: <ExternalLink className="w-4 h-4 text-amber-400" />, label: "CRM Sheet" },
             { href: "/estimate", icon: <TrendingUp className="w-4 h-4 text-cyan-400" />, label: "Estimator" },
             { href: "/booking", icon: <CalendarClock className="w-4 h-4 text-blue-400" />, label: "Book Appt" },
