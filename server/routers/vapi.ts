@@ -21,6 +21,7 @@ import { createLogger } from "../lib/logger";
 import { getDb } from "../db";
 import { shopSettings } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { pickReceptionistAssistantId } from "../services/vapi";
 
 const log = createLogger("vapi");
 
@@ -268,15 +269,23 @@ export const vapiRouter = router({
    */
   getTransferDestination: adminProcedure.query(async () => {
     try {
-      // Find assistant. We assume one production assistant; if multiple,
-      // pick the first.
-      const assistants = await vapiApiFetch<Array<{ id: string; name: string }>>(
+      // wave-113b — was `assistants[0]` blindly. VAPI returns multiple
+      // assistants (Receptionist for inbound calls + Follow-Up Caller for
+      // outbound). Picking [0] surfaced the WRONG one in the admin card,
+      // and the operator's edits silently went to the outbound assistant
+      // while the actual inbound receptionist kept stale numbers. Now uses
+      // pickReceptionistAssistantId to deterministically pick the inbound.
+      const assistants = await vapiApiFetch<Array<{ id: string; name?: string }>>(
         "/assistant?limit=10",
       );
       if (!assistants.length) {
         return { ok: false as const, error: "No VAPI assistant configured" };
       }
-      const assistantId = assistants[0].id;
+      const picked = pickReceptionistAssistantId(assistants);
+      if (!picked) {
+        return { ok: false as const, error: "Could not identify receptionist assistant" };
+      }
+      const assistantId = picked.id;
       const assistant = await vapiApiFetch<{
         id: string;
         name?: string;
@@ -291,6 +300,9 @@ export const vapiRouter = router({
         assistantName: assistant.name || null,
         currentNumber: dest?.number || null,
         currentMessage: dest?.message || null,
+        // wave-113b — surface which assistant was picked + why so the
+        // operator can see in the UI that the right one is being edited
+        pickedReason: picked.reason,
       };
     } catch (err) {
       log.warn("getTransferDestination failed", { error: err instanceof Error ? err.message : String(err) });
@@ -316,11 +328,18 @@ export const vapiRouter = router({
       message: z.string().max(200).optional(),
     }))
     .mutation(async ({ input }) => {
-      const assistants = await vapiApiFetch<Array<{ id: string }>>("/assistant?limit=10");
+      // wave-113b — was `assistants[0]` blindly. See getTransferDestination
+      // above for full rationale. Edits now reliably target the inbound
+      // Receptionist assistant (not the outbound Follow-Up Caller).
+      const assistants = await vapiApiFetch<Array<{ id: string; name?: string }>>("/assistant?limit=10");
       if (!assistants.length) {
         throw new TRPCError({ code: "NOT_FOUND", message: "No VAPI assistant" });
       }
-      const assistantId = assistants[0].id;
+      const picked = pickReceptionistAssistantId(assistants);
+      if (!picked) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Could not identify receptionist assistant" });
+      }
+      const assistantId = picked.id;
 
       // Fetch full assistant config
       const assistant = await vapiApiFetch<{
