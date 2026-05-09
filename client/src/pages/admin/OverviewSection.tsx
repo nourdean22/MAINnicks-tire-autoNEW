@@ -813,70 +813,19 @@ export default function OverviewSection() {
       {/* ─── WHAT TO DO NOW — Server-Driven Priority Queue ─── */}
       <NextBestActions />
 
-      {/* ─── NICK AI LIVE PULSE ─── (clickable → revenue intelligence) */}
-      {shopPulse && (
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => navigateToAdminSection("revenue")}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigateToAdminSection("revenue"); }}
-          className="bg-card border border-border/30 rounded-lg p-4 cursor-pointer hover:ring-1 hover:ring-primary/40 transition-shadow"
-          aria-label="Open revenue dashboard"
-        >
-          <div className="flex items-center gap-3 mb-3">
-            <Sparkles className="w-4 h-4 text-primary" />
-            <span className="text-[10px] font-bold tracking-wider text-muted-foreground">NICK AI LIVE PULSE</span>
-            <div className={`ml-auto px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider ${
-              shopPulse.shopStatus === "busy" ? "bg-emerald-500/15 text-emerald-400" :
-              shopPulse.shopStatus === "steady" ? "bg-blue-500/15 text-blue-400" :
-              shopPulse.shopStatus === "slow" ? "bg-amber-500/15 text-amber-400" :
-              "bg-foreground/5 text-muted-foreground"
-            }`}>{shopPulse.shopStatus.toUpperCase()}</div>
-          </div>
-          {/*
-            Revenue + jobs numbers deliberately pulled from ALG (stats.shopFloor),
-            not from shopPulse's AI-computed fields. ALG rules all. Walked /
-            walk-rate are fine to keep from shopPulse since those are AI
-            observations, not money claims.
-          */}
-          <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
-            <div className="text-center">
-              <div className="text-lg font-bold text-primary revenue-glow">${Math.round(todayRevenue).toLocaleString()}</div>
-              <div className="text-[9px] text-muted-foreground tracking-wider">TODAY REV</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-emerald-400">{jobsClosed}</div>
-              <div className="text-[9px] text-muted-foreground tracking-wider">JOBS</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-red-400">{shopPulse.today.customersWalked}</div>
-              <div className="text-[9px] text-muted-foreground tracking-wider">WALKED</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-blue-400">${algFloor?.avgTicket ?? 0}</div>
-              <div className="text-[9px] text-muted-foreground tracking-wider">AVG TICKET</div>
-            </div>
-            <div className="text-center">
-              <div className={`text-lg font-bold ${shopPulse.thisWeek.walkRate > 40 ? "text-red-400" : shopPulse.thisWeek.walkRate > 25 ? "text-amber-400" : "text-emerald-400"}`}>{shopPulse.thisWeek.walkRate}%</div>
-              <div className="text-[9px] text-muted-foreground tracking-wider">WALK RATE</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-purple-400">${Math.round(weekRevenue).toLocaleString()}</div>
-              <div className="text-[9px] text-muted-foreground tracking-wider">WEEK REV</div>
-            </div>
-          </div>
-          <div className="text-[10px] text-muted-foreground mt-2">{shopPulse.shopInsight}</div>
-        </div>
-      )}
+      {/* ─── SHOP FLOOR — merged 2026-05-09 ───
+          Was two cards (NICK AI LIVE PULSE + AUTO LABOR GUIDE — SHOP FLOOR).
+          They shared 3 of 6 numeric slots (TODAY REV, JOBS/INVOICES, AVG
+          TICKET) all sourced from ALG, with relabeled headings — defeating
+          the point of the AI-Live-Pulse card after revenue numbers got
+          rebound to ALG. Operator: "is there a point to two of these".
 
-      {/* ─── ALG SHOP FLOOR DATA — The Real Numbers ─── */}
-      {/*
-        This block was mis-sourced for months: it claimed to show ALG data but
-        actually pulled from nourOsBridge.shopFloor (work_orders table — no
-        revenue fields at all, so everything rendered as undefined → 0).
-        Now correctly bound to algFloor (= adminDashboard.stats.shopFloor,
-        computed from the invoices table which IS the ALG mirror).
-      */}
+          Merged into one ALG-themed card. Kept all unique signals:
+            • from ALG: TODAY REV, INVOICES, AVG TICKET, CONVERSION, MONTH REV
+            • from shopPulse (AI-derived): WALKED count, busy/steady/slow status, shopInsight footer
+          Dropped redundant: WALK-INS (covered by INVOICES + WALKED), WALK
+          RATE % (CONVERSION is operator-better), WEEK REV (MONTH covers pacing).
+          Click → ShopDriver settings (ALG card behavior). */}
       {algFloor && (
         <div
           role="button"
@@ -886,16 +835,24 @@ export default function OverviewSection() {
           className="bg-card border border-emerald-500/20 rounded-lg p-4 cursor-pointer hover:ring-1 hover:ring-emerald-500/40 transition-shadow"
           aria-label="Open ShopDriver / ALG settings"
         >
-          <div className="flex items-center gap-3 mb-3">
+          <div className="flex items-center gap-3 mb-3 flex-wrap">
             <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-            <span className="text-[10px] font-bold tracking-wider text-muted-foreground">AUTO LABOR GUIDE — SHOP FLOOR</span>
+            <span className="text-[10px] font-bold tracking-wider text-muted-foreground">SHOP FLOOR</span>
+            {shopPulse && (
+              <div className={`px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider ${
+                shopPulse.shopStatus === "busy" ? "bg-emerald-500/15 text-emerald-400" :
+                shopPulse.shopStatus === "steady" ? "bg-blue-500/15 text-blue-400" :
+                shopPulse.shopStatus === "slow" ? "bg-amber-500/15 text-amber-400" :
+                "bg-foreground/5 text-muted-foreground"
+              }`}>{shopPulse.shopStatus.toUpperCase()}</div>
+            )}
             <span className="ml-auto text-[9px] font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400">
               {algFloor.totalCustomers} CUSTOMERS · {algFloor.vipCustomers} VIP
             </span>
           </div>
           <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
             <div className="text-center">
-              <div className="text-lg font-bold text-primary">${Math.round(todayRevenue).toLocaleString()}</div>
+              <div className="text-lg font-bold text-primary revenue-glow">${Math.round(todayRevenue).toLocaleString()}</div>
               <div className="text-[9px] text-muted-foreground tracking-wider">TODAY REV</div>
             </div>
             <div className="text-center">
@@ -903,8 +860,8 @@ export default function OverviewSection() {
               <div className="text-[9px] text-muted-foreground tracking-wider">INVOICES</div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-bold text-amber-400">{algFloor.estimatesToday}</div>
-              <div className="text-[9px] text-muted-foreground tracking-wider">WALK-INS</div>
+              <div className="text-lg font-bold text-red-400">{shopPulse?.today?.customersWalked ?? 0}</div>
+              <div className="text-[9px] text-muted-foreground tracking-wider">WALKED</div>
             </div>
             <div className="text-center">
               <div className="text-lg font-bold text-blue-400">${algFloor.avgTicket}</div>
@@ -919,7 +876,10 @@ export default function OverviewSection() {
               <div className="text-[9px] text-muted-foreground tracking-wider">MONTH REV</div>
             </div>
           </div>
-          <div className="mt-2 text-[10px] text-muted-foreground">
+          {shopPulse?.shopInsight && (
+            <div className="mt-2 text-[10px] text-muted-foreground italic">{shopPulse.shopInsight}</div>
+          )}
+          <div className="mt-1 text-[10px] text-muted-foreground">
             Week: {weekInvoiceCount} invoices · ${Math.round(weekRevenue).toLocaleString()} revenue · {algFloor.estimatesThisWeek} walk-in estimates
           </div>
         </div>
