@@ -332,35 +332,38 @@ export default function Admin() {
         />
       )}
 
-      {/* ─── SIDEBAR ─── */}
+      {/* ─── SIDEBAR — wave-129b minimalist redo ───
+          Header: smaller logo, refined typography, tighter mark.
+          Items: thin left accent bar on active (no yellow-on-yellow).
+          Badges: small circular dots, never larger than the row.
+          Footer: cleaner hierarchy, less visual noise. */}
       <aside className={`admin-sidebar fixed lg:sticky top-0 left-0 z-50 lg:z-auto h-screen w-[260px] flex flex-col transition-transform duration-200 ${
         sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       }`}>
-        {/* Sidebar Header */}
-        <div className="h-14 flex items-center px-5 border-b border-sidebar-border shrink-0">
-          <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="w-7 h-7 bg-primary flex items-center justify-center rounded-md">
-              <span className="font-bold text-primary-foreground text-xs">N</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="font-semibold text-foreground text-[13px] leading-tight tracking-tight group-hover:text-primary transition-colors">Nick's Admin</span>
-              <span className="text-[10px] text-muted-foreground tracking-wide">Management Hub</span>
+        {/* Header — minimalist mark */}
+        <div className="h-14 flex items-center px-4 border-b border-sidebar-border shrink-0">
+          <Link href="/" className="flex items-center gap-2.5 group flex-1 min-w-0">
+            <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" aria-hidden />
+            <div className="flex flex-col min-w-0">
+              <span className="font-semibold text-foreground text-[13.5px] leading-tight tracking-tight group-hover:text-primary transition-colors truncate">Nick's Admin</span>
+              <span className="text-[10px] text-muted-foreground/70 tracking-[0.06em]">Management</span>
             </div>
           </Link>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden ml-auto text-muted-foreground hover:text-foreground p-1 rounded-md"
+            className="lg:hidden text-muted-foreground/60 hover:text-foreground p-1.5 rounded-md transition-colors"
+            aria-label="Close sidebar"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Nav Items — Grouped */}
-        <nav className="flex-1 py-3 px-3 space-y-4 overflow-y-auto">
+        {/* Nav — Grouped */}
+        <nav className="flex-1 py-4 px-2 space-y-5 overflow-y-auto">
           {NAV_GROUPS.map(group => (
             <div key={group.label}>
               <div className="admin-sidebar-group-label">{group.label}</div>
-              <div className="space-y-0.5">
+              <div className="space-y-0.5 mt-0.5">
                 {group.items.map(item => {
                   const isActive = section === item.id;
                   let badge = 0;
@@ -371,24 +374,27 @@ export default function Admin() {
                   if (item.id === "callTrackingView") badge = pendingCallbacks;
                   if (item.id === "revenue") badge = woStats?.active ?? 0;
 
+                  // wave-129b — badge tone semantics:
+                  //   leads (red dot)     — urgent / new — high priority
+                  //   revenue (red/amber) — overdue/blocked work
+                  //   default (subtle)    — work-in-progress count
+                  const isAlert = item.id === "leads" || (item.id === "revenue" && (woStats?.overdue || woStats?.blocked));
                   return (
                     <button
                       key={item.id}
                       onClick={() => { setSection(item.id); setSidebarOpen(false); }}
                       className={`admin-sidebar-item w-full ${isActive ? "active" : ""}`}
                     >
-                      <span className={isActive ? "text-primary" : ""}>{item.icon}</span>
-                      <span className="flex-1 text-left">{item.label}</span>
+                      <span className={`shrink-0 ${isActive ? "text-primary" : "text-foreground/45"}`}>{item.icon}</span>
+                      <span className="flex-1 text-left truncate">{item.label}</span>
                       {badge > 0 && (
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${
-                          item.id === "leads"
-                            ? "bg-destructive/15 text-destructive"
-                            : item.id === "revenue"
-                            ? (woStats?.overdue || woStats?.blocked)
-                              ? "bg-destructive/15 text-destructive animate-pulse"
-                              : "bg-primary/15 text-primary"
-                            : "bg-info/15 text-info"
-                        }`}>{badge}</span>
+                        <span className={`shrink-0 text-[10px] font-semibold tabular-nums leading-none flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full ${
+                          isAlert
+                            ? "bg-destructive/12 text-destructive ring-1 ring-destructive/20"
+                            : "bg-foreground/8 text-foreground/60"
+                        } ${item.id === "revenue" && (woStats?.overdue || woStats?.blocked) ? "animate-pulse" : ""}`}>
+                          {badge > 99 ? "99+" : badge}
+                        </span>
                       )}
                     </button>
                   );
@@ -398,52 +404,52 @@ export default function Admin() {
           ))}
         </nav>
 
-        {/* Sidebar Footer — Shop Pulse + User */}
-        <div className="px-4 py-3 border-t border-sidebar-border shrink-0 space-y-2.5">
-          {/* Live shop pulse */}
+        {/* Footer — refined */}
+        <div className="px-3 py-3 border-t border-sidebar-border shrink-0 space-y-2.5">
+          {/* Live shop pulse — subtler than wave-122 */}
           {woStats && woStats.active > 0 && (
             <button
               onClick={() => { setSection("revenue"); setSidebarOpen(false); }}
-              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-md bg-primary/5 hover:bg-primary/10 border border-primary/10 transition-colors text-left"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md bg-foreground/[0.03] hover:bg-foreground/[0.06] border border-border/30 hover:border-border/50 transition-colors text-left"
             >
-              <div className={`w-2 h-2 rounded-full shrink-0 ${woStats.overdue > 0 ? "bg-red-400 animate-pulse" : woStats.blocked > 0 ? "bg-amber-400" : "bg-emerald-400"}`} />
+              <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${woStats.overdue > 0 ? "bg-red-400 animate-pulse" : woStats.blocked > 0 ? "bg-amber-400" : "bg-emerald-400"}`} />
               <div className="flex-1 min-w-0">
-                <span className="text-[10px] font-bold text-foreground tracking-wide block">
+                <div className="text-[11px] font-semibold text-foreground tracking-tight">
                   {woStats.active} active · {woStats.inProgress} in bay
-                </span>
-                <span className="text-[9px] text-muted-foreground">
-                  ${Math.round(woStats.totalValueInProgress).toLocaleString()} in shop
-                  {woStats.overdue > 0 && <span className="text-red-400 ml-1">· {woStats.overdue} overdue</span>}
-                </span>
+                </div>
+                <div className="text-[10px] text-muted-foreground/80 tabular-nums">
+                  ${Math.round(woStats.totalValueInProgress).toLocaleString()}
+                  {woStats.overdue > 0 && <span className="text-red-400 ml-1.5">· {woStats.overdue} overdue</span>}
+                </div>
               </div>
             </button>
           )}
-          {/* User + links */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 bg-muted flex items-center justify-center rounded-full shrink-0">
-              <span className="font-semibold text-muted-foreground text-[10px]">
+          {/* User block */}
+          <div className="flex items-center gap-2.5 px-2 pt-1">
+            <div className="w-7 h-7 rounded-full bg-foreground/8 flex items-center justify-center shrink-0">
+              <span className="font-semibold text-foreground/70 text-[10px]">
                 {user.name?.charAt(0)?.toUpperCase() || "A"}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-foreground truncate">{user.name || "Admin"}</p>
-              <p className="text-[10px] text-muted-foreground">Administrator</p>
+              <p className="text-[12px] font-medium text-foreground truncate leading-tight">{user.name || "Admin"}</p>
+              <p className="text-[10px] text-muted-foreground/70 leading-tight mt-0.5">Administrator</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          {/* Quick links */}
+          <div className="flex items-center justify-between px-2 pt-1.5 border-t border-border/15">
             <a
               href="https://autonicks.com/chat"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 font-medium transition-colors"
+              className="inline-flex items-center gap-1.5 text-[11px] text-primary/85 hover:text-primary font-medium transition-colors"
             >
               <Sparkles className="w-3 h-3" />
               Ask Nick
             </a>
-            <span className="text-foreground/10">·</span>
             <Link
               href="/"
-              className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors font-medium"
+              className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="w-3 h-3" />
               Back to site
