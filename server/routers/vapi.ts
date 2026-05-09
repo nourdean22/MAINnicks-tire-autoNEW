@@ -21,7 +21,7 @@ import { createLogger } from "../lib/logger";
 import { getDb } from "../db";
 import { shopSettings } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
-import { pickReceptionistAssistantId } from "../services/vapi";
+import { pickReceptionistAssistantId, pickFollowUpAssistantId, SHOP_LANDLINE_E164 } from "../services/vapi";
 
 const log = createLogger("vapi");
 
@@ -314,6 +314,53 @@ export const vapiRouter = router({
   }),
 
   /**
+   * wave-114 — companion to getTransferDestination that returns the
+   * Follow-Up Caller (outbound) assistant's transferCall destination.
+   * Returns ok:false with reason="no-followup" if there is no follow-up
+   * assistant in the org (admin then doesn't render the sub-card).
+   */
+  getFollowUpTransferDestination: adminProcedure.query(async () => {
+    try {
+      const assistants = await vapiApiFetch<Array<{ id: string; name?: string }>>(
+        "/assistant?limit=10",
+      );
+      if (!assistants.length) {
+        return { ok: false as const, reason: "no-assistants" as const };
+      }
+      const picked = pickFollowUpAssistantId(assistants);
+      if (!picked) {
+        // Org has only a receptionist — no follow-up to manage. Not an error.
+        return { ok: false as const, reason: "no-followup" as const };
+      }
+      const assistant = await vapiApiFetch<{
+        id: string;
+        name?: string;
+        model?: { tools?: Array<{ type: string; destinations?: Array<{ type: string; number: string; message?: string }> }> };
+      }>(`/assistant/${picked.id}`);
+      const tools = assistant.model?.tools || [];
+      const transfer = tools.find((t) => t.type === "transferCall");
+      const dest = transfer?.destinations?.[0];
+      return {
+        ok: true as const,
+        assistantId: picked.id,
+        assistantName: assistant.name || null,
+        currentNumber: dest?.number || null,
+        currentMessage: dest?.message || null,
+        // True iff currently set to the canonical shop landline.
+        isShopLandline: dest?.number === SHOP_LANDLINE_E164,
+        shopLandline: SHOP_LANDLINE_E164,
+      };
+    } catch (err) {
+      log.warn("getFollowUpTransferDestination failed", { error: err instanceof Error ? err.message : String(err) });
+      return {
+        ok: false as const,
+        reason: "error" as const,
+        error: err instanceof TRPCError ? err.message : "VAPI API unreachable",
+      };
+    }
+  }),
+
+  /**
    * Update the transferCall destination number on the live VAPI
    * assistant. Surgical PATCH — fetches the full assistant, mutates
    * only the transferCall tool's destination[0].number, and PATCHes
@@ -326,18 +373,48 @@ export const vapiRouter = router({
         .regex(/^\+1\d{10}$/, "Phone must be E.164 format starting with +1 (e.g. +12168620005)")
         .max(20),
       message: z.string().max(200).optional(),
+      // wave-114 — admin can now target either assistant. Default
+      // "receptionist" preserves prior behavior (the manager-on-duty flow).
+      // "followUp" targets the outbound caller and triggers a confirmation
+      // prompt client-side because that destination should always stay
+      // the shop landline.
+      target: z.enum(["receptionist", "followUp"]).optional().default("receptionist"),
+      // wave-114 — explicit acknowledgement that the operator has read the
+      // confirmation prompt when changing the follow-up destination away
+      // from the shop landline. Required when target=followUp AND the new
+      // number is not the shop landline.
+      acknowledgeNonShopFollowUp: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
-      // wave-113b — was `assistants[0]` blindly. See getTransferDestination
-      // above for full rationale. Edits now reliably target the inbound
-      // Receptionist assistant (not the outbound Follow-Up Caller).
+      // wave-113b/114 — pick the right assistant for the requested target.
       const assistants = await vapiApiFetch<Array<{ id: string; name?: string }>>("/assistant?limit=10");
       if (!assistants.length) {
         throw new TRPCError({ code: "NOT_FOUND", message: "No VAPI assistant" });
       }
-      const picked = pickReceptionistAssistantId(assistants);
+      const picked = input.target === "followUp"
+        ? pickFollowUpAssistantId(assistants)
+        : pickReceptionistAssistantId(assistants);
       if (!picked) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Could not identify receptionist assistant" });
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: input.target === "followUp"
+            ? "Could not identify follow-up caller assistant (none in this VAPI org)"
+            : "Could not identify receptionist assistant",
+        });
+      }
+      // wave-114 — server-side gate: changing the follow-up destination
+      // away from the shop landline requires an explicit acknowledge flag.
+      // Belt-and-suspenders: even if the client-side confirm dialog is
+      // bypassed, the server still refuses without the flag.
+      if (
+        input.target === "followUp"
+        && input.phoneNumber !== SHOP_LANDLINE_E164
+        && !input.acknowledgeNonShopFollowUp
+      ) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Follow-Up Caller destination should stay set to the shop landline (+1 216 862 0005). To override, confirm via the admin and pass acknowledgeNonShopFollowUp=true.",
+        });
       }
       const assistantId = picked.id;
 
@@ -393,20 +470,26 @@ export const vapiRouter = router({
       // be explicit so future caching doesn't go stale)
       cache.delete(`transferDest_${assistantId}`);
       // Wave-105: bust the on-duty manager phone cache so booking/lead
-      // alerts immediately route to the new manager number.
-      try {
-        const { invalidateOnDutyManagerCache } = await import("../services/vapi");
-        invalidateOnDutyManagerCache();
-      } catch (e) {
-        log.warn("[setTransferDestination] cache bust failed:", e);
+      // alerts immediately route to the new manager number. Only relevant
+      // when target=receptionist; the follow-up assistant doesn't feed
+      // manager-on-duty alerts so cache-bust there is a no-op (still safe).
+      if (input.target !== "followUp") {
+        try {
+          const { invalidateOnDutyManagerCache } = await import("../services/vapi");
+          invalidateOnDutyManagerCache();
+        } catch (e) {
+          log.warn("[setTransferDestination] cache bust failed:", e);
+        }
       }
       log.info("VAPI transfer destination updated", {
         assistantId,
+        target: input.target,
         newNumber: input.phoneNumber,
       });
       return {
         ok: true as const,
         assistantId,
+        target: input.target,
         newNumber: input.phoneNumber,
       };
     }),

@@ -82,6 +82,35 @@ export function pickReceptionistAssistantId(
   return { id: assistants[0].id, reason: "fallback-first" };
 }
 
+// wave-114 — same pattern but for the OUTBOUND Follow-Up Caller assistant.
+// Returns null if there is only one assistant configured (no follow-up
+// in the org). The admin treats null as "no follow-up card to render".
+export function pickFollowUpAssistantId(
+  assistants: VapiAssistantLite[],
+): { id: string; reason: "env" | "name-match" } | null {
+  if (!assistants.length) return null;
+
+  // 1. Env-pinned ID
+  const pinned = process.env.VAPI_FOLLOWUP_ASSISTANT_ID;
+  if (pinned) {
+    const hit = assistants.find((a) => a.id === pinned);
+    if (hit) return { id: hit.id, reason: "env" };
+    log.warn("VAPI_FOLLOWUP_ASSISTANT_ID set but no matching assistant found", { pinned });
+  }
+
+  // 2. Name match: "follow-up", "follow up", "outbound"
+  const byName = assistants.find((a) => /follow.?up|outbound/i.test(a.name || ""));
+  if (byName) return { id: byName.id, reason: "name-match" };
+
+  // No fallback — null means "no follow-up assistant exists"
+  return null;
+}
+
+// wave-114 — the canonical "transfer destination should always be the shop
+// landline" anchor for the Follow-Up Caller. Used by the admin UI to render
+// the lock indicator + by the confirmation prompt copy.
+export const SHOP_LANDLINE_E164 = "+12168620005";
+
 // ─── ASSISTANT SYSTEM PROMPT ─────────────────────────────
 // Source of truth for the AI's personality + flow.
 // Voice-compliance: zero kill-list violations.
