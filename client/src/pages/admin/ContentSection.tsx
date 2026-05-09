@@ -8,7 +8,7 @@ import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Link } from "wouter";
 import {
-  StatCard, StatusDot, PageHeader, TabBar,
+  StatCard, StatusDot, PageHeader, TabBar, formatDate,
 } from "./shared";
 import {
   Bell, CheckCircle2, ChevronRight, FileText, Loader2, Newspaper,
@@ -132,7 +132,7 @@ function ContentManager() {
                   <div className="flex items-center gap-3 text-foreground/40">
                     <span className="text-[12px]">{article.category}</span>
                     <span className="text-[12px]">{article.readTime}</span>
-                    <span className="text-[12px]">{new Date(article.createdAt).toLocaleDateString()}</span>
+                    <span className="text-[12px]">{formatDate(article.createdAt)}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">

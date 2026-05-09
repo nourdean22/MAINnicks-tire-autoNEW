@@ -10,7 +10,7 @@ import { trpc, type RouterOutputs } from "@/lib/trpc";
 // ContentSection cleanups).
 type CallEvent = RouterOutputs["callTracking"]["list"][number];
 type Callback = NonNullable<RouterOutputs["callback"]["list"]>[number];
-import { StatCard, CHART_COLORS, CHART_THEME, PageHeader, SectionInsightStrip } from "./shared";
+import { StatCard, CHART_COLORS, CHART_THEME, PageHeader, SectionInsightStrip, formatDateTime } from "./shared";
 import {
   Phone, PhoneCall, MapPin, Loader2, Clock, AlertTriangle,
   TrendingUp, BarChart3, Users, CheckCircle2, XCircle, MessageSquare,
@@ -181,7 +181,7 @@ export default function CallTrackingSection() {
                       <span className="text-[11px] text-foreground/40 truncate block">{cb.context}</span>
                     )}
                     <span className="text-[10px] text-foreground/30">
-                      {new Date(cb.createdAt).toLocaleString()}
+                      {formatDateTime(cb.createdAt)}
                     </span>
                   </div>
                   <div className="shrink-0 flex items-center gap-1.5">
@@ -384,7 +384,7 @@ export default function CallTrackingSection() {
                     </td>
                     <td className="p-3 text-foreground/70">{call.utmMedium || "—"}</td>
                     <td className="p-3 text-foreground/70">{call.utmCampaign || "—"}</td>
-                    <td className="p-3 text-muted-foreground">{new Date(call.createdAt).toLocaleString()}</td>
+                    <td className="p-3 text-muted-foreground">{formatDateTime(call.createdAt)}</td>
                   </tr>
                 ))}
               </tbody>
