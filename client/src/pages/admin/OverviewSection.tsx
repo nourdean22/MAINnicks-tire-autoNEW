@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Link } from "wouter";
 import {
   StatCard, ActivityIcon, StatusDot, CHART_COLORS, CHART_THEME, BOOKING_STATUS_CONFIG,
-  PageHeader, LoadingState, navigateToAdminSection,
+  PageHeader, LoadingState, navigateToAdminSection, openCustomerDrawer,
   type BookingStatus, type AdminSection,
 } from "./shared";
 import {
@@ -142,6 +142,10 @@ interface RevenueRecommendation {
 }
 
 interface AtRiskWhale {
+  // wave-115 — server now returns id so we can open the customer drawer
+  // directly from the homepage card instead of dumping the operator on
+  // the full Customers list.
+  id: number;
   name: string;
   phone?: unknown;
   totalSpent: number;
@@ -1032,19 +1036,18 @@ export default function OverviewSection() {
               {custIntel?.atRiskWhales && custIntel.atRiskWhales.length > 0 && (
                 <div className="pt-1">
                   <p className="text-[8px] text-red-400 font-bold uppercase mb-0.5">High-Value Going Quiet</p>
-                  {custIntel.atRiskWhales.slice(0, 3).map((w: AtRiskWhale, i: number) => (
-                    /* wave-110 — at-risk whale rows are now clickable.
-                       Backend doesn't yet return customerId on this shape;
-                       click navigates to Customers section where the
-                       operator can spot the row in the table. Tighter
-                       drilldown (open customer drawer directly) is a TODO
-                       once `id` is added to the atRiskWhales payload. */
+                  {custIntel.atRiskWhales.slice(0, 3).map((w: AtRiskWhale) => (
+                    /* wave-115 — server now returns customerId; click opens
+                       the customer drawer directly (was: nav to full
+                       Customers list, which forced the operator to search
+                       for the whale by name — extra friction on a high-
+                       value action). */
                     <button
-                      key={i}
+                      key={w.id}
                       type="button"
-                      onClick={() => navigateToAdminSection("customers")}
+                      onClick={() => openCustomerDrawer(w.id)}
                       className="w-full flex items-center gap-2 py-0.5 text-[11px] hover:bg-primary/5 rounded px-1 transition-colors text-left"
-                      aria-label={`Open Customers — ${w.name}`}
+                      aria-label={`Open customer drawer — ${w.name}`}
                     >
                       <span className="text-foreground/80 flex-1 truncate">{w.name}</span>
                       <span className="font-bold text-primary">${w.totalSpent.toLocaleString()}</span>

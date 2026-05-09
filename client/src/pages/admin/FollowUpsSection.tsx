@@ -9,7 +9,7 @@ import { toast } from "sonner";
 type PendingFollowUp = NonNullable<RouterOutputs["followUps"]["pending"]>[number];
 type RecentFollowUp = NonNullable<RouterOutputs["followUps"]["recent"]>[number];
 import {
-  Loader2, Send, RefreshCw, CheckCircle2, Clock, MessageSquare, Star, AlertCircle
+  Loader2, Send, RefreshCw, CheckCircle2, Clock, MessageSquare, Star, AlertCircle, X, RotateCw
 } from "lucide-react";
 import { PageHeader } from "./shared";
 
@@ -41,6 +41,26 @@ export default function FollowUpsSection() {
       utils.followUps.recent.invalidate();
     },
     onError: (err) => toast.error(err.message),
+  });
+
+  // wave-115 — per-item cancel + retry. Cancel marks pending → skipped
+  // (never sends). Retry marks failed → pending (re-queues for next run).
+  const cancelFollowUp = trpc.followUps.cancel.useMutation({
+    onSuccess: () => {
+      toast.success("Follow-up canceled");
+      utils.followUps.pending.invalidate();
+      utils.followUps.recent.invalidate();
+    },
+    onError: (err) => toast.error(err.message.slice(0, 120)),
+  });
+
+  const retryFollowUp = trpc.followUps.retry.useMutation({
+    onSuccess: () => {
+      toast.success("Follow-up requeued");
+      utils.followUps.pending.invalidate();
+      utils.followUps.recent.invalidate();
+    },
+    onError: (err) => toast.error(err.message.slice(0, 120)),
   });
 
   const isLoading = pendingLoading || recentLoading;
@@ -110,6 +130,21 @@ export default function FollowUpsSection() {
                       <span className={`px-2 py-0.5 text-[10px] ${STATUS_STYLES[fu.status]}`}>
                         {fu.status.toUpperCase()}
                       </span>
+                      {/* wave-115 — per-row cancel button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm(`Cancel follow-up to ${fu.recipientName}? It won't be sent.`)) {
+                            cancelFollowUp.mutate({ id: fu.id });
+                          }
+                        }}
+                        disabled={cancelFollowUp.isPending}
+                        className="text-foreground/40 hover:text-red-400 transition-colors disabled:opacity-30"
+                        title="Cancel this follow-up — it won't send"
+                        aria-label="Cancel follow-up"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
                   );
                 })}
@@ -147,6 +182,19 @@ export default function FollowUpsSection() {
                       <span className={`px-2 py-0.5 text-[10px] ${STATUS_STYLES[fu.status]}`}>
                         {fu.status.toUpperCase()}
                       </span>
+                      {/* wave-115 — per-row retry button (failed only) */}
+                      {fu.status === "failed" && (
+                        <button
+                          type="button"
+                          onClick={() => retryFollowUp.mutate({ id: fu.id })}
+                          disabled={retryFollowUp.isPending}
+                          className="text-amber-400/60 hover:text-amber-400 transition-colors disabled:opacity-30"
+                          title="Retry this follow-up — re-queues it for the next run"
+                          aria-label="Retry follow-up"
+                        >
+                          <RotateCw className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   );
                 })}

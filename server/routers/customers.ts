@@ -352,8 +352,11 @@ export const customersRouter = router({
     `);
 
     // Top 5 at-risk whales (high-value customers going quiet)
+    // wave-115 — added `id` so the admin can open the customer drawer
+    // directly (previously the homepage card navigated to the full
+    // customers list and made the operator search for the whale by name).
     const [atRiskWhales] = await d.execute(sql`
-      SELECT firstName, lastName, phone, totalSpent, totalVisits, lastVisitDate,
+      SELECT id, firstName, lastName, phone, totalSpent, totalVisits, lastVisitDate,
         DATEDIFF(NOW(), lastVisitDate) as daysSince
       FROM customers
       WHERE lastVisitDate < DATE_SUB(NOW(), INTERVAL 60 DAY)
@@ -402,6 +405,7 @@ export const customersRouter = router({
         winbackPotential: Math.round(Number(winback.potentialRevenue || 0) / 100),
       },
       atRiskWhales: (atRiskWhales as RawRow[])?.map((w: RawRow) => ({
+        id: Number(w.id),
         name: `${w.firstName} ${w.lastName}`,
         phone: w.phone,
         totalSpent: Math.round(Number(w.totalSpent) / 100),

@@ -264,6 +264,21 @@ export function navigateToAdminSection(section: AdminSection, opts?: { settingsT
 }
 
 /**
+ * wave-115 — open the customer drawer directly from any admin surface.
+ * Fires `admin:open-customer-drawer` with the target customer id;
+ * Admin.tsx listens and calls `setDrawerCustomerId(id)`. Use this from
+ * cards that show a specific customer (at-risk whales, top spenders,
+ * lapsed VIPs, NBA recommendations, etc.) so the operator drills in
+ * without losing their place by navigating to the full Customers list.
+ */
+export function openCustomerDrawer(customerId: number) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent("admin:open-customer-drawer", { detail: { customerId } }),
+  );
+}
+
+/**
  * renderStatValue — value-shape detector for the legacy StatCard. The
  * StatCard used to render `value` as raw text. Wave-64 upgrades it to:
  *   • detect pure-number values → animate with CountUpNumber
