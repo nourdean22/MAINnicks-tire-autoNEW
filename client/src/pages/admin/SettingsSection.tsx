@@ -21,7 +21,7 @@ import {
   ToggleLeft, ToggleRight,
   Activity, Shield, Plug, Settings,
 } from "lucide-react";
-import { PageHeader, SectionInsightStrip, TabBar, Panel } from "./shared";
+import { PageHeader, SectionInsightStrip, TabBar, Panel, StatCard } from "./shared";
 
 // Lazy-loaded system tabs — Nour's request: "move all system stuff to the settings page"
 // Consolidates System Health, Compliance, and Integrations into this hub so
@@ -39,20 +39,9 @@ const SETTINGS_TABS: Array<{ id: SettingsTab; label: string; icon: React.ReactNo
   { id: "integrations", label: "Integrations", icon: <Plug className="w-3.5 h-3.5" />, subtitle: "Twilio, Google, Snap, Gateway" },
 ];
 
-function StatCard({ label, value, icon, color = "text-foreground", sub }: {
-  label: string; value: string | number; icon: React.ReactNode; color?: string; sub?: string;
-}) {
-  return (
-    <div className="bg-card border border-border/30 p-4">
-      <div className="flex items-start justify-between mb-2">
-        <span className="text-[11px] font-medium text-muted-foreground tracking-wide">{label}</span>
-        <div className="text-muted-foreground/30">{icon}</div>
-      </div>
-      <div className={`font-bold text-2xl tracking-tight ${color}`}>{value}</div>
-      {sub && <p className="text-[10px] text-muted-foreground mt-1">{sub}</p>}
-    </div>
-  );
-}
+// wave-110 — local StatCard removed; canonical imported from ./shared.
+// `sub` prop (caption under value) maps cleanly onto canonical `trendLabel`
+// with no `trend` (renders muted, no arrow). Identical visual.
 
 export default function SettingsSection() {
   // Initial tab from ?settingsTab=X OR ?tab=X (legacy-route support).
@@ -231,26 +220,26 @@ export default function SettingsSection() {
           label="INVOICES THIS WEEK"
           value={invoiceStats?.shopFloor?.invoicesThisWeek ?? "—"}
           icon={<FileText className="w-4 h-4" />}
-          sub={`$${Math.round(invoiceStats?.shopFloor?.revenueThisWeek ?? 0).toLocaleString()} revenue`}
+          trendLabel={`$${Math.round(invoiceStats?.shopFloor?.revenueThisWeek ?? 0).toLocaleString()} revenue`}
         />
         <StatCard
           label="CUSTOMERS"
           value={invoiceStats?.shopFloor?.totalCustomers ?? "—"}
           icon={<Users className="w-4 h-4" />}
-          sub={`${invoiceStats?.shopFloor?.vipCustomers ?? 0} VIP (3+ visits)`}
+          trendLabel={`${invoiceStats?.shopFloor?.vipCustomers ?? 0} VIP (3+ visits)`}
         />
         <StatCard
           label="AVG TICKET"
           value={`$${Math.round(invoiceStats?.shopFloor?.avgTicket ?? 0)}`}
           icon={<DollarSign className="w-4 h-4" />}
-          sub="From ALG invoices"
+          trendLabel="From ALG invoices"
         />
         <StatCard
           label="WEBSITE LEADS"
           value={invoiceStats?.leads?.total ?? "—"}
           icon={<TrendingUp className="w-4 h-4" />}
           color={Number(invoiceStats?.leads?.urgent || 0) > 0 ? "text-red-400" : "text-foreground"}
-          sub={`${invoiceStats?.leads?.urgent ?? 0} urgent • rest = walk-ins`}
+          trendLabel={`${invoiceStats?.leads?.urgent ?? 0} urgent • rest = walk-ins`}
         />
       </div>
 
