@@ -18,6 +18,7 @@ import { trpc } from "@/lib/trpc";
 import React from "react";
 import { BUSINESS } from "@shared/business";
 import { GBP_REVIEW_URL } from "@shared/const";
+import { SERVICES } from "@shared/services";
 import TrustStrip from "@/components/TrustStrip";
 import TrustBadges from "@/components/TrustBadges";
 import FastPaths from "@/components/FastPaths";
@@ -435,7 +436,15 @@ function UsedTiresCallout() {
 }
 
 // ─── SERVICES — Full-viewport image tiles ────────────────
-const services = [
+// wave-110 — service grid now derives from @shared/services SERVICES,
+// the single source of truth for /tires, /brakes, /<slug> pages. The
+// 3 hero tiles below stay curated (image + brand-voice copy) but the
+// "More Services" grid auto-renders ALL remaining services from the
+// canonical list. Previously: 6 of 15 services were exposed on home;
+// the other 9 (AC, transmission, electrical, battery, exhaust,
+// cooling, PPI, belts-hoses, starter-alternator) were unreachable
+// without typing the URL by hand. Now all 15 surface on the homepage.
+const HERO_SERVICES = [
   {
     title: "Tires",
     slug: "/tires",
@@ -459,11 +468,23 @@ const services = [
   },
 ];
 
-const moreServices = [
-  { title: "Emissions & E-Check", slug: "/emissions", desc: "Failed Ohio E-Check? State-certified repair, pass guaranteed or we keep working. The DMV will be confused why you're so happy.", price: "Same-day fix · walk-ins" },
-  { title: "Oil Change", slug: "/oil-change", desc: "In and out faster than your barista finishes your name. Free 27-point inspection while you wait — we use the time wisely.", price: "Free 27-pt inspection" },
-  { title: "General Repair", slug: "/general-repair", desc: "Suspension, steering, exhaust, cooling, belts, hoses, the weird rattle that started yesterday. Full-service shop, no service charge for honesty.", price: "Free estimate · every make" },
-];
+// Slugs already covered by the 3 hero tiles — exclude from "More Services"
+const HERO_SLUGS = new Set(["tires", "brakes", "diagnostics"]);
+
+// "More Services" grid auto-derived from canonical SERVICES.
+// Title stays in canonical case (CSS h3 has `uppercase` class anyway,
+// so the visual is identical regardless of source casing). Price line
+// picks the most concise pricingNote-ish field available; desc uses
+// shortDesc.
+const moreServices = SERVICES
+  .filter((svc) => !HERO_SLUGS.has(svc.slug))
+  .map((svc) => ({
+    title: svc.title,
+    slug: `/${svc.slug}`,
+    desc: svc.shortDesc,
+    // Prefer pricingNote (punchier) → priceRange → startingPrice → fallback
+    price: svc.pricingNote || svc.priceRange || svc.startingPrice || "Free estimate · honest pricing",
+  }));
 
 function Services() {
   return (
@@ -473,7 +494,7 @@ function Services() {
           so phone users don't feel like the homepage is endless. Desktop keeps
           the cinematic 80vh feel. Group hover + ken-burns zoom is desktop-only
           (mobile has no cursor hover). */}
-      {services.map((s) => (
+      {HERO_SERVICES.map((s) => (
         <div key={s.slug} className="group relative min-h-[65vh] sm:min-h-[80vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
             <img
