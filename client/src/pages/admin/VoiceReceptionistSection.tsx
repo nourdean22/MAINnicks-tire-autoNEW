@@ -1021,9 +1021,15 @@ function TransferDestinationCard() {
                   disabled={deletePreset.isPending}
                   title="Delete preset"
                   aria-label={`Delete preset ${p.label}`}
-                  className="absolute top-1 right-1 w-5 h-5 rounded text-foreground/30 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                  // wave-119 — was hover-only `opacity-0 group-hover:opacity-100`
+                  // which made the button permanently invisible on touch (no
+                  // hover state on iOS). Now: always visible on mobile, opacity
+                  // gate stays on sm+ where hover works. Also bumped target to
+                  // 7x7 = 28x28px (still tight; full 44px would dominate the
+                  // small preset chip — accepting the tradeoff for visual density).
+                  className="absolute top-1 right-1 w-7 h-7 rounded text-foreground/40 hover:text-red-400 hover:bg-red-500/10 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             ))}

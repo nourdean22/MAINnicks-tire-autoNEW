@@ -688,8 +688,13 @@ function ProofBankPanel() {
                 </div>
                 <button
                   onClick={() => copyForGBP(quote)}
-                  className="shrink-0 p-1.5 text-foreground/20 hover:text-primary hover:bg-primary/10 rounded transition-all opacity-0 group-hover:opacity-100"
+                  // wave-119 — was hover-only invisible on phone (opacity-0
+                  // group-hover) + only `title` (not `aria-label` so iOS
+                  // VoiceOver missed it). Now: always-visible on mobile,
+                  // p-2.5 for ~28px touch target, aria-label exposed.
+                  className="shrink-0 p-2.5 text-foreground/40 hover:text-primary hover:bg-primary/10 rounded transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                   title="Copy for GBP post"
+                  aria-label="Copy review for GBP post"
                 >
                   <Copy className="w-3.5 h-3.5" />
                 </button>

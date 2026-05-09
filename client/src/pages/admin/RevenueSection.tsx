@@ -1394,7 +1394,7 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Customer Name *" value={form.customerName} onChange={(v) => setForm(f => ({ ...f, customerName: v }))} placeholder="John Smith" />
-          <FormField label="Phone" value={form.customerPhone} onChange={(v) => setForm(f => ({ ...f, customerPhone: v }))} placeholder={BUSINESS.phone.placeholder} />
+          <FormField label="Phone" value={form.customerPhone} onChange={(v) => setForm(f => ({ ...f, customerPhone: v }))} placeholder={BUSINESS.phone.placeholder} type="tel" inputMode="tel" />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <FormField label="Vehicle" value={form.vehicleInfo} onChange={(v) => setForm(f => ({ ...f, vehicleInfo: v }))} placeholder="2019 Honda Civic" />
@@ -1403,10 +1403,10 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
         <FormField label="Service Description" value={form.serviceDescription} onChange={(v) => setForm(f => ({ ...f, serviceDescription: v }))} placeholder="Brake pad replacement, rotor resurfacing" />
 
         <div className="grid grid-cols-4 gap-4">
-          <FormField label="Parts ($)" value={form.partsCost} onChange={(v) => setForm(f => ({ ...f, partsCost: v }))} placeholder="0.00" type="number" />
-          <FormField label="Labor ($)" value={form.laborCost} onChange={(v) => setForm(f => ({ ...f, laborCost: v }))} placeholder="0.00" type="number" />
-          <FormField label="Tax ($)" value={form.taxAmount} onChange={(v) => setForm(f => ({ ...f, taxAmount: v }))} placeholder="0.00" type="number" />
-          <FormField label="Total ($) *" value={form.totalAmount} onChange={(v) => setForm(f => ({ ...f, totalAmount: v }))} placeholder="0.00" type="number" />
+          <FormField label="Parts ($)" value={form.partsCost} onChange={(v) => setForm(f => ({ ...f, partsCost: v }))} placeholder="0.00" type="number" inputMode="decimal" />
+          <FormField label="Labor ($)" value={form.laborCost} onChange={(v) => setForm(f => ({ ...f, laborCost: v }))} placeholder="0.00" type="number" inputMode="decimal" />
+          <FormField label="Tax ($)" value={form.taxAmount} onChange={(v) => setForm(f => ({ ...f, taxAmount: v }))} placeholder="0.00" type="number" inputMode="decimal" />
+          <FormField label="Total ($) *" value={form.totalAmount} onChange={(v) => setForm(f => ({ ...f, totalAmount: v }))} placeholder="0.00" type="number" inputMode="decimal" />
         </div>
 
         <div className="grid grid-cols-3 gap-4">
@@ -1453,14 +1453,24 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
 }
 
 // ─── FORM FIELD ─────────────────────────────────────────
-function FormField({ label, value, onChange, placeholder, type = "text" }: {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string;
+// wave-119 — added inputMode prop for proper iOS keyboard hints. Without
+// it, type="number" shows a numpad with no decimal key (bad for $) and
+// type="text" shows full QWERTY (bad for phone). Pass inputMode="decimal"
+// for money, "tel" for phone, "numeric" for integers.
+function FormField({ label, value, onChange, placeholder, type = "text", inputMode }: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+  inputMode?: "text" | "tel" | "decimal" | "numeric" | "email" | "url" | "search";
 }) {
   return (
     <div>
       <label className="font-mono text-[10px] text-foreground/50 tracking-wide block mb-1">{label}</label>
       <input
         type={type}
+        inputMode={inputMode}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}

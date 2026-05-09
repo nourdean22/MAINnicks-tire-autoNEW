@@ -250,6 +250,7 @@ export default function WalkInCalculatorSection() {
           </label>
           <input
             type="number"
+            inputMode="decimal"
             value={laborRate}
             onChange={(e) => setLaborRate(Number(e.target.value) || 0)}
             min={0}
@@ -263,6 +264,7 @@ export default function WalkInCalculatorSection() {
           </label>
           <input
             type="number"
+            inputMode="numeric"
             value={discountPct}
             onChange={(e) => setDiscountPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
             min={0}
@@ -313,6 +315,7 @@ export default function WalkInCalculatorSection() {
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     value={line.partsCostCents}
                     onChange={(e) => updateItem(line.id, { partsCostCents: Number(e.target.value) || 0 })}
                     min={0}
@@ -325,6 +328,7 @@ export default function WalkInCalculatorSection() {
                   </label>
                   <input
                     type="number"
+                    inputMode="decimal"
                     value={line.partsMarkup}
                     onChange={(e) => updateItem(line.id, { partsMarkup: Number(e.target.value) || 1 })}
                     min={1}
@@ -338,6 +342,7 @@ export default function WalkInCalculatorSection() {
                   </label>
                   <input
                     type="number"
+                    inputMode="decimal"
                     value={line.laborHours}
                     onChange={(e) => updateItem(line.id, { laborHours: Number(e.target.value) || 0 })}
                     min={0}

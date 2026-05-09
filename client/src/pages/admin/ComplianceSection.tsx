@@ -102,7 +102,11 @@ export default function ComplianceSection() {
                   </div>
                 </div>
               )}
-              <div className="overflow-hidden rounded-xl border border-border/30 bg-card/50">
+              {/* wave-119 — was `overflow-hidden` which actively prevented
+                  horizontal scroll on phone (Email + IP columns overflow
+                  390px viewport). Switched to `overflow-x-auto` so operator
+                  can scroll the table on phone to read security audit info. */}
+              <div className="overflow-x-auto rounded-xl border border-border/30 bg-card/50">
                 <table className="w-full text-sm">
                   <thead className="bg-background/50 text-[10px] uppercase tracking-widest text-muted-foreground">
                     <tr>
@@ -229,7 +233,9 @@ export default function ComplianceSection() {
               <p className="text-sm text-muted-foreground">No failed admin logins. Clean.</p>
             </div>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-red-500/30 bg-red-500/5">
+            // wave-119 — same overflow-hidden→overflow-x-auto fix as the
+            // login-history table above. Operator can scroll on phone.
+            <div className="overflow-x-auto rounded-xl border border-red-500/30 bg-red-500/5">
               <table className="w-full text-sm">
                 <thead className="bg-background/50 text-[10px] uppercase tracking-widest text-muted-foreground">
                   <tr>
