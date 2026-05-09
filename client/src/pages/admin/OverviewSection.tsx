@@ -779,82 +779,14 @@ export default function OverviewSection() {
           : "Offline — fix integrations"}
       </Link>
 
-      {/* 2026-05-05 — WALK-AWAY ESTIMATES STRIP
-          Renders only when alg_estimates has unmatched rows. Pulls from
-          trpc.intelligence.walkAwayEstimates which queries alg_estimates
-          where matchedInvoiceId IS NULL. Different signal than declined-
-          work line items — these are full estimates the customer never
-          converted. Highest-leverage recovery target per FCFS model.
-
-          2026-05-09 — hidden per operator. To revive: change `false` back
-          to `walkAway && walkAway.unmatchedCount > 0`. The data still flows
-          (cron + trpc query untouched) so the SMS recovery cron still runs;
-          this only hides the strip from /admin overview. */}
-      {false && walkAway && walkAway.unmatchedCount > 0 && (
-        <div className="bg-card border border-amber-500/30 p-4">
-          <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-            <div>
-              <h3 className="font-bold text-sm text-foreground tracking-wide">
-                WALK-AWAY ESTIMATES · ${walkAway.unmatchedValueDollars} ON THE TABLE
-              </h3>
-              <p className="text-foreground/50 text-[11px] mt-0.5">
-                Quotes that never converted to invoice. The 7d/30d SMS recovery cron targets these.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider rounded bg-amber-500/15 text-amber-400">
-                {walkAway.unmatchedCount} UNMATCHED · {walkAway.conversionRate}% CONVERSION
-              </span>
-              <button
-                onClick={() => openDrilldown({ kind: "walk_aways" })}
-                className="px-2.5 py-1 text-[10px] font-bold tracking-wider rounded border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors"
-              >
-                SEE ROWS →
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
-            <div className="border border-border/20 p-2.5">
-              <p className="text-foreground/40 uppercase tracking-wider mb-1">Last 7 Days</p>
-              <p className="text-foreground font-bold text-lg">{walkAway.recoveryWindow.last7d}</p>
-              <p className="text-foreground/40 text-[10px]">fresh walk-aways</p>
-            </div>
-            <div className="border border-border/20 p-2.5">
-              <p className="text-foreground/40 uppercase tracking-wider mb-1">Last 30 Days</p>
-              <p className="text-foreground font-bold text-lg">{walkAway.recoveryWindow.last30d}</p>
-              <p className="text-foreground/40 text-[10px]">recovery window</p>
-            </div>
-            <div className="border border-border/20 p-2.5">
-              <p className="text-foreground/40 uppercase tracking-wider mb-1">Recoverable</p>
-              <p className="text-emerald-400 font-bold text-lg">~${walkAway.recoverableEstimate}</p>
-              <p className="text-foreground/40 text-[10px]">@ 20% close rate</p>
-            </div>
-            <div className="border border-border/20 p-2.5">
-              <p className="text-foreground/40 uppercase tracking-wider mb-1">Total Estimates</p>
-              <p className="text-foreground font-bold text-lg">{walkAway.totalEstimates}</p>
-              <p className="text-foreground/40 text-[10px]">last 60 days</p>
-            </div>
-          </div>
-          {walkAway.topUnmatched.length > 0 && (
-            <details className="mt-3 border-t border-border/10 pt-3">
-              <summary className="cursor-pointer text-[11px] font-bold tracking-wider text-foreground/50 hover:text-foreground/80">
-                TOP 5 BY VALUE
-              </summary>
-              <div className="mt-2 space-y-1.5">
-                {walkAway.topUnmatched.map((e: { name: string; phone: string | null; service: string | null; amountCents: number; estimateDate: string; daysOld: number }, i: number) => (
-                  <div key={i} className="flex items-center gap-3 text-[11px] py-1 border-b border-border/10">
-                    <span className="text-foreground/40 w-12 shrink-0">{e.daysOld}d</span>
-                    <span className="text-emerald-400 font-bold w-20 shrink-0">${Math.round(e.amountCents / 100)}</span>
-                    <span className="text-foreground font-medium w-32 shrink-0 truncate">{e.name}</span>
-                    <span className="text-foreground/40 truncate flex-1 italic">{e.service || "—"}</span>
-                    {e.phone && <span className="text-foreground/30 text-[10px] shrink-0">{e.phone}</span>}
-                  </div>
-                ))}
-              </div>
-            </details>
-          )}
-        </div>
-      )}
+      {/* 2026-05-09 — WALK-AWAY ESTIMATES STRIP hidden per operator.
+          The 75-line block lived here from 2026-05-05 through commit
+          617e5042. Removed (not commented) because TypeScript can't
+          narrow `walkAway` across a `false &&` short-circuit, so an
+          inline hide threw 10 strict-null-check errors.
+          Restore: `git show 617e5042:client/src/pages/admin/OverviewSection.tsx | sed -n '782,857p'`
+          The trpc.intelligence.walkAwayEstimates query + SMS recovery
+          cron are untouched — only the visual strip is gone. */}
 
       {/* ─── SHOP LOAD INDICATOR ─── */}
       {shopLoad && (
