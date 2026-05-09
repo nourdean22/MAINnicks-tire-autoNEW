@@ -254,7 +254,7 @@ function DateRangeSelector({
               type="button"
               onClick={onRefresh}
               disabled={refreshing}
-              className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase px-2.5 py-1 border border-primary/40 text-primary rounded hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="inline-flex items-center gap-1.5 text-[11px] font-medium tracking-[0.15em] uppercase px-2.5 py-1 border border-primary/40 text-primary rounded hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               aria-label="Refresh data"
               title="Pull fresh metrics + calls for this date range"
             >
@@ -272,7 +272,7 @@ function DateRangeSelector({
 
 function VapiDashboardLinks({ assistantId }: { assistantId: string | null }) {
   const linkClass =
-    "inline-flex items-center gap-1 text-[11px] font-semibold tracking-wider uppercase " +
+    "inline-flex items-center gap-1 text-[11px] font-medium tracking-[0.15em] uppercase " +
     "text-foreground/60 hover:text-primary border border-border/40 hover:border-primary/40 " +
     "rounded px-2 py-1 transition-colors";
   return (
@@ -610,7 +610,7 @@ export default function VoiceReceptionistSection() {
 
             {/* Reason filter chips */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[10px] uppercase tracking-wider text-foreground/40 mr-1">Filter:</span>
+              <span className="text-[10px] uppercase tracking-[0.15em] text-foreground/45 mr-1">Filter:</span>
               <FilterChip
                 label="All"
                 count={rawCalls.length}
@@ -651,7 +651,7 @@ export default function VoiceReceptionistSection() {
           />
         ) : (
           <div className="divide-y divide-border/20">
-            <div className="flex items-center gap-3 px-4 py-2.5 bg-foreground/[0.02] text-[10px] font-bold tracking-wider uppercase text-foreground/40">
+            <div className="flex items-center gap-3 px-4 py-2.5 bg-foreground/[0.02] text-[11px] font-medium tracking-[0.15em] uppercase text-foreground/40">
               <span className="w-16">Time</span>
               <span className="flex-1">Caller</span>
               <span className="w-20 text-right">Duration</span>
@@ -956,7 +956,7 @@ function TransferDestinationCard() {
                    so the button enables once a valid US number has been typed
                    in any common shape (10-digit, 11-digit, formatted with dashes). */
                 disabled={toE164(draftNumber) === null || setDest.isPending}
-                className="text-[10px] font-bold tracking-wider uppercase text-primary hover:underline disabled:opacity-30 disabled:no-underline"
+                className="text-[11px] font-medium tracking-[0.15em] uppercase text-primary hover:underline disabled:opacity-30 disabled:no-underline"
                 title="Save the current draft number as a labeled preset"
               >
                 + Save current as preset
@@ -1166,11 +1166,11 @@ function FollowUpTransferCard() {
               Follow-Up Caller transfer
             </span>
             {isShop ? (
-              <span className="text-[9px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="text-[10px] font-medium tracking-[0.12em] uppercase px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 Shop landline
               </span>
             ) : (
-              <span className="text-[9px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              <span className="text-[10px] font-medium tracking-[0.12em] uppercase px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
                 Off shop number
               </span>
             )}
@@ -1187,7 +1187,7 @@ function FollowUpTransferCard() {
             <button
               onClick={resetToShop}
               disabled={setDest.isPending}
-              className="text-[10px] font-bold tracking-wider uppercase px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 disabled:opacity-50"
+              className="text-[11px] font-medium tracking-[0.15em] uppercase px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 disabled:opacity-50"
               title="One-click reset to (216) 862-0005"
             >
               Reset to shop
@@ -1200,7 +1200,7 @@ function FollowUpTransferCard() {
                 setEditing(true);
               }}
               disabled={setDest.isPending}
-              className="text-[10px] font-bold tracking-wider uppercase px-2.5 py-1 rounded text-foreground/60 border border-border/40 hover:text-foreground hover:border-foreground/40 disabled:opacity-50"
+              className="text-[11px] font-medium tracking-[0.15em] uppercase px-2.5 py-1 rounded text-foreground/60 border border-border/40 hover:text-foreground hover:border-foreground/40 disabled:opacity-50"
               title="Change the follow-up transfer destination (will require confirmation)"
             >
               Edit (advanced)
@@ -1220,14 +1220,14 @@ function FollowUpTransferCard() {
               <button
                 onClick={submitEdit}
                 disabled={setDest.isPending}
-                className="text-[10px] font-bold tracking-wider uppercase px-2.5 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                className="text-[11px] font-medium tracking-[0.15em] uppercase px-2.5 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 {setDest.isPending ? "Saving" : "Save"}
               </button>
               <button
                 onClick={() => setEditing(false)}
                 disabled={setDest.isPending}
-                className="text-[10px] font-bold tracking-wider uppercase px-2.5 py-1 rounded text-foreground/50 hover:text-foreground"
+                className="text-[11px] font-medium tracking-[0.15em] uppercase px-2.5 py-1 rounded text-foreground/50 hover:text-foreground"
               >
                 Cancel
               </button>
@@ -1271,7 +1271,7 @@ function OutboundCallCard() {
           <Phone className="w-4 h-4 text-emerald-400" />
         </div>
         <div>
-          <h3 className="font-bold text-sm text-foreground tracking-wider">OUTBOUND CALL</h3>
+          <h3 className="text-[15px] font-semibold text-foreground tracking-tight">Outbound call</h3>
           <p className="text-[10px] text-foreground/40">
             Fire Nick at any number. Follow-up tone · 3-min cap · asks for referrals.
           </p>
@@ -1280,7 +1280,7 @@ function OutboundCallCard() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
         <div>
-          <label className="text-[9px] text-foreground/40 tracking-wider uppercase block mb-1">Phone (required)</label>
+          <label className="text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium block mb-1">Phone (required)</label>
           <input
             type="tel"
             value={phone}
@@ -1290,7 +1290,7 @@ function OutboundCallCard() {
           />
         </div>
         <div>
-          <label className="text-[9px] text-foreground/40 tracking-wider uppercase block mb-1">First name (optional)</label>
+          <label className="text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium block mb-1">First name (optional)</label>
           <input
             type="text"
             value={name}
@@ -1300,7 +1300,7 @@ function OutboundCallCard() {
           />
         </div>
         <div>
-          <label className="text-[9px] text-foreground/40 tracking-wider uppercase block mb-1">What for? (optional)</label>
+          <label className="text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium block mb-1">What for? (optional)</label>
           <input
             type="text"
             value={lastService}
@@ -1333,7 +1333,7 @@ function OutboundCallCard() {
             });
           }}
           disabled={!phoneValid || mutation.isPending}
-          className="flex items-center gap-2 px-5 py-2 text-[11px] tracking-wider font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-5 py-2 text-[11px] tracking-[0.15em] font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {mutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Phone className="w-3.5 h-3.5" />}
           DIAL NOW
@@ -1372,7 +1372,7 @@ function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose: () =>
               href={VAPI_LINKS.callDetail(callId)}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[11px] font-semibold tracking-wider uppercase text-foreground/60 hover:text-primary border border-border/40 hover:border-primary/40 rounded px-2 py-1 transition-colors"
+              className="inline-flex items-center gap-1 text-[11px] font-medium tracking-[0.15em] uppercase text-foreground/60 hover:text-primary border border-border/40 hover:border-primary/40 rounded px-2 py-1 transition-colors"
               title="Open this call in the VAPI dashboard (recordings, raw events, etc.)"
             >
               Open in VAPI <ExternalLink className="w-3 h-3" />
@@ -1422,7 +1422,7 @@ function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose: () =>
               {/* Recording — keeps prime real estate so you can listen while reading */}
               {details.recordingUrl && (
                 <div className="rounded border border-border/30 bg-card/40 p-2 flex items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-wider text-foreground/40 shrink-0">
+                  <span className="text-[10px] uppercase tracking-[0.15em] text-foreground/45 shrink-0">
                     Recording
                   </span>
                   <audio controls src={details.recordingUrl} className="flex-1 h-8" />
@@ -1453,7 +1453,7 @@ function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose: () =>
                 if (conversation.length === 0 && details.transcript) {
                   return (
                     <div>
-                      <div className="text-[10px] uppercase tracking-wider font-bold text-foreground/60 mb-2">
+                      <div className="text-[11px] uppercase tracking-[0.15em] font-medium text-foreground/60 mb-2">
                         Transcript
                       </div>
                       <pre className="text-[13px] leading-relaxed whitespace-pre-wrap font-sans bg-card/40 border border-border/30 rounded p-3">
@@ -1465,7 +1465,7 @@ function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose: () =>
                 return (
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] uppercase tracking-wider font-bold text-foreground/60">
+                      <span className="text-[11px] uppercase tracking-[0.15em] font-medium text-foreground/60">
                         Transcript ({conversation.length} {conversation.length === 1 ? "turn" : "turns"})
                       </span>
                       <span className="text-[10px] text-foreground/30">
@@ -1488,7 +1488,7 @@ function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose: () =>
                             }`}
                           >
                             <div className="flex items-center gap-2 mb-0.5">
-                              <span className="text-[9px] uppercase tracking-wider font-bold text-foreground/50">
+                              <span className="text-[10px] uppercase tracking-[0.12em] font-medium text-foreground/50">
                                 {isUser ? "Caller" : "Nick"}
                               </span>
                               {msg.secondsFromStart !== null && (
@@ -1508,7 +1508,7 @@ function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose: () =>
 
               {/* Below-transcript: secondary detail (collapsed by default) */}
               <details className="rounded border border-border/30 bg-card/30">
-                <summary className="cursor-pointer px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-foreground/60 hover:text-foreground select-none">
+                <summary className="cursor-pointer px-3 py-2 text-[11px] font-medium uppercase tracking-[0.15em] text-foreground/60 hover:text-foreground select-none">
                   Call detail + tool calls{details.toolCalls.length > 0 ? ` (${details.toolCalls.length})` : ""}
                 </summary>
                 <div className="px-3 py-3 border-t border-border/20 space-y-3">
@@ -1516,18 +1516,18 @@ function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose: () =>
                   <dl className="grid grid-cols-2 gap-3 text-sm">
                     {details.cost !== null && (
                       <div>
-                        <dt className="text-[10px] uppercase tracking-wider text-foreground/40">Cost</dt>
+                        <dt className="text-[10px] uppercase tracking-[0.15em] text-foreground/45">Cost</dt>
                         <dd className="font-mono tabular-nums">${details.cost.toFixed(3)}</dd>
                       </div>
                     )}
                     {details.successEvaluation && (
                       <div>
-                        <dt className="text-[10px] uppercase tracking-wider text-foreground/40">VAPI Success Eval</dt>
+                        <dt className="text-[10px] uppercase tracking-[0.15em] text-foreground/45">VAPI Success Eval</dt>
                         <dd className="text-[12px]">{details.successEvaluation}</dd>
                       </div>
                     )}
                     <div>
-                      <dt className="text-[10px] uppercase tracking-wider text-foreground/40">Call ID</dt>
+                      <dt className="text-[10px] uppercase tracking-[0.15em] text-foreground/45">Call ID</dt>
                       <dd className="font-mono text-[11px] text-foreground/70 break-all">{details.id}</dd>
                     </div>
                   </dl>
@@ -1535,7 +1535,7 @@ function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose: () =>
                   {/* Summary (AI-generated) */}
                   {details.summary && (
                     <div>
-                      <div className="text-[10px] uppercase tracking-wider text-foreground/40 mb-1">AI Summary</div>
+                      <div className="text-[10px] uppercase tracking-[0.15em] text-foreground/45 mb-1">AI Summary</div>
                       <div className="text-[12px] leading-relaxed text-foreground/80">{details.summary}</div>
                     </div>
                   )}
