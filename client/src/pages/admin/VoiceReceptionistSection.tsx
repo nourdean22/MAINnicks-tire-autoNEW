@@ -766,13 +766,30 @@ function TransferDestinationCard() {
     setEditing(true);
   };
 
+  // wave-113 — operator-friendly phone normalization. Strips spaces,
+  // dashes, parens, dots, then maps:
+  //   "+16056916315"   → "+16056916315" (already canonical)
+  //   "16056916315"    → "+16056916315"
+  //   "6056916315"     → "+16056916315"
+  //   anything else    → null (rejected)
+  // Removes the "you must type +1" UX friction. Server-side zod regex
+  // is unchanged and remains the source of truth.
+  const toE164 = (raw: string): string | null => {
+    const digits = raw.replace(/[^\d+]/g, "");
+    if (/^\+1\d{10}$/.test(digits)) return digits;
+    if (/^1\d{10}$/.test(digits)) return `+${digits}`;
+    if (/^\d{10}$/.test(digits)) return `+1${digits}`;
+    return null;
+  };
+
   const submit = () => {
-    if (!draftNumber.match(/^\+1\d{10}$/)) {
-      toast.error("Number must be E.164 format: +1 followed by 10 digits");
+    const e164 = toE164(draftNumber);
+    if (!e164) {
+      toast.error("Invalid number — type a 10-digit US number (e.g. 605-691-6315)");
       return;
     }
     setDest.mutate({
-      phoneNumber: draftNumber,
+      phoneNumber: e164,
       message: draftMessage || undefined,
     });
   };
@@ -787,13 +804,14 @@ function TransferDestinationCard() {
       toast.error("Give the preset a label first");
       return;
     }
-    if (!draftNumber.match(/^\+1\d{10}$/)) {
-      toast.error("Type a valid E.164 number first");
+    const e164 = toE164(draftNumber);
+    if (!e164) {
+      toast.error("Type a valid 10-digit US number first");
       return;
     }
     savePreset.mutate({
       label,
-      number: draftNumber,
+      number: e164,
       message: draftMessage || undefined,
     });
   };
@@ -841,7 +859,9 @@ function TransferDestinationCard() {
                   enterKeyHint="done"
                   value={draftNumber}
                   onChange={(e) => setDraftNumber(e.target.value)}
-                  placeholder="+12168620005"
+                  /* wave-113 — placeholder updated; toE164 normalizer accepts
+                     all common US-number shapes (10-digit, 11-digit, formatted) */
+                  placeholder="605-691-6315 or +16056916315"
                   className="bg-background border border-border/40 rounded-md px-3 py-2 text-sm font-mono w-56 focus:border-primary focus:outline-none"
                   autoFocus
                   disabled={setDest.isPending}
@@ -927,7 +947,10 @@ function TransferDestinationCard() {
             {!showSavePreset && (
               <button
                 onClick={() => setShowSavePreset(true)}
-                disabled={!draftNumber.match(/^\+1\d{10}$/) || setDest.isPending}
+                /* wave-113 — was direct E.164 regex; now uses toE164 normalizer
+                   so the button enables once a valid US number has been typed
+                   in any common shape (10-digit, 11-digit, formatted with dashes). */
+                disabled={toE164(draftNumber) === null || setDest.isPending}
                 className="text-[10px] font-bold tracking-wider uppercase text-primary hover:underline disabled:opacity-30 disabled:no-underline"
                 title="Save the current draft number as a labeled preset"
               >
