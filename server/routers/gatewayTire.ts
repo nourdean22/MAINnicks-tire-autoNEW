@@ -344,7 +344,7 @@ async function syncOrderToGoogleSheet(order: {
       if (typeof tokenData.access_token !== "string") return;
       accessToken = tokenData.access_token;
     } catch (parseErr) {
-      console.warn("[gatewayTire] token JSON parse failed", parseErr);
+      log.warn("token JSON parse failed", { err: parseErr instanceof Error ? parseErr.message : String(parseErr) });
       return;
     }
     const sheetId = process.env.GOOGLE_SHEETS_CRM_ID;
