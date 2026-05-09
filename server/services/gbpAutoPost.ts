@@ -170,13 +170,27 @@ export async function generateAndNotifyGBPPost(): Promise<{ recordsProcessed: nu
  */
 function buildPhotoNudge(): string {
   const month = new Date().getMonth(); // 0=Jan
+  // wave-116 — was a silent fallback to themes[0] (January) if `month`
+  // was somehow out-of-range (NaN, undefined, >11). 3×4=12 covers all
+  // valid months exactly once, so the fallback was dead code masking
+  // a serverless cold-start bug if it ever occurred. Assert + log so
+  // the operator gets a signal instead of mysterious January-themed
+  // posts year-round.
+  if (!Number.isInteger(month) || month < 0 || month > 11) {
+    throw new Error(`buildPhotoNudge: invalid month ${String(month)} from new Date().getMonth() — should be 0–11`);
+  }
   const themes = [
     { months: [0, 4, 8],  topic: "the team",       shots: ["technician at work on a lifted car", "team photo in front of the storefront sign", "tech holding the part they replaced"] },
     { months: [1, 5, 9],  topic: "before/after",   shots: ["worn brake pad next to new pad", "rusted muffler next to fresh exhaust", "balding tire next to new tread"] },
     { months: [2, 6, 10], topic: "the storefront", shots: ["building exterior with sign at golden hour", "service-bay doors open with cars on lifts", "waiting area interior with the brand colors"] },
     { months: [3, 7, 11], topic: "the work",       shots: ["alignment rack with a car on it", "diagnostic computer hooked to OBD-II", "tire-mounting machine mid-cycle"] },
   ];
-  const theme = themes.find((t) => t.months.includes(month)) ?? themes[0];
+  const theme = themes.find((t) => t.months.includes(month));
+  // 3×4=12 covers every month — the find() should never miss. If it
+  // does, that's a programmer error, not data drift.
+  if (!theme) {
+    throw new Error(`buildPhotoNudge: no theme found for month ${month} (themes incomplete)`);
+  }
   const shotList = theme.shots.map((s, i) => `  ${i + 1}. ${s}`).join("\n");
   return `📸 GBP PHOTO NUDGE — ${theme.topic.toUpperCase()}\n\n` +
     `GBP rewards listings that stay fresh. Suggested shots this month:\n\n` +

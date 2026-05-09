@@ -161,8 +161,26 @@ router.post("/vapi", async (req: Request, res: Response) => {
       case "function-call":
       case "tool-calls": {
         // Multiple tool calls arrive in one webhook. Run in parallel.
+        // wave-116 — was Promise.all; a single rejection caused the
+        // webhook to 500, prompting VAPI to retry the WHOLE batch and
+        // potentially double-execute already-succeeded tools (e.g.
+        // scheduleDropoff fired twice). allSettled isolates per-call
+        // outcomes so the webhook always 200s with a per-tool result.
         const calls = event.toolCalls || [];
-        const results = await Promise.all(calls.map(dispatchToolCall));
+        const settled = await Promise.allSettled(calls.map(dispatchToolCall));
+        const results = settled.map((s, i) => {
+          if (s.status === "fulfilled") return s.value;
+          const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
+          log.error("Tool call rejected", {
+            toolCallId: calls[i]?.id,
+            functionName: calls[i]?.function?.name,
+            error: err,
+          });
+          return {
+            toolCallId: calls[i]?.id,
+            error: err,
+          };
+        });
         res.json({ results });
         return;
       }

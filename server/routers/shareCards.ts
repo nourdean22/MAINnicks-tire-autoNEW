@@ -5,7 +5,7 @@
  */
 import { z } from "zod";
 import { router, adminProcedure, publicProcedure } from "../_core/trpc";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { TRPCError } from "@trpc/server";
 import { SITE_URL } from "@shared/business";
@@ -85,11 +85,14 @@ export const shareCardsRouter = router({
         throw new Error("Share card not found");
       }
 
-      // Increment views asynchronously
+      // wave-116 — was read-modify-write (`(card[0].views || 0) + 1`),
+      // which loses increments under concurrent traffic (two requests
+      // both read N, both write N+1, real count: 2 increments → +1).
+      // Now uses atomic SQL increment so the DB serializes the update.
       setImmediate(() => {
         database
           .update(shareCards)
-          .set({ views: (card[0].views || 0) + 1 })
+          .set({ views: sql`COALESCE(${shareCards.views}, 0) + 1` })
           .where(eq(shareCards.token, input.token))
           .catch((err: unknown) => {
             log.error("[ShareCards] Failed to increment views:", err);
@@ -108,20 +111,21 @@ export const shareCardsRouter = router({
         const database = await db();
         if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
-        const card = await database
-          .select()
-          .from(shareCards)
-          .where(eq(shareCards.token, input.token))
-          .limit(1);
+        // wave-116 — atomic SQL increment (was read-modify-write).
+        // Returns affectedRows so we can detect "card not found" without
+        // a separate SELECT round-trip.
+        const result = await database
+          .update(shareCards)
+          .set({ shares: sql`COALESCE(${shareCards.shares}, 0) + 1` })
+          .where(eq(shareCards.token, input.token));
 
-        if (!card.length) {
+        // Drizzle's MySQL driver returns affectedRows on the result
+        const affected = (result as unknown as { affectedRows?: number; rowsAffected?: number })?.affectedRows
+          ?? (result as unknown as { rowsAffected?: number })?.rowsAffected
+          ?? 0;
+        if (affected === 0) {
           throw new Error("Share card not found");
         }
-
-        await database
-          .update(shareCards)
-          .set({ shares: (card[0].shares || 0) + 1 })
-          .where(eq(shareCards.token, input.token));
 
         return { success: true };
       } catch (err) {

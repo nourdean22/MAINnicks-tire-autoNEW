@@ -157,7 +157,12 @@ export async function buildServiceAffinityMap(): Promise<{
       const sorted = Object.entries(svcMap).sort((a, b) => b[1] - a[1]);
       if (sorted.length === 0) continue;
       const topServices = sorted.slice(0, 3).map(s => s[0]);
-      const predictedNext = servicesByPopularity.find(svc => !svcMap[svc]) || topServices[0];
+      // wave-116 — was `topServices[0]` fallback; if topServices is empty
+      // (which is filtered above by `sorted.length === 0` continue, but
+      // defensive in case the chain changes), `undefined` would propagate
+      // into the recommendation string silently. Final fallback is a
+      // recognizable string the operator can spot.
+      const predictedNext = servicesByPopularity.find(svc => !svcMap[svc]) || topServices[0] || "general maintenance";
       affinities.push({ customerId: cid, name: nameMap[cid] || `Customer #${cid}`, topServices, predictedNext });
     }
 

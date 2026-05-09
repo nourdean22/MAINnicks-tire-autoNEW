@@ -469,7 +469,7 @@ export const adminDashboardRouter = router({
             score: 100 + cbCount * 5,
           });
         }
-      } catch (e) { /* non-critical */ void e; }
+      } catch (e) { log.warn("[todaysBrief] callbacks check failed", { error: e instanceof Error ? e.message : String(e) }); }
 
       // 2. Fresh leads in golden response window (<4h)
       try {
@@ -493,7 +493,7 @@ export const adminDashboardRouter = router({
             score: 90 + flCount * 3,
           });
         }
-      } catch (e) { void e; }
+      } catch (e) { log.warn("[todaysBrief] fresh leads check failed", { error: e instanceof Error ? e.message : String(e) }); }
 
       // 3. Walk-away ALG estimates with high $
       try {
@@ -521,7 +521,7 @@ export const adminDashboardRouter = router({
             score: 80 + Math.min(20, Math.round(waTotal / 100)),
           });
         }
-      } catch (e) { void e; }
+      } catch (e) { log.warn("[todaysBrief] walk-away estimates check failed", { error: e instanceof Error ? e.message : String(e) }); }
 
       // 4. Negative reviews needing response (last 7d, ≤2 stars)
       try {
@@ -546,7 +546,7 @@ export const adminDashboardRouter = router({
             score: 95 + negCount * 5,
           });
         }
-      } catch (e) { void e; }
+      } catch (e) { log.warn("[todaysBrief] negative reviews check failed", { error: e instanceof Error ? e.message : String(e) }); }
 
       // 5. Bookings today that haven't been confirmed
       try {
@@ -571,7 +571,7 @@ export const adminDashboardRouter = router({
             score: 85 + tbCount * 4,
           });
         }
-      } catch (e) { void e; }
+      } catch (e) { log.warn("[todaysBrief] today bookings check failed", { error: e instanceof Error ? e.message : String(e) }); }
 
       // 6. Specials expiring within 3 days
       try {
@@ -601,7 +601,7 @@ export const adminDashboardRouter = router({
             score: 50 + exp.length * 2,
           });
         }
-      } catch (e) { void e; }
+      } catch (e) { log.warn("[todaysBrief] expiring specials check failed", { error: e instanceof Error ? e.message : String(e) }); }
 
       // Sort by score (highest urgency first), cap at 5
       briefs.sort((a, b) => b.score - a.score);

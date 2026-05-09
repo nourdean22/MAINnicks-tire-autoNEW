@@ -168,7 +168,14 @@ export async function getTrackingInfo(orderNumber: string, phone: string) {
       const normalize = (p: string) => p.replace(/\D/g, "").slice(-10);
       if (normalize(cust.phone) !== normalize(phone)) return null;
     }
-  } catch (_) {
+  } catch (err) {
+    // wave-116 — was silent `catch (_) { return null }`. A transient DB
+    // error here looked identical to "phone doesn't match" and silently
+    // suppressed the customer's pickup-ready SMS with no signal.
+    log.warn("Phone-to-customer verification failed", {
+      workOrderId: wo.id,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return null;
   }
 

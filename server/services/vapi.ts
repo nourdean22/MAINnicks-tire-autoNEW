@@ -1716,11 +1716,14 @@ export async function getOnDutyManagerPhone(): Promise<string | null> {
     });
     if (!dRes.ok) throw new Error(`assistant detail ${dRes.status}`);
     const assistant = (await dRes.json()) as {
-      model?: { tools?: Array<{ type: string; destinations?: Array<{ number?: string }> }> };
+      model?: { tools?: Array<{ type: string; destinations?: Array<{ type?: string; number?: string }> }> };
     };
     const tools = assistant.model?.tools || [];
     const transfer = tools.find((t) => t.type === "transferCall");
-    const number = transfer?.destinations?.[0]?.number || null;
+    // wave-116 — pick number-type destination explicitly (same class as
+    // the assistants[0] bug fixed in wave-113b).
+    const numberDest = transfer?.destinations?.find((d) => d.type === "number") ?? transfer?.destinations?.[0];
+    const number = numberDest?.number || null;
 
     onDutyManagerCache = { number, expiresAt: Date.now() + ON_DUTY_TTL_MS };
     return number;

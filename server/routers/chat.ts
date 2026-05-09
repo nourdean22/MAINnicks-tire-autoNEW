@@ -529,7 +529,11 @@ export const chatRouter = router({
         const existing = await d.select().from(chatSessions).where(eq(chatSessions.id, sessionId)).limit(1);
         if (existing.length > 0) {
           try {
-            sessionMessages = JSON.parse(existing[0].messagesJson);
+            // wave-116 — was JSON.parse(messagesJson) without NULL guard.
+            // A NULL/empty column threw SyntaxError, the catch silently
+            // swallowed it, and the customer's session restarted with no
+            // history. Default to "[]" so the parse is safe.
+            sessionMessages = JSON.parse(existing[0].messagesJson || "[]");
           } catch (err) {
             log.error("[Chat] Failed to parse session messages JSON:", err instanceof Error ? (err as Error).message : err);
           }
