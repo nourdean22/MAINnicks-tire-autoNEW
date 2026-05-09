@@ -130,12 +130,12 @@ export default function ReEngagementSection() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span
-                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider ${cfg.color}`}
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium tracking-[0.12em] ${cfg.color}`}
                         >
                           <Icon className="w-3 h-3" />
                           {cfg.label}
                         </span>
-                        <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                        <span className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
                           {s.category}
                         </span>
                       </div>
