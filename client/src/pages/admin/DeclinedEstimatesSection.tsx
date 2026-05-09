@@ -196,7 +196,7 @@ export default function DeclinedEstimatesSection() {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-2.5 py-1 text-[10px] font-bold tracking-wide transition-colors ${
+                className={`px-3 py-2 text-[11px] font-bold tracking-wide transition-colors ${
                   filter === f
                     ? "bg-primary text-primary-foreground"
                     : "bg-foreground/5 text-foreground/50 hover:text-foreground"
@@ -213,7 +213,7 @@ export default function DeclinedEstimatesSection() {
               <button
                 key={s}
                 onClick={() => setSortMode(s)}
-                className={`px-2.5 py-1 text-[10px] font-bold tracking-wide transition-colors ${
+                className={`px-3 py-2 text-[11px] font-bold tracking-wide transition-colors ${
                   sortMode === s
                     ? s === "score" ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
                       : s === "amount" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
@@ -232,7 +232,7 @@ export default function DeclinedEstimatesSection() {
               <button
                 key={m}
                 onClick={() => setMinAmount(m)}
-                className={`px-2.5 py-1 text-[10px] font-bold tracking-wide transition-colors ${
+                className={`px-3 py-2 text-[11px] font-bold tracking-wide transition-colors ${
                   minAmount === m
                     ? "bg-foreground/10 text-foreground border border-foreground/20"
                     : "bg-foreground/5 text-foreground/50 hover:text-foreground"

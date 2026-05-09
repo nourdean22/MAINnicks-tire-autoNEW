@@ -158,7 +158,11 @@ function KanbanLeadCard({ lead, onUpdate }: {
           Change Status ▼
         </button>
         {showMenu && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border/50 z-10 divide-y divide-border/30">
+          // wave-120 — z-10 was too low; multiple ancestor cards have
+          // `overflow-x-auto` / `overflow-hidden` which clipped the
+          // dropdown. Bumped to z-50 (admin-shell standard for floating
+          // UI) so the dropdown always renders above sibling cards.
+          <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border/50 z-50 divide-y divide-border/30">
             {availableTransitions.map(col => (
               <button
                 key={col.status}
